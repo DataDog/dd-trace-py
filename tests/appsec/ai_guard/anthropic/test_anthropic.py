@@ -612,6 +612,20 @@ class TestConvertAnthropicMessages:
         # str(dict) preserves the keys/values so AI Guard still sees the prompt text.
         assert "hi" in result[0]["content"]
 
+    def test_content_as_generator_marked(self):
+        """Generator content emits a clean ``[GENERATOR]`` sentinel instead of
+        the ``"<generator object ... at 0x...>"`` noise that ``str()`` would
+        produce, so the bypass is greppable in telemetry.
+        """
+
+        def _blocks():
+            yield {"type": "text", "text": "ignored"}
+
+        messages = [{"role": "user", "content": _blocks()}]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["content"] == "[GENERATOR]"
+
     def test_system_as_generator_extracted(self):
         """Generator system prompt is materialised by _flatten_text_blocks."""
 

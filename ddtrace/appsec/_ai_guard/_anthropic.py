@@ -17,10 +17,12 @@ fallback so AI Guard still scans the request rather than silently bypassing
 it, and support can spot integration drift.
 """
 
+from collections.abc import Iterator
 import json
 from typing import Any
 from typing import NamedTuple
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace.appsec._ai_guard._common import _get
@@ -281,7 +283,7 @@ _DROPPED_BLOCK_TYPES = frozenset(
 )
 
 
-def _format_content_blocks(blocks: list[Any]) -> _ParsedBlocks:
+def _format_content_blocks(blocks: Sequence[Any]) -> _ParsedBlocks:
     """Walk a list of Anthropic content blocks once and bucket them by role.
 
     The split around server-tool boundaries lets the caller preserve the
@@ -432,13 +434,19 @@ def _convert_anthropic_messages(system: Any, messages: Any) -> list[Message]:
 
             # MessageParam.content is Iterable[BlockParam] per type, but in
             # practice always list or tuple. Anything else is malformed:
-            # telemetry-log and emit a ``str()`` best-effort so AI Guard
-            # still scans instead of silently bypassing the request.
+            # telemetry-log and emit a placeholder so AI Guard still scans
+            # the request instead of silently bypassing it. Generators are
+            # marked with a clean ``[GENERATOR]`` sentinel rather than the
+            # ``"<generator object ... at 0x...>"`` noise from ``str()``.
+            # NOTE: this does NOT materialise the generator, so the SDK
+            # still iterates the original blocks downstream -- AI Guard's
+            # view diverges from what Anthropic receives in that edge case.
             if not isinstance(content, (list, tuple)):
                 _report_converter_error(
                     "AI Guard anthropic: unexpected 'content' type %r on role=%r" % (type(content).__name__, role)
                 )
-                result.append(Message(role=role, content=str(content)))
+                fallback = "[GENERATOR]" if isinstance(content, Iterator) else str(content)
+                result.append(Message(role=role, content=fallback))
                 continue
 
             parsed = _format_content_blocks(content)
