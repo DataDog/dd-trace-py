@@ -952,6 +952,26 @@ def test_custom_msgpack_encode_v05():
     ]
 
 
+def test_msgpack_encoder_v05_releases_large_buffers_after_flush():
+    encoder = MsgpackEncoderV05(2 << 20, 2 << 20)
+    initial_trace_buffer_size = encoder._buffer_size
+    initial_string_table_buffer_size = encoder._string_table_buffer_size
+
+    trace = gen_trace(nspans=80, ntags=400, key_size=24, value_size=24, nmetrics=0)
+    encoder.put(trace)
+
+    assert encoder._buffer_size > initial_trace_buffer_size
+    assert encoder._string_table_buffer_size > initial_string_table_buffer_size
+
+    encoded = encoder.encode()
+
+    assert encoded
+    assert len(encoder) == 0
+    assert encoder.size == 15
+    assert encoder._buffer_size == initial_trace_buffer_size
+    assert encoder._string_table_buffer_size == initial_string_table_buffer_size
+
+
 def string_table_test(t, origin_key=False):
     assert len(t) == 1 + origin_key
 

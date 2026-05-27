@@ -247,6 +247,7 @@ cdef class MsgpackStringTable(StringTable):
     cdef stdint.uint32_t _sp_id
     cdef object _lock
     cdef size_t _reset_size
+    cdef size_t _reset_buffer_size
 
     def __init__(self, max_size):
         self.pk.buf_size = min(max_size, 1 << 20)
@@ -261,6 +262,7 @@ cdef class MsgpackStringTable(StringTable):
 
         self.index(ORIGIN_KEY)
         self._reset_size = self.pk.length
+        self._reset_buffer_size = self.pk.buf_size
 
     def __dealloc__(self):
         PyMem_Free(self.pk.buf)
@@ -331,6 +333,11 @@ cdef class MsgpackStringTable(StringTable):
         with self._lock:
             return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
 
+    @property
+    def _buffer_size(self):
+        with self._lock:
+            return self.pk.buf_size
+
     cdef append_raw(self, long src, Py_ssize_t size):
         cdef int res
         with self._lock:
@@ -345,11 +352,18 @@ cdef class MsgpackStringTable(StringTable):
                 raise RuntimeError("Failed to append raw bytes to msgpack string table")
 
     cdef reset(self):
+        cdef char* buf
+
         StringTable.reset(self)
         assert self._next_id == 1
 
         PyDict_SetItem(self._table, ORIGIN_KEY, 1)
         self._next_id = 2
+        if self.pk.buf_size > self._reset_buffer_size:
+            buf = <char*> PyMem_Realloc(self.pk.buf, self._reset_buffer_size)
+            if buf != NULL:
+                self.pk.buf = buf
+                self.pk.buf_size = self._reset_buffer_size
         self.pk.length = self._reset_size
         self._sp_len = 0
 
@@ -433,6 +447,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
     cdef msgpack_packer pk
     cdef stdint.uint32_t _count
+    cdef size_t _reset_size
 
     def __cinit__(self, size_t max_size, size_t max_item_size):
         cdef int buf_size = 1024*1024
@@ -442,6 +457,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
         self.max_size = max_size
         self.pk.buf_size = buf_size
+        self._reset_size = buf_size
         self.max_item_size = max_item_size if max_item_size < max_size else max_size
         self._lock = threading.RLock()
         self._reset_buffer()
@@ -460,6 +476,13 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         return msgpack.unpackb(data, raw=True)
 
     cdef _reset_buffer(self):
+        cdef char* buf
+
+        if self.pk.buf_size > self._reset_size:
+            buf = <char*> PyMem_Realloc(self.pk.buf, self._reset_size)
+            if buf != NULL:
+                self.pk.buf = buf
+                self.pk.buf_size = self._reset_size
         self._count = 0
         self.pk.length = MSGPACK_ARRAY_LENGTH_PREFIX_SIZE  # Leave room for array length prefix
 
@@ -571,6 +594,11 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         """Return the size in bytes of the encoder buffer."""
         with self._lock:
             return self.pk.length + array_prefix_size(self._count) - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
+
+    @property
+    def _buffer_size(self):
+        with self._lock:
+            return self.pk.buf_size
 
     # ---- Abstract methods ----
 
@@ -1053,6 +1081,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         """Return the size in bytes of the encoder buffer."""
         with self._lock:
             return self._st.size + super(MsgpackEncoderV05, self).size
+
+    @property
+    def _string_table_buffer_size(self):
+        with self._lock:
+            return self._st._buffer_size
 
     cpdef put(self, list trace):
         with self._lock:
