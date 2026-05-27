@@ -26,9 +26,9 @@ def _decode_datastreams_payload(payload):
     return decoded
 
 
-# DSM now flushes on atexit; in CI the test agent may reject the payload, which
-# logs an error to stderr. Tests that don't exercise the flush path should ignore it.
 def _ignore_dsm_flush_err(stderr):
+    # DSM flushes on atexit; in CI the test agent may reject the payload, which
+    # logs an error to stderr. Tests that don't exercise the flush path should ignore it.
     for line in stderr.splitlines():
         if not line.strip():
             continue

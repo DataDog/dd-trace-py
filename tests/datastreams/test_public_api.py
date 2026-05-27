@@ -1,8 +1,6 @@
 import pytest
 
 
-# DSM now flushes on atexit; in CI the test agent may reject the payload, which
-# logs an error to stderr. These tests don't exercise the flush path, so ignore it.
 def _ignore_dsm_flush_err(stderr):
     for line in stderr.splitlines():
         if not line.strip():
