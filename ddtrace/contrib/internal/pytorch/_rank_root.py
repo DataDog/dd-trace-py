@@ -254,28 +254,40 @@ def _tag_collective_summary(span) -> None:
         summary = _metrics.summary_snapshot_and_reset()
     except Exception:
         log.debug("pytorch: failed to snapshot collective summary", exc_info=True)
-        return
-    if not summary:
-        return
+        summary = None
+    if summary:
+        try:
+            max_p99 = 0.0
+            for op, stats in summary.items():
+                op_safe = op.replace(".", "_")
+                for pct in ("p10", "p50", "p90", "p99"):
+                    v = stats.get(pct)
+                    if isinstance(v, (int, float)):
+                        span._set_attribute(f"collective.{op_safe}.{pct}_ms", float(v))
+                n = stats.get("n")
+                if isinstance(n, int):
+                    span._set_attribute(f"collective.{op_safe}.n", n)
+                p99 = stats.get("p99")
+                if isinstance(p99, (int, float)) and p99 > max_p99:
+                    max_p99 = float(p99)
+            if max_p99 > 0:
+                span._set_attribute("collective.p99_max_ms", max_p99)
+            span._set_attribute("collective.ops_count", len(summary))
+        except Exception:
+            log.debug("pytorch: failed to set collective.* numeric facets", exc_info=True)
+
+    # NEW: drain training-metric reservoirs from _summary and stamp on span.
     try:
-        max_p99 = 0.0
-        for op, stats in summary.items():
-            op_safe = op.replace(".", "_")
-            for pct in ("p10", "p50", "p90", "p99"):
-                v = stats.get(pct)
-                if isinstance(v, (int, float)):
-                    span._set_attribute(f"collective.{op_safe}.{pct}_ms", float(v))
-            n = stats.get("n")
-            if isinstance(n, int):
-                span._set_attribute(f"collective.{op_safe}.n", n)
-            p99 = stats.get("p99")
-            if isinstance(p99, (int, float)) and p99 > max_p99:
-                max_p99 = float(p99)
-        if max_p99 > 0:
-            span._set_attribute("collective.p99_max_ms", max_p99)
-        span._set_attribute("collective.ops_count", len(summary))
+        from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+        facets = _summary.drain_all_to_facets()
+        for k, v in facets.items():
+            try:
+                span._set_attribute(k, v)
+            except Exception:
+                log.debug("pytorch.rank: failed to set summary facet %s", k, exc_info=True)
     except Exception:
-        log.debug("pytorch: failed to set collective.* numeric facets", exc_info=True)
+        log.debug("pytorch.rank: failed to drain training-metric reservoirs", exc_info=True)
 
 
 def open(rank: int, world_size: int, framework: str, training_job_id):  # noqa: A001

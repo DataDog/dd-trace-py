@@ -10,6 +10,22 @@ features:
     ``group_world_size``, ``master_addr``, ``master_port``); and launcher
     detection (``torchrun`` / ``ray`` / ``slurm`` / ``kubeflow``).
   - |
+    pytorch: ``pytorch.rank`` spans now carry rotated training-metric summaries
+    drained from in-process reservoirs every ~5 minutes. Covered metrics
+    include ``step.{duration_ms,forward_ms,backward_ms,data_fetch_ms,
+    optim_step_ms,grad_clip_ms}`` (percentiles), ``optim.learning_rate``
+    (gauge), ``train.{loss,grad_norm,mfu,mfu_exclude_dataload,tflops,
+    avg_dropped_tokens}`` (when applicable),
+    ``memory.{gpu_used_memory_bytes,peak_gpu_used_memory_bytes}`` (gauge),
+    plus sampled CUDA-true ``collective.<op>.gpu_duration_ms`` and
+    ``grad_comm`` bucket distributions. Values are recorded once per step /
+    backward / sampled collective and drained into ~80-100 numeric facets per
+    rotation. Zero per-step span emission; per-step overhead ~10-20
+    microseconds. Verbose per-step spans (``pytorch.step`` /
+    ``pytorch.forward`` / ``pytorch.backward`` / ``pytorch.optimizer``) remain
+    opt-in via ``DD_PYTORCH_PROFILING=true``. Summary mode is enabled by
+    default; disable via ``DD_PYTORCH_SUMMARY_PROFILING=false``.
+  - |
     pytorch: Adds opt-in distributed-training instrumentation for PyTorch jobs.
 
     **Layer Zero (always-on once installed):** emits one long-lived ``pytorch.rank``
