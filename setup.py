@@ -124,6 +124,10 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
+GIT_COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+FINAL_RELEASE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
@@ -133,6 +137,76 @@ LIBDDWAF_VERSION = "1.30.1"
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
 RUST_MINIMUM_VERSION = "1.78"
+
+
+def get_build_git_commit_sha() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=7", "HEAD"],
+            cwd=HERE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return ""
+
+    commit_sha = result.stdout.strip()
+    if GIT_COMMIT_SHA_RE.fullmatch(commit_sha):
+        return commit_sha.lower()
+
+    return ""
+
+
+def get_pyproject_package_version() -> str:
+    pyproject = HERE / "pyproject.toml"
+    match = re.search(r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), flags=re.MULTILINE)
+    if match is None:
+        return ""
+
+    return match.group(1)
+
+
+def get_build_package_version() -> str:
+    # Keep public release builds unchanged; only non-release pre/dev/internal builds get a commit local version.
+    package_version = get_pyproject_package_version()
+    commit_sha = get_build_git_commit_sha()
+    if not package_version or not commit_sha or "+" in package_version:
+        return package_version
+
+    if FINAL_RELEASE_VERSION_RE.fullmatch(package_version) or os.getenv("CI_COMMIT_TAG") == f"v{package_version}":
+        return package_version
+
+    return f"{package_version}+g{commit_sha}"
+
+
+_ORIGINAL_PYPROJECT_CONTENTS: t.Optional[str] = None
+
+
+def update_pyproject_field(field: str, value: str) -> None:
+    global _ORIGINAL_PYPROJECT_CONTENTS
+    pyproject = HERE / "pyproject.toml"
+    contents = pyproject.read_text(encoding="utf-8")
+    if _ORIGINAL_PYPROJECT_CONTENTS is None:
+        _ORIGINAL_PYPROJECT_CONTENTS = contents
+
+    updated_contents, count = re.subn(
+        rf'^{re.escape(field)} = "[^"]+"$',
+        f'{field} = "{value}"',
+        contents,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise RuntimeError(f"Unable to update {field!r} in {pyproject}")
+
+    pyproject.write_text(updated_contents, encoding="utf-8")
+
+
+def restore_pyproject() -> None:
+    if _ORIGINAL_PYPROJECT_CONTENTS is not None:
+        (HERE / "pyproject.toml").write_text(_ORIGINAL_PYPROJECT_CONTENTS, encoding="utf-8")
 
 
 def interpose_sccache():
@@ -1724,51 +1798,60 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
 
 PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
 if PACKAGE_NAME != "ddtrace":
-    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
-print(f"INFO: building package '{PACKAGE_NAME}'")
+    update_pyproject_field("name", PACKAGE_NAME)
+
+BASE_PACKAGE_VERSION = get_pyproject_package_version()
+PACKAGE_VERSION = get_build_package_version()
+if PACKAGE_VERSION and PACKAGE_VERSION != BASE_PACKAGE_VERSION:
+    update_pyproject_field("version", PACKAGE_VERSION)
+
+print(f"INFO: building package '{PACKAGE_NAME}' version '{PACKAGE_VERSION or BASE_PACKAGE_VERSION}'")
 
 interpose_sccache()
-setup(
-    name="ddtrace",
-    packages=find_packages(
-        exclude=[
-            "tests*",
-            "benchmarks*",
-            "scripts*",
-            # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
-            "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
-            # C++ test helpers, not needed at runtime
-            "ddtrace.internal.datadog.profiling.ddup.test*",
-        ]
-    ),
-    include_package_data=False,
-    package_data={
-        # Type stubs and markers for all packages
-        "": ["*.pyi", "py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec.sca": ["_cve_data.json"],
-        "ddtrace.internal": ["third-party.tar.gz"],
-        "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+try:
+    setup(
+        name="ddtrace",
+        packages=find_packages(
+            exclude=[
+                "tests*",
+                "benchmarks*",
+                "scripts*",
+                # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
+                "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
+                # C++ test helpers, not needed at runtime
+                "ddtrace.internal.datadog.profiling.ddup.test*",
+            ]
         ),
-    },
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    cmdclass={
-        "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
-        "build_rust": CustomBuildRust,
-        "clean": CleanLibraries,
-        "ext_hashes": ExtensionHashes,
-    },
-    setup_requires=[
-        "cython",
-        "cmake>=3.24.2,<3.28",
-        "setuptools-rust<2",
-        "patchelf>=0.17.0.0; sys_platform == 'linux'",
-    ],
-    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
-    distclass=PatchedDistribution,
-)
+        include_package_data=False,
+        package_data={
+            # Type stubs and markers for all packages
+            "": ["*.pyi", "py.typed"],
+            "ddtrace.appsec": ["rules.json"],
+            "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+            "ddtrace.appsec.sca": ["_cve_data.json"],
+            "ddtrace.internal": ["third-party.tar.gz"],
+            "ddtrace.internal.datadog.profiling": (
+                ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ),
+        },
+        zip_safe=False,
+        # enum34 is an enum backport for earlier versions of python
+        # funcsigs backport required for vendored debtcollector
+        cmdclass={
+            "build_ext": CustomBuildExt,
+            "build_py": LibraryDownloader,
+            "build_rust": CustomBuildRust,
+            "clean": CleanLibraries,
+            "ext_hashes": ExtensionHashes,
+        },
+        setup_requires=[
+            "cython",
+            "cmake>=3.24.2,<3.28",
+            "setuptools-rust<2",
+            "patchelf>=0.17.0.0; sys_platform == 'linux'",
+        ],
+        ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
+        distclass=PatchedDistribution,
+    )
+finally:
+    restore_pyproject()
