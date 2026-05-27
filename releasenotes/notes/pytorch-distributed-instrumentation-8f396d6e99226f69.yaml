@@ -1,0 +1,79 @@
+---
+features:
+  - |
+    pytorch: ``pytorch.rank`` spans now include torch, CUDA, cuDNN, and NCCL
+    version invariants; GPU device properties (name, compute capability, SM
+    count, total memory, driver version); NCCL environment overrides
+    (``NCCL_DEBUG``, ``NCCL_SOCKET_IFNAME``, ``NCCL_IB_DISABLE``,
+    ``NCCL_P2P_DISABLE``, ``NCCL_ALGO``, ``NCCL_PROTO``); torchrun
+    environment (``local_rank``, ``local_world_size``, ``group_rank``,
+    ``group_world_size``, ``master_addr``, ``master_port``); and launcher
+    detection (``torchrun`` / ``ray`` / ``slurm`` / ``kubeflow``).
+  - |
+    pytorch: Adds opt-in distributed-training instrumentation for PyTorch jobs.
+
+    **Layer Zero (always-on once installed):** emits one long-lived ``pytorch.rank``
+    span per rank for the lifetime of the job, tagged with ``device.id``
+    (fleet-stable GPU UUID), ``framework`` (ddp/fsdp/deepspeed/none), ``rank``,
+    ``world_size``, and ``training_job.id`` (when a job-id source is available).
+    Also emits device-tagged DogStatsD distributions:
+    ``pytorch.collective.duration_ms``, ``pytorch.collective.bytes``,
+    ``pytorch.collective.calls_per_sec``, and ``pytorch.collective.bytes_per_sec``.
+
+    **Layer One** (``DD_PYTORCH_COLLECTIVE_TRACE=true``): per-rank spans for
+    ``torch.distributed.{all_reduce, all_gather, broadcast, reduce_scatter,
+    barrier, all_gather_into_tensor, reduce_scatter_tensor}``, FSDP forward,
+    DeepSpeed engine methods, and DDP gradient-communication spans when the user
+    has registered a custom comm hook.
+
+    **Layer Two** (``DD_PYTORCH_PROFILING=true``): step-level spans —
+    ``pytorch.step`` root with ``pytorch.data_load``, ``pytorch.forward``,
+    ``pytorch.backward``, and ``pytorch.optimizer`` children. Correctly handles
+    gradient accumulation, AMP overflow (skipped steps), and LBFGS closures.
+
+    **Layer Three** (``DD_PYTORCH_KERNEL_PROFILING=true``, requires Layer Two):
+    individual CUDA-kernel spans (``pytorch.kernel``) attributed to the step that
+    issued them, emitted on the designated rank only.
+
+    Supported PyTorch versions: 2.0–2.3. Supported Python: 3.9–3.12.
+    Supported frameworks: DDP, FSDP, DeepSpeed.
+
+upgrade:
+  - |
+    pytorch: The PyTorch distributed instrumentation is **opt-in** and disabled
+    by default. Enable with ``DD_PATCH_MODULES=pytorch:true`` or programmatically
+    with ``ddtrace.patch(pytorch=True)``.
+
+  - |
+    pytorch: Even when the integration is enabled, ``install()`` is a no-op
+    unless the process looks like a distributed training job: at least one of
+    ``RANK``/``WORLD_SIZE`` environment variables is set,
+    ``torch.distributed.init_process_group()`` has already been called, or
+    ``DD_PYTORCH_FORCE_INSTALL=true`` is set.
+
+  - |
+    pytorch: Cross-rank trace correlation via ``training_job.id`` requires a
+    job-id to be available from the environment. The integration resolves the id
+    from this priority chain: ``DD_PYTORCH_JOB_ID`` → ``RAY_JOB_ID`` →
+    ``TORCHELASTIC_RUN_ID`` → ``KUBEFLOW_TRAINING_JOB_ID`` → ``SLURM_JOB_ID``.
+    When none of these are set, ``training_job.id`` is omitted from all spans and
+    a one-time WARNING is logged. There is no cross-rank broadcast; every rank
+    resolves the id independently from env.
+
+  - |
+    pytorch: DDP gradient-communication spans (``pytorch.grad_comm``) are only
+    emitted when Layer One is enabled (``DD_PYTORCH_COLLECTIVE_TRACE=true``) **and**
+    the user has registered a custom DDP comm hook. The integration does not
+    register an eager comm hook by default, so DDP uses its native fused C++
+    allreduce path when no user hook is present.
+
+  - |
+    pytorch: Layer Two and Three wrappers are installed at ``patch()`` time only
+    when ``DD_PYTORCH_PROFILING=true`` is set. Changing this variable after
+    ``patch()`` has run requires ``unpatch()`` followed by a new ``patch()`` call.
+
+  - |
+    pytorch: The ``DD_PYTORCH_RATE_TICKER_INTERVAL_S`` variable (default ``1.0``)
+    controls the cadence of ``pytorch.collective.calls_per_sec`` and
+    ``pytorch.collective.bytes_per_sec`` DogStatsD emissions. Set to ``0.1`` for
+    higher-resolution debug captures at 10× the DogStatsD volume.
