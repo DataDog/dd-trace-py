@@ -54,7 +54,7 @@ jobs:
 
       - name: Download wheels from S3
         run: |
-          bash scripts/download-s3-wheels.sh \
+          bash dd-trace-py/scripts/download-s3-wheels.sh \
             "${{ steps.resolve-sha.outputs.sha }}" \
             ./wheels \
             manylinux2014_x86_64
