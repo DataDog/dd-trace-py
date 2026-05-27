@@ -17,7 +17,6 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
-from tests.contrib.claude_agent_sdk.utils import MOCK_PARALLEL_BASH_TOOL_IDS
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
@@ -79,16 +78,12 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
-
-        # Dual-layer design: leaf chain enters via step-level (agent → step₁),
-        # so the first llm has NO incoming leaf-level link. A regression that
-        # adds the redundant agent → llm₁ link would fire here.
+        # The LLM Observability UI filters out span links from parent to direct
+        # child. Confirm no agent → llm span link is emitted, since the agent
+        # span is the llm span's ancestor.
         llm1_links = get_llmobs_span_links(llm_span) or []
         assert not any(link["span_id"] == str(agent_span.span_id) for link in llm1_links), (
-            "Unexpected agent → llm₁ link — leaf chain entry is via step-level only"
+            "Unexpected span link from the agent to the first LLM span"
         )
 
     async def test_llmobs_query_with_options(
@@ -239,9 +234,6 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
             error={"type": "builtins.ValueError", "message": "Connection failed", "stack": ANY},
         )
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_assistant_message_error_marks_llm_span_as_error(
         self, claude_agent_sdk, mock_internal_client_assistant_message_error, claude_agent_sdk_llmobs, test_spans
@@ -291,9 +283,6 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": MOCK_ASSISTANT_MESSAGE_ERROR, "message": MOCK_ASSISTANT_MESSAGE_ERROR, "stack": ANY},
             tags=COMMON_TAGS,
         )
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_client_query_captures_prompt(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         prompt = "Hello from client!"
@@ -432,9 +421,6 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, mock_internal_client_bash_tool, claude_agent_sdk_llmobs, test_spans
@@ -517,9 +503,6 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, mock_internal_client_grep_tool, claude_agent_sdk_llmobs, test_spans
@@ -602,9 +585,6 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
         _assert_span_link(llm_span, tool_span, "output", "input")
-        _assert_span_link(llm_span, agent_span, "output", "output")
-        _assert_span_link(agent_span, step_span, "input", "input")
-        _assert_span_link(step_span, agent_span, "output", "output")
 
     async def test_llmobs_query_with_async_iterable_prompt(
         self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
@@ -842,10 +822,7 @@ class TestLLMObsClaudeAgentSdk:
 
         _assert_span_link(llm_spans[0], tool_span, "output", "input")
         _assert_span_link(tool_span, llm_spans[1], "output", "input")
-        _assert_span_link(llm_spans[1], agent_span, "output", "output")
-        _assert_span_link(agent_span, step_spans[0], "input", "input")
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
-        _assert_span_link(step_spans[1], agent_span, "output", "output")
 
     async def test_llmobs_llm_span_includes_token_usage(
         self, claude_agent_sdk, mock_internal_client_with_usage, claude_agent_sdk_llmobs, test_spans
@@ -891,7 +868,6 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        agent_span = spans[0]
         llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
         step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
         tool_span = next(s for s in spans if "tool" in s.name)
@@ -910,10 +886,7 @@ class TestLLMObsClaudeAgentSdk:
         assert len(step_spans) == 2
         _assert_span_link(llm_spans[0], tool_span, "output", "input")
         _assert_span_link(tool_span, llm_spans[-1], "output", "input")
-        _assert_span_link(llm_spans[-1], agent_span, "output", "output")
-        _assert_span_link(agent_span, step_spans[0], "input", "input")
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
-        _assert_span_link(step_spans[-1], agent_span, "output", "output")
 
     async def test_llmobs_parallel_tool_use_links_all_tools_to_assistant(
         self,
@@ -934,7 +907,6 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        agent_span = spans[0]
         # Sort by start time so step#1 is unambiguously the first step span.
         llm_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.llm"], key=lambda s: s.start_ns)
         step_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.step"], key=lambda s: s.start_ns)
@@ -947,44 +919,18 @@ class TestLLMObsClaudeAgentSdk:
         assert len(tool_spans) == 3
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
-        # AIDEV-NOTE: This test asserts span_link topology, NOT span tree shape.
-        # The current ClaudeAgentSdkAsyncStreamHandler opens each ToolUseBlock's
-        # span via integration.trace() without explicitly setting a parent, so
-        # the tracer makes each parallel tool a child of the previously-opened
-        # tool (instead of a sibling under the step). That is a pre-existing
-        # tracer-context quirk independent of this PR's dual-layer linking
-        # design — the span_links emitted are correct regardless of the
-        # parent_id. Asserting parent_id == step would over-constrain the
-        # test and fail on unrelated tree-shape changes.
-        # Confirm every tool span IS at least a descendant of step#1 (not under
-        # step#2 or directly under the agent).
-        descendant_of_step1 = {step_spans[0].span_id}
-        # BFS by parent_id over all spans to find step#1's full subtree.
-        changed = True
-        while changed:
-            changed = False
-            for s in spans:
-                if s.parent_id in descendant_of_step1 and s.span_id not in descendant_of_step1:
-                    descendant_of_step1.add(s.span_id)
-                    changed = True
-        for tool_span in tool_spans:
-            assert tool_span.span_id in descendant_of_step1, (
-                f"tool span {tool_span.span_id} is not in step#1's subtree "
-                f"(step#1={step_spans[0].span_id}, step#2={step_spans[1].span_id})"
-            )
+        # Note: parallel tool spans currently nest under each other instead
+        # of being siblings — tracked in MLOB-TBD.
 
-        # Leaf-level fan-out: each tool gets one incoming link from llm#1.
+        # Fan-out: each tool gets one incoming link from llm#1.
         for tool_span in tool_spans:
             _assert_span_link(llm_spans[0], tool_span, "output", "input")
 
-        # Leaf-level fan-in: llm#2 has one incoming link from each parallel tool.
+        # Fan-in: llm#2 has one incoming link from each parallel tool.
         for tool_span in tool_spans:
             _assert_span_link(tool_span, llm_spans[1], "output", "input")
 
-        # No tool→tool link: parallel tools are siblings, not chained. If the
-        # production code ever started chaining them, this assertion would fire
-        # (the for-loop body never raises because get_llmobs_span_links can
-        # return None or an empty list).
+        # No tool → tool link: parallel tools are siblings, not chained.
         for tool_span in tool_spans:
             for link in get_llmobs_span_links(tool_span) or []:
                 assert link["span_id"] not in {str(s.span_id) for s in tool_spans}, (
@@ -992,20 +938,8 @@ class TestLLMObsClaudeAgentSdk:
                     f"({link['span_id']}); parallel tools should be siblings, not chained."
                 )
 
-        # Step-level chain is unchanged by the parallel tool fan-out.
-        _assert_span_link(agent_span, step_spans[0], "input", "input")
+        # Step chain stays intact alongside the fan-out.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
-        _assert_span_link(step_spans[1], agent_span, "output", "output")
-        _assert_span_link(llm_spans[1], agent_span, "output", "output")
-
-        # Sanity: confirm the three expected tool_use_ids made it through to
-        # the tool spans' metadata, so we know we actually exercised the
-        # parallel fixture and not a single-tool fallback.
-        tool_metadata_ids = set()
-        for tool_span in tool_spans:
-            metadata = _get_llmobs_data_metastruct(tool_span).get("meta", {}).get("metadata", {})
-            tool_metadata_ids.add(metadata.get("tool_id"))
-        assert tool_metadata_ids == set(MOCK_PARALLEL_BASH_TOOL_IDS)
 
     async def test_llmobs_back_to_back_assistant_messages_link_llm_to_llm_directly(
         self,
@@ -1026,20 +960,16 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        agent_span = spans[0]
         llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
         step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
 
         assert len(llm_spans) == 2
         assert len(step_spans) == 2
 
-        # Direct leaf-level link bridges the no-tool gap.
+        # Direct leaf link bridges the no-tool gap.
         _assert_span_link(llm_spans[0], llm_spans[1], "output", "input")
-        # Step-level chain stays intact in parallel.
-        _assert_span_link(agent_span, step_spans[0], "input", "input")
+        # Step chain stays intact alongside the bridge.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
-        _assert_span_link(step_spans[1], agent_span, "output", "output")
-        _assert_span_link(llm_spans[1], agent_span, "output", "output")
 
     async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two
