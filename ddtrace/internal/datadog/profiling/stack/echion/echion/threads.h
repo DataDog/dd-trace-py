@@ -43,7 +43,13 @@ class ThreadInfo
     unsigned long native_id;
     FrameStack python_stack;
     std::vector<std::unique_ptr<StackInfo>> current_tasks;
-    std::vector<std::unique_ptr<StackInfo>> current_greenlets;
+
+    // current_greenlets and greenlet_count_ together form a reusable buffer:
+    // entries are kept alive between samples so the inner FrameStack capacity
+    // amortizes. The valid range each sample is [0, greenlet_count_); the
+    // outer vector grows on demand only when a sample exceeds prior peak.
+    std::vector<StackInfo> current_greenlets;
+    size_t greenlet_count_ = 0;
 
     std::string name;
 
