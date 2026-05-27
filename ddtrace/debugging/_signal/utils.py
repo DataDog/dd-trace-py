@@ -71,7 +71,7 @@ def qualname(_type: type) -> str:
 
 
 def _serialize_collection(
-    value: Collection, brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
+    value: Collection[Any], brackets: str, level: int, maxsize: int, maxlen: int, maxfields: int
 ) -> str:
     o, c = brackets[0], brackets[1]
     ellipsis = ", ..." if len(value) > maxsize else ""
@@ -130,7 +130,7 @@ def serialize(
     )
 
 
-def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict[str, Any]]:
     frame: Optional[FrameType] = top_frame
     stack = []
     h = 0
@@ -148,7 +148,7 @@ def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
     return stack
 
 
-def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict]:
+def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict[str, Any]]:
     stack = []
     h = 0
     _tb: Optional[TracebackType] = tb
@@ -179,11 +179,11 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
     }
 
 
-def redacted_value(v: Any) -> dict:
+def redacted_value(v: Any) -> dict[str, Any]:
     return {"type": qualname(type(v)), "notCapturedReason": "redactedIdent"}
 
 
-def redacted_type(t: Any) -> dict:
+def redacted_type(t: Any) -> dict[str, Any]:
     return {"type": qualname(t), "notCapturedReason": "redactedType"}
 
 
