@@ -155,7 +155,7 @@ class APIClient:
                 page_info = {"page_state": page_state}
                 if page_size is not None:
                     page_info["page_size"] = page_size
-            log.debug("Known tests request page %d: sending page_info=%r", page_number, page_info)
+            log.warning("Known tests request page %d: sending page_info=%r", page_number, page_info)
 
             try:
                 request_data: dict[str, t.Any] = {
