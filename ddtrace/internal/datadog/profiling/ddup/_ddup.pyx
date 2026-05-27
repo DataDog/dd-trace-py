@@ -22,6 +22,7 @@ from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.profiling._metadata import get_profiler_version
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -379,7 +380,7 @@ def config(
     # Inherited
     call_func_with_str(ddup_config_runtime, platform.python_implementation())
     call_func_with_str(ddup_config_runtime_version, platform.python_version())
-    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
+    call_func_with_str(ddup_config_profiler_version, get_profiler_version())
 
     if max_nframes is not None:
         ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
