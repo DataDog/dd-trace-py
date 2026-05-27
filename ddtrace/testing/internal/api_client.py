@@ -150,7 +150,7 @@ class APIClient:
             # the request is sent. To fix: rename this to `request_page_info` and the response
             # assignment to `response_page_info` (same pattern as _api_client.py fetch_known_tests).
             if page_state is None:
-                page_info: dict[str, t.Any] = {"page_size": 2_000}
+                page_info: dict[str, t.Any] = {}
             else:
                 page_info = {"page_state": page_state}
                 if page_size is not None:
