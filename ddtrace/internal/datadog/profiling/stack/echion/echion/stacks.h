@@ -7,7 +7,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <deque>
+#include <vector>
 
 #include <echion/config.h>
 #include <echion/frame.h>
@@ -22,10 +22,18 @@ class EchionSampler;
 // FrameStack owns the Frames so that they stay valid across cache evictions
 // (asyncio unwind_tasks precomputes per-task stacks via Frame::get, which can
 // evict entries still referenced from an earlier thread-stack capture).
-class FrameStack : public std::deque<Frame>
+//
+// Backed by std::vector<Frame> rather than std::deque<Frame>: every call site
+// uses only push_back, forward iteration, size(), clear(), and integer
+// indexing, and none retains references across mutations. Vector avoids the
+// per-instance chunk-map allocation that previously dominated native
+// heap-live-size for the gevent sampling path.
+class FrameStack : public std::vector<Frame>
 {
   public:
     using Key = Frame::Key;
+
+    FrameStack() { reserve(max_frames); }
 
     void render(EchionSampler& echion);
 };

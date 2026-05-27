@@ -277,7 +277,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
                     }
-                    stack.push_front(python_frame);
+                    // FrameStack is std::vector<Frame>; emulate push_front via
+                    // insert at begin(). The loop runs at most ~max_frames times
+                    // and each insert is O(n), but n is small in practice.
+                    stack.insert(stack.begin(), python_frame);
                 }
             }
 
