@@ -59,6 +59,9 @@ api_format_aspect(StrType& candidate_text,
     StrType result_text = get<0>(result);
     TaintRangeRefs result_ranges = get<1>(result);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
+    if (new_result == nullptr) {
+        return result_text;
+    }
     set_ranges(new_result, result_ranges, tx_map);
     return py::reinterpret_steal<StrType>(new_result);
 }

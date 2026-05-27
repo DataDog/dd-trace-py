@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    ai_guard: This fix resolves a conflict between ``ddtrace.auto`` and
+    ``strands`` when imported in the same file, which left Strands hooks
+    silently disabled. The Strands integration now loads lazily on first
+    attribute access so its event class identities match those the agent
+    dispatches.

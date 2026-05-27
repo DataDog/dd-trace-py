@@ -35,7 +35,7 @@ def _get_installed_packages():
     try:
         from importlib.metadata import distributions
 
-        return {name.lower(): dist.version for dist in distributions() if (name := dist.metadata.get("Name"))}
+        return {name.lower(): dist.version for dist in distributions() if (name := dist.metadata.get("Name"))}  # type: ignore[attr-defined]
     except Exception:
         log.debug("Could not enumerate installed packages", exc_info=True)
         return {}

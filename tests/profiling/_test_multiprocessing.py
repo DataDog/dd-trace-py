@@ -6,7 +6,7 @@ import sys
 def f() -> None:
     import ddtrace.profiling.bootstrap
 
-    profiler = ddtrace.profiling.bootstrap.profiler  # pyright: ignore[reportAttributeAccessIssue]
+    profiler = ddtrace.profiling.bootstrap.profiler  # type: ignore[attr-defined]
     # Do some CPU work to ensure we get samples
     total = 0
     for i in range(5_000_000):

@@ -85,7 +85,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 25708,
@@ -100,7 +100,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 241750,
@@ -115,7 +115,7 @@
              "parent_id": 5,
              "meta": {
                "_dd.base_service": "",
-               "_dd.svc_src": "m",
+               "_dd.svc_src": "flask",
                "component": "flask"
              },
              "duration": 189083,
@@ -130,7 +130,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 18792,
@@ -145,7 +145,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 18125,
@@ -160,7 +160,7 @@
           "parent_id": 2,
           "meta": {
             "_dd.base_service": "",
-            "_dd.svc_src": "m",
+            "_dd.svc_src": "flask",
             "component": "flask"
           },
           "duration": 12959,

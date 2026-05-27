@@ -62,6 +62,7 @@ from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
@@ -114,9 +115,6 @@ class _TracedIterable(wrapt.ObjectProxy):
             self._self_span.set_exc_info(*sys.exc_info())
             self._finish_spans()
             raise
-
-    # PY2 Support
-    next = __next__
 
     def close(self):
         if getattr(self.__wrapped__, "close", None):
@@ -524,6 +522,12 @@ def _set_flask_request_tags(request, span, flask_config):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            # Side-channel tag for backend resource remapping; resource itself stays app-local.
+            if request.script_root:
+                span._set_attribute(
+                    FLASK_RESOURCE_FULL,
+                    " ".join((request.method, request.script_root + request.url_rule.rule)),
+                )
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -1668,7 +1672,7 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
         status_code = getattr(exception, "status_code", None)
         if status_code:
-            span._set_attribute(http.STATUS_CODE, status_code)
+            span._set_attribute(db.STATUS_CODE, str(status_code))
 
     _finish_span(ctx, exc_info)
 

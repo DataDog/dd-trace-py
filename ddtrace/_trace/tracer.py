@@ -399,6 +399,10 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
+        active = self.context_provider.active()
+        if active is not None:
+            core.dispatch("ddtrace.context_provider.activate", (active,))
 
     def _recreate(
         self,
@@ -510,9 +514,12 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = service_source = config.service
+                service = config.service
         else:
-            service_source = "m"
+            if service in config._integration_default_services:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:

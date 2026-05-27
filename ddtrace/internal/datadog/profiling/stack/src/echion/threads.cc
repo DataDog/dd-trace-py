@@ -672,6 +672,31 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
         current_greenlets.push_back(std::move(stack_info));
     }
+
+    // Make sure the on-CPU greenlet is first. render_task_begin reuses the
+    // sample created by render_thread_begin for the first task it renders;
+    // that sample already received push_cputime via render_cpu_time. Tasks
+    // rendered after the first start a new sample and, if on_cpu is true,
+    // push thread_state.cpu_time_ns again, double-counting CPU time.
+    //
+    // unwind_tasks performs the analogous swap on leaf_tasks above. Note that
+    // the "on-CPU" signal differs: asyncio's is_on_cpu is derived from frame
+    // matching during unwind, while a greenlet's on_cpu is set from
+    // snap.frame == Py_None (see the loop above), which is the sentinel
+    // greenlet uses for its currently-running greenlet. If that sentinel
+    // changes, this swap silently no-ops and the over-count returns.
+    //
+    // If no greenlet is on CPU (e.g. all workers are sleeping while the Hub
+    // is running, which is filtered out as a parent), no entry triggers
+    // render_task_begin's push_cputime branch, so order does not matter and
+    // this loop falls through harmlessly. Empty current_greenlets is also
+    // safe (loop body never executes).
+    for (size_t i = 1; i < current_greenlets.size(); i++) {
+        if (current_greenlets[i]->on_cpu) {
+            std::swap(current_greenlets[i], current_greenlets[0]);
+            break;
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------

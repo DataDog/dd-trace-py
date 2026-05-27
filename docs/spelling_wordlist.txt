@@ -123,6 +123,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
@@ -286,6 +287,7 @@ respawn
 riotfile
 rlocation
 RLock
+rollout
 rowcount
 rq
 runnable
@@ -386,3 +388,8 @@ denom
 mtime
 mtimes
 txt
+anyio
+ddsketch
+werkzeug
+wrapt
+uv
