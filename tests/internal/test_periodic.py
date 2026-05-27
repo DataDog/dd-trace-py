@@ -390,6 +390,57 @@ def test_periodic_thread_preserves_awake_during_restart_window():
     awaker.join(timeout=1)
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+def test_repeated_fork_does_not_accumulate_periodic_restart_threads():
+    """Repeated forks must not leave duplicate restart timer/workers alive.
+
+    This exercises the shared fork coordinator without relying on TelemetryWriter
+    internals. The parent should settle back to one service worker after the
+    delayed restart window, plus whatever non-ddtrace process threads existed
+    before the service started.
+    """
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+    from ddtrace.internal._threads import periodic_threads
+
+    periodic_ran = Event()
+
+    class QuietService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    service = QuietService(interval=60)
+    service.start()
+    try:
+        assert service._worker is not None
+        worker = service._worker
+
+        for _ in range(100):
+            pid = os.fork()
+            if pid == 0:
+                os._exit(0)
+            os.waitpid(pid, 0)
+
+            if service._worker is not None:
+                periodic_ran.clear()
+                service._worker.awake()
+                assert periodic_ran.wait(timeout=1), "periodic worker did not restart promptly in parent"
+
+        # ThreadRestartTimer fires ~100 ms after the last fork.
+        sleep(0.5)
+
+        names = [getattr(thread, "name", "") for thread in periodic_threads.values()]
+        assert names.count(worker.name) == 1
+        assert not any("ThreadRestartTimer" in name for name in names)
+    finally:
+        service.stop()
+        service.join()
+
+
 def test_timer():
     end = 0
 

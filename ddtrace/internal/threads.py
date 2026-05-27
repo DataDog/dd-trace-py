@@ -86,11 +86,11 @@ class PeriodicThread(_PeriodicThread):
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
 
 
-# A typical scenario is that of forking worker threads in a loop. For the
-# parent process, this would mean having to stop and restart the threads in
-# between forks, which is not ideal. Instead, we can use a timer to restart
-# the threads after a certain amount of time has passed since the last fork.
-# This way, we can avoid stopping and restarting the threads in between forks.
+# A typical scenario is that of forking worker threads in a loop. Starts
+# requested during fork are delayed until the process has stopped forking for a
+# moment. Threads that were already running before fork are restarted
+# immediately in the parent; otherwise periodic flushers can stay stopped for an
+# entire fork storm and accumulate unbounded in-memory work.
 class ThreadRestartTimer(PeriodicThread):
     __timeout__ = int(1e8)  # nanoseconds
 
@@ -111,17 +111,6 @@ class ThreadRestartTimer(PeriodicThread):
             # threads. This way we avoid stopping and restarting the threads
             # in between forks.
             if monotonic_ns() >= self._timestamp:  # 100ms
-                for thread in _threads_to_restart_after_fork.copy():
-                    if isinstance(thread, ThreadRestartTimer):
-                        # Skip any ThreadRestartTimer instance,
-                        # to avoid restarting orphaned timer instances that were
-                        # caught in periodic_threads during a fork.
-                        continue
-                    log.debug("Restarting thread %s after fork", thread.name)
-                    try:
-                        thread._after_fork(force=True)
-                    except Exception as e:
-                        log.error("failed to restart periodic thread %s after fork: %s", thread.name, e)
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
@@ -188,7 +177,15 @@ def _after_fork_parent() -> None:
 
     _forking = False
 
-    if _threads_to_restart_after_fork or _threads_to_start_after_fork:
+    for thread in _threads_to_restart_after_fork.copy():
+        log.debug("Restarting thread %s after fork in parent", thread.name)
+        try:
+            thread._after_fork(force=True)
+        except Exception as e:
+            log.error("failed to restart periodic thread %s after fork in parent: %s", thread.name, e)
+    _threads_to_restart_after_fork.clear()
+
+    if _threads_to_start_after_fork:
         ThreadRestartTimer.set()
 
 
@@ -201,18 +198,23 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
-    # Take note of all the periodic threads that are running and will need to be
-    # restarted.
-    _threads_to_restart_after_fork.update(periodic_threads.values())
+    # Take note of periodic threads that are currently running and will need to
+    # be restarted. Do not include ThreadRestartTimer itself: it is an internal
+    # debounce helper, not an application/service worker, and restarting stale
+    # timer instances after a fork loop can leave extra periodic threads alive.
+    running_threads = set(periodic_threads.values())
+    _threads_to_restart_after_fork.update(
+        thread for thread in running_threads if not isinstance(thread, ThreadRestartTimer)
+    )
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
     # more promptly.
-    for thread in _threads_to_restart_after_fork:
+    for thread in running_threads:
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
 
     # Join all the threads to ensure they are stopped before the fork.
-    for thread in _threads_to_restart_after_fork:
+    for thread in running_threads:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
