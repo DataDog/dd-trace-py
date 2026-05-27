@@ -120,7 +120,10 @@ mod tests {
                 "expected parse_bool_env({val:?}) == false"
             );
         }
-        assert!(!parse_bool_env(None), "expected parse_bool_env(None) == false");
+        assert!(
+            !parse_bool_env(None),
+            "expected parse_bool_env(None) == false"
+        );
     }
 
     // ── secure_random() ──────────────────────────────────────────────────────
