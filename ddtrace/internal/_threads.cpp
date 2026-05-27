@@ -435,6 +435,30 @@ static PyMemberDef PeriodicThread_members[] = {
 
 // ----------------------------------------------------------------------------
 static int
+PeriodicThread_traverse(PeriodicThread* self, visitproc visit, void* arg)
+{
+    Py_VISIT(self->name);
+    Py_VISIT(self->ident);
+    Py_VISIT(self->_target);
+    Py_VISIT(self->_on_shutdown);
+    Py_VISIT(self->_ddtrace_profiling_ignore);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static int
+PeriodicThread_clear(PeriodicThread* self)
+{
+    Py_CLEAR(self->name);
+    Py_CLEAR(self->ident);
+    Py_CLEAR(self->_target);
+    Py_CLEAR(self->_on_shutdown);
+    Py_CLEAR(self->_ddtrace_profiling_ignore);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static int
 PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
     static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", "no_wait_at_start", NULL };
@@ -944,6 +968,8 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static void
 PeriodicThread_dealloc(PeriodicThread* self)
 {
+    PyObject_GC_UnTrack(self);
+
     if (self->_state != nullptr && self->_state->is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
@@ -970,12 +996,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
         PyDict_Contains(self->_state->periodic_threads, self->ident))
         PyDict_DelItem(self->_state->periodic_threads, self->ident);
 
-    Py_XDECREF(self->name);
-    Py_XDECREF(self->_target);
-    Py_XDECREF(self->_on_shutdown);
-
-    Py_XDECREF(self->ident);
-    Py_XDECREF(self->_ddtrace_profiling_ignore);
+    PeriodicThread_clear(self);
 
     // Threads are always detached at creation, so joinable() is always false
     // and no OS call is needed. Use safe_reset_thread to guard against the
@@ -1014,12 +1035,16 @@ static PyTypeObject PeriodicThreadType = {
     .tp_basicsize = sizeof(PeriodicThread),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)PeriodicThread_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .tp_doc = PyDoc_STR("Native thread calling a Python function periodically"),
+    .tp_traverse = (traverseproc)PeriodicThread_traverse,
+    .tp_clear = (inquiry)PeriodicThread_clear,
     .tp_methods = PeriodicThread_methods,
     .tp_members = PeriodicThread_members,
     .tp_init = (initproc)PeriodicThread_init,
+    .tp_alloc = PyType_GenericAlloc,
     .tp_new = PyType_GenericNew,
+    .tp_free = PyObject_GC_Del,
 };
 
 // ----------------------------------------------------------------------------
