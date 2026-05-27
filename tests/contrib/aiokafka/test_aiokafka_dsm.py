@@ -60,6 +60,7 @@ async def test_data_streams_pathway_stats(dsm_processor):
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic]) as consumer:
         await consumer.getone()
@@ -67,24 +68,24 @@ async def test_data_streams_pathway_stats(dsm_processor):
 
     pathway_stats = pathway_stats_merged(dsm_processor)
 
+    producer_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
+    consumer_tags = ["direction:in", f"group:{GROUP_ID}", f"topic:{topic}", "type:kafka"]
+    if cluster_id:
+        producer_tags.append(f"kafka_cluster_id:{cluster_id}")
+        consumer_tags.append(f"kafka_cluster_id:{cluster_id}")
+
     # Compute expected hashes based on edge tags to verify pathway continuity
     ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
-    expected_producer_hash = ctx._compute_hash(
-        sorted(["direction:out", f"topic:{topic}", "type:kafka"]),
-        0,
-    )
-    expected_consumer_hash = ctx._compute_hash(
-        sorted(["direction:in", f"group:{GROUP_ID}", f"topic:{topic}", "type:kafka"]),
-        expected_producer_hash,
-    )
+    expected_producer_hash = ctx._compute_hash(sorted(producer_tags), 0)
+    expected_consumer_hash = ctx._compute_hash(sorted(consumer_tags), expected_producer_hash)
 
     expected_producer_key = (
-        f"direction:out,topic:{topic},type:kafka",
+        ",".join(sorted(producer_tags)),
         expected_producer_hash,
         0,
     )
     expected_consumer_key = (
-        f"direction:in,group:{GROUP_ID},topic:{topic},type:kafka",
+        ",".join(sorted(consumer_tags)),
         expected_consumer_hash,
         expected_producer_hash,
     )
@@ -106,12 +107,13 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
         msg = await consumer.getone()
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -129,14 +131,15 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic], enable_auto_commit=False) as consumer:
         await consumer.getone()
         msg = await consumer.getone()
         await consumer.commit(offsets)
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, "")) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, "")) == msg.offset + 1
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
 
 
 @pytest.mark.asyncio
