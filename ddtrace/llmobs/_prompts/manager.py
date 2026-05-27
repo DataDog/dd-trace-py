@@ -350,6 +350,8 @@ class PromptManager:
         if labels is not None:
             body["labels"] = labels
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
         return result
 
     def create_prompt_version(
@@ -370,6 +372,8 @@ class PromptManager:
         if labels is not None:
             body["labels"] = labels
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
         return result
 
     def update_prompt(
@@ -388,6 +392,8 @@ class PromptManager:
         if description is not None:
             body["description"] = description
         result: PromptResponse = self._request("PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}", body=body)
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
         return result
 
     def update_prompt_version(
@@ -409,6 +415,8 @@ class PromptManager:
         result: PromptVersionResponse = self._request(
             "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
         )
+        self._hot_cache.evict_prompt(prompt_id)
+        self._warm_cache.evict_prompt(prompt_id)
         return result
 
     def delete_prompt(self, prompt_id: str) -> DeletedPromptResponse:
