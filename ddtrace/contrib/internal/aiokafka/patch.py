@@ -232,7 +232,11 @@ async def traced_getmany(func, instance, args, kwargs):
 
 async def traced_commit(func, instance, args, kwargs):
     result = await func(*args, **kwargs)
-    cluster_id = await _get_cluster_id(getattr(instance, "_client", None), None)
+    # Use only the cached cluster id on the commit path — avoid a metadata
+    # round-trip in this hot path. The id is normally populated by a prior
+    # produce/consume; if it isn't yet, we just skip the tag for this commit.
+    client = getattr(instance, "_client", None)
+    cluster_id = getattr(client, "_dd_cluster_id", "") if client is not None else ""
     core.set_item("kafka_cluster_id", cluster_id)
     core.dispatch("aiokafka.commit.end", (instance, args, kwargs))
     return result
