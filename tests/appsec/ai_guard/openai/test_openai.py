@@ -12,10 +12,11 @@ import ddtrace.appsec._ai_guard as ai_guard_mod
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
 from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _convert_openai_messages
-from ddtrace.appsec._ai_guard._openai import _convert_openai_response
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
+from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_messages
+from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_response
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from tests.appsec.ai_guard.openai._span_helpers import assert_block_emits_both_spans
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 
@@ -454,6 +455,7 @@ def test_chat_sync_block_is_openai_compatible_exception(mock_execute_request, op
     assert isinstance(err, openai.APIError)
     assert isinstance(err, openai.UnprocessableEntityError)
     assert isinstance(err, AIGuardAbortError)
+    assert type(err).__module__ == "ddtrace.appsec._ai_guard._openai"
     assert err.status_code == 422
     assert err.action == "DENY"
     # ``reason`` is mirrored from the AI Guard response (may be empty in mocks).
@@ -484,54 +486,60 @@ def test_block_error_class_identity_across_consecutive_blocks(mock_execute_reque
     assert type(exc_first.value).__name__ == "OpenAIAIGuardAbortError"
 
 
-def test_block_error_class_identity_under_thread_race():
-    """Concurrent threads racing through the cold cache MUST all observe the
-    same class object.
+def test_block_error_class_identity_under_concurrent_lazy_import():
+    """Concurrent cold imports MUST all observe the same class object.
 
-    Without ``_openai_abort_error_cls_lock``, the unsynchronised check-then-act
-    pattern lets two threads pass the ``is None`` check, build their own class
-    each, and leave the cache pointing at whichever assignment ran last — the
-    other thread keeps a stale class that's never returned again, so a caller's
-    ``isinstance(e, cached_cls)`` will start failing intermittently. This test
-    resets the cache and races N threads through the helper, asserting all
-    returns are ``is``-equal.
+    The OpenAI-compatible abort class lives in ``_openai_errors`` and is
+    imported lazily only when ``_wrap_abort_error`` needs SDK-hierarchy
+    compatibility. This test removes that module from ``sys.modules`` and
+    races N threads through the wrapper, asserting Python's import lock
+    gives every caller the same class object.
     """
+    import sys
+
+    import ddtrace.appsec._ai_guard as _ai_guard_pkg
     import ddtrace.appsec._ai_guard._openai as _openai_mod
 
+    def _resolve_cls() -> type:
+        # ``_wrap_abort_error`` triggers the lazy ``_openai_errors`` import
+        # and returns an instance of either the OpenAI-compatible subclass
+        # (when openai is importable) or bare ``AIGuardAbortError``.
+        return type(_openai_mod._wrap_abort_error(AIGuardAbortError("DENY", "test")))
+
+    module_name = "ddtrace.appsec._ai_guard._openai_errors"
+
     # Sanity: the openai SDK must be importable for this test to be meaningful;
-    # if it's not, the helper returns None and there is no class identity to
-    # compare.
-    if _openai_mod._get_openai_abort_error_cls() is None:
+    # if it's not, the wrapper returns bare ``AIGuardAbortError`` and there is
+    # no OpenAI-compatible class identity to compare. Evict the module after
+    # the probe so the concurrent race below exercises a true cold import.
+    if _resolve_cls() is AIGuardAbortError:
         pytest.skip("openai SDK not importable")
 
-    saved_cls = _openai_mod._openai_abort_error_cls
-    _openai_mod._openai_abort_error_cls = None
+    sys.modules.pop(module_name, None)
+    if hasattr(_ai_guard_pkg, "_openai_errors"):
+        delattr(_ai_guard_pkg, "_openai_errors")
 
     n = 32
     barrier = threading.Barrier(n)
     results: list = [None] * n
 
     def _race(idx: int) -> None:
-        # Force all threads to enter the helper at the same moment so the
-        # check-then-act window is genuinely contended.
+        # Force all threads to enter the lazy import at the same moment.
         barrier.wait()
-        results[idx] = _openai_mod._get_openai_abort_error_cls()
+        results[idx] = _resolve_cls()
 
-    try:
-        threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-    finally:
-        _openai_mod._openai_abort_error_cls = saved_cls
+    threads = [threading.Thread(target=_race, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
     first = results[0]
     assert first is not None
     distinct_ids = {id(cls) for cls in results}
     assert len(distinct_ids) == 1, (
-        f"concurrent _get_openai_abort_error_cls() returned {len(distinct_ids)} distinct class "
-        f"objects; the lazy cache build is not thread-safe"
+        f"concurrent _wrap_abort_error() resolved {len(distinct_ids)} distinct class "
+        f"objects; the lazy provider import is not thread-safe"
     )
 
 
@@ -789,44 +797,6 @@ def test_chat_streaming_after_hook_not_invoked(mock_execute_request, openai_clie
 # ---------------------------------------------------------------------------
 
 
-def _find_ai_guard_span(spans):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    for span in spans:
-        if span.name == AI_GUARD.RESOURCE_TYPE:
-            return span
-    return None
-
-
-def _find_openai_span(spans):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    for span in spans:
-        if span.name != AI_GUARD.RESOURCE_TYPE and "openai" in (span.service or "").lower():
-            return span
-    for span in spans:
-        if span.name != AI_GUARD.RESOURCE_TYPE:
-            return span
-    return None
-
-
-def _assert_block_emits_both_spans(test_spans, decision):
-    from ddtrace.appsec._constants import AI_GUARD
-
-    spans = test_spans.spans
-    ai_guard_span = _find_ai_guard_span(spans)
-    assert ai_guard_span is not None, f"AI Guard span not found in {[s.name for s in spans]}"
-    assert ai_guard_span.get_tag(AI_GUARD.ACTION_TAG) == decision
-    assert ai_guard_span.get_tag(AI_GUARD.BLOCKED_TAG) == "true"
-
-    openai_span = _find_openai_span(spans)
-    assert openai_span is not None, f"OpenAI/LLMObs span not found in {[s.name for s in spans]}"
-    assert openai_span.error == 1, "OpenAI span should have error=1 after AI Guard block"
-    assert "AIGuardAbortError" in (openai_span.get_tag("error.type") or ""), (
-        f"OpenAI span error.type should reference AIGuardAbortError, got: {openai_span.get_tag('error.type')!r}"
-    )
-
-
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_chat_block_emits_ai_guard_and_openai_spans(mock_execute_request, openai_client_mock, test_spans, decision):
@@ -838,7 +808,7 @@ def test_chat_block_emits_ai_guard_and_openai_spans(mock_execute_request, openai
     with pytest.raises(openai.UnprocessableEntityError):
         openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.asyncio
@@ -855,7 +825,7 @@ async def test_chat_async_block_emits_ai_guard_and_openai_spans(
     with pytest.raises(openai.UnprocessableEntityError):
         await async_openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
@@ -871,7 +841,7 @@ def test_chat_streaming_sync_block_emits_ai_guard_and_openai_spans(
     with pytest.raises(openai.UnprocessableEntityError):
         openai_client_stream.chat.completions.create(model=CHAT_MODEL, messages=_user_messages(), stream=True)
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 @pytest.mark.asyncio
@@ -890,7 +860,7 @@ async def test_chat_streaming_async_block_emits_ai_guard_and_openai_spans(
             model=CHAT_MODEL, messages=_user_messages(), stream=True
         )
 
-    _assert_block_emits_both_spans(test_spans, decision)
+    assert_block_emits_both_spans(test_spans, decision)
 
 
 # ---------------------------------------------------------------------------
