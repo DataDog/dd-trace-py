@@ -101,21 +101,27 @@ extern "C"
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
 
-    // Read profiler operational stats for runtime metrics.
-    // Returns false if profiler not initialized; populates out_* pointers.
-    // Counter values are cumulative (monotonically increasing).
-    // Gauge values are the latest snapshot (set to -1 when not yet available).
-    bool ddup_get_profiler_runtime_stats(size_t* out_sample_count,
-                                         size_t* out_sampling_event_count,
-                                         size_t* out_copy_memory_error_count,
-                                         size_t* out_sample_capture_cpu_time_us,
-                                         int64_t* out_sampling_interval_us,
-                                         int64_t* out_asyncio_task_count,
-                                         int64_t* out_greenlet_count,
-                                         int64_t* out_heap_tracker_count,
-                                         int64_t* out_string_table_count,
-                                         int64_t* out_string_table_ephemeral_count,
-                                         int64_t* out_fast_copy_memory_enabled);
+    // Profiler operational stats for runtime metrics (runtime.python.profiler.*).
+    // Counter fields are cumulative (monotonically increasing).
+    // Gauge fields are the latest snapshot; -1 means not yet available.
+    struct ProfilerRuntimeStats
+    {
+        size_t sample_count;
+        size_t sampling_event_count;
+        size_t copy_memory_error_count;
+        size_t sample_capture_cpu_time_us;
+        int64_t sampling_interval_us;
+        int64_t asyncio_task_count;
+        int64_t greenlet_count;
+        int64_t heap_tracker_count;
+        int64_t string_table_count;
+        int64_t string_table_ephemeral_count;
+        int64_t fast_copy_memory_enabled;
+    };
+
+    // Populate *out with current profiler stats.
+    // Returns false if profiler not initialized.
+    bool ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out);
 #ifdef __cplusplus
 } // extern "C"
 #endif

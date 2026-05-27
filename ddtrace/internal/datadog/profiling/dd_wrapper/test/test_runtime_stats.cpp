@@ -9,11 +9,8 @@
 void
 runtime_stats_before_init()
 {
-    // Before initialization, ddup_get_profiler_runtime_stats should return false
-    size_t sc = 999, sec = 999, cmec = 999, scctu = 999;
-    int64_t si = 999, atc = 999, gc = 999, htc = 999, stc = 999, stec = 999, fcme = 999;
-
-    bool ok = ddup_get_profiler_runtime_stats(&sc, &sec, &cmec, &scctu, &si, &atc, &gc, &htc, &stc, &stec, &fcme);
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
     assert(!ok);
 
     std::exit(0);
@@ -29,20 +26,17 @@ runtime_stats_after_init()
 {
     configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
 
-    // After init, cumulative counters should be zero and the call should succeed
-    size_t sc, sec, cmec, scctu;
-    int64_t si, atc, gc, htc, stc, stec, fcme;
-
-    bool ok = ddup_get_profiler_runtime_stats(&sc, &sec, &cmec, &scctu, &si, &atc, &gc, &htc, &stc, &stec, &fcme);
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
     assert(ok);
-    assert(sc == 0);
-    assert(sec == 0);
-    assert(cmec == 0);
-    assert(scctu == 0);
+    assert(stats.sample_count == 0);
+    assert(stats.sampling_event_count == 0);
+    assert(stats.copy_memory_error_count == 0);
+    assert(stats.sample_capture_cpu_time_us == 0);
 
     // Gauges that have not been set should be -1 (sentinel for std::optional nullopt)
-    assert(si == -1);
-    assert(atc == -1);
+    assert(stats.sampling_interval_us == -1);
+    assert(stats.asyncio_task_count == -1);
 
     std::exit(0);
 }
@@ -69,21 +63,19 @@ cumulative_counters_survive_upload()
     ddup_upload();
 
     // Verify cumulative counters are NOT reset by upload
-    size_t sc, sec, cmec, scctu;
-    int64_t si, atc, gc, htc, stc, stec, fcme;
-
-    bool ok = ddup_get_profiler_runtime_stats(&sc, &sec, &cmec, &scctu, &si, &atc, &gc, &htc, &stc, &stec, &fcme);
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
     assert(ok);
-    assert(sc == 10);
-    assert(sec == 3);
-    assert(cmec == 1);
-    assert(scctu == 500);
+    assert(stats.sample_count == 10);
+    assert(stats.sampling_event_count == 3);
+    assert(stats.copy_memory_error_count == 1);
+    assert(stats.sample_capture_cpu_time_us == 500);
 
     // Bump again and verify they accumulate
     state.cumulative_sample_count.fetch_add(5, std::memory_order_relaxed);
-    ok = ddup_get_profiler_runtime_stats(&sc, &sec, &cmec, &scctu, &si, &atc, &gc, &htc, &stc, &stec, &fcme);
+    ok = ddup_get_profiler_runtime_stats(&stats);
     assert(ok);
-    assert(sc == 15);
+    assert(stats.sample_count == 15);
 
     std::exit(0);
 }
