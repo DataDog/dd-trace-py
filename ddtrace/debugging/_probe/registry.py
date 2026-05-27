@@ -50,7 +50,7 @@ def _get_probe_location(probe: Probe) -> Optional[str]:
         raise ValueError("Unsupported probe type: {}".format(type(probe)))
 
 
-class ProbeRegistry(dict):
+class ProbeRegistry(dict):  # type: ignore[type-arg]
     """Keep track of all the registered probes.
 
     New probes are also registered as pending, on a location basis, until they

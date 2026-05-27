@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Profiling: This fixes an issue where thread pool worker spans were not correctly being linked to their profiles

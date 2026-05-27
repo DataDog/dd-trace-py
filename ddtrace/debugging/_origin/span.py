@@ -182,7 +182,7 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: list = []
+    _pending: list[t.Union[FunctionType, MethodType]] = []
     _lock = RLock()
 
     @classmethod

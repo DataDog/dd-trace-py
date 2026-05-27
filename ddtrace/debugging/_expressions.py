@@ -122,7 +122,7 @@ class DDCompiler:
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
 
         abstract_code.argcount = len(args)
-        abstract_code.argnames = args
+        abstract_code.argnames = list(args)
         abstract_code.name = name
 
         if sys.version_info >= (3, 11):
@@ -188,7 +188,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % b)
 
             short_circuit = Label()
-            return ca + short_circuit_instrs(_type, short_circuit) + cb + [short_circuit]
+            return ca + short_circuit_instrs(_type, short_circuit) + cb + cast(list[Instr], [short_circuit])
 
         if _type in {"eq", "ge", "gt", "le", "lt", "ne"}:
             a, b = args
@@ -217,10 +217,10 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
 
             def coll_iter(
-                it: Collection, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+                it: Collection[Any], cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
             ) -> Any:
                 if _isinstance(it, dict):
-                    return f(cond(k, k, v, _locals) for k, v in cast(dict, it).items())
+                    return f(cond(k, k, v, _locals) for k, v in cast(dict[Any, Any], it).items())
                 return f(cond(e, None, None, _locals) for e in it)
 
             return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -275,19 +275,20 @@ class DDCompiler:
 
         return None
 
-    def _call_function(self, func: Callable, *args: list[Instr]) -> list[Instr]:
+    def _call_function(self, func: Callable[..., Any], *args: list[Instr]) -> list[Instr]:
+        _func: Any = func  # Instr does not accept a Callable
         if PY >= (3, 13):
-            return [Instr("LOAD_CONST", func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
+            return [Instr("LOAD_CONST", _func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
         if PY >= (3, 12):
-            return [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL", len(args))]
+            return [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)] + list(chain(*args)) + [Instr("CALL", len(args))]
         if PY >= (3, 11):
             return (
-                [Instr("PUSH_NULL"), Instr("LOAD_CONST", func)]
+                [Instr("PUSH_NULL"), Instr("LOAD_CONST", _func)]
                 + list(chain(*args))
                 + [Instr("PRECALL", len(args)), Instr("CALL", len(args))]
             )
 
-        return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
+        return [Instr("LOAD_CONST", _func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
 
     def _compile_arg_operation(self, ast: DDASTType) -> Optional[list[Instr]]:
         # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
@@ -327,7 +328,7 @@ class DDCompiler:
                 it: Any, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
             ) -> Any:
                 if _isinstance(it, dict):
-                    return type(it)({k: v for k, v in cast(dict, it).items() if cond(k, k, v, _locals)})
+                    return type(it)({k: v for k, v in cast(dict[Any, Any], it).items() if cond(k, k, v, _locals)})
                 return type(it)(e for e in it if cond(e, None, None, _locals))
 
             return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
