@@ -487,7 +487,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         threading lock primitives in-place, destroying our _LockAllocatorWrapper.
         This hook wraps those functions so we can re-apply lock profiling afterwards.
         """
-        if not cls._gevent_hook_registered:
+        if cls._gevent_hook_registered:
             return
 
         cls._gevent_hook_registered = True

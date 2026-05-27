@@ -300,24 +300,18 @@ def test_all_threading_collectors_survive_module_reimport(
 def test_lock_patching_survives_simulated_gevent_monkey_patch():
     """Test that lock patches are re-applied after gevent-style in-place attribute replacement.
 
-    This simulates what gevent.monkey.patch_all() does: it replaces threading.Lock
-    (and other lock types) with gevent's cooperative versions, which destroys the
-    profiler's _LockAllocatorWrapper. The fix wraps gevent.monkey.patch_all/patch_thread
-    so we can re-apply profiler patches after the replacement.
+    Exercises the full _ensure_gevent_monkey_hook path by injecting a fake
+    gevent.monkey into sys.modules before starting the collector, so the hook
+    registration in _start_service wraps patch_all/patch_thread automatically.
     """
+    import sys
     import threading
     import types
 
-    from ddtrace.profiling.collector._lock import LockCollector
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
 
-    collector = ThreadingLockCollector()
-    collector.start()
-    assert isinstance(threading.Lock, LockAllocatorWrapper)
-
-    # Build a fake gevent.monkey module that simulates patch_all()/patch_thread()
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
 
@@ -331,11 +325,12 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
     fake_monkey.patch_thread = fake_patch_thread
     fake_monkey.is_module_patched = lambda mod: False
 
-    # Wrap the fake module (simulates what _ensure_gevent_monkey_hook would do
-    # when the ModuleWatchdog fires on gevent.monkey import)
-    LockCollector._wrap_gevent_monkey(fake_monkey)
+    sys.modules["gevent.monkey"] = fake_monkey
 
-    # Call patch_all — this should overwrite threading.Lock then trigger re-patch
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
     fake_monkey.patch_all()
 
     assert isinstance(threading.Lock, LockAllocatorWrapper), (
@@ -351,16 +346,12 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch():
 @pytest.mark.subprocess()
 def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
     """Test that direct gevent.monkey.patch_thread() calls also trigger re-patching."""
+    import sys
     import threading
     import types
 
-    from ddtrace.profiling.collector._lock import LockCollector
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
-    collector = ThreadingLockCollector()
-    collector.start()
-    assert isinstance(threading.Lock, LockAllocatorWrapper)
 
     fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
     fake_monkey = types.ModuleType("gevent.monkey")
@@ -372,9 +363,12 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
     fake_monkey.patch_thread = fake_patch_thread
     fake_monkey.is_module_patched = lambda mod: False
 
-    LockCollector._wrap_gevent_monkey(fake_monkey)
+    sys.modules["gevent.monkey"] = fake_monkey
 
-    # Call patch_thread directly (not via patch_all)
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
     fake_monkey.patch_thread()
 
     assert isinstance(threading.Lock, LockAllocatorWrapper), (
@@ -387,7 +381,7 @@ def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
 @pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
 def test_lock_patching_full_sequence_cleanup_reimport_gevent():
     """Test the full ddtrace-run + gevent worker sequence:
-    1. Profiler patches threading.Lock
+    1. Profiler patches threading.Lock (gevent hook also registered)
     2. cleanup_loaded_modules() removes threading from sys.modules
     3. threading is re-imported (ModuleWatchdog fires, re-patches)
     4. gevent.monkey.patch_all() overwrites the re-patched wrapper
@@ -398,10 +392,23 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
     import threading
     import types
 
-    from ddtrace.profiling.collector._lock import LockCollector
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    fake_lock_type = type("GeventLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
+    fake_monkey = types.ModuleType("gevent.monkey")
+
+    def fake_patch_all():
+        new_threading = sys.modules.get("threading")
+        if new_threading is not None:
+            new_threading.Lock = fake_lock_type
+
+    fake_monkey.patch_all = fake_patch_all
+    fake_monkey.patch_thread = lambda: None
+    fake_monkey.is_module_patched = lambda mod: False
+
+    sys.modules["gevent.monkey"] = fake_monkey
 
     collector = ThreadingLockCollector()
     collector.start()
@@ -414,21 +421,7 @@ def test_lock_patching_full_sequence_cleanup_reimport_gevent():
     new_threading = importlib.import_module("threading")
     assert isinstance(new_threading.Lock, LockAllocatorWrapper), "Re-import should trigger re-patch"
 
-    # Step 4: simulate gevent.monkey.patch_all() overwriting our wrapper
-    fake_lock_type = type("GeventLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
-
-    fake_monkey = types.ModuleType("gevent.monkey")
-
-    def fake_patch_all():
-        new_threading.Lock = fake_lock_type
-
-    fake_monkey.patch_all = fake_patch_all
-    fake_monkey.patch_thread = lambda: None
-    fake_monkey.is_module_patched = lambda mod: False
-
-    LockCollector._wrap_gevent_monkey(fake_monkey)
-
-    # Step 5: calling patch_all should overwrite then re-patch
+    # Step 4+5: calling patch_all should overwrite then re-patch
     fake_monkey.patch_all()
 
     assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
@@ -446,10 +439,10 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
     """Test that all lock collector types (Lock, RLock, Semaphore, etc.) re-patch after
     simulated gevent monkey-patching.
     """
+    import sys
     import threading
     import types
 
-    from ddtrace.profiling.collector._lock import LockCollector
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
     from ddtrace.profiling.collector.threading import ThreadingConditionCollector
@@ -457,54 +450,59 @@ def test_all_collectors_survive_simulated_gevent_monkey_patch():
     from ddtrace.profiling.collector.threading import ThreadingRLockCollector
     from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 
-    collectors = [
-        (ThreadingLockCollector(), "Lock"),
-        (ThreadingRLockCollector(), "RLock"),
-        (ThreadingSemaphoreCollector(), "Semaphore"),
-        (ThreadingBoundedSemaphoreCollector(), "BoundedSemaphore"),
-        (ThreadingConditionCollector(), "Condition"),
+    collector_pairs = [
+        (ThreadingLockCollector, "Lock"),
+        (ThreadingRLockCollector, "RLock"),
+        (ThreadingSemaphoreCollector, "Semaphore"),
+        (ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
+        (ThreadingConditionCollector, "Condition"),
     ]
 
-    for c, _ in collectors:
-        c.start()
-
-    for _, lock_name in collectors:
-        assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
-
-    # Build fake gevent.monkey that replaces all lock types
-    fake_types = {}
-    for _, lock_name in collectors:
-        fake_types[lock_name] = type("Fake" + lock_name, (), {})
-
+    fake_types = {name: type("Fake" + name, (), {}) for _, name in collector_pairs}
     fake_monkey = types.ModuleType("gevent.monkey")
 
     def fake_patch_all():
-        for _, lock_name in collectors:
+        for _, lock_name in collector_pairs:
             setattr(threading, lock_name, fake_types[lock_name])
 
     fake_monkey.patch_all = fake_patch_all
     fake_monkey.patch_thread = lambda: None
     fake_monkey.is_module_patched = lambda mod: False
 
-    LockCollector._wrap_gevent_monkey(fake_monkey)
+    sys.modules["gevent.monkey"] = fake_monkey
+
+    collectors = []
+    for cls, _ in collector_pairs:
+        c = cls()
+        c.start()
+        collectors.append(c)
+
+    for (_, lock_name), c in zip(collector_pairs, collectors):
+        assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
+
     fake_monkey.patch_all()
 
-    for c, lock_name in collectors:
+    for (_, lock_name), c in zip(collector_pairs, collectors):
         assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper), (
             f"{type(c).__name__} should re-patch {lock_name} after gevent monkey-patching"
         )
 
-    for c, _ in collectors:
+    for c in collectors:
         c.stop()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess()
 def test_lock_patching_survives_real_gevent_monkey_patch():
-    """Integration test: verify lock profiler survives real gevent.monkey.patch_all()."""
+    """Integration test: verify lock profiler survives real gevent.monkey.patch_all().
+
+    Imports gevent.monkey before starting the collector so _ensure_gevent_monkey_hook
+    finds it in sys.modules and wraps patch_all/patch_thread automatically.
+    """
     import threading
 
-    from ddtrace.profiling.collector._lock import LockCollector
+    from gevent import monkey  # noqa: F811
+
     from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -513,10 +511,6 @@ def test_lock_patching_survives_real_gevent_monkey_patch():
     collector.start()
     assert isinstance(threading.Lock, LockAllocatorWrapper)
 
-    # Make gevent.monkey visible to the hook before patching
-    from gevent import monkey  # noqa: F811
-
-    LockCollector._wrap_gevent_monkey(monkey)
     monkey.patch_all()
 
     assert isinstance(threading.Lock, LockAllocatorWrapper), (

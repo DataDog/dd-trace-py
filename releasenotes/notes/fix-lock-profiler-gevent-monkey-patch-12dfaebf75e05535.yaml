@@ -2,5 +2,5 @@
 fixes:
   - |
     profiling: An issue where monkey patching in gevent silently drops all lock profiling samples,
-    caused by ``gevent`` monkey-patching ``threading`` lock primitives in place after the profiler 
+    caused by ``gevent`` monkey-patching ``threading`` lock primitives in place after the profiler
     had already patched them.
