@@ -84,10 +84,7 @@ uint64_t
 get_thread_cpu_time_us()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
         return 0;
@@ -117,10 +114,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
@@ -267,6 +261,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     auto success = thread.sample(*echion, tstate, wall_time_us);
                     if (success) {
                         Sample::profile_borrow().stats().increment_sample_count();
+                        ProfilerState::get().cumulative_sample_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 });
             });
@@ -345,6 +340,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
+                    ProfilerState::get().cumulative_sample_count.fetch_add(1, std::memory_order_relaxed);
                 }
             }
         }
@@ -393,6 +389,15 @@ Sampler::sampling_thread(const uint64_t seq_num)
             size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
             if (cpu_diff > 0) {
                 borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
+            }
+
+            auto& state = ProfilerState::get();
+            state.cumulative_sampling_event_count.fetch_add(1, std::memory_order_relaxed);
+            if (copy_errors > 0) {
+                state.cumulative_copy_memory_error_count.fetch_add(copy_errors, std::memory_order_relaxed);
+            }
+            if (cpu_diff > 0) {
+                state.cumulative_sample_capture_cpu_time_us.fetch_add(cpu_diff, std::memory_order_relaxed);
             }
         }
 

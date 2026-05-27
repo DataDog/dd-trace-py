@@ -1,4 +1,6 @@
 import os
+from typing import Callable
+from typing import Optional
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT
@@ -10,6 +12,17 @@ from .constants import GC_COUNT_GEN0
 from .constants import GC_COUNT_GEN1
 from .constants import GC_COUNT_GEN2
 from .constants import MEM_RSS
+from .constants import PROFILER_ASYNCIO_TASK_COUNT
+from .constants import PROFILER_COPY_MEMORY_ERROR_COUNT
+from .constants import PROFILER_FAST_COPY_MEMORY_ENABLED
+from .constants import PROFILER_GREENLET_COUNT
+from .constants import PROFILER_HEAP_TRACKER_COUNT
+from .constants import PROFILER_SAMPLE_CAPTURE_CPU_TIME_US
+from .constants import PROFILER_SAMPLE_COUNT
+from .constants import PROFILER_SAMPLING_EVENT_COUNT
+from .constants import PROFILER_SAMPLING_INTERVAL_US
+from .constants import PROFILER_STRING_TABLE_COUNT
+from .constants import PROFILER_STRING_TABLE_EPHEMERAL_COUNT
 from .constants import THREAD_COUNT
 
 
@@ -89,3 +102,72 @@ class PSUtilRuntimeMetricCollector(RuntimeMetricCollector):
                 metrics[metric] = value
 
             return list(metrics.items())
+
+
+class ProfilerRuntimeMetricCollector(RuntimeMetricCollector):
+    """Collector for profiler operational metrics.
+
+    Reads cumulative counters and gauge snapshots from the native profiler
+    via ddup.get_profiler_runtime_stats(). Counter metrics are emitted as
+    per-interval deltas; gauge metrics are emitted as absolute values.
+    """
+
+    _COUNTER_KEYS = {
+        "sample_count": PROFILER_SAMPLE_COUNT,
+        "sampling_event_count": PROFILER_SAMPLING_EVENT_COUNT,
+        "copy_memory_error_count": PROFILER_COPY_MEMORY_ERROR_COUNT,
+        "sample_capture_cpu_time_us": PROFILER_SAMPLE_CAPTURE_CPU_TIME_US,
+    }
+    _GAUGE_KEYS = {
+        "sampling_interval_us": PROFILER_SAMPLING_INTERVAL_US,
+        "asyncio_task_count": PROFILER_ASYNCIO_TASK_COUNT,
+        "greenlet_count": PROFILER_GREENLET_COUNT,
+        "heap_tracker_count": PROFILER_HEAP_TRACKER_COUNT,
+        "string_table_count": PROFILER_STRING_TABLE_COUNT,
+        "string_table_ephemeral_count": PROFILER_STRING_TABLE_EPHEMERAL_COUNT,
+        "fast_copy_memory_enabled": PROFILER_FAST_COPY_MEMORY_ENABLED,
+    }
+
+    def __init__(self):
+        super().__init__()
+        self._get_stats: Optional[Callable[[], Optional[dict[str, int]]]] = None
+        self._stored_values: dict[str, int] = {key: 0 for key in self._COUNTER_KEYS}
+
+    def _ensure_stats_fn(self) -> bool:
+        if self._get_stats is not None:
+            return True
+        try:
+            from ddtrace.internal.datadog.profiling.ddup._ddup import get_profiler_runtime_stats
+
+            self._get_stats = get_profiler_runtime_stats
+            return True
+        except ImportError:
+            return False
+
+    def collect_fn(self, keys):
+        if not self._ensure_stats_fn():
+            return []
+
+        get_stats = self._get_stats
+        if get_stats is None:
+            return []
+        stats = get_stats()
+        if stats is None:
+            return []
+
+        metrics = []
+
+        for raw_key, metric_name in self._COUNTER_KEYS.items():
+            cumulative = stats.get(raw_key, 0)
+            prev = self._stored_values.get(raw_key, 0)
+            delta = cumulative - prev
+            if delta < 0:
+                delta = cumulative
+            self._stored_values[raw_key] = cumulative
+            metrics.append((metric_name, delta))
+
+        for raw_key, metric_name in self._GAUGE_KEYS.items():
+            if raw_key in stats:
+                metrics.append((metric_name, stats[raw_key]))
+
+        return metrics

@@ -383,6 +383,59 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
+bool
+ddup_get_profiler_runtime_stats( // cppcheck-suppress unusedFunction
+  size_t* out_sample_count,
+  size_t* out_sampling_event_count,
+  size_t* out_copy_memory_error_count,
+  size_t* out_sample_capture_cpu_time_us,
+  int64_t* out_sampling_interval_us,
+  int64_t* out_asyncio_task_count,
+  int64_t* out_greenlet_count,
+  int64_t* out_heap_tracker_count,
+  int64_t* out_string_table_count,
+  int64_t* out_string_table_ephemeral_count,
+  int64_t* out_fast_copy_memory_enabled)
+{
+    auto& state = Datadog::ProfilerState::get();
+    if (!state.is_initialized()) {
+        return false;
+    }
+
+    // Cumulative counters (never reset by upload swap)
+    *out_sample_count = state.cumulative_sample_count.load(std::memory_order_relaxed);
+    *out_sampling_event_count = state.cumulative_sampling_event_count.load(std::memory_order_relaxed);
+    *out_copy_memory_error_count = state.cumulative_copy_memory_error_count.load(std::memory_order_relaxed);
+    *out_sample_capture_cpu_time_us = state.cumulative_sample_capture_cpu_time_us.load(std::memory_order_relaxed);
+
+    // Gauge values from the live ProfilerStats (borrow acquires the profile mutex)
+    auto borrowed = state.profile_state.borrow();
+    auto& stats = borrowed.stats();
+
+    auto interval = stats.get_sampling_interval_us();
+    *out_sampling_interval_us = interval.has_value() ? static_cast<int64_t>(interval.value()) : -1;
+
+    auto asyncio = stats.get_asyncio_task_count();
+    *out_asyncio_task_count = asyncio.has_value() ? static_cast<int64_t>(asyncio.value()) : -1;
+
+    auto greenlets = stats.get_greenlet_count();
+    *out_greenlet_count = greenlets.has_value() ? static_cast<int64_t>(greenlets.value()) : -1;
+
+    auto heap = stats.get_heap_tracker_size();
+    *out_heap_tracker_count = heap.has_value() ? static_cast<int64_t>(heap.value()) : -1;
+
+    auto str_table = stats.get_string_table_count();
+    *out_string_table_count = str_table.has_value() ? static_cast<int64_t>(str_table.value()) : -1;
+
+    auto str_ephemeral = stats.get_string_table_ephemeral_count();
+    *out_string_table_ephemeral_count = str_ephemeral.has_value() ? static_cast<int64_t>(str_ephemeral.value()) : -1;
+
+    auto fast_copy = stats.get_fast_copy_memory_enabled();
+    *out_fast_copy_memory_enabled = fast_copy.has_value() ? (fast_copy.value() ? 1 : 0) : -1;
+
+    return true;
+}
+
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
 void

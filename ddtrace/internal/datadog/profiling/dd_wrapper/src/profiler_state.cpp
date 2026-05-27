@@ -196,6 +196,12 @@ ProfilerState::postfork_child()
     // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
     new (&upload_lock) std::mutex();
 
+    // Reset cumulative runtime-metrics counters for the child process
+    cumulative_sample_count.store(0, std::memory_order_relaxed);
+    cumulative_sampling_event_count.store(0, std::memory_order_relaxed);
+    cumulative_copy_memory_error_count.store(0, std::memory_order_relaxed);
+    cumulative_sample_capture_cpu_time_us.store(0, std::memory_order_relaxed);
+
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();

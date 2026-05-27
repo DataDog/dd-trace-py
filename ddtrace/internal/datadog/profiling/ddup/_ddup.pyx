@@ -100,6 +100,20 @@ cdef extern from "ddup_interface.hpp":
     void ddup_flush_sample(Sample *sample)
     void ddup_drop_sample(Sample *sample)
 
+    bint ddup_get_profiler_runtime_stats(
+        size_t* out_sample_count,
+        size_t* out_sampling_event_count,
+        size_t* out_copy_memory_error_count,
+        size_t* out_sample_capture_cpu_time_us,
+        int64_t* out_sampling_interval_us,
+        int64_t* out_asyncio_task_count,
+        int64_t* out_greenlet_count,
+        int64_t* out_heap_tracker_count,
+        int64_t* out_string_table_count,
+        int64_t* out_string_table_ephemeral_count,
+        int64_t* out_fast_copy_memory_enabled
+    )
+
 
 cdef extern from "code_provenance_interface.hpp":
     void code_provenance_set_file_path(string_view file_path)
@@ -612,3 +626,63 @@ cdef class SampleHandle:
             ddup_flush_sample(self.ptr)
             ddup_drop_sample(self.ptr)
             self.ptr = NULL
+
+
+def get_profiler_runtime_stats():
+    """Returns a dict of profiler operational stats, or None if the profiler is not running.
+
+    Counter values (sample_count, sampling_event_count, copy_memory_error_count,
+    sample_capture_cpu_time_us) are cumulative and monotonically increasing.
+    Gauge values are the latest snapshot; keys with unavailable values are omitted.
+    """
+    cdef size_t sample_count
+    cdef size_t sampling_event_count
+    cdef size_t copy_memory_error_count
+    cdef size_t sample_capture_cpu_time_us
+    cdef int64_t sampling_interval_us
+    cdef int64_t asyncio_task_count
+    cdef int64_t greenlet_count
+    cdef int64_t heap_tracker_count
+    cdef int64_t string_table_count
+    cdef int64_t string_table_ephemeral_count
+    cdef int64_t fast_copy_memory_enabled
+
+    cdef bint ok = ddup_get_profiler_runtime_stats(
+        &sample_count,
+        &sampling_event_count,
+        &copy_memory_error_count,
+        &sample_capture_cpu_time_us,
+        &sampling_interval_us,
+        &asyncio_task_count,
+        &greenlet_count,
+        &heap_tracker_count,
+        &string_table_count,
+        &string_table_ephemeral_count,
+        &fast_copy_memory_enabled,
+    )
+    if not ok:
+        return None
+
+    result = {
+        "sample_count": sample_count,
+        "sampling_event_count": sampling_event_count,
+        "copy_memory_error_count": copy_memory_error_count,
+        "sample_capture_cpu_time_us": sample_capture_cpu_time_us,
+    }
+
+    if sampling_interval_us >= 0:
+        result["sampling_interval_us"] = sampling_interval_us
+    if asyncio_task_count >= 0:
+        result["asyncio_task_count"] = asyncio_task_count
+    if greenlet_count >= 0:
+        result["greenlet_count"] = greenlet_count
+    if heap_tracker_count >= 0:
+        result["heap_tracker_count"] = heap_tracker_count
+    if string_table_count >= 0:
+        result["string_table_count"] = string_table_count
+    if string_table_ephemeral_count >= 0:
+        result["string_table_ephemeral_count"] = string_table_ephemeral_count
+    if fast_copy_memory_enabled >= 0:
+        result["fast_copy_memory_enabled"] = fast_copy_memory_enabled
+
+    return result
