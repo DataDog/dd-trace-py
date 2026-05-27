@@ -248,6 +248,48 @@ def _get_ids():
     return s.span_id, s.trace_id
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true"})
+def test_secure_random_true_produces_unique_ids():
+    """DD_TRACE_SECURE_RANDOM=true switches rand64bits to OsRng."""
+    from ddtrace.internal.native import rand64bits
+
+    ids = {rand64bits() for _ in range(1000)}
+    assert len(ids) == 1000, f"Expected 1000 unique IDs under OsRng, got {len(ids)}"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "1"})
+def test_secure_random_one_produces_unique_ids():
+    """DD_TRACE_SECURE_RANDOM=1 must also activate OsRng (asbool convention)."""
+    from ddtrace.internal.native import rand64bits
+
+    ids = {rand64bits() for _ in range(1000)}
+    assert len(ids) == 1000, f"Expected 1000 unique IDs under OsRng (=1), got {len(ids)}"
+
+
+@pytest.mark.subprocess(
+    env={"DD_TRACE_SECURE_RANDOM": "true", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
+)
+def test_secure_random_fork_no_collisions():
+    """With DD_TRACE_SECURE_RANDOM=true, parent and child must not share IDs after fork."""
+    import os
+
+    from ddtrace.internal.native import rand64bits
+    from tests.tracer.test_rand import MPQueue
+
+    q = MPQueue()
+    pid = os.fork()
+
+    if pid > 0:
+        parent_ids = {rand64bits() for _ in range(100)}
+        child_ids = q.get()
+        assert parent_ids & child_ids == set(), "Collision between parent and child under OsRng"
+    else:
+        try:
+            q.put({rand64bits() for _ in range(100)})
+        finally:
+            os._exit(0)
+
+
 def _test_tracer_usage_multiprocess_target(q):
     ids_list = list(chain.from_iterable(ids for ids in [_get_ids() for _ in range(100)]))
     q.put(ids_list)
