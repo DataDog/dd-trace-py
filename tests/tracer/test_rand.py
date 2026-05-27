@@ -266,6 +266,34 @@ def test_secure_random_one_produces_unique_ids():
     assert len(ids) == 1000, f"Expected 1000 unique IDs under OsRng (=1), got {len(ids)}"
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true"})
+def test_secure_random_thread_safe():
+    """With DD_TRACE_SECURE_RANDOM=true, concurrent rand64bits() calls must not collide."""
+    import threading
+    from queue import Queue
+
+    from ddtrace.internal.native import rand64bits
+
+    def _generate(q):
+        q.put([rand64bits() for _ in range(10000)])
+
+    q = Queue()
+    threads = [threading.Thread(target=_generate, args=(q,)) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    all_ids = []
+    while not q.empty():
+        all_ids.extend(q.get())
+
+    unique_ids = set(all_ids)
+    assert len(all_ids) == len(unique_ids), (
+        f"Thread-safety collision under OsRng: {len(all_ids) - len(unique_ids)} duplicates in 50000 IDs"
+    )
+
+
 @pytest.mark.subprocess(
     env={"DD_TRACE_SECURE_RANDOM": "true", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
 )
