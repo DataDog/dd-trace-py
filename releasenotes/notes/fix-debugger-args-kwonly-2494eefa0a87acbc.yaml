@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixes debugger argument/local captures
+    misclassifying keyword-only arguments and dropping ``*args`` /
+    ``**kwargs`` for any function that declares keyword-only parameters
+    alongside variadic arguments.

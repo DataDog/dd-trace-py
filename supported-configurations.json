@@ -5542,6 +5542,14 @@
         "internal": true
       }
     ],
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30000",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
       {
         "implementation": "A",
@@ -5972,6 +5980,14 @@
         "type": "boolean",
         "default": "false",
         "internal": true
+      }
+    ],
+    "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED": [
+      {
+        "version": "B",
+        "type": "boolean",
+        "default": "false",
+        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
       }
     ]
   }

@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 import logging
+import os
 from pathlib import Path
 import random
 import re
 import shutil
 import subprocess  # nosec: B404
 import tempfile
+import time
 import typing as t
 
 from ddtrace.testing.internal.telemetry import GitTelemetry
@@ -14,6 +16,12 @@ from ddtrace.testing.internal.tracer_api import StopWatch
 
 
 log = logging.getLogger(__name__)
+
+# Matches git lock-contention errors, e.g.:
+#   fatal: Unable to create '/path/.git/shallow.lock': File exists.
+_LOCK_ERROR_RE = re.compile(r"Unable to create .+\.lock.+File exists", re.DOTALL)
+_LOCK_MAX_RETRIES = 5
+_LOCK_BASE_DELAY_SECONDS = 0.5
 
 
 class GitTag:
@@ -120,6 +128,10 @@ class Git:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
+        # Force C locale so git's error messages are predictable; the lock-contention
+        # regex in _call_git_with_lock_retry matches the English "File exists" string.
+        git_env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
+
         with StopWatch() as sw:
             process = subprocess.Popen(  # nosec: B603
                 git_cmd,
@@ -129,6 +141,7 @@ class Git:
                 cwd=self.cwd,
                 encoding="utf-8",
                 errors="surrogateescape",
+                env=git_env,
             )
             stdout, stderr = process.communicate(input=input_string)
 
@@ -149,6 +162,45 @@ class Git:
             log.warning("Error calling git %s: %s", " ".join(args), result.stderr)
             return ""
         return result.stdout
+
+    def _call_git_with_lock_retry(
+        self,
+        args: list[str],
+        input_string: t.Optional[str] = None,
+        should_retry: t.Optional[t.Callable[[], bool]] = None,
+    ) -> _GitSubprocessDetails:
+        """Call git with automatic retry on lock-file contention errors.
+
+        In multi-process test environments several workers may issue git
+        commands simultaneously.  Commands that write a lock file (e.g.
+        ``git fetch --update-shallow``) fail with "File exists" when another
+        process holds the lock.  This helper retries such transient failures
+        with exponential back-off so callers never need to handle the retry
+        logic themselves.
+
+        ``should_retry`` is called after each back-off sleep; returning False
+        aborts the retry loop so callers can stop once another process has
+        completed the same work (e.g. an xdist sibling that finished
+        unshallowing while we were waiting on the lock).
+        """
+        result = self._call_git(args, input_string)
+        for attempt in range(_LOCK_MAX_RETRIES):
+            if result.return_code == 0 or not _LOCK_ERROR_RE.search(result.stderr):
+                break
+            delay = _LOCK_BASE_DELAY_SECONDS * (2**attempt) + random.uniform(0, 1)  # nosec: B311
+            log.debug(
+                "Git lock contention (attempt %d/%d), retrying in %.1fs: %s",
+                attempt + 1,
+                _LOCK_MAX_RETRIES,
+                delay,
+                result.stderr,
+            )
+            time.sleep(delay)
+            if should_retry is not None and not should_retry():
+                log.debug("Git lock retry aborted: work no longer needed")
+                break
+            result = self._call_git(args, input_string)
+        return result
 
     def get_git_version(self) -> tuple[int, ...]:
         output = self._git_output(["--version"])  # "git version 1.2.3"
@@ -232,6 +284,12 @@ class Git:
         return output == "true"
 
     def unshallow_repository(self, refspec: t.Optional[str] = None, parent_only: bool = False) -> _GitSubprocessDetails:
+        # If another process (e.g. a parallel xdist worker) has already unshallowed the
+        # repository, skip the redundant fetch.
+        if not self.is_shallow_repository():
+            log.debug("Repository is no longer shallow, skipping unshallow")
+            return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+
         remote_name = self.get_remote_name()
         command = [
             "fetch",
@@ -245,8 +303,13 @@ class Git:
         if refspec:
             command.append(refspec)
 
-        result = self._call_git(command)
+        result = self._call_git_with_lock_retry(command, should_retry=self.is_shallow_repository)
         if result.return_code != 0:
+            # The retry loop may have aborted because a sibling worker finished
+            # unshallowing in the meantime; in that case treat the operation as a success.
+            if not self.is_shallow_repository():
+                log.debug("Repository was unshallowed by another process during retry")
+                return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
             log.warning("Error unshallowing repo for refspec %s: %s", refspec, result.stderr)
         return result
 
@@ -294,7 +357,11 @@ class Git:
 
     def get_merge_base(self, sha1: str, sha2: str) -> str:
         """Return the best common ancestor commit SHA of sha1 and sha2."""
-        return self._git_output(["merge-base", sha1, sha2])
+        result = self._call_git(["merge-base", sha1, sha2])
+        if result.return_code != 0:
+            log.warning("Error getting merge-base for %s and %s: %s", sha1, sha2, result.stderr)
+            return ""
+        return result.stdout
 
     def pack_objects(self, revisions: list[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
@@ -322,21 +389,6 @@ class Git:
 
             for packfile in Path(output_dir).glob(f"{base_name}*.pack"):
                 yield packfile
-
-
-def get_pr_base_commit_sha(base_branch_head_sha: str, head_sha: str) -> t.Optional[str]:
-    """Compute the true PR base commit SHA as the merge base of base_branch_head_sha and head_sha.
-
-    On GitHub Actions, pull_request.base.sha is the HEAD of the base branch, not the actual merge
-    base commit. This function uses `git merge-base` to find the common ancestor.
-    """
-    try:
-        git = Git()
-    except RuntimeError as e:
-        log.warning("Error getting git data for merge-base computation: %s", e)
-        return None
-
-    return git.get_merge_base(base_branch_head_sha, head_sha) or None
 
 
 def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
