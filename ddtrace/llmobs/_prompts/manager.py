@@ -35,6 +35,14 @@ from ddtrace.llmobs.types import PromptVersionResponse
 
 log = get_logger(__name__)
 
+_STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
+    400: PromptValidationError,
+    401: PromptAuthError,
+    403: PromptAuthError,
+    404: PromptNotFoundError,
+    409: PromptConflictError,
+}
+
 
 class PromptManager:
     """Manages prompt retrieval and caching."""
@@ -317,17 +325,10 @@ class PromptManager:
             return json.loads(response_body) if response_body else {}
 
         detail = extract_error_detail(response_body)
-        if status in (401, 403):
-            raise PromptAuthError(status, detail)
-        if status == 400:
-            raise PromptValidationError(status, detail)
-        if status == 404:
-            raise PromptNotFoundError(status, detail)
-        if status == 409:
-            raise PromptConflictError(status, detail)
-        if status >= 500:
-            raise PromptServerError(status, detail)
-        raise PromptAPIError(status, detail)
+        exc_cls = _STATUS_EXCEPTIONS.get(status)
+        if exc_cls is None:
+            exc_cls = PromptServerError if status >= 500 else PromptAPIError
+        raise exc_cls(status, detail)
 
     def create_prompt(
         self,
