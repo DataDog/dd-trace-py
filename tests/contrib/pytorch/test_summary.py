@@ -536,14 +536,20 @@ def test_forward_pre_hook_feeds_data_fetch_after_optimizer_step(monkeypatch):
         _hooks._FORWARD_TLS.summary_stack = []
     _hooks._DATA_LOAD_TLS.emitted = False
 
-    set_last_optimizer_step_end_ns(_t.perf_counter_ns())
+    # AIDEV-NOTE: prev_end MUST be set with time.time_ns (wall clock) to match
+    # production — set_last_optimizer_step_end_ns is called from _maybe_close_step
+    # with now_ns() which is time.time_ns. Using perf_counter_ns here would
+    # paper over the very clock-source mismatch this test is supposed to guard.
+    set_last_optimizer_step_end_ns(_t.time_ns())
     _t.sleep(0.003)
     _hooks._forward_pre_hook(module=None, inputs=())
 
     # After N1 fix: step.data_fetch_ms is NOT pushed per-call; only the accumulator is set.
     assert _summary.drain_distribution("step.data_fetch_ms")["count"] == 0
     acc = _summary.get_step_accumulator()
-    assert acc.data_fetch_ms >= 2.0
+    # Real gap is ~3ms; sanity-cap upper bound catches clock-mismatch regressions
+    # where dt_ms would be ~1.7e12 (wall epoch minus perf counter).
+    assert 2.0 <= acc.data_fetch_ms <= 1000.0
 
     # Verify that close_step_to_summary picks it up and emits exactly once.
     _summary.close_step_to_summary(
@@ -573,7 +579,9 @@ def test_data_fetch_recorded_once_per_step(monkeypatch):
         _hooks._FORWARD_TLS.summary_stack = []
     _hooks._DATA_LOAD_TLS.emitted = False
 
-    set_last_optimizer_step_end_ns(_t.perf_counter_ns())
+    # See note in test_forward_pre_hook_feeds_data_fetch_after_optimizer_step:
+    # prev_end must be wall-clock to match production.
+    set_last_optimizer_step_end_ns(_t.time_ns())
     _hooks._forward_pre_hook(module=None, inputs=())
     _hooks._forward_hook(module=None, inputs=(), output=None)
     _hooks._forward_pre_hook(module=None, inputs=())  # second forward in same step
@@ -583,7 +591,7 @@ def test_data_fetch_recorded_once_per_step(monkeypatch):
     assert _summary.drain_distribution("step.data_fetch_ms")["count"] == 0
     # Only the first forward should have set data_fetch_ms (second forward skipped).
     acc = _summary.get_step_accumulator()
-    assert acc.data_fetch_ms > 0
+    assert 0 < acc.data_fetch_ms <= 1000.0  # sanity bound catches clock-mismatch
 
     # close_step_to_summary should emit it exactly once.
     _summary.close_step_to_summary(
@@ -592,6 +600,43 @@ def test_data_fetch_recorded_once_per_step(monkeypatch):
     )
     snap = _summary.drain_distribution("step.data_fetch_ms")
     assert snap["count"] == 1  # only the first forward's data_fetch_ms was accumulated
+
+
+def test_data_fetch_uses_wall_clock_consistent_with_optimizer_end(monkeypatch):
+    """Regression: _forward_pre_hook must subtract wall clock (time.time_ns)
+    from wall clock — not perf_counter_ns from wall clock.
+
+    _LAST_OPTIMIZER_STEP_END_NS is set via now_ns() (time.time_ns, wall, ~1.7e18).
+    If the hook subtracts that from time.perf_counter_ns() (monotonic since boot,
+    typically << 1e15), dt_ms is a huge negative number that the `dt_ms >= 0`
+    guard silently drops, leaving step.data_fetch_ms permanently empty on the
+    rotated rank span. Verified live in instrumentation-verification 2026-05-28.
+    """
+    monkeypatch.delenv("DD_PYTORCH_PROFILING", raising=False)
+    import time as _t
+
+    from ddtrace.contrib.internal.pytorch import _hooks
+    from ddtrace.contrib.internal.pytorch import _summary
+    from ddtrace.contrib.internal.pytorch._utils import set_last_optimizer_step_end_ns
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    if hasattr(_hooks._FORWARD_TLS, "summary_stack"):
+        _hooks._FORWARD_TLS.summary_stack = []
+    _hooks._DATA_LOAD_TLS.emitted = False
+
+    # Pin prev_end to "5ms ago" in wall-clock time — exactly as production does.
+    five_ms_ago_wall = _t.time_ns() - 5_000_000
+    set_last_optimizer_step_end_ns(five_ms_ago_wall)
+
+    _hooks._forward_pre_hook(module=None, inputs=())
+
+    acc = _summary.get_step_accumulator()
+    # Expect ~5ms. A clock-mismatch regression would yield either 0 (filtered by
+    # dt_ms >= 0 guard) or ~1.7e12 (epoch-minus-perf-counter garbage).
+    assert 1.0 <= acc.data_fetch_ms <= 100.0, (
+        f"data_fetch_ms={acc.data_fetch_ms} — expected ~5ms; clock-source mismatch regression?"
+    )
 
 
 # ---------------------------------------------------------------------------
