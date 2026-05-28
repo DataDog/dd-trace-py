@@ -29,13 +29,6 @@ from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
 
 
-try:
-    from json import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-
 log = get_logger(__name__)
 
 if django.VERSION < (1, 10, 0):
@@ -426,6 +419,26 @@ def _after_request_tags(pin, span: Span, request, response):
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
             span.resource = request.method
+
+
+def _request_path_params(request):
+    """Polymorphic Django path-params extraction.
+
+    Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
+    Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
+    case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
+    """
+    try:
+        resolver_match = getattr(request, "resolver_match", None)
+        if resolver_match is None:
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver is None:
+                return None
+            resolver_match = resolver.resolve(request.path_info)
+        return resolver_match.kwargs or resolver_match.args or None
+    except Exception:
+        log.debug("Django request_path_params extraction failed", exc_info=True)
+        return None
 
 
 class DjangoViewProxy(FunctionWrapper):

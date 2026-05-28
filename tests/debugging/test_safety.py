@@ -39,6 +39,23 @@ def test_get_args():
         assert_args({"ars"})
         assert_locals(set())
 
+    # `co_varnames` lays out keyword-only arguments BEFORE
+    # `*args` / `**kwargs`. The previous nargs offset
+    # `co_argcount + VARARGS + VARKEYWORDS` omitted `co_kwonlyargcount`,
+    # so for `def f(a, *args, c, **kwargs)` keyword-only `c` was
+    # mis-classified as positional and the actual `args` / `kwargs`
+    # objects fell out of `get_args` entirely (and got reported by
+    # `get_locals` instead).
+    def kwonly_and_args_and_kwargs(a, *ars, c, **kwars):
+        local = 1  # noqa
+        assert_args({"a", "ars", "c", "kwars"})
+        assert_locals({"local"})
+
+    def kwonly_only(a, *, c, d):
+        local = 1  # noqa
+        assert_args({"a", "c", "d"})
+        assert_locals({"local"})
+
     def referenced_globals():
         global GLOBAL_VALUE
         a = GLOBAL_VALUE >> 1  # noqa
@@ -49,6 +66,8 @@ def test_get_args():
     arg_and_args_and_kwargs(1, 42, b=2)
     args_and_kwargs()
     args()
+    kwonly_and_args_and_kwargs(1, 42, c=3, extra=9)
+    kwonly_only(1, c=3, d=4)
     referenced_globals()
 
 
@@ -104,3 +123,74 @@ def test_safe_dict():
 
     with pytest.raises(AttributeError):
         _safety._safe_dict(Foo())
+
+
+def test_get_locals_freevars():
+    """get_locals should include closure variables (freevars and cellvars)."""
+    captured = []
+
+    def outer():
+        cell = 42  # cellvar captured by inner
+
+        def inner():
+            captured.append(inspect.currentframe())
+            return cell  # freevar inside inner
+
+        inner()
+
+    outer()
+    frame = captured[0]
+    local_names = {name for name, _ in _safety.get_locals(frame)}
+    assert "cell" in local_names
+
+
+def test_get_locals_cellvars():
+    """get_locals on the outer frame should expose cellvars."""
+    outer_frames = []
+
+    def outer():
+        cell = 99  # cellvar
+        outer_frames.append(inspect.currentframe())
+
+        def inner():
+            return cell
+
+        inner()
+
+    outer()
+    frame = outer_frames[0]
+    local_names = {name for name, _ in _safety.get_locals(frame)}
+    assert "cell" in local_names
+
+
+def test_get_globals_returns_referenced_globals():
+    """get_globals should return names referenced as globals in the frame's code."""
+    frames = []
+
+    def capture():
+        _ = GLOBAL_VALUE  # references GLOBAL_VALUE via LOAD_GLOBAL
+        frames.append(inspect.currentframe())
+
+    capture()
+    result = dict(_safety.get_globals(frames[0]))
+    assert "GLOBAL_VALUE" in result
+    assert result["GLOBAL_VALUE"] == GLOBAL_VALUE
+
+
+def test_getattr_or_exception_returns_exception():
+    """getattr_or_exception should return the exception when attribute access fails."""
+
+    class Boom:
+        @property
+        def bad(self):
+            raise ValueError("boom")
+
+    obj = Boom()
+    result = _safety.getattr_or_exception(obj, "bad")
+    assert isinstance(result, Exception)
+
+
+def test_getattr_or_exception_missing_attribute():
+    """getattr_or_exception returns AttributeError for missing attributes."""
+    result = _safety.getattr_or_exception(object(), "nonexistent")
+    assert isinstance(result, AttributeError)

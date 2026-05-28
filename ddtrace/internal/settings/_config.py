@@ -635,7 +635,12 @@ class Config(object):
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
+        self._trace_compute_stats = _get_config(
+            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
+        )
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -695,16 +700,14 @@ class Config(object):
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
         self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
         self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
-        if "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED" in env:
+        if "DD_TRACE_INFERRED_SPANS_ENABLED" in env:
             deprecate(
-                "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED is deprecated",
-                message="Please use DD_TRACE_INFERRED_SPANS_ENABLED instead.",
+                "DD_TRACE_INFERRED_SPANS_ENABLED is deprecated",
+                message="Please use DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED instead.",
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._inferred_proxy_services_enabled = _get_config(
-            ["DD_TRACE_INFERRED_SPANS_ENABLED", "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED"], False, asbool
-        )
+        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.

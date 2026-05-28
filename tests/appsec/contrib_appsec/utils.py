@@ -19,6 +19,7 @@ from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
+from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -275,13 +276,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             interface.client.get("/")
             collection = endpoint_collection.endpoints
             assert collection, f"no collection {collection}"
-            for ep in collection:
+            # Iterate over a snapshot: the requests issued in the loop can
+            # register new endpoints, mutating the live set mid-iteration.
+            for ep in list(collection):
                 assert ep.method
                 # path could be empty, but must be a string
                 assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
-                if ep.method not in ("GET", "*", "POST") or ep.path.startswith("/static"):
+                # Skip Flask's per-app auto /static/ rule — 404s for fake filenames.
+                if ep.method not in ("GET", "*", "POST") or "/static/" in ep.path:
                     continue
                 found.add(ep.path)
                 uri = self.endpoint_path_to_uri(ep.path)
@@ -524,6 +528,73 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert int((path_params["param_int"] if isinstance(path_params, dict) else path_params[0])) == 137
             else:
                 assert path_params is None
+
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("uri", "expected"),
+        [
+            ("/asm/137/abc/", "/asm/{param_int}/{param_str}/"),
+            ("/asm/137/abc", "/asm/{param_int}/{param_str}"),
+            ("/", "/"),
+            # Multi-param-in-segment: rule 5 combines names with `+`.
+            ("/multi-param/john.doe/", "/multi-param/{first+last}/"),
+            # `:path` catch-all: rule 5 catch-all exception emits a single tail element regardless of slashes matched.
+            ("/files/some/deep/path", "/files/{file_path}"),
+        ],
+    )
+    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
+        # RFC-1103: when API Security is active, every request span carrying http.route also carries
+        # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
+        # ASM enablement, libddwaf availability, and `_api_security_enabled`. With ASM disabled (this test) the
+        # feature is inactive and the tag must be absent.
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            if asm_enabled:
+                assert tag == expected, f"normalized_route tag mismatch: {tag!r} != {expected!r}"
+            else:
+                assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
+
+    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
+        # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
+        # feature is independently disabled — in that configuration the normalized route tag must still be absent.
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag is None, f"normalized_route should be unset when API Security is disabled, got {tag!r}"
+
+    @pytest.mark.xfail_interface("django", "flask", "tornado", skip=True)
+    def test_normalized_route_survives_request_span_name_override(
+        self, interface: Interface, entry_span, get_entry_span_tag
+    ):
+        # Regression: framework scoping must not depend on the default span name. Customers can override
+        # `request_span_name` via integration config; with the gate keyed on IntegrationConfig.integration_name (read
+        # from the request execution context), the tag must still be emitted even when the span is renamed.
+        #
+        # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
+        # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
+        # ``test_normalized_route`` against the regular span name.
+        custom_name = "custom.framework.request"
+        with (
+            override_global_config(dict(_asm_enabled=True)),
+            override_config(interface.name, {"request_span_name": custom_name}),
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            # Verify the override actually took effect — otherwise this test would silently pass even if the gating
+            # hadn't been fixed.
+            assert entry_span().name == custom_name, f"span was not renamed: {entry_span().name!r}"
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag == "/asm/{param_int}/{param_str}/", (
+                f"normalized_route tag mismatch under custom request_span_name: {tag!r}"
+            )
 
     def test_useragent(self, interface: Interface, entry_span, get_entry_span_tag):
         with override_global_config(dict(_asm_enabled=True)):

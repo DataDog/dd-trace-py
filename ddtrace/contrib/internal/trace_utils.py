@@ -13,6 +13,7 @@ from typing import Iterator  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Sequence  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 from urllib import parse
@@ -27,6 +28,7 @@ from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_ins
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
+from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_headers
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.ext import net
@@ -426,7 +428,7 @@ def set_http_meta(
     retries_remain: Optional[Union[int, str]] = None,
     raw_uri: Optional[str] = None,
     request_cookies: Optional[dict[str, str]] = None,
-    request_path_params: Optional[dict[str, str]] = None,
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = None,
     request_body: Optional[Union[str, dict[str, list[str]]]] = None,
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
@@ -446,8 +448,10 @@ def set_http_meta(
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
-    :param request_path_params: the parameters of the HTTP URL as set by the framework: /posts/<id:int> would give us
-         { "id": <int_value> }
+    :param request_path_params: the parameters of the HTTP URL as set by the framework. Polymorphic: a mapping of
+        ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
+        ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
+        ``resolver_match.args``, Tornado ``path_args``).
     """
     if method is not None:
         span._set_attribute(http.METHOD, method)
@@ -488,6 +492,8 @@ def set_http_meta(
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
         if referrer_host:
             span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
+
+        _store_security_testing_headers(request_headers, span, headers_are_case_sensitive)
 
         if integration_config.is_header_tracing_configured:
             """We should store both http.<request_or_response>.headers.<header_name> and

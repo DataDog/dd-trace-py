@@ -41,12 +41,23 @@ def test_unregistered_otel_key_logs(caplog):
     assert "OTEL_TOTALLY_BOGUS_XYZ" in caplog.text
 
 
-def test_non_dd_otel_key_skipped(caplog):
+def test_non_datadog_key_skipped(caplog):
     with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
         env_module._validate_key("PATH")
         env_module._validate_key("HOME")
-        env_module._validate_key("_DD_INTERNAL_VAR")
     assert caplog.text == ""
+
+
+def test_unregistered_underscore_dd_key_logs(caplog):
+    with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
+        env_module._validate_key("_DD_TOTALLY_BOGUS_XYZ")
+    assert "_DD_TOTALLY_BOGUS_XYZ" in caplog.text
+
+
+def test_unregistered_datadog_key_logs(caplog):
+    with caplog.at_level(logging.DEBUG, logger=ENV_LOGGER):
+        env_module._validate_key("DATADOG_TOTALLY_BOGUS_XYZ")
+    assert "DATADOG_TOTALLY_BOGUS_XYZ" in caplog.text
 
 
 def test_alias_is_accepted(caplog):
