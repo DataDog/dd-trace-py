@@ -6,10 +6,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import LLMOBS_BASE_URL
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -70,7 +70,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Check if the traced operation is from the given provider."""
         base_url = None
         if span is not None:
-            base_url = span._get_ctx_item(LLMOBS_BASE_URL)
+            base_url = span._get_ctx_item(REQUEST_BASE_URL)
         if not base_url:
             if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
                 base_url = getattr(self._client, "_base_url", None)
