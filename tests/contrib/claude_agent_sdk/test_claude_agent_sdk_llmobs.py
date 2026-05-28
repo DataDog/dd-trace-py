@@ -897,10 +897,10 @@ class TestLLMObsClaudeAgentSdk:
     ):
         """Parallel tool calls in a single AssistantMessage produce sibling tool spans.
 
-        The dual-layer linking design fans out: every parallel tool span gets a
-        link from the same llm span (``llm#1 → tool#k``), every parallel tool
-        span links to the next llm span (``tool#k → llm#2``), and no tool span
-        links to any other tool span (parallel tools are siblings, not a chain).
+        Every parallel tool span gets a link from the same llm span
+        (``llm#1 → tool#k``), every parallel tool span links to the next llm
+        span (``tool#k → llm#2``), and no tool span links to any other tool
+        span (parallel tools are siblings, not a chain).
         """
         prompt = "Run three Bash commands in parallel."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -920,7 +920,7 @@ class TestLLMObsClaudeAgentSdk:
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
         # Note: parallel tool spans currently nest under each other instead
-        # of being siblings — tracked in MLOB-TBD.
+        # of being siblings — tracked in MLOB-7551.
 
         # Fan-out: each tool gets one incoming link from llm#1.
         for tool_span in tool_spans:
@@ -938,7 +938,7 @@ class TestLLMObsClaudeAgentSdk:
                     f"({link['span_id']}); parallel tools should be siblings, not chained."
                 )
 
-        # Step chain stays intact alongside the fan-out.
+        # Step-to-step link is still emitted alongside the fan-out.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
 
     async def test_llmobs_back_to_back_assistant_messages_link_llm_to_llm_directly(
@@ -948,12 +948,12 @@ class TestLLMObsClaudeAgentSdk:
         claude_agent_sdk_llmobs,
         test_spans,
     ):
-        """Two text-only AssistantMessages back-to-back keep the leaf chain connected.
+        """Two text-only AssistantMessages back-to-back keep the llm spans connected.
 
         Normal multi-turn flow has a tool span between consecutive llm spans, so the
-        leaf chain is ``llm#1 → tool → llm#2``. If a step has no tools (e.g. two
+        chain is ``llm#1 → tool → llm#2``. If a step has no tools (e.g. two
         AssistantMessages with only text), there's nothing to link through, so the
-        integration links ``llm#1 → llm#2`` directly to preserve the leaf chain.
+        integration links ``llm#1 → llm#2`` directly to preserve the chain.
         """
         prompt = "Test back-to-back assistant messages."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -966,9 +966,9 @@ class TestLLMObsClaudeAgentSdk:
         assert len(llm_spans) == 2
         assert len(step_spans) == 2
 
-        # Direct leaf link bridges the no-tool gap.
+        # Direct llm-to-llm link (no tool spans between them).
         _assert_span_link(llm_spans[0], llm_spans[1], "output", "input")
-        # Step chain stays intact alongside the bridge.
+        # Step-to-step link is still emitted alongside the bridge.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
 
     async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):

@@ -2,5 +2,5 @@
 features:
   - |
     LLM Observability: The ``claude_agent_sdk`` integration now emits span links between
-    step, LLM, and tool spans, enabling the Execution Graph visualization for
-    ``claude_agent_sdk`` traces.
+    step, LLM, and tool spans so multi-step traces render the sequencing between
+    LLM calls and tool calls.

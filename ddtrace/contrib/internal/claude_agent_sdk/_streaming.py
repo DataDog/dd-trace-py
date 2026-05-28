@@ -187,7 +187,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
         )
-        # Leaf chain: llm → tool → next-llm. Back-to-back text-only assistants bridge llm → llm directly.
+        # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
         if self._step_tool_span_refs:
             for tool_ref in self._step_tool_span_refs:
                 add_span_link(self.current_llm_span, tool_ref.span_id, tool_ref.trace_id, "output", "input")
@@ -201,7 +201,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 "input",
             )
 
-        # Step chain: step → next-step.
+        # Link each new step span from the previous step span.
         if self._last_step_span_ref is not None:
             add_span_link(
                 self.current_step_span,
