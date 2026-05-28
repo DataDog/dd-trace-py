@@ -401,6 +401,16 @@ def exception_group_block(request):
 
 
 @csrf_exempt
+def multi_param_segment(request, first: str, last: str):
+    return JsonResponse({"first": first, "last": last})
+
+
+@csrf_exempt
+def files_catch_all(request, file_path: str):
+    return JsonResponse({"file_path": file_path})
+
+
+@csrf_exempt
 def new_service(request, service_name: str):
     ddtrace.config.django.service = service_name
     with tracer.start_span("span_with_new_service", service=service_name):
@@ -457,6 +467,9 @@ if django.VERSION >= (2, 0, 0):
         path("login_sdk/", login_user_sdk, name="login_sdk"),
         path("login_sdk", login_user_sdk, name="login_sdk"),
         path("exception-group-block", exception_group_block, name="exception_group_block"),
+        # RFC-1103 normalized-route coverage: multi-param-in-segment (rule 5) and `<path:...>` catch-all (rule 5).
+        path("multi-param/<str:first>.<str:last>/", multi_param_segment, name="multi_param_segment"),
+        path("files/<path:file_path>", files_catch_all, name="files_catch_all"),
     ]
 else:
     urlpatterns += [
