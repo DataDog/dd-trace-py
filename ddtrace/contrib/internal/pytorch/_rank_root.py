@@ -202,14 +202,20 @@ def _build_span(kwargs: dict):
 def _tag_ray_run_context(span) -> None:
     """Stamp Ray Train run context (``ray.submission_id``,
     ``ray.train.run_name``, ``ray.metadata.*``) onto ``span`` from the
-    pytorch-utils cache. Best-effort and idempotent — safe to call at
-    both open and close.
+    pytorch-utils cache. Best-effort and idempotent — safe to call
+    multiple times on the same span.
 
-    AIDEV-NOTE: Called at close as well as open because the Ray worker
-    wrapper that populates the cache (``_run_train_func_in_worker``)
-    runs *after* Ray Train has already invoked
-    ``init_process_group`` → ``_rank_root.open``. By close time the
-    cache is reliably populated and we can backfill the rank span.
+    AIDEV-NOTE: ``_run_train_func_in_worker`` populates the cache AFTER
+    ``init_process_group`` → ``_rank_root.open()`` has already opened
+    the span, then RESTORES the cache to its prior (empty) state in its
+    finally block — BEFORE ``_rank_root.close()`` runs at atexit /
+    ``destroy_process_group``. That means the close-time call to this
+    function sees an empty cache and cannot backfill ``ray.submission_id``.
+    The fix: ``_run_train_func_in_worker`` calls ``retag_ray_run_context()``
+    immediately after populating the cache, so the live ``pytorch.rank``
+    span is tagged while the cache is still fresh. The open/close calls
+    remain as no-op safety nets when the cache happens to be populated
+    earlier (non-Ray launchers) or later (worker reuse).
     """
     try:
         from ddtrace.contrib.internal.pytorch._utils import get_cached_run_metadata  # noqa: PLC0415
@@ -229,6 +235,27 @@ def _tag_ray_run_context(span) -> None:
                 log.debug("pytorch.rank: failed to set metadata tag %s", k, exc_info=True)
     except Exception:
         log.debug("pytorch.rank: failed to apply Ray run metadata", exc_info=True)
+
+
+def retag_ray_run_context() -> None:
+    """Re-apply Ray Train run-context tags to the currently-open
+    ``pytorch.rank`` span. No-op when no rank span is open.
+
+    Called by ``ray.train._run_train_func_in_worker`` immediately after
+    populating the pytorch-utils run-metadata cache, so the long-running
+    rank span carries ``ray.submission_id`` / ``ray.train.run_name`` /
+    ``ray.metadata.*`` for its full lifetime instead of only being
+    backfilled at close (when the cache has been restored to empty —
+    see ``_tag_ray_run_context`` docstring).
+    """
+    with _lock:
+        span = _span
+    if span is None:
+        return
+    try:
+        _tag_ray_run_context(span)
+    except Exception:
+        log.debug("pytorch.rank: retag_ray_run_context failed", exc_info=True)
 
 
 def _tag_collective_summary(span) -> None:
@@ -285,9 +312,23 @@ def _tag_collective_summary(span) -> None:
             try:
                 span._set_attribute(k, v)
             except Exception:
-                log.debug("pytorch.rank: failed to set summary facet %s", k, exc_info=True)
+                # AIDEV-NOTE: warning (not debug) so per-facet representation
+                # failures are visible in soak / production logs. Diagnosed
+                # via `grad_comm.bucket_duration_ms.{min_ms,max_ms,p*_ms}`
+                # showing up in spans with the count + mean but no
+                # percentile facets — silent swallow at debug-level masked
+                # the underlying _set_attribute rejection. Includes the
+                # value's type + repr so the failing case is identifiable
+                # without re-running the workload.
+                log.warning(
+                    "pytorch.rank: failed to set summary facet %s (type=%s, value=%r)",
+                    k,
+                    type(v).__name__,
+                    v,
+                    exc_info=True,
+                )
     except Exception:
-        log.debug("pytorch.rank: failed to drain training-metric reservoirs", exc_info=True)
+        log.warning("pytorch.rank: failed to drain training-metric reservoirs", exc_info=True)
 
 
 def open(rank: int, world_size: int, framework: str, training_job_id):  # noqa: A001
