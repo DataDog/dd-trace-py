@@ -81,6 +81,7 @@ jobs:
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
+          package-dir: dd-trace-py
 
       - name: Validate wheel RECORD files
         shell: bash
