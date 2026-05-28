@@ -37,11 +37,29 @@ log = get_logger(__name__)
 _DEFAULT_CAPACITY = 1024
 _OVERFLOW_WARN_EVERY = 64
 
+# Default 1-in-N collective GPU sampling rate for summary reservoirs.
+_DEFAULT_GPU_SAMPLE_RATE = 100
+
 
 # Forward-declared here so the fork handler can reset them before
 # Tasks 6 and 7 introduce their real assignments.
 _no_env_job_id_warned: bool = False
 _layer2_installed: bool = False
+
+
+class _SummaryEventMarker:
+    """Sentinel tuple substitute for resolver entries that should feed
+    a summary reservoir instead of finishing a span.
+
+    AIDEV-NOTE: Held in the same queue as span-keyed entries so a single
+    resolver background thread services both paths. The isinstance check in
+    _drain_ready / _finish_unresolved distinguishes the two.
+    """
+
+    __slots__ = ("op_name",)
+
+    def __init__(self, op_name: str) -> None:
+        self.op_name = op_name
 
 
 def _detect_launcher() -> Optional[str]:
@@ -87,6 +105,8 @@ _state: dict[str, Any] = {
     "world_size": 1,
     "resolver": None,
     "rate_ticker": None,
+    "gpu_sample_rate": _DEFAULT_GPU_SAMPLE_RATE,
+    "gpu_sample_count": 0,
 }
 # Serializes the "bootstrapped" check so concurrent `init_process_group`
 # calls don't double-run the bootstrap.
@@ -106,6 +126,11 @@ def _reset_child_state() -> None:
             "world_size": 1,
             "resolver": None,
             "rate_ticker": None,
+            # AIDEV-NOTE: gpu_sample_rate is a config constant and stays; only
+            # the counter is reset so the child doesn't inherit the parent's
+            # partially-advanced sample position.
+            "gpu_sample_rate": _DEFAULT_GPU_SAMPLE_RATE,
+            "gpu_sample_count": 0,
         }
     )
     _bootstrap_lock = threading.Lock()
@@ -174,6 +199,25 @@ class CudaEventResolver:
                 )
             self._finish_unresolved(evicted, reason="cuda_event_overflow")
 
+    def submit_for_summary(self, op_name: str, start_event, end_event) -> None:
+        """Like ``submit()``, but on resolution the elapsed GPU time is
+        pushed to the ``collective.<op>.gpu_duration_ms`` summary
+        reservoir. No span is finished.
+
+        AIDEV-NOTE: Shares the same bounded queue as span entries so the
+        resolver thread's single poll loop services both paths. Overflow
+        drops the oldest entry silently (no span to finish, no user-visible
+        error tag to set).
+        """
+        evicted = None
+        with self._lock:
+            if len(self._queue) >= self._capacity:
+                evicted, _, _ = self._queue.popleft()
+                self._overflow_count += 1
+            self._queue.append((_SummaryEventMarker(op_name), start_event, end_event))
+        if evicted is not None:
+            self._finish_unresolved(evicted, reason="cuda_event_overflow")
+
     def _run(self) -> None:
         # Use stop_event.wait so stop() interrupts the sleep promptly instead
         # of waiting up to poll_interval before exiting.
@@ -187,21 +231,36 @@ class CudaEventResolver:
             pending = list(self._queue)
             self._queue.clear()
         keep: collections.deque = collections.deque()
-        for span, start, end in pending:
+        for entry, start, end in pending:
             try:
                 ready = end.query()
             except Exception:
-                self._finish_unresolved(span, reason="cuda_event_query_error")
+                self._finish_unresolved(entry, reason="cuda_event_query_error")
                 continue
             if ready:
-                try:
-                    duration_ms = float(start.elapsed_time(end))
-                    span._set_attribute("gpu.duration_ms", duration_ms)
-                except Exception:
-                    span.set_tag("_dd.error_reason", "cuda_event_elapsed_error")
-                span.finish()
+                if isinstance(entry, _SummaryEventMarker):
+                    # Summary path: push GPU duration to the per-op reservoir.
+                    try:
+                        duration_ms = float(start.elapsed_time(end))
+                        from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+                        _summary.push_distribution(
+                            f"collective.{entry.op_name}.gpu_duration_ms",
+                            duration_ms,
+                        )
+                    except Exception:
+                        pass
+                else:
+                    # Existing span path: set gpu.duration_ms tag and finish.
+                    span = entry
+                    try:
+                        duration_ms = float(start.elapsed_time(end))
+                        span._set_attribute("gpu.duration_ms", duration_ms)
+                    except Exception:
+                        span.set_tag("_dd.error_reason", "cuda_event_elapsed_error")
+                    span.finish()
             else:
-                keep.append((span, start, end))
+                keep.append((entry, start, end))
         with self._lock:
             keep.extend(self._queue)
             self._queue = keep
@@ -210,15 +269,19 @@ class CudaEventResolver:
         with self._lock:
             remaining = list(self._queue)
             self._queue.clear()
-        for span, _, _ in remaining:
-            self._finish_unresolved(span, reason="cuda_event_unresolved")
+        for entry, _, _ in remaining:
+            self._finish_unresolved(entry, reason="cuda_event_unresolved")
 
     @staticmethod
-    def _finish_unresolved(span, reason: str) -> None:
+    def _finish_unresolved(entry, reason: str) -> None:
+        if isinstance(entry, _SummaryEventMarker):
+            # Drop silently; summary markers have no span to finish and no
+            # error tag to surface. Overflow is logged at the submit site.
+            return
         try:
-            span.set_tag("_dd.error_reason", reason)
+            entry.set_tag("_dd.error_reason", reason)
         finally:
-            span.finish()
+            entry.finish()
 
     def stop(self, timeout: float = 2.0) -> None:
         self._stop_event.set()
@@ -305,10 +368,32 @@ def _bootstrap_distributed() -> None:
         log.exception("pytorch: rate ticker start failed")
         _state["rate_ticker"] = None
 
-    if config.pytorch.collective_trace_enabled:
-        resolver = CudaEventResolver()
-        resolver.start()
-        _state["resolver"] = resolver
+    # Read collective GPU sample rate. Defaults to 100 (1-in-100 collectives
+    # sampled for GPU timing when Layer One is off). Setting to 0 disables
+    # summary-mode CUDA event sampling entirely.
+    sample_rate = _DEFAULT_GPU_SAMPLE_RATE
+    try:
+        raw = env.get("DD_PYTORCH_COLLECTIVE_GPU_SAMPLE_RATE", "")
+        if raw:
+            sample_rate = int(raw)
+    except Exception:
+        log.debug("pytorch: invalid DD_PYTORCH_COLLECTIVE_GPU_SAMPLE_RATE; using default %d", _DEFAULT_GPU_SAMPLE_RATE)
+    _state["gpu_sample_rate"] = sample_rate
+    _state["gpu_sample_count"] = 0
+
+    layer_one_on = config.pytorch.collective_trace_enabled
+    # Start the resolver when Layer One is on (span path) OR when GPU summary
+    # sampling is enabled (sample_rate > 0). The same background thread
+    # serves both entry types.
+    needs_resolver = layer_one_on or (sample_rate > 0)
+    if needs_resolver and torch.cuda.is_available():
+        try:
+            resolver = CudaEventResolver()
+            resolver.start()
+            _state["resolver"] = resolver
+        except Exception:
+            log.exception("pytorch: failed to start CUDA event resolver")
+            _state["resolver"] = None
     else:
         _state["resolver"] = None
 
@@ -420,6 +505,9 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
     # additionally opens a span and (on CUDA) a deferred-resolved event
     # pair. Wall-clock duration approximates async collectives; precise
     # GPU timing requires Layer One. `torch.compile` may bypass this wrap.
+    # AIDEV-NOTE: When Layer One is OFF and gpu_sample_rate > 0, we
+    # independently sample 1-in-N collectives for GPU timing and push
+    # elapsed_time into the summary reservoir — no span opened, no L1 cost.
     from ddtrace.contrib.internal.pytorch import _metrics  # closure capture
 
     def wrapper(wrapped, instance, args, kwargs):
@@ -433,8 +521,9 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
         # Layer One gating: open the per-collective span and CUDA event pair
         # only when `DD_PYTORCH_COLLECTIVE_TRACE=true`.
         layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
+        resolver = _state.get("resolver")
         span = None
-        resolver = _state.get("resolver") if layer_one_on else None
+        l1_resolver = resolver if layer_one_on else None
         start_event = end_event = None
         if layer_one_on:
             # `child_of=tracer.current_span()` ties the collective span to the
@@ -455,13 +544,37 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
             set_training_job_id_tag(span)
             if tensor is not None and span_name != "pytorch.barrier":
                 span._set_attribute("bytes", bytes_count)
-            if resolver is not None and _should_record_cuda_event(group, tensor):
+            if l1_resolver is not None and _should_record_cuda_event(group, tensor):
                 try:
                     start_event = torch.cuda.Event(enable_timing=True)
                     end_event = torch.cuda.Event(enable_timing=True)
                     start_event.record()
                 except Exception:
                     start_event = end_event = None
+
+        # Summary sampling path: only when Layer One is OFF. Record CUDA events
+        # for 1-in-N collectives and submit to the resolver's summary track.
+        # This gives precise GPU-side timing without requiring L1 spans.
+        summary_start = summary_end = None
+        cuda_eligible = (
+            (not layer_one_on)
+            and resolver is not None
+            and tensor is not None
+            and torch.cuda.is_available()
+            and _should_record_cuda_event(group, tensor)
+        )
+        if cuda_eligible:
+            sample_rate = _state.get("gpu_sample_rate", 0)
+            if sample_rate > 0:
+                cnt = _state.get("gpu_sample_count", 0) + 1
+                _state["gpu_sample_count"] = cnt
+                if cnt % sample_rate == 0:
+                    try:
+                        summary_start = torch.cuda.Event(enable_timing=True)
+                        summary_end = torch.cuda.Event(enable_timing=True)
+                        summary_start.record()
+                    except Exception:
+                        summary_start = summary_end = None
 
         wrapped_raised = False
         t0 = time.perf_counter_ns()
@@ -480,10 +593,10 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
                 log.debug("pytorch: Layer Zero metric emit failed", exc_info=True)
             if span is not None:
                 submitted = False
-                if not wrapped_raised and start_event is not None and end_event is not None and resolver is not None:
+                if not wrapped_raised and start_event is not None and end_event is not None and l1_resolver is not None:
                     try:
                         end_event.record()
-                        resolver.submit(span, start_event, end_event)
+                        l1_resolver.submit(span, start_event, end_event)
                         submitted = True
                     except Exception:
                         span.set_tag("_dd.error_reason", "cuda_event_record_error")
@@ -492,6 +605,16 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
                     # — otherwise the GPU event resource leaks until GC.
                     start_event = end_event = None
                     span.finish()
+            # Summary sampling: record end event and submit to resolver for
+            # the summary track. Only runs when L1 is off (cuda_eligible
+            # already gates on `not layer_one_on`). Skip on exception to
+            # avoid polluting the reservoir with incomplete timings.
+            if not wrapped_raised and summary_start is not None and summary_end is not None:
+                try:
+                    summary_end.record()
+                    resolver.submit_for_summary(op_name, summary_start, summary_end)
+                except Exception:
+                    pass
 
     return wrapper
 
@@ -692,8 +815,13 @@ def _wrapped_deepspeed_init(wrapped, instance, args, kwargs):
 
 
 def _attach_layer2_to_inner_module(model) -> None:
-    """Lazy import + call into _hooks.attach_layer_two_hooks to avoid a circular
-    import at module load.
+    """Lazy import + call into _hooks.attach_layer_two_hooks to avoid a
+    circular import at module load. Also fingerprint the model and
+    attach the embedding token hook for summary-mode MFU.
+
+    AIDEV-NOTE: MoE active-param estimation runs after both fingerprinting
+    and MoE detection so _model_param_count is already set when
+    _estimate_moe_active_param_count reads it.
     """
     try:
         from ddtrace.contrib.internal.pytorch import _hooks
@@ -701,6 +829,16 @@ def _attach_layer2_to_inner_module(model) -> None:
         _hooks.attach_layer_two_hooks(model)
     except Exception:
         log.debug("pytorch: layer2 attachment failed", exc_info=True)
+    try:
+        from ddtrace.contrib.internal.pytorch import _summary
+
+        _summary._fingerprint_model(model)
+        _summary.attach_embedding_token_hook(model)
+        _summary._detect_moe_modules(model)
+        # Update active param count after MoE detection.
+        _summary._model_active_param_count = _summary._estimate_moe_active_param_count(model)
+    except Exception:
+        log.debug("pytorch: model fingerprinting failed", exc_info=True)
 
 
 def _wrapped_deepspeed_method(name: str):
@@ -757,11 +895,18 @@ def _wrapped_optimizer_init(wrapped, instance, args, kwargs):
     Most PyTorch optimizers override `Optimizer.step`, so wrapping the base
     class method does NOT intercept subclass calls. Instance-level wrapping
     catches all optimizers without enumerating subclasses.
+
+    AIDEV-NOTE: Gate on profiling_on OR summary_on (not just profiling_on).
+    With the default DD_PYTORCH_SUMMARY_PROFILING=true / DD_PYTORCH_PROFILING=false
+    configuration the instance step wrap must still attach so the summary path
+    (LR gauge + optim_step_ms distribution) receives feeds per step.
     """
     result = wrapped(*args, **kwargs)
-    from ddtrace.contrib.internal.pytorch import _hooks
+    from ddtrace.contrib.internal.pytorch import _hooks  # noqa: PLC0415
 
-    if not _hooks.is_profiling_enabled():
+    profiling_on = _hooks.is_profiling_enabled()
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    if not (profiling_on or summary_on):
         return result
     try:
         if instance in _step_originals:
@@ -997,6 +1142,15 @@ def _make_chained_comm_hook(user_hook):
                 _metrics.record_collective(op="grad_comm", duration_ms=duration_ms, bytes_count=bytes_count)
             except Exception:
                 log.debug("pytorch: Layer Zero metric emit failed for grad_comm", exc_info=True)
+            # Summary feeds — bucket-level distributions on pytorch.rank.
+            try:
+                from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+                _summary.push_distribution("grad_comm.bucket_duration_ms", duration_ms)
+                if bytes_count:
+                    _summary.push_distribution("grad_comm.bytes_per_bucket", float(bytes_count))
+            except Exception:
+                pass
             if span is not None:
                 try:
                     span.finish()
@@ -1116,9 +1270,10 @@ def _should_install() -> bool:
 
 def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
     """Wrap ``Tensor.backward`` to (a) emit a ``pytorch.backward`` span
-    when Layer 2 profiling is enabled and (b) issue a single
+    when Layer 2 profiling is enabled, (b) issue a single
     ``tracer.flush()`` after the wrapped call if any
-    ``pytorch.grad_comm`` span fired during the backward.
+    ``pytorch.grad_comm`` span fired during the backward, and (c) feed
+    the ``train.loss`` and ``step.backward_ms`` summary reservoirs.
 
     The flush is needed because DDP comm hooks run on a CUDA-callback
     thread whose trace context isn't shared with the autograd thread;
@@ -1130,17 +1285,43 @@ def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
     some grad_comm spans flush one backward later than ideal. We
     accept this trade-off; per-backward tokens would add complexity
     for a corner case that does not lose data.
+
+    AIDEV-NOTE: Loss is captured BEFORE ``wrapped(...)`` runs so that an
+    exception inside backward does not cause us to miss the loss value.
+    The tensor is already finalised at call time (computed during forward).
+    The GPU→host sync that ``item()`` forces is intentional — it is gated
+    by ``DD_PYTORCH_CAPTURE_LOSS`` (default true) so callers can opt out.
     """
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import _ensure_step_open  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import _step_parent  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import is_profiling_enabled  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._utils import set_training_job_id_tag  # noqa: PLC0415
+    from ddtrace.internal.utils.formats import asbool  # noqa: PLC0415
 
     profiling_on = is_profiling_enabled()
-    layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
-    if not profiling_on and not layer_one_on:
-        return wrapped(*args, **kwargs)
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    # Gate: loss capture and backward accumulator are summary-mode features.
+    # In pure Layer-1 mode (collective_trace=true, summary=false, profiling=false)
+    # the wrap still runs for the grad_comm flush in the finally block, but
+    # we must NOT incur the GPU sync from loss.item() or fill reservoirs the
+    # user explicitly disabled.
+    # AIDEV-NOTE: summary_feeds_on gates both the loss GPU-sync and the
+    # backward_total_ms accumulator. Pure-L1 callers (DD_PYTORCH_COLLECTIVE_TRACE=true,
+    # DD_PYTORCH_SUMMARY_PROFILING=false, DD_PYTORCH_PROFILING=false) see neither.
+    summary_feeds_on = summary_on or profiling_on
 
+    # SUMMARY: capture loss BEFORE backward runs. Tensor is already
+    # finalized at this point (user computed it during forward).
+    capture_loss = asbool(env.get("DD_PYTORCH_CAPTURE_LOSS", "true"))
+    if summary_feeds_on and capture_loss:
+        try:
+            if hasattr(instance, "numel") and instance.numel() == 1:
+                _summary.push_distribution("train.loss", float(instance.item()))
+        except Exception:
+            pass  # GPU sync failure / non-tensor / etc — skip silently
+
+    t0 = time.perf_counter_ns()
     span = None
     if profiling_on:
         try:
@@ -1162,6 +1343,16 @@ def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
     try:
         return wrapped(*args, **kwargs)
     finally:
+        dt_ms = (time.perf_counter_ns() - t0) / 1e6
+        if summary_feeds_on:
+            try:
+                _summary.get_step_accumulator().backward_total_ms += dt_ms
+                # AIDEV-NOTE: Do NOT push_distribution("step.backward_ms") here.
+                # close_step_to_summary is the sole emitter for step.backward_ms
+                # (drains from acc.backward_total_ms). Pushing here AND there would
+                # double the count facet — same dedupe contract as step.optim_step_ms.
+            except Exception:
+                pass
         if span is not None:
             _set_active_backward_ctx(None)
             try:
@@ -1191,6 +1382,68 @@ def _uninstall_tensor_backward() -> None:
         _unwrap(torch.Tensor, "backward")
     except Exception:
         log.debug("pytorch: failed to unwrap torch.Tensor.backward", exc_info=True)
+
+
+def _wrapped_clip_grad_norm(wrapped, instance, args, kwargs):
+    """Capture `train.grad_norm` (return value) and `step.grad_clip_ms`
+    (call duration). Summary-only feed — never opens a span.
+    """
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+    t0 = time.perf_counter_ns()
+    raised = False
+    result = None
+    try:
+        result = wrapped(*args, **kwargs)
+    except BaseException:
+        raised = True
+        raise
+    finally:
+        dt_ms = (time.perf_counter_ns() - t0) / 1e6
+        try:
+            _summary.get_step_accumulator().grad_clip_ms = dt_ms
+            # AIDEV-NOTE: Do NOT push_distribution("step.grad_clip_ms") here.
+            # close_step_to_summary is the sole emitter for step.grad_clip_ms
+            # (drains from acc.grad_clip_ms). Pushing here AND there would
+            # double the count facet — same dedupe contract as step.optim_step_ms.
+        except Exception:
+            pass
+    # Capture the returned norm (tensor or float). Only reached if no exception.
+    if not raised:
+        try:
+            if hasattr(result, "item"):
+                value = float(result.item())
+            else:
+                value = float(result)
+            _summary.push_distribution("train.grad_norm", value)
+        except Exception:
+            pass
+    return result
+
+
+def _install_grad_clip() -> None:
+    """Wrap `torch.nn.utils.clip_grad_norm_` for grad_norm + grad_clip_ms
+    reservoirs. No-op if the function is missing (older torch).
+    """
+    try:
+        import torch.nn.utils  # noqa: PLC0415, F401
+    except Exception:
+        return
+    if not hasattr(torch.nn.utils, "clip_grad_norm_"):
+        return
+    try:
+        _wrap("torch.nn.utils", "clip_grad_norm_", _wrapped_clip_grad_norm)
+    except Exception:
+        log.debug("pytorch: failed to wrap clip_grad_norm_", exc_info=True)
+
+
+def _uninstall_grad_clip() -> None:
+    try:
+        import torch.nn.utils  # noqa: PLC0415
+
+        _unwrap(torch.nn.utils, "clip_grad_norm_")
+    except Exception:
+        log.debug("pytorch: failed to unwrap clip_grad_norm_", exc_info=True)
 
 
 def install() -> None:
@@ -1231,18 +1484,28 @@ def install() -> None:
         global _layer2_installed
         profiling_on = is_profiling_enabled()
         layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
-        if profiling_on:
+        summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+        # Optimizer + GradScaler wraps: install when profiling OR summary on.
+        # (Summary mode reads LR + optim_step_ms from these wraps.)
+        if profiling_on or summary_on:
             _install_optimizer()
             _install_gradscaler()
             _layer2_installed = True
-        if profiling_on or layer_one_on:
+        # Tensor.backward + clip_grad_norm wraps: install when ANY mode is on.
+        if profiling_on or layer_one_on or summary_on:
             _install_tensor_backward()
+            # _install_grad_clip is summary-only — fires the grad_norm /
+            # grad_clip_ms reservoir feeds. Install whenever Layer-2 wraps
+            # install (or unconditionally; the wrap is cheap when no one
+            # calls clip_grad_norm_).
+            _install_grad_clip()
             _layer2_installed = True
         _install_ddp_comm_hook()
     except Exception:
         # Roll back any partial wraps so the next install() can try cleanly.
         try:
             if _layer2_installed:
+                _uninstall_grad_clip()
                 _uninstall_tensor_backward()
                 _uninstall_gradscaler()
                 _uninstall_optimizer()
@@ -1305,6 +1568,7 @@ def uninstall() -> None:
             _uninstall_optimizer()
             _uninstall_gradscaler()
             _uninstall_tensor_backward()
+            _uninstall_grad_clip()
             _layer2_installed = False
         _uninstall_ddp_comm_hook()
     # Remove Layer 2 model hooks (no-op if Layer 2 was never enabled).
@@ -1341,6 +1605,8 @@ def uninstall() -> None:
             "world_size": 1,
             "resolver": None,
             "rate_ticker": None,
+            "gpu_sample_rate": _DEFAULT_GPU_SAMPLE_RATE,
+            "gpu_sample_count": 0,
         }
     )
     # AIDEV-NOTE: Also clear the published job-id cache in _utils. Without

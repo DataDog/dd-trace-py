@@ -105,6 +105,31 @@ def get_version() -> str:
     return str(getattr(ray, "__version__", ""))
 
 
+_DD_JOB_ENV_PREFIX = "DD_JOB_ENV_"
+
+
+def _propagate_dd_job_env(env_vars: dict, source_env) -> None:
+    """Propagate DD_JOB_ENV_<NAME> -> DD_<NAME> into env_vars.
+
+    Operators opt in by naming: ``DD_JOB_ENV_<NAME>`` on the dashboard
+    becomes ``DD_<NAME>`` on Ray workers. Secrets like ``DD_API_KEY`` that
+    are NOT prefixed with ``DD_JOB_ENV_`` remain private to the dashboard
+    and are never written into the Ray job's ``runtime_env.env_vars``.
+
+    Uses ``setdefault`` so explicitly-set per-job values already in
+    ``env_vars`` are not overridden.
+
+    AIDEV-NOTE: Breaking change from broad DD_* propagation (which leaked
+    secrets into Ray job specs visible via dashboard API). Operators relying
+    on the old behavior must rename dashboard-side env vars from ``DD_X`` to
+    ``DD_JOB_ENV_X``.
+    """
+    for _k, _v in source_env.items():
+        if _k.startswith(_DD_JOB_ENV_PREFIX) and _v is not None:
+            target = "DD_" + _k[len(_DD_JOB_ENV_PREFIX) :]
+            env_vars.setdefault(target, _v)
+
+
 def traced_submit_job(wrapped, instance, args, kwargs):
     """Trace job submission. This function is also responsible
     of creating the root span.
@@ -157,21 +182,15 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     env_vars.setdefault(RAY_SUBMISSION_ID, submission_id)
     env_vars.setdefault(RAY_JOB_NAME, job_name)
 
-    # The Ray job entrypoint runs in a fresh runtime_env Python process
-    # whose environment is built from runtime_env.env_vars — system-wide
-    # DD_* env vars set on the dashboard process (DD_TRACE_ENABLED,
-    # DD_PATCH_MODULES, DD_ENV, DD_AGENT_HOST, etc.) are NOT inherited
-    # automatically. Without DD_PATCH_MODULES the entrypoint's
-    # ``ddtrace.auto`` would never enable the ray contrib's patches, so
-    # ``ray.train.fit`` / ``ray.train.worker`` spans never get emitted
-    # even though sitecustomize loaded ddtrace. Propagate the operator-
-    # configured DD_* env so the entrypoint's tracer mirrors the
-    # dashboard's. Use setdefault so explicit per-job overrides win.
+    # Propagate only DD_JOB_ENV_<NAME> -> DD_<NAME> to Ray workers.
+    # AIDEV-NOTE: The previous broad DD_* propagation leaked secrets
+    # (DD_API_KEY, DD_APP_KEY) into runtime_env.env_vars, which Ray
+    # persists in job specs visible via the dashboard's job-info API and
+    # worker env dumps. The new contract is opt-in via _propagate_dd_job_env.
+    # Use setdefault so explicit per-job overrides in runtime_env.env_vars win.
     import os as _os  # noqa: PLC0415
 
-    for _k, _v in _os.environ.items():
-        if _k.startswith("DD_") and _v is not None:
-            env_vars.setdefault(_k, _v)
+    _propagate_dd_job_env(env_vars, _os.environ)
 
     with core.context_with_event(
         RayJobEvent(

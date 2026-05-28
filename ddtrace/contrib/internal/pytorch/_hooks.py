@@ -9,6 +9,7 @@ state, and CUDA Event resolver as-is.
 
 import sys
 import threading
+import time
 from typing import Any
 from typing import Optional
 import weakref
@@ -161,6 +162,30 @@ def _maybe_close_step(instance: Any) -> None:
     with _designation_lock:
         _step_counter += 1
         current_step = _step_counter
+
+    # Summary path: compute step duration via the accumulator and feed
+    # reservoirs. Runs regardless of `is_profiling_enabled()`.
+    try:
+        from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+        prev_end = get_last_optimizer_step_end_ns()
+        _summary.close_step_to_summary(prev_end, now_ns())
+    except Exception:
+        log.debug("pytorch: summary step-close failed", exc_info=True)
+    # Record the new step boundary timestamp so the next step can compute
+    # its duration. Done after close_step_to_summary so that function sees
+    # the *previous* end, not the current one.
+    set_last_optimizer_step_end_ns(now_ns())
+
+    # Reset the per-step data_load marker so the next step's first forward
+    # can record data_fetch_ms again. Runs in both summary and verbose modes
+    # (verbose mode also resets it inside _close_step, but resetting twice
+    # is harmless).
+    _DATA_LOAD_TLS.emitted = False
+
+    # Verbose path: also close the per-step span and notify Layer 3 if on.
+    if not is_profiling_enabled():
+        return
     # Capture span identity before _close_step nulls _STEP_TLS.span.
     finished_span = getattr(_STEP_TLS, "span", None)
     _close_step(skipped=False)
@@ -213,8 +238,48 @@ def _emit_data_load_span_if_needed() -> None:
 
 
 def _forward_pre_hook(module: Any, inputs: Any) -> None:
-    if not is_profiling_enabled():
+    """Open pytorch.forward span (verbose) AND record forward start for
+    summary mode (always, regardless of profiling state).
+    """
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+    # SUMMARY: push start_ns to the per-thread summary timing stack.
+    now = time.perf_counter_ns()
+    summary_stack = getattr(_FORWARD_TLS, "summary_stack", None)
+    if summary_stack is None:
+        summary_stack = []
+        _FORWARD_TLS.summary_stack = summary_stack
+    summary_stack.append(now)
+
+    # SUMMARY: data_fetch_ms = gap between previous optimizer step end and
+    # the FIRST forward of the new step. Only once per step.
+    # In verbose mode, _emit_data_load_span_if_needed() owns _DATA_LOAD_TLS.emitted;
+    # in summary-only mode we set it here so the second forward in the same
+    # step skips the data_fetch recording.
+    profiling_on = is_profiling_enabled()
+    try:
+        if not getattr(_DATA_LOAD_TLS, "emitted", False):
+            prev_end = get_last_optimizer_step_end_ns()
+            if prev_end > 0:
+                dt_ms = (now - prev_end) / 1e6
+                if dt_ms >= 0:
+                    _summary.get_step_accumulator().data_fetch_ms = dt_ms
+                    # AIDEV-NOTE: Do NOT push_distribution("step.data_fetch_ms") here.
+                    # close_step_to_summary is the sole emitter for step.data_fetch_ms
+                    # (drains from acc.data_fetch_ms). Pushing here AND there would
+                    # double the count facet — same dedupe contract as step.optim_step_ms.
+            # Only set the emitted flag here in summary-only mode. In verbose
+            # mode, _emit_data_load_span_if_needed() sets it after opening the
+            # pytorch.data_load span — we must not clobber it before that call.
+            if not profiling_on:
+                _DATA_LOAD_TLS.emitted = True
+    except Exception:
+        pass
+
+    if not profiling_on:
         return
+
+    # Verbose mode: open a pytorch.forward span.
     try:
         _ensure_step_open()
         _emit_data_load_span_if_needed()
@@ -247,8 +312,29 @@ def _forward_pre_hook(module: Any, inputs: Any) -> None:
 
 
 def _forward_hook(module: Any, inputs: Any, output: Any) -> None:
+    """Close pytorch.forward span (verbose) AND record forward duration for
+    summary mode (always, regardless of profiling state).
+    """
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+    # SUMMARY: pop start_ns, compute duration, accumulate.
+    summary_stack = getattr(_FORWARD_TLS, "summary_stack", None)
+    if summary_stack:
+        start = summary_stack.pop()
+        try:
+            dt_ms = (time.perf_counter_ns() - start) / 1e6
+            _summary.get_step_accumulator().forward_total_ms += dt_ms
+            # AIDEV-NOTE: Do NOT push_distribution("step.forward_ms") here.
+            # close_step_to_summary is the sole emitter for step.forward_ms
+            # (drains from acc.forward_total_ms). Pushing here AND there would
+            # double the count facet — same dedupe contract as step.optim_step_ms.
+        except Exception:
+            pass
+
     if not is_profiling_enabled():
         return
+
+    # Verbose mode: close the pytorch.forward span.
     try:
         stack = getattr(_FORWARD_TLS, "stack", None) or []
         if not stack:
@@ -285,18 +371,59 @@ def _full_backward_hook(module: Any, grad_input: Any, grad_output: Any) -> None:
 def optimizer_step(wrapped, instance, args, kwargs):
     """Called from Layer 1's instance-level optimizer step wrapper.
 
-    When Layer 2 is disabled, falls through transparently. When enabled,
-    emits a ``pytorch.optimizer`` span covering the actual step (in both AMP
-    and non-AMP modes) and — outside of AMP — closes the active
+    Summary feeds (LR gauge + optim_step_ms distribution) run in both
+    summary-only and verbose mode, regardless of ``is_profiling_enabled()``.
+    When verbose Layer 2 is on, also emits a ``pytorch.optimizer`` span
+    covering the actual step and — outside of AMP — closes the active
     ``pytorch.step`` via the designation policy. In AMP, ``pytorch.step`` is
     closed by ``gradscaler_emit_step_outcome``.
     """
-    if not is_profiling_enabled():
-        return wrapped(*args, **kwargs)
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
 
-    inside_gradscaler = getattr(_amp_skip_state, "in_amp", False)
-    _ensure_step_open()
+    # SUMMARY: capture LR BEFORE the step runs so an exception cannot skip it.
+    try:
+        param_groups = getattr(instance, "param_groups", None)
+        if param_groups:
+            lr = param_groups[0].get("lr")
+            if lr is not None:
+                _summary.push_gauge("optim.learning_rate", float(lr))
+    except Exception:
+        pass
+
+    # Designation must fire in both modes so the step counter works.
     _maybe_designate(instance)
+
+    profiling_on = is_profiling_enabled()
+    inside_gradscaler = getattr(_amp_skip_state, "in_amp", False)
+    t0 = time.perf_counter_ns()
+
+    if not profiling_on:
+        # Summary-only mode: execute and time; no per-step span.
+        raised = False
+        try:
+            result = wrapped(*args, **kwargs)
+            if inside_gradscaler:
+                _amp_skip_state.step_executed = True
+            return result
+        except BaseException:
+            raised = True
+            raise
+        finally:
+            dt_ms = (time.perf_counter_ns() - t0) / 1e6
+            try:
+                # Set accumulator so close_step_to_summary can push it when the
+                # step boundary fires.  Do NOT push_distribution here — that
+                # would double-count when _maybe_close_step runs immediately
+                # below and calls close_step_to_summary.
+                _summary.get_step_accumulator().optim_step_ms = dt_ms
+            except Exception:
+                pass
+            if not raised:
+                if not inside_gradscaler:
+                    _maybe_close_step(instance)
+
+    # Verbose mode: existing span-open path; also feed reservoirs in finally.
+    _ensure_step_open()
     span = tracer.start_span(
         "pytorch.optimizer",
         service=config.pytorch.service,
@@ -319,13 +446,52 @@ def optimizer_step(wrapped, instance, args, kwargs):
         raise
     finally:
         span.finish()
+        dt_ms = (time.perf_counter_ns() - t0) / 1e6
+        try:
+            # Set accumulator so close_step_to_summary can push it when the
+            # step boundary fires.  Do NOT push_distribution here — that
+            # would double-count when _maybe_close_step runs immediately
+            # below and calls close_step_to_summary.
+            _summary.get_step_accumulator().optim_step_ms = dt_ms
+        except Exception:
+            pass
         # When the user's optimizer.step raised, do not advance the step
         # counter or close the parent pytorch.step span — let the next
         # successful step complete the cycle.
         if not raised:
-            _mark_optimizer_step_end_now()
             if not inside_gradscaler:
+                # _maybe_close_step records the step-end timestamp internally
+                # (so the summary path can read the *previous* end first).
                 _maybe_close_step(instance)
+            # Inside GradScaler: the step close (and timestamp update) happens
+            # in gradscaler_emit_step_outcome → _maybe_close_step.
+
+
+def _drain_skipped_step_to_summary(optimizer: Any) -> None:
+    """For AMP-overflow-skipped steps in summary-only mode: drain the
+    StepAccumulator + reset last_optimizer_step_end_ns so the next
+    successful step's step.duration_ms / forward_ms / backward_ms are
+    not contaminated with this skipped step's leftover values.
+
+    The step counter is NOT incremented (skipped steps don't count as
+    real training steps).
+
+    AIDEV-NOTE: Passing prev_step_end_ns=0 to close_step_to_summary intentionally
+    skips step.duration_ms emission (that would look like a normal step boundary).
+    The per-component values (forward_ms, backward_ms, data_fetch_ms, grad_clip_ms)
+    ARE still drained to their reservoirs because those activities genuinely occurred
+    — they just didn't produce a successful optimizer step.
+    """
+    if not _is_designated(optimizer):
+        return
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+
+    # Drain with prev_end=0 so step.duration_ms is not pushed (no successful
+    # step boundary), but all other accumulator fields are flushed and reset.
+    _summary.close_step_to_summary(prev_step_end_ns=0, now_ns_val=now_ns())
+    set_last_optimizer_step_end_ns(now_ns())
+    # Track that a skipped step happened for operator visibility.
+    _summary.bump_counter("train.amp_skipped_steps")
 
 
 def gradscaler_emit_step_outcome(optimizer: Any, skipped: bool) -> None:
@@ -333,8 +499,18 @@ def gradscaler_emit_step_outcome(optimizer: Any, skipped: bool) -> None:
 
     Only the designated optimizer's outcome drives `pytorch.step` closure;
     a non-designated optimizer's AMP skip is invisible to the step counter.
+
+    AIDEV-NOTE: Gate on is_profiling_enabled() OR summary_profiling. Without
+    this fix the GradScaler path would short-circuit in default summary mode
+    (profiling=false, summary=true), leaving AMP training steps unclosed and
+    the summary reservoirs stale. _close_step is safe in summary-only mode —
+    it no-ops when _STEP_TLS.span is None; _maybe_close_step runs the summary
+    path unconditionally regardless of is_profiling_enabled().
     """
-    if not is_profiling_enabled():
+    from ddtrace import config  # noqa: PLC0415
+
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    if not (is_profiling_enabled() or summary_on):
         return
     if optimizer is None:
         return
@@ -345,7 +521,15 @@ def gradscaler_emit_step_outcome(optimizer: Any, skipped: bool) -> None:
     if not _is_designated(optimizer):
         return
     if skipped:
+        # Verbose: close pytorch.step with skipped=True flag (no-op in summary-only mode).
         _close_step(skipped=True)
+        # Summary: drain the accumulator so leftover forward/backward times don't
+        # bleed into the next successful step's distributions.
+        if summary_on or is_profiling_enabled():
+            try:
+                _drain_skipped_step_to_summary(optimizer)
+            except Exception:
+                log.debug("pytorch: _drain_skipped_step_to_summary failed", exc_info=True)
         return
     _maybe_close_step(optimizer)
 
@@ -359,11 +543,23 @@ def attach_layer_two_hooks(model: Any) -> None:
     """Idempotently register Layer 2 hooks on a top-level user model.
 
     Called from DDP/FSDP/DeepSpeed ``__init__`` wrappers (and a single-GPU
-    bare-optimizer fallback). No-op when ``DD_PYTORCH_PROFILING`` is unset.
+    bare-optimizer fallback). No-op when neither ``DD_PYTORCH_PROFILING`` nor
+    ``DD_PYTORCH_SUMMARY_PROFILING`` is enabled.
     Returned hook handles are stored on a per-model WeakKeyDictionary so
     ``detach_layer_two_hooks`` can cleanly remove them on unpatch.
+
+    AIDEV-NOTE: Gate on is_profiling_enabled() OR summary_profiling (not just
+    is_profiling_enabled()). The hook bodies already branch internally:
+    _forward_pre_hook/_forward_hook run their summary path unconditionally and
+    only open a span when is_profiling_enabled(); _full_backward_hook gates its
+    span on is_profiling_enabled(). So extending the install gate here is the
+    correct fix — without it, the forward/backward summary feeds never attach in
+    the default summary-only mode.
     """
-    if not is_profiling_enabled():
+    from ddtrace import config  # noqa: PLC0415
+
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    if not (is_profiling_enabled() or summary_on):
         return
     try:
         if getattr(model, _HOOKED_FLAG_ATTR, False):
