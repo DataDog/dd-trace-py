@@ -125,7 +125,6 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
 GIT_COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
-FINAL_RELEASE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 CURRENT_OS = platform.system()
@@ -169,13 +168,10 @@ def get_pyproject_package_version() -> str:
 
 
 def get_build_package_version() -> str:
-    # Keep public release builds unchanged; only non-release pre/dev/internal builds get a commit local version.
+    # Keep tagged release builds unchanged; non-tagged builds get a commit local version.
     package_version = get_pyproject_package_version()
     commit_sha = get_build_git_commit_sha()
-    if not package_version or not commit_sha or "+" in package_version:
-        return package_version
-
-    if FINAL_RELEASE_VERSION_RE.fullmatch(package_version) or os.getenv("CI_COMMIT_TAG") == f"v{package_version}":
+    if not package_version or not commit_sha or "+" in package_version or os.getenv("CI_COMMIT_TAG"):
         return package_version
 
     return f"{package_version}+g{commit_sha}"
