@@ -291,7 +291,7 @@ class PromptManager:
         try:
             flag_key = f"__llmobs__.prompt.{prompt_id}"
             context = EvaluationContext(
-                targeting_key=targeting_key or "",
+                targeting_key=targeting_key,
                 attributes=attributes or {},
             )
             client = api.get_client()
