@@ -12,12 +12,6 @@ on:
       cibw_prerelease_pythons:
         required: false
         type: string
-      package-dir:
-        required: true
-        type: string
-      native:
-        required: true
-        type: boolean
 
 jobs:
   build-wheels-matrix:
@@ -82,24 +76,16 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels with cibw
-        if: ${{ inputs.native }}
+      - name: Build wheels
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
-          package-dir: ${{ inputs.package-dir }}
-
-      - name: Build wheels with uv
-        if: ${{ ! inputs.native }}
-        run: |
-          manylinux-interpreters ensure "${{ matrix.only }}"
-          export UV_PYTHON="/opt/python/${{ matrix.only }}/bin/python"
-          ${{ inputs.package-dir }}/.gitlab/scripts/build-wheel.sh
+          package-dir: dd-trace-py
 
       - name: Validate wheel RECORD files
         shell: bash
         run: |
-          cd ${{ inputs.package-dir }}
+          cd dd-trace-py
           for wheel in ./wheelhouse/*.whl; do
             if [ -f "$wheel" ]; then
               echo "Validating $(basename $wheel)..."
@@ -117,12 +103,12 @@ jobs:
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
-          path: ./${{ inputs.package-dir }}/wheelhouse/*.whl
+          path: ./dd-trace-py/wheelhouse/*.whl
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}
           path: |
-            ./${{ inputs.package-dir }}/debugwheelhouse/*.zip
-            ./${{ inputs.package-dir }}/wheelhouse/debugwheelhouse/*.zip
+            ./dd-trace-py/debugwheelhouse/*.zip
+            ./dd-trace-py/wheelhouse/debugwheelhouse/*.zip
