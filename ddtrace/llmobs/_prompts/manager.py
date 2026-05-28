@@ -282,15 +282,15 @@ class PromptManager:
 
             flag_key = f"__llmobs__.prompt.{prompt_id}"
             ctx = {"targeting_key": targeting_key or "", "attributes": attributes or {}}
-            details = resolve_flag(ffe_config, flag_key=flag_key, context=ctx, expected_type=VariationType.String)
+            details = resolve_flag(ffe_config, flag_key=flag_key, context=ctx, expected_type=VariationType.Object)
             if details is None or details.error_code is not None or details.variant is None:
                 return None
 
             variant_value = details.value
-            if not isinstance(variant_value, str) or not variant_value:
+            if not isinstance(variant_value, dict):
                 return None
 
-            return self._parse_prompt_json(variant_value, source="ff")
+            return self._parse_prompt(variant_value, source="ff")
         except Exception:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
             return None
@@ -309,7 +309,7 @@ class PromptManager:
             body = response.read().decode("utf-8")
 
             if status == 200:
-                return self._parse_prompt_json(body, source="registry", prompt_id=prompt_id, label=label), False, ""
+                return self._parse_prompt(body, source="registry", prompt_id=prompt_id, label=label), False, ""
 
             not_found = status == 404
             detail = extract_error_detail(body)
@@ -335,17 +335,20 @@ class PromptManager:
         return f"{PROMPTS_ENDPOINT}/{escaped_id}"
 
     @staticmethod
-    def _parse_prompt_json(
-        body: str,
+    def _parse_prompt(
+        raw: Union[str, dict],
         source: Literal["registry", "cache", "fallback", "ff"],
         prompt_id: str = "",
         label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         try:
-            data = json.loads(body)
-            if not isinstance(data, dict):
-                log.warning("Failed to parse prompt response: expected object, got %s", type(data).__name__)
-                return None
+            if isinstance(raw, str):
+                data = json.loads(raw)
+                if not isinstance(data, dict):
+                    log.warning("Failed to parse prompt response: expected object, got %s", type(data).__name__)
+                    return None
+            else:
+                data = raw
             return ManagedPrompt(
                 id=data.get("prompt_id", prompt_id),
                 version=data.get("version", "unknown"),
