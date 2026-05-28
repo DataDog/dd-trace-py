@@ -47,6 +47,49 @@ TEST(RuntimeStatsDeathTest, AfterInit)
 }
 
 void
+runtime_stats_without_stack_sampler()
+{
+    configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    // Stack sampler not started (active_ false) — e.g. DD_PROFILING_STACK_ENABLED=false
+    assert(!Datadog::ProfilerState::get().is_active());
+
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
+    assert(ok);
+    assert(stats.sample_count == 0);
+
+    std::exit(0);
+}
+
+TEST(RuntimeStatsDeathTest, WithoutStackSampler)
+{
+    EXPECT_EXIT(runtime_stats_without_stack_sampler(), ::testing::ExitedWithCode(0), "");
+}
+
+void
+sampling_interval_survives_upload()
+{
+    configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    auto& state = Datadog::ProfilerState::get();
+    state.last_sampling_interval_us.store(5000, std::memory_order_relaxed);
+
+    ddup_upload();
+
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
+    assert(ok);
+    assert(stats.sampling_interval_us == 5000);
+
+    std::exit(0);
+}
+
+TEST(RuntimeStatsDeathTest, SamplingIntervalSurvivesUpload)
+{
+    EXPECT_EXIT(sampling_interval_survives_upload(), ::testing::ExitedWithCode(0), "");
+}
+
+void
 cumulative_counters_survive_upload()
 {
     configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);

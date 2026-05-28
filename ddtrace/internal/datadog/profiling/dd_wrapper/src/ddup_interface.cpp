@@ -387,6 +387,8 @@ bool
 ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out) // cppcheck-suppress unusedFunction
 {
     auto& state = Datadog::ProfilerState::get();
+    // Gate on ddup lifecycle only. active_ tracks the stack sampler thread, which may
+    // never start when stack profiling is disabled while memory/heap profiling remains on.
     if (!state.is_initialized()) {
         return false;
     }
@@ -397,13 +399,22 @@ ddup_get_profiler_runtime_stats(ProfilerRuntimeStats* out) // cppcheck-suppress 
     out->copy_memory_error_count = state.cumulative_copy_memory_error_count.load(std::memory_order_relaxed);
     out->sample_capture_cpu_time_us = state.cumulative_sample_capture_cpu_time_us.load(std::memory_order_relaxed);
 
+    // sampling_interval_us is stored on ProfilerState so it survives ProfilerStats upload swaps.
+    auto last_interval = state.last_sampling_interval_us.load(std::memory_order_relaxed);
+    if (last_interval >= 0) {
+        out->sampling_interval_us = last_interval;
+    }
+
     // Gauge values from the live ProfilerStats (borrow acquires the profile mutex).
     // Optional gauges keep their -1 default when not yet set.
     auto borrowed = state.profile_state.borrow();
     auto& stats = borrowed.stats();
 
-    if (auto v = stats.get_sampling_interval_us())
-        out->sampling_interval_us = static_cast<int64_t>(*v);
+    if (out->sampling_interval_us < 0) {
+        if (auto v = stats.get_sampling_interval_us()) {
+            out->sampling_interval_us = static_cast<int64_t>(*v);
+        }
+    }
 
     if (auto v = stats.get_asyncio_task_count())
         out->asyncio_task_count = static_cast<int64_t>(*v);

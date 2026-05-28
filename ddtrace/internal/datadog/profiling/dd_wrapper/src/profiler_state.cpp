@@ -136,6 +136,8 @@ ProfilerState::start()
 void
 ProfilerState::cleanup()
 {
+    active_.store(false, std::memory_order_release);
+
     // Clear the profile, decreasing the refcount on the Profiles Dictionary
     profile_state.cleanup();
 
@@ -201,6 +203,8 @@ ProfilerState::postfork_child()
     cumulative_sampling_event_count.store(0, std::memory_order_relaxed);
     cumulative_copy_memory_error_count.store(0, std::memory_order_relaxed);
     cumulative_sample_capture_cpu_time_us.store(0, std::memory_order_relaxed);
+    last_sampling_interval_us.store(-1, std::memory_order_relaxed);
+    active_.store(false, std::memory_order_release);
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)

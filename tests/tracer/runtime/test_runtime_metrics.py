@@ -1,14 +1,16 @@
 import contextlib
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.runtime.constants import DEFAULT_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import ENV
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
+from ddtrace.internal.runtime.constants import PSUTIL_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import SERVICE
 from ddtrace.internal.runtime.runtime_metrics import RuntimeMetrics
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
@@ -139,7 +141,9 @@ def test_runtime_tags_manual_tracer_tags():
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
         metrics = set([k for (k, v) in RuntimeMetrics()])
-        self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
+        always_available = GC_RUNTIME_METRICS | PSUTIL_RUNTIME_METRICS
+        self.assertTrue(always_available.issubset(metrics))
+        self.assertTrue(metrics.issubset(DEFAULT_RUNTIME_METRICS))
 
     def test_one_metric(self):
         metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_COUNT_GEN0])]
