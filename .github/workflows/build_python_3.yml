@@ -15,6 +15,9 @@ on:
       package-dir:
         required: true
         type: string
+      native:
+        required: true
+        type: boolean
 
 jobs:
   build-wheels-matrix:
@@ -79,11 +82,21 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels
+      - name: Build wheels with cibw
+        if: ${{ inputs.native }} == true 
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
           package-dir: ${{ inputs.package-dir }}
+
+      - name: Build wheels with uv
+        if: ${{ inputs.native }} == false 
+        run: |
+          manylinux-interpreters ensure "${{ matrix.only }}"
+          export UV_PYTHON="/opt/python/${{ matrix.only }}/bin/python"
+          ${{ inputs.package-dir }}/.gitlab/scripts/build-wheel.sh
+        with:
+          only: ${{ matrix.only }}
 
       - name: Validate wheel RECORD files
         shell: bash
