@@ -10,22 +10,22 @@ features:
     thread-local case. Subclass ``CorrelationFilter`` to plug in other concurrency
     models (asyncio ``ContextVar``, global state, etc.).
 
-    Example::
-
-      import logging
+    Example:
+    
+        from pydantic_evals.evaluators import EqualsExpected
+        import logging
       
-      from ddtrace.testing.logs import DDTestLogsHandler
-      from ddtrace.testing.logs import ThreadLocalCorrelationFilter
+        from ddtrace.testing.logs import DDTestLogsHandler
+        from ddtrace.testing.logs import ThreadLocalCorrelationFilter
       
-      handler = DDTestLogsHandler(service="my-service")
-      correlation = ThreadLocalCorrelationFilter()
-      handler.addFilter(correlation)
-      logging.getLogger().addHandler(handler)
+        handler = DDTestLogsHandler(service="my-service")
+        correlation = ThreadLocalCorrelationFilter()
+        handler.addFilter(correlation)
+        logging.getLogger().addHandler(handler)
       
-      while True:
-          job = queue.get()
-          correlation.set_context(trace_id=job.trace_id, span_id=job.span_id)
-          run_test(job.item)
+        while True:
+            job = queue.get()
+            correlation.set_context(trace_id=job.trace_id, span_id=job.span_id)
+            run_test(job.item)
       
-      handler.close()
-      
+        handler.close()
