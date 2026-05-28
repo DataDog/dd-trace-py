@@ -4453,6 +4453,26 @@ venv = Venv(
             },
         ),
         Venv(
+            name="ai_guard_anthropic",
+            command="pytest {cmdargs} tests/appsec/ai_guard/anthropic/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # anthropic contrib VCR fixtures. Pinned to a single version
+                # because the suite only uses ``yaml.safe_load``.
+                "pyyaml": latest,
+            },
+            venvs=[
+                Venv(
+                    pkgs={"anthropic": "==0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                ),
+            ],
+        ),
+        Venv(
             name="claude_agent_sdk",
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),
