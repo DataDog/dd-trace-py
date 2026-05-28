@@ -2,7 +2,7 @@
 
 > Source of truth for spans, tags, and facets emitted by
 > `ddtrace.patch(pytorch=True)` and `ddtrace.patch(ray=True)`.
-> Reflects branch `kr-igor/pytorch-experiments` @ `26fe0ccae7`.
+> Reflects branch `kr-igor/pytorch-experiments` @ `ac56203df1`.
 > Maintainers: update when changing the public tag/facet contract.
 
 This document is intentionally a contract document: each table row is
@@ -479,7 +479,7 @@ present iff at least one sample was recorded.
 |---|---|---|---|
 | `step.duration_ms` | `step.duration_ms.{count,min_ms,max_ms,mean_ms,p10_ms,p50_ms,p90_ms,p99_ms}` | Wall-clock between successive designated-optimizer step ends | `_summary.close_step_to_summary` (`_summary.py:662`) |
 | `step.forward_ms` | `step.forward_ms.{count,min_ms,…,p99_ms}` | Sum of all `forward()` calls within one step | `_summary.close_step_to_summary` (`_summary.py:669`); accumulator fed by `_hooks._forward_pre_hook`/`_forward_hook` |
-| `step.backward_ms` | `step.backward_ms.{count,…}` | One `Tensor.backward()` call duration | `_summary.close_step_to_summary` (`_summary.py:671`); accumulator fed by `_distributed._wrapped_tensor_backward` |
+| `step.backward_ms` | `step.backward_ms.{count,…}` | Sum of all backward-call durations within one step (`Tensor.backward` and/or `torch.autograd.backward`) | `_summary.close_step_to_summary` (`_summary.py:671`); accumulator fed by `_distributed._run_backward_with_instrumentation` (called from both `_wrapped_tensor_backward` and `_wrapped_autograd_backward`) |
 | `step.optim_step_ms` | `step.optim_step_ms.{count,…}` | `optimizer.step()` call duration | `_summary.close_step_to_summary` (`_summary.py:673`); accumulator fed by `_hooks.optimizer_step` |
 | `step.data_fetch_ms` | `step.data_fetch_ms.{count,…}` | Gap from previous step end to first forward of new step | `_summary.close_step_to_summary` (`_summary.py:675`); accumulator fed by `_hooks._forward_pre_hook` |
 | `step.grad_clip_ms` | `step.grad_clip_ms.{count,…}` | `torch.nn.utils.clip_grad_norm_` duration | `_summary.close_step_to_summary` (`_summary.py:677`); accumulator fed by `_distributed._wrapped_clip_grad_norm`. **Emits only when the training loop calls `clip_grad_norm_`.** |
@@ -488,7 +488,7 @@ present iff at least one sample was recorded.
 
 | Reservoir key | Facet prefix | What it measures | Source site |
 |---|---|---|---|
-| `train.loss` | `train.loss.{count,min,max,mean,p10,p50,p90,p99}` (no `_ms`) | `loss.item()` per backward | `_distributed._wrapped_tensor_backward` (`_distributed.py:1320`). **Gated on `DD_PYTORCH_CAPTURE_LOSS=true` (default true). Forces GPU→host sync.** |
+| `train.loss` | `train.loss.{count,min,max,mean,p10,p50,p90,p99}` (no `_ms`) | `loss.item()` per backward | `_distributed._capture_loss_if_scalar`, called from `_wrapped_tensor_backward` (always when the loss is a scalar tensor) and `_wrapped_autograd_backward` (when called with a single tensor or single-element list — multi-tensor calls do NOT contribute). **Gated on `DD_PYTORCH_CAPTURE_LOSS=true` (default true). Forces GPU→host sync.** |
 | `train.grad_norm` | `train.grad_norm.{count,…}` | Return value of `clip_grad_norm_` | `_distributed._wrapped_clip_grad_norm` (`_distributed.py:1418`). Emits only when user calls `clip_grad_norm_`. |
 | `train.tflops` | `train.tflops.{count,…}` | Computed achieved TFLOPS — Chinchilla approximation `6 × active_param_count + 12 × layers × seq_len × hidden_dim` per token, divided by step seconds, divided by 1e12 | `_summary.close_step_to_summary` (`_summary.py:712`). Requires transformer-shaped model, `tokens_this_step > 0`, `step_ms > 0`. Gated on `DD_PYTORCH_MFU_ENABLED=true` (default). |
 | `train.mfu` | `train.mfu.{count,…}` | `achieved_flops / peak_flops`, capped at 1.0 | `_summary.close_step_to_summary` (`_summary.py:721`). Requires matched `(gpu_name, dtype)` entry in the peak-FLOPS lookup table (`_device._PEAK_FLOPS_TABLE`). |
@@ -561,7 +561,7 @@ extraction failure is swallowed to prevent crashing the rank close.
 > `step.data_fetch_ms.*` and `grad_comm.bucket_duration_ms.*` /
 > `grad_comm.bytes_per_bucket.*` / `collective.grad_comm.*` were missing
 > in that run; `step.data_fetch_ms` was a clock-mismatch bug since
-> fixed at `26fe0ccae7`, and the `grad_comm` reservoirs are gated on a
+> fixed at `ac56203df1`, and the `grad_comm` reservoirs are gated on a
 > user comm hook that the verification load did not install.
 > `step.grad_clip_ms.*` and `train.grad_norm.*` were correctly absent —
 > the training loop did not call `clip_grad_norm_`.
@@ -935,7 +935,7 @@ Worker env vars set by `JobManager.submit_job` wrap:
 
 ## What's NOT collected (intentional)
 
-These are out of scope at SHA `26fe0ccae7`. Frontend UX should not
+These are out of scope at SHA `ac56203df1`. Frontend UX should not
 assume any of the following are queryable:
 
 1. **CUDA kernel-level data at L0/L1/L2.** Kernel attribution requires L3 (`DD_PYTORCH_KERNEL_PROFILING=true`).
