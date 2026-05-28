@@ -919,9 +919,6 @@ class TestLLMObsClaudeAgentSdk:
         assert len(tool_spans) == 3
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
-        # Note: parallel tool spans currently nest under each other instead
-        # of being siblings — tracked in MLOB-7551.
-
         # Fan-out: each tool gets one incoming link from llm#1.
         for tool_span in tool_spans:
             _assert_span_link(llm_spans[0], tool_span, "output", "input")
