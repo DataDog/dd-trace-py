@@ -316,6 +316,7 @@ class TraceMiddleware:
                 if result:
                     receive, body = await result.value
 
+            if not is_subapp:
                 client = scope.get("client")
                 # Both list and tuple must be supported for scope["client"].
                 # In Startlette's ASGI implementation, it is a 2-item tuple (host, port). Other implementations
