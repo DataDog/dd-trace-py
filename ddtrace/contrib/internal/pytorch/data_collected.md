@@ -1,14 +1,13 @@
 # Data Collected — PyTorch + Ray Train Instrumentation
 
-> Source of truth for spans, tags, and facets emitted by
-> `ddtrace.patch(pytorch=True)` and `ddtrace.patch(ray=True)`.
+> Spans, tags, and facets emitted by `ddtrace.patch(pytorch=True)` and
+> `ddtrace.patch(ray=True)`.
 > Reflects branch `kr-igor/pytorch-experiments` @ `ac56203df1`.
-> Maintainers: update when changing the public tag/facet contract.
+> Update when changing the public tag/facet contract.
 
-This document is intentionally a contract document: each table row is
-the schema for one piece of UI. Implementation rationale lives in code
-comments and AIDEV anchors; this file lists what is emitted, under
-which conditions, and from which source site — nothing more.
+Each table row describes what is emitted, under which conditions, and
+from which source site. Implementation rationale lives in code comments
+and AIDEV anchors.
 
 ## At a glance
 
@@ -553,19 +552,6 @@ extraction failure is swallowed to prevent crashing the rank close.
 |---|---|---|
 | `train.amp_skipped_steps` | `train.amp_skipped_steps_count` (int) | `_hooks._drain_skipped_step_to_summary` (`_hooks.py:499`). Present iff at least one AMP-overflow-skipped step occurred. |
 
-> **Reality check from the verification report (SHA `ad9ceab102`):**
-> live samples on `pytorch.rank` observed all `step.{duration,forward,backward,optim_step}_ms.*`,
-> `train.{loss,tflops}.*`, `optim.learning_rate.*`,
-> `memory.{gpu_used_memory_bytes,peak_gpu_used_memory_bytes}.*`,
-> `collective.allreduce.*`, `collective.ops_count`, `collective.p99_max_ms`.
-> `step.data_fetch_ms.*` and `grad_comm.bucket_duration_ms.*` /
-> `grad_comm.bytes_per_bucket.*` / `collective.grad_comm.*` were missing
-> in that run; `step.data_fetch_ms` was a clock-mismatch bug since
-> fixed at `ac56203df1`, and the `grad_comm` reservoirs are gated on a
-> user comm hook that the verification load did not install.
-> `step.grad_clip_ms.*` and `train.grad_norm.*` were correctly absent —
-> the training loop did not call `clip_grad_norm_`.
-
 ---
 
 ## Layer-Zero DogStatsD metrics
@@ -597,7 +583,7 @@ Configuration:
 
 | Operation | Tier | Default state |
 |---|---|---|
-| `ray.job` | Ray Core + dashboard-side | Emitted via `JobManager.submit_job` wrap; out-of-scope for this PR's value-add and documented for completeness. |
+| `ray.job` | Ray Core + dashboard-side | Emitted via `JobManager.submit_job` wrap. |
 | `task.submit` / `task.execute` | Ray Core | `task.submit` requires `DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED=true`; `task.execute` always emitted once Ray is patched. |
 | `actor_method.submit` / `actor_method.execute` | Ray Core | Same gating. |
 | `ray.get` / `ray.put` / `ray.wait` | Ray Core | Requires `DD_TRACE_RAY_CORE_API=true` (default false). |
@@ -610,13 +596,7 @@ Tier semantics:
 |---|---|
 | Ray Core | `DD_PATCH_MODULES=ray:true` or `ddtrace.patch(ray=True)`. **Ray is NOT auto-patched** (`ddtrace/_monkey.py:121`). |
 | Ray Train | Ray Core patched + `DD_TRACE_RAY_TRAIN_ENABLED=true` (default) + the user imports `ray.train.torch`. |
-| `ray.job` | Emitted by `JobManager.submit_job` wrap when running on the dashboard side. Out-of-scope for this PR. |
-
-> **Reality check from the verification report:** `ray.train.fit`,
-> `ray.train.worker`, `actor_method.execute`, and `ray.task` had 0
-> spans observed because the Ray module was not patched on that
-> verification run (Ray is not auto-patched). `ray.job` was observed
-> with 53 tag keys.
+| `ray.job` | Emitted by `JobManager.submit_job` wrap when running on the dashboard side. |
 
 ---
 
@@ -812,14 +792,12 @@ end of callback.
 
 ---
 
-### `ray.job` (out of scope for this PR)
+### `ray.job`
 
 **Tier:** Dashboard-side, emitted by `JobManager.submit_job` wrap.
 **Source:** `ddtrace/contrib/internal/ray/patch.py:traced_submit_job` + `ddtrace/_trace/subscribers/ray.py:RayJobStartSubscriber` + `ddtrace/contrib/internal/ray/span_manager.py` long-running-job manager.
 
-Documented here for completeness only — `ray.job` predates this PR
-and its schema is owned by the dashboard team. Observed tags from
-the verification run:
+Observed tags:
 
 | Tag | Type | Notes |
 |---|---|---|
@@ -935,8 +913,7 @@ Worker env vars set by `JobManager.submit_job` wrap:
 
 ## What's NOT collected (intentional)
 
-These are out of scope at SHA `ac56203df1`. Frontend UX should not
-assume any of the following are queryable:
+These are not emitted at SHA `ac56203df1`:
 
 1. **CUDA kernel-level data at L0/L1/L2.** Kernel attribution requires L3 (`DD_PYTORCH_KERNEL_PROFILING=true`).
 2. **Gradient values or per-parameter statistics.** Only `train.grad_norm` (the scalar return of `clip_grad_norm_`) is captured, and only when the user calls that function.
