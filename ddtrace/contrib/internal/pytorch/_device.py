@@ -215,3 +215,42 @@ def discover(local_rank: int) -> DeviceInfo:
 def get() -> Optional[DeviceInfo]:
     """Return the cached DeviceInfo, or None if `discover` has not yet run."""
     return _cache
+
+
+# Per-GPU peak FLOPs by dtype, in FLOPS (not TFLOPS).
+# Maintenance: add new GPUs here as needed. Values from official datasheets.
+_PEAK_FLOPS_TABLE: dict = {
+    # NVIDIA H100 SXM5 / PCIe — figures for tensor cores
+    ("H100", "bfloat16"): 989e12,
+    ("H100", "float16"): 989e12,
+    ("H100", "tf32"): 495e12,
+    ("H100", "float32"): 67e12,
+    # NVIDIA A100 SXM4 / PCIe
+    ("A100", "bfloat16"): 312e12,
+    ("A100", "float16"): 312e12,
+    ("A100", "tf32"): 156e12,
+    ("A100", "float32"): 19.5e12,
+    # NVIDIA L40 / L4
+    ("L40", "bfloat16"): 181e12,
+    ("L4", "bfloat16"): 121e12,
+    # NVIDIA V100
+    ("V100", "float16"): 125e12,
+    ("V100", "float32"): 15.7e12,
+    # NVIDIA T4
+    ("T4", "float16"): 65e12,
+    ("T4", "float32"): 8.1e12,
+    # AMD MI300X — placeholder; check spec sheet before relying on this
+    ("MI300", "bfloat16"): 1300e12,
+}
+
+
+def lookup_peak_flops(gpu_name: Optional[str], dtype: str) -> Optional[float]:
+    """Best-effort lookup: substring-match `gpu_name` against table prefixes.
+    Returns None if no match.
+    """
+    if not gpu_name:
+        return None
+    for (prefix, dt), v in _PEAK_FLOPS_TABLE.items():
+        if dt == dtype and prefix in gpu_name:
+            return v
+    return None

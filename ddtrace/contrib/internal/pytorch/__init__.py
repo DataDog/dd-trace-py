@@ -83,6 +83,32 @@ Environment variables
     signals are present (no ``RANK``/``WORLD_SIZE`` env, no prior
     ``init_process_group``). Useful for custom launchers.
 
+``DD_PYTORCH_SUMMARY_PROFILING``
+    When ``true`` (the default), install per-step wraps and feed in-process
+    summary reservoirs. The reservoirs are drained into ``step.*``,
+    ``train.*``, ``optim.*``, ``memory.*`` numeric facets on the
+    ``pytorch.rank`` span at process exit (via destroy_process_group,
+    unpatch, or atexit). No per-step spans are emitted in this mode. Set
+    to ``false`` to skip the wraps entirely (escape hatch for ultra-async
+    pipelines).
+
+``DD_PYTORCH_CAPTURE_LOSS``
+    When ``true`` (default), capture the per-step loss value via
+    ``loss.item()`` inside the ``Tensor.backward`` wrap and push it to the
+    ``train.loss`` reservoir. Forces a GPU→host sync; disable for
+    async-stream pipelines where the sync may serialize work.
+
+``DD_PYTORCH_MFU_ENABLED``
+    When ``true`` (default), compute analytical Model FLOPs Utilization
+    (MFU) and Tflops for transformer-shaped models from the cached param
+    count and per-forward token count. Set to ``false`` to skip the
+    computation entirely.
+
+``DD_PYTORCH_COLLECTIVE_GPU_SAMPLE_RATE``
+    Record CUDA events on 1-in-N collectives to feed the
+    ``collective.<op>.gpu_duration_ms.*`` summary reservoirs. Set to ``0``
+    to disable GPU-event sampling. Default ``100`` (~0.02% overhead).
+
 """
 
 from ddtrace import config
@@ -100,5 +126,6 @@ config._add(
         "grad_comm_enabled": asbool(env.get("DD_PYTORCH_GRAD_COMM", "true")),
         "collective_trace_enabled": asbool(env.get("DD_PYTORCH_COLLECTIVE_TRACE", "false")),
         "rate_ticker_interval_s": float(env.get("DD_PYTORCH_RATE_TICKER_INTERVAL_S", "1.0") or "1.0"),
+        "summary_profiling": asbool(env.get("DD_PYTORCH_SUMMARY_PROFILING", "true")),
     },
 )

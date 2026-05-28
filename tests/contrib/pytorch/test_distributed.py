@@ -510,9 +510,11 @@ def test_layer2_wrappers_not_installed_when_profiling_disabled(monkeypatch):
 
     monkeypatch.setenv("DD_PYTORCH_PROFILING", "false")
     monkeypatch.setenv("DD_PYTORCH_FORCE_INSTALL", "true")
-    # Ensure Layer One is also off so Tensor.backward is not installed via
-    # the layer_one_on branch (which installs the wrapper for flush purposes).
+    # Ensure Layer One and summary profiling are also off so no Layer-2 wraps
+    # install via those branches. (T14: summary_profiling defaults to True,
+    # so we must explicitly disable it here to test the "no wraps" path.)
     monkeypatch.setattr(config.pytorch, "collective_trace_enabled", False)
+    monkeypatch.setattr(config.pytorch, "summary_profiling", False)
 
     if getattr(torch, "_datadog_patch", False):
         unpatch()
@@ -556,9 +558,11 @@ def test_repatch_cycle_picks_up_profiling_toggle(monkeypatch):
     from ddtrace.contrib.internal.pytorch.patch import unpatch
 
     monkeypatch.setenv("DD_PYTORCH_FORCE_INSTALL", "true")
-    # Ensure Layer One is off for the profiling-disabled cycle so that
-    # Tensor.backward is not installed via the layer_one_on branch.
+    # Ensure Layer One and summary profiling are off for the profiling-disabled
+    # cycle. (T14: summary_profiling defaults to True, so we must explicitly
+    # disable it here to test the "no wraps" path.)
     monkeypatch.setattr(config.pytorch, "collective_trace_enabled", False)
+    monkeypatch.setattr(config.pytorch, "summary_profiling", False)
     if getattr(torch, "_datadog_patch", False):
         unpatch()
 

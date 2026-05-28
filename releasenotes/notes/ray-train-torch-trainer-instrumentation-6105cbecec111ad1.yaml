@@ -51,6 +51,16 @@ features:
 
 upgrade:
   - |
+    ray: The Ray dashboard's traced ``submit_job`` no longer auto-propagates
+    every ``DD_*`` environment variable into the job's ``runtime_env``
+    (which Ray persists visibly in job specs and dashboard logs). Instead,
+    operators opt in by prefix: ``DD_JOB_ENV_<NAME>`` on the dashboard
+    becomes ``DD_<NAME>`` on Ray workers. Secrets like ``DD_API_KEY`` must
+    NOT be set under the ``DD_JOB_ENV_*`` prefix unless the operator intends
+    them to reach workers. Operators currently relying on the broad ``DD_*``
+    propagation must rename their dashboard-side env vars from ``DD_X`` to
+    ``DD_JOB_ENV_X`` for the propagation to continue.
+  - |
     ray: Ray Train instrumentation is enabled by default when the Ray
     contrib is loaded. Set ``DD_TRACE_RAY_TRAIN_ENABLED=false`` to disable
     ``ray.train.fit`` and ``ray.train.worker`` span emission.
