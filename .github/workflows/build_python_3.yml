@@ -57,6 +57,7 @@ jobs:
       # we don't mess up with RECORD file.
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
       CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
+      CIBW_PACKAGE: "dd-trace-py"
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -80,7 +81,6 @@ jobs:
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
-          working-directory: dd-trace-py
 
       - name: Validate wheel RECORD files
         shell: bash
