@@ -32,11 +32,7 @@ Individual pre-commit hooks (run in numeric order):
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
-<<<<<<< Updated upstream
-| `10-build-native-ext` | Rebuilds native extensions (`python setup.py build_ext --inplace`) when staged C/C++/Rust/Cython, CMake, or `setup.py` files change. Uses `.venv/bin/python` when present. On stale `.eggs` errors (`Directory not empty` / errno 66), removes `.eggs` and retries once. Set `DD_SKIP_NATIVE_BUILD=1` to skip. |
-=======
-| `10-build-native-ext` | Rebuilds native extensions (`python setup.py build_ext --inplace`) when staged C/C++/Rust/Cython, CMake, or `setup.py` files change. Uses `.venv/bin/python` when present. Set `DD_SKIP_NATIVE_BUILD=1` to skip. |
->>>>>>> Stashed changes
+| `10-build-native-ext` | **Warn-only by default** when staged product native/build files change (C/C++/Rust/Cython, CMake, `setup.py`; excludes `test/`, `tests/`, `fuzz/`, `*_test.cpp`). Prints rebuild guidance and does not block the commit. Set `DD_BUILD_NATIVE_ON_COMMIT=1` to run `build_ext --inplace` and block on failure (with `.eggs` retry). Set `DD_SKIP_NATIVE_BUILD=1` to skip entirely. |
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
@@ -56,8 +52,30 @@ When you checkout a branch, merge changes, or pull from main that includes modif
 - Cryptic error messages
 
 ### Solution
-- **pre-commit**: `10-build-native-ext` runs `python setup.py build_ext --inplace` when you commit staged native or build files (blocks the commit if the build fails).
-- **post-merge / post-checkout**: `check-native-changes` detects native file changes and reminds you to rebuild.
+- **pre-commit**: `10-build-native-ext` **warns** when you commit staged product native or build files (does not block by default). Opt in to a blocking rebuild with `DD_BUILD_NATIVE_ON_COMMIT=1`.
+- **post-merge / post-checkout**: `check-native-changes` detects native file changes and reminds you to rebuild after pull or branch switch.
+
+### Pre-commit native hook behavior
+
+| Mode | How to enable | Commit blocked? | What runs |
+|------|----------------|-----------------|-----------|
+| Warn only (default) | (none) | No | Lists staged product native files and rebuild commands |
+| Blocking rebuild | `export DD_BUILD_NATIVE_ON_COMMIT=1` | Yes, if `build_ext` fails | Full `python setup.py build_ext --inplace` |
+| Skip | `export DD_SKIP_NATIVE_BUILD=1` or `git commit --no-verify` | No | Nothing |
+
+**Staged paths that trigger the hook** (product code only): `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd`, `CMakeLists.txt`, `*.cmake`, root `setup.py`.
+
+**Excluded** (hook does not run for these alone): paths under `test/`, `tests/`, `fuzz/`, `dd_wrapper/test/`, and `*_test.cpp`.
+
+**Timing when blocking rebuild is enabled** (`DD_BUILD_NATIVE_ON_COMMIT=1`):
+
+- **Cold tree** (first native build after clone): often **minutes** — setuptools, CMake, and extensions compile from scratch.
+- **Warm tree, small change**: often **tens of seconds** — `setup.py` starts; incremental logic may skip up-to-date extensions (`DD_CMAKE_INCREMENTAL_BUILD`, mtime checks).
+- **Warm tree, comment-only header**: may still invoke `build_ext`, but most extensions log `skipping … (up-to-date)`.
+
+One staged `profiler_state.hpp` comment still launches the full `build_ext` driver when blocking mode is on; incremental skips limit actual recompilation.
+
+Uses `.venv/bin/python` when present. On stale `.eggs` errors (`Directory not empty` / errno 66), removes `.eggs` and retries once.
 
 ### Monitored File Types
 - `*.c`, `*.cpp`, `*.h`, `*.hpp` - C/C++ files
@@ -98,10 +116,16 @@ Run one of the following commands:
 
 ### Rebuild Commands
 
-**On commit (automatic, when native files are staged):**
+**On commit (reminder by default):**
 ```bash
 hooks/autohook.sh install   # once per clone
-git commit                  # runs build_ext --inplace if needed
+git commit                  # prints rebuild reminder if product native files are staged
+```
+
+**On commit (blocking rebuild, opt-in):**
+```bash
+export DD_BUILD_NATIVE_ON_COMMIT=1
+git commit                  # runs build_ext --inplace; aborts commit if build fails
 ```
 
 **Quick Rebuild (Recommended):**
@@ -110,7 +134,7 @@ pip install -e .
 ```
 Rebuilds changed native extensions. Fast and usually sufficient.
 
-**Manual in-place rebuild (same as the pre-commit hook):**
+**Manual in-place rebuild (same command as blocking pre-commit mode):**
 ```bash
 python setup.py build_ext --inplace
 ```
@@ -236,6 +260,7 @@ hooks/
 ├── post-checkout/           # Post-checkout hooks
 │   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
+    ├── build-native-ext.sh  # Pre-commit native warn / optional rebuild
     └── check-native-changes # Native change and dependency detection logic
 ```
 
