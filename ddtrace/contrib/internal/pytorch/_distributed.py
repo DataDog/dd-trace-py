@@ -1268,58 +1268,62 @@ def _should_install() -> bool:
     return False
 
 
-def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
-    """Wrap ``Tensor.backward`` to (a) emit a ``pytorch.backward`` span
-    when Layer 2 profiling is enabled, (b) issue a single
-    ``tracer.flush()`` after the wrapped call if any
-    ``pytorch.grad_comm`` span fired during the backward, and (c) feed
-    the ``train.loss`` and ``step.backward_ms`` summary reservoirs.
+# Reentrancy guard: PyTorch's `Tensor.backward` calls into
+# `torch.autograd.backward` internally. Without this flag, a single
+# `loss.backward()` would fire both wraps and double-count the duration
+# (and emit two `pytorch.backward` spans in L2 mode). Thread-local so
+# concurrent training threads stay independent.
+_BACKWARD_REENTRANCY = threading.local()
 
-    The flush is needed because DDP comm hooks run on a CUDA-callback
-    thread whose trace context isn't shared with the autograd thread;
-    without it those spans can sit in the writer buffer indefinitely.
 
-    AIDEV-NOTE: `_grad_comm_emitted_in_backward` is a process-global
-    flag. Overlapping `loss.backward()` calls (GAN-style training,
-    reentrant backward) can race the flag — the worst outcome is that
-    some grad_comm spans flush one backward later than ideal. We
-    accept this trade-off; per-backward tokens would add complexity
-    for a corner case that does not lose data.
+def _capture_loss_if_scalar(tensor) -> None:
+    """Push `train.loss` if `tensor` is a single-scalar tensor and capture is
+    enabled. Caller is responsible for the `summary_feeds_on` gate.
 
-    AIDEV-NOTE: Loss is captured BEFORE ``wrapped(...)`` runs so that an
-    exception inside backward does not cause us to miss the loss value.
-    The tensor is already finalised at call time (computed during forward).
-    The GPU→host sync that ``item()`` forces is intentional — it is gated
-    by ``DD_PYTORCH_CAPTURE_LOSS`` (default true) so callers can opt out.
+    AIDEV-NOTE: GPU→host sync via `item()` is intentional and gated by
+    `DD_PYTORCH_CAPTURE_LOSS` (default true). Callers can opt out.
+    """
+    from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
+    from ddtrace.internal.utils.formats import asbool  # noqa: PLC0415
+
+    if not asbool(env.get("DD_PYTORCH_CAPTURE_LOSS", "true")):
+        return
+    try:
+        if hasattr(tensor, "numel") and tensor.numel() == 1:
+            _summary.push_distribution("train.loss", float(tensor.item()))
+    except Exception:
+        pass  # GPU sync failure / non-tensor / etc — skip silently
+
+
+def _run_backward_with_instrumentation(wrapped, args, kwargs):
+    """Shared instrumentation for both `Tensor.backward` and
+    `torch.autograd.backward`:
+    - opens a `pytorch.backward` span when Layer 2 profiling is enabled;
+    - feeds the `backward_total_ms` summary accumulator;
+    - publishes the active backward Context so the chained DDP comm hook
+      can attach `pytorch.grad_comm` children;
+    - issues a single `tracer.flush()` after the wrapped call if any
+      `pytorch.grad_comm` span fired (DDP comm hooks run on a CUDA-callback
+      thread whose trace context isn't shared with the autograd thread —
+      without this flush, those spans can sit in the writer buffer).
+
+    AIDEV-NOTE: `_grad_comm_emitted_in_backward` is a process-global flag.
+    Overlapping backward calls (GAN-style training, reentrant backward) can
+    race the flag — the worst outcome is that some grad_comm spans flush
+    one backward later than ideal. We accept this trade-off.
     """
     from ddtrace.contrib.internal.pytorch import _summary  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import _ensure_step_open  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import _step_parent  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch._hooks import is_profiling_enabled  # noqa: PLC0415
-    from ddtrace.contrib.internal.pytorch._utils import set_training_job_id_tag  # noqa: PLC0415
-    from ddtrace.internal.utils.formats import asbool  # noqa: PLC0415
 
     profiling_on = is_profiling_enabled()
     summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
-    # Gate: loss capture and backward accumulator are summary-mode features.
+    # Gate: backward_total_ms accumulator is a summary-mode feature.
     # In pure Layer-1 mode (collective_trace=true, summary=false, profiling=false)
     # the wrap still runs for the grad_comm flush in the finally block, but
-    # we must NOT incur the GPU sync from loss.item() or fill reservoirs the
-    # user explicitly disabled.
-    # AIDEV-NOTE: summary_feeds_on gates both the loss GPU-sync and the
-    # backward_total_ms accumulator. Pure-L1 callers (DD_PYTORCH_COLLECTIVE_TRACE=true,
-    # DD_PYTORCH_SUMMARY_PROFILING=false, DD_PYTORCH_PROFILING=false) see neither.
+    # we must NOT fill reservoirs the user explicitly disabled.
     summary_feeds_on = summary_on or profiling_on
-
-    # SUMMARY: capture loss BEFORE backward runs. Tensor is already
-    # finalized at this point (user computed it during forward).
-    capture_loss = asbool(env.get("DD_PYTORCH_CAPTURE_LOSS", "true"))
-    if summary_feeds_on and capture_loss:
-        try:
-            if hasattr(instance, "numel") and instance.numel() == 1:
-                _summary.push_distribution("train.loss", float(instance.item()))
-        except Exception:
-            pass  # GPU sync failure / non-tensor / etc — skip silently
 
     t0 = time.perf_counter_ns()
     span = None
@@ -1368,13 +1372,91 @@ def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
                 log.debug("pytorch: late flush after backward failed", exc_info=True)
 
 
-def _install_tensor_backward() -> None:
-    if not hasattr(torch, "Tensor") or not hasattr(torch.Tensor, "backward"):
-        return
+def _wrapped_tensor_backward(wrapped, instance, args, kwargs):
+    """Wrap ``Tensor.backward`` — captures ``train.loss`` from the
+    single-scalar loss tensor, then delegates to
+    :func:`_run_backward_with_instrumentation`.
+    """
+    if getattr(_BACKWARD_REENTRANCY, "in_progress", False):
+        # Already inside outer backward instrumentation (shouldn't normally
+        # happen for Tensor.backward, but guard for paranoia / nested calls).
+        return wrapped(*args, **kwargs)
+
+    profiling_on = False
     try:
-        _wrap("torch", "Tensor.backward", _wrapped_tensor_backward)
+        from ddtrace.contrib.internal.pytorch._hooks import is_profiling_enabled  # noqa: PLC0415
+
+        profiling_on = is_profiling_enabled()
     except Exception:
-        log.debug("pytorch: failed to wrap torch.Tensor.backward", exc_info=True)
+        pass
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    if summary_on or profiling_on:
+        # Capture loss BEFORE backward runs so an exception during backward
+        # doesn't make us miss the value.
+        _capture_loss_if_scalar(instance)
+
+    _BACKWARD_REENTRANCY.in_progress = True
+    try:
+        return _run_backward_with_instrumentation(wrapped, args, kwargs)
+    finally:
+        _BACKWARD_REENTRANCY.in_progress = False
+
+
+def _wrapped_autograd_backward(wrapped, instance, args, kwargs):
+    """Wrap ``torch.autograd.backward(tensors, ...)`` — covers the multi-tensor
+    autograd entrypoint used by some custom training loops (GANs, multi-loss
+    RL training) that don't go through ``Tensor.backward``.
+
+    When called as the inner of ``Tensor.backward`` (PyTorch's standard
+    implementation routes through this), the reentrancy guard delegates without
+    re-instrumenting so we don't double-count duration or emit a second span.
+
+    Loss capture: for the single-tensor list case (``backward([loss])``) the
+    behaviour matches ``Tensor.backward``. For multi-tensor calls, no loss is
+    captured (no single scalar — recording the sum would be misleading).
+    """
+    if getattr(_BACKWARD_REENTRANCY, "in_progress", False):
+        return wrapped(*args, **kwargs)
+
+    profiling_on = False
+    try:
+        from ddtrace.contrib.internal.pytorch._hooks import is_profiling_enabled  # noqa: PLC0415
+
+        profiling_on = is_profiling_enabled()
+    except Exception:
+        pass
+    summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+    if summary_on or profiling_on:
+        # Inspect args[0] for a single-scalar tensor. Accept both `backward(t)`
+        # and `backward([t])` call shapes.
+        try:
+            first = args[0] if args else kwargs.get("tensors")
+            if first is not None:
+                if hasattr(first, "numel"):
+                    _capture_loss_if_scalar(first)
+                elif isinstance(first, (list, tuple)) and len(first) == 1:
+                    _capture_loss_if_scalar(first[0])
+        except Exception:
+            pass
+
+    _BACKWARD_REENTRANCY.in_progress = True
+    try:
+        return _run_backward_with_instrumentation(wrapped, args, kwargs)
+    finally:
+        _BACKWARD_REENTRANCY.in_progress = False
+
+
+def _install_tensor_backward() -> None:
+    if hasattr(torch, "Tensor") and hasattr(torch.Tensor, "backward"):
+        try:
+            _wrap("torch", "Tensor.backward", _wrapped_tensor_backward)
+        except Exception:
+            log.debug("pytorch: failed to wrap torch.Tensor.backward", exc_info=True)
+    try:
+        if hasattr(torch, "autograd") and hasattr(torch.autograd, "backward"):
+            _wrap("torch.autograd", "backward", _wrapped_autograd_backward)
+    except Exception:
+        log.debug("pytorch: failed to wrap torch.autograd.backward", exc_info=True)
 
 
 def _uninstall_tensor_backward() -> None:
@@ -1382,6 +1464,12 @@ def _uninstall_tensor_backward() -> None:
         _unwrap(torch.Tensor, "backward")
     except Exception:
         log.debug("pytorch: failed to unwrap torch.Tensor.backward", exc_info=True)
+    # torch.autograd is loaded once _install_tensor_backward wrapped it; no
+    # explicit import here so we don't shadow the module-level `torch` name.
+    try:
+        _unwrap(torch.autograd, "backward")
+    except Exception:
+        log.debug("pytorch: failed to unwrap torch.autograd.backward", exc_info=True)
 
 
 def _wrapped_clip_grad_norm(wrapped, instance, args, kwargs):
