@@ -179,13 +179,19 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
             sent_messages: list[dict] = []
 
             async def drive():
-                sent_request = False
+                body_sent = False
 
                 async def receive():
-                    nonlocal sent_request
-                    if not sent_request:
-                        sent_request = True
+                    nonlocal body_sent
+                    if not body_sent:
+                        body_sent = True
                         return {"type": "http.request", "body": b"", "more_body": False}
+                    # Django's ``handle()`` races ``listen_for_disconnect(receive)`` against ``process_request``
+                    # via ``asyncio.wait(..., return_when=FIRST_COMPLETED)``. Returning ``http.disconnect``
+                    # here would let the disconnect listener win and cancel ``process_request`` before it
+                    # can send the response. Hang instead so ``process_request`` wins; Django cancels this
+                    # awaiter once the response is sent.
+                    await asyncio.Future()
                     return {"type": "http.disconnect"}
 
                 async def send(msg):
