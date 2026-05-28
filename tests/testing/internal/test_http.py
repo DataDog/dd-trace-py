@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.http module."""
 
 import http.client
+import logging
 import os
 from unittest.mock import Mock
 from unittest.mock import call
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.errors import SetupError
+import ddtrace.testing.internal.http as _http_module
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
 from ddtrace.testing.internal.http import BackendConnector
@@ -27,7 +29,7 @@ class TestBackendConnector:
 
     def test_constants(self) -> None:
         """Test module constants."""
-        assert DEFAULT_TIMEOUT_SECONDS == 15.0
+        assert DEFAULT_TIMEOUT_SECONDS == 30.0
 
     @patch("http.client.HTTPSConnection")
     def test_init_default_parameters(self, mock_https_connection: Mock) -> None:
@@ -1095,6 +1097,43 @@ class TestUnixDomainSocketTimeout:
 
             mock_sock.settimeout.assert_called_once_with(3.5)
             mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestBackendTimeoutEnvVar:
+    """Tests for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS parsing via _parse_timeout_millis."""
+
+    # AIDEV-NOTE: Tests call _parse_timeout_millis() directly to avoid importlib.reload, which
+    # mutates the module's __dict__ in place and breaks isinstance checks in other test classes
+    # (old imported class objects see new reloaded classes via shared __globals__).
+
+    def test_default_when_unset(self) -> None:
+        assert _http_module._parse_timeout_millis(None) == 30.0
+
+    def test_default_when_empty_string(self) -> None:
+        assert _http_module._parse_timeout_millis("") == 30.0
+
+    def test_integer_string_is_accepted(self) -> None:
+        assert _http_module._parse_timeout_millis("60000") == 60.0
+
+    def test_float_string_is_accepted(self) -> None:
+        assert _http_module._parse_timeout_millis("30500") == 30.5
+
+    def test_non_numeric_value_falls_back_to_default(self) -> None:
+        http_logger = logging.getLogger("ddtrace.testing.internal.http")
+        with patch.object(http_logger, "warning") as mock_warning:
+            result = _http_module._parse_timeout_millis("fast")
+        assert result == 30.0
+        mock_warning.assert_called_once()
+        fmt_string, bad_value = mock_warning.call_args[0][0], mock_warning.call_args[0][1]
+        assert "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS" in fmt_string
+        assert bad_value == "fast"
+
+    def test_non_numeric_value_does_not_raise(self) -> None:
+        assert _http_module._parse_timeout_millis("not-a-number") == 30.0
+
+    @pytest.mark.parametrize("bad_value", ["0", "-5000", "inf", "-inf", "nan", "300001"])
+    def test_non_positive_or_out_of_range_falls_back_to_default(self, bad_value: str) -> None:
+        assert _http_module._parse_timeout_millis(bad_value) == 30.0
 
 
 class TestRequestFailureWarning:

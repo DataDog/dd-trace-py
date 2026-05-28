@@ -1959,6 +1959,7 @@ class LLMObs(Service):
             context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
             return context
         return None
 

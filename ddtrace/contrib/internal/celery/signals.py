@@ -114,7 +114,7 @@ def trace_before_publish(*args, **kwargs):
             # there is a trace active (e.g. a web request span).
             _inject_distributed_headers(active, kwargs)
         log.debug(
-            "Task was not found in the local registry. Unable to create producer span. Task name: {}, ID: {}",
+            "Task was not found in the local registry. Unable to create producer span. Task name: %s, ID: %s",
             task_name,
             task_id,
         )
