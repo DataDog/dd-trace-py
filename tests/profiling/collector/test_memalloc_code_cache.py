@@ -87,6 +87,40 @@ def test_code_cache_reset_counters() -> None:
         _stop()
 
 
+def test_code_cache_per_set_stats_basic() -> None:
+    """Return a histogram[k] for k in [0..WAYS_PER_SET]: sum equals num_sets,
+    and an empty cache puts everything in bucket 0.
+    """
+    # Empty cache: enable+disable+enable clears slots without freeing memory.
+    _memalloc.code_cache_disable()
+    _memalloc.code_cache_enable()
+    stats = _stats()
+    num_sets = stats["capacity"] // 4  # WAYS_PER_SET == 4
+    hist = _memalloc.code_cache_per_set_stats()
+    assert hist is not None
+    assert len(hist) == 5
+    assert sum(hist) == num_sets
+    assert hist[0] == num_sets
+    assert all(hist[k] == 0 for k in range(1, 5))
+
+    _start()
+    try:
+        _alloc_burst(500)
+        hist = _memalloc.code_cache_per_set_stats()
+        assert hist is not None
+        assert len(hist) == 5
+        assert sum(hist) == num_sets
+        # At least one set should now hold an entry.
+        assert any(hist[k] > 0 for k in range(1, 5))
+    finally:
+        _stop()
+
+    # Disabled cache returns None.
+    _memalloc.code_cache_disable()
+    assert _memalloc.code_cache_per_set_stats() is None
+    _memalloc.code_cache_enable()
+
+
 def test_code_cache_disable_then_stats_is_none() -> None:
     _start()
     try:

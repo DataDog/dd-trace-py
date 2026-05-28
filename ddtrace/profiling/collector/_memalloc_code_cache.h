@@ -5,6 +5,7 @@
 
 #include "sample.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -65,6 +66,10 @@ class CodeFunctionCache
 
     size_t capacity() const { return sets_.size() * WAYS_PER_SET; }
 
+    /* Debug: histogram[k] = number of sets currently holding exactly k
+     * entries. Sum equals num_sets. O(num_sets); never on hot path. */
+    std::array<size_t, WAYS_PER_SET + 1> occupancy_histogram() const;
+
     /* Process-wide singleton, mirrors heap_tracker_t::instance. */
     static CodeFunctionCache* instance;
 
@@ -80,7 +85,7 @@ class CodeFunctionCache
     };
 
     std::vector<Set> sets_;
-    size_t set_mask_; // num_sets - 1, num_sets is power of two
+    uint8_t log2_set_bits_; // log2(num_sets); num_sets is a power of two in [16, 1<<18]
 
     uint64_t hits_ = 0;
     uint64_t misses_ = 0;
