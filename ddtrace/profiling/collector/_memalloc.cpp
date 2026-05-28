@@ -477,6 +477,37 @@ memalloc_code_cache_stats(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args)
                          (Py_ssize_t)cache->capacity());
 }
 
+PyDoc_STRVAR(memalloc_code_cache_per_set_stats__doc__,
+             "code_cache_per_set_stats($module, /)\n"
+             "--\n"
+             "\n"
+             "Return a list of WAYS_PER_SET+1 ints: histogram[k] is the number of "
+             "sets currently holding exactly k entries. Sum equals num_sets. "
+             "Diagnostic only -- iterates every set; not for hot paths. Returns "
+             "None when the cache is not initialized.\n");
+static PyObject*
+memalloc_code_cache_per_set_stats(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+    if (cache == nullptr) {
+        Py_RETURN_NONE;
+    }
+    auto hist = cache->occupancy_histogram();
+    PyObject* list = PyList_New(static_cast<Py_ssize_t>(hist.size()));
+    if (list == nullptr) {
+        return nullptr;
+    }
+    for (size_t i = 0; i < hist.size(); ++i) {
+        PyObject* v = PyLong_FromUnsignedLongLong(static_cast<unsigned long long>(hist[i]));
+        if (v == nullptr) {
+            Py_DECREF(list);
+            return nullptr;
+        }
+        PyList_SET_ITEM(list, static_cast<Py_ssize_t>(i), v);
+    }
+    return list;
+}
+
 PyDoc_STRVAR(memalloc_code_cache_reset_counters__doc__,
              "code_cache_reset_counters($module, /)\n"
              "--\n"
@@ -524,6 +555,10 @@ static PyMethodDef module_methods[] = {
     { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
     { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
     { "code_cache_stats", (PyCFunction)memalloc_code_cache_stats, METH_NOARGS, memalloc_code_cache_stats__doc__ },
+    { "code_cache_per_set_stats",
+      (PyCFunction)memalloc_code_cache_per_set_stats,
+      METH_NOARGS,
+      memalloc_code_cache_per_set_stats__doc__ },
     { "code_cache_reset_counters",
       (PyCFunction)memalloc_code_cache_reset_counters,
       METH_NOARGS,
