@@ -32,6 +32,7 @@ Individual pre-commit hooks (run in numeric order):
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
+| `10-build-native-ext` | Rebuilds native extensions (`python setup.py build_ext --inplace`) when staged C/C++/Rust/Cython, CMake, or `setup.py` files change. Uses `.venv/bin/python` when present. Set `DD_SKIP_NATIVE_BUILD=1` to skip. |
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
@@ -51,7 +52,8 @@ When you checkout a branch, merge changes, or pull from main that includes modif
 - Cryptic error messages
 
 ### Solution
-The `check-native-changes` hook automatically detects when native code files have changed and reminds you to rebuild.
+- **pre-commit**: `10-build-native-ext` runs `python setup.py build_ext --inplace` when you commit staged native or build files (blocks the commit if the build fails).
+- **post-merge / post-checkout**: `check-native-changes` detects native file changes and reminds you to rebuild.
 
 ### Monitored File Types
 - `*.c`, `*.cpp`, `*.h`, `*.hpp` - C/C++ files
@@ -92,11 +94,22 @@ Run one of the following commands:
 
 ### Rebuild Commands
 
+**On commit (automatic, when native files are staged):**
+```bash
+hooks/autohook.sh install   # once per clone
+git commit                  # runs build_ext --inplace if needed
+```
+
 **Quick Rebuild (Recommended):**
 ```bash
 pip install -e .
 ```
 Rebuilds changed native extensions. Fast and usually sufficient.
+
+**Manual in-place rebuild (same as the pre-commit hook):**
+```bash
+python setup.py build_ext --inplace
+```
 
 **Full Clean Rebuild:**
 ```bash
