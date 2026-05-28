@@ -4,6 +4,8 @@
 
 set -eu
 
+export DDTRACE_NATIVE_BUILD_NONINTERACTIVE=1
+
 SCRIPT="$(cd "$(dirname "$0")/../scripts" && pwd)/build-native-ext.sh"
 PASS=0
 FAIL=0
@@ -25,7 +27,7 @@ assert_contains() {
 
 # skip when env set
 output=$(DD_SKIP_NATIVE_BUILD=1 sh "$SCRIPT" 2>&1 || true)
-assert_contains "$output" "DD_SKIP_NATIVE_BUILD" "respects DD_SKIP_NATIVE_BUILD"
+assert_contains "$output" "DD_SKIP_NATIVE_BUILD" "respects DD_SKIP_NATIVE_BUILD via off mode"
 
 # stale .eggs detection helper (same pattern as build-native-ext.sh)
 if printf '%s\n' 'OSError: [Errno 66] Directory not empty: .eggs/foo' | grep -qiE 'directory not empty|errno 66|\[errno 66\]'; then
@@ -57,21 +59,31 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-# skip when no native staged files (requires git repo)
+# git config off mode (requires git repo)
 if git rev-parse --git-dir >/dev/null 2>&1; then
+    saved_mode=$(git config --local --get ddtrace.nativeBuildMode 2>/dev/null || true)
+    git config --local ddtrace.nativeBuildMode off
+    output=$(sh "$SCRIPT" 2>&1 || true)
+    assert_contains "$output" "ddtrace.nativeBuildMode=off" "respects git config off"
+    git config --local ddtrace.nativeBuildMode warn
     output=$(sh "$SCRIPT" 2>&1 || true)
     case "$output" in
         *"native build hook skipped"*) PASS=$((PASS + 1)) ;;
         *"STAGED NATIVE/BUILD FILES"*)
-            assert_contains "$output" "DD_BUILD_NATIVE_ON_COMMIT" "warn-only default mentions opt-in rebuild"
+            assert_contains "$output" "git config --local ddtrace.nativeBuildMode" "warn mode mentions git config"
             ;;
         *"Rebuilding native extensions"*)
             if [ "${DD_BUILD_NATIVE_ON_COMMIT:-}" = "1" ]; then
                 PASS=$((PASS + 1))
             else
-                echo "FAIL: rebuild ran without DD_BUILD_NATIVE_ON_COMMIT=1"
-                echo "$output"
-                FAIL=$((FAIL + 1))
+                saved=$(git config --local --get ddtrace.nativeBuildMode 2>/dev/null || true)
+                if [ "$saved" = "block" ]; then
+                    PASS=$((PASS + 1))
+                else
+                    echo "FAIL: rebuild ran without block mode"
+                    echo "$output"
+                    FAIL=$((FAIL + 1))
+                fi
             fi
             ;;
         *)
@@ -80,6 +92,12 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
             FAIL=$((FAIL + 1))
             ;;
     esac
+
+    if [ -n "$saved_mode" ]; then
+        git config --local ddtrace.nativeBuildMode "$saved_mode"
+    else
+        git config --local --unset ddtrace.nativeBuildMode 2>/dev/null || true
+    fi
 else
     echo "SKIP: not in a git repo"
 fi

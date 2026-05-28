@@ -32,7 +32,7 @@ Individual pre-commit hooks (run in numeric order):
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
-| `10-build-native-ext` | **Warn-only by default** when staged product native/build files change (C/C++/Rust/Cython, CMake, `setup.py`; excludes `test/`, `tests/`, `fuzz/`, `*_test.cpp`). Prints rebuild guidance and does not block the commit. Set `DD_BUILD_NATIVE_ON_COMMIT=1` to run `build_ext --inplace` and block on failure (with `.eggs` retry). Set `DD_SKIP_NATIVE_BUILD=1` to skip entirely. |
+| `10-build-native-ext` | When staged product native/build files change (excludes `test/`, `tests/`, `fuzz/`, `*_test.cpp`). **Warn-only by default**; first interactive commit prompts once and saves `git config --local ddtrace.nativeBuildMode` (`warn` / `block` / `off`). Env vars `DD_BUILD_NATIVE_ON_COMMIT=1` and `DD_SKIP_NATIVE_BUILD=1` override for one session. |
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
@@ -52,22 +52,26 @@ When you checkout a branch, merge changes, or pull from main that includes modif
 - Cryptic error messages
 
 ### Solution
-- **pre-commit**: `10-build-native-ext` **warns** when you commit staged product native or build files (does not block by default). Opt in to a blocking rebuild with `DD_BUILD_NATIVE_ON_COMMIT=1`.
+- **pre-commit**: `10-build-native-ext` **warns** when you commit staged product native or build files (does not block by default). On the first interactive commit, it asks which mode to use for this clone and saves it in local git config.
 - **post-merge / post-checkout**: `check-native-changes` detects native file changes and reminds you to rebuild after pull or branch switch.
 
 ### Pre-commit native hook behavior
 
-| Mode | How to enable | Commit blocked? | What runs |
-|------|----------------|-----------------|-----------|
-| Warn only (default) | (none) | No | Lists staged product native files and rebuild commands |
-| Blocking rebuild | `export DD_BUILD_NATIVE_ON_COMMIT=1` | Yes, if `build_ext` fails | Full `python setup.py build_ext --inplace` |
-| Skip | `export DD_SKIP_NATIVE_BUILD=1` or `git commit --no-verify` | No | Nothing |
+| Mode | How to set (persists in this repo) | Commit blocked? | What runs |
+|------|-------------------------------------|-----------------|-----------|
+| Warn only (default) | `git config --local ddtrace.nativeBuildMode warn` | No | Lists staged product native files and rebuild commands |
+| Blocking rebuild | `git config --local ddtrace.nativeBuildMode block` | Yes, if `build_ext` fails | Full `python setup.py build_ext --inplace` |
+| Skip | `git config --local ddtrace.nativeBuildMode off` | No | Nothing |
+
+**First time** you commit product native files in an interactive terminal, the hook prompts for `warn` / `block` / `off` and runs `git config --local` for you. CI, non-TTY commits, and `DDTRACE_NATIVE_BUILD_NONINTERACTIVE=1` default to **warn** without prompting.
+
+**One-session overrides** (optional): `DD_BUILD_NATIVE_ON_COMMIT=1` forces block; `DD_SKIP_NATIVE_BUILD=1` forces off. `git commit --no-verify` skips all pre-commit hooks.
 
 **Staged paths that trigger the hook** (product code only): `*.c`, `*.h`, `*.cc`, `*.cpp`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd`, `CMakeLists.txt`, `*.cmake`, root `setup.py`.
 
 **Excluded** (hook does not run for these alone): paths under `test/`, `tests/`, `fuzz/`, `dd_wrapper/test/`, and `*_test.cpp`.
 
-**Timing when blocking rebuild is enabled** (`DD_BUILD_NATIVE_ON_COMMIT=1`):
+**Timing when blocking rebuild is enabled** (`ddtrace.nativeBuildMode=block`):
 
 - **Cold tree** (first native build after clone): often **minutes** — setuptools, CMake, and extensions compile from scratch.
 - **Warm tree, small change**: often **tens of seconds** — `setup.py` starts; incremental logic may skip up-to-date extensions (`DD_CMAKE_INCREMENTAL_BUILD`, mtime checks).
@@ -122,10 +126,17 @@ hooks/autohook.sh install   # once per clone
 git commit                  # prints rebuild reminder if product native files are staged
 ```
 
-**On commit (blocking rebuild, opt-in):**
+**On commit (blocking rebuild, per-repo):**
 ```bash
-export DD_BUILD_NATIVE_ON_COMMIT=1
+git config --local ddtrace.nativeBuildMode block
 git commit                  # runs build_ext --inplace; aborts commit if build fails
+```
+
+**Change or inspect preference:**
+```bash
+git config --local --get ddtrace.nativeBuildMode
+git config --local ddtrace.nativeBuildMode warn   # back to reminders only
+git config --local --unset ddtrace.nativeBuildMode  # prompt again on next native commit
 ```
 
 **Quick Rebuild (Recommended):**
