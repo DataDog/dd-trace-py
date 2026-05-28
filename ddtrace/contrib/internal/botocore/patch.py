@@ -159,13 +159,6 @@ def _inject_trace_headers_handler(request, **kwargs):
         request.headers[header_name] = header_value
 
 
-# AIDEV-NOTE: _wrap_session_init is also imported by
-# ddtrace.contrib.internal.aiobotocore.patch — treat as semi-public within
-# the botocore/aiobotocore integration family. If you rename or refactor it,
-# update the aiobotocore import too. The shared wrap is what lets a user
-# who only enables the aiobotocore integration still get the SigV4 fix:
-# aiobotocore.AioSession inherits from botocore.session.Session and calls
-# super().__init__(), so wrapping Session.__init__ catches both.
 def _wrap_session_init(wrapped, instance, args, kwargs):
     """Register the before-sign handler on every botocore Session at init.
 
@@ -184,6 +177,44 @@ def _wrap_session_init(wrapped, instance, args, kwargs):
     except Exception:
         log.warning("dd-trace-py: failed to register botocore before-sign handler", exc_info=True)
     return result
+
+
+# AIDEV-NOTE: Shared Session.__init__ wrap state for botocore + aiobotocore.
+# Both integrations need the before-sign handler registered on every botocore
+# Session (aiobotocore.AioSession subclasses botocore.session.Session), but
+# we must only stack ONE wrapt layer regardless of which integrations are
+# patched. The previous design wrapped twice and could only unwrap once on
+# the last unpatch, leaving a stale layer behind. _patch_session_init and
+# _unpatch_session_init guard the wrap with a module-level flag and check
+# both integrations' _datadog_patch flags before unwrapping. Both
+# integrations call these helpers instead of wrapt.wrap_function_wrapper /
+# unwrap directly on Session.__init__.
+_session_init_patched: bool = False
+
+
+def _patch_session_init() -> None:
+    global _session_init_patched
+    if _session_init_patched:
+        return
+    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
+    _session_init_patched = True
+
+
+def _unpatch_session_init() -> None:
+    global _session_init_patched
+    if not _session_init_patched:
+        return
+    # Don't strip the wrap while another integration still needs it. Use
+    # sys.modules.get to avoid forcing an aiobotocore import.
+    import sys
+
+    if getattr(botocore.client, "_datadog_patch", False):
+        return
+    aiobotocore_client = sys.modules.get("aiobotocore.client")
+    if aiobotocore_client is not None and getattr(aiobotocore_client, "_datadog_patch", False):
+        return
+    unwrap(botocore.session.Session, "__init__")
+    _session_init_patched = False
 
 
 # Botocore default settings
@@ -233,7 +264,7 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
+    _patch_session_init()
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
@@ -246,17 +277,7 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
-        # Symmetric guard with aiobotocore.unpatch(): only unwrap
-        # Session.__init__ if aiobotocore isn't also patched. When both are
-        # patched there are two stacked wrapt layers on Session.__init__;
-        # whichever integration's unpatch() runs last is responsible for the
-        # final unwrap. Use sys.modules.get to avoid forcing an aiobotocore
-        # import here.
-        import sys
-
-        aiobotocore_client = sys.modules.get("aiobotocore.client")
-        if aiobotocore_client is None or not getattr(aiobotocore_client, "_datadog_patch", False):
-            unwrap(botocore.session.Session, "__init__")
+        _unpatch_session_init()
 
 
 def patch_submodules(submodules: Union[list[str], bool]) -> None:

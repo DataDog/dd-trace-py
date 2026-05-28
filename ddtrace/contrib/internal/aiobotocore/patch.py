@@ -1,20 +1,21 @@
 import aiobotocore.client
-import botocore.client
-import botocore.session
 import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
-# AIDEV-NOTE: _wrap_session_init is imported from the botocore integration —
-# it is intentionally shared. aiobotocore.AioSession inherits from
-# botocore.session.Session, so the same wrap serves both. If you rename or
-# refactor _wrap_session_init in botocore/patch.py you must update this
-# import too. See the matching anchor on the definition there.
-from ddtrace.contrib.internal.botocore.patch import _wrap_session_init
+# AIDEV-NOTE: Session.__init__ wrap is shared with the botocore integration.
+# aiobotocore.AioSession inherits from botocore.session.Session, so the
+# botocore-side wrap installs the before-sign handler on AioSession too.
+# We go through _patch_session_init / _unpatch_session_init so only one
+# wrapt layer is stacked regardless of which integrations are patched.
+# See the matching anchor in ddtrace/contrib/internal/botocore/patch.py.
+from ddtrace.contrib.internal.botocore.patch import _patch_session_init
+from ddtrace.contrib.internal.botocore.patch import _unpatch_session_init
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -69,13 +70,7 @@ def patch():
     aiobotocore.client._datadog_patch = True
 
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
-    # aiobotocore.AioSession subclasses botocore.session.Session and calls
-    # super().__init__(), so wrapping botocore's Session.__init__ here is
-    # what installs the before-sign trace-header injection handler on every
-    # AioSession too. This is the same wrap as the botocore integration uses;
-    # the handler's unique_id makes the registration idempotent if the user
-    # enables both integrations.
-    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
+    _patch_session_init()
     Pin().onto(aiobotocore.client.AioBaseClient)
 
 
@@ -83,12 +78,7 @@ def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
-        # Only unwrap Session.__init__ if the botocore integration isn't
-        # also patched. If both are patched, the botocore integration owns
-        # its own unwrap on its own unpatch() — undoing it from here would
-        # strip the handler out from under botocore users.
-        if not getattr(botocore.client, "_datadog_patch", False):
-            unwrap(botocore.session.Session, "__init__")
+        _unpatch_session_init()
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
@@ -186,7 +176,21 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        result = await original_func(*args, **kwargs)
+        # Suppress the aiohttp-layer propagation injection for this AWS
+        # call. aiobotocore sends requests through aiohttp.ClientSession,
+        # which fires HttpClientRequestEvent — if the aiohttp integration
+        # is also patched (the normal auto-instrumentation case), its
+        # subscriber would inject propagation headers AFTER SigV4 has
+        # already signed the request, causing strict-signature endpoints
+        # to reject it. The before-sign handler installed by _wrap_session_init
+        # has already injected the headers into the canonical signed
+        # request, so the post-signing injection is both unnecessary and
+        # harmful. Mirrors the same suppression in botocore.patched_api_call.
+        token = _http_propagation_suppressed.set(True)
+        try:
+            result = await original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
 
         body = result.get("Body")
 
