@@ -66,12 +66,11 @@ variables:
     BUCKET: dd-trace-py-builds
   script:
     - |
-      cd dd-trace-py
       set -euo pipefail
 
       # Pipeline/commit paths
-      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" ${UPLOAD_SUFFIX:-}
-      .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
+      dd-trace-py/.gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" ${UPLOAD_SUFFIX:-}
+      dd-trace-py/.gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" ${UPLOAD_SUFFIX:-}
 
 "build sdist":
   extends: .build_base
