@@ -83,14 +83,14 @@ jobs:
           platforms: all
 
       - name: Build wheels with cibw
-        if: ${{ inputs.native }} == true 
+        if: ${{ inputs.native }}
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
           package-dir: ${{ inputs.package-dir }}
 
       - name: Build wheels with uv
-        if: ${{ inputs.native }} == false 
+        if: ${{ ! inputs.native }}
         run: |
           manylinux-interpreters ensure "${{ matrix.only }}"
           export UV_PYTHON="/opt/python/${{ matrix.only }}/bin/python"
