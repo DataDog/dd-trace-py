@@ -392,7 +392,6 @@ class TestAPIClientGetKnownTests:
                         },
                     }
                 },
-                send_gzip=True,
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]
