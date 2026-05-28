@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    pytorch: Added float32 and float16 peak-FLOPS entries for NVIDIA L4,
+    NVIDIA L40, and AMD MI300X to the analytical MFU lookup table.
+    Previously these (GPU, dtype) pairs returned ``None`` from
+    ``lookup_peak_flops``, so ``train.mfu`` / ``train.mfu_raw`` /
+    ``train.mfu_exclude_dataload`` facets stayed empty on the
+    ``pytorch.rank`` span even when ``train.tflops`` populated.
+    Discovered during live span verification on L4 in float32.
