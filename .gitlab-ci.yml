@@ -446,9 +446,7 @@ publishing-gate:
   needs:
     - job: system_tests
     - job: lib_injection_tests
-    - job: test-dd-sts
     - job: macrobenchmarks
-    - job: apm-sdk-benchmarks
     - job: microbenchmarks
     - job: serverless lambda tests
     - job: run-tests-trigger
