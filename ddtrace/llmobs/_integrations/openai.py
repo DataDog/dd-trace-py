@@ -67,16 +67,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_attribute("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
-        """Check if the traced operation is from the given provider.
-
-        Prefers the per-call base_url stashed on the span at trace start. This is the
-        only source that distinguishes concurrent OpenAI-family clients (e.g. AsyncOpenAI
-        and AsyncAzureOpenAI alive at the same time) — ``self._client`` is a singleton
-        slot overwritten by each client construction and cannot be relied on when more
-        than one client is in use. Falls back to ``self._client`` for code paths that
-        did not go through ``BaseLLMIntegration.trace()``, and to module-level
-        ``api_base`` for openai < 1.0.0.
-        """
+        """Check if the traced operation is from the given provider."""
         base_url = None
         if span is not None:
             base_url = span._get_ctx_item(LLMOBS_BASE_URL)
@@ -86,7 +77,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             else:
                 base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
-        if not base_url:
+        if not base_url or not isinstance(base_url, str):
             return False
         return provider.lower() in base_url.lower()
 

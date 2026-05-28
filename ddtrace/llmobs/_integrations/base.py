@@ -88,9 +88,7 @@ class BaseLLMIntegration:
         # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)
         if base_url:
-            # Stash the per-call base_url so per-integration provider detection
-            # can attribute calls correctly when multiple clients are alive
-            # concurrently (e.g. AsyncOpenAI + AsyncAzureOpenAI).
+            # Used to detect providers downstream.
             span._set_ctx_item(LLMOBS_BASE_URL, base_url)
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)

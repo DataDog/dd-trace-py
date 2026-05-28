@@ -120,10 +120,6 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
-# Base URL resolved from the request's client instance at trace start.
-# Used by per-integration provider detection so concurrent multi-endpoint clients
-# (e.g. AsyncOpenAI + AsyncAzureOpenAI) are attributed by the actual request, not
-# by whichever client was most recently constructed on the integration singleton.
 LLMOBS_BASE_URL = "llmobs.base_url"
 
 # experiment span baggage keys to be propagated across boundaries
