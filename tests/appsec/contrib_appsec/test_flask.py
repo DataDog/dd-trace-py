@@ -1,6 +1,9 @@
+import importlib
+
 from flask.testing import FlaskClient
 import pytest
 
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
@@ -8,6 +11,9 @@ from tests.utils import scoped_tracer
 
 
 FLASK_VERSION = tuple(int(v) for v in get_version_for_package("flask").split("."))
+
+_FLAT_APP = "tests.appsec.contrib_appsec.flask_app.app"
+_SUBAPP_APP = "tests.appsec.contrib_appsec.flask_app.app_subapps"
 
 
 class DDFlaskTestClient(FlaskClient):
@@ -30,11 +36,15 @@ class DDFlaskTestClient(FlaskClient):
 
 
 class BaseFlaskTestCase(TracerTestCase):
+    app_module = _FLAT_APP
+
     def setUp(self):
         super(BaseFlaskTestCase, self).setUp()
-        from tests.appsec.contrib_appsec.flask_app.app import app
+        # Reload so DM.__init__ re-fires under the currently-patched werkzeug.
+        endpoint_collection.reset()
+        module = importlib.reload(importlib.import_module(self.app_module))
 
-        self.app = app
+        self.app = module.app
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
 
@@ -45,9 +55,10 @@ class BaseFlaskTestCase(TracerTestCase):
 class _Test_Flask_Base:
     """Flask-specific interface, response accessors, and argument parsing."""
 
-    @pytest.fixture
-    def interface(self, printer):
+    @pytest.fixture(params=[_FLAT_APP, _SUBAPP_APP], ids=["flat", "subapp"])
+    def interface(self, printer, request):
         bftc = BaseFlaskTestCase()
+        bftc.app_module = request.param
 
         bftc.setUp()
         bftc.app.config["SERVER_NAME"] = f"localhost:{self.SERVER_PORT}"
@@ -103,11 +114,19 @@ class _Test_Flask_Base:
         return response.location
 
 
+@pytest.fixture
+def _isolated_endpoints():
+    endpoint_collection.reset()
+    yield
+    endpoint_collection.reset()
+
+
 class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
+    # Subapp variant drops the bare /asm alias — DM mount only exposes /asm/ (sub-app's "/" rule).
     ENDPOINT_DISCOVERY_EXPECTED_PATHS = {
         "/",
-        "/asm/<int:param_int>/<string:param_str>",
         "/asm/",
+        "/asm/<int:param_int>/<string:param_str>",
         "/new_service/<string:service_name>",
         "/login",
         "/login_sdk",
@@ -121,6 +140,216 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         path = re.sub(r"<int:[a-z_]+>", "123", path)
         path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
         return path
+
+    # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
+
+    def test_collect_flask_routes_registers_every_method_served(self, _isolated_endpoints):
+        """User methods plus Werkzeug-auto-HEAD and Flask-auto-OPTIONS are all part of the attack surface."""
+        from flask import Flask
+
+        from ddtrace.contrib.internal.flask.patch import _collect_flask_routes
+
+        app = Flask("walk_test")
+
+        @app.route("/users", methods=["GET", "POST"])
+        def users():
+            return "ok"
+
+        @app.route("/items/<int:item_id>", methods=["GET"])
+        def items(item_id):
+            return "ok"
+
+        _collect_flask_routes(app, "/api/v2")
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("GET", "/api/v2/users") in registered
+        assert ("POST", "/api/v2/users") in registered
+        assert ("GET", "/api/v2/items/<int:item_id>") in registered
+        assert ("HEAD", "/api/v2/users") in registered
+        assert ("OPTIONS", "/api/v2/users") in registered
+        assert ("HEAD", "/api/v2/items/<int:item_id>") in registered
+        assert ("OPTIONS", "/api/v2/items/<int:item_id>") in registered
+
+    def test_collect_flask_routes_normalizes_trailing_slash_in_script_name(self, _isolated_endpoints):
+        from flask import Flask
+
+        from ddtrace.contrib.internal.flask.patch import _collect_flask_routes
+
+        app = Flask("trailing_slash_test")
+
+        @app.route("/users", methods=["GET"])
+        def users():
+            return "ok"
+
+        _collect_flask_routes(app, "/api/")
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("GET", "/api/users") in registered
+        assert ("GET", "/api//users") not in registered
+
+    def test_collect_flask_routes_options_only_route(self, _isolated_endpoints):
+        # Werkzeug only auto-adds HEAD when GET is present, so OPTIONS-only stays OPTIONS-only.
+        from flask import Flask
+
+        from ddtrace.contrib.internal.flask.patch import _collect_flask_routes
+
+        app = Flask("options_only_test")
+
+        @app.route("/options-only", methods=["OPTIONS"])
+        def options_only():
+            return "ok"
+
+        _collect_flask_routes(app, "")
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("OPTIONS", "/options-only") in registered
+        assert ("GET", "/options-only") not in registered
+        assert ("HEAD", "/options-only") not in registered
+
+    @pytest.mark.skipif(FLASK_VERSION < (2, 0, 0), reason="Blueprint.register_blueprint added in Flask 2.0")
+    def test_collect_flask_routes_registers_nested_blueprints(self, _isolated_endpoints):
+        from flask import Blueprint
+        from flask import Flask
+
+        from ddtrace.contrib.internal.flask.patch import _collect_flask_routes
+
+        app = Flask("nested_bp")
+        parent = Blueprint("parent", __name__, url_prefix="/parent")
+        child = Blueprint("child", __name__, url_prefix="/child")
+
+        @child.route("/item/<int:item_id>", methods=["GET"])
+        def item(item_id):
+            return "ok"
+
+        parent.register_blueprint(child)
+        app.register_blueprint(parent)
+
+        _collect_flask_routes(app, "")
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("GET", "/parent/child/item/<int:item_id>") in registered
+
+    def test_walk_wsgi_mounts_recurses_through_dispatcher_middleware(self, _isolated_endpoints):
+        from flask import Flask
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+        from ddtrace.contrib.internal.flask.patch import _walk_wsgi_mounts
+
+        main = Flask("main")
+        inner = Flask("inner")
+        outer_sub = Flask("outer_sub")
+
+        inner_dm = DispatcherMiddleware(inner, {"/nested": outer_sub})
+        outer_dm = DispatcherMiddleware(main, {"/outer": inner_dm})
+
+        found = {(app_.name, prefix) for app_, prefix in _walk_wsgi_mounts(outer_dm, "")}
+        assert ("main", "") in found
+        assert ("inner", "/outer") in found
+        assert ("outer_sub", "/outer/nested") in found
+
+    def test_late_add_url_rule_registers_under_known_script_names(self, _isolated_endpoints):
+        # Factory pattern: DM built before sub-app routes exist; re-walk in patched_add_url_rule
+        # is the only path that can register them without a future request.
+        from flask import Flask
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+        main = Flask("main_factory")
+
+        @main.route("/")
+        def index():
+            return "ok"
+
+        api = Flask("api_factory")
+        DispatcherMiddleware(main, {"/api": api})
+
+        @api.route("/late", methods=["GET"])
+        def late():
+            return "ok"
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("GET", "/api/late") in registered
+
+    def test_dispatcher_middleware_init_eagerly_registers_unused_subapps(self, _isolated_endpoints):
+        from flask import Flask
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+        main = Flask("main_eager")
+
+        @main.route("/")
+        def index():
+            return "ok"
+
+        api = Flask("api_eager")
+
+        @api.route("/never-called", methods=["GET"])
+        def never_called():
+            return "ok"
+
+        DispatcherMiddleware(main, {"/v3": api})
+
+        registered = {(ep.method, ep.path) for ep in endpoint_collection.endpoints}
+        assert ("GET", "/") in registered
+        assert ("GET", "/v3/never-called") in registered
+
+    @pytest.mark.parametrize(
+        ("script_name", "expected_full"),
+        [
+            ("", None),
+            ("/", None),
+            ("/api", "GET /api/users"),
+            ("/api/", "GET /api/users"),
+        ],
+        ids=["empty", "root", "mounted", "mounted-trailing-slash"],
+    )
+    def test_set_flask_request_tags_resource_contract(self, script_name, expected_full):
+        # Inputs are raw WSGI SCRIPT_NAME values; we mirror Werkzeug's Request.script_root normalization
+        # (rstrip "/") since the production code reads ``request.script_root`` directly.
+        from unittest.mock import Mock
+
+        from ddtrace import config
+        from ddtrace._trace.trace_handlers import _set_flask_request_tags
+        from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+        from ddtrace.internal.constants import FLASK_URL_RULE
+        from ddtrace.trace import tracer
+
+        request = Mock()
+        request.method = "GET"
+        request.endpoint = None
+        request.url_rule = Mock(rule="/users")
+        request.script_root = script_name.rstrip("/")
+        request.view_args = None
+
+        with tracer.trace("flask.request") as span:
+            _set_flask_request_tags(request, span, config.flask)
+
+        assert span.resource == "GET /users"
+        assert span.get_tag(FLASK_URL_RULE) == "/users"
+        assert span.get_tag(FLASK_RESOURCE_FULL) == expected_full
+
+    def test_flask_resource_full_tag_e2e(self, interface, root_span, get_tag):
+        # Pin the asymmetric tag contract end-to-end: ``find_resource`` matches on either
+        # ``span.resource`` or FLASK_RESOURCE_FULL, so a regression that misplaces the tag
+        # between flat and subapp modes would pass silently in every other e2e test.
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+        from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+        from ddtrace.internal.constants import FLASK_URL_RULE
+        from tests.utils import override_global_config
+
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/123/foo")
+            assert self.status(response) == 200
+
+        span = root_span()
+        if isinstance(interface.framework.wsgi_app, DispatcherMiddleware):
+            assert span.get_tag(FLASK_URL_RULE) == "/<int:param_int>/<string:param_str>"
+            assert span.resource == "GET /<int:param_int>/<string:param_str>"
+            assert get_tag(FLASK_RESOURCE_FULL) == "GET /asm/<int:param_int>/<string:param_str>"
+        else:
+            assert span.get_tag(FLASK_URL_RULE) == "/asm/<int:param_int>/<string:param_str>"
+            assert span.resource == "GET /asm/<int:param_int>/<string:param_str>"
+            assert get_tag(FLASK_RESOURCE_FULL) is None
 
 
 class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):

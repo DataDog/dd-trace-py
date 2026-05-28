@@ -866,6 +866,23 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
+    async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
+        """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two
+        separate root agent spans. Regression test for spans nesting under a prior
+        unfinished agent span when receive_response() early-returns after ResultMessage.
+        """
+        for prompt in ("Q1", "Q2"):
+            await mock_client.query(prompt=prompt)
+            async for _ in mock_client.receive_response():
+                pass
+
+        traces = test_spans.pop_traces()
+        assert len(traces) == 2
+        agent_spans = [trace[0] for trace in traces]
+        assert all(s.name == "claude_agent_sdk.ClaudeSDKClient.query" for s in agent_spans)
+        assert all(s.parent_id is None for s in agent_spans)
+        assert agent_spans[0].trace_id != agent_spans[1].trace_id
+
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from claude_agent_sdk usage to APM span."""

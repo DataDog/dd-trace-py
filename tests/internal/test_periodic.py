@@ -1,6 +1,7 @@
 import ctypes
 import os
 import platform
+from threading import Barrier
 from threading import Event
 from threading import Thread
 from time import monotonic
@@ -74,6 +75,82 @@ def test_periodic_join_positional_timeout_is_honored():
     finally:
         t.stop()
         t.join()
+
+
+def test_periodic_awake_after_stop_returns_not_hangs():
+    """Regression: awake() after a completed stop() used to block forever.
+
+    Once a worker has fully stopped, there is nothing left that can serve a
+    new awake request. The native awake() path must therefore short-circuit
+    instead of waiting forever for a completion signal that will never come.
+
+    We deliberately make awake() a silent no-op (not a RuntimeError) so that
+    a racy stop()/awake() interleaving never surfaces a timing-dependent
+    exception to callers.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    t.stop()
+    t.join()  # fully drained
+
+    # Must return promptly. Before the fix this hung forever.
+    t.awake()
+
+
+def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
+    """Regression: stop() called from inside a periodic callback must not
+    deadlock against a concurrent awake() holding the awake mutex.
+
+    Timer._periodic uses the pattern:
+
+        def _periodic(self):
+            self.timeout()
+            self.stop()
+
+    A naive fix that has stop() acquire _awake_mutex creates this deadlock:
+
+      1. Thread A calls t.awake() — takes _awake_mutex, publishes AWAKE,
+         then waits for completion.
+      2. The worker consumes AWAKE and runs the callback.
+      3. The callback calls t.stop() on the worker thread.
+      4. stop() blocks on _awake_mutex if awake() keeps it locked while
+         waiting.
+      5. The worker cannot finish the callback and cannot reach
+         the wake-completion path — both threads wait forever.
+
+    The middle-ground fix has awake() release _awake_mutex before waiting on
+    _served, so a worker-thread stop() can take the mutex freely.
+    """
+
+    def _target():
+        # Stop ourselves from the worker thread — this is exactly the
+        # Timer._periodic pattern.
+        t.stop()
+
+    t = periodic.PeriodicThread(60.0, _target)
+    t.start()
+
+    awake_done = Event()
+
+    def _do_awake():
+        try:
+            t.awake()
+        finally:
+            awake_done.set()
+
+    awaker = Thread(target=_do_awake)
+    awaker.start()
+
+    # The awake() call should return well within a second. Before the fix this
+    # deadlocked indefinitely because the worker-thread stop() tried to take
+    # _awake_mutex while awake() was blocked waiting for completion.
+    assert awake_done.wait(timeout=5.0), (
+        "awake() did not return within 5s — stop()-from-callback deadlocked "
+        "against a concurrent awake() holding the awake mutex"
+    )
+
+    awaker.join(timeout=1.0)
+    t.join(timeout=1.0)
 
 
 def test_periodic_error():
@@ -549,3 +626,130 @@ def test_periodic_thread_naming():
         assert native_name[0].endswith("ClassNameFit"), (
             f"Expected name ending with 'ClassNameFit', got '{native_name[0]}'"
         )
+
+
+# ---------------------------------------------------------------------------
+# Concurrent stress tests
+#
+# These tests exercise the native extension under real multi-threading to catch
+# races that only manifest under concurrent load, especially on free-threaded
+# Python (Py_GIL_DISABLED) or on weak-memory-order architectures (ARM).
+# Each test uses a Barrier to maximise contention at the critical moment.
+# ---------------------------------------------------------------------------
+
+_N_THREADS = 20
+
+
+def test_concurrent_start_stop():
+    """N threads each independently create, start, and stop a PeriodicThread.
+
+    Exercises concurrent PyDict_SetItem / PyDict_DelItem on the module-level
+    periodic_threads dict from multiple native threads simultaneously.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    def worker():
+        t = periodic.PeriodicThread(60.0, lambda: None)
+        barrier.wait()
+        try:
+            t.start()
+            t.stop()
+            t.join()
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=worker) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent start/stop: {errors}"
+
+
+def test_concurrent_awake():
+    """N threads call awake() on the same PeriodicThread simultaneously.
+
+    Exercises the _awake_mutex / _request / _served Event trio under
+    concurrent writers.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+
+        def awaker():
+            barrier.wait()
+            try:
+                t.awake()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [Thread(target=awaker) for _ in range(_N_THREADS)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+    finally:
+        t.stop()
+        t.join()
+
+    assert not errors, f"errors in concurrent awake: {errors}"
+
+
+def test_concurrent_init_dealloc():
+    """N threads simultaneously instantiate and immediately drop PeriodicThread
+    objects (without starting them).
+
+    Exercises concurrent PeriodicThread_init (PyImport_GetModule, dict lookup)
+    and PeriodicThread_dealloc (PyDict_DelItem on periodic_threads).
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    def worker():
+        barrier.wait()
+        try:
+            for _ in range(10):
+                periodic.PeriodicThread(60.0, lambda: None)
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=worker) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent init/dealloc: {errors}"
+
+
+def test_concurrent_stop_join():
+    """N threads race to call stop() and join() on the same PeriodicThread.
+
+    stop() is idempotent and join() must not deadlock when called concurrently.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+
+    def stopper():
+        barrier.wait()
+        try:
+            t.stop()
+            t.join()
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=stopper) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent stop/join: {errors}"

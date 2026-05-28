@@ -4,6 +4,7 @@ from ddtrace.internal.settings._core import DDConfig
 
 class CrashtrackingConfig(DDConfig):
     enabled: bool
+    errors_intake_enabled: bool
     debug_url: Optional[str]
     _test_token: Optional[str]
     stdout_filename: Optional[str]
