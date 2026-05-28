@@ -178,24 +178,34 @@ async def traced_getone(func, instance, args, kwargs):
             parent_ctx = HTTPPropagator.extract(dd_headers)
     except Exception as e:
         err = e
-        raise err
-    finally:
-        topic = getattr(message, "topic", None)
+
+    topic = getattr(message, "topic", None)
+    # Only resolve cluster id on the success path. On error we use the cached value (or "")
+    # to avoid adding a broker round-trip — and a potential exception that would mask `err` —
+    # to the consumer's failure path.
+    if err is None:
         cluster_id = await _get_cluster_id(instance._client, topic)
-        with core.context_with_data(
-            "aiokafka.getone",
-            call_trace=False,
-            span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WORKER,
-            service=trace_utils.ext_service(None, config.aiokafka),
-            distributed_context=parent_ctx,
-            tags=common_consume_aiokafka_tags(topic, bootstrap_servers, group_id),
-            integration_config=config.aiokafka,
-        ) as ctx:
-            core.set_item("kafka_cluster_id", cluster_id)
-            if cluster_id and ctx.span is not None:
-                ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
-            core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
+    else:
+        client = instance._client
+        cluster_id = getattr(client, "_dd_cluster_id", "") if client is not None else ""
+
+    with core.context_with_data(
+        "aiokafka.getone",
+        call_trace=False,
+        span_name=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
+        span_type=SpanTypes.WORKER,
+        service=trace_utils.ext_service(None, config.aiokafka),
+        distributed_context=parent_ctx,
+        tags=common_consume_aiokafka_tags(topic, bootstrap_servers, group_id),
+        integration_config=config.aiokafka,
+    ) as ctx:
+        core.set_item("kafka_cluster_id", cluster_id)
+        if cluster_id and ctx.span is not None:
+            ctx.span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
+        core.dispatch("aiokafka.getone.message", (instance, ctx, start_ns, message, err))
+
+    if err is not None:
+        raise err
     return message
 
 
@@ -242,12 +252,29 @@ async def traced_commit(func, instance, args, kwargs):
     return result
 
 
+async def traced_producer_start(func, instance, args, kwargs):
+    result = await func(*args, **kwargs)
+    # Eagerly resolve the cluster id once the producer is connected, so the first
+    # user send() already has it cached and DSM pathway hashes stay stable from
+    # the first message instead of flipping after the first metadata response.
+    await _get_cluster_id(instance.client, None)
+    return result
+
+
+async def traced_consumer_start(func, instance, args, kwargs):
+    result = await func(*args, **kwargs)
+    await _get_cluster_id(instance._client, None)
+    return result
+
+
 def patch():
     if getattr(aiokafka, "_datadog_patch", False):
         return
     aiokafka._datadog_patch = True
 
+    _w("aiokafka", "AIOKafkaProducer.start", traced_producer_start)
     _w("aiokafka", "AIOKafkaProducer.send", traced_send)
+    _w("aiokafka", "AIOKafkaConsumer.start", traced_consumer_start)
     _w("aiokafka", "AIOKafkaConsumer.getone", traced_getone)
     _w("aiokafka", "AIOKafkaConsumer.getmany", traced_getmany)
     _w("aiokafka.consumer.group_coordinator", "GroupCoordinator.commit_offsets", traced_commit)
@@ -259,7 +286,9 @@ def unpatch():
 
     aiokafka._datadog_patch = False
 
+    _u(aiokafka.AIOKafkaProducer, "start")
     _u(aiokafka.AIOKafkaProducer, "send")
+    _u(aiokafka.AIOKafkaConsumer, "start")
     _u(aiokafka.AIOKafkaConsumer, "getone")
     _u(aiokafka.AIOKafkaConsumer, "getmany")
     _u(aiokafka.consumer.group_coordinator.GroupCoordinator, "commit_offsets")
