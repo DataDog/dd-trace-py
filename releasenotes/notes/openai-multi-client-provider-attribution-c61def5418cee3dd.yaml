@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where OpenAI-family LLM spans were attributed
+    to the wrong provider when multiple OpenAI clients (e.g. ``AsyncOpenAI`` and
+    ``AsyncAzureOpenAI``) were instantiated concurrently. Provider detection now uses
+    the per-request client instance rather than a singleton reference that was
+    overwritten on each client construction.
