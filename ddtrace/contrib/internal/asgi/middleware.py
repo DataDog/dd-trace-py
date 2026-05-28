@@ -305,12 +305,11 @@ class TraceMiddleware:
                     raw_url = f"{raw_url}?{query_string}"
             if not self.integration_config.trace_query_string:
                 query_string = None
-            # Sub-app middlewares skip body parsing since it's already handled
-            # by the parent app's middleware. HTTP meta and version tags are still
-            # set on the child span for visibility.
+            # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
+            # and websocket scopes must not have their receive() consumed here.
             body = None
             peer_ip = None
-            if not is_subapp:
+            if not is_subapp and scope["type"] == "http":
                 result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     "asgi.request.parse.body", (receive, headers)
                 ).await_receive_and_body
