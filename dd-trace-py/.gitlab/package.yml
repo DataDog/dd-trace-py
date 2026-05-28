@@ -470,7 +470,7 @@ download_dependency_wheels:
 "ddtrace package serverless":
   extends: .package_base
   needs:
-    - "build linux"
+    - "build linux serverless"
     - "build macos amd64"
     - "build macos arm64"
     - "build sdist"
