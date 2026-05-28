@@ -27,7 +27,7 @@ from packaging.utils import parse_wheel_filename
 
 # Configuration
 PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
-WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
+WIN_ARM64_PYTHON_TAGS = []  # ["cp311", "cp312", "cp313", "cp314"]
 
 BASE_PLATFORMS = [
     "macosx_14_0_arm64",
