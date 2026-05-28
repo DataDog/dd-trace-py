@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    When runtime metrics are enabled, the tracer now emits ``runtime.python.profiler.*``
+    DogStatsD metrics that report the profiler's operational stats (e.g.
+    sample counts, sampling interval, heap tracker size, and string table size).
