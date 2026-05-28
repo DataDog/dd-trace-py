@@ -95,8 +95,6 @@ jobs:
           manylinux-interpreters ensure "${{ matrix.only }}"
           export UV_PYTHON="/opt/python/${{ matrix.only }}/bin/python"
           ${{ inputs.package-dir }}/.gitlab/scripts/build-wheel.sh
-        with:
-          only: ${{ matrix.only }}
 
       - name: Validate wheel RECORD files
         shell: bash
