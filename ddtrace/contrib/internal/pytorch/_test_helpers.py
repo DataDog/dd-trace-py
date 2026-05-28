@@ -5,7 +5,7 @@ moved here so the production modules don't carry test-only API surface.
 Import as::
 
     from ddtrace.contrib.internal.pytorch import _test_helpers as th
-    th.install_metrics_client(fake)
+    th.reset_metrics_state()
 """
 
 from typing import Any
@@ -13,27 +13,20 @@ from typing import Optional
 
 
 def install_metrics_client(client: Any) -> None:
-    from ddtrace.contrib.internal.pytorch import _metrics
+    """No-op kept for call-site compatibility after DogStatsD removal.
 
-    _metrics._DOGSTATSD = client
+    The DogStatsD client and ``_DOGSTATSD`` global were removed in the
+    "pytorch-remove-layer-zero-dogstatsd" change. Tests that called this
+    to inject a fake client and then asserted on ``fake.distribution`` calls
+    must be updated to assert on span facets instead.
+    """
 
 
 def reset_metrics_state() -> None:
     from ddtrace.contrib.internal.pytorch import _metrics
 
-    _metrics._DOGSTATSD = None
     with _metrics._counter_lock:
-        _metrics._counters.clear()
         _metrics._durations.clear()
-
-
-def metrics_ticker() -> Optional[Any]:
-    """Return the live rate ticker handle (the one started by bootstrap),
-    or None if no ticker is currently running.
-    """
-    from ddtrace.contrib.internal.pytorch import _distributed
-
-    return _distributed._state.get("rate_ticker")
 
 
 def current_rank_span() -> Optional[Any]:

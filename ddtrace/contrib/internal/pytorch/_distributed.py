@@ -104,7 +104,6 @@ _state: dict[str, Any] = {
     "rank": 0,
     "world_size": 1,
     "resolver": None,
-    "rate_ticker": None,
     "gpu_sample_rate": _DEFAULT_GPU_SAMPLE_RATE,
     "gpu_sample_count": 0,
 }
@@ -125,7 +124,6 @@ def _reset_child_state() -> None:
             "rank": 0,
             "world_size": 1,
             "resolver": None,
-            "rate_ticker": None,
             # AIDEV-NOTE: gpu_sample_rate is a config constant and stays; only
             # the counter is reset so the child doesn't inherit the parent's
             # partially-advanced sample position.
@@ -342,7 +340,6 @@ def _bootstrap_distributed() -> None:
         set_cached_job_id(publishable_job_id, is_default=True)
 
     from ddtrace.contrib.internal.pytorch import _device  # noqa: PLC0415
-    from ddtrace.contrib.internal.pytorch import _metrics  # noqa: PLC0415
     from ddtrace.contrib.internal.pytorch import _rank_root  # noqa: PLC0415
 
     try:
@@ -359,14 +356,6 @@ def _bootstrap_distributed() -> None:
         )
     except Exception:
         log.exception("pytorch: rank-root span open failed")
-
-    try:
-        ticker = _metrics.RateTicker(interval_s=float(config.pytorch.rate_ticker_interval_s))
-        ticker.start()
-        _state["rate_ticker"] = ticker
-    except Exception:
-        log.exception("pytorch: rate ticker start failed")
-        _state["rate_ticker"] = None
 
     # Read collective GPU sample rate. Defaults to 100 (1-in-100 collectives
     # sampled for GPU timing when Layer One is off). Setting to 0 disables
@@ -1669,12 +1658,6 @@ def uninstall() -> None:
     resolver: Optional[CudaEventResolver] = _state.get("resolver")
     if resolver is not None:
         resolver.stop(timeout=2.0)
-    ticker = _state.get("rate_ticker")
-    if ticker is not None:
-        try:
-            ticker.stop(timeout=1.0)
-        except Exception:
-            log.debug("pytorch: rate ticker stop raised", exc_info=True)
     try:
         from ddtrace.contrib.internal.pytorch import _rank_root
 
@@ -1692,7 +1675,6 @@ def uninstall() -> None:
             "rank": 0,
             "world_size": 1,
             "resolver": None,
-            "rate_ticker": None,
             "gpu_sample_rate": _DEFAULT_GPU_SAMPLE_RATE,
             "gpu_sample_count": 0,
         }

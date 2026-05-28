@@ -1,105 +1,42 @@
-"""Layer Zero metric emission for the PyTorch contrib integration.
+"""Layer Zero metric reservoir for the PyTorch contrib integration.
 
-Per-event distributions (one DogStatsD sample per collective) carry full
-spike resolution within the 10s flush interval — the agent locally
-aggregates samples into a DDSketch so a single outlier among 250 normal
-collectives still shows up in p99/max.
+Per-op duration samples feed the ``collective.<op>.{p10,p50,p90,p99,n}_ms``
+facets emitted on the rotated ``pytorch.rank`` span via
+``summary_snapshot_and_reset()``. DogStatsD emission has been removed;
+all data reaches users as span facets only.
 
-AIDEV-NOTE: Tags are intentionally device-scoped, not job-scoped. See
-`_device.py` for the rationale.
+AIDEV-NOTE: The reservoir is the sole surviving Layer Zero data path. The
+former DogStatsD client, RateTicker thread, and counter dict were removed in
+the "pytorch-remove-layer-zero-dogstatsd" change. Keep this note so future
+readers understand why there is no DogStatsD client here.
 """
 
 import os
 import random
 import threading
-import time
-from typing import Any
-from typing import Optional
 
-from ddtrace.contrib.internal.pytorch import _device
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._agent import config as agent_config
 
 
 log = get_logger(__name__)
 
 
-_DOGSTATSD: Any = None  # vendored DogStatsd client; None when uninitialized.
-
-
-def _ensure_client() -> Optional[Any]:
-    global _DOGSTATSD
-    if _DOGSTATSD is not None:
-        return _DOGSTATSD
-    try:
-        _DOGSTATSD = get_dogstatsd_client(agent_config.dogstatsd_url, namespace="pytorch")
-    except Exception:
-        log.debug("pytorch: failed to initialize dogstatsd client; metrics disabled", exc_info=True)
-        _DOGSTATSD = None
-    return _DOGSTATSD
-
-
-def _base_tags() -> Optional[list]:
-    info = _device.get()
-    if info is None:
-        return None
-    tags = ["device.id:%s" % info.device_id, "host:%s" % info.hostname, "kind:%s" % info.kind]
-    if info.device_index is not None:
-        tags.append("device.index:%d" % info.device_index)
-    return tags
-
-
 def record_collective(op: str, duration_ms: float, bytes_count: int) -> None:
-    """Emit per-event distribution samples and update rate counters.
+    """Push a collective observation into the per-op duration reservoir.
+
+    ``bytes_count`` is accepted for source compatibility with callers in
+    ``_distributed.py`` but is no longer recorded; DogStatsD emission was
+    removed. Only ``duration_ms`` is stored (in the reservoir that feeds
+    the ``pytorch.rank`` span facets via ``summary_snapshot_and_reset()``).
 
     AIDEV-NOTE: Gated on device discovery; pre-bootstrap collectives are
     dropped to avoid mis-attribution to the post-discovery device tag.
     """
-    base = _base_tags()
-    if base is None:
+    from ddtrace.contrib.internal.pytorch import _device  # noqa: PLC0415
+
+    if _device.get() is None:
         return
-    _bump_counters(op, bytes_count)
     _push_duration(op, duration_ms)
-    client = _ensure_client()
-    if client is None:
-        return
-    tags = base + ["op:%s" % op]
-    try:
-        client.distribution("collective.duration_ms", float(duration_ms), tags=tags)
-        client.distribution("collective.bytes", float(bytes_count), tags=tags)
-    except Exception:
-        log.debug("pytorch: dogstatsd distribution send failed", exc_info=True)
-
-
-# ---------------------------------------------------------------------------
-# Rate counters and ticker
-# ---------------------------------------------------------------------------
-
-# Counters live in `_counters[(op,)] = [call_count, bytes_total]`. The
-# hot-path increment runs under `_counter_lock`; acquisition is uncontested
-# (only the ticker thread competes) and amortizes to ~50 ns on CPython.
-_counter_lock = threading.Lock()
-_counters: dict = {}
-
-
-def _bump_counters(op: str, bytes_count: int) -> None:
-    key = (op,)
-    with _counter_lock:
-        slot = _counters.get(key)
-        if slot is None:
-            _counters[key] = [1, int(bytes_count)]
-        else:
-            slot[0] += 1
-            slot[1] += int(bytes_count)
-
-
-def _snapshot_and_reset_counters() -> dict:
-    """Atomically copy and clear `_counters`. Called from the ticker only."""
-    with _counter_lock:
-        snap = {k: (v[0], v[1]) for k, v in _counters.items()}
-        _counters.clear()
-    return snap
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +50,7 @@ def _snapshot_and_reset_counters() -> dict:
 _RESERVOIR_MAX = 1024
 
 # _durations[op] = [observed_total, reservoir_list].
-# Shares `_counter_lock` — the hot path already takes it for counter bumps,
-# so no extra synchronization cost beyond the per-call random draw.
+_counter_lock = threading.Lock()
 _durations: dict = {}
 
 
@@ -152,7 +88,7 @@ def _percentile(sorted_samples: list, p: float) -> float:
 
 
 def summary_snapshot_and_reset() -> dict:
-    """Compute per-op p10/p50/p90/n and clear the reservoir state.
+    """Compute per-op p10/p50/p90/p99/n and clear the reservoir state.
 
     Called from `_rank_root` just before the rotated or closing
     `pytorch.rank` span is finished, so each span carries the summary
@@ -176,108 +112,12 @@ def summary_snapshot_and_reset() -> dict:
     return result
 
 
-_FAILURE_BACKOFF_THRESHOLD = 10
-_FAILURE_BACKOFF_DURATION_S = 60.0
-
-
-class RateTicker:
-    """Background thread that converts cumulative counters into rate-style
-    distribution samples on a fast cadence (default 100 ms).
-
-    AIDEV-NOTE: On `start()` we drain any counter state accumulated
-    pre-start and seed `_last_tick_ns` so the first tick measures only
-    post-start activity.
-
-    AIDEV-NOTE: If `client.distribution` raises 10 times in a row the
-    ticker disables itself for 60s. Without this, an unreachable
-    dogstatsd agent would burn ~864k failed sends per day per rank.
-    """
-
-    def __init__(self, interval_s: float = 0.1) -> None:
-        self._interval_s = interval_s
-        self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._last_tick_ns: int = 0
-        self._consecutive_failures: int = 0
-        self._backoff_until_ns: int = 0
-
-    def start(self) -> None:
-        if self._thread is not None:
-            return
-        self._stop.clear()
-        self._last_tick_ns = time.perf_counter_ns()
-        # Drain any counter state accumulated before start so the first
-        # real tick measures only post-start activity.
-        _snapshot_and_reset_counters()
-        self._thread = threading.Thread(target=self._run, name="dd-pytorch-rate-ticker", daemon=True)
-        self._thread.start()
-
-    def stop(self, timeout: float = 1.0) -> None:
-        self._stop.set()
-        t = self._thread
-        if t is not None:
-            t.join(timeout=timeout)
-
-    def _run(self) -> None:
-        while not self._stop.wait(self._interval_s):
-            self._emit_tick()
-
-    def _emit_tick(self) -> None:
-        now_ns = time.perf_counter_ns()
-        dt_ns = max(now_ns - self._last_tick_ns, 1)
-        self._last_tick_ns = now_ns
-        # Backoff: drain counters and skip emission. Without the drain,
-        # accumulated counts from the cool-down window would be divided by
-        # the next post-recovery tick's small dt and produce a huge
-        # `calls_per_sec` / `bytes_per_sec` spike on the agent's DDSketch.
-        if self._backoff_until_ns > now_ns:
-            _snapshot_and_reset_counters()
-            return
-        snap = _snapshot_and_reset_counters()
-        if not snap:
-            return
-        base = _base_tags()
-        if base is None:
-            return
-        client = _ensure_client()
-        if client is None:
-            return
-        dt_s = dt_ns / 1e9
-        tick_failed = False
-        for (op,), (count, bytes_total) in snap.items():
-            tags = base + ["op:%s" % op]
-            try:
-                client.distribution("collective.calls_per_sec", count / dt_s, tags=tags)
-                client.distribution("collective.bytes_per_sec", bytes_total / dt_s, tags=tags)
-            except Exception:
-                tick_failed = True
-                log.debug("pytorch: rate distribution send failed", exc_info=True)
-        if tick_failed:
-            self._consecutive_failures += 1
-            if self._consecutive_failures >= _FAILURE_BACKOFF_THRESHOLD:
-                self._backoff_until_ns = now_ns + int(_FAILURE_BACKOFF_DURATION_S * 1e9)
-                log.warning(
-                    "pytorch: rate ticker disabled for %.0fs after %d consecutive dogstatsd failures",
-                    _FAILURE_BACKOFF_DURATION_S,
-                    self._consecutive_failures,
-                )
-                # Reset so a still-broken agent can trip the threshold again
-                # on the next post-backoff failure run.
-                self._consecutive_failures = 0
-        else:
-            if self._consecutive_failures:
-                log.info("pytorch: rate ticker recovered after %d failures", self._consecutive_failures)
-            self._consecutive_failures = 0
-
-
 # AIDEV-NOTE: After fork() only the caller's thread survives. Reset the
-# Layer Zero globals (client, counters, lock) so the child can bootstrap
-# fresh without inheriting a held lock or a stale ticker handle.
+# reservoir globals (lock, durations) so the child can bootstrap fresh
+# without inheriting a held lock.
 def _reset_child_state() -> None:
-    global _DOGSTATSD, _counter_lock, _counters, _durations
-    _DOGSTATSD = None
+    global _counter_lock, _durations
     _counter_lock = threading.Lock()
-    _counters = {}
     _durations = {}
 
 
