@@ -392,6 +392,7 @@ class TestAPIClientGetKnownTests:
                         },
                     }
                 },
+                send_gzip=True,
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
             )
         ]
@@ -452,7 +453,9 @@ class TestAPIClientGetKnownTests:
             known_tests = api_client.get_known_tests()
 
         assert len(mock_connector.post_json.call_args_list) == 2
-        assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {}
+        assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {
+            "page_size": 20000
+        }
         assert mock_connector.post_json.call_args_list[1][0][1]["data"]["attributes"]["page_info"] == {
             "page_state": "cursor-page-1"
         }
@@ -525,7 +528,7 @@ class TestAPIClientGetKnownTests:
             "data": {
                 "id": "00000000-0000-0000-0000-000000000000",
                 "type": "ci_app_libraries_tests_request",
-                "attributes": {**expected_shared_attributes, "page_info": {}},
+                "attributes": {**expected_shared_attributes, "page_info": {"page_size": 20000}},
             }
         }
 

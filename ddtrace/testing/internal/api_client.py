@@ -179,7 +179,9 @@ class APIClient:
                 return set()
 
             try:
-                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result = self.connector.post_json(
+                    "/api/v2/ci/libraries/tests", request_data, send_gzip=True, telemetry=telemetry
+                )
                 result.on_error_raise_exception()
 
             except Exception as e:
