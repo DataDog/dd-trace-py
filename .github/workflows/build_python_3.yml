@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       include: ${{steps.set-matrix.outputs.include}}
+    defaults:
+      run:
+        working-directory: ./dd-trace-py
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -42,6 +45,9 @@ jobs:
     needs: ["build-wheels-matrix" ]
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.only }}
+    defaults:
+      run:
+        working-directory: ./dd-trace-py
     strategy:
       fail-fast: false
       matrix:
