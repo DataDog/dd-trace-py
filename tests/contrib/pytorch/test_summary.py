@@ -1993,3 +1993,139 @@ def test_skipped_amp_step_drains_accumulator_to_summary(monkeypatch):
     assert _summary.drain_counter("train.amp_skipped_steps") == 1, (
         "train.amp_skipped_steps counter should have been bumped for the skipped step"
     )
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: model.* facets in drain_all_to_facets
+# ---------------------------------------------------------------------------
+
+
+def test_drain_all_to_facets_includes_model_fingerprint(monkeypatch):
+    """Regression: model.* facets must appear in drain_all_to_facets so they
+    reach the rotated pytorch.rank span. Previously promised in the PR
+    description but never stamped — verified absent in live samples on 2026-05-28.
+    """
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+
+    # Patch module globals directly (public contract — they are the source of truth).
+    _summary._model_fingerprinted = True
+    _summary._model_param_count = 7_000_000_000
+    _summary._model_trainable_param_count = 6_500_000_000
+    _summary._model_layers = 32
+    _summary._model_hidden_dim = 4096
+    _summary._model_is_transformer = True
+    _summary._model_dtype = "bfloat16"
+    _summary._model_active_param_count = 2_000_000_000  # MoE: != param_count
+
+    facets = _summary.drain_all_to_facets()
+
+    assert facets["model.param_count"] == 7_000_000_000
+    assert facets["model.trainable_param_count"] == 6_500_000_000
+    assert facets["model.is_transformer"] == "true"
+    assert facets["model.dtype"] == "bfloat16"
+    assert facets["model.layers"] == 32
+    assert facets["model.hidden_dim"] == 4096
+    assert facets["model.active_param_count"] == 2_000_000_000
+
+
+def test_drain_all_to_facets_omits_unset_model_fields(monkeypatch):
+    """Non-transformer models: layers/hidden_dim should be omitted.
+    Non-MoE: active_param_count omitted (would just duplicate param_count).
+    """
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    _summary._model_fingerprinted = True
+    _summary._model_param_count = 1_000_000
+    _summary._model_trainable_param_count = 1_000_000
+    _summary._model_layers = 0  # non-transformer
+    _summary._model_hidden_dim = 0
+    _summary._model_is_transformer = False
+    _summary._model_dtype = "float32"
+    _summary._model_active_param_count = 1_000_000  # == param_count → no MoE
+
+    facets = _summary.drain_all_to_facets()
+
+    assert facets["model.param_count"] == 1_000_000
+    assert facets["model.is_transformer"] == "false"
+    assert "model.layers" not in facets
+    assert "model.hidden_dim" not in facets
+    assert "model.active_param_count" not in facets
+
+
+def test_drain_all_to_facets_omits_model_fields_when_not_fingerprinted(monkeypatch):
+    """If _fingerprint_model never ran (no model seen, or all hooks no-op'd),
+    no model.* facets should appear.
+    """
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    _summary._model_fingerprinted = False  # never ran
+
+    facets = _summary.drain_all_to_facets()
+
+    for k in ("model.param_count", "model.dtype", "model.is_transformer"):
+        assert k not in facets, f"unexpected {k} in facets when not fingerprinted"
+
+
+def test_model_fingerprint_survives_reset_all():
+    """reset_all() must NOT clear model fingerprint globals — they are one-shot
+    values set at framework init and must survive rotation drain cycles.
+    """
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary._model_fingerprinted = True
+    _summary._model_param_count = 1_234_567
+    _summary._model_dtype = "float16"
+
+    _summary.reset_all()
+
+    assert _summary._model_fingerprinted is True, "reset_all() must not clear _model_fingerprinted"
+    assert _summary._model_param_count == 1_234_567, "reset_all() must not clear _model_param_count"
+    assert _summary._model_dtype == "float16", "reset_all() must not clear _model_dtype"
+
+
+def test_no_duplicate_pytorch_backward_spans_in_l2_mode(test_spans, monkeypatch):
+    """Regression: exactly ONE pytorch.backward span per Tensor.backward() call
+    in L2 mode. The old _full_backward_hook path emitted a zero-duration
+    duplicate alongside _wrapped_tensor_backward's real span.
+    """
+    monkeypatch.setenv("DD_PYTORCH_PROFILING", "true")
+
+    import importlib
+
+    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _hooks
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    importlib.reload(_hooks)
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+
+    # Simulate a single Tensor.backward() call through the wrap.
+    class FakeLossTensor:
+        def numel(self):
+            return 1
+
+        def item(self):
+            return 0.5
+
+    _distributed._wrapped_tensor_backward(
+        wrapped=lambda *a, **kw: None,
+        instance=FakeLossTensor(),
+        args=(),
+        kwargs={},
+    )
+    _hooks._close_step(skipped=False)
+
+    spans = test_spans.pop()
+    backward_spans = [s for s in spans if s.name == "pytorch.backward"]
+    assert len(backward_spans) == 1, (
+        f"Expected exactly 1 pytorch.backward span; got {len(backward_spans)}. "
+        "Duplicate emission from _full_backward_hook regression."
+    )

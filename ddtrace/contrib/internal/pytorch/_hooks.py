@@ -349,25 +349,6 @@ def _forward_hook(module: Any, inputs: Any, output: Any) -> None:
         log.debug("pytorch forward_hook failed", exc_info=True)
 
 
-def _full_backward_hook(module: Any, grad_input: Any, grad_output: Any) -> None:
-    if not is_profiling_enabled():
-        return
-    try:
-        _ensure_step_open()
-        span = tracer.start_span(
-            "pytorch.backward",
-            service=config.pytorch.service,
-            child_of=_step_parent(),
-        )
-        span.set_tag("component", "pytorch")
-        span.set_tag("debug.level", "2")
-        span._set_attribute("rank", get_rank())
-        set_training_job_id_tag(span)
-        span.finish()
-    except Exception:
-        log.debug("pytorch full_backward_hook failed", exc_info=True)
-
-
 # ---------------------------------------------------------------------------
 # Optimizer step (replaces Layer 1's pure-timing pass-through)
 # ---------------------------------------------------------------------------
@@ -556,10 +537,14 @@ def attach_layer_two_hooks(model: Any) -> None:
     AIDEV-NOTE: Gate on is_profiling_enabled() OR summary_profiling (not just
     is_profiling_enabled()). The hook bodies already branch internally:
     _forward_pre_hook/_forward_hook run their summary path unconditionally and
-    only open a span when is_profiling_enabled(); _full_backward_hook gates its
-    span on is_profiling_enabled(). So extending the install gate here is the
-    correct fix — without it, the forward/backward summary feeds never attach in
-    the default summary-only mode.
+    only open a span when is_profiling_enabled(). So extending the install gate
+    here is the correct fix — without it, the forward summary feeds never attach
+    in the default summary-only mode.
+
+    NOTE: register_full_backward_hook is intentionally NOT registered here.
+    The real pytorch.backward span (with actual duration) is emitted by
+    _distributed._wrapped_tensor_backward. The former _full_backward_hook was a
+    zero-duration marker that duplicated the span — it has been removed.
     """
     from ddtrace import config  # noqa: PLC0415
 
@@ -572,7 +557,6 @@ def attach_layer_two_hooks(model: Any) -> None:
         handles = [
             model.register_forward_pre_hook(_forward_pre_hook),
             model.register_forward_hook(_forward_hook),
-            model.register_full_backward_hook(_full_backward_hook),
         ]
         _HOOK_HANDLES[model] = handles
         setattr(model, _HOOKED_FLAG_ATTR, True)

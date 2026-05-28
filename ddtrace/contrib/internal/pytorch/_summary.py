@@ -231,14 +231,18 @@ def _emit_gauge_facets(name: str, snap: dict[str, float], out: dict[str, float])
     out[f"{name}.count"] = snap["count"]
 
 
-def drain_all_to_facets() -> dict[str, float]:
-    """Drain every reservoir into a flat dict of facet-name -> numeric value.
+def drain_all_to_facets() -> dict[str, Any]:
+    """Drain every reservoir into a flat dict of facet-name -> value.
 
     Called once at process exit from `_rank_root.close()` (triggered by
     destroy_process_group / unpatch / atexit). Empty reservoirs contribute
     no facets (a non-emitting metric simply doesn't appear in the dict).
+
+    Also stamps model fingerprint facets (model.*) when _fingerprint_model
+    has run. These are one-shot values set at framework init and are NOT
+    reset by reset_all() — they persist across rotation drains.
     """
-    out: dict[str, float] = {}
+    out: dict[str, Any] = {}
     # Drain distributions
     with _lock:
         dist_names = list(_dist.keys())
@@ -258,6 +262,47 @@ def drain_all_to_facets() -> dict[str, float]:
         n = drain_counter(name)
         if n:
             out[f"{name}_count"] = n
+    # Stamp model fingerprint facets (one-shot, set at framework init).
+    # Defensive: each extraction wrapped in try/except so a bad value
+    # never crashes the rank close.
+    try:
+        if _model_fingerprinted:
+            try:
+                if _model_param_count > 0:
+                    out["model.param_count"] = int(_model_param_count)
+            except Exception:
+                pass
+            try:
+                if _model_trainable_param_count > 0:
+                    out["model.trainable_param_count"] = int(_model_trainable_param_count)
+            except Exception:
+                pass
+            try:
+                out["model.is_transformer"] = "true" if _model_is_transformer else "false"
+            except Exception:
+                pass
+            try:
+                if _model_dtype:
+                    out["model.dtype"] = str(_model_dtype)
+            except Exception:
+                pass
+            try:
+                if _model_layers > 0:
+                    out["model.layers"] = int(_model_layers)
+            except Exception:
+                pass
+            try:
+                if _model_hidden_dim > 0:
+                    out["model.hidden_dim"] = int(_model_hidden_dim)
+            except Exception:
+                pass
+            try:
+                if _model_active_param_count > 0 and _model_active_param_count != _model_param_count:
+                    out["model.active_param_count"] = int(_model_active_param_count)
+            except Exception:
+                pass
+    except Exception:
+        pass
     return out
 
 
