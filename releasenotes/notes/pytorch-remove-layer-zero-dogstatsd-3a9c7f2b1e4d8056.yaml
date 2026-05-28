@@ -1,0 +1,13 @@
+---
+upgrade:
+  - |
+    pytorch: The Layer Zero DogStatsD collective metrics
+    (``pytorch.collective.duration_ms``, ``pytorch.collective.bytes``,
+    ``pytorch.collective.calls_per_sec``, ``pytorch.collective.bytes_per_sec``)
+    and the associated ``DD_PYTORCH_RATE_TICKER_INTERVAL_S`` environment
+    variable have been removed. Equivalent data is available as facets on
+    the rotated ``pytorch.rank`` span: ``collective.<op>.{p10,p50,p90,p99,n}_ms``
+    for per-op duration percentiles, and (when summary mode is on,
+    default) ``collective.<op>.gpu_duration_ms.*`` for CUDA-true GPU
+    timing. Dashboards or monitors referencing the removed metric names
+    must migrate to span facet queries.

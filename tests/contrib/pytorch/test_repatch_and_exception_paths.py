@@ -141,12 +141,13 @@ def test_collective_wrapper_prefers_kwarg_group(monkeypatch, _clean_state):
     assert seen["group"] is kwarg_group
 
 
-def test_exception_in_collective_finishes_span_and_records_metric(monkeypatch, _clean_state, tracer, test_spans):
+def test_exception_in_collective_finishes_span_and_records_duration(monkeypatch, _clean_state, tracer, test_spans):
     """When the inner collective raises, Layer One must finish the span (with
-    error tagged) and Layer Zero must still emit the metric so dashboards
-    don't go blind during failures.
+    error tagged) and the duration reservoir must still be updated so
+    straggler percentiles are not skewed by missing failed-collective samples.
     """
     from ddtrace import config
+    from ddtrace.contrib.internal.pytorch import _metrics
 
     # `_metrics.record_collective` gates on `_device.get()` returning a
     # discovered device, so seed it before exercising the wrapper.
@@ -157,8 +158,6 @@ def test_exception_in_collective_finishes_span_and_records_metric(monkeypatch, _
         _device.discover(local_rank=0)
 
     monkeypatch.setattr(config.pytorch, "collective_trace_enabled", True)
-    fake = mock.Mock()
-    _th.install_metrics_client(fake)
 
     wrapper = _distributed._make_collective_wrapper("pytorch.allreduce", tensor_arg_index=0, group_arg_index=2)
 
@@ -171,8 +170,8 @@ def test_exception_in_collective_finishes_span_and_records_metric(monkeypatch, _
     with pytest.raises(_Boom):
         wrapper(explode, None, (torch.zeros(4),), {})
 
-    duration_calls = [c for c in fake.distribution.call_args_list if c.args[0] == "collective.duration_ms"]
-    assert duration_calls, "Layer Zero metric not emitted on exception"
+    summary = _metrics.summary_snapshot_and_reset()
+    assert "allreduce" in summary, "Layer Zero reservoir not updated on exception"
 
     spans = test_spans.get_spans()
     allreduce_spans = [s for s in spans if s.name == "pytorch.allreduce"]
@@ -184,14 +183,13 @@ def test_exception_in_collective_finishes_span_and_records_metric(monkeypatch, _
 
 def test_real_allreduce_positional_group_is_traced(monkeypatch, _clean_state, test_spans):
     """End-to-end: passing the default group positionally to a real
-    `dist.all_reduce` still flows through the wrapper without skipping the
-    Layer Zero metric or losing the Layer One span.
+    `dist.all_reduce` still flows through the wrapper without losing the
+    Layer One span or the duration reservoir entry.
     """
     from ddtrace import config
+    from ddtrace.contrib.internal.pytorch import _metrics
 
     monkeypatch.setattr(config.pytorch, "collective_trace_enabled", True)
-    fake = mock.Mock()
-    _th.install_metrics_client(fake)
 
     with (
         mock.patch.object(_device, "_cuda_is_available", return_value=False),
@@ -208,8 +206,10 @@ def test_real_allreduce_positional_group_is_traced(monkeypatch, _clean_state, te
         t = torch.zeros(4)
         # `group` passed positionally (index 2 in all_reduce signature).
         dist.all_reduce(t, torch.distributed.ReduceOp.SUM, None)
+        # Snapshot BEFORE destroy_process_group; rank-root close drains reservoir.
+        summary = _metrics.summary_snapshot_and_reset()
     finally:
         dist.destroy_process_group()
 
-    assert any(c.args[0] == "collective.duration_ms" for c in fake.distribution.call_args_list)
+    assert "allreduce" in summary, "duration reservoir not updated"
     assert any(s.name == "pytorch.allreduce" for s in test_spans.get_spans())

@@ -2,8 +2,8 @@
 The pytorch integration traces PyTorch distributed training jobs.
 
 Layer Zero (always-on default) emits a single long-lived ``pytorch.rank``
-span per rank plus device-tagged DogStatsD distributions for collective
-duration, bytes, and per-second rate. Layer One (opt-in via
+span per rank. Per-op duration percentiles are available as facets on that
+span (``collective.<op>.{p10,p50,p90,p99,n}_ms``). Layer One (opt-in via
 ``DD_PYTORCH_COLLECTIVE_TRACE=true``) additionally emits a span per
 collective (``all_reduce``, ``all_gather``, ``broadcast``, ``reduce_scatter``,
 ``barrier``, ``all_gather_into_tensor``, ``reduce_scatter_tensor``) plus
@@ -73,11 +73,6 @@ Environment variables
     designated rank. Requires ``DD_PYTORCH_PROFILING=true``.
     Default: ``false``.
 
-``DD_PYTORCH_RATE_TICKER_INTERVAL_S``
-    Seconds between RateTicker emissions of ``collective.calls_per_sec``
-    and ``collective.bytes_per_sec``. Default 1.0. Lower (e.g., 0.1)
-    for debug-tier resolution at 10× the DogStatsD volume.
-
 ``DD_PYTORCH_FORCE_INSTALL``
     Set to ``true`` to install wrappers even when no distributed-launcher
     signals are present (no ``RANK``/``WORLD_SIZE`` env, no prior
@@ -125,7 +120,6 @@ config._add(
         "service": env.get("DD_PYTORCH_SERVICE"),
         "grad_comm_enabled": asbool(env.get("DD_PYTORCH_GRAD_COMM", "true")),
         "collective_trace_enabled": asbool(env.get("DD_PYTORCH_COLLECTIVE_TRACE", "false")),
-        "rate_ticker_interval_s": float(env.get("DD_PYTORCH_RATE_TICKER_INTERVAL_S", "1.0") or "1.0"),
         "summary_profiling": asbool(env.get("DD_PYTORCH_SUMMARY_PROFILING", "true")),
     },
 )
