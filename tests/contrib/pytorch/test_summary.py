@@ -429,6 +429,124 @@ def test_tensor_backward_summary_skips_loss_when_not_scalar(monkeypatch):
     assert _summary.drain_distribution("train.loss")["count"] == 0
 
 
+def test_autograd_backward_feeds_backward_ms_with_single_tensor(monkeypatch):
+    """torch.autograd.backward(t) and backward([t]) both feed backward_total_ms.
+    Single-scalar list also captures train.loss.
+    """
+    monkeypatch.delenv("DD_PYTORCH_PROFILING", raising=False)
+    monkeypatch.delenv("DD_PYTORCH_CAPTURE_LOSS", raising=False)
+    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    _distributed._BACKWARD_REENTRANCY.in_progress = False
+
+    class FakeLossTensor:
+        def numel(self):
+            return 1
+
+        def item(self):
+            return 0.42
+
+    def slow_backward(*args, **kwargs):
+        import time as _t
+
+        _t.sleep(0.005)
+
+    # Multi-tensor list shape: autograd entrypoint with [loss] — should capture loss.
+    _distributed._wrapped_autograd_backward(
+        wrapped=slow_backward,
+        instance=None,
+        args=([FakeLossTensor()],),
+        kwargs={},
+    )
+
+    assert _summary.get_step_accumulator().backward_total_ms >= 4.0
+    snap = _summary.drain_distribution("train.loss")
+    assert snap["count"] == 1, f"expected one loss capture, got count={snap['count']}"
+
+
+def test_autograd_backward_skips_loss_for_multi_tensor(monkeypatch):
+    """For multi-tensor backward, train.loss is NOT captured (no single scalar).
+    backward_total_ms is still fed.
+    """
+    monkeypatch.delenv("DD_PYTORCH_PROFILING", raising=False)
+    monkeypatch.delenv("DD_PYTORCH_CAPTURE_LOSS", raising=False)
+    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    _distributed._BACKWARD_REENTRANCY.in_progress = False
+
+    class FakeTensor:
+        def numel(self):
+            return 1
+
+        def item(self):
+            return 0.0
+
+    _distributed._wrapped_autograd_backward(
+        wrapped=lambda *a, **kw: None,
+        instance=None,
+        args=([FakeTensor(), FakeTensor(), FakeTensor()],),
+        kwargs={},
+    )
+
+    # Multi-loss: no single-scalar capture.
+    assert _summary.drain_distribution("train.loss")["count"] == 0
+
+
+def test_tensor_backward_reentrancy_guard_prevents_double_count(monkeypatch):
+    """When PyTorch's Tensor.backward internally calls torch.autograd.backward,
+    the reentrancy guard must prevent the autograd wrap from re-instrumenting.
+    Otherwise backward_total_ms would be counted twice per loss.backward() call.
+    """
+    monkeypatch.delenv("DD_PYTORCH_PROFILING", raising=False)
+    monkeypatch.delenv("DD_PYTORCH_CAPTURE_LOSS", raising=False)
+    from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.reset_step_accumulator()
+    _distributed._BACKWARD_REENTRANCY.in_progress = False
+
+    class FakeLossTensor:
+        def numel(self):
+            return 1
+
+        def item(self):
+            return 1.0
+
+    # Simulate Tensor.backward → torch.autograd.backward routing.
+    def simulated_inner_autograd_backward(*args, **kwargs):
+        import time as _t
+
+        _t.sleep(0.003)
+        # PyTorch's Tensor.backward calls torch.autograd.backward internally;
+        # our autograd wrap MUST short-circuit on the reentrancy flag.
+        _distributed._wrapped_autograd_backward(
+            wrapped=lambda *a, **kw: None,
+            instance=None,
+            args=([FakeLossTensor()],),
+            kwargs={},
+        )
+
+    _distributed._wrapped_tensor_backward(
+        wrapped=simulated_inner_autograd_backward,
+        instance=FakeLossTensor(),
+        args=(),
+        kwargs={},
+    )
+
+    # Exactly one loss capture (the outer Tensor.backward), not two.
+    assert _summary.drain_distribution("train.loss")["count"] == 1
+    # backward_total_ms accumulated once, not twice (would be ~6ms if double-counted).
+    acc_ms = _summary.get_step_accumulator().backward_total_ms
+    assert 2.0 <= acc_ms <= 30.0, f"backward_total_ms={acc_ms} — reentrancy guard failed?"
+
+
 def test_tensor_backward_summary_feeds_backward_ms(monkeypatch):
     """backward_ms accumulator is populated regardless of profiling state.
     The reservoir is NOT pushed per-call (only close_step_to_summary emits it),

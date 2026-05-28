@@ -330,14 +330,28 @@ long as `DD_PYTORCH_PROFILING=true` OR `DD_PYTORCH_SUMMARY_PROFILING=true`
 ### `pytorch.backward`
 
 **Tier:** L2
-**What it represents:** One `Tensor.backward()` call. Carries the
+**What it represents:** One backward pass — emitted by either
+`Tensor.backward()` (the common path: `loss.backward()`) or
+`torch.autograd.backward([tensors])` (multi-tensor / list-based shape used
+by some GAN, RL multi-loss, and custom training loops). Carries the
 active-backward context that `pytorch.grad_comm` reads as its parent.
-**Frameworks:** Any program calling `tensor.backward()`.
+**Frameworks:** Any program calling either entrypoint.
 **Overhead:** ~10 µs per backward (open + close + ctx publish/clear).
-**Source:** `_distributed.py:_wrapped_tensor_backward` — sole emitter.
-The former `_hooks._full_backward_hook` (registered via
-`model.register_full_backward_hook`) has been removed; it emitted a
-zero-duration duplicate span and carried no additional data.
+**Source:** `_distributed.py:_run_backward_with_instrumentation`, called via
+`_wrapped_tensor_backward` and `_wrapped_autograd_backward`. A thread-local
+reentrancy guard prevents double-instrumentation when `Tensor.backward`
+routes internally through `torch.autograd.backward` — the outer wrap fires,
+the inner is short-circuited. Exactly one `pytorch.backward` span per
+user-visible backward call. The former `_hooks._full_backward_hook`
+(registered via `model.register_full_backward_hook`) has been removed; it
+emitted a zero-duration duplicate span and carried no additional data.
+
+**`train.loss` capture:** `Tensor.backward(self)` always sees a single
+scalar — `loss.item()` is recorded when `DD_PYTORCH_CAPTURE_LOSS=true`
+(default). `torch.autograd.backward(tensors)` captures `train.loss` only
+when `tensors` is a single tensor (or single-element list) — multi-loss
+calls do NOT capture a value (recording a sum or first element would be
+misleading).
 
 | Tag | Type | Always present? | Notes |
 |---|---|---|---|
