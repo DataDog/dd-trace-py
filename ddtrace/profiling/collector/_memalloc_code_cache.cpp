@@ -28,17 +28,35 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity_hint)
 {
     size_t num_sets = clamp_to_pow2_set_count(capacity_hint);
     sets_.assign(num_sets, Set{});
-    set_mask_ = num_sets - 1;
+    log2_set_bits_ = static_cast<uint8_t>(__builtin_ctzll(num_sets));
 }
 
 size_t
 CodeFunctionCache::set_index(PyCodeObject* code) const
 {
-    /* PyCodeObject* values are heap-allocated and 16-byte aligned in CPython,
-     * which would leave the low 4 bits zero. Shift right to spread the bits
-     * that actually vary. */
-    uintptr_t bits = reinterpret_cast<uintptr_t>(code);
-    return (bits >> 4) & set_mask_;
+    /* Fibonacci hashing: multiply by 2^64 / phi (Knuth TAOCP 6.4) and take
+     * the high log2(num_sets) bits. One imul + one shift; uniform on the
+     * clustered low bits of pymalloc-allocated PyCodeObject pointers that
+     * the previous shift-mask scheme piled into a few sets. */
+    constexpr uint64_t FIB_MUL = 0x9E3779B97F4A7C15ULL;
+    uint64_t bits = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(code));
+    return static_cast<size_t>((bits * FIB_MUL) >> (64 - log2_set_bits_));
+}
+
+std::array<size_t, CodeFunctionCache::WAYS_PER_SET + 1>
+CodeFunctionCache::occupancy_histogram() const
+{
+    std::array<size_t, WAYS_PER_SET + 1> hist{};
+    for (const Set& s : sets_) {
+        size_t occupied = 0;
+        for (size_t i = 0; i < WAYS_PER_SET; ++i) {
+            if (s.codes[i] != nullptr) {
+                ++occupied;
+            }
+        }
+        ++hist[occupied];
+    }
+    return hist;
 }
 
 std::optional<Datadog::function_id>
