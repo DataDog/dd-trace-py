@@ -8,6 +8,7 @@ import pytest
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
@@ -16,6 +17,9 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.trace import Span
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+
+
+MAX_META_TAG_VALUE_LENGTH = 5000
 
 
 @pytest.fixture
@@ -260,6 +264,58 @@ def test_build_payload_with_filtered_spans():
             os.environ.pop("PYTEST_XDIST_WORKER", None)
         else:
             os.environ["PYTEST_XDIST_WORKER"] = original_env
+
+
+def test_ci_visibility_encoder_truncates_event_meta_string_values():
+    long_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    exact_value = "y" * MAX_META_TAG_VALUE_LENGTH
+    unicode_value = "é" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    span = Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
+    span._set_attribute(EVENT_TYPE, "test")
+    span.set_tag(SESSION_ID, "123")
+    span.set_tag(MODULE_ID, "456")
+    span.set_tag(SUITE_ID, "789")
+    span.set_tag("long_meta", long_value)
+    span.set_tag("exact_meta", exact_value)
+    span.set_tag("unicode_meta", unicode_value)
+    span.set_metric("numeric_metric", 42)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.put([span])
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    event_content = decoded[b"events"][0][b"content"]
+    meta = event_content[b"meta"]
+
+    assert meta[b"long_meta"] == ("x" * MAX_META_TAG_VALUE_LENGTH).encode()
+    assert meta[b"exact_meta"] == exact_value.encode()
+    assert meta[b"unicode_meta"] == ("é" * MAX_META_TAG_VALUE_LENGTH).encode()
+    assert event_content[b"test_session_id"] == 123
+    assert event_content[b"test_module_id"] == 456
+    assert event_content[b"test_suite_id"] == 789
+    assert b"test_session_id" not in meta
+    assert event_content[b"metrics"][b"numeric_metric"] == 42
+
+
+def test_ci_visibility_encoder_truncates_payload_metadata_without_mutating_stored_metadata():
+    long_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"long": long_value})
+    encoder.set_metadata("test", {"long": long_value})
+    encoder.put([Span(name="client.testing", span_id=0xAAAAAA, span_type="test", service="foo")])
+
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, _)] = encoded_traces
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+    expected = ("m" * MAX_META_TAG_VALUE_LENGTH).encode()
+
+    assert decoded[b"metadata"][b"*"][b"long"] == expected
+    assert decoded[b"metadata"][b"test"][b"long"] == expected
+    assert encoder._metadata["*"]["long"] == long_value
+    assert encoder._metadata["test"]["long"] == long_value
 
 
 def test_build_payload_all_spans_filtered():
