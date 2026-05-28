@@ -350,10 +350,10 @@ integrations:
   tested_versions_by_dependency:
     elastic-transport:
       min: 8.17.1
-      max: 9.4.0
+      max: 9.4.1
     elasticsearch:
       min: 7.13.4
-      max: 9.4.0
+      max: 9.4.1
     elasticsearch1:
       min: 1.10.0
       max: 1.10.0

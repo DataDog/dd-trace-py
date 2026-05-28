@@ -257,14 +257,14 @@
         "dependency": "elastic-transport",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "8.17.1",
-        "max_tracer_supported": "9.4.0",
+        "max_tracer_supported": "9.4.1",
         "auto-instrumented": true
     },
     {
         "dependency": "elasticsearch",
         "integration": "elasticsearch",
         "minimum_tracer_supported": "7.13.4",
-        "max_tracer_supported": "9.4.0",
+        "max_tracer_supported": "9.4.1",
         "auto-instrumented": true
     },
     {

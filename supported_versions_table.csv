@@ -34,8 +34,8 @@ dogpile-cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile.cache,dogpile_cache,0.6.8,1.4.0,True
 dogpile_cache,dogpile_cache,0.6.8,1.4.0,True
 dramatiq,dramatiq,1.10.0,1.17.0,True
-elastic-transport,elasticsearch,8.17.1,9.4.0,True
-elasticsearch,elasticsearch,7.13.4,9.4.0,True
+elastic-transport,elasticsearch,8.17.1,9.4.1,True
+elasticsearch,elasticsearch,7.13.4,9.4.1,True
 elasticsearch1,elasticsearch,1.10.0,1.10.0,True
 elasticsearch2,elasticsearch,2.5.1,2.5.1,True
 elasticsearch5,elasticsearch,5.5.6,5.5.6,True
