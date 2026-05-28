@@ -77,19 +77,6 @@ def test_forward_hook_emits_pytorch_forward_span(test_spans, monkeypatch):
     assert forward[0].duration is not None
 
 
-def test_full_backward_hook_emits_pytorch_backward_span(test_spans, monkeypatch):
-    monkeypatch.setenv("DD_PYTORCH_PROFILING", "true")
-    hooks = _reload_hooks()
-    _reset_state()
-
-    fake_model = mock.MagicMock()
-    hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
-    hooks._close_step(skipped=False)
-
-    bwd = [s for s in test_spans.pop() if s.name == "pytorch.backward"]
-    assert len(bwd) == 1
-
-
 def test_data_load_span_measures_gap_after_first_iteration(test_spans, monkeypatch):
     monkeypatch.setenv("DD_PYTORCH_PROFILING", "true")
     hooks = _reload_hooks()
@@ -224,6 +211,8 @@ def test_pytorch_step_root_wraps_forward_backward_optimizer(test_spans, monkeypa
     hooks = _reload_hooks()
     _reset_state()
 
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     class FakeAdamW:
         def step(self, closure=None):
             return None
@@ -232,7 +221,7 @@ def test_pytorch_step_root_wraps_forward_backward_optimizer(test_spans, monkeypa
     fake_model = mock.MagicMock()
     hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
     hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-    hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+    _distributed._wrapped_tensor_backward(wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={})
     hooks.optimizer_step(optimizer.step, optimizer, (), {})
 
     spans = test_spans.pop()
@@ -249,6 +238,8 @@ def test_gradient_accumulation_yields_single_pytorch_step(test_spans, monkeypatc
     hooks = _reload_hooks()
     _reset_state()
 
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     class FakeAdamW:
         def step(self, closure=None):
             return None
@@ -258,7 +249,9 @@ def test_gradient_accumulation_yields_single_pytorch_step(test_spans, monkeypatc
     for _ in range(3):
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
     hooks.optimizer_step(optimizer.step, optimizer, (), {})
 
     spans = test_spans.pop()
@@ -404,11 +397,15 @@ def test_amp_skip_emits_pytorch_step_skipped_true_with_no_optimizer_span(test_sp
     # in_amp=True, the optimizer wrapper would have been called or not, but
     # `gradscaler_emit_step_outcome(..., skipped=True)` is invoked from the
     # GradScaler wrapper afterward.
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     _amp_skip_state.in_amp = True
     try:
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
     finally:
         _amp_skip_state.in_amp = False
     initial_counter = hooks._step_counter
@@ -441,12 +438,16 @@ def test_amp_non_skip_emits_step_with_optimizer_span(test_spans, monkeypatch):
     optimizer = AdamW()
     fake_model = mock.MagicMock()
 
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     _amp_skip_state.in_amp = True
     _amp_skip_state.step_executed = False
     try:
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
         hooks.optimizer_step(optimizer.step, optimizer, (), {})
         assert _amp_skip_state.step_executed is True
     finally:
@@ -484,11 +485,13 @@ def test_amp_skip_on_non_designated_optimizer_does_not_close_step(test_spans, mo
     other = Other()
     fake_model = mock.MagicMock()
 
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
     hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
     # Non-designated optimizer's AMP skip arrives mid-step.
     hooks.gradscaler_emit_step_outcome(other, skipped=True)
-    hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+    _distributed._wrapped_tensor_backward(wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={})
     hooks.optimizer_step(designated.step, designated, (), {})
 
     step_spans = [s for s in test_spans.pop() if s.name == "pytorch.step"]
@@ -507,6 +510,8 @@ def test_lbfgs_closure_yields_one_step_with_repeated_fwd_bwd(test_spans, monkeyp
     hooks = _reload_hooks()
     _reset_state()
 
+    from ddtrace.contrib.internal.pytorch import _distributed
+
     fake_model = mock.MagicMock()
 
     class FakeLBFGS:
@@ -520,7 +525,9 @@ def test_lbfgs_closure_yields_one_step_with_repeated_fwd_bwd(test_spans, monkeyp
     def closure():
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
         return mock.sentinel.loss
 
     hooks.optimizer_step(optimizer.step, optimizer, (closure,), {})
@@ -533,6 +540,10 @@ def test_lbfgs_closure_yields_one_step_with_repeated_fwd_bwd(test_spans, monkeyp
 
 
 def test_attach_layer_two_hooks_is_idempotent(monkeypatch):
+    """attach_layer_two_hooks registers only forward_pre and forward hooks;
+    register_full_backward_hook must NOT be called (duplicate span fix).
+    Calling attach_layer_two_hooks twice is idempotent (flag guard).
+    """
     monkeypatch.setenv("DD_PYTORCH_PROFILING", "true")
     hooks = _reload_hooks()
 
@@ -556,7 +567,9 @@ def test_attach_layer_two_hooks_is_idempotent(monkeypatch):
     kinds = [k for (k, _) in model.registrations]
     assert kinds.count("pre") == 1
     assert kinds.count("fwd") == 1
-    assert kinds.count("bwd") == 1
+    # register_full_backward_hook must NOT be called — pytorch.backward is
+    # emitted solely by _distributed._wrapped_tensor_backward.
+    assert kinds.count("bwd") == 0, "register_full_backward_hook must not be called; duplicate backward span fix"
 
 
 def test_layer_two_spans_carry_training_job_id(test_spans, monkeypatch):
@@ -579,12 +592,16 @@ def test_layer_two_spans_carry_training_job_id(test_spans, monkeypatch):
         optimizer = FakeAdamW()
         fake_model = mock.MagicMock()
 
+        from ddtrace.contrib.internal.pytorch import _distributed
+
         # Simulate a full step: first step has no data_load (no prior optimizer end).
         # To also get data_load, we record an optimizer end first.
         hooks._mark_optimizer_step_end_now()
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
         hooks.optimizer_step(optimizer.step, optimizer, (), {})
 
         spans = test_spans.pop()
@@ -628,10 +645,14 @@ def test_layer_two_spans_carry_ray_submission_id_and_job_name(test_spans, monkey
         optimizer = FakeAdamW()
         fake_model = mock.MagicMock()
 
+        from ddtrace.contrib.internal.pytorch import _distributed
+
         hooks._mark_optimizer_step_end_now()
         hooks._forward_pre_hook(fake_model, (mock.sentinel.t,))
         hooks._forward_hook(fake_model, (mock.sentinel.t,), mock.sentinel.out)
-        hooks._full_backward_hook(fake_model, (mock.sentinel.gin,), (mock.sentinel.gout,))
+        _distributed._wrapped_tensor_backward(
+            wrapped=lambda *a, **kw: None, instance=mock.MagicMock(), args=(), kwargs={}
+        )
         hooks.optimizer_step(optimizer.step, optimizer, (), {})
 
         spans = test_spans.pop()
