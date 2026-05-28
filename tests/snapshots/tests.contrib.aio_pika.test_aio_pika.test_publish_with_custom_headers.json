@@ -1,0 +1,101 @@
+[[
+  {
+    "name": "rabbitmq.publish",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.publish",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a1865be00000000",
+      "_dd.svc_src": "aio_pika",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio_pika",
+      "language": "python",
+      "messaging.destination.name": "test_exchange_aiopika-66e24901",
+      "messaging.operation": "publish",
+      "messaging.system": "rabbitmq",
+      "out.host": "127.0.0.1",
+      "runtime-id": "d5cf96844bd9427c93e4a498f3a76e62",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 5672.0,
+      "process_id": 605.0
+    },
+    "duration": 609375,
+    "start": 1779983806501987668
+  }],
+[
+  {
+    "name": "rabbitmq.get",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.get",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a1865be00000000",
+      "_dd.svc_src": "aio_pika",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio_pika",
+      "language": "python",
+      "messaging.destination.name": "test_queue_aiopika-66e24901",
+      "messaging.operation": "receive",
+      "messaging.system": "rabbitmq",
+      "runtime-id": "d5cf96844bd9427c93e4a498f3a76e62",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 57083,
+    "start": 1779983806503793127
+  }],
+[
+  {
+    "name": "rabbitmq.ack",
+    "service": "tests.contrib.aio_pika",
+    "resource": "rabbitmq.ack",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a1865be00000000",
+      "_dd.svc_src": "aio_pika",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aio_pika",
+      "component": "aio_pika",
+      "language": "python",
+      "messaging.destination.name": "test_exchange_aiopika-66e24901",
+      "messaging.operation": "ack",
+      "messaging.system": "rabbitmq",
+      "runtime-id": "d5cf96844bd9427c93e4a498f3a76e62",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 241583,
+    "start": 1779983806503966752
+  }]]
