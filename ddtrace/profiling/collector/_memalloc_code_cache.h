@@ -38,7 +38,7 @@ class CodeFunctionCache
 {
   public:
     static constexpr size_t WAYS_PER_SET = 4;
-    static constexpr size_t DEFAULT_CAPACITY = 32768;
+    static constexpr size_t DEFAULT_CAPACITY = 1024;
     static constexpr size_t MIN_CAPACITY = 64;
     static constexpr size_t MAX_CAPACITY = 1 << 20; // 1M cap as a sanity ceiling
 
