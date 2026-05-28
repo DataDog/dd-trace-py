@@ -435,8 +435,8 @@ download_dependency_wheels:
   needs:
     - job: "build windows"
       artifacts: true
-    - job: "download win_arm64 wheels"
-      artifacts: true
+#    - job: "download win_arm64 wheels"
+#      artifacts: true
   script:
     - cd dd-trace-py
     - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
