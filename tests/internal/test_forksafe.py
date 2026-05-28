@@ -1,4 +1,5 @@
 from collections import Counter
+import functools
 
 import pytest
 
@@ -330,3 +331,24 @@ def test_gevent_gunicorn_behaviour():
     gevent.sleep(1)
 
     exit()
+
+
+def test_unregister_unregistered_partial_does_not_crash():
+    class CallableInstance:
+        def __call__(self):
+            pass
+
+    def _hook():
+        pass
+
+    partial_hook = functools.partial(_hook)
+    instance_hook = CallableInstance()
+
+    # Neither was ever registered, so each unregister hits the ValueError
+    # branch and the warning log call must succeed.
+    forksafe.unregister(partial_hook)
+    forksafe.unregister(instance_hook)
+    forksafe.unregister_parent(partial_hook)
+    forksafe.unregister_parent(instance_hook)
+    forksafe.unregister_before_fork(partial_hook)
+    forksafe.unregister_before_fork(instance_hook)
