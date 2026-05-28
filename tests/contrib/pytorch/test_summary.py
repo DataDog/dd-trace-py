@@ -1096,6 +1096,22 @@ def test_lookup_peak_flops_matches_known_gpus():
     assert lookup_peak_flops(None, "bfloat16") is None
 
 
+def test_lookup_peak_flops_l4_l40_mi300_float32_and_float16():
+    """Regression: live verification on `service:itrace-verify` showed
+    `train.mfu.*` empty on NVIDIA L4 + float32 because the lookup table
+    lacked a ("L4", "float32") entry. fp16 entries for L4/L40/MI300 were
+    likewise missing — `train.mfu` requires the (gpu, dtype) pair to match.
+    """
+    from ddtrace.contrib.internal.pytorch._device import lookup_peak_flops
+
+    assert lookup_peak_flops("NVIDIA L4", "float32") == 30.3e12
+    assert lookup_peak_flops("NVIDIA L4", "float16") == 121e12
+    assert lookup_peak_flops("NVIDIA L40", "float32") == 90.5e12
+    assert lookup_peak_flops("NVIDIA L40", "float16") == 181e12
+    assert lookup_peak_flops("AMD MI300X", "float32") == 163.4e12
+    assert lookup_peak_flops("AMD MI300X", "float16") == 1300e12
+
+
 # ---------------------------------------------------------------------------
 # Task 10: MoE module detection + dropped-token counter
 # ---------------------------------------------------------------------------

@@ -230,17 +230,24 @@ _PEAK_FLOPS_TABLE: dict = {
     ("A100", "float16"): 312e12,
     ("A100", "tf32"): 156e12,
     ("A100", "float32"): 19.5e12,
-    # NVIDIA L40 / L4
+    # NVIDIA L40 / L4 — Ada Lovelace. fp16 shares bf16 tensor-core path;
+    # fp32 is the non-tensor ALU peak per datasheet.
     ("L40", "bfloat16"): 181e12,
+    ("L40", "float16"): 181e12,
+    ("L40", "float32"): 90.5e12,
     ("L4", "bfloat16"): 121e12,
+    ("L4", "float16"): 121e12,
+    ("L4", "float32"): 30.3e12,
     # NVIDIA V100
     ("V100", "float16"): 125e12,
     ("V100", "float32"): 15.7e12,
     # NVIDIA T4
     ("T4", "float16"): 65e12,
     ("T4", "float32"): 8.1e12,
-    # AMD MI300X — placeholder; check spec sheet before relying on this
+    # AMD MI300X — CDNA3 matrix peaks per datasheet; fp32 is the vector ALU peak.
     ("MI300", "bfloat16"): 1300e12,
+    ("MI300", "float16"): 1300e12,
+    ("MI300", "float32"): 163.4e12,
 }
 
 
