@@ -623,7 +623,7 @@
         "dependency": "pymysql",
         "integration": "pymysql",
         "minimum_tracer_supported": "0.10.1",
-        "max_tracer_supported": "1.1.2",
+        "max_tracer_supported": "1.2.0",
         "auto-instrumented": true
     },
     {
