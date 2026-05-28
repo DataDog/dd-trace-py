@@ -71,7 +71,7 @@ def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, st
     Returns:
         tuple: (success: bool, message: str, sdist_name: str or None)
     """
-    sdists = [a for a in list(Path(wheels_dir).glob("*.tar.gz")) if "ddtrace_internal" in a.name]
+    sdists = [a for a in list(Path(wheels_dir).glob("*.tar.gz")) if "ddtrace_internal" not in a.name]
 
     if len(sdists) == 0:
         return False, "No sdist found", None
@@ -107,10 +107,10 @@ def parse_actual_wheels(
     errors: list[str] = []
 
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
+        if "ddtrace_internal" in wheel_file.name:
+            continue
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
-            if name == "ddtrace_internal":
-                continue
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
