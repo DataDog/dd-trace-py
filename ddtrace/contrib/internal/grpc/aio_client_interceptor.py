@@ -146,16 +146,12 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
 
 
 async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.AioRpcError) -> None:
-    # AIDEV-NOTE: When a server aborts a streaming RPC, gRPC can surface the
-    # AioRpcError to the client before trailing metadata has been fully processed.
-    # In that window, rpc_error.details() returns the transport-level placeholder
-    # "Internal error from Core" instead of the application-set abort details.
-    # Awaiting call.code()/call.details() blocks until the call is fully terminated
-    # (trailers received), so it returns the authoritative final state. Fall back
-    # to the exception's snapshot only if the call cannot resolve its final state.
-    # Mark synchronously before awaiting so `_done_callback_stream` bails out if it
-    # fires while we're suspended — otherwise it would flush the span with stale
-    # tags parsed from call.__repr__() before our authoritative values land.
+    # AIDEV-NOTE: rpc_error.details() can return the transport placeholder
+    # "Internal error from Core" if trailers haven't been processed yet; awaiting
+    # call.code()/details() blocks until the call is fully terminated and returns
+    # the authoritative final state. Set the ctx flag synchronously before
+    # awaiting so `_done_callback_stream` bails out if it fires while we're
+    # suspended, instead of flushing the span with repr-derived tags.
     span._set_ctx_item(_GRPC_AIO_ERROR_HANDLED, True)
     try:
         try:
