@@ -40,6 +40,8 @@ class ProfilerState
 
     // Query state
     bool is_initialized() const { return initialized_.load(std::memory_order_acquire); }
+    bool is_active() const { return active_.load(std::memory_order_acquire); }
+    void set_active(bool v) { active_.store(v, std::memory_order_release); }
 
     // ========================================================================
     // Profiles Dictionary state
@@ -101,6 +103,9 @@ class ProfilerState
     std::atomic<int64_t> cumulative_copy_memory_error_count{ 0 };
     std::atomic<int64_t> cumulative_sample_capture_cpu_time_us{ 0 };
 
+    // Latest gauge snapshot that survives ProfilerStats upload swaps.
+    std::atomic<int64_t> last_sampling_interval_us{ -1 };
+
     // ========================================================================
     // Upload state
     // ========================================================================
@@ -138,6 +143,7 @@ class ProfilerState
 
     // Initialization state
     std::atomic<bool> initialized_{ false };
+    std::atomic<bool> active_{ false };
     std::once_flag init_flag_;
 
     // Profiles Dictionary handle

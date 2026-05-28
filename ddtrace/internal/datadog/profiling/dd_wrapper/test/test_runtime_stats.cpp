@@ -25,6 +25,7 @@ void
 runtime_stats_after_init()
 {
     configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+    Datadog::ProfilerState::get().set_active(true);
 
     ProfilerRuntimeStats stats{};
     bool ok = ddup_get_profiler_runtime_stats(&stats);
@@ -47,11 +48,53 @@ TEST(RuntimeStatsDeathTest, AfterInit)
 }
 
 void
+runtime_stats_init_not_active()
+{
+    configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
+    assert(!ok);
+
+    std::exit(0);
+}
+
+TEST(RuntimeStatsDeathTest, InitNotActive)
+{
+    EXPECT_EXIT(runtime_stats_init_not_active(), ::testing::ExitedWithCode(0), "");
+}
+
+void
+sampling_interval_survives_upload()
+{
+    configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
+
+    auto& state = Datadog::ProfilerState::get();
+    state.set_active(true);
+    state.last_sampling_interval_us.store(5000, std::memory_order_relaxed);
+
+    ddup_upload();
+
+    ProfilerRuntimeStats stats{};
+    bool ok = ddup_get_profiler_runtime_stats(&stats);
+    assert(ok);
+    assert(stats.sampling_interval_us == 5000);
+
+    std::exit(0);
+}
+
+TEST(RuntimeStatsDeathTest, SamplingIntervalSurvivesUpload)
+{
+    EXPECT_EXIT(sampling_interval_survives_upload(), ::testing::ExitedWithCode(0), "");
+}
+
+void
 cumulative_counters_survive_upload()
 {
     configure("my_service", "my_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
 
     auto& state = Datadog::ProfilerState::get();
+    state.set_active(true);
 
     // Manually bump cumulative counters (simulating what sampler.cpp does)
     state.cumulative_sample_count.fetch_add(10, std::memory_order_relaxed);

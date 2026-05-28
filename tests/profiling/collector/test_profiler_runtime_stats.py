@@ -39,6 +39,8 @@ def test_get_profiler_runtime_stats_returns_counters():
 
     p.stop()
 
+    assert get_profiler_runtime_stats() is None
+
 
 @pytest.mark.subprocess(
     env=dict(

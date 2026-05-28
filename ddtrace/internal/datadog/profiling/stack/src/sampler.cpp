@@ -184,6 +184,7 @@ Sampler::adapt_sampling_interval()
 
     sample_interval_us.store(new_interval);
     Sample::profile_borrow().stats().set_sampling_interval_us(new_interval);
+    ProfilerState::get().last_sampling_interval_us.store(static_cast<int64_t>(new_interval), std::memory_order_relaxed);
 
     // Update the counters for the next iteration
     process_count = new_process_count;
@@ -394,7 +395,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
             auto& state = ProfilerState::get();
             state.cumulative_sampling_event_count.fetch_add(1, std::memory_order_relaxed);
             if (copy_errors > 0) {
-                state.cumulative_copy_memory_error_count.fetch_add(copy_errors, std::memory_order_relaxed);
+                state.cumulative_copy_memory_error_count.fetch_add(static_cast<int64_t>(copy_errors),
+                                                                   std::memory_order_relaxed);
             }
             if (cpu_diff > 0) {
                 state.cumulative_sample_capture_cpu_time_us.fetch_add(cpu_diff, std::memory_order_relaxed);
@@ -427,6 +429,8 @@ Sampler::set_interval(double new_interval_s)
     microsecond_t new_interval_us = static_cast<microsecond_t>(new_interval_s * 1e6);
     sample_interval_us.store(new_interval_us);
     Sample::profile_borrow().stats().set_sampling_interval_us(new_interval_us);
+    ProfilerState::get().last_sampling_interval_us.store(static_cast<int64_t>(new_interval_us),
+                                                         std::memory_order_relaxed);
 }
 
 Sampler::Sampler()
@@ -650,12 +654,15 @@ Sampler::start()
         return false;
     }
 #endif
+    ProfilerState::get().set_active(true);
     return true;
 }
 
 void
 Sampler::stop()
 {
+    ProfilerState::get().set_active(false);
+
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
     // a sampling loop.
     ++thread_seq_num;

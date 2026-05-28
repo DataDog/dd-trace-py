@@ -134,10 +134,9 @@ class TestProfilerRuntimeMetricCollector(BaseTestCase):
         self.assertEqual(metrics, [])
 
     def test_import_failure(self):
-        """When ddup cannot be imported, the collector returns no metrics."""
+        """When ddup is unavailable, the collector returns no metrics."""
         collector = ProfilerRuntimeMetricCollector()
-        with mock.patch.dict("sys.modules", {"ddtrace.internal.datadog.profiling.ddup._ddup": None}):
-            collector._get_stats = None
+        with mock.patch("ddtrace.internal.datadog.profiling.ddup.is_available", False):
             metrics = collector.collect(PROFILER_RUNTIME_METRICS)
         self.assertEqual(metrics, [])
 

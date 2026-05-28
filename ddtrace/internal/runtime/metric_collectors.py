@@ -136,11 +136,13 @@ class ProfilerRuntimeMetricCollector(RuntimeMetricCollector):
         if self._get_stats is not None:
             return True
         try:
-            from ddtrace.internal.datadog.profiling.ddup._ddup import get_profiler_runtime_stats
+            from ddtrace.internal.datadog.profiling import ddup
 
-            self._get_stats = get_profiler_runtime_stats
+            if not ddup.is_available:
+                return False
+            self._get_stats = ddup.get_profiler_runtime_stats
             return True
-        except ImportError:
+        except Exception:
             return False
 
     def collect_fn(self, keys: set[str]) -> list[tuple[str, int]]:
