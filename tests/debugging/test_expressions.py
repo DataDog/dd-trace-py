@@ -3,7 +3,11 @@ import re
 
 import pytest
 
+from ddtrace.debugging._expressions import DDCompiler
+from ddtrace.debugging._expressions import DDExpression
+from ddtrace.debugging._expressions import _is_one_shot_iterator
 from ddtrace.debugging._expressions import dd_compile
+from ddtrace.debugging._expressions import instanceof
 from ddtrace.internal.safety import SafeObjectProxy
 
 
@@ -106,7 +110,8 @@ class CustomDict(dict):
             {"collection": {"foo": 1, "bar": 2, "": 3}},
             {"foo": 1, "bar": 2},
         ),
-        ({"contains": [{"ref": "payload"}, "hello"]}, {"payload": CustomObject("contains")}, SideEffect),
+        # contains on non-builtin types raises TypeError before any __contains__ is invoked
+        ({"contains": [{"ref": "payload"}, "hello"]}, {"payload": CustomObject("contains")}, TypeError),
         (
             {"contains": [{"ref": "payload"}, "hello"]},
             {"payload": SafeObjectProxy.safe(CustomObject("contains"))},
@@ -232,3 +237,195 @@ def test_side_effects():
     assert b["hello"] == "worldcustom"
     c = CustomAttr()
     assert c.field == "xcustom"
+
+
+# ---- instanceof coverage ----
+
+
+def test_instanceof_non_matching_qualname():
+    """instanceof returns False when no MRO entry matches the qualified name (line 87)."""
+    assert instanceof(42, "some.Unknown.Type") is False
+
+
+def test_instanceof_attribute_error_in_mro():
+    """instanceof catches AttributeError during MRO attribute access (lines 84-85)."""
+
+    class BrokenMeta(type):
+        __module__ = property(lambda _: (_ for _ in ()).throw(AttributeError("no module")))  # type: ignore[assignment]
+
+    class BrokenClass(metaclass=BrokenMeta):
+        pass
+
+    # Should return False rather than propagating the AttributeError
+    assert instanceof(BrokenClass(), "some.Module.BrokenClass") is False
+
+
+# ---- Compiler invalid-argument errors ----
+
+
+@pytest.mark.parametrize(
+    "ast",
+    [
+        {"not": {"unknown_op": []}},
+        {"or": [{"unknown_op": []}, 1]},
+        {"or": [1, {"unknown_op": []}]},
+        {"and": [{"unknown_op": []}, 1]},
+        {"and": [1, {"unknown_op": []}]},
+        {"eq": [{"unknown_op": []}, 1]},
+        {"eq": [1, {"unknown_op": []}]},
+        {"contains": [{"unknown_op": []}, "x"]},
+        {"contains": ["x", {"unknown_op": []}]},
+        {"any": [{"unknown_op": []}, True]},
+        {"startsWith": [{"unknown_op": []}, "x"]},
+        {"startsWith": ["x", {"unknown_op": []}]},
+        {"endsWith": [{"unknown_op": []}, "x"]},
+        {"endsWith": ["x", {"unknown_op": []}]},
+        {"matches": [{"unknown_op": []}, "[0-9]+"]},
+        {"matches": ["x", {"unknown_op": []}]},
+        {"len": {"unknown_op": []}},
+        {"ref": 42},
+    ],
+)
+def test_compile_invalid_argument_raises(ast):
+    """Sub-arguments that cannot be compiled raise ValueError at compile time."""
+    with pytest.raises(ValueError):
+        dd_compile(ast)
+
+
+# ---- DDExpression.compile failure path ----
+
+
+def test_dd_expression_compile_failure_falls_back_to_invalid_expression():
+    """DDExpression.compile uses _invalid_expression on compiler error (lines 436, 414)."""
+    expr = DDExpression.compile({"json": {"unknown_op": []}, "dsl": "bad_expr"})
+    # _invalid_expression returns None silently rather than raising
+    assert expr.eval({}) is None
+
+
+# ---- _make_lambda invalid predicate ----
+
+
+def test_make_lambda_invalid_predicate_raises():
+    """_make_lambda raises ValueError when the AST produces no compilable predicate (line 136)."""
+    compiler = DDCompiler()
+    with pytest.raises(ValueError, match="Invalid predicate"):
+        compiler._make_lambda({"unknown_op": []})
+
+
+# ---- One-shot iterator guard ----
+
+
+def test_any_refuses_generator():
+    """any/all raise TypeError for a generator to avoid exhausting application state."""
+    gen = (x for x in [1, 2, 3])
+    with pytest.raises(TypeError, match="one-shot iterator"):
+        dd_compile({"any": [{"ref": "g"}, True]})({"g": gen})
+    # Generator must be untouched — the guard fires before any iteration.
+    assert list(gen) == [1, 2, 3]
+
+
+def test_any_refuses_map_iterator():
+    """The one-shot guard uses MRO inspection, so it catches map/zip/filter too."""
+    m = map(str, [1, 2, 3])
+    with pytest.raises(TypeError, match="one-shot iterator"):
+        dd_compile({"any": [{"ref": "m"}, True]})({"m": m})
+    assert list(m) == ["1", "2", "3"]
+
+
+def test_is_one_shot_iterator_catches_async_generator():
+    """_is_one_shot_iterator returns True for async generators (__anext__)."""
+
+    async def agen():
+        yield 1
+
+    assert _is_one_shot_iterator(agen())
+
+
+def test_is_one_shot_iterator_not_fooled_by_metaclass_getattribute():
+    """_is_one_shot_iterator uses object.__getattribute__ so a metaclass override cannot hide __next__."""
+
+    class LyingMeta(type):
+        def __getattribute__(cls, name):
+            if name == "__mro__":
+                # Lie and return only object's MRO to try to hide __next__
+                return (object,)
+            return super().__getattribute__(name)
+
+    class FakeNonIterator(metaclass=LyingMeta):
+        def __next__(self):
+            return 42
+
+    assert _is_one_shot_iterator(FakeNonIterator())
+
+
+def test_is_one_shot_iterator_false_for_regular_iterables():
+    """_is_one_shot_iterator returns False for multi-shot iterables."""
+    assert not _is_one_shot_iterator([1, 2, 3])
+    assert not _is_one_shot_iterator((1, 2, 3))
+    assert not _is_one_shot_iterator({1, 2, 3})
+    assert not _is_one_shot_iterator({"a": 1})
+    assert not _is_one_shot_iterator("hello")
+    assert not _is_one_shot_iterator(range(10))
+
+
+def test_filter_refuses_generator():
+    """filter raises TypeError for a generator to avoid exhausting application state."""
+    gen = (x for x in [1, 2, 3])
+    with pytest.raises(TypeError, match="one-shot iterator"):
+        dd_compile({"filter": [{"ref": "g"}, True]})({"g": gen})
+    assert list(gen) == [1, 2, 3]
+
+
+def test_filter_on_custom_dict_subclass_does_not_call_items_override():
+    """filter uses dict.items() directly, bypassing any subclass override."""
+    items_called = []
+
+    class TrackedDict(dict):
+        def items(self):
+            items_called.append(True)
+            return super().items()
+
+    d = TrackedDict({"a": 1, "b": 2})
+    result = dd_compile({"filter": [{"ref": "d"}, True]})({"d": d})
+    assert not items_called, "items() override must not be called"
+    assert result == {"a": 1, "b": 2}
+
+
+def test_any_on_custom_dict_subclass_does_not_call_items_override():
+    """any uses dict.items() directly, bypassing any subclass override."""
+    items_called = []
+
+    class TrackedDict(dict):
+        def items(self):
+            items_called.append(True)
+            return super().items()
+
+    d = TrackedDict({"a": 1})
+    dd_compile({"any": [{"ref": "d"}, True]})({"d": d})
+    assert not items_called, "items() override must not be called"
+
+
+def test_filter_on_custom_sequence_returns_list_not_subclass():
+    """filter falls back to list for custom sequence types to avoid __init__ side effects."""
+    init_called = []
+
+    class TrackedList(list):
+        def __init__(self, *args, **kwargs):
+            init_called.append(True)
+            super().__init__(*args, **kwargs)
+
+    coll = TrackedList([1, 2, 3])
+    init_called.clear()  # reset — we only care about calls triggered by filter
+
+    result = dd_compile({"filter": [{"ref": "l"}, True]})({"l": coll})
+    assert type(result) is list
+    assert result == [1, 2, 3]
+    assert not init_called, "__init__ of subclass must not be called during filter"
+
+
+@pytest.mark.parametrize("coll_type", [list, tuple, set, frozenset])
+def test_filter_preserves_builtin_collection_type(coll_type):
+    """filter preserves the type for known-safe builtin collection types."""
+    coll = coll_type([1, 2, 3])
+    result = dd_compile({"filter": [{"ref": "c"}, True]})({"c": coll})
+    assert type(result) is coll_type

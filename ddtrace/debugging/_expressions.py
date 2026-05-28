@@ -54,6 +54,86 @@ DDASTType = Union[dict[str, Any], dict[str, list[Any]], Any]
 
 log = get_logger(__name__)
 
+# Types whose constructor is safe to call with a generator argument during
+# filter reconstruction. Custom subclasses are excluded to avoid triggering
+# arbitrary __init__ side effects.
+_SAFE_RECONSTRUCTIBLE_TYPES: frozenset[type] = frozenset({list, tuple, set, frozenset})
+
+# Direct handles on type's own C-level getset_descriptors.
+# _type_dict_descriptor: calling .__get__(cls) returns the class namespace
+# (tp_dict) as a mappingproxy, bypassing any metaclass __dict__ override.
+# _type_module_descriptor / _type_qualname_descriptor: calling .__get__(cls)
+# reads tp_module / tp_name directly, bypassing any metaclass __module__ or
+# __qualname__ property that could invoke arbitrary user code.
+_type_dict_descriptor: Any = type.__dict__["__dict__"]  # type: ignore[index]
+_type_module_descriptor: Any = type.__dict__["__module__"]  # type: ignore[index]
+_type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
+
+# Builtin sized types whose __len__ is safe to call directly.  We call the
+# unbound method (e.g. list.__len__(obj)) rather than the builtin len() so
+# that custom __len__ overrides on subclasses are bypassed and cannot trigger
+# arbitrary side effects (DB queries, network calls, …).
+_SAFE_SIZED_BUILTINS: tuple[type, ...] = (list, tuple, set, frozenset, dict, str, bytes, bytearray, range)
+
+
+def _safe_len(obj: Any) -> int:
+    """Return the length of *obj* without invoking a custom __len__.
+
+    Only succeeds for instances of known builtin sized types; raises TypeError
+    for anything else to avoid triggering arbitrary user code as a side effect.
+    """
+    for t in _SAFE_SIZED_BUILTINS:
+        if _isinstance(obj, t):
+            return t.__len__(obj)  # type: ignore[attr-defined, no-any-return]
+    raise TypeError("Cannot safely determine length of %s without risking side effects" % type(obj).__name__)
+
+
+def _safe_is_empty(obj: Any) -> bool:
+    """Return True if *obj* is empty, without invoking custom __bool__ or __len__."""
+    return _safe_len(obj) == 0
+
+
+# Builtin container types whose __contains__ is safe to call directly.
+_SAFE_CONTAINS_BUILTINS: tuple[type, ...] = (list, tuple, set, frozenset, dict, str, bytes, bytearray)
+
+
+def _safe_contains(container: Any, item: Any) -> bool:
+    """Check membership without invoking a custom __contains__.
+
+    Only succeeds for instances of known builtin container types.  Transparent
+    proxies (e.g. SafeObjectProxy / wrapt.ObjectProxy) are unwrapped one level
+    via object.__getattribute__ so that the underlying builtin container can be
+    inspected safely.  Raises TypeError for anything else.
+    """
+    for t in _SAFE_CONTAINS_BUILTINS:
+        if _isinstance(container, t):
+            return t.__contains__(container, item)  # type: ignore[operator, no-any-return]
+    # Unwrap transparent proxies (wrapt.ObjectProxy / SafeObjectProxy expose
+    # __wrapped__ as a C-level attribute; object.__getattribute__ bypasses any
+    # Python-level __getattribute__ override, reaching it directly).
+    try:
+        wrapped = object.__getattribute__(container, "__wrapped__")
+    except AttributeError:
+        pass
+    else:
+        return _safe_contains(wrapped, item)
+    raise TypeError("Cannot safely check containment in %s without risking side effects" % type(container).__name__)
+
+
+def _is_one_shot_iterator(it: Any) -> bool:
+    """Return True if *it* is a one-shot iterator (sync or async).
+
+    Uses MRO inspection rather than hasattr() to avoid triggering
+    __getattribute__ overrides on the instance itself. Accesses __mro__
+    via object.__getattribute__ to bypass any metaclass __getattribute__
+    override, and reads each class's namespace through the raw type
+    __dict__ descriptor to bypass any metaclass __dict__ override.
+    """
+    mro = object.__getattribute__(type(it), "__mro__")
+    return any(
+        "__next__" in _type_dict_descriptor.__get__(c) or "__anext__" in _type_dict_descriptor.__get__(c) for c in mro
+    )
+
 
 def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
@@ -77,11 +157,14 @@ def instanceof(value: Any, type_qname: str) -> bool:
         # Otherwise we expect a fully qualified name
         try:
             for c in object.__getattribute__(type(value), "__mro__"):
-                module = object.__getattribute__(c, "__module__")
-                qualname = object.__getattribute__(c, "__qualname__")
+                # Use the raw type-level getset_descriptors for __module__ and
+                # __qualname__ so that a custom metaclass property for either
+                # attribute cannot be invoked as a side effect.
+                module = _type_module_descriptor.__get__(c)
+                qualname = _type_qualname_descriptor.__get__(c)
                 if f"{module}.{qualname}" == type_qname:
                     return True
-        except AttributeError:
+        except Exception:
             log.debug("Failed to check instanceof %s for value of type %s", type_qname, type(value))
 
     return False
@@ -162,7 +245,9 @@ class DDCompiler:
                 [Instr("LOAD_CONST", self._make_function(value, ("_locals",), "<isDefined-predicate>"))],
                 [Instr("LOAD_FAST", "_locals")],
             )
-        else:
+        elif _type == "isEmpty":
+            value = self._call_function(_safe_is_empty, value)
+        else:  # "not"
             if PY >= (3, 13):
                 # UNARY_NOT requires a boolean value
                 value.append(Instr("TO_BOOL"))
@@ -206,7 +291,7 @@ class DDCompiler:
                 raise ValueError("Invalid argument: %r" % a)
             if cb is None:
                 raise ValueError("Invalid argument: %r" % b)
-            return cb + ca + [Instr("CONTAINS_OP", 0)]
+            return self._call_function(_safe_contains, ca, cb)
 
         if _type in {"any", "all"}:
             a, b = args
@@ -219,8 +304,11 @@ class DDCompiler:
             def coll_iter(
                 it: Collection[Any], cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
             ) -> Any:
+                if _is_one_shot_iterator(it):
+                    raise TypeError("Cannot iterate over a one-shot iterator in a debugger expression")
                 if _isinstance(it, dict):
-                    return f(cond(k, k, v, _locals) for k, v in cast(dict[Any, Any], it).items())
+                    # Use the unbound dict.items() to bypass any subclass override.
+                    return f(cond(k, k, v, _locals) for k, v in dict.items(it))  # type: ignore[arg-type, var-annotated]
                 return f(cond(e, None, None, _locals) for e in it)
 
             return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -257,7 +345,7 @@ class DDCompiler:
             value = self._compile_value_source(arg)
             if value is None:
                 raise ValueError("Invalid argument: %r" % arg)
-            return self._call_function(len, value)
+            return self._call_function(_safe_len, value)
 
         if _type == "ref":
             if not isinstance(arg, str):
@@ -327,9 +415,17 @@ class DDCompiler:
             def coll_filter(
                 it: Any, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
             ) -> Any:
+                if _is_one_shot_iterator(it):
+                    raise TypeError("Cannot iterate over a one-shot iterator in a debugger expression")
                 if _isinstance(it, dict):
-                    return type(it)({k: v for k, v in cast(dict[Any, Any], it).items() if cond(k, k, v, _locals)})
-                return type(it)(e for e in it if cond(e, None, None, _locals))
+                    # Use unbound dict.items() to bypass any subclass override, and
+                    # return a plain dict to avoid calling a custom subclass constructor.
+                    return {k: v for k, v in dict.items(it) if cond(k, k, v, _locals)}
+                it_type = type(it)
+                filtered = (e for e in it if cond(e, None, None, _locals))
+                # Only reconstruct using the original type for known-safe builtins.
+                # For custom subclasses, fall back to list to avoid __init__ side effects.
+                return it_type(filtered) if it_type in _SAFE_RECONSTRUCTIBLE_TYPES else list(filtered)
 
             return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
 
