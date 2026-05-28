@@ -388,7 +388,7 @@ class TestAPIClientGetKnownTests:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "configurations": {"os.platform": "Linux"},
-                            "page_info": {"page_size": 50000},
+                            "page_info": {"page_size": 20000},
                         },
                     }
                 },
@@ -453,7 +453,7 @@ class TestAPIClientGetKnownTests:
 
         assert len(mock_connector.post_json.call_args_list) == 2
         assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {
-            "page_size": 50000
+            "page_size": 20000
         }
         assert mock_connector.post_json.call_args_list[1][0][1]["data"]["attributes"]["page_info"] == {
             "page_state": "cursor-page-1"
@@ -527,7 +527,7 @@ class TestAPIClientGetKnownTests:
             "data": {
                 "id": "00000000-0000-0000-0000-000000000000",
                 "type": "ci_app_libraries_tests_request",
-                "attributes": {**expected_shared_attributes, "page_info": {"page_size": 50000}},
+                "attributes": {**expected_shared_attributes, "page_info": {"page_size": 20000}},
             }
         }
 
