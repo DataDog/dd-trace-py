@@ -80,10 +80,12 @@ jobs:
         uses: pypa/cibuildwheel@ee02a1537ce3071a004a6b08c41e72f0fdc42d9a # v3.4.0
         with:
           only: ${{ matrix.only }}
+          working-directory: dd-trace-py
 
       - name: Validate wheel RECORD files
         shell: bash
         run: |
+          cd dd-trace-py
           for wheel in ./wheelhouse/*.whl; do
             if [ -f "$wheel" ]; then
               echo "Validating $(basename $wheel)..."
@@ -101,12 +103,12 @@ jobs:
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
-          path: ./wheelhouse/*.whl
+          path: ./dd-trace-py/wheelhouse/*.whl
 
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}
           path: |
-            ./debugwheelhouse/*.zip
-            ./wheelhouse/debugwheelhouse/*.zip
+            ./dd-trace-py/debugwheelhouse/*.zip
+            ./dd-trace-py/wheelhouse/debugwheelhouse/*.zip
