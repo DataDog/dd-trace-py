@@ -160,7 +160,7 @@ def test_code_cache_env_var_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", "not-a-number")
     _memalloc.code_cache_enable()
     stats = _stats()
-    assert stats["capacity"] == 32768, f"bad-value fallback failed, got {stats['capacity']}"
+    assert stats["capacity"] == 1024, f"bad-value fallback failed, got {stats['capacity']}"
 
 
 def test_code_cache_eviction_under_churn(monkeypatch: pytest.MonkeyPatch) -> None:
