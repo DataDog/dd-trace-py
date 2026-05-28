@@ -55,5 +55,5 @@ def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:
 
 
 if config._data_streams_enabled:
-    core.on("context.started.messaging.publish.aio-pika", handle_aio_pika_produce)
-    core.on("context.started.messaging.consume.aio-pika", handle_aio_pika_consume)
+    core.on("context.started.messaging.publish.aio_pika", handle_aio_pika_produce)
+    core.on("context.started.messaging.consume.aio_pika", handle_aio_pika_consume)

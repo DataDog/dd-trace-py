@@ -177,39 +177,41 @@ async def test_queue_get_empty_queue_raises(patch_aio_pika):
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=_SNAPSHOT_IGNORES)
 async def test_distributed_tracing_publish_to_consume(patch_aio_pika):
-    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
-        msg = make_message("distributed tracing test")
-        await exchange.publish(msg, routing_key=routing_key)
+    with override_config("aio_pika", dict(distributed_tracing_enabled=True)):
+        async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+            msg = make_message("distributed tracing test")
+            await exchange.publish(msg, routing_key=routing_key)
 
-        received = []
-        consume_done = asyncio.Event()
+            received = []
+            consume_done = asyncio.Event()
 
-        async def on_message(message: aio_pika.abc.AbstractIncomingMessage):
-            received.append(message)
-            await message.ack()
-            consume_done.set()
+            async def on_message(message: aio_pika.abc.AbstractIncomingMessage):
+                received.append(message)
+                await message.ack()
+                consume_done.set()
 
-        consumer_tag = await queue.consume(on_message, no_ack=False)
-        try:
-            await asyncio.wait_for(consume_done.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            pytest.fail("Timed out waiting for distributed tracing consume")
-        finally:
-            await queue.cancel(consumer_tag)
+            consumer_tag = await queue.consume(on_message, no_ack=False)
+            try:
+                await asyncio.wait_for(consume_done.wait(), timeout=10.0)
+            except asyncio.TimeoutError:
+                pytest.fail("Timed out waiting for distributed tracing consume")
+            finally:
+                await queue.cancel(consumer_tag)
 
-    assert len(received) == 1
+        assert len(received) == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=_SNAPSHOT_IGNORES)
 async def test_distributed_tracing_publish_to_get(patch_aio_pika):
-    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
-        msg = make_message("distributed tracing get test")
-        await exchange.publish(msg, routing_key=routing_key)
+    with override_config("aio_pika", dict(distributed_tracing_enabled=True)):
+        async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+            msg = make_message("distributed tracing get test")
+            await exchange.publish(msg, routing_key=routing_key)
 
-        incoming = await queue_get_with_retry(queue, no_ack=False)
-        assert incoming.body == b"distributed tracing get test"
-        await incoming.ack()
+            incoming = await queue_get_with_retry(queue, no_ack=False)
+            assert incoming.body == b"distributed tracing get test"
+            await incoming.ack()
 
 
 @pytest.mark.asyncio
@@ -281,3 +283,33 @@ async def test_publish_sets_connection_tags_for_peer_service(patch_aio_pika):
     async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
         msg = make_message("peer service test")
         await exchange.publish(msg, routing_key=routing_key)
+
+
+@pytest.mark.asyncio
+async def test_resource_name_uses_exchange_for_publish(patch_aio_pika, tracer, test_spans):
+    """Verify publish span resource is the exchange name."""
+    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+        msg = make_message("resource name test")
+        await exchange.publish(msg, routing_key=routing_key)
+
+    spans = test_spans.pop()
+    publish_spans = [s for s in spans if "publish" in s.name]
+    assert len(publish_spans) >= 1
+    assert publish_spans[0].resource == publish_spans[0].name
+
+
+@pytest.mark.asyncio
+async def test_resource_name_uses_queue_for_get(patch_aio_pika, tracer, test_spans):
+    """Verify get span resource is the queue name."""
+    async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
+        msg = make_message("resource name get test")
+        await exchange.publish(msg, routing_key=routing_key)
+
+        incoming = await queue_get_with_retry(queue, no_ack=False)
+        assert incoming.body == b"resource name get test"
+        await incoming.ack()
+
+    spans = test_spans.pop()
+    get_spans = [s for s in spans if "get" in s.name]
+    assert len(get_spans) >= 1
+    assert get_spans[0].resource == get_spans[0].name

@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.messaging import MessagingActionEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
+from ddtrace.contrib._events.messaging import MessagingEvents
 from ddtrace.contrib._events.messaging import MessagingPublishEvent
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -19,13 +20,12 @@ from ddtrace.internal.utils.wrappers import unwrap as _u
 
 log = get_logger(__name__)
 
-_INTEGRATION_NAME = "aio-pika"
 _MESSAGING_SYSTEM = "rabbitmq"
 
 config._add(
     "aio_pika",
     dict(
-        distributed_tracing_enabled=asbool(_get_config("DD_AIO_PIKA_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing_enabled=asbool(_get_config("DD_AIO_PIKA_DISTRIBUTED_TRACING", default=False)),
     ),
 )
 
@@ -66,6 +66,10 @@ def _extract_conn_tags(instance) -> tuple[dict[str, str], dict[str, float]]:
         return {}, {}
 
 
+def _context_name(base_event: str) -> str:
+    return f"{base_event}.{config.aio_pika.integration_name}"
+
+
 async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace Exchange.publish calls."""
     message = args[0] if args else kwargs.get("message")
@@ -78,15 +82,13 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
 
     exchange_name = getattr(instance, "name", "") or ""
     routing_key = args[1] if len(args) > 1 else kwargs.get("routing_key", "") or ""
-    # For the default exchange (empty name), the routing key is the destination queue.
     destination = exchange_name or routing_key
     conn_tags, conn_metrics = _extract_conn_tags(instance)
-    # Pass the real message headers dict by reference — the subscriber injects
-    # trace context directly into it, so no write-back is needed.
+
     event = MessagingPublishEvent(
         messaging_system=_MESSAGING_SYSTEM,
         destination=destination,
-        component=_INTEGRATION_NAME,
+        component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         headers=message.headers,
         body=getattr(message, "body", b"") or b"",
@@ -95,7 +97,7 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
         metrics=conn_metrics,
     )
 
-    with core.context_with_event(event):
+    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.PUBLISH.value)):
         return await func(*args, **kwargs)
 
 
@@ -127,14 +129,14 @@ async def traced_consumer(
     event = MessagingConsumeEvent(
         messaging_system=_MESSAGING_SYSTEM,
         destination=destination,
-        component=_INTEGRATION_NAME,
+        component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         headers=decoded_headers,
         body=body,
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
     )
 
-    with core.context_with_event(event):
+    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.CONSUME.value)):
         return await func(*args, **kwargs)
 
 
@@ -163,7 +165,7 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
     event = MessagingConsumeEvent(
         messaging_system=_MESSAGING_SYSTEM,
         destination=queue_name,
-        component=_INTEGRATION_NAME,
+        component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         headers=decoded_headers,
         body=body,
@@ -172,7 +174,7 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
         span_operation="get",
     )
 
-    with core.context_with_event(event):
+    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.CONSUME.value)):
         if func_error is not None:
             raise func_error
 
@@ -191,20 +193,15 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
         event = MessagingActionEvent(
             messaging_system=_MESSAGING_SYSTEM,
             destination=destination,
-            component=_INTEGRATION_NAME,
+            component=config.aio_pika.integration_name,
             integration_config=config.aio_pika,
             operation=operation,
         )
 
-        with core.context_with_event(event):
+        with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.ACTION.value)):
             return await func(*args, **kwargs)
 
     return _traced_action
-
-
-traced_ack = _make_action_wrapper("ack")
-traced_nack = _make_action_wrapper("nack")
-traced_reject = _make_action_wrapper("reject")
 
 
 def patch() -> None:
@@ -215,9 +212,9 @@ def patch() -> None:
     _w("aio_pika", "Exchange.publish", traced_publish)
     _w("aio_pika.queue", "consumer", traced_consumer)
     _w("aio_pika", "Queue.get", traced_get)
-    _w("aio_pika", "IncomingMessage.ack", traced_ack)
-    _w("aio_pika", "IncomingMessage.nack", traced_nack)
-    _w("aio_pika", "IncomingMessage.reject", traced_reject)
+    _w("aio_pika", "IncomingMessage.ack", _make_action_wrapper("ack"))
+    _w("aio_pika", "IncomingMessage.nack", _make_action_wrapper("nack"))
+    _w("aio_pika", "IncomingMessage.reject", _make_action_wrapper("reject"))
 
 
 def unpatch() -> None:

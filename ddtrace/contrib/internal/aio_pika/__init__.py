@@ -26,5 +26,5 @@ Configuration
    This option can also be set with the ``DD_AIO_PIKA_DISTRIBUTED_TRACING`` environment
    variable.
 
-   Default: ``True``
+   Default: ``False``
 """

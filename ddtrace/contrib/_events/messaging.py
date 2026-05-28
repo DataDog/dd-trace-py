@@ -1,43 +1,24 @@
 from dataclasses import dataclass
-from typing import Protocol
+from enum import Enum
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_OPERATION
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
 
-class _MessagingEvent(Protocol):
-    operation_name: str
-    tags: dict[str, str]
-    messaging_system: str
-    destination: str
-
-
-def _init_messaging_event(event: _MessagingEvent, operation: str, direction: SpanDirection) -> None:
-    """Set the operation name and common messaging tags shared by all messaging events."""
-    event.operation_name = schematize_messaging_operation(
-        f"{event.messaging_system}.{operation}",
-        provider=event.messaging_system,
-        direction=direction,
-    )
-    event.tags[MESSAGING_SYSTEM] = event.messaging_system
-    event.tags[MESSAGING_DESTINATION_NAME] = event.destination
-    event.tags[MESSAGING_OPERATION] = operation
+class MessagingEvents(str, Enum):
+    PUBLISH = "messaging.publish"
+    CONSUME = "messaging.consume"
+    ACTION = "messaging.action"
 
 
 @dataclass
 class MessagingPublishEvent(TracingEvent):
     """Event for messaging publish/produce operations.
-
-    Sets _emit_scoped_event so integrations can subscribe to
-    ``context.started.messaging.publish.<component>`` without guards.
 
     Pass ``headers`` as the message's own mutable ``dict[str, str]``.
     After context entry, ``MessagingTracingSubscriber`` injects distributed-
@@ -52,20 +33,23 @@ class MessagingPublishEvent(TracingEvent):
     if the library does not share a Python reference.
     """
 
-    event_name = "messaging.publish"
+    event_name = MessagingEvents.PUBLISH.value
     span_kind = SpanKind.PRODUCER
     span_type = SpanTypes.WORKER
-    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()
     #: The message's outbound header dict — modified in-place by subscribers.
     headers: dict[str, str] = event_field(default_factory=dict)
     body: bytes = event_field(default=b"")
-    distributed_tracing_enabled: bool = event_field(default=True)
+    distributed_tracing_enabled: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
-        _init_messaging_event(self, "publish", SpanDirection.OUTBOUND)
+        self.operation_name = schematize_messaging_operation(
+            f"{self.messaging_system}.publish",
+            provider=self.messaging_system,
+            direction=SpanDirection.OUTBOUND,
+        )
 
 
 @dataclass
@@ -82,16 +66,15 @@ class MessagingConsumeEvent(TracingEvent):
     disabled.
     """
 
-    event_name = "messaging.consume"
+    event_name = MessagingEvents.CONSUME.value
     span_kind = SpanKind.CONSUMER
     span_type = SpanTypes.WORKER
-    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()
     headers: dict[str, str] = event_field(default_factory=dict)
     body: bytes = event_field(default=b"")
-    distributed_tracing_enabled: bool = event_field(default=True)
+    distributed_tracing_enabled: bool = event_field(default=False)
     operation: str = event_field(default="receive")
     # If set, overrides the operation token used when building operation_name while
     # leaving the ``messaging.operation`` tag equal to ``operation``.  Use this
@@ -101,9 +84,11 @@ class MessagingConsumeEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         span_op = self.span_operation or self.operation
-        _init_messaging_event(self, span_op, SpanDirection.PROCESSING)
-        # The tag must reflect the semantic operation, not the span operation override.
-        self.tags[MESSAGING_OPERATION] = self.operation
+        self.operation_name = schematize_messaging_operation(
+            f"{self.messaging_system}.{span_op}",
+            provider=self.messaging_system,
+            direction=SpanDirection.PROCESSING,
+        )
         if self.distributed_tracing_enabled and self.headers:
             self.distributed_context = HTTPPropagator.extract(self.headers)
             self.use_active_context = False
@@ -113,14 +98,17 @@ class MessagingConsumeEvent(TracingEvent):
 class MessagingActionEvent(TracingEvent):
     """Event for messaging acknowledgement operations (ack, nack, reject)."""
 
-    event_name = "messaging.action"
+    event_name = MessagingEvents.ACTION.value
     span_kind = SpanKind.INTERNAL
     span_type = SpanTypes.WORKER
-    _emit_scoped_event = True
 
     messaging_system: str = event_field()
     destination: str = event_field()
     operation: str = event_field()
 
     def __post_init__(self) -> None:
-        _init_messaging_event(self, self.operation, SpanDirection.PROCESSING)
+        self.operation_name = schematize_messaging_operation(
+            f"{self.messaging_system}.{self.operation}",
+            provider=self.messaging_system,
+            direction=SpanDirection.PROCESSING,
+        )
