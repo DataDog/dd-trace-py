@@ -86,21 +86,21 @@ def unregister(after_in_child: typing.Callable[[], None]) -> None:
     try:
         _registry.remove(after_in_child)
     except ValueError:
-        log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
+        log.info("after_in_child hook %r was unregistered without first being registered", after_in_child)
 
 
 def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
     try:
         _registry_after_parent.remove(after_in_parent)
     except ValueError:
-        log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
+        log.info("after_in_parent hook %r was unregistered without first being registered", after_in_parent)
 
 
 def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
     try:
         _registry_before_fork.remove(before_fork)
     except ValueError:
-        log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
+        log.info("before_in_child hook %r was unregistered without first being registered", before_fork)
 
 
 # Availability: Unix, not WASI, not Android, not iOS.
