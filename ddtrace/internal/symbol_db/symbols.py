@@ -555,6 +555,13 @@ class ScopeContext:
             }
 
     def upload(self) -> None:
+        with self._scopes_lock:
+            if not self._scopes:
+                return
+            payload = self.to_json()
+            n = len(self._scopes)
+            self._scopes.clear()
+
         body, headers = multipart(
             parts=[
                 FormData(
@@ -571,11 +578,6 @@ class ScopeContext:
                 ),
             ]
         )
-
-        with self._scopes_lock:
-            payload = self.to_json()
-            n = len(self._scopes)
-            self._scopes.clear()
 
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
