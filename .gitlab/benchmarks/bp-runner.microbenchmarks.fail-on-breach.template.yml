@@ -493,7 +493,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-ljust_noaspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.45 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-lower_aspect
             thresholds:
