@@ -336,7 +336,7 @@ class PromptManager:
 
     @staticmethod
     def _parse_prompt(
-        raw: Union[str, dict],
+        raw: Union[str, dict[str, Any]],
         source: Literal["registry", "cache", "fallback", "ff"],
         prompt_id: str = "",
         label: Optional[str] = None,
