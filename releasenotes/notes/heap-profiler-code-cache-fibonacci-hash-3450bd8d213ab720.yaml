@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    profiling: improve the hit rate of the heap profiler's internal
+    ``PyCodeObject`` cache by switching its set index from a shift-and-mask
+    scheme to Fibonacci hashing. The previous hash piled clustered
+    pymalloc-allocated pointers into a handful of sets, ceiling the hit
+    rate near 90% on workloads with many unique frames. The new hash
+    distributes lookups uniformly, raising the hit rate above 99% under
+    the same conditions. No user-facing API change; the
+    ``DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE`` env var still controls
+    capacity.
