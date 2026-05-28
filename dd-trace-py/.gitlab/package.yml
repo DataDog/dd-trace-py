@@ -314,30 +314,30 @@ variables:
 
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
-"download win_arm64 wheels":
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
-  stage: package
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script: |
-    cd dd-trace-py
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
-    fi
-    # Prevent git operation errors:
-    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
-    git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    .gitlab/download-wheels-from-gh-actions.sh
-  artifacts:
-    paths:
-      - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
+#"download win_arm64 wheels":
+#  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+#  tags: [ "arch:amd64" ]
+#  stage: package
+#  id_tokens:
+#    DDOCTOSTS_ID_TOKEN:
+#      aud: dd-octo-sts
+#  script: |
+#    cd dd-trace-py
+#    if [ -z ${GH_TOKEN} ]
+#    then
+#      # Use dd-octo-sts to get GitHub token
+#      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+#      gh auth login --with-token < token
+#      rm token
+#    fi
+#    # Prevent git operation errors:
+#    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
+#    git config --global --add safe.directory "${CI_PROJECT_DIR}"
+#    .gitlab/download-wheels-from-gh-actions.sh
+#  artifacts:
+#    paths:
+#      - "pywheels/*.whl"
+#      - "pywheels/*.tar.gz"
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
