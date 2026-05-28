@@ -238,6 +238,98 @@ def test_ray_run_context_backfilled_at_close_when_cache_populated_late(tracer):
         _utils.clear_cached_run_metadata()
 
 
+def test_retag_ray_run_context_tags_live_rank_span(tracer):
+    """Regression: ``ray.submission_id`` was missing on ``pytorch.rank``
+    in live verification because ``_run_train_func_in_worker`` restores
+    the cache to empty before ``_rank_root.close()`` runs at exit. The
+    new ``retag_ray_run_context()`` entrypoint is called by the worker
+    wrap immediately after populating the cache so the tag lands on the
+    live span (not at close, which sees an empty cache).
+    """
+    from ddtrace.contrib.internal.pytorch import _utils
+
+    _utils.clear_cached_run_metadata()
+    _rank_root.open(rank=0, world_size=1, framework="ddp", training_job_id="job-X")
+    span = _th.current_rank_span()
+    assert span.get_tag("ray.submission_id") is None
+
+    # Worker wrap populates the cache, then immediately calls retag.
+    _utils.set_cached_run_metadata(
+        submission_id="raysubmit_eager",
+        metadata={"job_name": "eager.job"},
+        run_name="run-eager",
+    )
+    try:
+        _rank_root.retag_ray_run_context()
+        assert span.get_tag("ray.submission_id") == "raysubmit_eager"
+        assert span.get_tag("ray.metadata.job_name") == "eager.job"
+        assert span.get_tag("ray.train.run_name") == "run-eager"
+
+        # Simulate the worker wrap's finally clearing the cache (restore
+        # to empty). The tags must stay on the live span — they were
+        # written eagerly, not pulled at close.
+        _utils.clear_cached_run_metadata()
+        assert span.get_tag("ray.submission_id") == "raysubmit_eager"
+    finally:
+        _utils.clear_cached_run_metadata()
+        _rank_root.close()
+
+
+def test_close_logs_warning_on_per_facet_set_attribute_failure(tracer, caplog, monkeypatch):
+    """When ``span._set_attribute`` rejects a summary facet, the failure
+    must be visible at WARNING level (was previously debug-level, which
+    silently masked grad_comm.bucket_duration_ms.{min_ms,max_ms,p*_ms}
+    rejections in production).
+    """
+    import logging as _logging
+
+    from ddtrace.contrib.internal.pytorch import _summary
+
+    _summary.reset_all()
+    _summary.push_distribution("step.forward_ms", 1.5)
+
+    _rank_root.open(rank=0, world_size=1, framework="ddp", training_job_id="job-x")
+    span = _th.current_rank_span()
+
+    # Make _set_attribute raise for every facet so we exercise the warning path.
+    original_set_attribute = type(span)._set_attribute
+
+    def boom(self, key, value):
+        if key.startswith("step.forward_ms"):
+            raise ValueError(f"simulated rejection for {key}")
+        return original_set_attribute(self, key, value)
+
+    monkeypatch.setattr(type(span), "_set_attribute", boom, raising=False)
+
+    with caplog.at_level(_logging.WARNING, logger="ddtrace.contrib.internal.pytorch._rank_root"):
+        _rank_root.close()
+
+    # At least one WARNING with the failing facet name + the value type.
+    warnings = [r for r in caplog.records if r.levelno == _logging.WARNING]
+    msgs = [r.getMessage() for r in warnings]
+    assert any("step.forward_ms" in m for m in msgs), f"expected warning naming failed facet, got: {msgs}"
+
+
+def test_retag_ray_run_context_noop_when_no_span_open(tracer):
+    """retag_ray_run_context() must not crash when called with no rank
+    span open (e.g., installed but workers never reach init_process_group).
+    """
+    from ddtrace.contrib.internal.pytorch import _utils
+
+    # Ensure no span is open.
+    try:
+        _rank_root.close()
+    except Exception:
+        pass
+
+    _utils.set_cached_run_metadata(submission_id="x", metadata={}, run_name="r")
+    try:
+        # Must not raise.
+        _rank_root.retag_ray_run_context()
+    finally:
+        _utils.clear_cached_run_metadata()
+
+
 def test_rank_root_nests_under_active_ray_worker_span(tracer):
     """When a `ray.train.worker` span is currently active, the
     `pytorch.rank` span should become its child (not a new trace root).

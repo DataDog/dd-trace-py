@@ -479,6 +479,18 @@ def _run_train_func_in_worker(
             submission_id=worker_submission_id or submission_id,
             metadata=run_metadata or None,
         )
+        # AIDEV-NOTE: tag the live pytorch.rank span NOW (while the cache
+        # is fresh). The finally block below restores previous_run_metadata
+        # BEFORE _rank_root.close() runs at process exit — so the close-time
+        # backfill in _tag_ray_run_context would see an empty cache and miss
+        # ray.submission_id / ray.train.run_name. Tagging here lands the
+        # values on the long-running rank span for its full lifetime.
+        try:
+            from ddtrace.contrib.internal.pytorch._rank_root import retag_ray_run_context  # noqa: PLC0415
+
+            retag_ray_run_context()
+        except Exception:
+            log.debug("ray.train: retag_ray_run_context failed", exc_info=True)
     except ImportError:
         log.debug("ray.train: pytorch contrib not available; skipping set_cached_job_id")
 
