@@ -177,21 +177,25 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         span = self.current_llm_span
         self.current_llm_span = None
 
-        if self._accumulated_input_messages is None:
-            self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                self.request_args, self.request_kwargs, self.primary_span
-            )
+        try:
+            if self._accumulated_input_messages is None:
+                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
+                    self.request_args, self.request_kwargs, self.primary_span
+                )
 
-        self.integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={"input_messages": list(self._accumulated_input_messages)},
-            response=chunk,
-            operation="llm",
-        )
-        if exception is not None:
-            span.set_exc_info(type(exception), exception, exception.__traceback__)
-        span.finish()
+            self.integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs={"input_messages": list(self._accumulated_input_messages)},
+                response=chunk,
+                operation="llm",
+            )
+            if exception is not None:
+                span.set_exc_info(type(exception), exception, exception.__traceback__)
+        except Exception:
+            log.debug("Failed to set tags on llm span", exc_info=True)
+        finally:
+            span.finish()
 
         # Extend accumulated context with the assistant's response for the next step.
         if chunk is not None:
@@ -206,25 +210,29 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         span = self.current_step_span
         self.current_step_span = None
 
-        input_msgs = self._step_input_snapshot
-        if input_msgs is None:
-            if self._accumulated_input_messages is None:
-                self._accumulated_input_messages = self.integration.extract_llm_input_messages(
-                    self.request_args, self.request_kwargs, self.primary_span
-                )
-            input_msgs = self._accumulated_input_messages
-        self._step_input_snapshot = None
+        try:
+            input_msgs = self._step_input_snapshot
+            if input_msgs is None:
+                if self._accumulated_input_messages is None:
+                    self._accumulated_input_messages = self.integration.extract_llm_input_messages(
+                        self.request_args, self.request_kwargs, self.primary_span
+                    )
+                input_msgs = self._accumulated_input_messages
+            self._step_input_snapshot = None
 
-        self.integration.llmobs_set_tags(
-            span,
-            args=[],
-            kwargs={"input_messages": list(input_msgs)},
-            response=chunk,
-            operation="step",
-        )
-        if exception is not None:
-            span.set_exc_info(type(exception), exception, exception.__traceback__)
-        span.finish()
+            self.integration.llmobs_set_tags(
+                span,
+                args=[],
+                kwargs={"input_messages": list(input_msgs)},
+                response=chunk,
+                operation="step",
+            )
+            if exception is not None:
+                span.set_exc_info(type(exception), exception, exception.__traceback__)
+        except Exception:
+            log.debug("Failed to set tags on step span", exc_info=True)
+        finally:
+            span.finish()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str, is_error: bool = False) -> None:
         tool_span = tool_data["tool_span"]

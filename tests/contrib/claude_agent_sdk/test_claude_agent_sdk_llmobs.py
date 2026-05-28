@@ -884,6 +884,97 @@ class TestLLMObsClaudeAgentSdk:
         assert agent_spans[0].trace_id != agent_spans[1].trace_id
 
 
+def test_finalize_llm_span_always_finishes_span_even_when_set_tags_raises(tracer):
+    """span.finish() must be called even when llmobs_set_tags raises.
+
+    When a stream is interrupted mid-turn (e.g. UserAbortError after tool results arrive
+    but before the next AssistantMessage), _finalize_llm_span is called with chunk=None.
+    If llmobs_set_tags raises (e.g. due to malformed input data), the span must still be
+    finished so it doesn't leak and later get submitted without a span kind, which causes
+    'Span kind not found in span context' warnings in ddtrace.
+    """
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.contrib.internal.claude_agent_sdk._streaming import ClaudeAgentSdkAsyncStreamHandler
+    from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
+
+    integration = MagicMock(spec=ClaudeAgentSdkIntegration)
+    integration.llmobs_enabled = True
+
+    primary_span = tracer.trace("claude_agent_sdk.ClaudeSDKClient.query")
+
+    handler = ClaudeAgentSdkAsyncStreamHandler.__new__(ClaudeAgentSdkAsyncStreamHandler)
+    handler.integration = integration
+    handler.primary_span = primary_span
+    handler.request_args = []
+    handler.request_kwargs = {}
+    handler.chunks = []
+    handler.operation = "request"
+    handler.instance = None
+    handler.context = None
+    handler._active_tool_spans = {}
+    handler.current_step_span = None
+    handler._step_response_chunk = None
+    handler._step_input_snapshot = None
+    handler._accumulated_input_messages = None
+    handler._is_finalized = False
+
+    # Open an llm span (simulates _create_step_span creating the child)
+    with tracer.trace("claude_agent_sdk.llm") as llm_span:
+        handler.current_llm_span = llm_span
+
+        # Make llmobs_set_tags raise to simulate the failure path
+        integration.llmobs_set_tags.side_effect = RuntimeError("simulated tag failure")
+        integration.extract_llm_input_messages.return_value = []
+
+        handler._finalize_llm_span(None)
+
+    # The span must be finished regardless of the llmobs_set_tags failure
+    assert llm_span.finished, "llm span must be finished even when llmobs_set_tags raises"
+    assert handler.current_llm_span is None
+
+
+def test_finalize_step_span_always_finishes_span_even_when_set_tags_raises(tracer):
+    """span.finish() must be called even when llmobs_set_tags raises in _finalize_step_span."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.claude_agent_sdk._streaming import ClaudeAgentSdkAsyncStreamHandler
+    from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
+
+    integration = MagicMock(spec=ClaudeAgentSdkIntegration)
+    integration.llmobs_enabled = True
+
+    primary_span = tracer.trace("claude_agent_sdk.ClaudeSDKClient.query")
+
+    handler = ClaudeAgentSdkAsyncStreamHandler.__new__(ClaudeAgentSdkAsyncStreamHandler)
+    handler.integration = integration
+    handler.primary_span = primary_span
+    handler.request_args = []
+    handler.request_kwargs = {}
+    handler.chunks = []
+    handler.operation = "request"
+    handler.instance = None
+    handler.context = None
+    handler._active_tool_spans = {}
+    handler.current_llm_span = None
+    handler._step_response_chunk = None
+    handler._step_input_snapshot = None
+    handler._accumulated_input_messages = None
+    handler._is_finalized = False
+
+    with tracer.trace("claude_agent_sdk.step") as step_span:
+        handler.current_step_span = step_span
+
+        integration.llmobs_set_tags.side_effect = RuntimeError("simulated tag failure")
+        integration.extract_llm_input_messages.return_value = []
+
+        handler._finalize_step_span(None)
+
+    assert step_span.finished, "step span must be finished even when llmobs_set_tags raises"
+    assert handler.current_step_span is None
+
+
 def test_shadow_tags_llm_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from claude_agent_sdk usage to APM span."""
     from unittest.mock import MagicMock
