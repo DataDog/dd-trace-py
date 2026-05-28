@@ -1168,9 +1168,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message: dict[str, Any] = {"content": "", "tool_calls": []}
+    message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -1182,6 +1182,9 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
             message["role"] = chunk.delta.role
         if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
+        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
+        if chunk_reasoning:
+            message["reasoning_content"] += chunk_reasoning
         chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
@@ -1198,6 +1201,8 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
         message["tool_calls"].sort(key=lambda x: x.get("index", 0))
     else:
         message.pop("tool_calls", None)
+    if not message["reasoning_content"]:
+        message.pop("reasoning_content", None)
     message["content"] = message["content"].strip()
     return message
 
