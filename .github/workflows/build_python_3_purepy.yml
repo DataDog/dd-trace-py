@@ -25,6 +25,7 @@ jobs:
       - name: Build wheels with uv
         run: |
           export UV_PYTHON="python"
+          cd ${{ inputs.package-dir }}
           ${{ inputs.package-dir }}/.gitlab/scripts/build-wheel.sh
       - name: Validate wheel RECORD files
         shell: bash
