@@ -19,7 +19,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 config._add(
     "jinja2",
     {
-        "service_name": env.get("DD_JINJA2_SERVICE_NAME"),
+        "service_name": env.get("DD_JINJA2_SERVICE"),
     },
 )
 

@@ -224,6 +224,23 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Check if a pause has been requested (e.g., for signal handler swapping).
+        // Block until resumed or the thread is asked to stop.
+        if (pause_requested_.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lock(pause_mutex_);
+            paused_.store(true, std::memory_order_release);
+            pause_cv_.notify_all();
+            pause_cv_.wait(lock, [&] {
+                return !pause_requested_.load(std::memory_order_acquire) || seq_num != thread_seq_num.load();
+            });
+            paused_.store(false, std::memory_order_release);
+            if (seq_num != thread_seq_num.load()) {
+                break;
+            }
+        }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time
+        // is not counted as sampling overhead.
         auto sample_capture_cpu_before = get_thread_cpu_time_us();
 
         // Clear ephemeral string table entries (task names, greenlet names) periodically.
@@ -431,6 +448,13 @@ Sampler::postfork_child()
     new (&thread_exit_mutex) std::mutex();
     new (&thread_exit_cv) std::condition_variable();
 
+    // Reset pause state - the parent's sampling thread (and any in-progress
+    // pause) doesn't exist in the child.
+    pause_requested_.store(false);
+    paused_.store(false);
+    new (&pause_mutex_) std::mutex();
+    new (&pause_cv_) std::condition_variable();
+
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
         echion->postfork_child();
@@ -529,8 +553,8 @@ stack_atfork_child()
 __attribute__((constructor)) void
 stack_init()
 {
-    // At just do start-of-process cleanup (e.g., set PID)
-    stack_postfork_cleanup();
+    _set_pid(getpid());
+    ThreadSpanLinks::postfork_child();
 }
 
 void
@@ -631,6 +655,10 @@ Sampler::stop()
     // a sampling loop.
     ++thread_seq_num;
 
+    // Wake the sampling thread if it's paused, so it can observe the seq_num
+    // change and exit.
+    pause_cv_.notify_all();
+
     // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
     std::unique_lock<std::mutex> lock(thread_exit_mutex);
     constexpr auto timeout = std::chrono::seconds(3);
@@ -638,6 +666,40 @@ Sampler::stop()
     if (!exited) {
         std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
     }
+}
+
+PauseResult
+Sampler::pause()
+{
+    if (!thread_running.load()) {
+        return PauseResult::NotRunning;
+    }
+
+    pause_requested_.store(true, std::memory_order_release);
+
+    // Wait for the sampling thread to reach the pause point (i.e., finish any
+    // in-flight sample) so the caller can safely swap signal handlers.
+    std::unique_lock<std::mutex> lock(pause_mutex_);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool ok = pause_cv_.wait_for(
+      lock, timeout, [this]() { return paused_.load(std::memory_order_acquire) || !thread_running.load(); });
+
+    if (!ok) {
+        // Timed out -- clear the request so the sampling thread isn't stuck.
+        pause_requested_.store(false, std::memory_order_release);
+        return PauseResult::Timeout;
+    }
+    return PauseResult::Paused;
+}
+
+void
+Sampler::resume()
+{
+    {
+        std::lock_guard<std::mutex> lock(pause_mutex_);
+        pause_requested_.store(false, std::memory_order_release);
+    }
+    pause_cv_.notify_all();
 }
 
 void

@@ -20,11 +20,12 @@ The converters target the same AI Guard ``Message`` schema used for Chat
 Completions, so a tenant's AI Guard rules apply uniformly across both APIs.
 """
 
+from collections.abc import Mapping
 from typing import Any
 from typing import Optional
 
+from ddtrace.appsec._ai_guard._common import _get
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
-from ddtrace.appsec._ai_guard._openai import _get
 from ddtrace.appsec._ai_guard._openai import _wrap_abort_error
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
@@ -42,8 +43,11 @@ logger = ddlogger.get_logger(__name__)
 # Responses-API content blocks that carry user-visible text. Restricting to
 # this allowlist avoids picking up stray ``text`` fields on unrelated block
 # shapes (e.g. an annotation block with a "text" attribute that isn't user
-# content).
-_RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text", "text")
+# content). The bare ``"text"`` alias is intentionally excluded — the
+# Responses API uses ``input_text`` (request) / ``output_text`` (response)
+# exclusively, so accepting bare ``"text"`` would broaden the surface
+# without matching any documented producer.
+_RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text")
 # Refusal-style blocks carry their content under a ``refusal`` key.
 _RESPONSE_REFUSAL_BLOCK_TYPES = ("refusal", "output_refusal")
 # AIDEV-NOTE: Item types that must never reach the AI Guard evaluator.
@@ -60,6 +64,8 @@ _RESPONSE_SKIPPED_ITEM_TYPES = ("reasoning", "mcp_list_tools")
 
 _IMAGE_MARKER = "[image]"
 _FILE_MARKER = "[file]"
+_PROMPT_VARIABLE_REDACTION = "[redacted]"
+_PROMPT_VARIABLE_REDACTED_FIELDS = frozenset(("file_data", "file_id", "file_url", "image_url"))
 
 
 def _extract_text_content(content: Any) -> Optional[str]:
@@ -125,6 +131,54 @@ def _flatten_tool_output(output: Any) -> Optional[str]:
     return str(output)
 
 
+def _is_prompt_variable_redacted_field(key: Any) -> bool:
+    return str(key).lower() in _PROMPT_VARIABLE_REDACTED_FIELDS
+
+
+def _render_prompt_variable_value(value: Any) -> Optional[str]:
+    """Render a prompt-template variable value without leaking file/image locators."""
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        return value
+
+    if isinstance(value, (list, tuple)):
+        text = _extract_text_content(value)
+        if text is not None:
+            return text
+        parts = []
+        for item in value:
+            text = _render_prompt_variable_value(item)
+            if text:
+                parts.append(text)
+        return "\n".join(parts) if parts else None
+
+    if isinstance(value, Mapping):
+        text = _extract_text_content([value])
+        if text is not None:
+            return text
+
+        # AIDEV-NOTE: Prompt-template variables are user-controlled input.
+        # Render unknown mappings recursively so object-valued text cannot
+        # bypass AI Guard, but redact OpenAI file/image locator fields instead
+        # of raw ``str(mapping)`` to avoid leaking signed URLs or opaque ids.
+        parts = []
+        for key, nested_value in value.items():
+            if nested_value is None:
+                continue
+            key_text = str(key)
+            if _is_prompt_variable_redacted_field(key_text):
+                parts.append(f"{key_text}: {_PROMPT_VARIABLE_REDACTION}")
+                continue
+            text = _render_prompt_variable_value(nested_value)
+            if text:
+                parts.append(f"{key_text}: {text}")
+        return "\n".join(parts) if parts else None
+
+    return str(value)
+
+
 def _function_tool_call_from_item(item: Any) -> ToolCall:
     """Build a ToolCall from a Responses-API ``function_call`` /
     ``custom_tool_call`` item (input or output).
@@ -188,28 +242,41 @@ def _flatten_prompt_variables(prompt: Any) -> Optional[str]:
     before the model. Each variable is rendered as ``key: value`` lines so a
     policy rule can match on the variable name and on the payload.
 
-    Non-string, non-list values are stringified rather than dropped — a
-    variable shaped as a dict or number is still user input and should not
-    silently bypass the evaluator.
+    Value handling:
+      - ``str`` → as-is.
+      - ``list`` / ``tuple`` → flattened as typed content parts when possible,
+        otherwise recursively rendered.
+      - ``Mapping`` (including ``dict``) → flattened as a typed content part
+        when recognised (``{"type": "input_text", ...}``), otherwise
+        recursively rendered. Known OpenAI file/image locator fields
+        (``image_url``, ``file_url``, ``file_id``, ``file_data``) are redacted
+        instead of raw-stringified so signed URLs / opaque ids do not leak
+        into the AI Guard evaluation request.
+      - Other scalars (``int``, ``float``, ``bool``) → stringified; these
+        are user input with no secret-leak surface and would otherwise
+        silently bypass the evaluator.
+
+    The outer ``variables`` container is accepted as any ``Mapping``, not
+    just ``dict``, so Mapping-shaped SDK wrappers don't silently bypass AI
+    Guard for prompt-template calls.
     """
     if prompt is None:
         return None
     variables = _get(prompt, "variables")
-    if not variables or not isinstance(variables, dict):
+    if not variables or not isinstance(variables, Mapping):
         return None
     parts = []
     for key, value in variables.items():
         if value is None:
             continue
+        key_text = str(key)
         text: Optional[str]
-        if isinstance(value, str):
-            text = value
-        elif isinstance(value, (list, tuple)):
-            text = _extract_text_content(value)
+        if _is_prompt_variable_redacted_field(key_text):
+            text = _PROMPT_VARIABLE_REDACTION
         else:
-            text = _extract_text_content([value]) or str(value)
+            text = _render_prompt_variable_value(value)
         if text:
-            parts.append(f"{key}: {text}")
+            parts.append(f"{key_text}: {text}")
     return "\n".join(parts) if parts else None
 
 
@@ -232,6 +299,17 @@ def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any =
       - Items in ``_RESPONSE_SKIPPED_ITEM_TYPES`` are dropped.
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
+
+    AIDEV-NOTE: fail-open security tradeoff. Per-item exceptions are
+    swallowed (``logger.debug`` only) and items with unrecognised shape are
+    dropped. If the entire ``input`` list is unconvertible — or yields only
+    a ``system`` message from ``instructions`` — the before-hook returns
+    without calling :meth:`AIGuardClient.evaluate`, so a sufficiently novel
+    or malformed payload can bypass AI Guard rather than block on the
+    converter error. This matches Chat's pre-existing behaviour and the AI
+    Guard contract that backend transport failures must not break SDK
+    calls; the tradeoff is intentional but worth pinning when reasoning
+    about coverage.
     """
     result: list[Message] = []
 
