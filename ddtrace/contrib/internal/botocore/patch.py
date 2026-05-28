@@ -121,14 +121,36 @@ def _inject_trace_headers_handler(request, **kwargs):
     dd-trace-py injected in the urllib3 layer, which is too late.
 
     This handler does NOT touch ``_http_propagation_suppressed`` — that
-    contextvar is owned exclusively by ``patched_api_call``, which sets and
-    resets it via Token in a ``try/finally``. The handler intentionally stays
-    out of the suppression-state lifecycle so that early-return paths in
-    ``patched_api_call`` (pin disabled, submodule excluded) and out-of-scope
-    callers (presigned URL generation) cannot leak suppression into
-    subsequent unrelated HTTP calls in the same task.
+    contextvar is owned by the API-call wrappers (``patched_api_call`` in
+    botocore, ``_wrapped_api_call`` in aiobotocore), which set and reset
+    it via Token in a ``try/finally``. The handler intentionally stays out
+    of the suppression-state lifecycle so that early-return paths in those
+    wrappers (pin disabled, submodule excluded) and out-of-scope callers
+    (presigned URL generation) cannot leak suppression into subsequent
+    unrelated HTTP calls in the same task.
     """
     if not config.botocore["distributed_tracing"]:
+        return
+
+    # Skip injection for presigned URL / presigned POST signing modes.
+    # botocore.signers._choose_signer appends `-query` to the signature
+    # version for presign-url and `-presign-post` for presign-post. For
+    # SigV4 query auth in particular, the signed-headers list is baked
+    # into the returned URL's X-Amz-SignedHeaders parameter; injecting
+    # x-datadog-* / traceparent here would commit downstream callers of
+    # that URL to replaying those exact headers or hitting
+    # SignatureDoesNotMatch. Propagating trace context into a presigned
+    # URL is also conceptually wrong — the URL outlives the span.
+    #
+    # Guard isinstance(str): when a client is configured with
+    # Config(signature_version=botocore.UNSIGNED), the before-sign event
+    # still fires (botocore.signers.RequestSigner.sign emits before the
+    # UNSIGNED short-circuit) and signature_version is the UNSIGNED
+    # sentinel object, not a string — calling .endswith would crash.
+    signature_version = kwargs.get("signature_version")
+    if isinstance(signature_version, str) and (
+        signature_version.endswith("-query") or "presign-post" in signature_version
+    ):
         return
 
     # AIDEV-NOTE: We use the global tracer's current_span() rather than looking
@@ -213,8 +235,15 @@ def _unpatch_session_init() -> None:
     aiobotocore_client = sys.modules.get("aiobotocore.client")
     if aiobotocore_client is not None and getattr(aiobotocore_client, "_datadog_patch", False):
         return
-    unwrap(botocore.session.Session, "__init__")
-    _session_init_patched = False
+    # try/finally so the flag tracks reality even if `unwrap` raises (e.g.,
+    # because Session.__init__ was already replaced by external instrumentation
+    # and our wrapt layer is gone). If we left the flag True after a failed
+    # unwrap, a subsequent _patch_session_init() call would no-op at the
+    # idempotence guard and silently leave Session.__init__ unprotected.
+    try:
+        unwrap(botocore.session.Session, "__init__")
+    finally:
+        _session_init_patched = False
 
 
 # Botocore default settings

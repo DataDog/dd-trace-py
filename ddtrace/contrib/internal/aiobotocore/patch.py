@@ -3,6 +3,15 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+
+# AIDEV-NOTE: Cross-module import of a leading-underscore private symbol.
+# _http_propagation_suppressed is the shared coordination primitive between
+# this integration (which wants the aiohttp-layer HttpClientTracingSubscriber
+# to skip its own header injection during AWS calls) and that subscriber.
+# See the ownership-contract AIDEV-NOTE on its definition in
+# ddtrace/_trace/subscribers/http_client.py. _wrapped_api_call here is one
+# of two permitted setters; the other is patched_api_call in
+# ddtrace/contrib/internal/botocore/patch.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY

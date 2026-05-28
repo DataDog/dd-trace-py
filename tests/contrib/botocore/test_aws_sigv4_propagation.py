@@ -194,8 +194,9 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
     """The handler must inject propagation headers into the AWSRequest.
 
     The handler is NOT responsible for the urllib3-suppression contextvar —
-    that's owned exclusively by patched_api_call. The handler must inject
-    cleanly without touching contextvar state, so we explicitly assert the
+    that's owned by the API-call wrappers (patched_api_call in botocore,
+    _wrapped_api_call in aiobotocore). The handler must inject cleanly
+    without touching contextvar state, so we explicitly assert the
     contextvar is unchanged after the handler runs.
     """
     from botocore.awsrequest import AWSRequest
@@ -213,8 +214,9 @@ def test_before_sign_handler_injects_when_span_active(patched_botocore):
             _inject_trace_headers_handler(request=request)
         assert "x-datadog-trace-id" in request.headers
         # Contextvar must stay at the value we set — the handler must not
-        # touch it. patched_api_call (not exercised in this unit test) is
-        # the sole owner.
+        # touch it. The API-call wrappers (patched_api_call in botocore,
+        # _wrapped_api_call in aiobotocore — not exercised in this unit
+        # test) are the owners.
         assert _http_propagation_suppressed.get() is False
     finally:
         _http_propagation_suppressed.reset(token)
@@ -412,6 +414,90 @@ def test_presigned_url_generation_is_unaffected(s3_client):
         url = s3_client.generate_presigned_url("get_object", Params={"Bucket": "b", "Key": "k"}, ExpiresIn=60)
     assert "x-datadog" not in url.lower()
     assert "traceparent" not in url.lower()
+
+
+def test_presigned_url_with_sigv4_does_not_sign_datadog_headers(patched_botocore):
+    """Regression: with Config(signature_version='s3v4'), botocore's
+    `before-sign` event fires during presigned-URL generation with
+    signature_version='s3v4-query'. If the handler injects propagation
+    headers into the canonical request, the resulting URL's
+    X-Amz-SignedHeaders parameter bakes those header names into the
+    signature — and any subsequent caller of that URL must replay the
+    exact same x-datadog-* / traceparent values or AWS rejects with
+    SignatureDoesNotMatch. The handler must skip injection for the
+    presign signing modes (signature_version ends in `-query` or
+    contains `presign-post`).
+    """
+    from botocore.client import Config
+
+    session = botocore.session.Session()
+    session.set_credentials(
+        access_key="AKIAIOSFODNN7EXAMPLE",
+        secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    )
+    client = session.create_client(
+        "s3",
+        region_name="us-east-1",
+        config=Config(signature_version="s3v4"),
+    )
+
+    with ddtrace.tracer.trace("test.presign.sigv4"):
+        url = client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": "b", "Key": "k"},
+            ExpiresIn=60,
+        )
+
+    # Whole-URL guard: SigV4 query auth embeds the signed-headers list in
+    # the URL via X-Amz-SignedHeaders=host%3B... — if x-datadog or
+    # traceparent appears anywhere in the URL, the handler injected and
+    # botocore baked it into the signature.
+    lower_url = url.lower()
+    assert "x-datadog" not in lower_url, f"datadog headers signed into presigned URL: {url}"
+    assert "traceparent" not in lower_url, f"traceparent signed into presigned URL: {url}"
+
+    # And explicit guard on the SignedHeaders clause, which is the exact
+    # field that would have caused SignatureDoesNotMatch in production.
+    match = re.search(r"X-Amz-SignedHeaders=([^&]+)", url, re.IGNORECASE)
+    assert match is not None, f"presigned URL is missing X-Amz-SignedHeaders: {url}"
+    signed_headers = match.group(1).replace("%3B", ";").lower().split(";")
+    propagation_in_signed = [
+        h for h in signed_headers if h in {"traceparent", "tracestate"} or h.startswith("x-datadog")
+    ]
+    assert propagation_in_signed == [], (
+        f"propagation headers signed into presigned URL's X-Amz-SignedHeaders: {propagation_in_signed}"
+    )
+
+
+def test_unsigned_signature_version_does_not_crash_handler(patched_botocore):
+    """Regression: with Config(signature_version=botocore.UNSIGNED) — the
+    documented pattern for anonymous public-S3 access — botocore still
+    emits `before-sign` (the UNSIGNED short-circuit happens AFTER the
+    event). signature_version is then the botocore.UNSIGNED sentinel, a
+    truthy non-string object with no .endswith. An earlier draft of the
+    presign guard would call .endswith on it and raise AttributeError,
+    which botocore.hooks._emit does not catch — the exception would
+    propagate through RequestSigner.sign and crash the customer's AWS
+    call. This test invokes the handler directly with UNSIGNED to pin
+    that it does not crash.
+    """
+    import botocore as _botocore
+    from botocore.awsrequest import AWSRequest
+
+    from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
+
+    request = AWSRequest(method="GET", url="https://example.com/")
+
+    with ddtrace.tracer.trace("test.unsigned"):
+        # Should not raise — that's the whole assertion.
+        _inject_trace_headers_handler(
+            request=request,
+            signing_name="s3",
+            region_name="us-east-1",
+            signature_version=_botocore.UNSIGNED,
+            request_signer=None,
+            operation_name="GetObject",
+        )
 
 
 def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):

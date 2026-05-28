@@ -23,13 +23,13 @@ log = get_logger(__name__)
 # before-sign event fires earlier than this subscriber's on_started, so
 # headers can land in the canonical signed request).
 #
-# OWNERSHIP CONTRACT (do not break): only `patched_api_call` is allowed to
-# .set() this contextvar, and it MUST capture the Token and reset() in a
-# try/finally. The before-sign event handler itself must not touch the
-# contextvar — see the leak history in PR #18152 if you're tempted to
-# change that. The handler was previously allowed to flip it True; that
-# caused a real leak when early-return paths in patched_api_call bypassed
-# the try/finally.
+# OWNERSHIP CONTRACT (do not break): the only setters of this contextvar
+# are `patched_api_call` (botocore) and `_wrapped_api_call` (aiobotocore).
+# Both MUST capture the Token and reset() in a try/finally. The before-sign
+# event handler itself must not touch the contextvar — see the leak
+# history in PR #18152 if you're tempted to change that. The handler was
+# previously allowed to flip it True; that caused a real leak when
+# early-return paths in patched_api_call bypassed the try/finally.
 #
 # ContextVar provides per-thread isolation: concurrent requests in different
 # threads each see their own value of this flag.
