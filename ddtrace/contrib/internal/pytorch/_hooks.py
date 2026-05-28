@@ -256,12 +256,17 @@ def _forward_pre_hook(module: Any, inputs: Any) -> None:
     # In verbose mode, _emit_data_load_span_if_needed() owns _DATA_LOAD_TLS.emitted;
     # in summary-only mode we set it here so the second forward in the same
     # step skips the data_fetch recording.
+    # AIDEV-NOTE: prev_end is wall-clock (set via set_last_optimizer_step_end_ns
+    # → time.time_ns), so the delta MUST use now_ns() too — not the perf_counter
+    # value above. Mixing the two produces a huge negative dt_ms that the
+    # `dt_ms >= 0` guard silently drops, leaving step.data_fetch_ms permanently
+    # empty on the rotated rank span.
     profiling_on = is_profiling_enabled()
     try:
         if not getattr(_DATA_LOAD_TLS, "emitted", False):
             prev_end = get_last_optimizer_step_end_ns()
             if prev_end > 0:
-                dt_ms = (now - prev_end) / 1e6
+                dt_ms = (now_ns() - prev_end) / 1e6
                 if dt_ms >= 0:
                     _summary.get_step_accumulator().data_fetch_ms = dt_ms
                     # AIDEV-NOTE: Do NOT push_distribution("step.data_fetch_ms") here.
