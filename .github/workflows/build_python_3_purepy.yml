@@ -31,10 +31,10 @@ jobs:
         shell: bash
         run: |
           cd ${{ inputs.package-dir }}
-          for wheel in ./wheelhouse/*.whl; do
+          for wheel in ./pywheels/*.whl; do
             if [ -f "$wheel" ]; then
               echo "Validating $(basename $wheel)..."
-              python scripts/validate_wheel.py "$wheel"
+              python ../scripts/validate_wheel.py "$wheel"
             fi
           done
       - run: |
@@ -42,4 +42,4 @@ jobs:
       - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
-          path: ./${{ inputs.package-dir }}/wheelhouse/*.whl
+          path: ./${{ inputs.package-dir }}/pywheels/*.whl
