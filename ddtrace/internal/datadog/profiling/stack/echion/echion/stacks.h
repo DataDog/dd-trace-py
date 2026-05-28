@@ -25,15 +25,13 @@ class EchionSampler;
 //
 // Backed by std::vector<Frame> rather than std::deque<Frame>: every call site
 // uses only push_back, forward iteration, size(), clear(), and integer
-// indexing, and none retains references across mutations. Vector avoids the
-// per-instance chunk-map allocation that previously dominated native
-// heap-live-size for the gevent sampling path.
+// indexing, and none retains references across mutations. Vector keeps stacks
+// in a single contiguous buffer and lets the buffer be reused via clear()
+// (which preserves capacity), avoiding deque's per-instance chunk-map layout.
 class FrameStack : public std::vector<Frame>
 {
   public:
     using Key = Frame::Key;
-
-    FrameStack() { reserve(max_frames); }
 
     void render(EchionSampler& echion);
 };
