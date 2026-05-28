@@ -56,6 +56,7 @@ class PromptManager:
         self._refresh_threads: dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
         self._ffe_rc_enabled = False
+        self._ffe_provider_set = False
         if file_cache_enabled:
             atexit.register(self._wait_for_refreshes)
 
@@ -247,13 +248,28 @@ class PromptManager:
             log.debug("Failed to enable FFE Remote Config for prompt evaluation", exc_info=True)
             return False
 
+    def _ensure_ffe_provider(self) -> None:
+        """Lazily register the DataDog OpenFeature provider (non-blocking)."""
+        if self._ffe_provider_set:
+            return
+        try:
+            from openfeature import api
+
+            from ddtrace.internal.openfeature._provider import DataDogProvider
+
+            # Non-blocking: registers for RC callbacks without waiting for config delivery
+            api.set_provider(DataDogProvider(initialization_timeout=0))
+            self._ffe_provider_set = True
+        except Exception:
+            log.debug("Failed to register OpenFeature provider", exc_info=True)
+
     def _fetch_from_ff(
         self,
         prompt_id: str,
         targeting_key: Optional[str],
         attributes: dict[str, Any],
     ) -> Optional[ManagedPrompt]:
-        """Evaluate a prompt via the FFE (Eppo UFC) path. Returns None on any failure."""
+        """Evaluate a prompt via the OpenFeature SDK. Returns None on any failure."""
         from ddtrace.internal.settings import env as dd_env_settings
 
         env_val = dd_env_settings.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
@@ -263,31 +279,25 @@ class PromptManager:
             dd_env_settings["DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"] = "true"
 
         try:
-            from ddtrace.internal.openfeature._config import _get_ffe_config
-            from ddtrace.internal.openfeature._native import VariationType
-            from ddtrace.internal.openfeature._native import resolve_flag
+            from openfeature import api
+            from openfeature.evaluation_context import EvaluationContext
         except ImportError:
-            log.debug("OpenFeature dependencies unavailable for FF prompt evaluation")
+            log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
             return None
 
-        # Ensure RC callback is registered so FFE config gets delivered
-        rc_enabled = self._ensure_ffe_rc()
+        self._ensure_ffe_rc()
+        self._ensure_ffe_provider()
 
         try:
-            ffe_config = _get_ffe_config()
-            if ffe_config is None:
-                if not rc_enabled:
-                    log.debug("FFE Remote Config could not be enabled for prompt %s", prompt_id)
-                return None
-
             flag_key = f"__llmobs__.prompt.{prompt_id}"
-            ctx = {"targeting_key": targeting_key or "", "attributes": attributes or {}}
-            details = resolve_flag(ffe_config, flag_key=flag_key, context=ctx, expected_type=VariationType.Object)
-            if details is None or details.error_code is not None or details.variant is None:
-                return None
+            context = EvaluationContext(
+                targeting_key=targeting_key or "",
+                attributes=attributes or {},
+            )
+            client = api.get_client()
+            variant_value = client.get_object_value(flag_key, {}, context)
 
-            variant_value = details.value
-            if not isinstance(variant_value, dict):
+            if not isinstance(variant_value, dict) or not variant_value:
                 return None
 
             return self._parse_prompt(variant_value, source="ff")
