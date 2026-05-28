@@ -32,7 +32,11 @@ Individual pre-commit hooks (run in numeric order):
 | `07-run-cmake-format` | Formats staged CMake files (`*.cmake`, `CMakeLists.txt`) |
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
+<<<<<<< Updated upstream
+| `10-build-native-ext` | Rebuilds native extensions (`python setup.py build_ext --inplace`) when staged C/C++/Rust/Cython, CMake, or `setup.py` files change. Uses `.venv/bin/python` when present. On stale `.eggs` errors (`Directory not empty` / errno 66), removes `.eggs` and retries once. Set `DD_SKIP_NATIVE_BUILD=1` to skip. |
+=======
 | `10-build-native-ext` | Rebuilds native extensions (`python setup.py build_ext --inplace`) when staged C/C++/Rust/Cython, CMake, or `setup.py` files change. Uses `.venv/bin/python` when present. Set `DD_SKIP_NATIVE_BUILD=1` to skip. |
+>>>>>>> Stashed changes
 
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:

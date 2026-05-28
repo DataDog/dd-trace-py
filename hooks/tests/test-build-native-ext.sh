@@ -27,6 +27,17 @@ assert_contains() {
 output=$(DD_SKIP_NATIVE_BUILD=1 sh "$SCRIPT" 2>&1 || true)
 assert_contains "$output" "DD_SKIP_NATIVE_BUILD" "respects DD_SKIP_NATIVE_BUILD"
 
+<<<<<<< Updated upstream
+# stale .eggs detection helper (sourced logic via grep pattern)
+if printf '%s\n' 'OSError: [Errno 66] Directory not empty: .eggs/foo' | grep -qiE 'directory not empty|errno 66|\[errno 66\]'; then
+    PASS=$((PASS + 1))
+else
+    echo "FAIL: stale .eggs error pattern"
+    FAIL=$((FAIL + 1))
+fi
+
+=======
+>>>>>>> Stashed changes
 # skip when no native staged files (requires git repo)
 if git rev-parse --git-dir >/dev/null 2>&1; then
     output=$(sh "$SCRIPT" 2>&1 || true)
