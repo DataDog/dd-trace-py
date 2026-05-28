@@ -30,7 +30,7 @@ class InvalidLine(Exception):
 
 INJECTION_ASSEMBLY = Assembly()
 if PY >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+    pass  # AIDEV-TODO: Populate assembly for 3.15 bytecode (tracked in #17849).
 elif PY >= (3, 13):
     INJECTION_ASSEMBLY.parse(
         r"""

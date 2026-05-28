@@ -36,7 +36,7 @@ ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY = None
 
 if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+    pass  # AIDEV-TODO: Populate assemblies for 3.15 bytecode (tracked in #17849).
 
 elif PY >= (3, 14):
     ASYNC_HEAD_ASSEMBLY = Assembly()
@@ -712,6 +712,10 @@ else:
 
 
 def wrap_async(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
+    if PY >= (3, 15):
+        # AIDEV-TODO: Async wrapping not yet implemented for 3.15; no-op until
+        # #17849 lands. Remove this guard once the assemblies above are populated.
+        return
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
             instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind(lineno=lineno)
