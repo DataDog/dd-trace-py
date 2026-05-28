@@ -142,6 +142,66 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
         path = re.sub(r"<path:[a-z_]+>", "a/b/c", path)
         return path if path.startswith("/") else ("/" + path)
 
+    @pytest.mark.skipif(django.VERSION < (3, 1, 0), reason="Django ASGI requires Django 3.1+")
+    def test_normalized_route_asgi(self, interface: utils.Interface, get_entry_span_tag):
+        """Regression: ASGI request path must forward ``route=`` to ``set_http_meta``.
+
+        The sync path dispatches both ``django.finalize_response.pre`` (which forwards ``route`` explicitly)
+        and ``django.after_request_headers.post``; the async path (``traced_get_response_async``) only fires
+        the latter. Without forwarding ``route`` from ``_on_django_after_request_headers_post``, ASGI
+        deployments would silently miss ``_dd.appsec.normalized_route``. Driving the dd-trace-wrapped
+        ``get_asgi_application()`` directly exercises the same TraceMiddleware → ASGIHandler →
+        traced_get_response_async → _after_request_tags pipeline as a production daphne/uvicorn deployment.
+        """
+        import asyncio
+
+        from django.core.asgi import get_asgi_application
+
+        from ddtrace.appsec import _constants as asm_constants
+        from tests.utils import override_global_config
+
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            app = get_asgi_application()
+            scope = {
+                "type": "http",
+                "asgi": {"version": "3.0", "spec_version": "2.3"},
+                "http_version": "1.1",
+                "method": "GET",
+                "scheme": "http",
+                "path": "/asm/137/abc/",
+                "raw_path": b"/asm/137/abc/",
+                "query_string": b"",
+                "headers": [(b"host", b"localhost")],
+                "server": ("127.0.0.1", 8000),
+                "client": ("127.0.0.1", 12345),
+            }
+            sent_messages: list[dict] = []
+
+            async def drive():
+                sent_request = False
+
+                async def receive():
+                    nonlocal sent_request
+                    if not sent_request:
+                        sent_request = True
+                        return {"type": "http.request", "body": b"", "more_body": False}
+                    return {"type": "http.disconnect"}
+
+                async def send(msg):
+                    sent_messages.append(msg)
+
+                await app(scope, receive, send)
+
+            asyncio.run(drive())
+
+            starts = [m for m in sent_messages if m["type"] == "http.response.start"]
+            assert starts and starts[0]["status"] == 200, sent_messages
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag == "/asm/{param_int}/{param_str}/", (
+                f"normalized_route missing on ASGI-served parameterized request: {tag!r}"
+            )
+
 
 class Test_Django_RC(_Test_Django_Base, utils.Contrib_TestClass_For_Threats_RC):
     pass

@@ -639,11 +639,6 @@ def _on_web_request_final_tags(span):
 
 
 def _django_request_path_params(request):
-    """Thin wrapper that defers to the Django-integration helper.
-
-    Kept as a local name to avoid a top-level import of ``ddtrace.contrib.internal.django.utils`` (which pulls Django
-    in). The actual logic lives next to other Django utilities; see ``_request_path_params`` there.
-    """
     from ddtrace.contrib.internal.django.utils import _request_path_params
 
     return _request_path_params(request)
