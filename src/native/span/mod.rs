@@ -1,6 +1,7 @@
 use pyo3::types::PyModuleMethods as _;
 
 pub mod attributes;
+mod pool;
 mod span_data;
 mod span_event;
 mod span_link;

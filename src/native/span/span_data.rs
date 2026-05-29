@@ -1,3 +1,5 @@
+use std::mem::ManuallyDrop;
+
 use pyo3::{
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
@@ -8,6 +10,7 @@ use pyo3::{
 };
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
+use super::pool;
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::{PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
@@ -25,9 +28,13 @@ use super::utils::{
 use super::{SpanEvent, SpanLink};
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
 pub struct SpanData {
-    pub data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    /// Pooled libdatadog span.  Wrapped in `ManuallyDrop` so that `Drop` can move
+    /// the `Box` out of the struct and return it to the pool without requiring a
+    /// placeholder allocation.  Every code path that creates a `SpanData` must
+    /// ensure the inner `Box` is eventually moved to `pool::release` (guaranteed
+    /// by the `Drop` impl).
+    pub data: ManuallyDrop<Box<libdd_trace_utils::span::v04::Span<PyTraceData>>>,
     pub span_api: PyBackedString,
     /// Unified attribute storage — source of truth for all tag/metric attributes.
     /// `data.meta` and `data.metrics` are left empty; they are materialized from
@@ -41,6 +48,34 @@ pub struct SpanData {
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
+}
+
+impl Default for SpanData {
+    fn default() -> Self {
+        SpanData {
+            data: ManuallyDrop::new(pool::get_pool().acquire()),
+            span_api: PyBackedString::default(),
+            attributes: AttributeMap::default(),
+            _trace_id_py: None,
+            meta_struct: None,
+        }
+    }
+}
+
+impl Drop for SpanData {
+    fn drop(&mut self) {
+        // Move the Box out of ManuallyDrop so it is not double-dropped.
+        // SAFETY: `drop` is called exactly once; no other code calls
+        // `ManuallyDrop::take` on this field.
+        let mut span = unsafe { ManuallyDrop::take(&mut self.data) };
+        // Clear all Python-backed fields so the pooled span holds no Python
+        // references.  This is a no-op when `__clear__` was already called by
+        // CPython's cyclic GC; it is the primary cleanup path for spans that
+        // are dropped directly (refcount → 0 without GC collection).
+        // The GIL is held here because pyo3 guarantees it for pyclass Drop.
+        *span = libdd_trace_utils::span::v04::Span::default();
+        pool::get_pool().release(span);
+    }
 }
 
 impl SpanData {
@@ -939,7 +974,10 @@ impl SpanData {
         self.meta_struct = None;
         self.attributes = AttributeMap::default();
         self.span_api = crate::py_string::PyBackedString::default();
-        self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
+        // Reset the span contents in-place rather than replacing the Box.
+        // This drops all Python-backed fields (PyBackedString, span_links, etc.)
+        // while keeping the heap allocation alive so `Drop` can return it to the pool.
+        **self.data = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
     }
 }
 
