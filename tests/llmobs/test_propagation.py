@@ -472,6 +472,19 @@ def _make_upstream_llmobs_context(trace_id_value, parent_id="987654321"):
     return ctx
 
 
+def test_current_trace_context_includes_parent_id(llmobs):
+    """_current_trace_context must set PROPAGATED_PARENT_ID_KEY so that HTTPPropagator.inject
+    (and any other consumer that reads _meta directly) propagates _dd.p.llmobs_parent_id to
+    subprocess / HTTP consumers. Without this, dd-trace-go's contextWithPropagatedLLMSpan
+    sees an empty parent_id and falls through to newLLMObsTraceID(), orphaning the child trace.
+    """
+    with llmobs.workflow("w") as span:
+        ctx = llmobs._instance._current_trace_context()
+    assert ctx is not None
+    assert ctx._meta.get(PROPAGATED_PARENT_ID_KEY) == str(span.span_id)
+    assert ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) is not None
+
+
 def test_injected_trace_id_is_decimal_on_the_wire(llmobs):
     """Wire must stay decimal so older SDKs that do int(header) keep working."""
     with llmobs.workflow("w") as span:
