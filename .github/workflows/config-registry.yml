@@ -1,0 +1,28 @@
+name: Configuration Registry
+
+on:
+  push:
+    branches:
+      - main
+      - mq-working-branch-*
+  merge_group:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+jobs:
+  # Verify the generated module is in sync with supported-configurations.json
+  # and every DD_*/OTEL_* var in ddtrace/ is registered.
+  check:
+    name: Check supported-configurations.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-ci-deps
+        with:
+          python-version: '3.13'
+
+      - name: Verify registry is complete and generated module is in sync
+        run: python scripts/supported_configurations.py --check
