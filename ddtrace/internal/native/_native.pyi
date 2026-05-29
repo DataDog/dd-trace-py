@@ -409,6 +409,13 @@ class TraceExporterBuilder:
         """
         ...
 
+class AgentResponse:
+    """Sampling-rate response from the Datadog agent after a successful trace export."""
+
+    rate_by_service: Mapping[str, float]
+
+    def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
+
 class AgentError(Exception):
     """
     Raised when there is an error in agent response processing.
