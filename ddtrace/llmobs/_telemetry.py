@@ -6,7 +6,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -102,17 +101,16 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span, export_mode: LLMObsExportMode, dropped: bool = False):
+def record_span_created(span: Span, intake: str):
     """Record a finished LLMObs span.
 
-    ``intake`` is derived from ``export_mode`` and reflects the configured destination:
-      - ``"llmobs"`` — LLMObsSpanWriter (LLMOBS_DIRECT agentless or APM_AGENT_PROXY via EVP proxy).
-      - ``"apm"``    — ``meta_struct["_llmobs"]`` riding the APM trace (APM_AGENTLESS).
-
-    ``dropped`` reports whether the span actually reached that destination. A span is
-    dropped when the user processor returns ``None``, the span is malformed, or event
-    assembly raises — in which case no LLMObs payload is shipped even though the
-    configured intake is still recorded.
+    ``intake`` is the path the LLMObs payload actually took:
+      - ``"apm_agentless"``      — payload rode the APM trace to the APM intake
+                                   (LLMObsExportMode.APM_AGENTLESS).
+      - ``"llmobs_agentless"``   — LLMObsSpanWriter posted directly to the LLMObs intake.
+      - ``"llmobs_agent_proxy"`` — LLMObsSpanWriter posted via the agent's EVP proxy.
+      - ``"dropped"``            — user processor returned ``None``, span was malformed,
+                                   or event assembly raised; no LLMObs payload shipped.
     """
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
@@ -123,7 +121,6 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode, dropped: bool
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
-    intake = "apm" if export_mode == LLMObsExportMode.APM_AGENTLESS else "llmobs"
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -134,7 +131,6 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode, dropped: bool
         ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
         ("intake", intake),
-        ("dropped", str(int(dropped))),
     ]
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))

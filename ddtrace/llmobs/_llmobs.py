@@ -513,7 +513,7 @@ class LLMObs(Service):
         elif llmobs_apm_trace_agentless_enabled():
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
-            self._export_mode = LLMObsExportMode.APM_AGENT_PROXY
+            self._export_mode = LLMObsExportMode.APM_AGENT
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
@@ -580,7 +580,7 @@ class LLMObs(Service):
         if not span_event:
             # Dropped by user processor / error during preparation/assembly.
             # Record telemetry before clearing meta_struct so tag getters still see data.
-            telemetry.record_span_created(span, self._export_mode, dropped=True)
+            telemetry.record_span_created(span, "dropped")
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
@@ -588,16 +588,17 @@ class LLMObs(Service):
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-            # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
-            # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
-            # APM_AGENTLESS is the only mode where data rides the APM trace instead.
+            # LLMOBS_DIRECT and APM_AGENT both route the LLMObs payload through
+            # LLMObsSpanWriter. The writer's transport (agentless vs. agent EVP proxy)
+            # is independent of the export mode and tracked by config._llmobs_agentless_enabled.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            telemetry.record_span_created(span, self._export_mode)
+            intake = "llmobs_agentless" if config._llmobs_agentless_enabled else "llmobs_agent_proxy"
+            telemetry.record_span_created(span, intake)
             if not self._test_mode_keep_meta_struct:
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
         else:
-            telemetry.record_span_created(span, self._export_mode)
+            telemetry.record_span_created(span, "apm_agentless")
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
