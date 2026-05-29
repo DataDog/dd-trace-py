@@ -7,6 +7,7 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -70,7 +71,12 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
     "starlette": normalize_route,
     "fastapi": normalize_route,
     "django": normalize_route_django,
+    "flask": normalize_route_flask,
 }
+
+# Flask DispatcherMiddleware sub-apps store the fully assembled route (script_root + url_rule.rule) in this span tag
+# as "METHOD /full/path". The route passed via set_http_meta only carries url_rule.rule (the sub-app-local portion).
+_FLASK_RESOURCE_FULL_TAG = "flask.resource.full"
 
 
 def _on_set_http_meta_for_normalized_route(
@@ -111,6 +117,16 @@ def _on_set_http_meta_for_normalized_route(
     normalizer = _NORMALIZED_ROUTE_BY_INTEGRATION.get(integration_name)
     if normalizer is None:
         return
+    # Flask DispatcherMiddleware sub-apps: FLASK_URL_RULE (the value in `route`) carries only the
+    # sub-app-local path, missing the DM mount prefix. FLASK_RESOURCE_FULL stores the fully assembled
+    # path as "METHOD /prefix/path" — use it when available so the normalized route always reflects
+    # the complete URL pattern seen by the client.
+    if integration_name == "flask":
+        full_resource = span.get_tag(_FLASK_RESOURCE_FULL_TAG)
+        if full_resource:
+            _, _, assembled = full_resource.partition(" ")
+            if assembled:
+                route = assembled
     normalized = normalizer(route, request_path_params)
     if normalized is not None:
         span._set_attribute(API_SECURITY.NORMALIZED_ROUTE, normalized)

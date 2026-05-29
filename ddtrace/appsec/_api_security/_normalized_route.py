@@ -9,6 +9,9 @@ grammar, so this module exposes one normalizer per supported framework:
 - ``normalize_route_django`` — Django ``<name>`` / ``<converter:name>``
   ``path()`` grammar, plus ``re_path()`` regexes with ``(?P<name>...)`` named
   groups. ``include()`` mounts are pre-joined by Django itself.
+- ``normalize_route_flask`` — Flask / Werkzeug ``<name>`` / ``<converter:name>``
+  grammar. Blueprint prefixes are pre-assembled by Flask; DispatcherMiddleware
+  mount prefixes are assembled by the caller before invoking this function.
 
 All normalizers take the assembled route string and the matched
 ``path_params`` mapping for the current request, and return the per-request
@@ -597,3 +600,95 @@ def normalize_route_django(route: Optional[str], path_params: _PathParams = None
     if keep_trailing:
         result += "/"
     return result
+
+
+# --- Flask / Werkzeug URL rule normalizer ---
+#
+# Flask uses Werkzeug's URL routing: ``/path/<converter:name>/<name>/``
+# Parameters: ``<name>`` (default string) or ``<converter:name>`` (e.g. ``<int:id>``).
+# Catch-all: ``<path:name>`` may span multiple slashes and must be the final URL element.
+# Complex converters like ``<any(v1,v2):name>`` are also supported.
+# All parameters are required (Flask has no optional path elements), so ``path_params`` is
+# accepted for API parity only and is unused.
+
+# Match any Flask/Werkzeug URL parameter token.
+# Group 1: converter spec (e.g. ``int``, ``path``, ``any(v1,v2)``), or ``None`` if absent.
+# Group 2: variable name (always present).
+_FLASK_PARAM_REGEX = re.compile(r"<(?:([^>:]+):)?([a-zA-Z_][a-zA-Z0-9_]*)>")
+
+# Fast-path detector: every URL segment is either entirely RFC-safe static chars, or exactly one
+# ``<[conv:]name>`` param with a simple (non-parenthesised) converter, and no ``path:`` catch-all.
+# In this shape normalisation reduces to stripping converter prefixes — a single regex substitution.
+_FLASK_FAST_PATH_REGEX = re.compile(
+    r"^/"
+    r"(?:[A-Za-z0-9.\-~_]+|<(?:(?!path:)[a-zA-Z_][a-zA-Z0-9_]*:)?[a-zA-Z_][a-zA-Z0-9_]*>)?"
+    r"(?:/(?:[A-Za-z0-9.\-~_]+|<(?:(?!path:)[a-zA-Z_][a-zA-Z0-9_]*:)?[a-zA-Z_][a-zA-Z0-9_]*>))*"
+    r"/?$"
+)
+_FLASK_STRIP_CONVERTER = re.compile(r"<(?:[a-zA-Z_][a-zA-Z0-9_]*:)?([a-zA-Z_][a-zA-Z0-9_]*)>")
+
+
+def _normalize_route_flask_slow(route: str) -> Optional[str]:
+    keep_trailing = len(route) > 1 and route.endswith("/")
+    body = route[1:-1] if keep_trailing else route[1:]
+    if not body:
+        return "/"
+
+    segments = body.split("/")
+    out_segments: list[str] = []
+    last_idx = len(segments) - 1
+
+    for i, segment in enumerate(segments):
+        if not segment:
+            # Rule 2: consecutive slashes are illegal.
+            return None
+
+        matches = list(_FLASK_PARAM_REGEX.finditer(segment))
+        if not matches:
+            out_segments.append(_encode_static(segment))
+            continue
+
+        # Detect ``<path:name>`` catch-all (group 1 == "path").
+        path_match = next((m for m in matches if m.group(1) == "path"), None)
+        if path_match is not None:
+            # Catch-all must be the last segment (rule 5).
+            if i != last_idx:
+                return None
+            name = path_match.group(2)
+            tail = "{" + _encode_param_name(name) + "}"
+            result = "/" + "/".join(out_segments + [tail]) if out_segments else "/" + tail
+            if keep_trailing:
+                result += "/"
+            return result
+
+        # One or more non-catch-all params in this segment; static surrounding text is dropped per rule 5.
+        if len(matches) == 1:
+            out_segments.append("{" + _encode_param_name(matches[0].group(2)) + "}")
+        else:
+            combined = "+".join(_encode_param_name(m.group(2)) for m in matches)
+            out_segments.append("{" + combined + "}")
+
+    result = "/" + "/".join(out_segments)
+    if keep_trailing:
+        result += "/"
+    return result
+
+
+@lru_cache(maxsize=256)
+def _normalize_route_flask_cached(route: str) -> Optional[str]:
+    if _FLASK_FAST_PATH_REGEX.match(route):
+        return _FLASK_STRIP_CONVERTER.sub(r"{\1}", route)
+    return _normalize_route_flask_slow(route)
+
+
+def normalize_route_flask(route: Optional[str], path_params: _PathParams = None) -> Optional[str]:
+    """Return the RFC-1103 ``_dd.appsec.normalized_route`` for a Flask/Werkzeug route.
+
+    Flask routes use Werkzeug's ``<converter:name>`` / ``<name>`` syntax. All parameters are required
+    (no optional path elements in Flask), so ``path_params`` is accepted for API parity and unused.
+    Returning ``None`` signals the caller to omit the tag.
+    """
+    del path_params
+    if not route or not isinstance(route, str) or not route.startswith("/"):
+        return None
+    return _normalize_route_flask_cached(route)

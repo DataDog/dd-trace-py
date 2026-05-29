@@ -189,6 +189,17 @@ def rasp(endpoint: str):
     return f"Unknown endpoint: {endpoint}"
 
 
+@app.route("/multi-param/<first>.<last>/", methods=["GET"])
+@app.route("/multi-param/<first>.<last>", methods=["GET"])
+def multi_param_segment(first: str, last: str):
+    return {"first": first, "last": last}
+
+
+@app.route("/files/<path:file_path>", methods=["GET"])
+def files_catch_all(file_path: str):
+    return {"file_path": file_path}
+
+
 @app.route("/redirect/<string:route>/<int:port>", methods=["GET", "POST"])
 def redirect(route: str, port: int):
     import urllib.request

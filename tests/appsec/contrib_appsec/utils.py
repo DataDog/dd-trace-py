@@ -542,7 +542,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
         # RFC-1103: when API Security is active, every request span carrying http.route also carries
         # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
@@ -558,7 +558,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
         # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
         # feature is independently disabled — in that configuration the normalized route tag must still be absent.
