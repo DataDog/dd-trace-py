@@ -256,7 +256,13 @@ def capture_value(
 
         collection: Optional[list[Any]] = None
         if _type in BUILTIN_MAPPING_TYPES:
-            # Mapping
+            # Mapping — snapshot items to avoid RuntimeError if another thread
+            # mutates the dict concurrently.
+            try:
+                items_snapshot: Any = tuple(value.items())
+            except RuntimeError:
+                items_snapshot = ()
+            size = len(items_snapshot)
             collection = [
                 (
                     capture_value(
@@ -278,16 +284,22 @@ def capture_value(
                     if not (_isinstance(k, (str, bytes)) and redact(k))
                     else redacted_value(v),
                 )
-                for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))
+                for k, v in takewhile(lambda _: not cond(_), islice(items_snapshot, maxsize))
             ]
             data = {
                 "type": qualname(_type),
                 "entries": collection,
-                "size": len(value),
+                "size": size,
             }
 
         else:
-            # Sequence
+            # Sequence — snapshot before iterating to avoid RuntimeError if
+            # another thread mutates the collection (e.g. a deque) concurrently.
+            try:
+                value_snapshot: Any = tuple(value)
+            except RuntimeError:
+                value_snapshot = ()
+            size = len(value_snapshot)
             collection = [
                 capture_value(
                     v,
@@ -297,17 +309,17 @@ def capture_value(
                     maxfields=maxfields,
                     stopping_cond=cond,
                 )
-                for v in takewhile(lambda _: not cond(_), islice(value, maxsize))
+                for v in takewhile(lambda _: not cond(_), islice(value_snapshot, maxsize))
             ]
             data = {
                 "type": qualname(_type),
                 "elements": collection,
-                "size": len(value),
+                "size": size,
             }
 
-        if len(collection) < min(maxsize, len(value)):
+        if len(collection) < min(maxsize, size):
             data["notCapturedReason"] = cond.__name__
-        elif len(value) > maxsize:
+        elif size > maxsize:
             data["notCapturedReason"] = "collectionSize"
 
         return data
