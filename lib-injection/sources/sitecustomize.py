@@ -522,6 +522,13 @@ def _inject():
         # otherwise append to preserve the existing (no user-installed ddtrace) behavior.
         if spec is not None and OVERRIDE_USER_DDTRACE:
             sys.path.insert(0, site_pkgs_path)
+            # The user-installed ddtrace may already be (partially) imported (e.g. another bootstrap
+            # mechanism imported it before this script ran). A cached module wins over sys.path, so purge
+            # any ddtrace modules to force a clean import of the injected copy. Mixing versions otherwise
+            # leads to errors like "cannot import name 'env' from 'ddtrace.internal.settings'".
+            for mod_name in list(sys.modules):
+                if mod_name == "ddtrace" or mod_name.startswith("ddtrace."):
+                    del sys.modules[mod_name]
         else:
             sys.path.append(site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
