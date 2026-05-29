@@ -34,6 +34,30 @@
 // Forward declaration: PeriodicThread is defined later in this file.
 typedef struct periodic_thread PeriodicThread;
 
+// Forward declarations for module callbacks defined later in this file.
+static PyObject*
+_threads_at_exit(PyObject* module, PyObject* args);
+static int
+_threads_exec(PyObject* module);
+static int
+_threads_traverse(PyObject* module, visitproc visit, void* arg);
+static int
+_threads_clear(PyObject* module);
+static void
+_threads_free(void* module);
+
+// Interned module name for PyImport_GetModule. Written once in _threads_exec
+// before any PeriodicThread can be created; read-only thereafter (safe for
+// free-threaded mode: the import lock provides the happens-before guarantee).
+// NOTE: This is a process-global, so a second sub-interpreter reuses the string
+// object created by the first — technically incorrect for isolated
+// sub-interpreters (Python 3.12+). Safe in practice because interned strings
+// are immortal and PyImport_GetModule compares by content, but the proper fix
+// is a heap-type refactor using PyType_FromModuleAndSpec +
+// PyType_GetModuleByDef, which gives each method direct access to its module
+// state without any global lookup.
+static PyObject* _threads_module_name = NULL;
+
 struct module_state
 {
     // At-exit barrier to avoid making Python VM calls during or after shutdown.
@@ -56,6 +80,35 @@ struct module_state
         // handler never ran (e.g. uWSGI --skip-atexit).
         return at_exit.load(std::memory_order_acquire) || py_is_finalizing();
     }
+};
+
+// ----------------------------------------------------------------------------
+static PyMethodDef _threads_methods[] = {
+    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { NULL, NULL, 0, NULL } /* Sentinel */
+};
+
+// ----------------------------------------------------------------------------
+static PyModuleDef_Slot _threads_slots[] = {
+    { Py_mod_exec, (void*)_threads_exec },
+#if PY_VERSION_HEX >= 0x030d0000
+    // Declare that this module is safe to use without the GIL (free-threaded).
+    { Py_mod_gil, Py_MOD_GIL_NOT_USED },
+#endif
+    { 0, NULL },
+};
+
+// ----------------------------------------------------------------------------
+static struct PyModuleDef threadsmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_threads",           /* name of module */
+    NULL,                 /* module documentation, may be NULL */
+    sizeof(module_state), /* size of per-interpreter state of the module */
+    _threads_methods,
+    _threads_slots,    /* m_slots */
+    _threads_traverse, /* m_traverse */
+    _threads_clear,    /* m_clear */
+    _threads_free,     /* m_free */
 };
 
 // ----------------------------------------------------------------------------
@@ -412,13 +465,12 @@ typedef struct periodic_thread
     std::unique_ptr<Event> _served;
 
     std::unique_ptr<std::mutex> _awake_mutex;
+    // Guards all reads and writes of _thread. Held only for the check/assign/
+    // detach sequence — never while blocking on _started, _stopped, or _served.
+    std::unique_ptr<std::mutex> _thread_mutex;
 
     std::unique_ptr<std::thread> _thread;
 } PeriodicThread;
-
-// Pointer to the module definition, needed for module state lookup
-// in PeriodicThread_init. Set during PyInit__threads.
-static PyModuleDef* threadsmodule_ptr = NULL;
 
 // ----------------------------------------------------------------------------
 static PyMemberDef PeriodicThread_members[] = {
@@ -470,14 +522,18 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_stopping = false;
     self->_skip_shutdown = false;
 
-    // Look up this interpreter's module state. PyState_FindModule searches the
-    // current interpreter, so each sub-interpreter gets its own module_state.
-    PyObject* mod = PyState_FindModule(threadsmodule_ptr);
+    // Look up this interpreter's module state. PyState_FindModule does not work
+    // for multi-phase init modules (slots != NULL), so we use
+    // PyImport_GetModule with the fully qualified name instead — each
+    // sub-interpreter has its own sys.modules entry, so this still gives
+    // per-interpreter state.
+    PyObject* mod = PyImport_GetModule(_threads_module_name);
     if (mod == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "_threads module not initialized");
         return -1;
     }
     self->_state = (module_state*)PyModule_GetState(mod);
+    Py_DECREF(mod);
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_shared<Event>();
@@ -485,6 +541,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_served = std::make_unique<Event>();
 
     self->_awake_mutex = std::make_unique<std::mutex>();
+    self->_thread_mutex = std::make_unique<std::mutex>();
 
     return 0;
 }
@@ -526,31 +583,13 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
 {
-    if (self->_thread != nullptr) {
-        PyErr_SetString(PyExc_RuntimeError, "Thread already started");
-        return NULL;
-    }
-
-    if (self->_stopping)
-        Py_RETURN_NONE;
-
-    if (reset_next_call_time)
-        self->_next_call_time =
-          std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
-
-    // Capture _stopped as a shared_ptr before starting the thread. If PyRef's
-    // Py_DECREF drops the last Python reference inside the thread (triggering
-    // dealloc and resetting self->_stopped), this captured copy keeps the Event
-    // alive until stopped_event->set() completes.
-    std::shared_ptr<Event> stopped_event = self->_stopped;
-
-    // AIDEV-NOTE: PyRef is constructed here (GIL held) and moved into the
-    // lambda capture.  This keeps self alive across the entire window between
-    // std::thread creation and the moment the lambda acquires the GIL — during
-    // which the OS thread holds only a raw C pointer.  Without this, another
-    // Python thread could drop the last external reference in that window,
-    // causing PeriodicThread_dealloc to fire, set self->_started = nullptr,
-    // and crash the new thread at _started->set().
+    // AIDEV-NOTE: PyRef is constructed before the lock — it only requires the
+    // GIL (held here), not _thread_mutex. This keeps self alive across the
+    // entire window between std::thread creation and the moment the lambda
+    // acquires the GIL, during which the OS thread holds only a raw C pointer.
+    // Without this, another Python thread could drop the last external reference
+    // in that window, causing PeriodicThread_dealloc to fire, set
+    // self->_started = nullptr, and crash the new thread at _started->set().
     //
     // Moving into the capture also handles the std::thread construction failure
     // case for free: if the constructor throws, the lambda is never created,
@@ -558,150 +597,174 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
     // correctly restored.
     PyRef _self_ref((PyObject*)self, self->_state);
 
-    // Start the thread. std::thread's constructor calls pthread_create, which
-    // can fail with EAGAIN (thread/resource limit reached) or ENOMEM, throwing
-    // std::system_error. make_unique can also throw std::bad_alloc. We must
-    // catch these here because C++ exceptions must not propagate across the
-    // Python C API boundary. On failure the lambda (and its captured PyRef)
-    // is destroyed during unwinding, which correctly decrements the refcount.
-    try {
-        self->_thread = std::make_unique<std::thread>([self, stopped_event, ref = std::move(_self_ref)]() mutable {
-            module_state* state = self->_state;
+    {
+        std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
 
-            // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
-            // stopped_event->set(). This ensures that all Python VM interactions
-            // (Py_DECREF, PyGILState_Release) complete before the join() caller is
-            // unblocked. The inner scope also means ~PyRef may trigger
-            // PeriodicThread_dealloc (if this thread held the last reference),
-            // which is safe because stopped_event is a captured shared_ptr
-            // independent of self's lifetime.
-            {
-                GILGuard _gil(state);
+        if (self->_thread != nullptr) {
+            PyErr_SetString(PyExc_RuntimeError, "Thread already started");
+            return NULL;
+        }
 
-                // Move ref into this scope so ~PyRef (and thus Py_DECREF) fires
-                // while the GIL is still held, before stopped_event->set().
-                PyRef _ref = std::move(ref);
+        if (self->_stopping)
+            Py_RETURN_NONE;
 
-                // Retrieve the thread ID
+        if (reset_next_call_time)
+            self->_next_call_time =
+              std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
+
+        // Capture _stopped as a shared_ptr before starting the thread. If PyRef's
+        // Py_DECREF drops the last Python reference inside the thread (triggering
+        // dealloc and resetting self->_stopped), this captured copy keeps the Event
+        // alive until stopped_event->set() completes.
+        std::shared_ptr<Event> stopped_event = self->_stopped;
+
+        // Start the thread. std::thread's constructor calls pthread_create, which
+        // can fail with EAGAIN (thread/resource limit reached) or ENOMEM, throwing
+        // std::system_error. make_unique can also throw std::bad_alloc. We must
+        // catch these here because C++ exceptions must not propagate across the
+        // Python C API boundary. On failure the lambda (and its captured PyRef)
+        // is destroyed during unwinding, which correctly decrements the refcount.
+        try {
+            self->_thread = std::make_unique<std::thread>([self, stopped_event, ref = std::move(_self_ref)]() mutable {
+                module_state* state = self->_state;
+
+                // DEV: GILGuard and PyRef are in an inner scope that exits BEFORE
+                // stopped_event->set(). This ensures that all Python VM interactions
+                // (Py_DECREF, PyGILState_Release) complete before the join() caller is
+                // unblocked. The inner scope also means ~PyRef may trigger
+                // PeriodicThread_dealloc (if this thread held the last reference),
+                // which is safe because stopped_event is a captured shared_ptr
+                // independent of self's lifetime.
                 {
-                    Py_DECREF(self->ident);
-                    self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
+                    GILGuard _gil(state);
 
-                    // Map the PeriodicThread object to its thread ID
-                    PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self);
-                }
+                    // Move ref into this scope so ~PyRef (and thus Py_DECREF) fires
+                    // while the GIL is still held, before stopped_event->set().
+                    PyRef _ref = std::move(ref);
 
-                // Set the native thread name for better debugging and profiling
-                set_native_thread_name(self->name);
-
-                // Mark the thread as started from this point.
-                self->_started->set();
-
-                bool error = false;
-                if (self->_no_wait_at_start)
-                    self->_request->set(REQUEST_REASON_AWAKE);
-
-                while (!self->_stopping) {
+                    // Retrieve the thread ID
                     {
-                        AllowThreads _(state);
+                        Py_DECREF(self->ident);
+                        self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
-                        if (self->_request->wait(self->_next_call_time)) {
-                            if (self->_stopping) {
-                                // _stopping can be set by:
-                                // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
-                                //    so they survive restart;
-                                // 2. regular stop(): consume all pending reasons.
-                                const unsigned char stop_reasons =
-                                  self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
-                                const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
-                                if (!has_fork_stop)
-                                    self->_request->consume_all();
+                        // Map the PeriodicThread object to its thread ID
+                        PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self);
+                    }
+
+                    // Set the native thread name for better debugging and profiling
+                    set_native_thread_name(self->name);
+
+                    // Mark the thread as started from this point.
+                    self->_started->set();
+
+                    bool error = false;
+                    if (self->_no_wait_at_start)
+                        self->_request->set(REQUEST_REASON_AWAKE);
+
+                    while (!self->_stopping) {
+                        {
+                            AllowThreads _(state);
+
+                            if (self->_request->wait(self->_next_call_time)) {
+                                if (self->_stopping) {
+                                    // _stopping can be set by:
+                                    // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
+                                    //    so they survive restart;
+                                    // 2. regular stop(): consume all pending reasons.
+                                    const unsigned char stop_reasons =
+                                      self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
+                                    const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                                    if (!has_fork_stop)
+                                        self->_request->consume_all();
+                                    break;
+                                }
+
+                                // Request wakeup while running (awake/no_wait_at_start).
+                                // Timer wakeups are the wait(...) == false branch.
+                                self->_request->consume_all();
+                            }
+                        }
+
+                        if (state->is_finalizing())
+                            break;
+
+                        {
+                            PyObject* result = PeriodicThread__periodic(self);
+                            if (result == NULL) {
+                                // Error: target raised an exception.
+                                error = true;
                                 break;
                             }
-
-                            // Request wakeup while running (awake/no_wait_at_start).
-                            // Timer wakeups are the wait(...) == false branch.
-                            self->_request->consume_all();
+                            // If the target returns PERIODIC_STOP, set _stopping so
+                            // the while condition exits after this iteration.
+                            if (self->_state->PERIODIC_STOP != nullptr && result == self->_state->PERIODIC_STOP)
+                                self->_stopping = true;
+                            Py_DECREF(result);
                         }
+
+                        self->_next_call_time = std::chrono::steady_clock::now() +
+                                                std::chrono::milliseconds((long long)(self->interval * 1000));
+
+                        // If this came from a request mark it as served
+                        self->_served->set();
                     }
 
-                    if (state->is_finalizing())
-                        break;
-
-                    {
-                        PyObject* result = PeriodicThread__periodic(self);
-                        if (result == NULL) {
-                            // Error: target raised an exception.
-                            error = true;
-                            break;
-                        }
-                        // If the target returns PERIODIC_STOP, set _stopping so
-                        // the while condition exits after this iteration.
-                        if (self->_state->PERIODIC_STOP != nullptr && result == self->_state->PERIODIC_STOP)
-                            self->_stopping = true;
-                        Py_DECREF(result);
-                    }
-
-                    self->_next_call_time =
-                      std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
-
-                    // If this came from a request mark it as served
+                    // Set request served in case any threads are waiting while a thread is
+                    // stopping.
                     self->_served->set();
+
+                    if (!state->is_finalizing()) {
+                        // Run the shutdown callback if there was no error and we are not
+                        // at Python shutdown.
+                        if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
+                            PeriodicThread__on_shutdown(self);
+
+                        // Remove the thread from the mapping of active threads.
+                        PyDict_DelItem(state->periodic_threads, self->ident);
+                    }
+
+                    // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
+                    // PyRef::~PyRef calls Py_DECREF(self). Both may interact with the
+                    // Python VM; they must complete before stopped_event->set() below.
                 }
 
-                // Set request served in case any threads are waiting while a thread is
-                // stopping.
-                self->_served->set();
+                // All Python VM interactions are done. Signal that the thread has fully
+                // stopped. join() waits on this event; since the thread is detached
+                // (no OS join), this is the sole synchronisation point.
+                // DEV: The thread might have been destructed at this point, so we have
+                // to interact with the stopped_event directly instead of self->_stopped
+                // to avoid potential use-after-free of self.
+                stopped_event->set();
+            });
+        } catch (const std::system_error& e) {
+            // pthread_create failed. Typical code is EAGAIN (insufficient resources
+            // or thread limit reached) or ENOMEM. Surface as OSError so the Python
+            // caller can log and continue without the thread running.
+            PyErr_Format(PyExc_OSError, "failed to start periodic thread: %s", e.what());
+            return NULL;
+        } catch (const std::exception& e) {
+            PyErr_Format(PyExc_RuntimeError, "failed to start periodic thread: %s", e.what());
+            return NULL;
+        }
 
-                if (!state->is_finalizing()) {
-                    // Run the shutdown callback if there was no error and we are not
-                    // at Python shutdown.
-                    if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
-                        PeriodicThread__on_shutdown(self);
+        // Detach immediately. The thread is self-managing: its OS resources are
+        // released automatically on exit. join() synchronises via stopped_event
+        // (set only after all Python VM teardown), so no OS join is ever needed.
+        try {
+            self->_thread->detach();
+        } catch (const std::exception& e) {
+            // Detach should not fail on a just-constructed thread, but guard
+            // against it anyway: leak the handle rather than leave a joinable
+            // std::thread around that would std::terminate() on destruction.
+            (void)self->_thread.release();
+            PyErr_Format(PyExc_RuntimeError, "failed to detach periodic thread: %s", e.what());
+            return NULL;
+        }
 
-                    // Remove the thread from the mapping of active threads.
-                    PyDict_DelItem(state->periodic_threads, self->ident);
-                }
+    } // _thread_mutex released here — before blocking on _started.
 
-                // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
-                // PyRef::~PyRef calls Py_DECREF(self). Both may interact with the
-                // Python VM; they must complete before stopped_event->set() below.
-            }
-
-            // All Python VM interactions are done. Signal that the thread has fully
-            // stopped. join() waits on this event; since the thread is detached
-            // (no OS join), this is the sole synchronisation point.
-            // DEV: The thread might have been destructed at this point, so we have
-            // to interact with the stopped_event directly instead of self->_stopped
-            // to avoid potential use-after-free of self.
-            stopped_event->set();
-        });
-    } catch (const std::system_error& e) {
-        // pthread_create failed. Typical code is EAGAIN (insufficient resources
-        // or thread limit reached) or ENOMEM. Surface as OSError so the Python
-        // caller can log and continue without the thread running.
-        PyErr_Format(PyExc_OSError, "failed to start periodic thread: %s", e.what());
-        return NULL;
-    } catch (const std::exception& e) {
-        PyErr_Format(PyExc_RuntimeError, "failed to start periodic thread: %s", e.what());
-        return NULL;
-    }
-
-    // Detach immediately. The thread is self-managing: its OS resources are
-    // released automatically on exit. join() synchronises via stopped_event
-    // (set only after all Python VM teardown), so no OS join is ever needed.
-    try {
-        self->_thread->detach();
-    } catch (const std::exception& e) {
-        // Detach should not fail on a just-constructed thread, but guard
-        // against it anyway: leak the handle rather than leave a joinable
-        // std::thread around that would std::terminate() on destruction.
-        (void)self->_thread.release();
-        PyErr_Format(PyExc_RuntimeError, "failed to detach periodic thread: %s", e.what());
-        return NULL;
-    }
-
-    // Wait for the thread to start
+    // Wait for the thread to start. Outside the lock: the new thread sets
+    // _started while we wait, so holding _thread_mutex here would deadlock.
     {
         AllowThreads _(self->_state);
 
@@ -722,9 +785,12 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    if (self->_thread == nullptr) {
-        PyErr_SetString(PyExc_RuntimeError, "Thread not started");
-        return NULL;
+    {
+        std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
+        if (self->_thread == nullptr) {
+            PyErr_SetString(PyExc_RuntimeError, "Thread not started");
+            return NULL;
+        }
     }
 
     // GIL-fast-path: if the worker is permanently stopped (not fork-paused),
@@ -766,9 +832,12 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    if (self->_thread == nullptr) {
-        PyErr_SetString(PyExc_RuntimeError, "Thread not started");
-        return NULL;
+    {
+        std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
+        if (self->_thread == nullptr) {
+            PyErr_SetString(PyExc_RuntimeError, "Thread not started");
+            return NULL;
+        }
     }
 
     // Order _stopping + set(STOP) against awake()'s setup of (clear _served,
@@ -789,14 +858,16 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
-    if (self->_thread == nullptr) {
-        PyErr_SetString(PyExc_RuntimeError, "Periodic thread not started");
-        return NULL;
-    }
-
-    if (self->_thread->get_id() == std::this_thread::get_id()) {
-        PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
-        return NULL;
+    {
+        std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
+        if (self->_thread == nullptr) {
+            PyErr_SetString(PyExc_RuntimeError, "Periodic thread not started");
+            return NULL;
+        }
+        if (self->_thread->get_id() == std::this_thread::get_id()) {
+            PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
+            return NULL;
+        }
     }
 
     PyObject* timeout = Py_None;
@@ -887,7 +958,10 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // safe_reset_thread so we never crash if the inherited handle is
         // somehow still joinable (e.g. detach did not actually take effect
         // across the fork boundary).
-        safe_reset_thread(self->_thread);
+        {
+            std::lock_guard<std::mutex> _lock(*self->_thread_mutex);
+            safe_reset_thread(self->_thread);
+        } // release before _PeriodicThread_do_start, which re-acquires.
 
         self->_started->clear();
         self->_stopped->clear();
@@ -977,10 +1051,14 @@ PeriodicThread_dealloc(PeriodicThread* self)
     //
     // Full cleanup is therefore correct in all cases;
 
-    // Unmap the PeriodicThread from periodic_threads.
-    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL &&
-        PyDict_Contains(self->_state->periodic_threads, self->ident))
-        PyDict_DelItem(self->_state->periodic_threads, self->ident);
+    // Unmap the PeriodicThread from periodic_threads. Use unconditional DelItem
+    // + error clear instead of Contains+DelItem to avoid a TOCTOU race in
+    // free-threaded mode: another thread may delete the key between the two
+    // calls. KeyError on a missing key is harmless.
+    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL) {
+        if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
+            PyErr_Clear();
+    }
 
     Py_XDECREF(self->name);
     Py_XDECREF(self->_target);
@@ -1001,6 +1079,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     self->_served = nullptr;
 
     self->_awake_mutex = nullptr;
+    self->_thread_mutex = nullptr;
 
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
@@ -1126,99 +1205,77 @@ _threads_free(void* module)
 }
 
 // ----------------------------------------------------------------------------
-static PyMethodDef _threads_methods[] = {
-    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
-    { NULL, NULL, 0, NULL } /* Sentinel */
-};
-
-// ----------------------------------------------------------------------------
-static struct PyModuleDef threadsmodule = {
-    PyModuleDef_HEAD_INIT,
-    "_threads",           /* name of module */
-    NULL,                 /* module documentation, may be NULL */
-    sizeof(module_state), /* size of per-interpreter state of the module */
-    _threads_methods,
-    NULL,              /* m_slots */
-    _threads_traverse, /* m_traverse */
-    _threads_clear,    /* m_clear */
-    _threads_free,     /* m_free */
-};
-
-// ----------------------------------------------------------------------------
-PyMODINIT_FUNC
-PyInit__threads(void)
+// Module exec function: runs once per interpreter after the module object is
+// created. Replaces the old single-phase init body; returning -1 signals error.
+static int
+_threads_exec(PyObject* m)
 {
-    PyObject* m = NULL;
-
     if (PyType_Ready(&PeriodicThreadType) < 0)
-        return NULL;
-
-    threadsmodule_ptr = &threadsmodule;
-    m = PyModule_Create(threadsmodule_ptr);
-    if (m == NULL)
-        return NULL;
+        return -1;
 
     // Initialize module state (placement new for std::atomic + PyObject* members).
+    module_state* state = (module_state*)PyModule_GetState(m);
+    new (state) module_state();
+
+    if (_threads_module_name == NULL) {
+        _threads_module_name = PyUnicode_InternFromString("ddtrace.internal._threads");
+        if (_threads_module_name == NULL)
+            return -1;
+    }
+
+    state->periodic_threads = PyDict_New();
+    if (state->periodic_threads == NULL)
+        return -1;
+
+    // Register the atexit hook — the sole writer of module_state::at_exit.
     {
-        module_state* state = (module_state*)PyModule_GetState(m);
-        new (state) module_state();
-
-        state->periodic_threads = PyDict_New();
-        if (state->periodic_threads == NULL)
-            goto error;
-
-        // Register the atexit hook — the sole writer of module_state::at_exit.
-        {
-            PyObject* atexit_mod = PyImport_ImportModule("atexit");
-            if (atexit_mod == NULL)
-                goto error;
-            PyObject* at_exit_fn = PyObject_GetAttrString(m, "_at_exit");
-            if (at_exit_fn == NULL) {
-                Py_DECREF(atexit_mod);
-                goto error;
-            }
-            PyObject* res = PyObject_CallMethod(atexit_mod, "register", "O", at_exit_fn);
-            Py_DECREF(at_exit_fn);
+        PyObject* atexit_mod = PyImport_ImportModule("atexit");
+        if (atexit_mod == NULL)
+            return -1;
+        PyObject* at_exit_fn = PyObject_GetAttrString(m, "_at_exit");
+        if (at_exit_fn == NULL) {
             Py_DECREF(atexit_mod);
-            if (res == NULL)
-                goto error;
-            Py_DECREF(res);
+            return -1;
         }
+        PyObject* res = PyObject_CallMethod(atexit_mod, "register", "O", at_exit_fn);
+        Py_DECREF(at_exit_fn);
+        Py_DECREF(atexit_mod);
+        if (res == NULL)
+            return -1;
+        Py_DECREF(res);
     }
 
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
-        goto error;
+        return -1;
     }
 
-    {
-        module_state* state = (module_state*)PyModule_GetState(m);
-
-        // PyModule_AddObject steals the reference on success; give it an extra
-        // one so state->periodic_threads remains valid for the module's lifetime.
-        Py_INCREF(state->periodic_threads);
-        if (PyModule_AddObject(m, "periodic_threads", state->periodic_threads) < 0) {
-            Py_DECREF(state->periodic_threads);
-            goto error;
-        }
-
-        // Create the PERIODIC_STOP sentinel: a unique object that periodic
-        // targets can return to request a clean one-shot stop of the loop.
-        state->PERIODIC_STOP = PyObject_CallObject((PyObject*)&PyBaseObject_Type, NULL);
-        if (state->PERIODIC_STOP == NULL)
-            goto error;
-        Py_INCREF(state->PERIODIC_STOP);
-        if (PyModule_AddObject(m, "PERIODIC_STOP", state->PERIODIC_STOP) < 0) {
-            Py_DECREF(state->PERIODIC_STOP);
-            goto error;
-        }
+    // PyModule_AddObject steals the reference on success; give it an extra
+    // one so state->periodic_threads remains valid for the module's lifetime.
+    Py_INCREF(state->periodic_threads);
+    if (PyModule_AddObject(m, "periodic_threads", state->periodic_threads) < 0) {
+        Py_DECREF(state->periodic_threads);
+        return -1;
     }
 
-    return m;
+    // Create the PERIODIC_STOP sentinel: a unique object that periodic
+    // targets can return to request a clean one-shot stop of the loop.
+    state->PERIODIC_STOP = PyObject_CallObject((PyObject*)&PyBaseObject_Type, NULL);
+    if (state->PERIODIC_STOP == NULL)
+        return -1;
+    Py_INCREF(state->PERIODIC_STOP);
+    if (PyModule_AddObject(m, "PERIODIC_STOP", state->PERIODIC_STOP) < 0) {
+        Py_DECREF(state->PERIODIC_STOP);
+        return -1;
+    }
 
-error:
-    Py_XDECREF(m);
+    return 0;
+}
 
-    return NULL;
+// ----------------------------------------------------------------------------
+PyMODINIT_FUNC
+PyInit__threads(void)
+{
+    return PyModuleDef_Init(&threadsmodule);
 }
