@@ -307,7 +307,6 @@ def test_iast_concurrent_requests_limit_django(iast_test_token):
     assert false_count <= rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
-@pytest.mark.skip()
 def test_iast_header_injection(iast_test_token):
     with django_server(
         iast_enabled="true",
