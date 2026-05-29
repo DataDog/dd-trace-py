@@ -682,6 +682,12 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
+}
+
+static PyObject*
 stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Pause the sampling thread and wait for any in-flight sample to complete.
@@ -824,6 +830,10 @@ static PyMethodDef stack_methods[] = {
       METH_NOARGS,
       "Start sys.monitoring-based native call tracking" },
     { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
+    { "_native_call_registry_size",
+      _native_call_registry_size,
+      METH_NOARGS,
+      "Return the native call monitoring registry size" },
     { NULL, NULL, 0, NULL }
 };
 

@@ -17,6 +17,11 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr,
     std::unique_lock lock(mtx);
     auto it = call_sites.find(key);
     if (it == call_sites.end()) {
+        if (call_sites.size() >= max_call_sites) {
+            call_sites.erase(insertion_order.front());
+            insertion_order.pop_front();
+        }
+        insertion_order.push_back(key);
         call_sites.emplace(key, NativeCallEntry{ std::move(name), std::move(module) });
     }
 }
@@ -40,6 +45,7 @@ NativeCallRegistry::reset()
 {
     std::unique_lock lock(mtx);
     call_sites.clear();
+    insertion_order.clear();
 }
 
 void
@@ -51,6 +57,13 @@ NativeCallRegistry::postfork_child()
     // every call site seen in the parent. Clearing would lose native frame info
     // with no way to re-populate it.
     new (&mtx) std::shared_mutex();
+}
+
+size_t
+NativeCallRegistry::size() const
+{
+    std::shared_lock lock(mtx);
+    return call_sites.size();
 }
 
 } // namespace Datadog

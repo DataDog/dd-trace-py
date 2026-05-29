@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -40,6 +41,11 @@ struct NativeCallEntry
 class NativeCallRegistry
 {
   public:
+    // AIDEV-NOTE: Native call sites are keyed by Python code object addresses.
+    // Dynamic code generators can produce an unbounded number of one-shot code
+    // objects, so keep this registry finite while preserving recent attribution.
+    static constexpr size_t max_call_sites = 4096;
+
     NativeCallRegistry() = default;
     ~NativeCallRegistry() = default;
 
@@ -73,9 +79,12 @@ class NativeCallRegistry
 
     void postfork_child();
 
+    size_t size() const;
+
   private:
-    std::shared_mutex mtx;
+    mutable std::shared_mutex mtx;
     std::unordered_map<CallSiteKey, NativeCallEntry, CallSiteKeyHash> call_sites;
+    std::deque<CallSiteKey> insertion_order;
 };
 
 } // namespace Datadog
