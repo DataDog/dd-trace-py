@@ -3,11 +3,13 @@
 # requires-python = ">=3.12"
 # ///
 
+from pathlib import Path
 import subprocess
 
 
+HERE = Path(__file__).resolve().parent
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
-system_tests_workflows_path = ".github/workflows/system-tests.yml"
+system_tests_workflows_path = HERE / "../../.github/workflows/system-tests.yml"
 gitlab_ci_path = ".gitlab-ci.yml"
 
 

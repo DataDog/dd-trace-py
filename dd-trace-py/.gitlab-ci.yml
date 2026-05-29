@@ -7,7 +7,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "076576c9f5017a632a4ff807133211b8215214a3"
+  SYSTEM_TESTS_REF: "56306b666c80c76f447b429b0a23ce7531ff93ac"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -128,7 +128,7 @@ serverless lambda tests:
   trigger:
     project: DataDog/datadog-lambda-python
     strategy: depend
-    branch: emmett.butler/internal-package
+    branch: main 
   needs:
     - job: "upload serverless"
   variables:
