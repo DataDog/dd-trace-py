@@ -10,6 +10,7 @@ from ddtrace.internal.otlp_stats import serializer
 from ddtrace.internal.otlp_stats.exporter import OtlpStatsExporter
 from ddtrace.internal.otlp_stats.exporter import _parse_headers
 from ddtrace.internal.otlp_stats.exporter import _resolve_url
+from ddtrace.internal.otlp_stats.processor import OtlpSpanStatsProcessor
 from ddtrace.trace import Span
 
 
@@ -359,3 +360,93 @@ def test_exporter_swallows_connection_errors():
     exporter = _exporter()
     with mock.patch("ddtrace.internal.otlp_stats.exporter.get_connection", side_effect=OSError("boom")):
         exporter.export(_drained(_stats(hits=1)), BUCKET_SIZE_NS, RESOURCE_ATTRS)
+
+
+# --- processor ---
+
+
+def _proc():
+    # Long interval so the background thread never flushes during tests.
+    return OtlpSpanStatsProcessor(exporter=mock.Mock(), interval=10000.0)
+
+
+def _finished_span(top_level=True, measured=False, error=False, start_ns=0, duration_ns=1_000_000_000):
+    s = _span()
+    if top_level:
+        s._set_attribute("_dd.top_level", 1)
+    if measured:
+        s._set_attribute("_dd.measured", 1)
+    if error:
+        s.error = 1
+    s.start_ns = start_ns
+    s.duration_ns = duration_ns
+    return s
+
+
+def test_processor_records_top_level_span():
+    proc = _proc()
+    try:
+        proc.on_span_finish(_finished_span(top_level=True))
+        assert len(proc._drain()) == 1
+    finally:
+        proc.stop()
+
+
+def test_processor_records_measured_span():
+    proc = _proc()
+    try:
+        proc.on_span_finish(_finished_span(top_level=False, measured=True))
+        assert len(proc._drain()) == 1
+    finally:
+        proc.stop()
+
+
+def test_processor_skips_non_top_level_non_measured():
+    proc = _proc()
+    try:
+        proc.on_span_finish(_finished_span(top_level=False, measured=False))
+        assert proc._drain() == []
+    finally:
+        proc.stop()
+
+
+def test_processor_buckets_by_time():
+    proc = _proc()
+    try:
+        proc.on_span_finish(_finished_span(start_ns=0, duration_ns=1_000_000_000))
+        proc.on_span_finish(_finished_span(start_ns=2 * proc._bucket_size_ns, duration_ns=1_000_000_000))
+        assert len(proc._drain()) == 2
+    finally:
+        proc.stop()
+
+
+def test_processor_periodic_exports_and_clears():
+    proc = _proc()
+    try:
+        proc.on_span_finish(_finished_span())
+        proc.periodic()
+        assert proc._exporter.export.call_count == 1
+        # buckets were drained, so a second flush is a no-op
+        proc.periodic()
+        assert proc._exporter.export.call_count == 1
+    finally:
+        proc.stop()
+
+
+def test_processor_periodic_noop_when_empty():
+    proc = _proc()
+    try:
+        proc.periodic()
+        assert proc._exporter.export.call_count == 0
+    finally:
+        proc.stop()
+
+
+def test_processor_disabled_skips_recording():
+    proc = _proc()
+    try:
+        proc._enabled = False
+        proc.on_span_finish(_finished_span())
+        assert proc._drain() == []
+    finally:
+        proc.stop()

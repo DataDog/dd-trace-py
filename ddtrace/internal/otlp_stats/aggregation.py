@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ddtrace._trace.span import Span
 
 
+# Set by TopLevelSpanProcessor, which runs before this processor in the pipeline.
 _TOP_LEVEL_KEY = "_dd.top_level"
 
 
