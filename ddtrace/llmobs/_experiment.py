@@ -1245,6 +1245,8 @@ class ExperimentRun:
 
             data_rows.append(flat)
 
+        if not column_tuples:
+            return pd.DataFrame()
         records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
         return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
 
