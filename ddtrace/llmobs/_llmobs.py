@@ -562,47 +562,42 @@ class LLMObs(Service):
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
 
-        dropped = True
+        span_kind = get_llmobs_span_kind(span)
+        if span_kind == "llm":
+            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
+
+        span_event = None
         try:
-            span_kind = get_llmobs_span_kind(span)
-            if span_kind == "llm":
-                core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
-
-            span_event = None
-            try:
-                if self._prepare_llmobs_span_data(span, span_kind):
-                    span_event = self._llmobs_span_event(span)
-            except (KeyError, TypeError, ValueError):
-                log.error(
-                    "Error generating LLMObs span event for span %s, likely due to malformed span",
-                    span,
-                    exc_info=True,
-                )
-
-            if not span_event:
-                # Dropped by user processor / error during preparation/assembly.
-                return
-
-            if self._evaluator_runner and span_kind == "llm":
-                self._evaluator_runner.enqueue(span_event, span)
-
-            if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-                # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
-                # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
-                # APM_AGENTLESS is the only mode where data rides the APM trace instead.
-                span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-                self._llmobs_span_writer.enqueue(span_event)
-            dropped = False
-        finally:
-            telemetry.record_span_created(span, self._export_mode, dropped=dropped)
-            # Clear meta_struct unless this span needs to keep it to ride the APM trace
-            # (un-dropped APM_AGENTLESS) or unless a test fixture asks us to preserve it.
-            keep_for_apm = not dropped and self._export_mode == LLMObsExportMode.APM_AGENTLESS
-            keep_for_test = (
-                not dropped and self._export_mode != LLMObsExportMode.APM_AGENTLESS and self._test_mode_keep_meta_struct
+            if self._prepare_llmobs_span_data(span, span_kind):
+                span_event = self._llmobs_span_event(span)
+        except (KeyError, TypeError, ValueError):
+            log.error(
+                "Error generating LLMObs span event for span %s, likely due to malformed span",
+                span,
+                exc_info=True,
             )
-            if not keep_for_apm and not keep_for_test:
+
+        if not span_event:
+            # Dropped by user processor / error during preparation/assembly.
+            # Record telemetry before clearing meta_struct so tag getters still see data.
+            telemetry.record_span_created(span, self._export_mode, dropped=True)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            return
+
+        if self._evaluator_runner and span_kind == "llm":
+            self._evaluator_runner.enqueue(span_event, span)
+
+        if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
+            # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
+            # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
+            # APM_AGENTLESS is the only mode where data rides the APM trace instead.
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._llmobs_span_writer.enqueue(span_event)
+            telemetry.record_span_created(span, self._export_mode)
+            if not self._test_mode_keep_meta_struct:
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+        else:
+            telemetry.record_span_created(span, self._export_mode)
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
