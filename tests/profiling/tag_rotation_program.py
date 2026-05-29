@@ -36,7 +36,7 @@ def busy_loop(seconds: float) -> None:
 def main() -> int:
     tracer = ddtrace.tracer
     profiler = Profiler(service="tag-rotation-test", env="test", version="0.1.0")
-    profiler.start(stop_on_exit=False)
+    profiler.start()
 
     try:
         for cycle, phase in enumerate(PHASES):
