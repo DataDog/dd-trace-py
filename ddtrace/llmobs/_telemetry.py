@@ -2,10 +2,12 @@ import time
 from typing import Any
 from typing import Optional
 
+from ddtrace import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -101,17 +103,13 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span, intake: str):
-    """Record a finished LLMObs span that is about to be shipped.
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
+    """Record a finished LLMObs span.
 
-    Not emitted for spans that were dropped before any LLMObs payload could ship
-    (user processor returned ``None``, malformed span, assembly error).
-
-    ``intake`` is the path the LLMObs payload took:
-      - ``"apm_agentless"``      — payload rode the APM trace to the APM intake
-                                   (LLMObsExportMode.APM_AGENTLESS).
-      - ``"llmobs_agentless"``   — LLMObsSpanWriter posted directly to the LLMObs intake.
-      - ``"llmobs_agent_proxy"`` — LLMObsSpanWriter posted via the agent's EVP proxy.
+    ``intake`` is derived from the export mode and writer-transport config:
+      - ``"apm_agentless"``      — APM_AGENTLESS mode; LLMObs payload rides the APM trace.
+      - ``"llmobs_agentless"``   — LLMObsSpanWriter posts directly to the LLMObs intake.
+      - ``"llmobs_agent_proxy"`` — LLMObsSpanWriter posts via the agent's EVP proxy.
     """
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
@@ -122,6 +120,12 @@ def record_span_created(span: Span, intake: str):
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
+    if export_mode == LLMObsExportMode.APM_AGENTLESS:
+        intake = "apm_agentless"
+    elif config._llmobs_agentless_enabled:
+        intake = "llmobs_agentless"
+    else:
+        intake = "llmobs_agent_proxy"
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),

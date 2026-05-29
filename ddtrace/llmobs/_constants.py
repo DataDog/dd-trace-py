@@ -3,20 +3,12 @@ from typing import Final
 
 
 class LLMObsExportMode(str, Enum):
-    """Top-level shape of how an LLMObs span is exported.
+    """How LLMObs span data is submitted to Datadog.
 
-    Picks which path is used for the LLMObs payload and (for APM_AGENTLESS) for the
-    underlying APM trace. The actual transport for the LLMObs writer (agentless to the
-    LLMObs intake vs. via the agent's EVP proxy) is a separate axis driven by
-    ``config._llmobs_agentless_enabled``.
-
-    LLMOBS_DIRECT  — APM trace dropped (DD_APM_TRACING_ENABLED=false); LLMObs payload
-                     ships via LLMObsSpanWriter only.
-    APM_AGENTLESS  — APM trace writer swapped to AgentlessTraceWriter; LLMObs payload
-                     rides the APM trace as ``meta_struct["_llmobs"]`` to the APM intake.
-    APM_AGENT      — APM trace ships through the agent normally (without the LLMObs
-                     payload, which is stripped before send); LLMObs payload ships
-                     separately via LLMObsSpanWriter.
+    LLMOBS_DIRECT  — span events go through LLMObsSpanWriter directly.
+                     Used when DD_APM_TRACING_ENABLED=false.
+    APM_AGENTLESS  — span data rides the APM trace; APM writer switches to agentless.
+    APM_AGENT      — span data rides the APM trace; APM writer stays agent-based.
     """
 
     LLMOBS_DIRECT = "llmobs_direct"
