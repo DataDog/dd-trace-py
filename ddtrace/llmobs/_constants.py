@@ -120,6 +120,8 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+REQUEST_BASE_URL = "llmobs.request_base_url"
+
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"

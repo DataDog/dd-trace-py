@@ -118,6 +118,46 @@ class TestLLMObsOpenaiV1:
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "unknown"
 
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_provider_attribution_with_concurrent_openai_and_azure_clients(
+        self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
+    ):
+        """Regression test for provider mis-attribution when multiple OpenAI-family
+        clients are instantiated concurrently. Each span must reflect the client that
+        actually made the call, not whichever client was constructed last.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+
+        # Construction order: OpenAI first, then AzureOpenAI. Calling order: OpenAI, then Azure.
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "openai"
+        assert get_llmobs_model_provider(spans[1]) == "azure_openai"
+
+        # Reverse construction and call order to rule out passing-by-coincidence
+        # (e.g. fix only works when the "right" client was the most recently
+        # constructed one).
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "azure_openai"
+        assert get_llmobs_model_provider(spans[1]) == "openai"
+
     def test_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
