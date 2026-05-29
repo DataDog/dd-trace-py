@@ -561,7 +561,6 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        telemetry.record_span_created(span, self._export_mode)
 
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
@@ -579,7 +578,10 @@ class LLMObs(Service):
             )
 
         if not span_event:
-            # clear meta_struct if no event to export (dropped by user processor / error during preparation/assembly)
+            # No event to export (dropped by user processor / error during preparation/assembly).
+            # Record telemetry before clearing meta_struct so the span.finished tag getters
+            # still have data to read.
+            telemetry.record_span_created(span, "dropped")
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
@@ -592,8 +594,11 @@ class LLMObs(Service):
             # APM_AGENTLESS is the only mode where data rides the APM trace instead.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
+            telemetry.record_span_created(span, "llmobs")
             if not self._test_mode_keep_meta_struct:
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+        else:
+            telemetry.record_span_created(span, "apm")
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
