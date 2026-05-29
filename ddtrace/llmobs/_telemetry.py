@@ -104,13 +104,6 @@ def record_span_started():
 
 
 def record_span_created(span: Span, export_mode: LLMObsExportMode):
-    """Record a finished LLMObs span.
-
-    ``intake`` is derived from the export mode and writer-transport config:
-      - ``"apm_agentless"``      — APM_AGENTLESS mode; LLMObs payload rides the APM trace.
-      - ``"llmobs_agentless"``   — LLMObsSpanWriter posts directly to the LLMObs intake.
-      - ``"llmobs_agent_proxy"`` — LLMObsSpanWriter posts via the agent's EVP proxy.
-    """
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
