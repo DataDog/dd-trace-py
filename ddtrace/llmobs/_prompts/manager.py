@@ -31,6 +31,10 @@ log = get_logger(__name__)
 class PromptManager:
     """Manages prompt retrieval and caching."""
 
+    # Dedicated OpenFeature domain so prompt evaluation never clobbers or reads
+    # the application's own default provider.
+    _FFE_DOMAIN = "datadog-llmobs-prompts"
+
     def __init__(
         self,
         api_key: str,
@@ -257,8 +261,9 @@ class PromptManager:
 
             from ddtrace.internal.openfeature._provider import DataDogProvider
 
-            # Non-blocking: registers for RC callbacks without waiting for config delivery
-            api.set_provider(DataDogProvider(initialization_timeout=0))
+            # Non-blocking: registers for RC callbacks without waiting for config delivery.
+            # Scoped to our own domain so we don't replace the app's default provider.
+            api.set_provider(DataDogProvider(initialization_timeout=0), self._FFE_DOMAIN)
             self._ffe_provider_set = True
         except Exception:
             log.debug("Failed to register OpenFeature provider", exc_info=True)
@@ -271,12 +276,16 @@ class PromptManager:
     ) -> Optional[ManagedPrompt]:
         """Evaluate a prompt via the OpenFeature SDK. Returns None on any failure."""
         from ddtrace.internal.settings import env as dd_env_settings
+        from ddtrace.internal.settings.openfeature import config as ffe_config
 
-        env_val = dd_env_settings.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
-        if env_val is not None and env_val.lower() == "false":
-            return None
-        if env_val is None:
-            dd_env_settings["DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"] = "true"
+        # Opt-out: lazily enable the flagging provider unless explicitly disabled.
+        # Flip the cached config object directly - mutating os.environ is a no-op
+        # because the config snapshot is frozen at startup under ddtrace-run.
+        if not ffe_config.experimental_flagging_provider_enabled:
+            env_val = dd_env_settings.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
+            if env_val is not None and env_val.lower() == "false":
+                return None
+            ffe_config.experimental_flagging_provider_enabled = True
 
         try:
             from openfeature import api
@@ -294,7 +303,7 @@ class PromptManager:
                 targeting_key=targeting_key,
                 attributes=attributes or {},
             )
-            client = api.get_client()
+            client = api.get_client(self._FFE_DOMAIN)
             variant_value = client.get_object_value(flag_key, {}, context)
 
             if not isinstance(variant_value, dict) or not variant_value:
