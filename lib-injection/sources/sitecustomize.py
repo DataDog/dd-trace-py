@@ -333,19 +333,18 @@ def _inject():
     runtime_incomp = False
     spec = None
     try:
+        if OVERRIDE_USER_DDTRACE:
+            # Use the injected ddtrace.
+            raise ModuleNotFoundError("ddtrace")
+
         # `find_spec` is only available in Python 3.4+
         # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
         # DEV: It is ok to fail here on import since it'll only fail on Python versions we don't support / inject into
         import importlib.util
 
         # None is a valid return value for find_spec (module was not found), so we need to check for it explicitly
-
         spec = importlib.util.find_spec("ddtrace")
         if not spec:
-            raise ModuleNotFoundError("ddtrace")
-        if OVERRIDE_USER_DDTRACE:
-            # A user-installed ddtrace is present, but the operator requested that the injected
-            # (bundled) version take precedence. Fall through to the injection path.
             raise ModuleNotFoundError("ddtrace")
     except Exception:
         # enable safe instrumentation for ddtrace which won't patch incompatible integrations
