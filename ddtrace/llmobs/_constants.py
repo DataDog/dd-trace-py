@@ -1,4 +1,19 @@
+from enum import Enum
 from typing import Final
+
+
+class LLMObsExportMode(str, Enum):
+    """How LLMObs span data is submitted to Datadog.
+
+    LLMOBS_DIRECT  — span events go through LLMObsSpanWriter directly.
+                     Used when DD_APM_TRACING_ENABLED=false.
+    APM_AGENTLESS  — span data rides the APM trace; APM writer switches to agentless.
+    APM_AGENT_PROXY  — span data rides the APM trace; APM writer stays agent-based.
+    """
+
+    LLMOBS_DIRECT = "llmobs_direct"
+    APM_AGENTLESS = "apm_agentless"
+    APM_AGENT_PROXY = "apm_agent"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -156,7 +171,9 @@ class LLMOBS_STRUCT:
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
+    TOOL: Final = "tool"
     TOOL_DEFINITIONS: Final = "tool_definitions"
+    VERSION: Final = "version"
     INPUT: Final = "input"
     OUTPUT: Final = "output"
     EXPECTED_OUTPUT: Final = "expected_output"

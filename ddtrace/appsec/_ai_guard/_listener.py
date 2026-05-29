@@ -1,19 +1,25 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from functools import partial
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_llm_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_patch
+from ddtrace.appsec._ai_guard._langchain import _langchain_stream_started
 from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_after
-from ddtrace.appsec._ai_guard._openai import _openai_chat_completion_before
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_after
+from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
+from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_after
+from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_before
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import new_ai_guard_client
@@ -27,6 +33,7 @@ def ai_guard_listen():
     client = new_ai_guard_client()
     _langchain_listen(client)
     _openai_listen(client)
+    _anthropic_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
@@ -42,20 +49,40 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
+    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # ``BaseLangchainStreamHandler.start_stream`` (called by
+    # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
+    # stream created but never consumed cannot leak the counter into the
+    # next call in the same task. The matching reset happens via
+    # ``.stream.finally`` below (dispatched from ``finalize_stream``).
+    core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
+    core.on("langchain.llm.stream.started", _langchain_stream_started)
+
     # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
-    # counter that the matching ``.before`` listener bumped. We listen on
-    # ``.finally`` (always fires from the contrib's ``finally`` block) rather
-    # than ``.after`` (only fires on success) so the counter does not leak
-    # when the underlying LLM call raises.
+    # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
+    # by the matching ``.before`` listener (``func(...)`` runs synchronously
+    # so set + reset wrap the SDK call). For streaming the counter is bumped
+    # by ``.stream.started`` above, and reset here once iteration ends. We
+    # listen on ``.finally`` rather than ``.after`` so the reset still fires
+    # when the underlying LLM call raises mid-iteration.
     core.on("langchain.chatmodel.generate.finally", _langchain_generate_finally)
     core.on("langchain.chatmodel.agenerate.finally", _langchain_generate_finally)
     core.on("langchain.llm.generate.finally", _langchain_generate_finally)
     core.on("langchain.llm.agenerate.finally", _langchain_generate_finally)
+    core.on("langchain.chatmodel.stream.finally", _langchain_generate_finally)
+    core.on("langchain.llm.stream.finally", _langchain_generate_finally)
 
 
 def _openai_listen(client: AIGuardClient):
     core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
     core.on("openai.chat.completions.create.after", partial(_openai_chat_completion_after, client))
+    core.on("openai.responses.create.before", partial(_openai_response_create_before, client))
+    core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
+
+
+def _anthropic_listen(client: AIGuardClient):
+    core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
+    core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
 
 
 def _on_set_http_meta_for_ai_guard(
@@ -67,7 +94,7 @@ def _on_set_http_meta_for_ai_guard(
     request_headers: Optional[Mapping[str, str]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, str]],

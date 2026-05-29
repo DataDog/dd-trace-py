@@ -246,6 +246,20 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
     return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
+def _langchain_stream_started(*args, **kwargs):
+    """Paired ``.stream.started`` listener for langchain stream events.
+
+    Acquires the AI Guard active-context counter for the duration of stream
+    iteration. Dispatched from ``BaseLangchainStreamHandler.start_stream``
+    (in ``ddtrace/contrib/internal/langchain/utils.py``), which is called
+    by ``TracedStream.__iter__`` / ``TracedAsyncStream.__aiter__`` on
+    iteration entry — so a stream created but never iterated cannot bump
+    the depth. The matching reset happens in
+    :func:`_langchain_generate_finally` via the ``.stream.finally`` event.
+    """
+    set_aiguard_context_active()
+
+
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
     """Evaluate the prompt and re-raise ``AIGuardAbortError`` on a block.
 

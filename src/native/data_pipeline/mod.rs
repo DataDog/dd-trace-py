@@ -5,6 +5,7 @@ use libdd_data_pipeline::trace_exporter::{
 };
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
+mod agent_response;
 mod exceptions;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
@@ -150,6 +151,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_client_side_stats_obfuscation();
+        Ok(slf.into())
+    }
+
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
@@ -276,6 +282,7 @@ pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
+    agent_response::register_agent_response(m)?;
 
     Ok(())
 }
