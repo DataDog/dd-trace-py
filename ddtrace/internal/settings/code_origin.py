@@ -19,7 +19,8 @@ class CodeOriginConfig(DDConfig):
         default="",
         help_type="String",
         help="Rewrite file paths in code origin tags. Format: 'old_prefix:new_prefix' "
-        "(pipe-delimited for multiple rules, e.g. '/opt/app/site-packages/:src/').",
+        "(pipe-delimited for multiple rules, e.g. "
+        "'/opt/app/site-packages/:src/'). First matching rule wins.",
     )
 
     class SpanCodeOriginConfig(DDConfig):
