@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import inspect
 from typing import Any
 from typing import Optional
@@ -9,13 +10,21 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 
 
 log = get_logger(__name__)
+
+
+@dataclass
+class _SpanRef:
+    span_id: str
+    trace_id: str
 
 
 class CapturingAsyncIterable(wrapt.ObjectProxy):
@@ -86,6 +95,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
         self._is_finalized = False
+        # Refs are (span_id, trace_id) snapshots and are used to chain together
+        # step spans as well as llm → tool → llm spans.
+        self._last_llm_span_ref: Optional[_SpanRef] = None
+        self._last_step_span_ref: Optional[_SpanRef] = None
+        self._step_tool_span_refs: list[_SpanRef] = []
         self._create_step_span()
 
     async def process_chunk(self, chunk, iterator=None):
@@ -138,7 +152,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 operation=self.operation,
             )
 
-            # Fallback to handle any incomplete tool spans (tools that didn't have a ToolResultBlock)
+            # Finalize incomplete tools so they emit the same span data as completed ones.
             if self._active_tool_spans:
                 log.debug(
                     "Finishing %d incomplete tool spans without results",
@@ -155,6 +169,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         finally:
             self.primary_span.finish()
 
+    def _snapshot(self, span) -> _SpanRef:
+        """Capture span_id and trace_id as plain strings — decoupled from the Span object lifetime."""
+        return _SpanRef(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
+
     def _create_step_span(self) -> None:
         """Open a step span and an llm child span for the next inference cycle."""
         self.current_step_span = self.integration.trace(
@@ -169,6 +187,29 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
         )
+        # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
+        if self._step_tool_span_refs:
+            for tool_ref in self._step_tool_span_refs:
+                add_span_link(self.current_llm_span, tool_ref.span_id, tool_ref.trace_id, "output", "input")
+            self._step_tool_span_refs.clear()
+        elif self._last_llm_span_ref is not None:
+            add_span_link(
+                self.current_llm_span,
+                self._last_llm_span_ref.span_id,
+                self._last_llm_span_ref.trace_id,
+                "output",
+                "input",
+            )
+
+        # Link each new step span from the previous step span.
+        if self._last_step_span_ref is not None:
+            add_span_link(
+                self.current_step_span,
+                self._last_step_span_ref.span_id,
+                self._last_step_span_ref.trace_id,
+                "output",
+                "input",
+            )
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -191,6 +232,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         )
         if exception is not None:
             span.set_exc_info(type(exception), exception, exception.__traceback__)
+        self._last_llm_span_ref = self._snapshot(span)
         span.finish()
 
         # Extend accumulated context with the assistant's response for the next step.
@@ -224,6 +266,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         )
         if exception is not None:
             span.set_exc_info(type(exception), exception, exception.__traceback__)
+        self._last_step_span_ref = self._snapshot(span)
         span.finish()
 
     def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str, is_error: bool = False) -> None:
@@ -246,6 +289,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             operation="tool",
         )
 
+        self._step_tool_span_refs.append(self._snapshot(tool_span))
         tool_span.finish()
 
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
@@ -259,6 +303,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             )
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
+        # _finalize_llm_span must run before the ToolUseBlock loop so
+        # _last_llm_span_ref is set when _handle_tool_use_block emits the
+        # llm → tool link.
         self._finalize_llm_span(chunk)
 
         if isinstance(content, list):
@@ -301,6 +348,14 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
         )
+        if self._last_llm_span_ref is not None:
+            add_span_link(
+                tool_span,
+                self._last_llm_span_ref.span_id,
+                self._last_llm_span_ref.trace_id,
+                "output",
+                "input",
+            )
         self._active_tool_spans[tool_id] = {
             "tool_span": tool_span,
             "tool_input": tool_input,
