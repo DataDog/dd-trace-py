@@ -150,6 +150,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_client_side_stats_obfuscation();
+        Ok(slf.into())
+    }
+
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
         heartbeat_ms: u64,
