@@ -5,8 +5,8 @@ import typing as t
 from unittest.mock import patch
 
 import ddtrace
+from ddtrace.debugging._origin import apply_path_rewrite
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-from ddtrace.debugging._origin.span import _apply_path_rewrite
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -297,22 +297,19 @@ class TestFilePathRewrite:
     def test_apply_path_rewrite_single_rule(self):
         """Test that a single rewrite rule is applied correctly."""
         rules = [("/opt/app/site-packages/myapp/", "src/myapp/")]
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
-            result = _apply_path_rewrite("/opt/app/site-packages/myapp/views.py")
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            result = apply_path_rewrite("/opt/app/site-packages/myapp/views.py")
             assert result == "src/myapp/views.py"
 
     def test_apply_path_rewrite_multiple_rules(self):
-        """Test that multiple pipe-delimited rules work and first match wins."""
+        """Test that multiple pipe-delimited rules work independently."""
         rules = [
             ("/opt/app/lib/python3.11/site-packages/myapp/", "src/myapp/"),
             ("/opt/app/lib/python3.11/site-packages/otherapp/", "src/otherapp/"),
         ]
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
-            result = _apply_path_rewrite("/opt/app/lib/python3.11/site-packages/myapp/views.py")
-            assert result == "src/myapp/views.py"
-
-            result = _apply_path_rewrite("/opt/app/lib/python3.11/site-packages/otherapp/models.py")
-            assert result == "src/otherapp/models.py"
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            assert apply_path_rewrite("/opt/app/lib/python3.11/site-packages/myapp/views.py") == "src/myapp/views.py"
+            assert apply_path_rewrite("/opt/app/lib/python3.11/site-packages/otherapp/models.py") == "src/otherapp/models.py"
 
     def test_apply_path_rewrite_first_match_wins(self):
         """Test that only the first matching rule is applied."""
@@ -320,29 +317,31 @@ class TestFilePathRewrite:
             ("/opt/app/", "first/"),
             ("/opt/app/", "second/"),
         ]
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
-            result = _apply_path_rewrite("/opt/app/views.py")
-            assert result == "first/views.py"
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            assert apply_path_rewrite("/opt/app/views.py") == "first/views.py"
 
     def test_apply_path_rewrite_no_match(self):
         """Test that non-matching paths are returned unchanged."""
         rules = [("/opt/app/site-packages/myapp/", "src/myapp/")]
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
-            result = _apply_path_rewrite("/some/other/path/views.py")
-            assert result == "/some/other/path/views.py"
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            assert apply_path_rewrite("/some/other/path/views.py") == "/some/other/path/views.py"
 
     def test_apply_path_rewrite_no_rules(self):
         """Test that paths are returned unchanged when no rules are configured."""
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", []):
-            result = _apply_path_rewrite("/opt/app/site-packages/myapp/views.py")
-            assert result == "/opt/app/site-packages/myapp/views.py"
+        with patch("ddtrace.debugging._origin._rewrite_rules", []):
+            assert apply_path_rewrite("/opt/app/site-packages/myapp/views.py") == "/opt/app/site-packages/myapp/views.py"
 
     def test_apply_path_rewrite_empty_replacement(self):
         """Test rewrite with empty replacement to strip a prefix entirely."""
         rules = [("/opt/app/lib/python3.11/site-packages/", "")]
-        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
-            result = _apply_path_rewrite("/opt/app/lib/python3.11/site-packages/myapp/views.py")
-            assert result == "myapp/views.py"
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            assert apply_path_rewrite("/opt/app/lib/python3.11/site-packages/myapp/views.py") == "myapp/views.py"
+
+    def test_apply_path_rewrite_windows_path(self):
+        """Test that Windows drive-letter paths work correctly with = delimiter."""
+        rules = [("C:\\app\\site-packages\\", "src/")]
+        with patch("ddtrace.debugging._origin._rewrite_rules", rules):
+            assert apply_path_rewrite("C:\\app\\site-packages\\myapp\\views.py") == "src/myapp\\views.py"
 
 
 def test_instrument_view_benchmark(benchmark):

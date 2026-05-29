@@ -9,6 +9,7 @@ import typing as t
 import uuid
 
 import ddtrace
+from ddtrace.debugging._origin import resolve_code_origin_filename
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
@@ -21,27 +22,11 @@ from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.settings.code_origin import config as co_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
 log = get_logger(__name__)
-
-# Parse file path rewrite rules once at module load time.
-# Format: "old_prefix:new_prefix" pipe-delimited for multiple rules.
-_rewrite_rules: list[tuple[str, str]] = []
-_raw_rewrite = co_config.file_path_rewrite
-if _raw_rewrite:
-    _rewrite_rules = [tuple(r.split(":", 1)) for r in _raw_rewrite.split("|") if ":" in r]  # type: ignore[misc]
-
-
-def _apply_path_rewrite(filename: str) -> str:
-    """Apply the first matching file path rewrite rule to the given filename."""
-    for old, new in _rewrite_rules:
-        if filename.startswith(old):
-            return new + filename[len(old):]
-    return filename
 
 
 def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
@@ -102,8 +87,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
         self.uploader = uploader
 
-        filename = str(Path(f.__code__.co_filename).resolve())
-        filename = _apply_path_rewrite(filename)
+        filename = resolve_code_origin_filename(f.__code__.co_filename)
         name = f.__qualname__
         module = f.__module__
         self.location = EntrySpanLocation(
