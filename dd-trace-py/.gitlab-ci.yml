@@ -182,7 +182,7 @@ microbenchmarks:
     - allow_failure: false
   trigger:
     include:
-      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+      - artifact: dd-trace-py/.gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
     strategy: depend
   variables:
@@ -212,7 +212,7 @@ macrobenchmarks:
             PYTHON_TAG: "cp39-cp39"
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   trigger:
-    include: .gitlab/benchmarks/macrobenchmarks.yml
+    include: dd-trace-py/.gitlab/benchmarks/macrobenchmarks.yml
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
@@ -584,30 +584,30 @@ profiling_native:
     - changes:
         - .gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
-        - ddtrace/internal/datadog/profiling/**/*.cpp
-        - ddtrace/internal/datadog/profiling/**/*.cc
-        - ddtrace/internal/datadog/profiling/**/*.h
-        - ddtrace/internal/datadog/profiling/**/*.hpp
-        - ddtrace/internal/datadog/profiling/**/*.pyx
-        - ddtrace/internal/datadog/profiling/**/*.cmake
-        - ddtrace/profiling/**/*.cpp
-        - ddtrace/profiling/**/*.cc
-        - ddtrace/profiling/**/*.h
-        - ddtrace/profiling/**/*.hpp
-        - ddtrace/profiling/**/*.pyx
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.cpp
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.cc
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.h
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.hpp
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.pyx
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.cmake
+        - dd-trace-py/ddtrace/profiling/**/*.cpp
+        - dd-trace-py/ddtrace/profiling/**/*.cc
+        - dd-trace-py/ddtrace/profiling/**/*.h
+        - dd-trace-py/ddtrace/profiling/**/*.hpp
+        - dd-trace-py/ddtrace/profiling/**/*.pyx
         # Build/test config files (not matchable by extension alone)
-        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
-        - ddtrace/internal/datadog/profiling/**/*.sh
-        - ddtrace/internal/datadog/profiling/**/*.supp
-        - ddtrace/profiling/**/CMakeLists.txt
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.sh
+        - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.supp
+        - dd-trace-py/ddtrace/profiling/**/CMakeLists.txt
         # Rust source (build_standalone.sh compiles Rust first; CMake links
         # against generated FFI headers from src/native/target/.../include/)
-        - src/native/**/*.rs
-        - src/native/**/*.toml
-        - src/native/**/Cargo.lock
+        - dd-trace-py/src/native/**/*.rs
+        - dd-trace-py/src/native/**/*.toml
+        - dd-trace-py/src/native/**/Cargo.lock
         # Top-level build config
-        - setup.py
-        - pyproject.toml
+        - dd-trace-py/setup.py
+        - dd-trace-py/pyproject.toml
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

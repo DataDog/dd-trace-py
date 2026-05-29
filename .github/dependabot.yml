@@ -6,7 +6,7 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    directory: "/dd-trace-py"
+    directory: "/"
     schedule:
       interval: "monthly"
     groups:
