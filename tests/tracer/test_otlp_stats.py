@@ -1,10 +1,15 @@
 import json
 import struct
 
+import mock
+
 from ddtrace.internal.otlp_stats.aggregation import SpanAggKey
 from ddtrace.internal.otlp_stats.aggregation import SpanAggStats
 from ddtrace.internal.otlp_stats.aggregation import SpanBuckets
 from ddtrace.internal.otlp_stats import serializer
+from ddtrace.internal.otlp_stats.exporter import OtlpStatsExporter
+from ddtrace.internal.otlp_stats.exporter import _parse_headers
+from ddtrace.internal.otlp_stats.exporter import _resolve_url
 from ddtrace.trace import Span
 
 
@@ -297,3 +302,60 @@ def test_protobuf_matrix_four_cells():
     )
     points, _ = _pb_data_points(serializer.to_protobuf(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))
     assert len(points) == 4
+
+
+# --- exporter ---
+
+
+def test_parse_headers():
+    assert _parse_headers("a=1,b=2") == {"a": "1", "b": "2"}
+    assert _parse_headers(" a = 1 ") == {"a": "1"}
+    assert _parse_headers("") == {}
+
+
+def test_resolve_url_appends_metrics_path():
+    assert _resolve_url("http://agent:4318") == "http://agent:4318/v1/metrics"
+    assert _resolve_url("http://agent:4318/") == "http://agent:4318/v1/metrics"
+    assert _resolve_url("http://agent:4318/v1/metrics") == "http://agent:4318/v1/metrics"
+
+
+def _exporter(protocol="http/protobuf"):
+    return OtlpStatsExporter("http://agent:4318", protocol, "k=v", 10000, VERSION)
+
+
+def _mock_conn(status=200):
+    conn = mock.Mock()
+    conn.getresponse.return_value = mock.Mock(status=status)
+    return conn
+
+
+def test_exporter_posts_protobuf():
+    exporter = _exporter("http/protobuf")
+    conn = _mock_conn()
+    with mock.patch("ddtrace.internal.otlp_stats.exporter.get_connection", return_value=conn):
+        exporter.export(_drained(_stats(hits=1)), BUCKET_SIZE_NS, RESOURCE_ATTRS)
+    method, url, body, headers = conn.request.call_args[0]
+    assert method == "POST"
+    assert url == "http://agent:4318/v1/metrics"
+    assert headers["Content-Type"] == "application/x-protobuf"
+    assert headers["k"] == "v"
+    assert isinstance(body, bytes)
+
+
+def test_exporter_posts_json():
+    exporter = _exporter("http/json")
+    conn = _mock_conn()
+    with mock.patch("ddtrace.internal.otlp_stats.exporter.get_connection", return_value=conn):
+        exporter.export(_drained(_stats(hits=1)), BUCKET_SIZE_NS, RESOURCE_ATTRS)
+    _, _, _, headers = conn.request.call_args[0]
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_exporter_unknown_protocol_defaults_protobuf():
+    assert _exporter("grpc")._protocol == "http/protobuf"
+
+
+def test_exporter_swallows_connection_errors():
+    exporter = _exporter()
+    with mock.patch("ddtrace.internal.otlp_stats.exporter.get_connection", side_effect=OSError("boom")):
+        exporter.export(_drained(_stats(hits=1)), BUCKET_SIZE_NS, RESOURCE_ATTRS)
