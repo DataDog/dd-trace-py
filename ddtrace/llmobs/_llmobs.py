@@ -1821,6 +1821,18 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def wait_for_ready(cls, timeout: float = 30.0) -> bool:
+        """Block up to ``timeout`` seconds for the Feature-Flag-Evaluation (FFE) provider to
+        receive its first Remote Config payload, so subsequent ``get_prompt`` calls resolve from
+        FFE instead of falling back.
+
+        :param timeout: Maximum seconds to wait. Returns as soon as the provider is ready.
+        :returns: True if the provider is ready, False on timeout or when the FFE path is inactive
+                  (no DD_ENV, agentless, or the flagging provider is disabled). Does not raise.
+        """
+        return cls._ensure_prompt_manager().wait_for_ready(timeout)
+
+    @classmethod
     def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache.
 

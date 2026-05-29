@@ -8,9 +8,11 @@ import warnings
 import pytest
 
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import FFEvalState
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs.types import PromptProviderNotReady
 from tests.utils import override_global_config
 
 
@@ -396,7 +398,7 @@ class TestPromptRouting:
             _uuid="u1",
             _version_uuid="v1",
         )
-        with patch.object(manager, "_fetch_from_ff", return_value=ff_prompt) as ff_mock:
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, FFEvalState.FF)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "staging"
                 prompt = manager.get_prompt("greeting")
@@ -413,10 +415,10 @@ class TestPromptRouting:
         ff_mock.assert_not_called()
         assert prompt.source == "registry"
 
-    def test_ff_failure_falls_back_to_http(self):
+    def test_ff_no_flag_falls_back_to_http(self):
         manager = self._make_manager(agentless=False)
         with mock_api(200, TEXT_PROMPT_RESPONSE):
-            with patch.object(manager, "_fetch_from_ff", return_value=None):
+            with patch.object(manager, "_fetch_from_ff", return_value=(None, FFEvalState.NO_FLAG)):
                 with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                     cfg.env = "staging"
                     prompt = manager.get_prompt("greeting")
@@ -431,7 +433,7 @@ class TestPromptRouting:
             source="ff",
             template="Hello!",
         )
-        with patch.object(manager, "_fetch_from_ff", return_value=ff_prompt) as ff_mock:
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, FFEvalState.FF)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "staging"
                 manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
@@ -447,3 +449,167 @@ class TestPromptRouting:
         assert "label" in str(w[0].message)
         assert "targeting" in str(w[0].message).lower()
         assert w[0].category == UserWarning
+
+
+class _StubDetails:
+    def __init__(self, value, error_code=None):
+        self.value = value
+        self.error_code = error_code
+
+
+class _StubClient:
+    def __init__(self, details=None, fire_ready=False):
+        self._details = details
+        self._fire_ready = fire_ready
+
+    def get_object_details(self, flag_key, default, context):
+        return self._details
+
+    def add_handler(self, event, handler):
+        if self._fire_ready:
+            handler(None)
+
+    def remove_handler(self, event, handler):
+        pass
+
+
+class TestPromptNotReady:
+    """get_prompt behavior when the FFE provider has not received its first RC payload."""
+
+    def _make_manager(self):
+        return PromptManager(
+            api_key="test-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=False,
+            agentless=False,
+        )
+
+    def test_not_ready_with_fallback_returns_fallback_not_http(self):
+        manager = self._make_manager()
+        with patch.object(manager, "_fetch_from_ff", return_value=(None, FFEvalState.NOT_READY)):
+            with patch.object(manager, "_get_prompt_http") as http_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "staging"
+                    prompt = manager.get_prompt("greeting", fallback="Hi {{user}}")
+        http_mock.assert_not_called()
+        assert prompt.source == "fallback"
+
+    def test_not_ready_without_fallback_raises_not_http(self):
+        manager = self._make_manager()
+        with patch.object(manager, "_fetch_from_ff", return_value=(None, FFEvalState.NOT_READY)):
+            with patch.object(manager, "_get_prompt_http") as http_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "staging"
+                    with pytest.raises(ValueError) as exc:
+                        manager.get_prompt("greeting")
+        assert isinstance(exc.value, PromptProviderNotReady)
+        http_mock.assert_not_called()
+
+
+class TestFetchFromFFStateMapping:
+    """_fetch_from_ff maps OpenFeature evaluation outcomes to routing states."""
+
+    def _make_manager(self):
+        return PromptManager(
+            api_key="test-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=False,
+            agentless=False,
+        )
+
+    def _run(self, manager, details=None):
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", True):
+            with patch.object(manager, "_ensure_ffe_rc"), patch.object(manager, "_ensure_ffe_provider"):
+                with patch("openfeature.api.get_client", return_value=_StubClient(details=details)):
+                    return manager._fetch_from_ff("greeting", None, {})
+
+    def test_disabled_when_flag_off(self):
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = self._make_manager()
+        with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
+            prompt, state = manager._fetch_from_ff("greeting", None, {})
+        assert (prompt, state) == (None, FFEvalState.DISABLED)
+
+    def test_provider_not_ready(self):
+        pytest.importorskip("openfeature")
+        from openfeature.exception import ErrorCode
+
+        manager = self._make_manager()
+        prompt, state = self._run(manager, _StubDetails(value={}, error_code=ErrorCode.PROVIDER_NOT_READY))
+        assert (prompt, state) == (None, FFEvalState.NOT_READY)
+
+    def test_flag_not_found_is_no_flag(self):
+        pytest.importorskip("openfeature")
+        from openfeature.exception import ErrorCode
+
+        manager = self._make_manager()
+        prompt, state = self._run(manager, _StubDetails(value={}, error_code=ErrorCode.FLAG_NOT_FOUND))
+        assert (prompt, state) == (None, FFEvalState.NO_FLAG)
+
+    def test_valid_variant_is_ff(self):
+        pytest.importorskip("openfeature")
+
+        manager = self._make_manager()
+        value = {"prompt_id": "greeting", "version": "3", "template": "Hello!"}
+        prompt, state = self._run(manager, _StubDetails(value=value, error_code=None))
+        assert state == FFEvalState.FF
+        assert prompt.source == "ff"
+        assert prompt.version == "3"
+
+
+class TestWaitForReady:
+    def _make_manager(self, agentless=False):
+        return PromptManager(
+            api_key="test-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=False,
+            agentless=agentless,
+        )
+
+    def test_returns_false_when_agentless(self):
+        manager = self._make_manager(agentless=True)
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = "staging"
+            assert manager.wait_for_ready(0.1) is False
+
+    def test_returns_false_when_no_env(self):
+        manager = self._make_manager()
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = None
+            assert manager.wait_for_ready(0.1) is False
+
+    def test_returns_false_when_disabled(self):
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = self._make_manager()
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = "staging"
+            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
+                assert manager.wait_for_ready(0.1) is False
+
+    def test_returns_true_when_ready(self):
+        pytest.importorskip("openfeature")
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = self._make_manager()
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = "staging"
+            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", True):
+                with patch.object(manager, "_ensure_ffe_rc"), patch.object(manager, "_ensure_ffe_provider"):
+                    with patch("openfeature.api.get_client", return_value=_StubClient(fire_ready=True)):
+                        assert manager.wait_for_ready(5.0) is True
+
+    def test_returns_false_on_timeout(self):
+        pytest.importorskip("openfeature")
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = self._make_manager()
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = "staging"
+            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", True):
+                with patch.object(manager, "_ensure_ffe_rc"), patch.object(manager, "_ensure_ffe_provider"):
+                    with patch("openfeature.api.get_client", return_value=_StubClient(fire_ready=False)):
+                        assert manager.wait_for_ready(0.1) is False

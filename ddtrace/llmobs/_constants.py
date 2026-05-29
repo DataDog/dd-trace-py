@@ -210,3 +210,20 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
 # These were removed in the span._store -> span._meta_struct migration (PR #16774).
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+
+
+class PromptSource(str, Enum):
+    HOT_CACHE = "hot_cache"
+    WARM_CACHE = "warm_cache"
+    REGISTRY = "registry"
+    FF = "ff"
+    NOT_READY = "not_ready"
+    FALLBACK = "fallback"
+
+
+class FFEvalState(str, Enum):
+    FF = "ff"
+    NOT_READY = "not_ready"
+    NO_FLAG = "no_flag"
+    DISABLED = "disabled"
+    ERROR = "error"

@@ -6,6 +6,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -263,9 +264,9 @@ def record_activate_distributed_headers(error: Optional[str]):
     )
 
 
-def record_prompt_source(source: str):
-    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
-    tags = [("from", source)]
+def record_prompt_source(source: PromptSource):
+    """Record the source of a prompt fetch."""
+    tags = [("from", source.value)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_SOURCE,

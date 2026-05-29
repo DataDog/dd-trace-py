@@ -15,6 +15,8 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
+from ddtrace.llmobs._constants import FFEvalState
+from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
@@ -23,6 +25,7 @@ from ddtrace.llmobs._prompts.utils import cache_key
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptProviderNotReady
 
 
 log = get_logger(__name__)
@@ -92,10 +95,16 @@ class PromptManager:
             telemetry.record_prompt_routing_signal("neither")
 
         if label is None and dd_env and not self._agentless:
-            prompt = self._fetch_from_ff(prompt_id, targeting_key, attributes)
-            if prompt is not None:
-                telemetry.record_prompt_source("ff")
+            prompt, ff_state = self._fetch_from_ff(prompt_id, targeting_key, attributes)
+            if ff_state == FFEvalState.FF and prompt is not None:
+                telemetry.record_prompt_source(PromptSource.FF)
                 return prompt
+            if ff_state == FFEvalState.NOT_READY:
+                telemetry.record_prompt_source(PromptSource.NOT_READY)
+                if fallback is not None:
+                    telemetry.record_prompt_source(PromptSource.FALLBACK)
+                    return ManagedPrompt.from_fallback(prompt_id, fallback)
+                raise PromptProviderNotReady(prompt_id)
 
         return self._get_prompt_http(prompt_id, label=label, fallback=fallback)
 
@@ -110,23 +119,25 @@ class PromptManager:
 
         if self._cache_enabled:
             # Try hot cache (in-memory)
-            prompt = self._try_cache(self._hot_cache, key, prompt_id, label, "hot_cache")
+            prompt = self._try_cache(self._hot_cache, key, prompt_id, label, PromptSource.HOT_CACHE)
             if prompt is not None:
                 return prompt
 
             # Try warm cache (file-based)
-            prompt = self._try_cache(self._warm_cache, key, prompt_id, label, "warm_cache", populate_hot=True)
+            prompt = self._try_cache(
+                self._warm_cache, key, prompt_id, label, PromptSource.WARM_CACHE, populate_hot=True
+            )
             if prompt is not None:
                 return prompt
 
         # Try sync fetch from registry
         fetched_prompt, reason = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
         if fetched_prompt is not None:
-            telemetry.record_prompt_source("registry")
+            telemetry.record_prompt_source(PromptSource.REGISTRY)
             return fetched_prompt
 
         # Fall back to user-provided or empty prompt
-        telemetry.record_prompt_source("fallback")
+        telemetry.record_prompt_source(PromptSource.FALLBACK)
         return self._create_fallback_prompt(prompt_id, fallback, reason=reason)
 
     def _try_cache(
@@ -135,7 +146,7 @@ class PromptManager:
         key: str,
         prompt_id: str,
         label: Optional[str],
-        source_name: str,
+        source_name: PromptSource,
         populate_hot: bool = False,
     ) -> Optional[ManagedPrompt]:
         """Try to get prompt from cache, trigger refresh if stale."""
@@ -273,26 +284,20 @@ class PromptManager:
         prompt_id: str,
         targeting_key: Optional[str],
         attributes: dict[str, Any],
-    ) -> Optional[ManagedPrompt]:
-        """Evaluate a prompt via the OpenFeature SDK. Returns None on any failure."""
-        from ddtrace.internal.settings import env as dd_env_settings
+    ) -> tuple[Optional[ManagedPrompt], FFEvalState]:
+        """Evaluate a prompt via the OpenFeature SDK."""
         from ddtrace.internal.settings.openfeature import config as ffe_config
 
-        # Opt-out: lazily enable the flagging provider unless explicitly disabled.
-        # Flip the cached config object directly - mutating os.environ is a no-op
-        # because the config snapshot is frozen at startup under ddtrace-run.
         if not ffe_config.experimental_flagging_provider_enabled:
-            env_val = dd_env_settings.get("DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED")
-            if env_val is not None and env_val.lower() == "false":
-                return None
-            ffe_config.experimental_flagging_provider_enabled = True
+            return None, FFEvalState.DISABLED
 
         try:
             from openfeature import api
             from openfeature.evaluation_context import EvaluationContext
+            from openfeature.exception import ErrorCode
         except ImportError:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
-            return None
+            return None, FFEvalState.DISABLED
 
         self._ensure_ffe_rc()
         self._ensure_ffe_provider()
@@ -304,15 +309,53 @@ class PromptManager:
                 attributes=attributes or {},
             )
             client = api.get_client(self._FFE_DOMAIN)
-            variant_value = client.get_object_value(flag_key, {}, context)
+            details = client.get_object_details(flag_key, {}, context)
 
-            if not isinstance(variant_value, dict) or not variant_value:
-                return None
+            if details.error_code == ErrorCode.PROVIDER_NOT_READY:
+                return None, FFEvalState.NOT_READY
 
-            return self._parse_prompt(variant_value, source="ff")
+            value = details.value
+            if isinstance(value, dict) and value:
+                return self._parse_prompt(value, source="ff"), FFEvalState.FF
+
+            return None, FFEvalState.NO_FLAG
         except Exception:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
-            return None
+            return None, FFEvalState.ERROR
+
+    def wait_for_ready(self, timeout: float) -> bool:
+        """Block up to timeout for the FFE provider to receive its first Remote Config payload."""
+        if self._agentless or not config.env:
+            return False
+
+        from ddtrace.internal.settings.openfeature import config as ffe_config
+
+        if not ffe_config.experimental_flagging_provider_enabled:
+            return False
+
+        try:
+            from openfeature import api
+            from openfeature.event import ProviderEvent
+        except ImportError:
+            return False
+
+        self._ensure_ffe_rc()
+        self._ensure_ffe_provider()
+
+        ready = threading.Event()
+
+        def _on_ready(_details):
+            ready.set()
+
+        client = api.get_client(self._FFE_DOMAIN)
+        client.add_handler(ProviderEvent.PROVIDER_READY, _on_ready)
+        try:
+            return ready.wait(timeout)
+        finally:
+            try:
+                client.remove_handler(ProviderEvent.PROVIDER_READY, _on_ready)
+            except Exception:
+                pass
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float

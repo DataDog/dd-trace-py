@@ -128,3 +128,11 @@ class _SpanLink(TypedDict):
 
 
 PromptFallback = Optional[Union[str, list[Message], Prompt, Callable[[], Union[str, list[Message], Prompt]]]]
+
+
+class PromptProviderNotReady(ValueError):
+    def __init__(self, prompt_id: str):
+        super().__init__(
+            "Prompt '{}': FFE provider not ready (Remote Config not yet delivered). "
+            "Call LLMObs.wait_for_ready() at startup, pass a fallback, or set a label.".format(prompt_id)
+        )
