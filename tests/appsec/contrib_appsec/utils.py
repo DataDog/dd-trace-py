@@ -536,8 +536,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/asm/137/abc/", "/asm/{param_int}/{param_str}/"),
             ("/asm/137/abc", "/asm/{param_int}/{param_str}"),
             ("/", "/"),
-            # Multi-param-in-segment: rule 5 combines names with `+`.
+            # Multi-param-in-segment: rule 5 combines names with `+` (both with and without trailing slash).
             ("/multi-param/john.doe/", "/multi-param/{first+last}/"),
+            ("/multi-param/john.doe", "/multi-param/{first+last}"),
             # `:path` catch-all: rule 5 catch-all exception emits a single tail element regardless of slashes matched.
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
@@ -580,6 +581,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
         # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
         # ``test_normalized_route`` against the regular span name.
+        #
+        # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
+        # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Normalized-route emission is still verified by ``test_normalized_route``.
         custom_name = "custom.framework.request"
         with (
             override_global_config(dict(_asm_enabled=True)),

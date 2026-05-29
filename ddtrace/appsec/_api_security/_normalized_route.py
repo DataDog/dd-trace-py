@@ -614,7 +614,10 @@ def normalize_route_django(route: Optional[str], path_params: _PathParams = None
 # Match any Flask/Werkzeug URL parameter token.
 # Group 1: converter spec (e.g. ``int``, ``path``, ``any(v1,v2)``), or ``None`` if absent.
 # Group 2: variable name (always present).
-_FLASK_PARAM_REGEX = re.compile(r"<(?:([^>:]+):)?([a-zA-Z_][a-zA-Z0-9_]*)>")
+# Uses ``[^>]+`` (not ``[^>:]+``) so that converter arguments containing ``:`` — e.g.
+# custom converters like ``<regex("[a:b]+"):slug>`` — are consumed by backtracking rather
+# than stopping prematurely at the first ``:`` inside the argument string.
+_FLASK_PARAM_REGEX = re.compile(r"<(?:([^>]+):)?([a-zA-Z_][a-zA-Z0-9_]*)>")
 
 # Fast-path detector: every URL segment is either entirely RFC-safe static chars, or exactly one
 # ``<[conv:]name>`` param with a simple (non-parenthesised) converter, and no ``path:`` catch-all.
@@ -651,7 +654,10 @@ def _normalize_route_flask_slow(route: str) -> Optional[str]:
         # Detect ``<path:name>`` catch-all (group 1 == "path").
         path_match = next((m for m in matches if m.group(1) == "path"), None)
         if path_match is not None:
-            # Catch-all must be the last segment (rule 5).
+            # Catch-all must be the last segment (rule 5). Any other params that happen to share
+            # the same segment (e.g. ``<int:id>-<path:tail>``, rejected by Werkzeug at registration
+            # time) are silently discarded — catch-all wins per RFC-1103 rule 5, and Werkzeug never
+            # produces such a route in practice.
             if i != last_idx:
                 return None
             name = path_match.group(2)

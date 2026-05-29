@@ -14,6 +14,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -74,9 +75,9 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
     "flask": normalize_route_flask,
 }
 
-# Flask DispatcherMiddleware sub-apps store the fully assembled route (script_root + url_rule.rule) in this span tag
-# as "METHOD /full/path". The route passed via set_http_meta only carries url_rule.rule (the sub-app-local portion).
-_FLASK_RESOURCE_FULL_TAG = "flask.resource.full"
+# Flask DispatcherMiddleware sub-apps: FLASK_RESOURCE_FULL (set by trace_handlers._set_flask_request_tags when
+# request.script_root is non-empty) stores the fully assembled route as "METHOD /prefix/path". The route passed
+# via set_http_meta only carries url_rule.rule (the sub-app-local portion without the mount prefix).
 
 
 def _on_set_http_meta_for_normalized_route(
@@ -122,7 +123,7 @@ def _on_set_http_meta_for_normalized_route(
     # path as "METHOD /prefix/path" — use it when available so the normalized route always reflects
     # the complete URL pattern seen by the client.
     if integration_name == "flask":
-        full_resource = span.get_tag(_FLASK_RESOURCE_FULL_TAG)
+        full_resource = span.get_tag(FLASK_RESOURCE_FULL)
         if full_resource:
             _, _, assembled = full_resource.partition(" ")
             if assembled:
