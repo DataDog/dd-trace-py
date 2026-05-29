@@ -201,11 +201,23 @@ def _resolve_override_parent_id(span: Span, prior_payload: Optional[dict[str, st
     Reuse the prior checkpoint's saved parent id verbatim (stable across all
     invocations of the same durable execution), or anchor to the current
     ``aws.durable.execute`` span id on the very first save.
+
+    When a prior payload exists but its parent id is missing or not a string
+    (SDK schema drift wrapping values in a nested structure, truncated write,
+    upstream JSON written by a different writer), skip the override and emit
+    telemetry. Falling back to the current span id here would anchor to a
+    different span than the first checkpoint did and fragment the tree.
     """
     if prior_payload is not None:
         pid = prior_payload.get(HTTP_HEADER_PARENT_ID)
-        if pid is not None:
-            return str(pid)
+        if isinstance(pid, str) and pid:
+            return pid
+        log.debug(
+            "Prior checkpoint payload parent_id missing or malformed; pid_type=%s",
+            type(pid).__name__,
+        )
+        _record_integration_error(ValueError("malformed prior payload parent_id"), "resolve_parent_id")
+        return None
     anchor_span_id = getattr(span, "span_id", None)
     return str(anchor_span_id) if anchor_span_id is not None else None
 

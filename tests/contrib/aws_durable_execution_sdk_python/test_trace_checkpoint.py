@@ -166,6 +166,47 @@ def test_save_reuses_prior_checkpoint_parent_id_on_replay():
     assert payload["x-datadog-parent-id"] == "5555555555555555"
 
 
+@pytest.mark.parametrize(
+    "bad_pid",
+    [
+        None,  # key missing / explicit null
+        {"nested": "schema-drift"},  # SDK wraps value in a dict
+        ["a", "b"],  # list
+        123,  # int instead of string
+        "",  # empty string
+    ],
+)
+def test_resolve_override_returns_none_on_malformed_prior(bad_pid, monkeypatch):
+    """If a prior payload exists but its parent_id is missing or not a usable
+    string, ``_resolve_override_parent_id`` must NOT silently fall back to the
+    current span id (that would fragment the trace tree across replays) — it
+    returns ``None`` and emits an integration_errors telemetry event so the
+    drift is observable.
+    """
+    prior = {"x-datadog-trace-id": "111", "x-datadog-sampling-priority": "1"}
+    if bad_pid is not None:
+        prior["x-datadog-parent-id"] = bad_pid
+
+    recorded = []
+    monkeypatch.setattr(
+        trace_checkpoint,
+        "_record_integration_error",
+        lambda exc, location: recorded.append((type(exc).__name__, location)),
+    )
+
+    span = _fake_span(span_id=0xBEEF)
+    result = trace_checkpoint._resolve_override_parent_id(span, prior)
+
+    assert result is None
+    assert recorded == [("ValueError", "resolve_parent_id")]
+
+
+def test_resolve_override_anchors_to_span_when_no_prior():
+    """Sanity: with no prior payload, fall back to the current execute span id."""
+    span = _fake_span(span_id=0xBEEF)
+    assert trace_checkpoint._resolve_override_parent_id(span, None) == str(0xBEEF)
+
+
 def test_save_first_invocation_then_replay_share_parent_id():
     """End-to-end: invocation 1 stamps execute span id; invocation 2 (replay)
     reads the saved checkpoint and reuses the same parent id. Both saved
