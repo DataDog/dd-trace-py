@@ -99,7 +99,7 @@ jobs:
     secrets: inherit
     with:
       library: python_lambda
-      ref: '6b3152ec85b1274ebd2425a038ce2a1721313373'
+      ref: "076576c9f5017a632a4ff807133211b8215214a3"
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -130,7 +130,7 @@ jobs:
     secrets: inherit
     with:
       library: python
-      ref: '6b3152ec85b1274ebd2425a038ce2a1721313373'
+      ref: "076576c9f5017a632a4ff807133211b8215214a3"
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
@@ -141,7 +141,7 @@ jobs:
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@6b3152ec85b1274ebd2425a038ce2a1721313373
     with:
       library: python
-      ref: '6b3152ec85b1274ebd2425a038ce2a1721313373'
+      ref: "076576c9f5017a632a4ff807133211b8215214a3"
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
