@@ -216,6 +216,14 @@ Datadog::UploaderBuilder::build_user_tag_vec(std::vector<std::string>& reasons)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
+    // AIDEV-NOTE: UploaderBuilder reaches into ProfilerState via the singleton
+    // here and in build_user_tag_vec / every set_* method. This is consistent
+    // with the rest of UploaderBuilder, but it is a hidden dependency. The
+    // clean fix is to thread only the fields actually needed (env, service,
+    // version, runtime, runtime_id, ..., user_tags, exporter) through an
+    // explicit config struct, decoupling UploaderBuilder from ProfilerState
+    // entirely. Deferred to a follow-up to keep this PR focused on the
+    // exporter-reuse behavior change.
     auto& state = ProfilerState::get();
 
     // Lazily create the exporter on first build. Subsequent builds reuse it.
