@@ -1,5 +1,4 @@
 import json
-import os
 
 import mock
 import openai as openai_module
@@ -1561,10 +1560,7 @@ MUL: "*"
         surfaced on the LLM Obs span as an output message with ``role="reasoning"``.
         """
         with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_streamed_reasoning_content.yaml"):
-            client = openai.OpenAI(
-                api_key=os.getenv("DEEPSEEK_API_KEY", "<not-a-real-key>"),
-                base_url="https://api.deepseek.com",
-            )
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
             resp = client.chat.completions.create(
                 model="deepseek-v4-pro",
                 messages=[
