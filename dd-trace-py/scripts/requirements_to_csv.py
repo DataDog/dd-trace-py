@@ -1,17 +1,8 @@
 import csv
-import importlib.util
 import os
 import re
 
 import toml
-
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-spec = importlib.util.spec_from_file_location("requirements", f"{PROJECT_ROOT}/requirements.py")
-reqs = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(reqs)
-DDTRACE_CORE_DEPENDENCIES = reqs.install_requires
 
 
 def requirements_to_csv():
@@ -45,7 +36,9 @@ def requirements_to_csv():
                 version = ""
             rows.append([name, version, python_version_marker])
 
-    process_deps(DDTRACE_CORE_DEPENDENCIES)
+    # Process main dependencies
+    if "project" in data and "dependencies" in data["project"]:
+        process_deps(data["project"]["dependencies"])
 
     # Process optional dependencies
     if "project" in data and "optional-dependencies" in data["project"]:
