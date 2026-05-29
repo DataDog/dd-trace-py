@@ -6,6 +6,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -101,7 +102,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span):
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -111,6 +112,10 @@ def record_span_created(span: Span):
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
+    # APM_AGENTLESS rides the APM trace as meta_struct["_llmobs"] to the APM intake;
+    # LLMOBS_DIRECT (agentless) and APM_AGENT_PROXY (agent EVP proxy) both go straight
+    # to the LLMObs intake via the LLMObs span writer.
+    intake = "apm" if export_mode == LLMObsExportMode.APM_AGENTLESS else "llmobs"
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -120,6 +125,7 @@ def record_span_created(span: Span):
         ("integration", integration or "N/A"),
         ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
+        ("intake", intake),
     ]
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))
