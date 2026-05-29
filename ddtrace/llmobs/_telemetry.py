@@ -102,15 +102,16 @@ def record_span_started():
 
 
 def record_span_created(span: Span, intake: str):
-    """Record a finished LLMObs span.
+    """Record a finished LLMObs span that is about to be shipped.
 
-    ``intake`` is the path the LLMObs payload actually took:
+    Not emitted for spans that were dropped before any LLMObs payload could ship
+    (user processor returned ``None``, malformed span, assembly error).
+
+    ``intake`` is the path the LLMObs payload took:
       - ``"apm_agentless"``      — payload rode the APM trace to the APM intake
                                    (LLMObsExportMode.APM_AGENTLESS).
       - ``"llmobs_agentless"``   — LLMObsSpanWriter posted directly to the LLMObs intake.
       - ``"llmobs_agent_proxy"`` — LLMObsSpanWriter posted via the agent's EVP proxy.
-      - ``"dropped"``            — user processor returned ``None``, span was malformed,
-                                   or event assembly raised; no LLMObs payload shipped.
     """
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}

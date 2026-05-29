@@ -579,26 +579,25 @@ class LLMObs(Service):
 
         if not span_event:
             # Dropped by user processor / error during preparation/assembly.
-            # Record telemetry before clearing meta_struct so tag getters still see data.
-            telemetry.record_span_created(span, "dropped")
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
+
+        if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
+            intake = "apm_agentless"
+        elif config._llmobs_agentless_enabled:
+            intake = "llmobs_agentless"
+        else:
+            intake = "llmobs_agent_proxy"
+        telemetry.record_span_created(span, intake)
 
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-            # LLMOBS_DIRECT and APM_AGENT both route the LLMObs payload through
-            # LLMObsSpanWriter. The writer's transport (agentless vs. agent EVP proxy)
-            # is independent of the export mode and tracked by config._llmobs_agentless_enabled.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._llmobs_span_writer.enqueue(span_event)
-            intake = "llmobs_agentless" if config._llmobs_agentless_enabled else "llmobs_agent_proxy"
-            telemetry.record_span_created(span, intake)
             if not self._test_mode_keep_meta_struct:
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
-        else:
-            telemetry.record_span_created(span, "apm_agentless")
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
