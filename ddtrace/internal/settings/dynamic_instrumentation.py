@@ -8,6 +8,8 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._core import field
+from ddtrace.internal.settings._registry import Config
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.version import __version__
 
@@ -51,67 +53,22 @@ def validate_type_patterns(types: set[str]) -> None:
 class DynamicInstrumentationConfig(DDConfig):
     __prefix__ = "dd.dynamic_instrumentation"
 
-    service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
-    _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
-    global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
-    _tags_in_qs = DDConfig.d(bool, lambda _: True)
-    tags = DDConfig.d(str, _derive_tags)
+    # Plain declared variables: Python type + default come from the configuration
+    # registry via field() (no hand-duplicated type/default, no descriptions at runtime).
+    enabled = field()
+    metrics = field("metrics.enabled")
+    max_payload_size = field()
+    upload_timeout = field("upload.timeout")
+    upload_interval_seconds = field("upload.interval_seconds")
+    diagnostics_interval = field("diagnostics.interval")
 
-    enabled = DDConfig.v(
-        bool,
-        "enabled",
-        default=False,
-        help_type="Boolean",
-        help="Enable Dynamic Instrumentation",
-    )
-
-    metrics = DDConfig.v(
-        bool,
-        "metrics.enabled",
-        default=True,
-        help_type="Boolean",
-        help="Enable Dynamic Instrumentation diagnostic metrics",
-    )
-
-    max_payload_size = DDConfig.v(
-        int,
-        "max_payload_size",
-        default=1 << 20,  # 1 MB
-        help_type="Integer",
-        help="Maximum size in bytes of a single configuration payload that can be handled per request",
-    )
-
-    upload_timeout = DDConfig.v(
-        int,
-        "upload.timeout",
-        default=30,  # seconds
-        help_type="Integer",
-        help="Timeout in seconds for uploading Dynamic Instrumentation payloads",
-    )
-
-    upload_interval_seconds = DDConfig.v(
-        float,
-        "upload.interval_seconds",
-        default=1.0,  # seconds
-        help_type="Float",
-        help="Interval in seconds for flushing the dynamic logs upload queue",
-    )
-
-    diagnostics_interval = DDConfig.v(
-        int,
-        "diagnostics.interval",
-        default=3600,  # 1 hour
-        help_type="Integer",
-        help="Interval in seconds for periodically emitting probe diagnostic messages",
-    )
-
+    # Custom-cast variables (non-canonical collection type / map / validator) stay
+    # hand-declared; field() is only for the plain registry-typed scalars above.
     redacted_identifiers = DDConfig.v(
         set,
         "redacted_identifiers",
         map=normalize_ident,
         default=set(),
-        help_type="List",
-        help="List of identifiers/object attributes/dict keys to redact from dynamic logs and snapshots",
     )
 
     redacted_types = DDConfig.v(
@@ -120,8 +77,6 @@ class DynamicInstrumentationConfig(DDConfig):
         map=str.strip,
         default=set(),
         validator=validate_type_patterns,
-        help_type="List",
-        help="List of object types to redact from dynamic logs and snapshots",
     )
 
     redacted_types_re = DDConfig.d(
@@ -138,17 +93,20 @@ class DynamicInstrumentationConfig(DDConfig):
         "redaction_excluded_identifiers",
         map=normalize_ident,
         default=set(),
-        help_type="List",
-        help="List of identifiers to exclude from redaction",
     )
 
     probe_file = DDConfig.v(
         t.Optional[Path],
         "probe_file",
         default=None,
-        help_type="Path",
-        help="Path to a file containing probe definitions",
     )
 
+    # Derivations.
+    service_name = DDConfig.d(str, lambda _: ddconfig.service or get_application_name() or DEFAULT_SERVICE_NAME)
+    _intake_url = DDConfig.d(str, lambda _: agent_config.trace_agent_url)
+    global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
+    _tags_in_qs = DDConfig.d(bool, lambda _: True)
+    tags = DDConfig.d(str, _derive_tags)
 
-config = DynamicInstrumentationConfig()
+
+Config.register(DynamicInstrumentationConfig, "dynamic_instrumentation")
