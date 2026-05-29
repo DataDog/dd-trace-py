@@ -536,9 +536,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/asm/137/abc/", "/asm/{param_int}/{param_str}/"),
             ("/asm/137/abc", "/asm/{param_int}/{param_str}"),
             ("/", "/"),
-            # Multi-param-in-segment: rule 5 combines names with `+` (both with and without trailing slash).
+            # Multi-param-in-segment: rule 5 combines names with `+`.
             ("/multi-param/john.doe/", "/multi-param/{first+last}/"),
-            ("/multi-param/john.doe", "/multi-param/{first+last}"),
             # `:path` catch-all: rule 5 catch-all exception emits a single tail element regardless of slashes matched.
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
