@@ -646,3 +646,41 @@ def test_periodic_thread_naming():
         assert native_name[0].endswith("ClassNameFit"), (
             f"Expected name ending with 'ClassNameFit', got '{native_name[0]}'"
         )
+
+
+def test_timer_reset_during_fork_does_not_break_stop():
+    """Regression test for DEBUG-5712.
+
+    ``periodic.Timer.reset()`` runs ``stop(); _set_worker(); start()``. During
+    a fork window (``ddtrace.internal.threads._forking == True``),
+    PeriodicThread.start() silently defers and the new worker ends up with
+    ``_thread == nullptr``. Without the tolerance below, the *next*
+    ``reset()`` raised ``RuntimeError("Thread not started")`` on its internal
+    ``stop()`` call. In production this killed Symbol DB's installer
+    mid-``_process_unseen_loaded_modules`` and Remote Config retried it ~6×
+    per second.
+
+    Fix: ``reset()`` swallows ``RuntimeError`` from its internal ``stop()``
+    so a deferred-start worker is replaced cleanly. The reset request is
+    still honoured — the new worker's deferred ``start()`` fires post-fork.
+    """
+    from ddtrace.internal import threads as _threads_mod
+
+    class _TestTimer(periodic.Timer):
+        def timeout(self):
+            pass
+
+    t = _TestTimer(60.0)
+    t.start()
+
+    original_forking = _threads_mod._forking
+    _threads_mod._forking = True
+    try:
+        # Repeated resets under a fork window must not raise. The first
+        # reset's start() is deferred; the second reset's internal stop()
+        # would hit the not-started worker and crash without the tolerance.
+        for _ in range(5):
+            t.reset()
+    finally:
+        _threads_mod._forking = original_forking
+        _threads_mod._threads_to_start_after_fork.clear()

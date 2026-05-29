@@ -5,6 +5,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal import service
 from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal.threads import PeriodicThread
+from ddtrace.internal.threads import RLock
 
 
 class PeriodicService(service.Service):
@@ -118,6 +119,7 @@ class Timer:
 
     def __init__(self, interval: float) -> None:
         self._interval = interval
+        self._worker_lock = RLock()
         self._set_worker()
 
     def _set_worker(self) -> None:
@@ -129,10 +131,16 @@ class Timer:
         )
 
     def start(self) -> None:
-        self._worker.start()
+        with self._worker_lock:
+            self._worker.start()
 
     def stop(self) -> None:
-        self._worker.stop()
+        # Capture the worker under the lock so a concurrent reset() cannot
+        # swap it under us; call stop() outside the lock since the swap is
+        # the only race — stop() itself doesn't block.
+        with self._worker_lock:
+            worker = self._worker
+        worker.stop()
 
     def timeout(self) -> None:
         raise NotImplementedError()
@@ -142,11 +150,24 @@ class Timer:
         return PERIODIC_STOP
 
     def reset(self) -> None:
-        self.stop()
+        with self._worker_lock:
+            try:
+                self.stop()
+            except RuntimeError:
+                # The current worker may not have an underlying OS thread —
+                # e.g. a previous reset() during a fork window had its
+                # start() deferred by threads.PeriodicThread.start, leaving
+                # this worker un-started. That's fine: we still want to
+                # honour the reset request by replacing the worker.
+                pass
 
-        self._set_worker()
+            self._set_worker()
 
-        self.start()
+            self.start()
 
     def join(self, timeout: typing.Optional[float] = None) -> None:
-        self._worker.join(timeout)
+        # Capture the worker under the lock, then join outside it so a
+        # concurrent reset() is not blocked for the duration of the wait.
+        with self._worker_lock:
+            worker = self._worker
+        worker.join(timeout)
