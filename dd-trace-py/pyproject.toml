@@ -32,7 +32,23 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-dynamic = ["dependencies"]
+dependencies = [
+    "bytecode>=0.17.0,<1; python_version>='3.14.0'",
+    "bytecode>=0.16.0,<1; python_version>='3.13.0'",
+    "bytecode>=0.15.1,<1; python_version~='3.12.0'",
+    "bytecode>=0.14.0,<1; python_version~='3.11.0'",
+    "bytecode>=0.13.0,<1; python_version<'3.11'",
+    "envier~=0.6.1",
+    "opentelemetry-api>=1,<2",
+    # TODO: lift the `!=2.2.0` exclusion once wrapt ships a release that
+    # reverts/fixes the descriptor regression introduced in
+    # https://github.com/GrahamDumpleton/wrapt/commit/ae93dd71c378161ff3643c9a1f708f66f97f3b5d
+    # wrapt 2.2.0's `FunctionWrapper.__get__(None, owner)` calls `tp_descr_get`
+    # with `Py_None` instead of `NULL`, which breaks class-level access to any
+    # C method_descriptor we wrap (e.g. `_pickle.Unpickler.load`,
+    # `asyncpg.protocol.protocol.BaseProtocol.execute`). See incident 53643.
+    "wrapt>=1,!=2.2.0,<3",
+]
 
 [project.optional-dependencies]
 opentracing = [
