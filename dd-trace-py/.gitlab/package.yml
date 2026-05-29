@@ -48,6 +48,7 @@ variables:
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
@@ -307,6 +308,7 @@ variables:
   script:
     - bash dd-trace-py/.gitlab/scripts/build-wheel-windows.sh
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "debugwheelhouse/*.log"
@@ -368,6 +370,7 @@ download_dependency_wheels:
       paths:
         - ${CI_PROJECT_DIR}/.cache/
   artifacts:
+    when: always
     paths:
       - "pywheels-dep/"
 
@@ -439,6 +442,7 @@ download_dependency_wheels:
     - cd dd-trace-py
     - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
 
@@ -450,6 +454,7 @@ download_dependency_wheels:
   before_script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"

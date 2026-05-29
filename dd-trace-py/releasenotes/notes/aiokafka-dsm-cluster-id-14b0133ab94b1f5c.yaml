@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aiokafka: Collects the Kafka cluster ID when tracing aiokafka producers and
+    consumers and forwards it to Data Streams Monitoring, matching the behavior
+    of the ``confluent_kafka`` integration.
