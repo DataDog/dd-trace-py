@@ -1572,9 +1572,8 @@ MUL: "*"
                     {"role": "user", "content": "What is 17 * 23?"},
                 ],
                 stream=True,
-                reasoning_effort="high",
-                extra_body={"thinking": {"type": "enabled"}},
                 max_tokens=1024,
+                extra_body={"reasoning_effort": "high", "thinking": {"type": "enabled"}},
             )
             for _ in resp:
                 pass
