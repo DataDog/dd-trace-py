@@ -13,22 +13,24 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
+        import ddtrace.debugging._redaction as redaction
         from ddtrace.internal.settings._config import Config
-        import ddtrace.internal.settings.dynamic_instrumentation
+        import ddtrace.internal.settings.dynamic_instrumentation as di
 
-        old_config = ddtrace.internal.settings.dynamic_instrumentation.ddconfig
-        old_di_config = ddtrace.internal.settings.dynamic_instrumentation.config.__dict__
-
+        old_ddconfig = di.ddconfig
+        old_redaction_config = redaction.config
         try:
-            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = Config()
-            new_config = DynamicInstrumentationConfig()
-            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = new_config.__dict__
-
-            yield ddtrace.internal.settings.dynamic_instrumentation.config
-
+            # Derivations (e.g. tags) read the module-level ddconfig; point it at a fresh
+            # global config built under the overridden env, then yield a fresh DI config.
+            di.ddconfig = Config()
+            new_di_config = DynamicInstrumentationConfig()
+            # Consumers like _redaction hold a module-level reference to the singleton;
+            # patch it to the fresh config so env-overridden fields are visible.
+            redaction.config = new_di_config
+            yield new_di_config
         finally:
-            ddtrace.internal.settings.dynamic_instrumentation.config.__dict__ = old_di_config
-            ddtrace.internal.settings.dynamic_instrumentation.ddconfig = old_config
+            redaction.config = old_redaction_config
+            di.ddconfig = old_ddconfig
 
 
 def test_tags():

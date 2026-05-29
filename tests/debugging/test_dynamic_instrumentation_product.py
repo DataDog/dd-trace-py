@@ -31,7 +31,9 @@ def test_before_fork_imports_remoteconfig():
 
 
 def test_enabled_reflects_config():
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     assert enabled() == config.enabled
 
@@ -80,7 +82,9 @@ def test_apm_tracing_rc_missing_key_is_noop():
 
 
 def test_apm_tracing_rc_starts_when_not_env_overridden_and_enabled(monkeypatch):
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     # Ensure the env var is absent so full_name is not in config.source
     monkeypatch.delenv(config.spec.enabled.full_name, raising=False)
@@ -92,7 +96,9 @@ def test_apm_tracing_rc_starts_when_not_env_overridden_and_enabled(monkeypatch):
 
 
 def test_apm_tracing_rc_stops_when_not_env_overridden_and_disabled(monkeypatch):
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     monkeypatch.delenv(config.spec.enabled.full_name, raising=False)
 
@@ -104,7 +110,9 @@ def test_apm_tracing_rc_stops_when_not_env_overridden_and_disabled(monkeypatch):
 
 def test_apm_tracing_rc_stops_when_env_enabled_false_and_rc_enabled(monkeypatch):
     """When env sets enabled=False, RC cannot override to re-enable."""
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     full_name = config.spec.enabled.full_name
     # setenv makes full_name visible in config.source; patch parsed since it is cached at init time
@@ -122,7 +130,9 @@ def test_apm_tracing_rc_stops_when_env_enabled_false_and_rc_enabled(monkeypatch)
 
 def test_apm_tracing_rc_remote_disable_when_env_enabled(monkeypatch):
     """RC can disable even when env sets enabled=True."""
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     full_name = config.spec.enabled.full_name
     monkeypatch.setenv(full_name, "true")
@@ -139,7 +149,9 @@ def test_apm_tracing_rc_remote_disable_when_env_enabled(monkeypatch):
 
 def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
     """RC can re-enable after a previous RC disable when env has no override."""
-    from ddtrace.internal.settings.dynamic_instrumentation import config
+    from ddtrace.internal.settings._registry import Config
+
+    config = Config.get().dynamic_instrumentation
 
     monkeypatch.delenv(config.spec.enabled.full_name, raising=False)
 
