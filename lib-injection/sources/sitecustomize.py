@@ -351,7 +351,7 @@ def _inject():
         # enable safe instrumentation for ddtrace which won't patch incompatible integrations
         os.environ["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "true"
 
-        if spec is not None and OVERRIDE_USER_DDTRACE:
+        if OVERRIDE_USER_DDTRACE:
             _log(
                 "user-installed ddtrace found: %s, but DD_INJECT_OVERRIDE_USER_DDTRACE is set; "
                 "preferring injection site-packages" % spec.origin
@@ -520,7 +520,7 @@ def _inject():
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
         # When overriding a user-installed ddtrace, prepend so the injected copy wins import resolution;
         # otherwise append to preserve the existing (no user-installed ddtrace) behavior.
-        if spec is not None and OVERRIDE_USER_DDTRACE:
+        if OVERRIDE_USER_DDTRACE:
             sys.path.insert(0, site_pkgs_path)
         else:
             sys.path.append(site_pkgs_path)
