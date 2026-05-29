@@ -896,7 +896,7 @@
     ],
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
         "default": "true"
       }
@@ -1562,7 +1562,7 @@
     ],
     "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "10000",
         "experimental": true
