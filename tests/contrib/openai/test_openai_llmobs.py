@@ -1554,6 +1554,33 @@ MUL: "*"
         assert get_llmobs_model_provider(spans[0]) == "deepseek"
         assert get_llmobs_model_name(spans[0]) == "deepseek-chat"
 
+    def test_deepseek_streamed_reasoning_content(self, openai, openai_llmobs, test_spans):
+        """Regression test for #18257 / PR #18274: streamed ``reasoning_content`` deltas
+        from an OpenAI-compatible reasoning provider (DeepSeek) must be aggregated and
+        surfaced on the LLM Obs span as an output message with ``role="reasoning"``.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_streamed_reasoning_content.yaml"):
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
+            resp = client.chat.completions.create(
+                model="deepseek-v4-pro",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "What is 17 * 23?"},
+                ],
+                stream=True,
+                max_tokens=1024,
+                extra_body={"reasoning_effort": "high", "thinking": {"type": "enabled"}},
+            )
+            for _ in resp:
+                pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        output_messages = get_llmobs_output_messages(spans[0]) or []
+        reasoning_messages = [m for m in output_messages if m.get("role") == "reasoning"]
+        assert reasoning_messages, f"expected a reasoning output message, got: {output_messages}"
+        assert reasoning_messages[0].get("content"), "reasoning output message had empty content"
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
