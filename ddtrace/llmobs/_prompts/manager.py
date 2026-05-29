@@ -355,7 +355,7 @@ class PromptManager:
             try:
                 client.remove_handler(ProviderEvent.PROVIDER_READY, _on_ready)
             except Exception:
-                pass
+                log.debug("Failed to remove FFE readiness handler", exc_info=True)
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
