@@ -25,6 +25,15 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
+    // A previous sampling cycle may have left a sample checked out if it returned early (e.g. one of echion's
+    // ThreadInfo::sample() error paths) without reaching render_stack_end(). Return that orphan to the pool before
+    // checking out a new one; otherwise the checked-out pointer is overwritten here and lost, permanently draining a
+    // slot from the (fixed-capacity) StaticSamplePool. Once the pool is drained every sample is heap-allocated and
+    // leaked. This keeps the renderer's in-flight sample bounded to exactly one regardless of upstream error paths.
+    if (sample != nullptr) {
+        SampleManager::drop_sample(sample);
+        sample = nullptr;
+    }
     sample = SampleManager::start_sample();
     if (sample == nullptr) {
         std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
@@ -280,4 +289,11 @@ Datadog::StackRenderer::postfork_child()
     // from the parent process's dictionary
     string_id_cache.clear();
     function_id_cache.clear();
+
+    // If the fork interrupted a sampling cycle, a sample may still be checked out from the pool. Return it so the
+    // child starts with the pool at full capacity rather than permanently down a slot.
+    if (sample != nullptr) {
+        SampleManager::drop_sample(sample);
+        sample = nullptr;
+    }
 }

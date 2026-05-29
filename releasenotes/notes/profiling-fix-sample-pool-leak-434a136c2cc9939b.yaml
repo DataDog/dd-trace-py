@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: fixed a memory leak in the stack profiler that could slowly grow process memory while profiling is enabled.

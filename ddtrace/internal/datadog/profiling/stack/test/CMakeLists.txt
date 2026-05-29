@@ -37,7 +37,13 @@ endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ../include)
+    # Mirror the _stack extension's include layout so tests can include stack/echion/dd_wrapper headers transitively
+    # (e.g. stack_renderer.hpp -> "dd_wrapper/include/sample.hpp", "python_headers.hpp", "echion/frame.h"). ../.. is the
+    # profiling root (makes the dd_wrapper/include/... paths resolve); ../include is stack/include.
+    target_include_directories(${name} PRIVATE ../include ../..)
+    # Python and echion are marked SYSTEM to suppress warnings (e.g. -Wold-style-cast) coming from CPython and echion
+    # headers, which are otherwise fatal under -Werror. This matches stack/CMakeLists.txt.
+    target_include_directories(${name} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/util)
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -78,3 +84,4 @@ endfunction()
 
 # Add the tests
 dd_wrapper_add_test(test_thread_span_links test_thread_span_links.cpp)
+dd_wrapper_add_test(test_sample_pool_leak test_sample_pool_leak.cpp)
