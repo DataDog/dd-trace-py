@@ -2,9 +2,11 @@ from functools import partial
 from inspect import unwrap
 from pathlib import Path
 import typing as t
+from unittest.mock import patch
 
 import ddtrace
 from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+from ddtrace.debugging._origin.span import _rewrite_filename
 from ddtrace.debugging._session import Session
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -287,6 +289,52 @@ class SpanProbeTestCase(TracerTestCase):
         # also did not tag itself because the root already carries an entry.
         assert inner_span.get_tag("_dd.code_origin.type") is None
         assert inner_span.get_tag("_dd.code_origin.frames.0.file") is None
+
+
+class TestFilePathRewrite:
+    """Tests for the DD_CODE_ORIGIN_FILE_PATH_REWRITE config option."""
+
+    def test_rewrite_single_rule(self):
+        """Test that a single rewrite rule rewrites matching file paths."""
+        rules = [("/opt/app/site-packages/myapp/", "src/myapp/")]
+        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
+            result = _rewrite_filename("/opt/app/site-packages/myapp/views.py")
+        assert result == "src/myapp/views.py"
+
+    def test_rewrite_multiple_rules(self):
+        """Test pipe-delimited multiple rewrite rules (first match wins)."""
+        rules = [
+            ("/opt/app/site-packages/myapp/", "src/myapp/"),
+            ("/opt/app/site-packages/other/", "src/other/"),
+        ]
+        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
+            result1 = _rewrite_filename("/opt/app/site-packages/myapp/views.py")
+            result2 = _rewrite_filename("/opt/app/site-packages/other/models.py")
+        assert result1 == "src/myapp/views.py"
+        assert result2 == "src/other/models.py"
+
+    def test_rewrite_first_match_wins(self):
+        """Test that only the first matching rule is applied."""
+        rules = [
+            ("/opt/app/", "first/"),
+            ("/opt/app/", "second/"),
+        ]
+        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
+            result = _rewrite_filename("/opt/app/views.py")
+        assert result == "first/views.py"
+
+    def test_rewrite_no_match(self):
+        """Test that non-matching paths are returned unchanged."""
+        rules = [("/opt/app/site-packages/", "src/")]
+        with patch("ddtrace.debugging._origin.span._rewrite_rules", rules):
+            result = _rewrite_filename("/other/path/views.py")
+        assert result == "/other/path/views.py"
+
+    def test_rewrite_empty_rules(self):
+        """Test that empty rewrite rules leave paths unchanged."""
+        with patch("ddtrace.debugging._origin.span._rewrite_rules", []):
+            result = _rewrite_filename("/opt/app/views.py")
+        assert result == "/opt/app/views.py"
 
 
 def test_instrument_view_benchmark(benchmark):

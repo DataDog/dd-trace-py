@@ -13,6 +13,15 @@ class CodeOriginConfig(DDConfig):
         private=True,
     )
 
+    file_path_rewrite = DDConfig.v(
+        str,
+        "file_path_rewrite",
+        default="",
+        help_type="String",
+        help="Rewrite file paths in code origin tags. Format: 'old_prefix:new_prefix' "
+        "(pipe-delimited for multiple rules, e.g. '/opt/app/site-packages/:src/').",
+    )
+
     class SpanCodeOriginConfig(DDConfig):
         __prefix__ = "for_spans"
         __item__ = "span"
