@@ -30,11 +30,32 @@ from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
-DEFAULT_TIMEOUT_SECONDS = 15.0
+log = logging.getLogger(__name__)
+
+_DEFAULT_TIMEOUT_SECONDS = 30.0
+_MAX_TIMEOUT_SECONDS = 300.0  # 5 minutes
+
+
+def _parse_timeout_millis(raw: t.Optional[str]) -> float:
+    if raw:
+        try:
+            _parsed = float(raw) / 1000.0
+            if not (0 < _parsed <= _MAX_TIMEOUT_SECONDS):
+                raise ValueError("must be between 1 ms and 300 000 ms")
+            return _parsed
+        except ValueError:
+            log.warning(
+                "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
+                raw,
+                _DEFAULT_TIMEOUT_SECONDS,
+            )
+    return _DEFAULT_TIMEOUT_SECONDS
+
+
+DEFAULT_TIMEOUT_SECONDS = _parse_timeout_millis(env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
+
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0
-
-log = logging.getLogger(__name__)
 
 T = t.TypeVar("T")
 
@@ -102,6 +123,22 @@ class BackendConnectorSetup:
         """
         if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
             log.debug("Connecting to backend in agentless mode")
+            return cls._detect_agentless_setup(api_key_override=env.get("_CI_DD_API_KEY"))
+
+        else:
+            log.debug("Connecting to backend through agent in EVP proxy mode")
+            return cls._detect_evp_proxy_setup(agent_url_override=env.get("_CI_DD_AGENT_URL"))
+
+    @classmethod
+    def detect_standard_setup(cls) -> BackendConnectorSetup:
+        """
+        Detect backend connection mode using standard public environment variables only.
+
+        Unlike :meth:`detect_setup`, this method does not consult any dd-trace-py-internal
+        environment variables, making it suitable for use in customer-facing code.
+        """
+        if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
         else:
@@ -109,12 +146,12 @@ class BackendConnectorSetup:
             return cls._detect_evp_proxy_setup()
 
     @classmethod
-    def _detect_agentless_setup(cls) -> BackendConnectorSetup:
+    def _detect_agentless_setup(cls, *, api_key_override: t.Optional[str] = None) -> BackendConnectorSetup:
         """
         Detect settings for agentless backend connection mode.
         """
         site = env.get("DD_SITE") or DEFAULT_SITE
-        api_key = env.get("_CI_DD_API_KEY") or env.get("DD_API_KEY")
+        api_key = api_key_override or env.get("DD_API_KEY")
 
         if not api_key:
             raise SetupError("DD_API_KEY environment variable is not set")
@@ -122,11 +159,11 @@ class BackendConnectorSetup:
         return BackendConnectorAgentlessSetup(site=site, api_key=api_key)
 
     @classmethod
-    def _detect_evp_proxy_setup(cls) -> BackendConnectorSetup:
+    def _detect_evp_proxy_setup(cls, *, agent_url_override: t.Optional[str] = None) -> BackendConnectorSetup:
         """
         Detect settings for EVP proxy mode backend connection mode.
         """
-        agent_url = env.get("_CI_DD_AGENT_URL") or env.get("DD_TRACE_AGENT_URL")
+        agent_url = agent_url_override or env.get("DD_TRACE_AGENT_URL")
         if not agent_url:
             user_provided_host = env.get("DD_TRACE_AGENT_HOSTNAME") or env.get("DD_AGENT_HOST")
             user_provided_port = env.get("DD_TRACE_AGENT_PORT") or env.get("DD_AGENT_PORT")
