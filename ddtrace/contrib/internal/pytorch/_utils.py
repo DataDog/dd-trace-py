@@ -197,7 +197,41 @@ def _instrumentation_bypass():
         _bypass_state.depth = depth
 
 
+# AIDEV-NOTE: ``_should_record_cuda_event`` is called on every wrapped
+# collective. The decision is a pure function of
+# ``(group, tensor.device, tensor.dtype)`` and never changes after
+# warm-up, so the cached wrapper below memoises by ``(id(group), device,
+# dtype)``. The uncached form remains exported so tests / direct callers
+# that need a fresh probe (e.g. mocked ``torch.cuda.is_available``) can
+# bypass the cache.
+_CUDA_EVENT_DECISION_CACHE: dict[tuple, bool] = {}
+
+
+def _clear_cuda_event_decision_cache() -> None:
+    _CUDA_EVENT_DECISION_CACHE.clear()
+
+
 def _should_record_cuda_event(group, tensor) -> bool:
+    # Peek into list/tuple tensors once here so the cache key uses the
+    # first element's device/dtype (collectives' nested args are
+    # homogeneous in practice).
+    if isinstance(tensor, (list, tuple)):
+        first = tensor[0] if tensor else None
+    else:
+        first = tensor
+    if first is None:
+        return False
+    device = getattr(first, "device", None)
+    dtype = getattr(first, "dtype", None)
+    key = (id(group), device, dtype)
+    decision = _CUDA_EVENT_DECISION_CACHE.get(key)
+    if decision is None:
+        decision = _should_record_cuda_event_uncached(group, first)
+        _CUDA_EVENT_DECISION_CACHE[key] = decision
+    return decision
+
+
+def _should_record_cuda_event_uncached(group, tensor) -> bool:
     if not torch.cuda.is_available():
         return False
     # Some collectives (e.g. all_gather, reduce_scatter) take a list of tensors;
@@ -443,6 +477,10 @@ def _reset_child_state() -> None:
     _run_metadata = {}
     _run_metadata_lock = threading.Lock()
     _run_metadata_view = _types_mp.MappingProxyType({})
+    # AIDEV-NOTE: Drop the cached ``_should_record_cuda_event`` decisions
+    # — entries are keyed on ``id(group)`` from the parent process and
+    # are stale after fork.
+    _clear_cuda_event_decision_cache()
 
 
 if hasattr(os, "register_at_fork"):
