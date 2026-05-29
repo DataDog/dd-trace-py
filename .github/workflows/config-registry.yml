@@ -25,4 +25,4 @@ jobs:
           python-version: '3.13'
 
       - name: Verify registry is complete and generated module is in sync
-        run: python scripts/supported_configurations.py --check
+        run: python dd-trace-py/scripts/supported_configurations.py --check
