@@ -90,6 +90,20 @@ def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
+def _is_otlp_trace_metrics_enabled(exporter_config: "ExporterConfig") -> bool:
+    """Whether client-computed span stats should be exported as OTLP metrics.
+
+    Tri-state ``DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED`` takes precedence; when unset, the
+    feature auto-enables only if both OTLP trace export and OTel metrics export are enabled.
+    """
+    from ddtrace.internal.settings._config import config
+
+    explicit = config._otel_stats_computation_enabled
+    if explicit is not None:
+        return explicit
+    return _is_otlp_traces_exporter_enabled(exporter_config) and config._otel_metrics_enabled
+
+
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 

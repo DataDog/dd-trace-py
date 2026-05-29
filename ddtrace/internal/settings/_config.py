@@ -638,6 +638,8 @@ class Config(object):
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
+        # Tri-state: None auto-enables OTLP trace metrics when OTLP trace and OTel metrics export are on.
+        self._otel_stats_computation_enabled = _get_config("DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED", None, asbool)
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 

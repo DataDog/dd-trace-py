@@ -4492,6 +4492,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "DD_TRACE_PARTIAL_FLUSH_ENABLED": [
       {
         "implementation": "B",
