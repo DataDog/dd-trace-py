@@ -113,6 +113,13 @@ def _handle_error(span: Span, code: grpc.StatusCode, details: str) -> None:
     span._set_attribute(ERROR_TYPE, str(code))
 
 
+def _set_error_attrs(span: Span, code_str: str, details: str) -> None:
+    span.error = 1
+    span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code_str)
+    span._set_attribute(ERROR_MSG, details)
+    span._set_attribute(ERROR_TYPE, code_str)
+
+
 def _handle_rpc_error(span: Span, rpc_error: aio.AioRpcError) -> None:
     code = str(rpc_error.code())
     span.error = 1
@@ -135,12 +142,7 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     # in try/finally so the span is still finished if an await raises.
     span._set_ctx_item(_GRPC_AIO_ERROR_HANDLED, True)
     try:
-        code = str(await call.code())
-        details = await call.details()
-        span.error = 1
-        span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code)
-        span._set_attribute(ERROR_MSG, details)
-        span._set_attribute(ERROR_TYPE, code)
+        _set_error_attrs(span, str(await call.code()), await call.details())
     finally:
         span.finish()
 
@@ -162,13 +164,7 @@ async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.Ai
             details = rpc_error.details()
         if isinstance(details, bytes):
             details = details.decode("utf-8", errors="ignore")
-        else:
-            details = str(details)
-        code_str = str(code)
-        span.error = 1
-        span._set_attribute(constants.GRPC_STATUS_CODE_KEY, code_str)
-        span._set_attribute(ERROR_MSG, details)
-        span._set_attribute(ERROR_TYPE, code_str)
+        _set_error_attrs(span, str(code), details)
     finally:
         span.finish()
 
