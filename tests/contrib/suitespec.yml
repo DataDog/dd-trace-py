@@ -693,9 +693,9 @@ suites:
       - rabbitmq
     snapshot: true
   elasticsearch:
+    pattern: ^elasticsearch(?!:opensearch)
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
-      TEST_OPENSEARCH_HOST: opensearch
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -703,11 +703,32 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@elasticsearch'
-      - tests/contrib/elasticsearch/*
-      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/elasticsearch/__init__.py
+      - tests/contrib/elasticsearch/test_elasticsearch.py
+      - tests/contrib/elasticsearch/test_elasticsearch_multi.py
+      - tests/contrib/elasticsearch/test_async.py
+      - tests/snapshots/tests.contrib.elasticsearch.test_elasticsearch_multi.*
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch.*
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch7.*
+    services:
+      - elasticsearch
+    snapshot: true
+  opensearch:
+    pattern: elasticsearch:opensearch
+    env:
+      TEST_OPENSEARCH_HOST: opensearch
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elasticsearch'
+      - tests/contrib/elasticsearch/__init__.py
+      - tests/contrib/elasticsearch/test_opensearch.py
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_opensearch.*
     services:
       - opensearch
-      - elasticsearch
     snapshot: true
   falcon:
     paths:

@@ -427,6 +427,8 @@ def _normalize_llmobs_meta(
         llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
+    if span_kind != "tool":
+        llmobs_meta.pop(LLMOBS_STRUCT.TOOL, None)
     intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
     if intent:
         llmobs_meta[LLMOBS_STRUCT.INTENT] = str(intent)
@@ -1959,6 +1961,7 @@ class LLMObs(Service):
             context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
             return context
         return None
 

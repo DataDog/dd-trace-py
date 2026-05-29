@@ -739,6 +739,88 @@ def test_annotate_with_tool_definitions_invalid_version_type(llmobs, llmobs_back
     assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == [{"name": "my_tool"}]
 
 
+def test_tool_version_propagated_from_llm_span_to_tool_span(llmobs):
+    """tool_definitions[*].version on the parent LLM span should land on the child tool span as meta.tool.version."""
+    from ddtrace.internal import core
+    from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+    from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+
+    with llmobs.workflow("root"):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(
+                llm_span,
+                tool_definitions=[
+                    {"name": "get_weather", "version": "1.2.3"},
+                    {"name": "search", "version": "0.9"},
+                ],
+            )
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    "tool-call-id-1",
+                    "get_weather",
+                    '{"location": "NYC"}',
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                    "1.2.3",
+                ),
+            )
+        with llmobs.tool("get_weather") as tool_span:
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                ("get_weather", '{"location": "NYC"}', "function", tool_span, "tool-call-id-1"),
+            )
+            tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+
+    assert tool_meta["tool"] == {"version": "1.2.3"}
+
+
+def test_tool_version_not_set_when_missing_in_tool_definitions(llmobs):
+    """No tool.version is written to the tool span when the parent LLM span's tool_definitions has no version."""
+    from ddtrace.internal import core
+    from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+    from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+
+    with llmobs.workflow("root"):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, tool_definitions=[{"name": "get_weather"}])
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    "tool-call-id-2",
+                    "get_weather",
+                    '{"location": "NYC"}',
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                    None,
+                ),
+            )
+        with llmobs.tool("get_weather") as tool_span:
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                ("get_weather", '{"location": "NYC"}', "function", tool_span, "tool-call-id-2"),
+            )
+            tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+
+    assert "tool" not in tool_meta
+
+
+def test_tool_version_not_leaked_onto_non_tool_spans(llmobs, llmobs_backend):
+    """When meta.tool is set on a non-tool span the writer must strip it before emit."""
+    with llmobs.workflow("root") as workflow_span:
+        _annotate_llmobs_span_data(workflow_span, tool_version="9.9.9")
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool" not in events[0][0]["spans"][0]["meta"]
+
+
 @pytest.mark.asyncio
 async def test_asyncio_trace_id_propagation(llmobs):
     """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
