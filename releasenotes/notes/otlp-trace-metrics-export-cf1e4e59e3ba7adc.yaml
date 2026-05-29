@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    tracing: This introduces client-side computation of trace metrics and their export
+    in OpenTelemetry Protocol (OTLP) format. When enabled, the tracer aggregates finished
+    spans into a ``dd.trace.span.duration`` histogram and exports it to the configured OTLP
+    metrics endpoint, reusing the existing ``OTEL_EXPORTER_OTLP_METRICS_*`` settings. Set
+    ``DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED=true`` to enable it; when unset, it is enabled
+    automatically if both OTLP trace export and OpenTelemetry metrics export are enabled.
+    Native (Datadog) trace stats computation is automatically disabled while this feature is
+    active to avoid double-counting.
