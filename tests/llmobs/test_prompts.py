@@ -411,3 +411,18 @@ class TestPromptManagement:
             manager.delete_prompt("my-prompt")
 
         assert len(manager._hot_cache) == 0
+
+    def test_enable_with_app_key_refreshes_manager_cached_by_read_path(self, tracer):
+        """Regression: a read path that builds the prompt manager before enable(app_key=...)
+        must not strand write APIs with the then-empty app key.
+        """
+        LLMObs._app_key = ""
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            LLMObs.get_prompt("greeting")
+        assert LLMObs._prompt_manager is not None
+        assert LLMObs._prompt_manager._app_key == ""
+
+        LLMObs.enable(_tracer=tracer, app_key="new-app-key", agentless_enabled=False)
+
+        assert LLMObs._prompt_manager is None
+        assert LLMObs._ensure_prompt_manager()._app_key == "new-app-key"

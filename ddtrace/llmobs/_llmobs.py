@@ -855,6 +855,11 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        if app_key:
+            # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
+            # before the app key was configured, so it rebuilds with the new key.
+            with cls._prompt_manager_lock:
+                cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
