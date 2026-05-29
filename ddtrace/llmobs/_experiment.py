@@ -210,6 +210,10 @@ class SummaryEvaluatorContext:
     :param evaluation_results: Dictionary mapping evaluator names to their results (read-only).
     :param metadata: list of metadata for each dataset record, each combined with experiment configuration (read-only).
                      Each element contains the record's metadata merged with {"experiment_config": ...}.
+    :param task_errors: list of task error objects for each record (read-only).
+                        Each element contains `message`, `type`, and `stack` fields from the task row.
+    :param evaluation_details: Dictionary mapping evaluator names to per-record detail payloads (read-only).
+                               Each payload contains `value`, `error`, `status`, and `source`.
     """
 
     inputs: list[JSONType]
@@ -217,6 +221,8 @@ class SummaryEvaluatorContext:
     expected_outputs: list[JSONType]
     evaluation_results: dict[str, list[JSONType]]
     metadata: list[dict[str, Any]] = field(default_factory=list)
+    task_errors: list[dict[str, Optional[str]]] = field(default_factory=list)
+    evaluation_details: dict[str, list[dict[str, JSONType]]] = field(default_factory=dict)
 
 
 class BaseEvaluator(ABC):
@@ -1995,12 +2001,16 @@ class Experiment:
         list[JSONType],
         list[dict[str, Any]],
         dict[str, list[JSONType]],
+        list[dict[str, Optional[str]]],
+        dict[str, list[dict[str, JSONType]]],
     ]:
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
         metadata_list: list[dict[str, Any]] = []
         eval_results_by_name: dict[str, list[JSONType]] = {}
+        task_errors: list[dict[str, Optional[str]]] = []
+        eval_details_by_name: dict[str, list[dict[str, JSONType]]] = {}
 
         for idx, task_result in enumerate(task_results):
             outputs.append(task_result["output"])
@@ -2009,14 +2019,42 @@ class Experiment:
             expected_outputs.append(record["expected_output"])
             record_metadata = record.get("metadata") or {}
             metadata_list.append({**record_metadata, "experiment_config": self._config})
+            task_errors.append(task_result.get("error") or {})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
             for name, eval_value in eval_result_at_idx_by_name.items():
                 if name not in eval_results_by_name:
                     eval_results_by_name[name] = []
                 eval_results_by_name[name].append(eval_value.get("value"))
+                if name not in eval_details_by_name:
+                    eval_details_by_name[name] = []
+                eval_error = eval_value.get("error")
+                eval_status = eval_value.get("status")
+                if isinstance(eval_status, str):
+                    status = eval_status
+                elif eval_error:
+                    status = "ERROR"
+                else:
+                    status = "OK"
+                source = "datadog_managed_evaluator" if name in self._remote_evaluator_names else "customer_evaluator"
+                eval_details_by_name[name].append(
+                    {
+                        "value": eval_value.get("value"),
+                        "error": eval_error,
+                        "status": status,
+                        "source": source,
+                    }
+                )
 
-        return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
+        return (
+            inputs,
+            outputs,
+            expected_outputs,
+            metadata_list,
+            eval_results_by_name,
+            task_errors,
+            eval_details_by_name,
+        )
 
     def _update_status(self, status: str, error: Optional[str] = None) -> None:
         if not self._llmobs_instance or not self._id:
@@ -2398,7 +2436,11 @@ class Experiment:
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
+                            eval_result = await evaluator(  # type: ignore[misc, operator]
+                                input_data,
+                                output_data,
+                                expected_output,
+                            )
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2589,9 +2631,31 @@ class Experiment:
             expected_outputs,
             metadata_list,
             eval_results_by_name,
+            task_errors,
+            eval_details_by_name,
         ) = self._prepare_summary_evaluator_data(task_results, eval_results)
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
+        summary_context = SummaryEvaluatorContext(
+            inputs=inputs,
+            outputs=outputs,
+            expected_outputs=expected_outputs,
+            evaluation_results=eval_results_by_name,
+            metadata=metadata_list,
+            task_errors=task_errors,
+            evaluation_details=eval_details_by_name,
+        )
+
+        def _build_optional_summary_evaluator_kwargs(signature: inspect.Signature) -> dict[str, Any]:
+            params = signature.parameters
+            supports_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            extra_kwargs = {}
+            # AIDEV-NOTE: keep these kwargs opt-in so existing 4-arg summary evaluators stay backward-compatible.
+            if supports_kwargs or "task_errors" in params:
+                extra_kwargs["task_errors"] = task_errors
+            if supports_kwargs or "evaluation_details" in params:
+                extra_kwargs["evaluation_details"] = eval_details_by_name
+            return extra_kwargs
 
         async def _evaluate_summary_single(
             summary_evaluator: Any,
@@ -2604,59 +2668,38 @@ class Experiment:
                 try:
                     if isinstance(summary_evaluator, BaseAsyncSummaryEvaluator):
                         evaluator_name = summary_evaluator.name
-                        context = SummaryEvaluatorContext(
-                            inputs=inputs,
-                            outputs=outputs,
-                            expected_outputs=expected_outputs,
-                            evaluation_results=eval_results_by_name,
-                            metadata=metadata_list,
-                        )
-                        eval_result = await summary_evaluator.evaluate(context)
+                        eval_result = await summary_evaluator.evaluate(summary_context)
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
                         signature = inspect.signature(summary_evaluator)
                         if len(signature.parameters) == 1:
-                            context = SummaryEvaluatorContext(
-                                inputs=inputs,
-                                outputs=outputs,
-                                expected_outputs=expected_outputs,
-                                evaluation_results=eval_results_by_name,
-                                metadata=metadata_list,
-                            )
-                            eval_result = await summary_evaluator(context)
+                            eval_result = await summary_evaluator(summary_context)
                         else:
+                            extra_kwargs = _build_optional_summary_evaluator_kwargs(signature)
                             eval_result = await summary_evaluator(
-                                inputs, outputs, expected_outputs, eval_results_by_name
+                                inputs,
+                                outputs,
+                                expected_outputs,
+                                eval_results_by_name,
+                                **extra_kwargs,
                             )
                     elif _is_class_summary_evaluator(summary_evaluator):
                         evaluator_name = summary_evaluator.name
-                        context = SummaryEvaluatorContext(
-                            inputs=inputs,
-                            outputs=outputs,
-                            expected_outputs=expected_outputs,
-                            evaluation_results=eval_results_by_name,
-                            metadata=metadata_list,
-                        )
-                        eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
+                        eval_result = await asyncio.to_thread(summary_evaluator.evaluate, summary_context)
                     else:
                         evaluator_name = summary_evaluator.__name__
                         signature = inspect.signature(summary_evaluator)
                         if len(signature.parameters) == 1:
-                            context = SummaryEvaluatorContext(
-                                inputs=inputs,
-                                outputs=outputs,
-                                expected_outputs=expected_outputs,
-                                evaluation_results=eval_results_by_name,
-                                metadata=metadata_list,
-                            )
-                            eval_result = summary_evaluator(context)
+                            eval_result = summary_evaluator(summary_context)
                         else:
+                            extra_kwargs = _build_optional_summary_evaluator_kwargs(signature)
                             eval_result = await asyncio.to_thread(
                                 summary_evaluator,
                                 inputs,
                                 outputs,
                                 expected_outputs,
                                 eval_results_by_name,
+                                **extra_kwargs,
                             )
                     eval_result_value = eval_result
                 except Exception as e:

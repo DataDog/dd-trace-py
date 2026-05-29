@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Summary evaluators can now distinguish row-level task
+    failures from evaluator failures and identify whether evaluator errors come
+    from customer-defined evaluators or Datadog-managed evaluators. The summary
+    evaluation context now includes ``task_errors`` and ``evaluation_details``
+    metadata for richer error handling in multi-run experiment summaries.
