@@ -78,8 +78,8 @@ variables:
         # across all parallel jobs, keyed only on the base requirements which
         # rarely change.
         files:
-          - benchmarks/base/requirements.txt
-          - benchmarks/base/requirements_scenario.txt
+          - dd-trace-py/benchmarks/base/requirements.txt
+          - dd-trace-py/benchmarks/base/requirements_scenario.txt
       paths:
         - .cache/pip
       policy: pull-push
