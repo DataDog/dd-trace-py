@@ -1396,7 +1396,7 @@ def _on_aiokafka_getone_message(
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
-        message_offset = message.offset or -1
+        message_offset = message.offset if message.offset is not None else -1
         topic = str(message.topic)
         span._set_attribute(TOPIC, topic)
         span._set_attribute(TOMBSTONE, str(message.value is None))
@@ -1404,7 +1404,7 @@ def _on_aiokafka_getone_message(
         if isinstance(message_key, str):
             span.set_tag(MESSAGE_KEY, message_key)
 
-        span._set_attribute(PARTITION, message.partition or -1)
+        span._set_attribute(PARTITION, message.partition if message.partition is not None else -1)
         span._set_attribute(MESSAGE_OFFSET, message_offset)
 
     if err is not None:
