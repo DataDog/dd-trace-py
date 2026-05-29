@@ -470,7 +470,7 @@ class BaseModuleWatchdog(abc.ABC):
         log.debug("%s installed", cls)
 
     @classmethod
-    def is_installed(cls):
+    def is_installed(cls) -> bool:
         """Check whether this module watchdog class is installed."""
         return cls._instance is not None and type(cls._instance) is cls
 
