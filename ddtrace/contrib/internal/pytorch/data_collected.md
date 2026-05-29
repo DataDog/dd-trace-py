@@ -872,6 +872,20 @@ Install gate (`_should_install`): wrappers install iff
 `DD_PYTORCH_FORCE_INSTALL=true` OR `RANK`/`WORLD_SIZE` env is set OR
 `torch.distributed.is_initialized()` is true.
 
+### Recommended environment for production ML training
+
+For training workloads where ddtrace's dynamic-reconfiguration and
+product-telemetry paths add overhead without observability value,
+disable them globally:
+
+| Variable | Value | Why |
+|---|---|---|
+| `DD_INSTRUMENTATION_TELEMETRY_ENABLED` | `false` | Stops the periodic telemetry-event heartbeat. ~0.1 s per 200 steps. |
+| `DD_REMOTE_CONFIGURATION_ENABLED` | `false` | Stops the remote-config poll loop. ~0.1 s per 200 steps. |
+
+These are global ddtrace settings, not specific to this contrib, but
+recommended together with PyTorch / Ray Train instrumentation.
+
 ### Ray env vars (source: `ddtrace/contrib/internal/ray/__init__.py`, `patch.py`)
 
 | Env var | Type | Default | Effect |

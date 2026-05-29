@@ -13,6 +13,7 @@ import wrapt
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace.contrib.internal.pytorch._utils import _amp_skip_state
+from ddtrace.contrib.internal.pytorch._utils import _clear_cuda_event_decision_cache
 from ddtrace.contrib.internal.pytorch._utils import _enter_framework
 from ddtrace.contrib.internal.pytorch._utils import _get_active_framework
 from ddtrace.contrib.internal.pytorch._utils import (
@@ -98,6 +99,28 @@ def _get_cached_backend() -> Optional[str]:
     return _cached_distributed_backend
 
 
+def _any_collective_feature_enabled() -> bool:
+    """True iff at least one feature consumes per-collective data.
+
+    AIDEV-NOTE: ``DD_PYTORCH_COLLECTIVE_GPU_SAMPLE_RATE`` is read here at
+    install time only (single read). Toggling it after ``patch()`` has
+    completed has no effect on whether the wrappers are installed — but
+    the per-call wrapper rereads ``_state["gpu_sample_rate"]`` on every
+    call (set in ``_bootstrap_distributed``), so runtime tuning of the
+    rate still works once distributed is initialised.
+    """
+    try:
+        sample_rate_raw = env.get("DD_PYTORCH_COLLECTIVE_GPU_SAMPLE_RATE", "0") or "0"
+        sample_rate = int(sample_rate_raw)
+    except Exception:
+        sample_rate = 0
+    return (
+        bool(getattr(config.pytorch, "summary_profiling", False))
+        or bool(getattr(config.pytorch, "collective_trace_enabled", False))
+        or sample_rate > 0
+    )
+
+
 _state: dict[str, Any] = {
     "bootstrapped": False,
     "job_id": None,
@@ -143,6 +166,11 @@ def _reset_child_state() -> None:
     _no_env_job_id_warned = False
     _layer2_installed = False
     _cached_distributed_backend = None
+    # AIDEV-NOTE: Both caches key on id(<object>); child-process objects
+    # at the same address would be unrelated to the parent's, so drop
+    # them outright.
+    _BUCKET_BYTES_CACHE.clear()
+    _clear_cuda_event_decision_cache()
 
 
 if hasattr(os, "register_at_fork"):
@@ -475,6 +503,38 @@ def _tensor_bytes(tensor) -> int:
     return total
 
 
+# AIDEV-NOTE: Keyed by id(bucket). DDP keeps a stable set of bucket
+# objects after warm-up; computing bytes_count once per bucket avoids
+# re-walking bucket.gradients() on every chained comm-hook invocation.
+# Cleared on unpatch, fork, and DDP re-init (model rebuilt → buckets
+# reallocated, so old id() entries are stale).
+_BUCKET_BYTES_CACHE: dict[int, int] = {}
+
+
+def _compute_bucket_bytes(bucket) -> int:
+    bytes_count = 0
+    try:
+        if hasattr(bucket, "gradients"):
+            grads = list(bucket.gradients())
+            if grads:
+                bytes_count = sum(_tensor_bytes(t) for t in grads)
+        elif hasattr(bucket, "buffer"):
+            bytes_count = _tensor_bytes(bucket.buffer())
+    except Exception:
+        log.debug("pytorch: bucket size introspection failed", exc_info=True)
+    return bytes_count
+
+
+def _bucket_bytes_cached(bucket) -> int:
+    key = id(bucket)
+    cached = _BUCKET_BYTES_CACHE.get(key)
+    if cached is not None:
+        return cached
+    bytes_count = _compute_bucket_bytes(bucket)
+    _BUCKET_BYTES_CACHE[key] = bytes_count
+    return bytes_count
+
+
 def _extract_group(args: tuple, kwargs: dict, group_arg_index: int):
     """Read the ProcessGroup from kwargs (preferred) or positional args.
 
@@ -499,17 +559,28 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
     # elapsed_time into the summary reservoir — no span opened, no L1 cost.
     from ddtrace.contrib.internal.pytorch import _metrics  # closure capture
 
+    # AIDEV-NOTE: op_name is a pure function of span_name (factory input)
+    # so hoist it out of the per-call wrapper into the closure.
+    op_name = span_name.split(".", 1)[1] if "." in span_name else span_name
+
     def wrapper(wrapped, instance, args, kwargs):
         if is_instrumentation_bypassed():
+            return wrapped(*args, **kwargs)
+        # Fast-path: if no feature consumes this call's data right now, skip
+        # all the bytes/group/event work and forward immediately. Features
+        # may flip at runtime after install, so we re-check here per call;
+        # the active path pays one extra config-attribute load.
+        summary_on = bool(getattr(config.pytorch, "summary_profiling", False))
+        layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
+        sample_rate = _state.get("gpu_sample_rate", 0)
+        if not (summary_on or layer_one_on or sample_rate > 0):
             return wrapped(*args, **kwargs)
         tensor = args[tensor_arg_index] if len(args) > tensor_arg_index else None
         group = _extract_group(args, kwargs, group_arg_index)
         bytes_count = _tensor_bytes(tensor) if (tensor is not None and span_name != "pytorch.barrier") else 0
-        op_name = span_name.split(".", 1)[1] if "." in span_name else span_name
 
         # Layer One gating: open the per-collective span and CUDA event pair
         # only when `DD_PYTORCH_COLLECTIVE_TRACE=true`.
-        layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
         resolver = _state.get("resolver")
         span = None
         l1_resolver = resolver if layer_one_on else None
@@ -553,7 +624,7 @@ def _make_collective_wrapper(span_name: str, tensor_arg_index: int = 0, group_ar
             and _should_record_cuda_event(group, tensor)
         )
         if cuda_eligible:
-            sample_rate = _state.get("gpu_sample_rate", 0)
+            # sample_rate already read at the fast-path top of this wrapper.
             if sample_rate > 0:
                 cnt = _state.get("gpu_sample_count", 0) + 1
                 _state["gpu_sample_count"] = cnt
@@ -623,6 +694,9 @@ def _distributed_available() -> bool:
 def _install_collectives() -> None:
     if not _distributed_available():
         return
+    if not _any_collective_feature_enabled():
+        log.debug("pytorch: skipping collective wrapper install — no collective feature enabled")
+        return
     for fn_name, (span_name, tensor_idx, group_idx) in _COLLECTIVES.items():
         if not hasattr(torch.distributed, fn_name):
             continue
@@ -631,6 +705,8 @@ def _install_collectives() -> None:
 
 def _uninstall_collectives() -> None:
     if not _distributed_available():
+        _BUCKET_BYTES_CACHE.clear()
+        _clear_cuda_event_decision_cache()
         return
     for fn_name in _COLLECTIVES:
         if not hasattr(torch.distributed, fn_name):
@@ -639,6 +715,8 @@ def _uninstall_collectives() -> None:
             _unwrap(torch.distributed, fn_name)
         except Exception:
             log.debug("pytorch: failed to unwrap torch.distributed.%s", fn_name, exc_info=True)
+    _BUCKET_BYTES_CACHE.clear()
+    _clear_cuda_event_decision_cache()
 
 
 # FSDP-style functional collective variants. Available on torch >= 2.0 but
@@ -656,6 +734,9 @@ _FSDP_COLLECTIVES: dict[str, tuple[str, int, int]] = {
 
 def _install_fsdp_collectives() -> None:
     if not _distributed_available():
+        return
+    if not _any_collective_feature_enabled():
+        log.debug("pytorch: skipping FSDP collective wrapper install — no collective feature enabled")
         return
     for fn_name, (span_name, tensor_idx, group_idx) in _FSDP_COLLECTIVES.items():
         if not hasattr(torch.distributed, fn_name):
@@ -690,6 +771,10 @@ def _wrapped_ddp_init(wrapped, instance, args, kwargs):
     was breaking valid user setups).
     """
     result = wrapped(*args, **kwargs)
+    # AIDEV-NOTE: Model rebuild → DDP allocates a fresh set of buckets;
+    # any previously-cached bytes counts are keyed on dead object ids
+    # and could collide with newly-allocated buckets at the same address.
+    _BUCKET_BYTES_CACHE.clear()
     try:
         register_framework(instance, "ddp")
     except Exception:
@@ -1071,16 +1156,7 @@ def _make_chained_comm_hook(user_hook):
         # `_instrumentation_bypass` to avoid double-counting; we record the
         # grad-comm equivalent here so DDP gradient traffic still appears in
         # `pytorch.collective.*` metrics under op=grad_comm.
-        bytes_count = 0
-        try:
-            if hasattr(bucket, "gradients"):
-                grads = list(bucket.gradients())
-                if grads:
-                    bytes_count = sum(_tensor_bytes(t) for t in grads)
-            elif hasattr(bucket, "buffer"):
-                bytes_count = _tensor_bytes(bucket.buffer())
-        except Exception:
-            log.debug("pytorch: bucket size introspection failed", exc_info=True)
+        bytes_count = _bucket_bytes_cached(bucket)
 
         # Layer One: open per-bucket span only if the user opted in.
         layer_one_on = bool(getattr(config.pytorch, "collective_trace_enabled", False))
