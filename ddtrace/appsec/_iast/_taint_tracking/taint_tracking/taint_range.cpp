@@ -262,13 +262,22 @@ get_range_by_hash(const size_t range_hash, optional<TaintRangeRefs>& taint_range
 }
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input)
+api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id)
 {
     if (!taint_engine_context) {
         return {};
     }
 
-    const auto tx_map = safe_get_tainted_object_map(string_input.ptr());
+    // With a context_id the lookup is restricted to that request's slot so
+    // a taint from a concurrent request cannot bleed into the answer. Without
+    // a context_id (caller has no active request) the multi-slot resolver is
+    // used to locate the map that owns the object.
+    TaintedObjectMapTypePtr tx_map;
+    if (context_id.has_value()) {
+        tx_map = safe_get_tainted_object_map_by_ctx_id(*context_id);
+    } else {
+        tx_map = safe_get_tainted_object_map(string_input.ptr());
+    }
 
     if (not tx_map or tx_map->empty()) {
         return {};
@@ -451,7 +460,11 @@ pyexport_taintrange(py::module& m)
           "offset"_a,
           "new_length"_a = -1);
 
-    m.def("get_ranges", &api_get_ranges, "string_input"_a, py::return_value_policy::take_ownership);
+    m.def("get_ranges",
+          &api_get_ranges,
+          "string_input"_a,
+          "context_id"_a = std::nullopt,
+          py::return_value_policy::take_ownership);
 
     m.def("get_range_by_hash",
           &get_range_by_hash,
