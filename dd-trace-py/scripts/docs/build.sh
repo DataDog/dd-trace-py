@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eux
 
-if [[ ! $(pwd) =~ "dd-trace-py/dd-trace-py" ]]; then cd dd-trace-py; fi
+if [[ $(pwd) =~ "dd-trace-py/dd-trace-py" ]]; then cd dd-trace-py; fi
 
 # Normalize READTHEDOCS: lowercase and strip whitespace to match "true" or "1"
 rtd_val="${READTHEDOCS:-}"; rtd_val="${rtd_val,,}"; rtd_val="${rtd_val// /}"
@@ -14,5 +14,7 @@ else
   fi
   sphinx-build -vvv -W -b spelling docs docs/_build/spelling || (cat docs/_build/spelling/*.spelling && exit 1)
 fi
+cd ..
 reno lint
+cd dd-trace-py
 sphinx-build -vvv -W -b html docs docs/_build/html

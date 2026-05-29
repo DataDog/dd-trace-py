@@ -47,14 +47,14 @@ variables:
 
       if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
       then
-        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/dd-trace-py/.gitlab/benchmarks/bp-runner.yml" --debug -t
       else
         run-benchmarks.sh
       fi
 
       # Join all config results into a single results.json
-      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
-      .gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+      dd-trace-py/.gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
+      dd-trace-py/.gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
 
       analyze-results.sh
       upload-results-to-s3.sh || :
@@ -117,7 +117,7 @@ baseline:detect:
     fi
 
     # Determine baseline to test against and save env variables into `baseline.env`
-    .gitlab/benchmarks/steps/detect-baseline.sh
+    dd-trace-py/.gitlab/benchmarks/steps/detect-baseline.sh
   artifacts:
     reports:
       dotenv: baseline.env
@@ -136,7 +136,7 @@ baseline:build:
     CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
     if [ ! -f "${CACHED_WHL}" ];
     then
-      .gitlab/benchmarks/steps/build-baseline.sh
+      dd-trace-py/.gitlab/benchmarks/steps/build-baseline.sh
     else
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
     fi
@@ -223,7 +223,7 @@ check-slo-breaches:
   variables:
     DDOCTOSTS_POLICY: "gitlab.github-access.read"
     ARTIFACTS_DIR: "reports/"
-    SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
+    SLO_FILE: "dd-trace-py/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
 
 microbenchmarks:
   extends: .benchmarks

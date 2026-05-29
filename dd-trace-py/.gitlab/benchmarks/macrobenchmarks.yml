@@ -417,7 +417,7 @@ check-slo-breaches:
   variables:
     DDOCTOSTS_POLICY: "gitlab.github-access.read"
     ARTIFACTS_DIR: "platform/artifacts"
-    SLO_FILE: ".gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml"
+    SLO_FILE: "dd-trace-py/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml"
 
 notify-slo-breaches:
   extends: .notify-slo-breaches
