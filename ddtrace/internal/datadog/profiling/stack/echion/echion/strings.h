@@ -125,6 +125,16 @@ class StringTable
     {
         // NB placement-new to re-init and leak the mutex because doing anything else is UB
         new (&table_lock) std::mutex();
+        // stable_ and ephemeral_ may be in a mid-emplace state if fork raced with
+        // StringTable::key. Their inherited bucket/node pointers may be inconsistent,
+        // so calling clear would traverse the same corrupted linked-list state.
+        // Use placement-new to reconstruct the maps without inspecting their contents.
+        new (&stable_) Map();
+        new (&ephemeral_) Map();
+        // Restore sentinel entries expected by the rest of the code.
+        stable_.emplace(0, "");
+        stable_.emplace(INVALID, "<invalid>");
+        stable_.emplace(UNKNOWN, "<unknown>");
     }
 
   private:
