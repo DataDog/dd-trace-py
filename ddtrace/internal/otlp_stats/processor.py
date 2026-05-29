@@ -1,4 +1,5 @@
 """SpanProcessor that aggregates spans and periodically exports them as OTLP metrics."""
+
 from typing import Optional
 
 from ddtrace._trace.processor import SpanProcessor

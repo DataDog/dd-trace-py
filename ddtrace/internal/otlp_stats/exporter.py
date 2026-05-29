@@ -1,5 +1,7 @@
 """HTTP transport for OTLP trace-metrics payloads."""
+
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.otlp_stats import serializer
@@ -29,15 +31,16 @@ def _parse_headers(headers: str) -> "dict[str, str]":
 
 def _resolve_url(endpoint: str) -> str:
     """Ensure the metrics endpoint targets the OTLP HTTP metrics path."""
-    endpoint = endpoint.rstrip("/")
-    if endpoint.endswith(METRICS_PATH):
-        return endpoint
-    return endpoint + METRICS_PATH
+    base = endpoint.rstrip("/")
+    if base.endswith(METRICS_PATH):
+        return base
+    return base + METRICS_PATH
 
 
 class OtlpStatsExporter:
     def __init__(self, endpoint: str, protocol: str, headers: str, timeout_ms: int, version: str) -> None:
         self._url = _resolve_url(endpoint)
+        self._path = urlparse(self._url).path or "/"
         # We only speak HTTP; anything that is not explicitly http/json is sent as protobuf.
         self._protocol = "http/json" if protocol == "http/json" else "http/protobuf"
         self._headers = _parse_headers(headers)
@@ -56,7 +59,7 @@ class OtlpStatsExporter:
         conn = None
         try:
             conn = get_connection(self._url, self._timeout)
-            conn.request("POST", self._url, payload, headers)
+            conn.request("POST", self._path, payload, headers)
             resp = conn.getresponse()
             resp.read()
         except Exception:
@@ -68,7 +71,7 @@ class OtlpStatsExporter:
                 try:
                     conn.close()
                 except Exception:
-                    pass
+                    log.debug("Failed to close OTLP trace metrics connection", exc_info=True)
         if resp.status >= 400:
             log.debug("OTLP trace metrics export to %s returned %d", self._url, resp.status)
             self._count("trace_api.span_stats.export_errors")

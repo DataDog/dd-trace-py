@@ -1,4 +1,5 @@
 """In-memory aggregation of finished spans into time/dimension buckets for OTLP stats export."""
+
 from typing import TYPE_CHECKING
 
 from ddtrace.constants import _ORIGIN_KEY

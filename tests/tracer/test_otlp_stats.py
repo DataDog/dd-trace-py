@@ -3,10 +3,10 @@ import struct
 
 import mock
 
+from ddtrace.internal.otlp_stats import serializer
 from ddtrace.internal.otlp_stats.aggregation import SpanAggKey
 from ddtrace.internal.otlp_stats.aggregation import SpanAggStats
 from ddtrace.internal.otlp_stats.aggregation import SpanBuckets
-from ddtrace.internal.otlp_stats import serializer
 from ddtrace.internal.otlp_stats.exporter import OtlpStatsExporter
 from ddtrace.internal.otlp_stats.exporter import _parse_headers
 from ddtrace.internal.otlp_stats.exporter import _resolve_url
@@ -167,9 +167,9 @@ def test_json_scope_and_resource():
 def test_json_dimension_mapping():
     stats = SpanAggStats(SpanAggKey(_span(status="404", method="POST", route="/users/:id")))
     stats.hits = 1
-    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))[
-        "resourceMetrics"
-    ][0]["scopeMetrics"][0]["metrics"][0]["histogram"]["dataPoints"][0]
+    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))["resourceMetrics"][0][
+        "scopeMetrics"
+    ][0]["metrics"][0]["histogram"]["dataPoints"][0]
     attrs = {a["key"]: a["value"]["stringValue"] for a in dp["attributes"]}
     assert attrs["span.name"] == "GET /foo"
     assert attrs["dd.operation.name"] == "test.op"
@@ -182,9 +182,9 @@ def test_json_dimension_mapping():
 def test_json_omits_absent_http_attrs():
     stats = SpanAggStats(SpanAggKey(_span(status=None)))
     stats.hits = 1
-    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))[
-        "resourceMetrics"
-    ][0]["scopeMetrics"][0]["metrics"][0]["histogram"]["dataPoints"][0]
+    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))["resourceMetrics"][0][
+        "scopeMetrics"
+    ][0]["metrics"][0]["histogram"]["dataPoints"][0]
     keys = {a["key"] for a in dp["attributes"]}
     assert "http.response.status_code" not in keys
     assert "http.request.method" not in keys
@@ -253,9 +253,9 @@ def test_json_no_error_attr_on_ok_points():
 def test_json_synthetics_attr():
     stats = SpanAggStats(SpanAggKey(_span(origin="synthetics")))
     stats.hits = 1
-    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))[
-        "resourceMetrics"
-    ][0]["scopeMetrics"][0]["metrics"][0]["histogram"]["dataPoints"][0]
+    dp = json.loads(serializer.to_json(_drained(stats), BUCKET_SIZE_NS, RESOURCE_ATTRS, VERSION))["resourceMetrics"][0][
+        "scopeMetrics"
+    ][0]["metrics"][0]["histogram"]["dataPoints"][0]
     attrs = {a["key"]: a["value"]["stringValue"] for a in dp["attributes"]}
     assert attrs["dd.synthetics"] == "true"
 
@@ -335,9 +335,9 @@ def test_exporter_posts_protobuf():
     conn = _mock_conn()
     with mock.patch("ddtrace.internal.otlp_stats.exporter.get_connection", return_value=conn):
         exporter.export(_drained(_stats(hits=1)), BUCKET_SIZE_NS, RESOURCE_ATTRS)
-    method, url, body, headers = conn.request.call_args[0]
+    method, path, body, headers = conn.request.call_args[0]
     assert method == "POST"
-    assert url == "http://agent:4318/v1/metrics"
+    assert path == "/v1/metrics"
     assert headers["Content-Type"] == "application/x-protobuf"
     assert headers["k"] == "v"
     assert isinstance(body, bytes)

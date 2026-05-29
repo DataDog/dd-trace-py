@@ -4,6 +4,7 @@ Emits a single ``dd.trace.span.duration`` histogram (count + sum only, delta tem
 as an OTLP ``ExportMetricsServiceRequest`` in protobuf or JSON, without depending on the
 OpenTelemetry SDK. See the RFC "OTLP Trace Metrics Export" for the data model.
 """
+
 import json
 import struct
 from typing import TYPE_CHECKING
@@ -13,7 +14,6 @@ if TYPE_CHECKING:
     from typing import Any
     from typing import Iterator
     from typing import Mapping
-    from typing import Optional
     from typing import Union
 
     from ddtrace.internal.otlp_stats.aggregation import SpanAggKey
@@ -88,13 +88,15 @@ def _iter_data_points(drained: "_Drained", bucket_size_ns: int) -> "Iterator[_Da
             if ok_tl > 0:
                 yield base + [("dd.top_level", True)], time_ns, end_ns, ok_tl, ok_tl_dur / NS_PER_S
             if err_not_tl > 0:
-                yield base + [("error", True), ("dd.top_level", False)], (
-                    time_ns
-                ), end_ns, err_not_tl, err_not_tl_dur / NS_PER_S
+                yield (
+                    base + [("error", True), ("dd.top_level", False)],
+                    (time_ns),
+                    end_ns,
+                    err_not_tl,
+                    err_not_tl_dur / NS_PER_S,
+                )
             if err_tl > 0:
-                yield base + [("error", True), ("dd.top_level", True)], (
-                    time_ns
-                ), end_ns, err_tl, err_tl_dur / NS_PER_S
+                yield base + [("error", True), ("dd.top_level", True)], (time_ns), end_ns, err_tl, err_tl_dur / NS_PER_S
 
 
 # --- JSON (OTLP/JSON: 64-bit ints as strings, all attribute values as stringValue) ---
@@ -105,9 +107,7 @@ def _json_attr(key: str, value: "_AttrValue") -> "dict[str, Any]":
     return {"key": key, "value": {"stringValue": sval}}
 
 
-def to_json(
-    drained: "_Drained", bucket_size_ns: int, resource_attrs: "Mapping[str, str]", version: str
-) -> bytes:
+def to_json(drained: "_Drained", bucket_size_ns: int, resource_attrs: "Mapping[str, str]", version: str) -> bytes:
     data_points = [
         {
             "attributes": [_json_attr(k, v) for k, v in attrs],
@@ -190,9 +190,7 @@ def _pb_kv(key: str, value: "_AttrValue") -> bytes:
     return _pb_string(1, key) + _len_delim(2, any_value)
 
 
-def to_protobuf(
-    drained: "_Drained", bucket_size_ns: int, resource_attrs: "Mapping[str, str]", version: str
-) -> bytes:
+def to_protobuf(drained: "_Drained", bucket_size_ns: int, resource_attrs: "Mapping[str, str]", version: str) -> bytes:
     dp_msgs = []
     for attrs, start_ns, end_ns, count, sum_s in _iter_data_points(drained, bucket_size_ns):
         # HistogramDataPoint{start=2, time=3, count=4, sum=5, attributes=9}

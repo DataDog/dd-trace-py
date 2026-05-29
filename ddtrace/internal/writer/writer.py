@@ -18,6 +18,7 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import ai_guard_config
@@ -1100,11 +1101,14 @@ def create_trace_writer(
         otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
     )
 
+    # OTLP trace metrics are computed client-side; disable native stats to avoid double-counting.
+    compute_stats_enabled = config._trace_compute_stats and not _is_otlp_trace_metrics_enabled(otel_config.exporter)
+
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
-        compute_stats_enabled=config._trace_compute_stats,
+        compute_stats_enabled=compute_stats_enabled,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,
