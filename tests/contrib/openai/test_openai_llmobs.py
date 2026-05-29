@@ -124,7 +124,8 @@ class TestLLMObsOpenaiV1:
     ):
         """Regression test for provider mis-attribution when multiple OpenAI-family
         clients are instantiated concurrently. Each span must reflect the client that
-        actually made the call, not whichever client was constructed last."""
+        actually made the call, not whichever client was constructed last.
+        """
         mock_completions_post.return_value = mock_openai_chat_completions_response
 
         # Construction order: OpenAI first, then AzureOpenAI. Calling order: OpenAI, then Azure.
