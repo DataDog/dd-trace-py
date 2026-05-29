@@ -1181,7 +1181,15 @@ Profiling
 Dynamic Instrumentation
 -----------------------
 
-.. ddtrace-envier-configuration:: ddtrace.internal.settings.dynamic_instrumentation:DynamicInstrumentationConfig
+.. note::
+
+   Dynamic Instrumentation configuration variables (``DD_DYNAMIC_INSTRUMENTATION_*``)
+   are generated into the library from Datadog's central configuration registry and
+   carry only their type and default value; their descriptions are maintained in the
+   registry rather than embedded in the library at runtime. See the Datadog
+   `Dynamic Instrumentation`_ documentation for a description of each setting.
+
+.. _Dynamic Instrumentation: https://docs.datadoghq.com/dynamic_instrumentation/
 
 
 Exception Replay
