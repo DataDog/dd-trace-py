@@ -2,7 +2,10 @@ import enum
 from typing import Any
 
 from ddtrace.debugging._import import DebuggerModuleWatchdog
-from ddtrace.internal.settings.dynamic_instrumentation import config
+from ddtrace.internal.settings._registry import Config
+
+
+config = Config.get().dynamic_instrumentation
 
 
 # We need to install this on start-up because if DI gets enabled remotely

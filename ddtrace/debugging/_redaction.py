@@ -3,10 +3,12 @@ import typing as t
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.dynamic_instrumentation import config
+from ddtrace.internal.settings._registry import Config
 from ddtrace.internal.settings.dynamic_instrumentation import normalize_ident
 from ddtrace.internal.utils.cache import cached
 
+
+config = Config.get().dynamic_instrumentation
 
 log = get_logger(__name__)
 
