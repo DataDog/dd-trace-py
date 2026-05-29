@@ -4,4 +4,4 @@ fixes:
     aiokafka: Fixes ``kafka.partition`` and ``kafka.message_offset`` consumer
     span tags being reported as ``-1`` when the actual value was ``0`` (e.g.
     single-partition topics or the first message in a partition). The previous
-    code used ``value or -1``, which treated falsy ``0`` as missing.
+    code used ``value or -1``, which treated the falsy integer ``0`` as missing.
