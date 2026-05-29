@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Any
 from typing import Optional
 from typing import cast
 
@@ -31,3 +32,5 @@ class DDConfig(Env):
         dynamic: Optional[dict[str, str]] = None,
     ) -> None: ...
     def value_source(self, env_name: str) -> str: ...
+
+def field(suffix: Optional[str] = ..., **kwargs: Any) -> Any: ...

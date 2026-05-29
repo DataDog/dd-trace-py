@@ -5,6 +5,8 @@ Reads the JSON registry and produces a Python module with:
 - SUPPORTED_CONFIGURATIONS: frozenset of all registered env var names
 - CONFIGURATION_ALIASES: dict mapping env var name to list of aliases
 - DEPRECATED_CONFIGURATIONS: frozenset of deprecated env var names
+- CONFIGURATION_TYPES: dict mapping env var name to registry type string
+- CONFIGURATION_DEFAULTS: dict mapping env var name to raw default string (or None)
 
 Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
 
@@ -33,7 +35,8 @@ HEADER = """\
 # Run: python scripts/supported_configurations.py
 #
 # This module provides fast O(1) lookups for environment variable validation
-# in ddtrace/internal/settings/env.py.
+# in ddtrace/internal/settings/env.py, and registry type/default data used by
+# ddtrace/internal/settings/_core.py for registry-backed field() declarations.
 """
 
 
@@ -68,6 +71,24 @@ def generate_module(data: dict) -> str:
         else "DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()"
     )
 
+    # Build CONFIGURATION_TYPES and CONFIGURATION_DEFAULTS alphabetically.
+    types_lines = "\n".join(f'    "{n}": "{entries[n]["type"]}",' for n in all_names)
+    types_block = f"CONFIGURATION_TYPES: dict[str, str] = {{\n{types_lines}\n}}"
+
+    def _default_literal(entry: dict) -> str:
+        raw = entry.get("default")
+        if raw is None:
+            return "None"
+        return json.dumps(raw, ensure_ascii=False)
+
+    def _defaults_line(n: str) -> str:
+        val = _default_literal(entries[n])
+        line = f'    "{n}": {val},'
+        return line if len(line) <= 120 else f"{line}  # noqa: E501"
+
+    defaults_lines = "\n".join(_defaults_line(n) for n in all_names)
+    defaults_block = f'CONFIGURATION_DEFAULTS: dict[str, "str | None"] = {{\n{defaults_lines}\n}}'
+
     return f"""\
 {HEADER}
 SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
@@ -80,6 +101,12 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 {aliases_block}
 
 {deprecated_block}
+
+
+{types_block}
+
+
+{defaults_block}
 """
 
 
@@ -367,7 +394,10 @@ def check_registry(data: dict) -> int:
     # DD_*/_DD_*/OTEL_*/DATADOG_* literal, then (2) AST-scan for envier-declared vars whose
     # full name is built from DDConfig.v/var calls. The generated registry module is skipped
     # to avoid self-referential matches.
-    pattern = re.compile(r'["\']((DD_|_DD_|OTEL_|DATADOG_)[A-Z][A-Z0-9_]*)["\']')
+    # The trailing [A-Z0-9] requires a quoted DD_*/OTEL_*/DATADOG_* literal to end in an
+    # alphanumeric, so prefix-style strings ending in "_" (e.g. "DD_TRACE_") used for
+    # startswith checks are not mistaken for unregistered configuration variables.
+    pattern = re.compile(r'["\']((DD_|_DD_|OTEL_|DATADOG_)[A-Z][A-Z0-9_]*[A-Z0-9])["\']')
     for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
         if path == OUTPUT_FILE:
             continue
@@ -508,6 +538,7 @@ def main() -> int:
             return 1
 
         print("_supported_configurations.py is up to date.")
+
         return check_registry(data)
 
     # Generate mode: write the module then verify registry completeness.

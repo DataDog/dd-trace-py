@@ -1,16 +1,113 @@
 from collections import ChainMap
 from enum import Enum
+import typing as t
 from typing import Any
 from typing import Optional
 
 from envier import Env
+from envier.env import EnvMeta
+from envier.env import EnvVariable
+from envier.env import _normalized
 
 from ddtrace.internal.native import get_configuration_from_disk
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_DEFAULTS
+from ddtrace.internal.settings._supported_configurations import CONFIGURATION_TYPES
 from ddtrace.internal.settings.env import dd_environ
 
 
 FLEET_CONFIG, LOCAL_CONFIG, FLEET_CONFIG_IDS = get_configuration_from_disk()
 ENV_CONFIG = dd_environ
+
+_REGISTRY_TYPE_TO_PYTHON: dict[str, type] = {
+    "boolean": bool,
+    "int": int,
+    "decimal": float,
+    "string": str,
+    "array": list,
+    "map": dict,
+}
+_UNSET = object()
+
+
+class _RegistryField:
+    """Placeholder produced by :func:`field`; resolved into an ``EnvVariable`` by ``RegistryEnvMeta``."""
+
+    __slots__ = ("suffix", "type", "default", "kwargs")
+
+    def __init__(
+        self,
+        suffix: t.Optional[str] = None,
+        *,
+        type_: t.Any = _UNSET,
+        default: t.Any = _UNSET,
+        **kwargs: t.Any,
+    ) -> None:
+        self.suffix = suffix
+        self.type = type_
+        self.default = default
+        self.kwargs = kwargs
+
+
+def field(suffix: t.Optional[str] = None, **kwargs: t.Any) -> t.Any:
+    """Declare a registry-backed configuration field.
+
+    The variable's Python type and default are taken from the configuration
+    registry (``supported-configurations.json``) at class-creation time, so they
+    are never hand-duplicated. ``suffix`` overrides the env-var suffix when the
+    attribute name differs from it (e.g. ``field("metrics.enabled")`` for an
+    attribute named ``metrics``). ``type_``/``default`` may be overridden, and any
+    other kwargs (``map``, ``validator``, ``parser``, ``help``) pass through to
+    the underlying envier ``EnvVariable``.
+    """
+    return _RegistryField(suffix, **kwargs)
+
+
+def _registry_default(reg_type: str, raw: t.Optional[str]) -> t.Any:
+    if raw is None:
+        return None
+    if reg_type == "boolean":
+        return raw.strip().lower() in ("1", "true", "yes", "on")
+    if reg_type == "int":
+        return int(raw)
+    if reg_type == "decimal":
+        return float(raw)
+    if reg_type == "string":
+        return raw
+    if reg_type == "array":
+        return [s.strip() for s in raw.split(",") if s.strip()] if raw else []
+    if reg_type == "map":
+        return {}
+    raise ValueError(f"Unsupported registry type: {reg_type!r}")
+
+
+def _resolve_registry_field(rf: "_RegistryField", prefix: str, attr_name: str) -> EnvVariable:
+    suffix = rf.suffix if rf.suffix is not None else attr_name
+    full = f"{_normalized(prefix)}_{_normalized(suffix)}" if prefix else _normalized(suffix)
+    reg_type = CONFIGURATION_TYPES.get(full)
+    if reg_type is None:
+        raise ValueError(f"Registry-backed field {full!r} is not in supported-configurations.json")
+    py_type = rf.type if rf.type is not _UNSET else _REGISTRY_TYPE_TO_PYTHON[reg_type]
+    if rf.default is not _UNSET:
+        default = rf.default
+    else:
+        default = _registry_default(reg_type, CONFIGURATION_DEFAULTS.get(full))
+        if default is None and py_type is not type(None):
+            py_type = t.Optional[py_type]
+    return EnvVariable(py_type, suffix, default=default, **rf.kwargs)
+
+
+class RegistryEnvMeta(EnvMeta):
+    """Resolves :func:`field` placeholders into envier ``EnvVariable`` instances using the
+    registry, before envier's ``EnvMeta`` applies prefixing. A no-op for classes that use
+    no ``field()`` declarations.
+    """
+
+    def __new__(mcs, name: str, bases: tuple[type, ...], ns: dict[str, t.Any]) -> t.Any:
+        prefix = ns.get("__prefix__", "")
+        for key, val in list(ns.items()):
+            if isinstance(val, _RegistryField):
+                ns[key] = _resolve_registry_field(val, prefix, key)
+        return super().__new__(mcs, name, bases, ns)
 
 
 class ValueSource(str, Enum):
@@ -44,7 +141,7 @@ class _ParsedValues:
         raise AttributeError(msg)
 
 
-class DDConfig(Env):
+class DDConfig(Env, metaclass=RegistryEnvMeta):
     """Provides support for loading configurations from multiple sources."""
 
     def __init__(
