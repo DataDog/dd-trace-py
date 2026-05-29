@@ -5810,7 +5810,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
