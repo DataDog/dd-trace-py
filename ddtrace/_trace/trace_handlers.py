@@ -639,18 +639,29 @@ def _on_web_request_final_tags(span):
         _set_inferred_proxy_tags(span, None)
 
 
+def _django_request_path_params(request):
+    from ddtrace.contrib.internal.django.utils import _request_path_params
+
+    return _request_path_params(request)
+
+
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
     after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
+    # Forward request_path_params alongside route so AppSec normalized-route listeners can consult the matched
+    # parameter map to resolve optional regex groups (RFC-1103 rule 6).
+    trace_utils.set_http_meta(
+        span,
+        ctx.get_item("integration_config"),
+        route=span.get_tag("http.route"),
+        request_path_params=_django_request_path_params(request),
+    )
     _set_inferred_proxy_tags(span, None)
 
 
-def _on_django_start_response(
-    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[dict[str, str]]
-):
+def _on_django_start_response(ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str):
     parsed_query = request.GET
     body = extract_body(request)
     remake_body(request)
@@ -661,7 +672,7 @@ def _on_django_start_response(
         method=request.method,
         query=query,
         raw_uri=uri,
-        request_path_params=path,
+        request_path_params=_django_request_path_params(request),
         parsed_query=parsed_query,
         request_body=body,
         request_cookies=request.COOKIES,
@@ -715,10 +726,16 @@ def _on_django_after_request_headers_post(
         request_headers=request_headers,
         response_headers=response_headers,
         request_cookies=request.COOKIES,
-        request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+        request_path_params=_django_request_path_params(request),
         peer_ip=core.get_item("http.request.remote_ip"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
+        route=span.get_tag("http.route"),
     )
 
 
