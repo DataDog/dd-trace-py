@@ -583,6 +583,7 @@ profiling_native:
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
         - .gitlab-ci.yml
+        - dd-trace-py/.gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
         - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.cpp
         - dd-trace-py/ddtrace/internal/datadog/profiling/**/*.cc
