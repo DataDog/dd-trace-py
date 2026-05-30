@@ -198,6 +198,11 @@ Datadog::UploaderBuilder::build()
     // Also take the Profiler Stats and reset the one being written to
     ddog_prof_Profile_SerializeResult encoded;
     Datadog::ProfilerStats stats;
+
+    // Drain every thread's pending batch into the libdd Profile before
+    // serializing. flush_all_thread_batches() acquires profile_mtx
+    // internally, so it must run before the borrow() below.
+    state.profile_state.flush_all_thread_batches();
     {
         // Only keep the lock for the duration of the encoding operation.
         auto borrowed = state.profile_state.borrow();

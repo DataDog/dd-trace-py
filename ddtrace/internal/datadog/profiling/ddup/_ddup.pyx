@@ -64,6 +64,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_set_profiler_settings_json(string_view settings_json)
 
     void ddup_start()
+    void ddup_set_batching_enabled(bint enabled)
+    bint ddup_batching_enabled()
     void ddup_set_runtime_id(string_view _id)
     void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
@@ -399,6 +401,19 @@ def config(
 
 def start() -> None:
     ddup_start()
+
+
+def set_batching_enabled(enabled: bool) -> None:
+    """Toggle the flush_sample TLS-batching kill switch.
+
+    On by default. The microbench flips this to compare batched-on vs
+    batched-off throughput in the same build.
+    """
+    ddup_set_batching_enabled(bool(enabled))
+
+
+def batching_enabled() -> bool:
+    return bool(ddup_batching_enabled())
 
 
 def set_profiler_settings_json(settings_json: StringType) -> None:

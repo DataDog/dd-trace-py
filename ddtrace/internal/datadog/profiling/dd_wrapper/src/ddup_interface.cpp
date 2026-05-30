@@ -151,6 +151,18 @@ ddup_cleanup()
     Datadog::ProfilerState::get().cleanup();
 }
 
+void
+ddup_set_batching_enabled(bool enabled) // cppcheck-suppress unusedFunction
+{
+    Datadog::Profile::set_batching_enabled(enabled);
+}
+
+bool
+ddup_batching_enabled() // cppcheck-suppress unusedFunction
+{
+    return Datadog::Profile::batching_enabled();
+}
+
 Datadog::Sample*
 ddup_start_sample() // cppcheck-suppress unusedFunction
 {

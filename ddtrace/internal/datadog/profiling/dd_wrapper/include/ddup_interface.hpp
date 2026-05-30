@@ -46,6 +46,10 @@ extern "C"
     bool ddup_is_initialized();
     void ddup_start();
     void ddup_cleanup();
+
+    // Microbench/kill-switch for flush_sample TLS batching. Defaults to on.
+    void ddup_set_batching_enabled(bool enabled);
+    bool ddup_batching_enabled();
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
 

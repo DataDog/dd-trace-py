@@ -15,6 +15,7 @@ extern "C"
 namespace Datadog {
 
 class ProfileBorrow;
+class Sample;
 
 // Serves to collect individual samples, as well as lengthen the scope of string data
 class Profile
@@ -27,6 +28,12 @@ class Profile
     // - ddog_profile
     std::once_flag init_once{};
     std::mutex profile_mtx{};
+
+    // Maximum pending samples per thread before auto-flush.
+    static constexpr size_t k_batch_threshold = 8;
+
+    // Drain the calling thread's batch under already-held profile_mtx.
+    void drain_tls_locked_();
 
     // Configuration
     SampleType type_mask{ 0 };
@@ -72,5 +79,24 @@ class Profile
 
     // collect
     bool collect(const ddog_prof_Sample2& sample, int64_t endtime_ns);
+
+    // Batched collect: moves data out of `s` into a thread-local batch.
+    // Auto-flushes once the batch reaches k_batch_threshold. After this call
+    // the Sample's vectors/arena are in a moved-from state and must be
+    // re-initialized by the caller (Sample::flush_sample handles this).
+    bool buffered_collect(Sample& s);
+
+    // Drain the calling thread's batch (acquires profile_mtx once).
+    void flush_thread_batch();
+
+    // Drain every registered thread's batch (acquires profile_mtx once).
+    // Called before upload/serialize and around fork().
+    void flush_all_thread_batches();
+
+    // Toggle batched collect on/off at runtime. When disabled,
+    // buffered_collect() falls back to sync collect (one Profile_add2 call
+    // per sample). Used by the microbench and as a kill-switch.
+    static void set_batching_enabled(bool enabled);
+    static bool batching_enabled();
 };
 } // namespace Datadog

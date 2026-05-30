@@ -189,6 +189,8 @@ class Sample
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     friend class SampleManager;
+    // Profile::buffered_collect moves out our private vectors/arena.
+    friend class Profile;
 };
 
 } // namespace Datadog

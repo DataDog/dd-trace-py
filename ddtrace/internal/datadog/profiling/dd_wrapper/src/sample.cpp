@@ -402,11 +402,39 @@ Datadog::Sample::clear()
 bool
 Datadog::Sample::flush_sample()
 {
-    // Export the sample data (export_sample handles dropped frames)
-    auto ret = export_sample();
+    // Sync path: preserve the pre-batching behavior exactly when the
+    // batching kill-switch is off (used by microbench and as a fallback).
+    if (!ProfilerState::get().profile_state.batching_enabled()) {
+        auto ret = export_sample();
+        clear();
+        return ret;
+    }
 
-    // Clear buffers after exporting
-    clear();
+    // Inline export_sample's dropped-frames synthesis here so we apply it
+    // before moving locations into the batch.
+    if (dropped_frames > 0 && !has_dropped_frames_indicator) {
+        const std::string name =
+          "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
+        Sample::push_frame_impl(name, "", 0, 0);
+        has_dropped_frames_indicator = true;
+    }
+
+    // buffered_collect() copies our locations/values/labels (cheap PODs)
+    // and MOVES our string_storage into the TLS batch. After it returns,
+    // only string_storage is in a moved-from state.
+    const bool ret = ProfilerState::get().profile_state.buffered_collect(*this);
+
+    // Re-initialize fields for the next sample. Vectors keep their
+    // capacities since we copied them (not moved). string_storage was
+    // moved-from, so we need a fresh arena.
+    locations.clear();
+    labels.clear();
+    string_storage = internal::StringArena{};
+    std::fill(values.begin(), values.end(), 0);
+    dropped_frames = 0;
+    has_dropped_frames_indicator = false;
+    endtime_ns = 0;
+
     return ret;
 }
 
