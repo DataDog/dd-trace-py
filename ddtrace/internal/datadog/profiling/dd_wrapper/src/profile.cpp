@@ -390,6 +390,14 @@ Datadog::Profile::flush_all_thread_batches()
 void
 Datadog::Profile::prefork()
 {
+    // Force construction of this thread's tls_slot BEFORE we acquire
+    // slot_registry_mtx below. ThreadBatchSlot's constructor takes that
+    // mutex; if the parent thread hadn't touched the slot yet, the child's
+    // first tls_slot() call inside postfork_child() would run the
+    // constructor while we already hold slot_registry_mtx — non-recursive
+    // mutex = deadlock = pod hangs at fork (e.g. gunicorn worker spawn).
+    (void)tls_slot();
+
     // Drain every thread's pending batch first so the libdd Profile is
     // consistent before the child clones it. flush_all_thread_batches()
     // acquires both slot_registry_mtx and profile_mtx, then releases them.
