@@ -1,0 +1,23 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "reno>=3.5.0",
+#   # PyYAML>=6.0.1 has wheels/builds on Python 3.13; 6.0 fails with modern setuptools
+#   "PyYAML>=6.0.1",
+# ]
+# ///
+"""Run reno (release notes manager) without needing a riot venv.
+
+Usage:
+    scripts/reno new <slug>           # create a new release note
+    scripts/reno lint                 # validate existing notes
+    scripts/reno report               # generate changelog output
+    uv run --script scripts/reno ...  # same, explicit uv invocation
+"""
+import sys
+
+from reno.main import main
+
+sys.exit(main())
