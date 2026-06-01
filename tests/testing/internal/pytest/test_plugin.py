@@ -1106,6 +1106,68 @@ class TestSessionLifecycleMethods:
         plugin.manager.writer.put_item.assert_not_called()
         plugin.manager.finish.assert_called_once()
 
+    def test_pytest_sessionstart_deregisters_monitoring_when_pytest_cov_enabled(self) -> None:
+        """deregister_monitoring() is called in v3 plugin sessionstart when pytest-cov is active.
+
+        Regression test for the fix that prevents "ValueError: tool 1 is already in use"
+        when pytester.inline_run(--cov) is called inside a session that already holds
+        sys.monitoring.COVERAGE_ID as 'datadog'.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = None
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = []
+        mock_config.invocation_params = mock_invocation_params
+        mock_config.getoption.return_value = False  # ddtrace-patch-all = False
+        mock_session.config = mock_config
+
+        with (
+            patch(
+                "ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True
+            ) as mock_cov_check,
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.deregister_monitoring"
+            ) as mock_deregister,
+        ):
+            plugin.pytest_sessionstart(mock_session)
+
+        mock_cov_check.assert_called_once_with(mock_session.config)
+        mock_deregister.assert_called_once()
+
+    def test_pytest_sessionstart_skips_deregistration_when_pytest_cov_disabled(self) -> None:
+        """deregister_monitoring() is NOT called in v3 plugin when pytest-cov is absent.
+
+        Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
+        own coverage tracking is not disrupted by an unnecessary deregistration.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = None
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = []
+        mock_config.invocation_params = mock_invocation_params
+        mock_config.getoption.return_value = False  # ddtrace-patch-all = False
+        mock_session.config = mock_config
+
+        with (
+            patch(
+                "ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False
+            ),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.deregister_monitoring"
+            ) as mock_deregister,
+        ):
+            plugin.pytest_sessionstart(mock_session)
+
+        mock_deregister.assert_not_called()
+
 
 class TestReportAndLoggingMethods:
     """Test report generation and logging methods."""

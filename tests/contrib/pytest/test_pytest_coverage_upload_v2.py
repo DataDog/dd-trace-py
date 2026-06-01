@@ -341,3 +341,59 @@ class TestPytestV2CoverageUpload:
         # Check that no coverage report client was added
         coverage_clients = [c for c in writer._clients if c.__class__.__name__.endswith("CoverageReportClient")]
         assert len(coverage_clients) == 0
+
+    # ------------------------------------------------------------------
+    # Regression tests: COVERAGE_ID deregistration in pytest_sessionstart
+    # ------------------------------------------------------------------
+
+    def test_pytest_sessionstart_deregisters_monitoring_when_pytest_cov_enabled(self):
+        """deregister_monitoring() is called in sessionstart when pytest-cov is active.
+
+        Regression test for the fix that prevents "ValueError: tool 1 is already in use"
+        when pytester.inline_run(--cov) is called inside a session that already holds
+        sys.monitoring.COVERAGE_ID as 'datadog'.
+        """
+        from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
+
+        mock_session = Mock()
+        mock_session.config = Mock()
+
+        with (
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.reset_coverage_state"),
+            patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=True
+            ) as mock_cov_check,
+            patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring"
+            ) as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=False),
+        ):
+            pytest_sessionstart(mock_session)
+
+        mock_cov_check.assert_called_once_with(mock_session.config)
+        mock_deregister.assert_called_once()
+
+    def test_pytest_sessionstart_skips_deregistration_when_pytest_cov_disabled(self):
+        """deregister_monitoring() is NOT called when pytest-cov is absent or disabled.
+
+        Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
+        own coverage tracking is not disrupted by an unnecessary deregistration.
+        """
+        from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
+
+        mock_session = Mock()
+        mock_session.config = Mock()
+
+        with (
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.reset_coverage_state"),
+            patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
+            ),
+            patch(
+                "ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring"
+            ) as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=False),
+        ):
+            pytest_sessionstart(mock_session)
+
+        mock_deregister.assert_not_called()
