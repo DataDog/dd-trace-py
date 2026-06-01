@@ -256,12 +256,17 @@ def _taint_django_func_call(http_req: Any, args: tuple[Any, ...], kwargs: dict[s
         source_value=http_req.path,
         source_origin=OriginType.PATH,
     )
-    http_req.environ["PATH_INFO"] = taint_pyobject(
-        http_req.environ["PATH_INFO"],
-        source_name=origin_to_str(OriginType.PATH),
-        source_value=http_req.path,
-        source_origin=OriginType.PATH,
-    )
+    # ``environ`` only exists on WSGI ``HttpRequest``; Django ``ASGIRequest`` builds an equivalent
+    # ``META`` dict from the ASGI scope and does not expose ``environ``.
+    try:
+        http_req.environ["PATH_INFO"] = taint_pyobject(
+            http_req.environ["PATH_INFO"],
+            source_name=origin_to_str(OriginType.PATH),
+            source_value=http_req.path,
+            source_origin=OriginType.PATH,
+        )
+    except AttributeError:
+        iast_propagation_listener_log_log("IAST can't set attribute http_req.environ", exc_info=True)
     http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
     if kwargs:
         try:

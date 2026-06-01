@@ -1,3 +1,4 @@
+from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -168,3 +169,63 @@ def test_copy_ranges_to_string_without_context_is_noop():
     out = copy_ranges_to_string("zzz", ranges)
     assert out == "zzz"
     assert is_pyobject_tainted(out) is False
+
+
+def test_is_pyobject_tainted_does_not_leak_across_request_slots():
+    """A PyObject tainted in one request slot must not appear tainted from another slot."""
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    assert ctx_a is not None
+
+    tainted_in_a = _taint_pyobject_base(
+        "http://dummy.location.com",
+        "location",
+        "http://dummy.location.com",
+        OriginType.PARAMETER,
+        contextid=ctx_a,
+    )
+    IAST_CONTEXT.set(ctx_a)
+    assert is_pyobject_tainted(tainted_in_a) is True
+
+    ctx_b = start_request_context()
+    assert ctx_b is not None and ctx_b != ctx_a
+    IAST_CONTEXT.set(ctx_b)
+
+    assert is_pyobject_tainted(tainted_in_a) is False
+    assert len(get_tainted_ranges(tainted_in_a)) == 0
+
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)
+
+
+def test_get_ranges_public_api_does_not_leak_across_request_slots():
+    """The public ``get_ranges`` (used by sinks and aspects) must also be slot-scoped."""
+    from ddtrace.appsec._iast._taint_tracking import get_ranges
+
+    clear_all_request_context_slots()
+    _end_iast_context_and_oce()
+
+    ctx_a = start_request_context()
+    assert ctx_a is not None
+    tainted_in_a = _taint_pyobject_base(
+        "http://dummy.location.com",
+        "location",
+        "http://dummy.location.com",
+        OriginType.PARAMETER,
+        contextid=ctx_a,
+    )
+    IAST_CONTEXT.set(ctx_a)
+    assert len(get_ranges(tainted_in_a)) > 0
+
+    ctx_b = start_request_context()
+    assert ctx_b is not None and ctx_b != ctx_a
+    IAST_CONTEXT.set(ctx_b)
+
+    assert get_ranges(tainted_in_a) == []
+
+    finish_request_context(ctx_a)
+    finish_request_context(ctx_b)
+    IAST_CONTEXT.set(None)

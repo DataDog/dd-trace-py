@@ -21,6 +21,7 @@ from ddtrace.llmobs._evaluators import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._llmobs import LLMObsSpan
 from ddtrace.llmobs.types import Prompt
@@ -40,6 +41,7 @@ __all__ = [
     "CategoricalStructuredOutput",
     "EvaluatorContext",
     "EvaluatorResult",
+    "MultiEvaluatorResult",
     "LLMJudge",
     "RemoteEvaluator",
     "RemoteEvaluatorError",

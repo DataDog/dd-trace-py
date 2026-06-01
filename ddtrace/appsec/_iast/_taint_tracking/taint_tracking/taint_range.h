@@ -149,7 +149,7 @@ bool
 api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid);
 
 TaintRangeRefs
-api_get_ranges(const py::handle& string_input);
+api_get_ranges(const py::handle& string_input, std::optional<size_t> context_id = std::nullopt);
 
 void
 api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2);
