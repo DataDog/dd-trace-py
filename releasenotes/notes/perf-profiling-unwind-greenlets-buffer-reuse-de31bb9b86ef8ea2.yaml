@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Further reduces native heap memory used by the stack collector
+    in gevent workloads with many tracked greenlets.

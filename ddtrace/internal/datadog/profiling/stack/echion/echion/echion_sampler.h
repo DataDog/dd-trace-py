@@ -4,9 +4,11 @@
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/frame.h>
+#include <echion/greenlets.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 
@@ -46,6 +48,13 @@ class EchionSampler
     // entry; reusing the hash table across calls eliminates per-call
     // allocator churn.
     std::unordered_set<PyObject*> seen_frames_scratch_;
+
+    // Sampling-thread scratch buffers used by unwind_greenlets. Only the
+    // single sampling thread touches these. Each unwind_greenlets call
+    // clears/resets them between uses to amortize allocator churn.
+    std::vector<GreenletSnapshot> greenlet_snapshots_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_parents_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_visited_scratch_;
 
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
@@ -95,6 +104,9 @@ class EchionSampler
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
+    std::vector<GreenletSnapshot>& greenlet_snapshots_scratch() { return greenlet_snapshots_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_parents_scratch() { return greenlet_parents_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_visited_scratch() { return greenlet_visited_scratch_; }
 
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
@@ -131,6 +143,9 @@ class EchionSampler
         greenlet_thread_map_.clear();
 
         seen_frames_scratch_.clear();
+        greenlet_snapshots_scratch_.clear();
+        greenlet_parents_scratch_.clear();
+        greenlet_visited_scratch_.clear();
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary
