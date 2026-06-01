@@ -106,6 +106,43 @@ def test_aiobotocore_only_patch_injects_into_signed_request():
     assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
 
 
+def test_distributed_tracing_disabled_passes_no_headers():
+    """With DD_BOTOCORE_DISTRIBUTED_TRACING=false, aiobotocore AWS requests must
+    carry NO trace propagation headers: the before-sign handler bails on the
+    disabled flag (and the aiohttp layer, when active, is suppressed). aiobotocore
+    injection follows the shared botocore distributed_tracing flag.
+    """
+    import aiobotocore.session
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.aiobotocore.patch import patch as patch_aiobotocore
+    from ddtrace.contrib.internal.aiobotocore.patch import unpatch as unpatch_aiobotocore
+
+    propagation = {
+        "x-datadog-trace-id",
+        "x-datadog-parent-id",
+        "x-datadog-sampling-priority",
+        "traceparent",
+        "tracestate",
+    }
+    original = config.botocore["distributed_tracing"]
+    config.botocore["distributed_tracing"] = False
+    patch_aiobotocore()
+    try:
+        session = aiobotocore.session.AioSession()
+        session.set_credentials(
+            access_key="AKIAIOSFODNN7EXAMPLE",
+            secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        )
+        headers = _capture_aio_signed_request(session)
+    finally:
+        unpatch_aiobotocore()
+        config.botocore["distributed_tracing"] = original
+
+    leaked = {h for h in headers if h.lower() in propagation}
+    assert leaked == set(), f"propagation headers leaked despite DD_BOTOCORE_DISTRIBUTED_TRACING=false: {leaked}"
+
+
 def test_aiobotocore_client_created_before_patch_still_injects():
     """Regression: an aiobotocore client built BEFORE patch() must still get
     trace headers into the signed request once patch() is active — the
