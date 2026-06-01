@@ -80,7 +80,10 @@ def register_on_exit_signal(f: typing.Callable) -> None:
     if threading.current_thread() is threading.main_thread():
         try:
             signals.handle_signal(signal.SIGTERM, handle_exit)
-            signals.handle_signal(signal.SIGINT, handle_exit)
+            # Skipping SIGINT when default_int_handler is installed allows asyncio.Runner
+            # to install its own handler; cleanup on KeyboardInterrupt is covered by atexit.
+            if signal.getsignal(signal.SIGINT) is not signal.default_int_handler:
+                signals.handle_signal(signal.SIGINT, handle_exit)
         except Exception:
             # We catch a general exception here because we don't know
             # what might go wrong, but we don't want to stop

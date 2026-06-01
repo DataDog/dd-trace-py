@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -86,6 +87,9 @@ class BaseLLMIntegration:
         log.debug("Creating LLM span with type %s", span.span_type)
         # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)
+        if base_url:
+            # Used to detect providers downstream.
+            span._set_ctx_item(REQUEST_BASE_URL, base_url)
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
