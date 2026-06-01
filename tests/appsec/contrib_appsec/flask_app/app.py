@@ -190,7 +190,6 @@ def rasp(endpoint: str):
 
 
 @app.route("/multi-param/<first>.<last>/", methods=["GET"])
-@app.route("/multi-param/<first>.<last>", methods=["GET"])
 def multi_param_segment(first: str, last: str):
     return {"first": first, "last": last}
 

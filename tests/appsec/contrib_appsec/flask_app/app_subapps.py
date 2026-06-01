@@ -41,7 +41,6 @@ def _make_root_app():
     # RFC-1103 normalized-route coverage: these live on the root app (not a DM sub-app) so
     # script_root is empty and url_rule.rule already carries the full path.
     app.route("/multi-param/<first>.<last>/", methods=["GET"])(multi_param_segment)
-    app.route("/multi-param/<first>.<last>", methods=["GET"])(multi_param_segment)
     app.route("/files/<path:file_path>", methods=["GET"])(files_catch_all)
     app.before_request(service_renaming)
     return app
