@@ -16,6 +16,7 @@ from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._constants import FFEvalState
+from ddtrace.llmobs._constants import PromptRoutingSignal
 from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
@@ -89,11 +90,11 @@ class PromptManager:
 
         dd_env = config.env
         if label is not None:
-            telemetry.record_prompt_routing_signal("label_only")
+            telemetry.record_prompt_routing_signal(PromptRoutingSignal.LABEL_ONLY)
         elif dd_env:
-            telemetry.record_prompt_routing_signal("env_only")
+            telemetry.record_prompt_routing_signal(PromptRoutingSignal.ENV_ONLY)
         else:
-            telemetry.record_prompt_routing_signal("neither")
+            telemetry.record_prompt_routing_signal(PromptRoutingSignal.NEITHER)
 
         if label is None and dd_env and not self._agentless:
             prompt, ff_state = self._fetch_from_ff(prompt_id, targeting_key, attributes)

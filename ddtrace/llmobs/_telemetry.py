@@ -6,6 +6,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import PromptRoutingSignal
 from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
@@ -286,9 +287,9 @@ def record_prompt_fetch_error(error_type: str):
     )
 
 
-def record_prompt_routing_signal(signal: str):
+def record_prompt_routing_signal(signal: PromptRoutingSignal):
     """Record the routing signal used for a get_prompt call (label_only, env_only, neither)."""
-    tags = [("signal", signal)]
+    tags = [("signal", signal.value)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_ROUTING_SIGNAL,

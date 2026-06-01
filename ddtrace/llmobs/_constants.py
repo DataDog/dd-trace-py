@@ -227,3 +227,9 @@ class FFEvalState(str, Enum):
     NO_FLAG = "no_flag"
     DISABLED = "disabled"
     ERROR = "error"
+
+
+class PromptRoutingSignal(str, Enum):
+    LABEL_ONLY = "label_only"
+    ENV_ONLY = "env_only"
+    NEITHER = "neither"
