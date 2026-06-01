@@ -181,8 +181,16 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     class _FakeEndpoint:
         _endpoint_prefix = "s3"
 
+    class _FakeEvents:
+        # _wrapped_api_call registers the before-sign handler via
+        # _ensure_before_sign_handler; suppression is only set when that
+        # succeeds, so the fake client needs a working emitter.
+        def register(self, *args, **kwargs):
+            return None
+
     class _FakeMeta:
         region_name = "us-east-1"
+        events = _FakeEvents()
 
     class _FakeClient:
         _endpoint = _FakeEndpoint()

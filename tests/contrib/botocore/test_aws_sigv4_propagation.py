@@ -579,6 +579,67 @@ def test_handler_does_not_overwrite_existing_propagation_headers(patched_botocor
     assert "traceparent" in request.headers
 
 
+def test_ensure_before_sign_handler_returns_false_on_registration_failure():
+    """_ensure_before_sign_handler returns False (and does not set the sentinel)
+    when registering on the client emitter raises, so the caller knows the
+    handler is not in place and must not suppress the urllib3 layer.
+    """
+    from ddtrace.contrib.internal.botocore.patch import _botocore_before_sign_handler
+    from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
+
+    class _FailingEvents:
+        def register(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    class _FakeMeta:
+        events = _FailingEvents()
+
+    class _FakeClient:
+        meta = _FakeMeta()
+
+    client = _FakeClient()
+    assert _ensure_before_sign_handler(client, _botocore_before_sign_handler) is False
+    # Sentinel not set on failure, so a later call retries registration.
+    assert getattr(client, "_dd_before_sign_registered", False) is False
+
+
+def test_no_suppression_when_handler_registration_fails(s3_client):
+    """Regression: if the before-sign handler cannot be registered, the API-call
+    wrapper must NOT suppress the urllib3-layer injection — otherwise headers are
+    injected at neither layer and propagation is silently dropped.
+
+    We force registration to fail and snapshot the suppression contextvar at
+    before-send (signing time). It must be False, so urllib3 still injects as a
+    fallback.
+    """
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
+    import ddtrace.contrib.internal.botocore.patch as bp
+
+    seen = {}
+
+    def before_send(request, **kwargs):
+        seen["suppressed"] = _http_propagation_suppressed.get()
+        raise _StopBeforeWire()
+
+    s3_client.meta.events.register_first("before-send.s3.ListBuckets", before_send)
+
+    original = bp._ensure_before_sign_handler
+    bp._ensure_before_sign_handler = lambda client, handler: False
+    try:
+        with ddtrace.tracer.trace("test.list_buckets"):
+            try:
+                s3_client.list_buckets()
+            except _StopBeforeWire:
+                pass
+    finally:
+        bp._ensure_before_sign_handler = original
+
+    assert seen.get("suppressed") is False, (
+        "urllib3 injection was suppressed even though before-sign handler registration failed — "
+        "propagation would be dropped at every layer"
+    )
+
+
 def test_pin_disabled_does_not_set_suppression(s3_client):
     """Suppression-placement guard: `_http_propagation_suppressed` is set only
     on the full traced path, AFTER the pin.enabled() early-return.

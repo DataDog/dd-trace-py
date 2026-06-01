@@ -170,19 +170,22 @@ def _botocore_before_sign_handler(request, **kwargs):
 
 # AIDEV-NOTE: Also imported by ddtrace.contrib.internal.aiobotocore.patch;
 # rename in lockstep. Each integration passes its own owner-gated handler.
-def _ensure_before_sign_handler(client, handler) -> None:
+def _ensure_before_sign_handler(client, handler) -> bool:
     """Register ``handler`` for ``before-sign`` on this client's emitter, once.
+    Returns True if the handler is in place (already or newly registered).
 
     Client-level (not Session.__init__) on purpose: botocore copies a Session's
     handlers onto a client at creation time, so a handler added later never
     reaches an already-built client. Registering per-client at the first traced
     call covers clients created before ``patch()`` ran.
+
+    The return value gates urllib3-layer suppression in the caller: if
+    registration fails the handler can't inject pre-signing, so the caller must
+    NOT suppress (else propagation is dropped at every layer). The sentinel is
+    set only on success, so a failed attempt is retried on the next call.
     """
     if getattr(client, "_dd_before_sign_registered", False):
-        return
-    # Best-effort once: register() is idempotent (botocore dedupes by unique_id);
-    # marking up front avoids a per-call warning flood if it ever raises.
-    client._dd_before_sign_registered = True
+        return True
     try:
         client.meta.events.register(
             "before-sign",
@@ -191,6 +194,9 @@ def _ensure_before_sign_handler(client, handler) -> None:
         )
     except Exception:
         log.warning("dd-trace-py: failed to register botocore before-sign handler", exc_info=True)
+        return False
+    client._dd_before_sign_registered = True
+    return True
 
 
 # Botocore default settings
@@ -316,13 +322,16 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
     # Register the before-sign handler on this client (covers clients built
-    # before patch()), then suppress the urllib3-layer injection for this call:
-    # with distributed_tracing on the before-sign handler already injected, and
-    # with it off we honor the opt-out at every layer. Setting True only on this
-    # full path (with the try/finally reset) keeps the contextvar owned here, so
-    # early-return paths can't leak suppression into later non-AWS HTTP calls.
-    _ensure_before_sign_handler(instance, _botocore_before_sign_handler)
-    token = _http_propagation_suppressed.set(True)
+    # before patch()), then suppress the urllib3-layer injection — but ONLY if
+    # registration succeeded. With the handler in place it has already injected
+    # pre-signing, so urllib3 must not re-inject post-signing (and the opt-out is
+    # honored). If registration failed, the handler can't inject, so we must NOT
+    # suppress — let urllib3 inject as a fallback rather than drop propagation at
+    # every layer. Setting True only on this path (with the reset) keeps the
+    # contextvar owned here, so early-return paths can't leak suppression.
+    token = None
+    if _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
+        token = _http_propagation_suppressed.set(True)
     try:
         return patching_fn(
             original_func=original_func,
@@ -332,7 +341,8 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
             function_vars=function_vars,
         )
     finally:
-        _http_propagation_suppressed.reset(token)
+        if token is not None:
+            _http_propagation_suppressed.reset(token)
 
 
 def prep_context_injection(ctx, endpoint_name, operation, trace_operation, params):
