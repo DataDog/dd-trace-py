@@ -18,6 +18,7 @@ from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.ext import aws_durable as aws_durable_ext
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
@@ -34,10 +35,10 @@ config._add("aws_durable_execution_sdk_python", {})
 
 # Operations whose direct children should not set a resource.
 # Children of map/parallel can have unbounded names, increasing cardinality.
-_DYNAMIC_PARENT_OPERATIONS = frozenset({"aws.durable.map", "aws.durable.parallel"})
+_DYNAMIC_PARENT_OPERATIONS = frozenset({aws_durable_ext.SPAN_MAP, aws_durable_ext.SPAN_PARALLEL})
 
 # Operations that use the SDK's retry mechanism (StepDetails.attempt).
-_RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
+_RETRYABLE_OPERATIONS = frozenset({aws_durable_ext.SPAN_STEP, aws_durable_ext.SPAN_WAIT_FOR_CONDITION})
 
 
 def get_version() -> str:
@@ -235,33 +236,43 @@ def patch():
     wrap("aws_durable_execution_sdk_python", "durable_execution", _traced_durable_execution)
 
     wrap("aws_durable_execution_sdk_python.context", "DurableContext.invoke", _traced_invoke)
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.step", _traced_operation("aws.durable.step", 1))
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.wait", _traced_operation("aws.durable.wait", 1))
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.step",
+        _traced_operation(aws_durable_ext.SPAN_STEP, 1),
+    )
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait",
+        _traced_operation(aws_durable_ext.SPAN_WAIT, 1),
+    )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.wait_for_condition",
-        _traced_operation("aws.durable.wait_for_condition", 2),
+        _traced_operation(aws_durable_ext.SPAN_WAIT_FOR_CONDITION, 2),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.wait_for_callback",
-        _traced_operation("aws.durable.wait_for_callback", 1),
+        _traced_operation(aws_durable_ext.SPAN_WAIT_FOR_CALLBACK, 1),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.create_callback",
-        _traced_operation("aws.durable.create_callback", 0),
+        _traced_operation(aws_durable_ext.SPAN_CREATE_CALLBACK, 0),
     )
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_operation("aws.durable.map", 2))
+    wrap(
+        "aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_operation(aws_durable_ext.SPAN_MAP, 2)
+    )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.parallel",
-        _traced_operation("aws.durable.parallel", 1),
+        _traced_operation(aws_durable_ext.SPAN_PARALLEL, 1),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.run_in_child_context",
-        _traced_operation("aws.durable.child_context", 1),
+        _traced_operation(aws_durable_ext.SPAN_CHILD_CONTEXT, 1),
     )
 
     executor_module.ThreadPoolExecutor = TracedThreadPoolExecutor
