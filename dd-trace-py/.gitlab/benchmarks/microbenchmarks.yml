@@ -170,7 +170,7 @@ candidate:
     echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
   artifacts:
     reports:
-      dotenv: candidate.env
+      dotenv: dd-trace-py/candidate.env
     paths:
       - "dd-trace-py/*.whl"
 
