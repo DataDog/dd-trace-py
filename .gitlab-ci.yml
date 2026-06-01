@@ -276,10 +276,7 @@ doe-sxs-baseline:
   needs: [doe-sxs-prep]
   trigger:
     project: DataDog/apm-reliability/dd-trace-doe
-    # TESTING ONLY: pointing at the dd-trace-doe PR branch to verify the
-    # trigger fires `benchmark-profiling-remote`. Revert to `main` before
-    # merging this PR.
-    branch: taegyunkim/prof-14016-remote-benchmarking
+    branch: main
     strategy: depend
   variables:
     LANGUAGE: python
@@ -295,10 +292,7 @@ doe-sxs-candidate:
     - job: "upload manylinux2014_x86_64"
   trigger:
     project: DataDog/apm-reliability/dd-trace-doe
-    # TESTING ONLY: pointing at the dd-trace-doe PR branch to verify the
-    # trigger fires `benchmark-profiling-remote`. Revert to `main` before
-    # merging this PR.
-    branch: taegyunkim/prof-14016-remote-benchmarking
+    branch: main
     strategy: depend
   variables:
     LANGUAGE: python
