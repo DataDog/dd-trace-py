@@ -78,7 +78,7 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 
 
 def _inject_context_in_env(context: Context) -> None:
-    headers: dict = {}
+    headers: dict[str, str] = {}
     _TraceContext._inject(context, headers)
     tp = headers.get("traceparent", "")
     ts = headers.get("tracestate", "")

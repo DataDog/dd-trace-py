@@ -16,25 +16,29 @@ def test_get_ray_service_name_reflects_env_changes(monkeypatch):
     """Service name is read fresh each call so multi-job drivers get the right name."""
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    monkeypatch.setattr(u.env, "get", lambda key, default=None: "job-A" if key == u.RAY_JOB_NAME else default)
+    monkeypatch.setenv(u.RAY_JOB_NAME, "job-A")
     assert u._get_ray_service_name() == "job-A"
 
-    monkeypatch.setattr(u.env, "get", lambda key, default=None: "job-B" if key == u.RAY_JOB_NAME else default)
+    monkeypatch.setenv(u.RAY_JOB_NAME, "job-B")
     assert u._get_ray_service_name() == "job-B"
 
 
 @pytest.mark.subprocess
 def test_hostname_cached():
-    """Subprocess: fresh process → no reset needed; verify cache populated and stable."""
-    import socket
+    """Subprocess: plant a sentinel in the cache and verify it is returned on subsequent calls.
 
+    Without this sentinel, h1==h2==gethostname() would hold true even if caching was
+    broken, since gethostname() always returns the same value in a given environment.
+    """
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    assert getattr(u._local, "hostname", None) is None  # fresh thread-local state
-    h1 = u._get_cached_hostname()
-    assert u._local.hostname == h1  # cache populated
-    h2 = u._get_cached_hostname()
-    assert h1 == h2 == socket.gethostname()
+    # First call fills the cache with the real hostname.
+    assert getattr(u._local, "hostname", None) is None
+    u._get_cached_hostname()
+    # Overwrite with a sentinel — subsequent calls must return this, not gethostname().
+    u._local.hostname = "sentinel-host"
+    assert u._get_cached_hostname() == "sentinel-host"
+    assert u._get_cached_hostname() == "sentinel-host"
 
 
 @pytest.mark.subprocess(
