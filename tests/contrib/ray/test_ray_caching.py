@@ -7,65 +7,52 @@ import pytest
 def _clean_caches():
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    u._reset_child_state()
+    u._reset_thread_local_state()
     yield
-    u._reset_child_state()
+    u._reset_thread_local_state()
 
 
-def test_get_ray_service_name_cached(monkeypatch):
+def test_get_ray_service_name_reflects_env_changes(monkeypatch):
+    """Service name is read fresh each call so multi-job drivers get the right name."""
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    reads = []
+    monkeypatch.setattr(u.env, "get", lambda key, default=None: "job-A" if key == u.RAY_JOB_NAME else default)
+    assert u._get_ray_service_name() == "job-A"
 
-    def fake_env_get(key, default=None):
-        reads.append(key)
-        return "svc-A"
-
-    monkeypatch.setattr(u.env, "get", fake_env_get)
-
-    assert u._get_ray_service_name() == "svc-A"
-    assert u._get_ray_service_name() == "svc-A"
-    assert u._get_ray_service_name() == "svc-A"
-    assert reads.count(u.RAY_JOB_NAME) <= 1
+    monkeypatch.setattr(u.env, "get", lambda key, default=None: "job-B" if key == u.RAY_JOB_NAME else default)
+    assert u._get_ray_service_name() == "job-B"
 
 
-def test_hostname_cached(monkeypatch):
+@pytest.mark.subprocess
+def test_hostname_cached():
+    """Subprocess: fresh process → no reset needed; verify cache populated and stable."""
+    import socket
+
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    calls = []
-
-    def fake_gethostname():
-        calls.append(1)
-        return "host-A"
-
-    monkeypatch.setattr("socket.gethostname", fake_gethostname)
-
-    assert u._get_cached_hostname() == "host-A"
-    assert u._get_cached_hostname() == "host-A"
-    assert len(calls) == 1
+    assert getattr(u._local, "hostname", None) is None  # fresh thread-local state
+    h1 = u._get_cached_hostname()
+    assert u._local.hostname == h1  # cache populated
+    h2 = u._get_cached_hostname()
+    assert h1 == h2 == socket.gethostname()
 
 
-def test_extract_traceparent_cached(monkeypatch):
+@pytest.mark.subprocess(
+    env={
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "tracestate": "dd=s:1",
+    }
+)
+def test_extract_traceparent_cached():
+    """Subprocess: env vars set at process start; same Context object returned on every call."""
     from ddtrace.contrib.internal.ray.core import utils as u
 
-    monkeypatch.setenv("traceparent", "00-aabb-cc-01")
-    monkeypatch.setenv("tracestate", "dd=s:1")
-
-    extracts = []
-    real_extract = u._TraceContext._extract
-
-    def counting_extract(headers):
-        extracts.append(1)
-        return real_extract(headers)
-
-    monkeypatch.setattr(u._TraceContext, "_extract", staticmethod(counting_extract))
-
+    assert getattr(u._local, "tracing_context_keys", None) is None  # fresh thread-local state
     a = u._extract_tracing_context_from_env()
+    assert u._local.tracing_context_keys is not None  # cache populated
     b = u._extract_tracing_context_from_env()
     c = u._extract_tracing_context_from_env()
-
     assert a is b is c
-    assert len(extracts) == 1
 
 
 def test_inject_context_in_env_skips_when_unchanged(monkeypatch):
@@ -90,7 +77,7 @@ def test_inject_context_in_env_skips_when_unchanged(monkeypatch):
 
 
 def test_inject_context_in_env_is_thread_safe(monkeypatch):
-    """Two concurrent injectors with different contexts must not race."""
+    """Two concurrent injectors must not raise; each thread tracks its own dedup state."""
     import threading
 
     from ddtrace._trace.context import Context
@@ -245,7 +232,7 @@ def test_runtime_invariants_not_cached_when_ray_not_initialized(monkeypatch):
     inv1 = u._get_runtime_invariants()
     assert inv1 == {}
     # Cache must still be None so the next call retries once Ray is up.
-    assert u._cached_runtime_invariants is None
+    assert getattr(u._local, "runtime_invariants", None) is None
 
     # Simulate Ray initializing between calls.
     class FakeRC:
@@ -263,4 +250,42 @@ def test_runtime_invariants_not_cached_when_ray_not_initialized(monkeypatch):
 
     inv2 = u._get_runtime_invariants()
     assert inv2.get("ray.job_id") == "job-late"
-    assert u._cached_runtime_invariants is not None
+    assert getattr(u._local, "runtime_invariants", None) is not None
+
+
+def test_runtime_invariants_invalidated_after_ray_reinit(monkeypatch):
+    """Cache must be refilled after ray.shutdown() + ray.init() so stale tags are not emitted."""
+    from ddtrace.contrib.internal.ray.core import utils as u
+
+    class FakeRC:
+        def __init__(self, job_id, node_id):
+            self._job_id = job_id
+            self._node_id = node_id
+
+        def get_job_id(self):
+            return self._job_id
+
+        def get_node_id(self):
+            return self._node_id
+
+        def get_worker_id(self):
+            return None
+
+    monkeypatch.setattr(u.ray, "is_initialized", lambda: True)
+    monkeypatch.setattr(u, "get_runtime_context", lambda: FakeRC("job-1", "node-A"))
+
+    inv1 = u._get_runtime_invariants()
+    assert inv1.get("ray.job_id") == "job-1"
+
+    # Simulate ray.shutdown(): is_initialized() returns False, cache must be bypassed.
+    monkeypatch.setattr(u.ray, "is_initialized", lambda: False)
+    inv_down = u._get_runtime_invariants()
+    assert inv_down == {}
+
+    # Simulate ray.init() again with a new cluster context.
+    monkeypatch.setattr(u.ray, "is_initialized", lambda: True)
+    monkeypatch.setattr(u, "get_runtime_context", lambda: FakeRC("job-2", "node-B"))
+
+    inv2 = u._get_runtime_invariants()
+    assert inv2.get("ray.job_id") == "job-2", "stale job_id from prior Ray session returned"
+    assert inv2.get("ray.node_id") == "node-B"

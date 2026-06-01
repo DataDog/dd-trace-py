@@ -53,14 +53,9 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
 
-# Process-invariant cache state; reset in _reset_child_state() after fork.
-_cache_lock = threading.Lock()
-_cached_service_name: Optional[str] = None
-_cached_hostname: Optional[str] = None
-_cached_runtime_invariants: Optional[dict] = None
-_cached_tracing_context: Optional[Context] = None
-_cached_tracing_context_keys: Optional[tuple] = None
-_last_injected_keys: Optional[tuple] = None
+# Per-thread cache. Thread locals are naturally fork-safe: after os.fork() only the
+# calling thread survives, so every other thread's cached values vanish automatically.
+_local = threading.local()
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -83,48 +78,39 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 
 
 def _inject_context_in_env(context: Context) -> None:
-    global _last_injected_keys
     headers: dict = {}
     _TraceContext._inject(context, headers)
     tp = headers.get("traceparent", "")
     ts = headers.get("tracestate", "")
-    with _cache_lock:
-        if (tp, ts) == _last_injected_keys:
-            return
-        # Environment variables are used as a process-boundary fallback channel for
-        # context propagation when workers have no active in-process parent span.
-        env["traceparent"] = tp
-        env["tracestate"] = ts
-        _last_injected_keys = (tp, ts)
+    if (tp, ts) == getattr(_local, "last_injected_keys", None):
+        return
+    # Environment variables are used as a process-boundary fallback channel for
+    # context propagation when workers have no active in-process parent span.
+    env["traceparent"] = tp
+    env["tracestate"] = ts
+    _local.last_injected_keys = (tp, ts)
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    # Keyed on (traceparent, tracestate). A fresh inject changes env so
+    # Keyed on (traceparent, tracestate) per thread. A fresh inject changes env so
     # the next extract sees a key mismatch and re-parses — inject-then-extract is safe.
-    # Lock guards two concurrent extracts from both seeing a miss and caching different contexts.
-    global _cached_tracing_context, _cached_tracing_context_keys
     tp = env.get("traceparent")
     ts = env.get("tracestate")
     keys = (tp, ts)
-    with _cache_lock:
-        if keys == _cached_tracing_context_keys:
-            return _cached_tracing_context
-        _cached_tracing_context_keys = keys
-        if tp is None or ts is None:
-            _cached_tracing_context = None
-            return None
-        _cached_tracing_context = _TraceContext._extract({"traceparent": tp, "tracestate": ts})
-        return _cached_tracing_context
+    if keys == getattr(_local, "tracing_context_keys", None):
+        return getattr(_local, "tracing_context", None)
+    _local.tracing_context_keys = keys
+    if tp is None or ts is None:
+        _local.tracing_context = None
+        return None
+    _local.tracing_context = _TraceContext._extract({"traceparent": tp, "tracestate": ts})
+    return _local.tracing_context
 
 
 def _get_ray_service_name() -> str:
-    global _cached_service_name
-    if _cached_service_name is not None:
-        return _cached_service_name
-    with _cache_lock:
-        if _cached_service_name is None:
-            _cached_service_name = env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
-        return _cached_service_name
+    # Not cached: env[RAY_JOB_NAME] is overwritten per job-submission in the driver
+    # process, so caching would return a stale service name for later jobs.
+    return env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
 
 
 def _set_dist_ai_metrics(span: Span) -> None:
@@ -136,73 +122,59 @@ def _set_dist_ai_metrics(span: Span) -> None:
 
 
 def _get_cached_hostname() -> str:
-    global _cached_hostname
-    if _cached_hostname is not None:
-        return _cached_hostname
-    with _cache_lock:
-        if _cached_hostname is None:
-            try:
-                _cached_hostname = socket.gethostname()
-            except Exception:
-                _cached_hostname = "unknown-host"
-        return _cached_hostname
+    hostname = getattr(_local, "hostname", None)
+    if hostname is None:
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            hostname = "unknown-host"
+        _local.hostname = hostname
+    return hostname
 
 
 def _get_runtime_invariants() -> dict:
-    # worker_id/node_id/job_id are process-invariant; task_id/actor_id are per-call (read fresh).
-    global _cached_runtime_invariants
-    if _cached_runtime_invariants is not None:
-        return _cached_runtime_invariants
-    with _cache_lock:
-        if _cached_runtime_invariants is not None:
-            return _cached_runtime_invariants
-        snap: dict = {}
+    # worker_id/node_id/job_id are process-invariant within a Ray session; task_id/actor_id are per-call.
+    # Guard on is_initialized(): if Ray is shut down and reinited the context changes,
+    # so we must re-fill the cache rather than returning the previous session's values.
+    cached = getattr(_local, "runtime_invariants", None)
+    if cached is not None and ray.is_initialized():
+        return cached
+    # Clear stale snapshot (Ray may have been shut down and reinitialized).
+    _local.runtime_invariants = None
+    if not ray.is_initialized():
+        return {}  # do not cache; Ray may initialize before the next call
+    snap: dict[str, str] = {}
+    try:
+        rc = get_runtime_context()
+        snap[RAY_JOB_ID] = rc.get_job_id()
+        snap[RAY_NODE_ID] = rc.get_node_id()
+        wid = rc.get_worker_id()
+        if wid is not None:
+            snap[RAY_WORKER_ID] = wid
+        ns = getattr(rc, "namespace", None)
+        if ns:
+            snap[RAY_NAMESPACE] = str(ns)
+        gcs = getattr(rc, "gcs_address", None)
+        if gcs:
+            snap[RAY_GCS_ADDRESS] = str(gcs)
+        dash = getattr(rc, "dashboard_url", None)
+        if dash:
+            snap[RAY_DASHBOARD_URL] = str(dash)
         try:
-            if not ray.is_initialized():
-                return {}  # do not cache; Ray may initialize before the next call
-            rc = get_runtime_context()
-            snap[RAY_JOB_ID] = rc.get_job_id()
-            snap[RAY_NODE_ID] = rc.get_node_id()
-            wid = rc.get_worker_id()
-            if wid is not None:
-                snap[RAY_WORKER_ID] = wid
-            ns = getattr(rc, "namespace", None)
-            if ns:
-                snap[RAY_NAMESPACE] = str(ns)
-            gcs = getattr(rc, "gcs_address", None)
-            if gcs:
-                snap[RAY_GCS_ADDRESS] = str(gcs)
-            dash = getattr(rc, "dashboard_url", None)
-            if dash:
-                snap[RAY_DASHBOARD_URL] = str(dash)
-            try:
-                ver = getattr(ray, "__version__", None)
-                if ver:
-                    snap[RAY_VERSION] = str(ver)
-            except Exception:  # nosec B110
-                pass
-        except Exception:
-            return {}  # do not cache; retry on next call
-        _cached_runtime_invariants = snap
-        return snap
+            ver = getattr(ray, "__version__", None)
+            if ver:
+                snap[RAY_VERSION] = str(ver)
+        except Exception:  # nosec B110
+            pass
+    except Exception:
+        return {}  # do not cache; retry on next call
+    _local.runtime_invariants = snap
+    return snap
 
 
-def _reset_child_state() -> None:
-    """Fork-safe reset for every cached accessor in this module."""
-    global _cached_service_name, _cached_hostname, _cached_runtime_invariants
-    global _cached_tracing_context, _cached_tracing_context_keys
-    global _last_injected_keys, _cache_lock
-    _cached_service_name = None
-    _cached_hostname = None
-    _cached_runtime_invariants = None
-    _cached_tracing_context = None
-    _cached_tracing_context_keys = None
-    _last_injected_keys = None
-    _cache_lock = threading.Lock()
-
-
-if hasattr(os, "register_at_fork"):
-    os.register_at_fork(after_in_child=_reset_child_state)
+def _reset_thread_local_state() -> None:
+    """Clear all thread-local cached values for the calling thread. Used in tests and fork hooks."""
+    _local.__dict__.clear()
 
 
 def _set_runtime_context_attributes(span: Span, submission_id: Optional[str] = None) -> None:

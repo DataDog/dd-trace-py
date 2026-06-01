@@ -6,5 +6,3 @@ other:
     (``socket.gethostname()``, ``ray.get_runtime_context().get_*()``)
     are amortized across the process lifetime, reducing overhead for
     high-frequency Ray task and actor-method instrumentation.
-    Double-checked locking on all cache-fill functions for free-threaded
-    Python (``-X gil=0``) compatibility.
