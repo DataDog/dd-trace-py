@@ -7,6 +7,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <unordered_set>
 #include <vector>
 
 #include <echion/config.h>
@@ -40,6 +41,18 @@ class FrameStack : public std::vector<Frame>
 class EchionSampler;
 
 // ----------------------------------------------------------------------------
+// Scratch-buffer-reusing variant. Callers on the sampling thread should pass
+// EchionSampler::seen_frames_scratch() to avoid per-call hash-table allocation.
+// `seen_frames` is cleared on entry.
+size_t
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             std::unordered_set<PyObject*>& seen_frames,
+             size_t max_depth = max_frames);
+
+// Convenience wrapper that owns a local scratch set (used by fuzz harnesses
+// and other callers outside the sampling thread).
 size_t
 unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
 
