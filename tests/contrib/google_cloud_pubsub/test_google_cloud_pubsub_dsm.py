@@ -26,7 +26,7 @@ def _wait_for_pathway_directions(processor, *required, timeout=10.0):
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        tag_strs = [" ".join(key[0]) for key in all_pathway_stat_keys(processor)]
+        tag_strs = [key[0] for key in all_pathway_stat_keys(processor)]
         if all(any(req in tags for tags in tag_strs) for req in required):
             return
         time.sleep(0.1)
@@ -78,7 +78,7 @@ class PubSubDSMTest(TracerTestCase):
             for bucket in self.processor._buckets.values():
                 for key, stats in bucket.pathway_stats.items():
                     tags = key[0]
-                    if "direction:out" in tags and any(t.startswith("topic:") for t in tags):
+                    if "direction:out" in tags and "topic:" in tags:
                         assert "type:google-pubsub" in tags
                         assert stats.payload_size.count >= 1
                         found_produce_sketch = True
