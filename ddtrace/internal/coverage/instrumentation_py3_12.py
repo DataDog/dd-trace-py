@@ -130,6 +130,20 @@ def _register_monitoring():
     sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
 
 
+def deregister_monitoring() -> None:
+    """Release sys.monitoring.COVERAGE_ID if currently held by datadog.
+
+    Called at the start of each new in-process pytest session (e.g. pytester.inline_run)
+    so that another coverage tool such as pytest-cov can claim COVERAGE_ID without
+    hitting "ValueError: tool 1 is already in use".  The next instrumentation call
+    will re-register us if coverage is still needed.
+    """
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
+        sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+        _CODE_HOOKS.clear()
+
+
 def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> tuple[CodeType, CoverageLines]:

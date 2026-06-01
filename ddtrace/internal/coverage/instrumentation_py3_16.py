@@ -18,3 +18,8 @@ RESUME = dis.opmap["RESUME"]
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()
+
+
+def deregister_monitoring() -> None:
+    # No-op: instrumentation is not yet implemented for Python 3.16+
+    pass

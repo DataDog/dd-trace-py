@@ -66,6 +66,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
+from ddtrace.internal.coverage.instrumentation import deregister_monitoring
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -507,6 +508,9 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 def pytest_sessionstart(session: pytest.Session) -> None:
     # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
     reset_coverage_state()
+    # Release sys.monitoring.COVERAGE_ID so that pytest-cov can claim it in inline sub-sessions.
+    # If we need it again for the new session, instrument_all_lines() will re-register lazily.
+    deregister_monitoring()
 
     if not is_test_visibility_enabled():
         return
