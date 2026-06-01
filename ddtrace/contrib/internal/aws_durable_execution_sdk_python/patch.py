@@ -146,14 +146,10 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             checkpoint = instance.state.get_checkpoint_result(operation_id)
             event.replayed = checkpoint.is_succeeded()
             event.id = operation_id
-            # AIDEV-NOTE: The tag is 0-indexed: 0 = original attempt, 1 = first
-            # retry, 2 = second retry, etc.  In production the AWS Lambda Durable
-            # service stores attempt counts in step_details starting at 1 after the
-            # first failure (i.e. step_details.attempt=1 means one prior attempt
-            # has been checkpointed).  We pass step_details.attempt through directly
-            # so the tag correctly reflects how many prior attempts have occurred.
-            # When no checkpoint exists yet (first attempt, no prior failures),
-            # step_details is absent and we default to 0.
+            # AIDEV-NOTE: step_details.attempt equals the number of prior failed
+            # attempts (0-indexed): absent on the first attempt (default 0), 1
+            # after the first failure, 2 after the second, etc.  Pass through
+            # directly; do not clamp — max(1, attempt) collapses attempts 1 and 2.
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
