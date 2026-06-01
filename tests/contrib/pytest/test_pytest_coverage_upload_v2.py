@@ -363,9 +363,7 @@ class TestPytestV2CoverageUpload:
             patch(
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=True
             ) as mock_cov_check,
-            patch(
-                "ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring"
-            ) as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring") as mock_deregister,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=False),
         ):
             pytest_sessionstart(mock_session)
@@ -386,12 +384,8 @@ class TestPytestV2CoverageUpload:
 
         with (
             patch("ddtrace.contrib.internal.pytest._plugin_v2.reset_coverage_state"),
-            patch(
-                "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
-            ),
-            patch(
-                "ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring"
-            ) as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False),
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring") as mock_deregister,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=False),
         ):
             pytest_sessionstart(mock_session)
