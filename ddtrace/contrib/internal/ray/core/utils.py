@@ -138,7 +138,14 @@ def _get_runtime_invariants() -> dict:
     # so we must re-fill the cache rather than returning the previous session's values.
     cached = getattr(_local, "runtime_invariants", None)
     if cached is not None and ray.is_initialized():
-        return cached
+        # Validate the cache is still for the current Ray session by comparing node_id.
+        # Without this check, a ray.shutdown() + ray.init() cycle that never called
+        # _get_runtime_invariants() during the shutdown window would return stale data.
+        try:
+            if get_runtime_context().get_node_id() == cached.get(RAY_NODE_ID):
+                return cached
+        except Exception:
+            return cached  # can't validate, assume still valid
     # Clear stale snapshot (Ray may have been shut down and reinitialized).
     _local.runtime_invariants = None
     if not ray.is_initialized():

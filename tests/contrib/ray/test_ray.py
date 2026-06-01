@@ -37,7 +37,6 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.hostname",
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",
-    # New runtime-invariant tags — all environment-specific values
     "meta.ray.version",
     "meta.ray.namespace",
     "meta.ray.gcs_address",

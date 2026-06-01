@@ -293,3 +293,43 @@ def test_runtime_invariants_invalidated_after_ray_reinit(monkeypatch):
     inv2 = u._get_runtime_invariants()
     assert inv2.get("ray.job_id") == "job-2", "stale job_id from prior Ray session returned"
     assert inv2.get("ray.node_id") == "node-B"
+
+
+def test_runtime_invariants_invalidated_after_reinit_without_intermediate_call(monkeypatch):
+    """Cache must be refilled even if _get_runtime_invariants() was never called during shutdown.
+
+    The previous test covers the case where _get_runtime_invariants() IS called while
+    is_initialized() returns False. This test covers the harder case: ray shuts down and
+    reinits so quickly (or spans are only generated after reinit) that the shutdown window
+    is never observed. Without node_id validation on the cache hit path, stale tags would
+    be silently returned for the new session.
+    """
+    from ddtrace.contrib.internal.ray.core import utils as u
+
+    class FakeRC:
+        def __init__(self, job_id, node_id):
+            self._job_id = job_id
+            self._node_id = node_id
+
+        def get_job_id(self):
+            return self._job_id
+
+        def get_node_id(self):
+            return self._node_id
+
+        def get_worker_id(self):
+            return None
+
+    # Session A: populate cache.
+    monkeypatch.setattr(u.ray, "is_initialized", lambda: True)
+    monkeypatch.setattr(u, "get_runtime_context", lambda: FakeRC("job-1", "node-A"))
+    inv1 = u._get_runtime_invariants()
+    assert inv1.get("ray.job_id") == "job-1"
+
+    # Ray shuts down and reinits — _get_runtime_invariants() is never called during shutdown.
+    # is_initialized() stays True from our perspective (reinit happened too fast to observe).
+    monkeypatch.setattr(u, "get_runtime_context", lambda: FakeRC("job-2", "node-B"))
+
+    inv2 = u._get_runtime_invariants()
+    assert inv2.get("ray.job_id") == "job-2", "stale job_id returned despite new Ray session"
+    assert inv2.get("ray.node_id") == "node-B"
