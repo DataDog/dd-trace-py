@@ -148,8 +148,7 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             event.id = operation_id
             # AIDEV-NOTE: step_details.attempt equals the number of prior failed
             # attempts (0-indexed): absent on the first attempt (default 0), 1
-            # after the first failure, 2 after the second, etc.  Pass through
-            # directly; do not clamp — max(1, attempt) collapses attempts 1 and 2.
+            # after the first failure, 2 after the second, etc.
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
