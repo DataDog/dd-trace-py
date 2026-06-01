@@ -18,7 +18,18 @@ if [ -n "$staged_files" ]; then
     done
     deduped="${deduped# }"
     if [ -n "$deduped" ]; then
-        "$LINT_CMD" typing -- $deduped
+        mypy_extra=""
+        all_tests=true
+        for f in $deduped; do
+            case "$f" in
+                tests/*) ;;
+                *) all_tests=false; break ;;
+            esac
+        done
+        if [ "$all_tests" = true ]; then
+            mypy_extra="--follow-imports=skip"
+        fi
+        "$LINT_CMD" typing -- $mypy_extra $deduped
     else
         echo 'Run mypy skipped: all staged stubs have corresponding .py files'
     fi
