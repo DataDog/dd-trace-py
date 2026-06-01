@@ -278,7 +278,7 @@ def test_ci_visibility_encoder_truncates_event_meta_string_values():
     span.set_tag("long_meta", long_value)
     span.set_tag("exact_meta", exact_value)
     span.set_tag("unicode_meta", unicode_value)
-    span.set_metric("numeric_metric", 42)
+    span._set_attribute("numeric_metric", 42)
 
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.put([span])

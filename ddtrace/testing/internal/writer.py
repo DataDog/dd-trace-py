@@ -32,6 +32,40 @@ TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
 EventSerializer = t.Callable[[TSerializable], Event]
 
+_MAX_META_TAG_VALUE_LENGTH = 5000
+
+
+def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
+    return {
+        key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()
+    }
+
+
+def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
+    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+
+
+def _truncate_event_meta(event: Event) -> Event:
+    content = event.get("content")
+    if not isinstance(content, dict):
+        return event
+
+    meta = content.get("meta")
+    if not isinstance(meta, dict):
+        return event
+
+    return {
+        **event,
+        "content": {
+            **content,
+            "meta": _truncate_meta_string_values(meta),
+        },
+    }
+
+
+def _truncate_events_meta(events: list[Event]) -> list[Event]:
+    return [_truncate_event_meta(event) for event in events]
+
 
 class BaseWriter(ABC):
     # After this many consecutive failed flushes (each already retried internally),
@@ -255,13 +289,15 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _encode_events(self, events: list[Event]) -> bytes:
-        payload = {
+    def _test_cycle_payload(self, events: list[Event]) -> Event:
+        return {
             "version": 1,
-            "metadata": self.metadata,
-            "events": events,
+            "metadata": _truncate_payload_metadata(self.metadata),
+            "events": _truncate_events_meta(events),
         }
-        return msgpack_packb(payload)
+
+    def _encode_events(self, events: list[Event]) -> bytes:
+        return msgpack_packb(self._test_cycle_payload(events))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
@@ -308,7 +344,7 @@ class PayloadFileTestOptWriter(TestOptWriter):
     def _send_events(self, events: list[Event]) -> bool:
         write_payload_file(
             output_dir=self._output_dir,
-            payload={"version": 1, "metadata": self.metadata, "events": events},
+            payload=self._test_cycle_payload(events),
             kind="tests",
         )
         return True
