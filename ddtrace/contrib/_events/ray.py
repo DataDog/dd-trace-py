@@ -134,7 +134,7 @@ class RaySubmissionEvent(TracingEvent):
     task_num_gpus: Optional[float] = event_field(default=None)
     task_num_returns: Optional[int] = event_field(default=None)
     task_max_retries: Optional[int] = event_field(default=None)
-    task_resources: Optional[dict[str, Any]] = event_field(default=None)
+    task_resources: Optional[dict[str, float]] = event_field(default=None)
     task_scheduling_strategy: Optional[str] = event_field(default=None)
     task_accelerator_type: Optional[str] = event_field(default=None)
     task_function_module: Optional[str] = event_field(default=None)

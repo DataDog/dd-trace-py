@@ -130,15 +130,12 @@ class RayExecutionSubscriber(TracingSubscriber):
             set_tag_or_truncate(span, kwargs_tag, method_kwargs)
 
         if event.is_actor_method:
-            try:
-                if event.actor_class_name:
-                    span.set_tag(RAY_ACTOR_CLASS_NAME, str(event.actor_class_name))
-                if event.actor_module_name:
-                    span.set_tag(RAY_ACTOR_MODULE_NAME, str(event.actor_module_name))
-                if event.actor_method_name:
-                    span.set_tag(RAY_ACTOR_METHOD_NAME, str(event.actor_method_name))
-            except Exception:
-                log.debug("Failed to set actor metadata tags on execution span", exc_info=True)
+            if event.actor_class_name:
+                span._set_attribute(RAY_ACTOR_CLASS_NAME, event.actor_class_name)
+            if event.actor_module_name:
+                span._set_attribute(RAY_ACTOR_MODULE_NAME, event.actor_module_name)
+            if event.actor_method_name:
+                span._set_attribute(RAY_ACTOR_METHOD_NAME, event.actor_method_name)
 
         # Execution spans are finalized manually to support async/remote execution
         # boundaries that do not align with context manager auto-finish.
@@ -215,42 +212,36 @@ class RaySubmissionSubscriber(TracingSubscriber):
             set_tag_or_truncate(span, kwargs_tag, event.method_kwargs)
 
         if event.is_task_submission:
-            try:
-                if event.task_function_module:
-                    span.set_tag(RAY_TASK_FUNCTION_MODULE, str(event.task_function_module))
-                if event.task_function_qualname:
-                    span.set_tag(RAY_TASK_FUNCTION_QUALNAME, str(event.task_function_qualname))
-                if event.task_num_cpus is not None:
-                    span._set_attribute(RAY_TASK_NUM_CPUS, float(event.task_num_cpus))
-                if event.task_num_gpus is not None:
-                    span._set_attribute(RAY_TASK_NUM_GPUS, float(event.task_num_gpus))
-                if event.task_num_returns is not None:
-                    span._set_attribute(RAY_TASK_NUM_RETURNS, int(event.task_num_returns))
-                if event.task_max_retries is not None:
-                    span._set_attribute(RAY_TASK_MAX_RETRIES, int(event.task_max_retries))
-                if event.task_accelerator_type:
-                    span.set_tag(RAY_TASK_ACCELERATOR_TYPE, str(event.task_accelerator_type))
-                if event.task_scheduling_strategy:
-                    span.set_tag(RAY_TASK_SCHEDULING_STRATEGY, str(event.task_scheduling_strategy))
-                if event.task_resources:
-                    for k, v in event.task_resources.items():
-                        try:
-                            span._set_attribute(f"{RAY_TASK_RESOURCES_PREFIX}{k}", float(v))
-                        except Exception:  # nosec B110
-                            log.debug("Failed to set ray.task.resources.%s (non-numeric value)", k)
-            except Exception:
-                log.debug("Failed to set task scheduling tags", exc_info=True)
+            if event.task_function_module:
+                span._set_attribute(RAY_TASK_FUNCTION_MODULE, event.task_function_module)
+            if event.task_function_qualname:
+                span._set_attribute(RAY_TASK_FUNCTION_QUALNAME, event.task_function_qualname)
+            if event.task_num_cpus is not None:
+                span._set_attribute(RAY_TASK_NUM_CPUS, float(event.task_num_cpus))
+            if event.task_num_gpus is not None:
+                span._set_attribute(RAY_TASK_NUM_GPUS, float(event.task_num_gpus))
+            if event.task_num_returns is not None:
+                span._set_attribute(RAY_TASK_NUM_RETURNS, int(event.task_num_returns))
+            if event.task_max_retries is not None:
+                span._set_attribute(RAY_TASK_MAX_RETRIES, int(event.task_max_retries))
+            if event.task_accelerator_type:
+                span._set_attribute(RAY_TASK_ACCELERATOR_TYPE, event.task_accelerator_type)
+            if event.task_scheduling_strategy:
+                span._set_attribute(RAY_TASK_SCHEDULING_STRATEGY, event.task_scheduling_strategy)
+            if event.task_resources:
+                for k, v in event.task_resources.items():
+                    try:
+                        span._set_attribute(f"{RAY_TASK_RESOURCES_PREFIX}{k}", float(v))
+                    except Exception:  # nosec B110
+                        log.debug("Failed to set ray.task.resources.%s (non-numeric value)", k)
 
         if event.is_actor_method:
-            try:
-                if event.actor_class_name:
-                    span.set_tag(RAY_ACTOR_CLASS_NAME, str(event.actor_class_name))
-                if event.actor_module_name:
-                    span.set_tag(RAY_ACTOR_MODULE_NAME, str(event.actor_module_name))
-                if event.actor_method_name:
-                    span.set_tag(RAY_ACTOR_METHOD_NAME, str(event.actor_method_name))
-            except Exception:
-                log.debug("Failed to set actor metadata tags on submission span", exc_info=True)
+            if event.actor_class_name:
+                span._set_attribute(RAY_ACTOR_CLASS_NAME, event.actor_class_name)
+            if event.actor_module_name:
+                span._set_attribute(RAY_ACTOR_MODULE_NAME, event.actor_module_name)
+            if event.actor_method_name:
+                span._set_attribute(RAY_ACTOR_METHOD_NAME, event.actor_method_name)
 
     @classmethod
     def on_ended(

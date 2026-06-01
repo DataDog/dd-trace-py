@@ -2454,7 +2454,7 @@
     "DD_ML_JOB_ENV": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "map",
         "default": null
       }
     ],

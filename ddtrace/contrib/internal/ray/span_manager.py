@@ -248,14 +248,15 @@ class RaySpanManager:
 
     def stop_long_running_job(self, submission_id: str, job_info: Optional["JobInfo"]) -> None:
         with self._lock:
-            job_span = self._root_spans[submission_id]
+            job_span = self._root_spans.pop(submission_id, None)
+            if job_span is None:
+                return
 
             timer = self._timers.pop(submission_id, None)
             if timer:
                 timer.cancel()
 
-            del self._job_spans[submission_id]
-            del self._root_spans[submission_id]
+            self._job_spans.pop(submission_id, None)
 
         self._finish_span(job_span, job_info=job_info)
 

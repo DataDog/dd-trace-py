@@ -98,10 +98,11 @@ def get_version() -> str:
 
 
 def _parse_ml_job_env(raw: str) -> dict[str, str]:
-    """Parse DD_ML_JOB_ENV into a {DD_<KEY>: <VALUE>} dict.
+    """Parse DD_ML_JOB_ENV into a {KEY: VALUE} dict.
 
     Format: semicolon-separated ``KEY:VALUE`` pairs, e.g.
-    ``TRACE_ENABLED:true;AGENT_HOST:10.0.0.1``.
+    ``DD_SERVICE:my-svc;DD_AGENT_HOST:10.0.0.1``.
+    Keys are forwarded as-is into the Ray job environment.
     """
     result: dict[str, str] = {}
     for pair in raw.split(";"):
@@ -110,7 +111,7 @@ def _parse_ml_job_env(raw: str) -> dict[str, str]:
             key, value = pair.split(":", 1)
             key = key.strip()
             if key:
-                result["DD_" + key] = value.strip()
+                result[key] = value.strip()
     return result
 
 

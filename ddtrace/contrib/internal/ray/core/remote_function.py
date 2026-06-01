@@ -126,17 +126,15 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     sched_repr = None
     if sched is not None:
         try:
-            sched_repr = type(sched).__name__
+            sched_repr = sched if isinstance(sched, str) else type(sched).__name__
         except Exception:
             sched_repr = None
 
     fn = instance._function
-    fn_module = getattr(fn, "__module__", None) or getattr(getattr(fn, "__wrapped__", None), "__module__", None)
-    fn_qualname = (
-        getattr(fn, "__qualname__", None)
-        or getattr(fn, "__name__", None)
-        or getattr(getattr(fn, "__wrapped__", None), "__qualname__", None)
-    )
+    if hasattr(fn, "__wrapped__"):
+        fn = fn.__wrapped__
+    fn_module = getattr(fn, "__module__", None)
+    fn_qualname = getattr(fn, "__qualname__", None) or getattr(fn, "__name__", None)
 
     parent_context = tracer.current_trace_context() or _extract_tracing_context_from_env()
     with core.context_with_event(

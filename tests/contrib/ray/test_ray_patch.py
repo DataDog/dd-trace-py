@@ -47,10 +47,10 @@ class TestRayPatch(PatchTestCase.Base):
 
 
 def test_ml_job_env_parses_key_value_pairs():
-    """DD_ML_JOB_ENV semicolon-separated pairs become DD_<KEY>=<VALUE> entries."""
+    """DD_ML_JOB_ENV semicolon-separated pairs are forwarded verbatim as KEY=VALUE."""
     from ddtrace.contrib.internal.ray.patch import _parse_ml_job_env
 
-    result = _parse_ml_job_env("TRACE_ENABLED:true;AGENT_HOST:10.0.0.1")
+    result = _parse_ml_job_env("DD_TRACE_ENABLED:true;DD_AGENT_HOST:10.0.0.1")
     assert result == {"DD_TRACE_ENABLED": "true", "DD_AGENT_HOST": "10.0.0.1"}
 
 
@@ -58,7 +58,7 @@ def test_ml_job_env_value_may_contain_colons():
     """Only the first colon splits key from value; subsequent colons stay in the value."""
     from ddtrace.contrib.internal.ray.patch import _parse_ml_job_env
 
-    result = _parse_ml_job_env("AGENT_URL:http://localhost:8126")
+    result = _parse_ml_job_env("DD_AGENT_URL:http://localhost:8126")
     assert result == {"DD_AGENT_URL": "http://localhost:8126"}
 
 
@@ -66,7 +66,7 @@ def test_ml_job_env_strips_whitespace():
     """Leading/trailing whitespace around keys and values is stripped."""
     from ddtrace.contrib.internal.ray.patch import _parse_ml_job_env
 
-    result = _parse_ml_job_env(" TRACE_ENABLED : true ; AGENT_HOST : myhost ")
+    result = _parse_ml_job_env(" DD_TRACE_ENABLED : true ; DD_AGENT_HOST : myhost ")
     assert result == {"DD_TRACE_ENABLED": "true", "DD_AGENT_HOST": "myhost"}
 
 
@@ -74,8 +74,8 @@ def test_ml_job_env_skips_malformed_pairs():
     """Pairs without a colon separator are silently skipped."""
     from ddtrace.contrib.internal.ray.patch import _parse_ml_job_env
 
-    result = _parse_ml_job_env("GOOD_KEY:val;no_separator;ANOTHER:ok")
-    assert result == {"DD_GOOD_KEY": "val", "DD_ANOTHER": "ok"}
+    result = _parse_ml_job_env("MY_KEY:val;no_separator;ANOTHER:ok")
+    assert result == {"MY_KEY": "val", "ANOTHER": "ok"}
 
 
 def test_ml_job_env_empty_string_returns_empty():
@@ -89,7 +89,7 @@ def test_ml_job_env_setdefault_does_not_override_explicit(monkeypatch):
     from ddtrace.contrib.internal.ray.patch import _parse_ml_job_env
 
     env_vars = {"DD_TRACE_ENABLED": "true"}
-    for k, v in _parse_ml_job_env("TRACE_ENABLED:false").items():
+    for k, v in _parse_ml_job_env("DD_TRACE_ENABLED:false").items():
         env_vars.setdefault(k, v)
 
     assert env_vars["DD_TRACE_ENABLED"] == "true"
