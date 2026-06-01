@@ -1,7 +1,17 @@
 import pytest
 
 
-@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
+def _ignore_dsm_flush_err(stderr):
+    for line in stderr.splitlines():
+        if not line.strip():
+            continue
+        if "failed to send data stream stats payload" in line:
+            continue
+        return False
+    return True
+
+
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
 def test_public_api():
     from ddtrace.data_streams import set_consume_checkpoint
     from ddtrace.data_streams import set_produce_checkpoint
@@ -44,7 +54,7 @@ def test_manual_checkpoint_behavior():
         assert "manual_checkpoint:true" not in called_tags
 
 
-@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, err=_ignore_dsm_flush_err)
 def test_manual_checkpoint_hash_behavior():
     from ddtrace.data_streams import set_consume_checkpoint
     from ddtrace.internal.datastreams import data_streams_processor

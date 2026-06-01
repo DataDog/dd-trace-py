@@ -26,6 +26,18 @@ def _decode_datastreams_payload(payload):
     return decoded
 
 
+def _ignore_dsm_flush_err(stderr):
+    # DSM flushes on atexit; in CI the test agent may reject the payload, which
+    # logs an error to stderr. Tests that don't exercise the flush path should ignore it.
+    for line in stderr.splitlines():
+        if not line.strip():
+            continue
+        if "failed to send data stream stats payload" in line:
+            continue
+        return False
+    return True
+
+
 def test_periodic_payload_process_tags():
     processor = DataStreamsProcessor("http://localhost:8126")
     try:
@@ -97,7 +109,7 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_container_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from ddtrace.internal.process_tags import compute_base_hash
@@ -117,7 +129,7 @@ def test_new_pathway_uses_container_tags_hash():
     assert hash_without_base != hash_with_base
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     from ddtrace.internal import process_tags
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
@@ -278,6 +290,65 @@ run_test()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
     assert out.decode().strip() == "Fake flush called"
+
+
+def test_processor_flushes_on_sigint(ddtrace_run_python_code_in_subprocess):
+    """DataStreamsProcessor must flush on SIGINT without producing a ddtrace traceback."""
+    code = """
+import os
+import signal
+import time
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called", flush=True)
+
+processor = DataStreamsProcessor("http://localhost:8126")
+processor._flush_stats_with_backoff = fake_flush
+now = time.time()
+processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:test", "type:kafka"], now, 1, 1)
+os.kill(os.getpid(), signal.SIGINT)
+"""
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode()
+    assert b"wrap_signals" not in err
+
+
+def test_processor_flushes_on_sigint_asyncio(ddtrace_run_python_code_in_subprocess):
+    """DataStreamsProcessor must flush via atexit when SIGINT interrupts asyncio.run().
+
+    Under asyncio.Runner, SIGINT is consumed by asyncio's own handler rather than
+    Python's default_int_handler, so the flush relies on the atexit.register hook
+    added alongside register_on_exit_signal.
+    """
+    code = """
+import asyncio
+import os
+import signal
+import time
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called", flush=True)
+
+processor = DataStreamsProcessor("http://localhost:8126")
+processor._flush_stats_with_backoff = fake_flush
+now = time.time()
+processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:test", "type:kafka"], now, 1, 1)
+
+async def main():
+    asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+    await asyncio.sleep(10)
+
+asyncio.run(main())
+"""
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode()
+    assert b"wrap_signals" not in err
 
 
 def test_threaded_import(ddtrace_run_python_code_in_subprocess):
