@@ -127,28 +127,13 @@ CodeFunctionCache::reset_counters()
     evictions_ = 0;
 }
 
-static size_t
-read_capacity_from_env()
-{
-    const char* raw = std::getenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE");
-    if (raw == nullptr || raw[0] == '\0') {
-        return CodeFunctionCache::DEFAULT_CAPACITY;
-    }
-    char* endptr = nullptr;
-    long long parsed = std::strtoll(raw, &endptr, 10);
-    if (endptr == raw || parsed <= 0) {
-        return CodeFunctionCache::DEFAULT_CAPACITY;
-    }
-    return static_cast<size_t>(parsed);
-}
-
 bool
-memalloc_code_cache_init()
+memalloc_code_cache_init(size_t capacity)
 {
     if (CodeFunctionCache::instance != nullptr) {
         return false;
     }
-    CodeFunctionCache::instance = new CodeFunctionCache(read_capacity_from_env());
+    CodeFunctionCache::instance = new CodeFunctionCache(capacity);
     return true;
 }
 
