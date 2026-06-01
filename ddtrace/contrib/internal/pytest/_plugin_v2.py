@@ -508,9 +508,13 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 def pytest_sessionstart(session: pytest.Session) -> None:
     # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
     reset_coverage_state()
-    # Release sys.monitoring.COVERAGE_ID so that pytest-cov can claim it in inline sub-sessions.
-    # If we need it again for the new session, instrument_all_lines() will re-register lazily.
-    deregister_monitoring()
+    # If pytest-cov is enabled for this session, release sys.monitoring.COVERAGE_ID now so that
+    # pytest-cov can claim it in pytest_load_initial_conftests (which runs after sessionstart).
+    # This only matters when a previous in-process session left us holding COVERAGE_ID; in a fresh
+    # process ddtrace registers lazily during test execution, so pytest-cov always wins the race.
+    # If we need COVERAGE_ID again later, instrument_all_lines() re-registers it lazily.
+    if _is_pytest_cov_enabled(session.config):
+        deregister_monitoring()
 
     if not is_test_visibility_enabled():
         return
