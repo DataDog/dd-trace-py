@@ -75,10 +75,6 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
     "flask": normalize_route_flask,
 }
 
-# Flask DispatcherMiddleware sub-apps: FLASK_RESOURCE_FULL (set by trace_handlers._set_flask_request_tags when
-# request.script_root is non-empty) stores the fully assembled route as "METHOD /prefix/path". The route passed
-# via set_http_meta only carries url_rule.rule (the sub-app-local portion without the mount prefix).
-
 
 def _on_set_http_meta_for_normalized_route(
     span: Span,
@@ -97,17 +93,12 @@ def _on_set_http_meta_for_normalized_route(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # RFC-1103: emit `_dd.appsec.normalized_route` on supported web framework request spans when API Security is
-    # active. The framework is identified via the IntegrationConfig every web integration places in the request
-    # execution context (see e.g. asgi/middleware.py:258) — survives `request_span_name` overrides and the schema-v1
-    # rename to "http.server.request". Each framework has its own URL grammar; the dispatch picks the matching
-    # normalizer. Other frameworks aren't normalized until they get their own grammar-aware implementation.
+    # RFC-1103: emit `_dd.appsec.normalized_route` for supported frameworks when API Security is active.
     if not asm_config._api_security_feature_active:
         return
     if not route:
         return
-    # No active ASM context → appsec/api-sec inactive for this request, nothing to do. The flag also gives us
-    # idempotency for repeat dispatches (Django's sync path fires twice).
+    # No ASM context, or already emitted (idempotency for Django's dual-fire).
     asm_env = get_active_asm_context()
     if asm_env is None or asm_env.normalized_route_emitted:
         return
@@ -118,10 +109,7 @@ def _on_set_http_meta_for_normalized_route(
     normalizer = _NORMALIZED_ROUTE_BY_INTEGRATION.get(integration_name)
     if normalizer is None:
         return
-    # Flask DispatcherMiddleware sub-apps: FLASK_URL_RULE (the value in `route`) carries only the
-    # sub-app-local path, missing the DM mount prefix. FLASK_RESOURCE_FULL stores the fully assembled
-    # path as "METHOD /prefix/path" — use it when available so the normalized route always reflects
-    # the complete URL pattern seen by the client.
+    # Flask DM sub-apps: url_rule.rule omits the mount prefix; use FLASK_RESOURCE_FULL when set.
     if integration_name == "flask":
         full_resource = span.get_tag(FLASK_RESOURCE_FULL)
         if full_resource:

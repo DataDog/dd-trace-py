@@ -603,20 +603,12 @@ def normalize_route_django(route: Optional[str], path_params: _PathParams = None
 
 
 # --- Flask / Werkzeug URL rule normalizer ---
-#
-# Flask uses Werkzeug's URL routing: ``/path/<converter:name>/<name>/``
-# Parameters: ``<name>`` (default string) or ``<converter:name>`` (e.g. ``<int:id>``).
-# Catch-all: ``<path:name>`` may span multiple slashes and must be the final URL element.
-# Complex converters like ``<any(v1,v2):name>`` are also supported.
-# All parameters are required (Flask has no optional path elements), so ``path_params`` is
-# accepted for API parity only and is unused.
+# Routes: ``<name>`` (string), ``<converter:name>`` (e.g. ``<int:id>``), ``<path:name>`` (catch-all).
+# ``path_params`` accepted for API parity only; Flask has no optional path elements.
 
-# Match any Flask/Werkzeug URL parameter token.
 # Group 1: converter spec (e.g. ``int``, ``path``, ``any(v1,v2)``), or ``None`` if absent.
-# Group 2: variable name (always present).
-# Uses ``[^>]+`` (not ``[^>:]+``) so that converter arguments containing ``:`` — e.g.
-# custom converters like ``<regex("[a:b]+"):slug>`` — are consumed by backtracking rather
-# than stopping prematurely at the first ``:`` inside the argument string.
+# Group 2: variable name. ``[^>]+`` (not ``[^>:]+``) lets converters with ``:`` in their args
+# (e.g. ``<regex("[a:b]+"):slug>``) be consumed by backtracking.
 _FLASK_PARAM_REGEX = re.compile(r"<(?:([^>]+):)?([a-zA-Z_][a-zA-Z0-9_]*)>")
 
 # Fast-path detector: every URL segment is either entirely RFC-safe static chars, or exactly one
@@ -654,10 +646,7 @@ def _normalize_route_flask_slow(route: str) -> Optional[str]:
         # Detect ``<path:name>`` catch-all (group 1 == "path").
         path_match = next((m for m in matches if m.group(1) == "path"), None)
         if path_match is not None:
-            # Catch-all must be the last segment (rule 5). Any other params that happen to share
-            # the same segment (e.g. ``<int:id>-<path:tail>``, rejected by Werkzeug at registration
-            # time) are silently discarded — catch-all wins per RFC-1103 rule 5, and Werkzeug never
-            # produces such a route in practice.
+            # Non-terminal catch-all violates rule 5; other params in the same segment are ignored.
             if i != last_idx:
                 return None
             name = path_match.group(2)

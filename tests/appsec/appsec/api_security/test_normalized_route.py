@@ -343,11 +343,9 @@ def test_normalize_route_django_fast_path_skips_non_eligible_shapes(route):
         ("/download/prefix-<path:tail>", "/download/{tail}"),
         # Trailing slash on catch-all
         ("/files/<path:fp>/", "/files/{fp}/"),
-        # `any()` converter — stripped to param name (two routes with different any() values
-        # produce the same normalized form; this is intentional — converters are stripped uniformly)
+        # `any()` converter — stripped to param name uniformly
         ("/section/<any(v1,v2):section>", "/section/{section}"),
-        # Custom converter with `:` inside argument string (e.g. a hypothetical regex converter).
-        # _FLASK_PARAM_REGEX uses [^>]+ (not [^>:]+) so backtracking finds the last `:name>` split.
+        # Converter with `:` in args; backtracking in [^>]+ finds the correct split point.
         ("/x/<custom_conv([a:b]+):slug>", "/x/{slug}"),
         # Param named "path" with no converter: NOT a catch-all (no ``path:`` prefix), fast path.
         ("/files/<path>", "/files/{path}"),
@@ -364,10 +362,7 @@ def test_normalize_route_flask_happy_path(route, expected):
         "",
         "no-leading-slash",
         "/double//slash",
-        # Werkzeug technically allows non-terminal <path:...> (e.g. /<path:wiki>/edit works at runtime),
-        # but RFC-1103 rule 5 mandates catch-alls be the last element. We omit the tag rather than emit
-        # a potentially ambiguous normalized route for these edge-case routes.
-        "/<path:tail>/and-after",
+        "/<path:tail>/and-after",  # non-terminal catch-all: rule 5 violation → omit tag
     ],
 )
 def test_normalize_route_flask_returns_none_on_invalid(route):
@@ -389,6 +384,8 @@ def test_normalize_route_flask_path_params_accepted_but_unused():
         ("/login/", "/login/"),
         ("/login", "/login"),
         ("/", "/"),
+        # Param named "path" with no converter: NOT a catch-all → fast path
+        ("/files/<path>", "/files/{path}"),
     ],
 )
 def test_normalize_route_flask_fast_path(route, expected):
