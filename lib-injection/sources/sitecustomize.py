@@ -351,12 +351,9 @@ def _inject():
         os.environ["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "true"
 
         if OVERRIDE_USER_DDTRACE:
-            _log(
-                "user-installed ddtrace found: %s, but DD_INJECT_OVERRIDE_USER_DDTRACE is set; "
-                "preferring injection site-packages" % spec.origin
-            )
+            _log("user-installed ddtrace found: %s, but DD_INJECT_OVERRIDE_USER_DDTRACE is set; preferring injection site-packages" % spec.origin, level="debug")
         else:
-            _log("user-installed ddtrace not found, configuring application to use injection site-packages")
+            _log("user-installed ddtrace not found, configuring application to use injection site-packages", level="debug")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_2"
         # Determine architecture
