@@ -4,26 +4,17 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 
-# AIDEV-NOTE: Cross-module import of a leading-underscore private symbol.
-# _http_propagation_suppressed is the shared coordination primitive between
-# this integration (which wants the aiohttp-layer HttpClientTracingSubscriber
-# to skip its own header injection during AWS calls) and that subscriber.
-# See the ownership-contract AIDEV-NOTE on its definition in
-# ddtrace/_trace/subscribers/http_client.py. _wrapped_api_call here is one
-# of two permitted setters; the other is patched_api_call in
-# ddtrace/contrib/internal/botocore/patch.py.
+# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# aiohttp-layer subscriber to skip its own injection during AWS calls; _wrapped_api_call
+# is one of its two permitted setters. See the ownership contract on its
+# definition in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
-# AIDEV-NOTE: The before-sign trace-header injection body is shared with the
-# botocore integration; this integration registers its OWN owner-gated wrapper
-# (_aiobotocore_before_sign_handler) via the shared _ensure_before_sign_handler,
-# so an aiobotocore client's handler self-gates on aiobotocore's patch state
-# (not botocore's). Registration is client-level at API-call time, so it works
-# regardless of when the client's Session was created. See the matching anchor
-# in ddtrace/contrib/internal/botocore/patch.py.
+# AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
+# wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -75,14 +66,8 @@ def _supported_versions() -> dict[str, str]:
 
 
 def _aiobotocore_before_sign_handler(request, **kwargs):
-    """Owner-gated before-sign handler for the aiobotocore integration.
-
-    Self-gates on ``aiobotocore.client._datadog_patch`` so a registration
-    retained on a client emitter goes inert once *aiobotocore* is unpatched,
-    independent of botocore's patch state. See the matching
-    ``_botocore_before_sign_handler`` for why gating on the specific owning
-    integration (rather than "either is patched") is required to avoid
-    asymmetric-unpatch SigV4 mismatches.
+    """Before-sign handler for aiobotocore clients; gates on aiobotocore's own
+    patch state (see ``_botocore_before_sign_handler`` for the rationale).
     """
     if not getattr(aiobotocore.client, "_datadog_patch", False):
         return
@@ -202,21 +187,12 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        # Ensure this client carries the before-sign injection handler.
-        # Registering on the client's own emitter (before signing runs)
-        # covers clients built from a Session created before patch().
+        # Register the before-sign handler on this client, then suppress the
+        # aiohttp-layer injection for this call: aiobotocore sends through
+        # aiohttp, whose subscriber would otherwise re-inject AFTER SigV4
+        # signing and break strict-signature endpoints. Mirrors
+        # botocore.patched_api_call.
         _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler)
-
-        # Suppress the aiohttp-layer propagation injection for this AWS
-        # call. aiobotocore sends requests through aiohttp.ClientSession,
-        # which fires HttpClientRequestEvent — if the aiohttp integration
-        # is also patched (the normal auto-instrumentation case), its
-        # subscriber would inject propagation headers AFTER SigV4 has
-        # already signed the request, causing strict-signature endpoints
-        # to reject it. The before-sign handler has already injected the
-        # headers into the canonical signed request, so the post-signing
-        # injection is both unnecessary and harmful. Mirrors the same
-        # suppression in botocore.patched_api_call.
         token = _http_propagation_suppressed.set(True)
         try:
             result = await original_func(*args, **kwargs)

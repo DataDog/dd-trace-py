@@ -16,12 +16,9 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 
-# AIDEV-NOTE: Cross-module import of a leading-underscore private symbol.
-# This is intentional: _http_propagation_suppressed is the shared coordination
-# primitive between this integration (which wants urllib3 to skip its own
-# header injection) and the urllib3-layer HttpClientTracingSubscriber. See the
-# AIDEV-NOTE on its definition in ddtrace/_trace/subscribers/http_client.py
-# for the ownership contract.
+# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# urllib3-layer subscriber to skip its own injection during AWS calls. See the
+# ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -111,64 +108,37 @@ _DD_BEFORE_SIGN_HANDLER_UID = "datadog-before-sign-inject"
 
 
 def _inject_trace_headers_handler(request, **kwargs):
-    """Botocore ``before-sign`` event handler.
+    """Inject propagation headers into the AWSRequest at botocore ``before-sign``.
 
-    Injects W3C and Datadog propagation headers into the outbound AWSRequest
-    *before* botocore.signers.RequestSigner.sign() runs, so the headers are
-    part of the canonical request that SigV4 signs. AWS strict-signature
-    services (AppSync, API Gateway IAM auth, etc.) reject requests when
-    extra headers appear between signing and the wire — historically
-    dd-trace-py injected in the urllib3 layer, which is too late.
-
-    This handler does NOT touch ``_http_propagation_suppressed`` — that
-    contextvar is owned by the API-call wrappers (``patched_api_call`` in
-    botocore, ``_wrapped_api_call`` in aiobotocore), which set and reset
-    it via Token in a ``try/finally``. The handler intentionally stays out
-    of the suppression-state lifecycle so that early-return paths in those
-    wrappers (pin disabled, submodule excluded) and out-of-scope callers
-    (presigned URL generation) cannot leak suppression into subsequent
-    unrelated HTTP calls in the same task.
-
-    This is the shared injection body. It is never registered directly —
-    each integration registers a thin owner-gated wrapper
-    (``_botocore_before_sign_handler`` / ``_aiobotocore_before_sign_handler``)
-    that no-ops once its own integration is unpatched. See
-    ``_ensure_before_sign_handler`` for why registration is client-level.
+    Injecting before signing makes the headers part of the SigV4 canonical
+    request (injecting later, at the urllib3 layer, breaks strict-signature
+    endpoints). Shared injection body; never registered directly — each
+    integration registers an owner-gated wrapper (see
+    ``_botocore_before_sign_handler`` / ``_aiobotocore_before_sign_handler``).
+    Does NOT touch ``_http_propagation_suppressed``; see its ownership
+    contract in ddtrace/_trace/subscribers/http_client.py.
     """
     if not config.botocore["distributed_tracing"]:
         return
 
-    # Skip injection for presigned URL / presigned POST signing modes.
-    # botocore.signers._choose_signer appends `-query` to the signature
-    # version for presign-url and `-presign-post` for presign-post. For
-    # SigV4 query auth in particular, the signed-headers list is baked
-    # into the returned URL's X-Amz-SignedHeaders parameter; injecting
-    # x-datadog-* / traceparent here would commit downstream callers of
-    # that URL to replaying those exact headers or hitting
-    # SignatureDoesNotMatch. Propagating trace context into a presigned
-    # URL is also conceptually wrong — the URL outlives the span.
-    #
-    # Guard isinstance(str): when a client is configured with
-    # Config(signature_version=botocore.UNSIGNED), the before-sign event
-    # still fires (botocore.signers.RequestSigner.sign emits before the
-    # UNSIGNED short-circuit) and signature_version is the UNSIGNED
-    # sentinel object, not a string — calling .endswith would crash.
+    # Skip presigned-URL/POST signing modes (signature_version ends in
+    # `-query` / contains `presign-post`): SigV4 query auth bakes the
+    # signed-header list into the URL, so injecting here would force every
+    # consumer of that URL to replay the headers or hit SignatureDoesNotMatch.
+    # isinstance(str) guards Config(signature_version=botocore.UNSIGNED), where
+    # before-sign still fires but signature_version is the UNSIGNED sentinel
+    # (not a str), so .endswith would crash.
     signature_version = kwargs.get("signature_version")
     if isinstance(signature_version, str) and (
         signature_version.endswith("-query") or "presign-post" in signature_version
     ):
         return
 
-    # AIDEV-NOTE: We use the global tracer's current_span() rather than looking
-    # up the integration's Pin (Pin.get_from(client)) because the before-sign
-    # event handler receives the AWSRequest, not the client — there's no
-    # convenient hook to the Pin here. For setups using Pin.override() to
-    # point the botocore integration at a non-default tracer, this handler
-    # would still inject from the global tracer's currently active span.
-    # That's consistent with how other event-driven integrations behave but
-    # could surprise a user who explicitly switched tracers. If a user
-    # reports this, the fix is to capture Pin.get_from(client) inside
-    # _ensure_before_sign_handler and bind it into the handler registered there.
+    # AIDEV-NOTE: Uses the global tracer's current_span() because the before-sign
+    # event hands us the AWSRequest, not the client/Pin. A user pointing botocore
+    # at a non-default tracer via Pin.override() would still get the global
+    # tracer's active span; to fix, capture Pin.get_from(client) in
+    # _ensure_before_sign_handler and bind it into the registered handler.
     span = ddtrace.tracer.current_span()
     if span is None:
         return
@@ -188,56 +158,30 @@ def _inject_trace_headers_handler(request, **kwargs):
 
 
 def _botocore_before_sign_handler(request, **kwargs):
-    """Owner-gated before-sign handler for the botocore integration.
-
-    Self-gates on ``botocore.client._datadog_patch`` so that a registration
-    retained on a client emitter goes inert the moment the *botocore*
-    integration is unpatched — independent of whether aiobotocore is still
-    patched. Gating on the specific owning integration (rather than "either
-    integration is patched") is what prevents the asymmetric-unpatch case:
-    if botocore is unpatched while aiobotocore stays patched, ``patched_api_call``
-    no longer runs for botocore clients, so ``_http_propagation_suppressed`` is
-    not set; a handler that still injected pre-signing here while the urllib3
-    layer injected post-signing would resurrect the SigV4 mismatch this fix
-    prevents.
+    """Before-sign handler for botocore clients; gates on botocore's own patch
+    state so a retained registration goes inert once botocore is unpatched,
+    even if aiobotocore stays patched (the asymmetric-unpatch case — gating on
+    "either integration" would resurrect the SigV4 mismatch).
     """
     if not getattr(botocore.client, "_datadog_patch", False):
         return
     _inject_trace_headers_handler(request, **kwargs)
 
 
-# AIDEV-NOTE: _ensure_before_sign_handler is also imported by
-# ddtrace.contrib.internal.aiobotocore.patch — treat as semi-public within
-# the botocore/aiobotocore integration family. If you rename it, update the
-# aiobotocore import too. aiobotocore passes its own owner-gated handler
-# (_aiobotocore_before_sign_handler); botocore passes _botocore_before_sign_handler.
+# AIDEV-NOTE: Also imported by ddtrace.contrib.internal.aiobotocore.patch;
+# rename in lockstep. Each integration passes its own owner-gated handler.
 def _ensure_before_sign_handler(client, handler) -> None:
-    """Register an owner-gated before-sign handler on this client's event
-    emitter, exactly once per client.
+    """Register ``handler`` for ``before-sign`` on this client's emitter, once.
 
-    Registering at API-call time on the client's OWN emitter (rather than on
-    the Session at ``Session.__init__`` time) is deliberate: botocore copies a
-    Session's registered handlers onto a client when the client is created, so
-    a handler added to a Session *after* its clients were built never reaches
-    those clients. A client built from a Session that existed before
-    ``patch()`` ran would therefore never get the handler — its requests would
-    be signed without trace headers, yet the API-call wrapper would still
-    suppress the urllib3/aiohttp-layer injection, silently dropping
-    propagation. Registering on the client emitter on the first traced call
-    closes that gap for every client regardless of when its Session was built.
-
-    ``before-sign`` is emitted on the client's emitter during signing, which
-    happens inside the wrapped ``_make_api_call``; registering here (before the
-    wrapped call proceeds) installs the handler in time for the same call.
-
-    ``handler`` is the integration's owner-gated wrapper, so a client only ever
-    carries the handler of the integration that created it.
+    Client-level (not Session.__init__) on purpose: botocore copies a Session's
+    handlers onto a client at creation time, so a handler added later never
+    reaches an already-built client. Registering per-client at the first traced
+    call covers clients created before ``patch()`` ran.
     """
     if getattr(client, "_dd_before_sign_registered", False):
         return
-    # Mark as attempted up front: register() is effectively idempotent
-    # (botocore dedupes by unique_id), and best-effort-once avoids a per-call
-    # warning-log flood on the hot path if register ever raises.
+    # Best-effort once: register() is idempotent (botocore dedupes by unique_id);
+    # marking up front avoids a per-call warning flood if it ever raises.
     client._dd_before_sign_registered = True
     try:
         client.meta.events.register(
@@ -371,28 +315,13 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
-    # Ensure this client carries the before-sign injection handler. Registering
-    # here (on the full traced path, before signing runs) guarantees the
-    # handler is present for every client that makes a traced AWS call,
-    # including clients built from a Session created before patch().
+    # Register the before-sign handler on this client (covers clients built
+    # before patch()), then suppress the urllib3-layer injection for this call:
+    # with distributed_tracing on the before-sign handler already injected, and
+    # with it off we honor the opt-out at every layer. Setting True only on this
+    # full path (with the try/finally reset) keeps the contextvar owned here, so
+    # early-return paths can't leak suppression into later non-AWS HTTP calls.
     _ensure_before_sign_handler(instance, _botocore_before_sign_handler)
-
-    # Suppress the urllib3-layer injection for AWS calls that go through this
-    # managed scope. Two cases collapse cleanly:
-    #
-    # 1) distributed_tracing on  → before-sign handler injects pre-signing;
-    #    urllib3 must not inject after signing (would either no-op overwrite
-    #    or, if a propagator's output drifted between the two points, break
-    #    the SigV4 signature).
-    # 2) distributed_tracing off → handler bails without injecting; urllib3
-    #    must also bail so the user's opt-out actually keeps trace headers
-    #    off the wire at every layer (closes a latent leak on main where the
-    #    urllib3 integration ignored DD_BOTOCORE_DISTRIBUTED_TRACING=false).
-    #
-    # Setting True unconditionally also keeps the contextvar fully owned by
-    # this function — the handler never touches it, so early-return paths
-    # (pin disabled, submodule excluded, presigned URLs) can't leak
-    # suppression into subsequent non-AWS HTTP calls.
     token = _http_propagation_suppressed.set(True)
     try:
         return patching_fn(
