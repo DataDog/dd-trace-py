@@ -41,6 +41,7 @@ struct NativeCallEntry
 class NativeCallRegistry
 {
   public:
+    // AIDEV-NOTE: Native call sites are keyed by Python code object addresses.
     // Dynamic code generators can produce an unbounded number of one-shot code
     // objects, so stop registering new sites once the registry reaches its cap.
     static constexpr size_t max_call_sites = 4096;
@@ -57,9 +58,14 @@ class NativeCallRegistry
                             std::string name,
                             std::string module);
 
-    // Checks if there is known native call metadata for a bytecode location and
-    // returns it when found. Registry entries are never evicted, so references
-    // remain valid while the sampler is running.
+    // Checks if there is a known native call metadata object for a bytecode location and
+    // returns it when found.
+    // Note: it is safe to return a reference to the NativeCallEntry because according to
+    // the standard, "References and pointers to either key or data stored in the container
+    // are only invalidated by erasing that element, even when the corresponding iterator
+    // is invalidated."
+    // All the emplace's we do happen under the lock, which means there can never be a
+    // duplicate emplace happening (as we check for existence first).
     std::optional<std::reference_wrapper<NativeCallEntry>> lookup(uintptr_t code_ptr,
                                                                   int offset_bytes,
                                                                   int first_lineno);
