@@ -44,6 +44,10 @@ struct module_state
     // Mapping of active periodic thread IDs to their PeriodicThread objects.
     PyObject* periodic_threads{ nullptr };
 
+    // Sentinel returned by a periodic target to request a clean stop of the
+    // loop without error. Checked by PeriodicThread__periodic after each call.
+    PyObject* PERIODIC_STOP{ nullptr };
+
     inline bool is_finalizing() const noexcept
     {
         // Our atexit handler fires first (stopping threads before VM sets its
@@ -435,6 +439,30 @@ static PyMemberDef PeriodicThread_members[] = {
 
 // ----------------------------------------------------------------------------
 static int
+PeriodicThread_traverse(PeriodicThread* self, visitproc visit, void* arg)
+{
+    Py_VISIT(self->name);
+    Py_VISIT(self->ident);
+    Py_VISIT(self->_target);
+    Py_VISIT(self->_on_shutdown);
+    Py_VISIT(self->_ddtrace_profiling_ignore);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static int
+PeriodicThread_clear(PeriodicThread* self)
+{
+    Py_CLEAR(self->name);
+    Py_CLEAR(self->ident);
+    Py_CLEAR(self->_target);
+    Py_CLEAR(self->_on_shutdown);
+    Py_CLEAR(self->_ddtrace_profiling_ignore);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static int
 PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
     static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", "no_wait_at_start", NULL };
@@ -486,18 +514,18 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 }
 
 // ----------------------------------------------------------------------------
-static inline bool
+// Call the periodic target and return its return value, or NULL on error
+// (with the Python exception printed and cleared). The caller is responsible
+// for Py_DECREF-ing the returned object.
+static inline PyObject*
 PeriodicThread__periodic(PeriodicThread* self)
 {
     PyObject* result = PyObject_CallObject(self->_target, NULL);
 
-    if (result == NULL) {
+    if (result == NULL)
         PyErr_Print();
-    }
 
-    Py_XDECREF(result);
-
-    return result == NULL;
+    return result;
 }
 
 // ----------------------------------------------------------------------------
@@ -624,10 +652,18 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     if (state->is_finalizing())
                         break;
 
-                    if (PeriodicThread__periodic(self)) {
-                        // Error
-                        error = true;
-                        break;
+                    {
+                        PyObject* result = PeriodicThread__periodic(self);
+                        if (result == NULL) {
+                            // Error: target raised an exception.
+                            error = true;
+                            break;
+                        }
+                        // If the target returns PERIODIC_STOP, set _stopping so
+                        // the while condition exits after this iteration.
+                        if (self->_state->PERIODIC_STOP != nullptr && result == self->_state->PERIODIC_STOP)
+                            self->_stopping = true;
+                        Py_DECREF(result);
                     }
 
                     self->_next_call_time =
@@ -914,6 +950,8 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static void
 PeriodicThread_dealloc(PeriodicThread* self)
 {
+    PyObject_GC_UnTrack(self);
+
     if (self->_state != nullptr && self->_state->is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
@@ -940,12 +978,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
         PyDict_Contains(self->_state->periodic_threads, self->ident))
         PyDict_DelItem(self->_state->periodic_threads, self->ident);
 
-    Py_XDECREF(self->name);
-    Py_XDECREF(self->_target);
-    Py_XDECREF(self->_on_shutdown);
-
-    Py_XDECREF(self->ident);
-    Py_XDECREF(self->_ddtrace_profiling_ignore);
+    PeriodicThread_clear(self);
 
     // Threads are always detached at creation, so joinable() is always false
     // and no OS call is needed. Use safe_reset_thread to guard against the
@@ -984,12 +1017,16 @@ static PyTypeObject PeriodicThreadType = {
     .tp_basicsize = sizeof(PeriodicThread),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)PeriodicThread_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,
     .tp_doc = PyDoc_STR("Native thread calling a Python function periodically"),
+    .tp_traverse = (traverseproc)PeriodicThread_traverse,
+    .tp_clear = (inquiry)PeriodicThread_clear,
     .tp_methods = PeriodicThread_methods,
     .tp_members = PeriodicThread_members,
     .tp_init = (initproc)PeriodicThread_init,
+    .tp_alloc = PyType_GenericAlloc,
     .tp_new = PyType_GenericNew,
+    .tp_free = PyObject_GC_Del,
 };
 
 // ----------------------------------------------------------------------------
@@ -1057,8 +1094,10 @@ static int
 _threads_traverse(PyObject* module, visitproc visit, void* arg)
 {
     module_state* state = (module_state*)PyModule_GetState(module);
-    if (state != nullptr)
+    if (state != nullptr) {
         Py_VISIT(state->periodic_threads);
+        Py_VISIT(state->PERIODIC_STOP);
+    }
     return 0;
 }
 
@@ -1067,8 +1106,10 @@ static int
 _threads_clear(PyObject* module)
 {
     module_state* state = (module_state*)PyModule_GetState(module);
-    if (state != nullptr)
+    if (state != nullptr) {
         Py_CLEAR(state->periodic_threads);
+        Py_CLEAR(state->PERIODIC_STOP);
+    }
     return 0;
 }
 
@@ -1153,6 +1194,17 @@ PyInit__threads(void)
         Py_INCREF(state->periodic_threads);
         if (PyModule_AddObject(m, "periodic_threads", state->periodic_threads) < 0) {
             Py_DECREF(state->periodic_threads);
+            goto error;
+        }
+
+        // Create the PERIODIC_STOP sentinel: a unique object that periodic
+        // targets can return to request a clean one-shot stop of the loop.
+        state->PERIODIC_STOP = PyObject_CallObject((PyObject*)&PyBaseObject_Type, NULL);
+        if (state->PERIODIC_STOP == NULL)
+            goto error;
+        Py_INCREF(state->PERIODIC_STOP);
+        if (PyModule_AddObject(m, "PERIODIC_STOP", state->PERIODIC_STOP) < 0) {
+            Py_DECREF(state->PERIODIC_STOP);
             goto error;
         }
     }
