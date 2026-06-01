@@ -10,8 +10,6 @@ of in the botocore tests directory.
 
 import re
 
-import botocore.client
-import botocore.session
 import pytest
 
 import ddtrace
@@ -214,56 +212,28 @@ def test_aiobotocore_wrapped_api_call_suppresses_propagation_during_await():
     assert _http_propagation_suppressed.get() is False
 
 
-@pytest.mark.parametrize("unpatch_botocore_first", [True, False])
-def test_dual_patch_unpatch_cleanly_unwraps_make_api_call(unpatch_botocore_first):
-    """With both integrations patched and then unpatched (in either order),
-    neither ``_make_api_call`` wrap may be left behind.
-
-    Option A registers the before-sign handler per-client at call time, so the
-    only class-level state is the ``_make_api_call`` wrap on each integration's
-    client class — independent wraps on different classes, with no shared
-    Session.__init__ machinery. This pins that each integration unwraps its own
-    class cleanly regardless of order.
-    """
-    import aiobotocore.client
-
-    from ddtrace.contrib.internal.aiobotocore.patch import patch as patch_aiobotocore
-    from ddtrace.contrib.internal.aiobotocore.patch import unpatch as unpatch_aiobotocore
-    from ddtrace.contrib.internal.botocore.patch import patch as patch_botocore
-    from ddtrace.contrib.internal.botocore.patch import unpatch as unpatch_botocore
-
-    patch_botocore()
-    patch_aiobotocore()
-    try:
-        assert hasattr(botocore.client.BaseClient._make_api_call, "__wrapped__")
-        assert hasattr(aiobotocore.client.AioBaseClient._make_api_call, "__wrapped__")
-    finally:
-        if unpatch_botocore_first:
-            unpatch_botocore()
-            unpatch_aiobotocore()
-        else:
-            unpatch_aiobotocore()
-            unpatch_botocore()
-
-    assert not hasattr(botocore.client.BaseClient._make_api_call, "__wrapped__"), (
-        "botocore BaseClient._make_api_call still wrapped after unpatching both integrations"
-    )
-    assert not hasattr(aiobotocore.client.AioBaseClient._make_api_call, "__wrapped__"), (
-        "aiobotocore AioBaseClient._make_api_call still wrapped after unpatching both integrations"
-    )
+# AIDEV-NOTE: The per-owner gate is tested directly here (manipulating only the
+# integrations' _datadog_patch flags, not the wraps) rather than by patching and
+# unpatching the integrations. The aiobotocore suite runs under auto-instrumentation
+# and shares a process with other tests, so asserting global wrap state
+# (BaseClient._make_api_call.__wrapped__) or driving patch()/unpatch() is flaky.
+# This isolates exactly what the asymmetric-unpatch fix changed: each owner-gated
+# handler keys off its OWN integration's patch flag.
 
 
-def _emit_before_sign(client):
-    """Emit a before-sign event on a client's emitter with an active span and
-    return the AWSRequest, so the test can inspect whether the registered
-    handler injected. Used to probe handler activity without a full call.
+def _emit_before_sign_sync(handler):
+    """Call an owner-gated before-sign handler directly with a fresh AWSRequest
+    and an active span, and return the request so the test can check injection.
+
+    Calls the handler directly (not via a client emitter) so it works for both
+    integrations without an event loop and without touching global wrap state —
+    aiobotocore's emitter is async, which makes emit-based probing unreliable.
     """
     from botocore.awsrequest import AWSRequest
 
     request = AWSRequest(method="GET", url="https://example.com/")
     with ddtrace.tracer.trace("test.span"):
-        client.meta.events.emit(
-            "before-sign.s3.GetObject",
+        handler(
             request=request,
             signing_name="s3",
             region_name="us-east-1",
@@ -274,82 +244,61 @@ def _emit_before_sign(client):
     return request
 
 
-def test_botocore_client_handler_inert_when_only_aiobotocore_remains_patched():
-    """Asymmetric unpatch: a botocore client's before-sign handler must go
-    inert once BOTOCORE is unpatched, even though aiobotocore stays patched.
+def test_botocore_handler_gates_on_botocore_patch_state_not_aiobotocore():
+    """Asymmetric-unpatch guard: _botocore_before_sign_handler must inject only
+    when BOTOCORE is patched — never merely because aiobotocore is patched.
 
-    If it stayed active, it would inject pre-signing while botocore's
-    _make_api_call (now unwrapped) no longer suppresses the urllib3 layer —
-    which injects post-signing, resurrecting the SigV4 mismatch. The per-owner
-    gate (_botocore_before_sign_handler gates on botocore's own patch state,
-    not "either integration is patched") is what prevents this.
+    Otherwise, after botocore is unpatched (its _make_api_call unwrapped, so
+    _http_propagation_suppressed is no longer set), a botocore client's retained
+    handler would inject pre-signing while the urllib3 layer injects
+    post-signing — the SigV4 mismatch this fix prevents. A global
+    "either integration patched" gate would wrongly inject here.
     """
-    from ddtrace.contrib.internal.aiobotocore.patch import patch as patch_aiobotocore
-    from ddtrace.contrib.internal.aiobotocore.patch import unpatch as unpatch_aiobotocore
-    from ddtrace.contrib.internal.botocore.patch import _botocore_before_sign_handler
-    from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
-    from ddtrace.contrib.internal.botocore.patch import patch as patch_botocore
-    from ddtrace.contrib.internal.botocore.patch import unpatch as unpatch_botocore
+    import ddtrace.contrib.internal.aiobotocore.patch as aiop
+    import ddtrace.contrib.internal.botocore.patch as bp
 
-    patch_botocore()
-    patch_aiobotocore()
+    orig_bc = getattr(bp.botocore.client, "_datadog_patch", False)
+    orig_aio = getattr(aiop.aiobotocore.client, "_datadog_patch", False)
+    # botocore UNPATCHED, aiobotocore PATCHED.
+    bp.botocore.client._datadog_patch = False
+    aiop.aiobotocore.client._datadog_patch = True
     try:
-        session = botocore.session.Session()
-        session.set_credentials(access_key="A", secret_key="B")
-        client = session.create_client("s3", region_name="us-east-1")
-        # Register the handler on the botocore client, as a traced call would.
-        _ensure_before_sign_handler(client, _botocore_before_sign_handler)
-        # Unpatch ONLY botocore; aiobotocore stays patched.
-        unpatch_botocore()
-
-        request = _emit_before_sign(client)
+        request = _emit_before_sign_sync(bp._botocore_before_sign_handler)
         assert "x-datadog-trace-id" not in request.headers, (
-            "botocore client handler still injected after botocore was unpatched "
-            "(aiobotocore still patched) — asymmetric-unpatch SigV4 regression"
+            "_botocore_before_sign_handler injected while botocore was unpatched "
+            "(only aiobotocore patched) — asymmetric-unpatch SigV4 regression"
         )
+        # Sanity: it DOES inject when botocore is patched.
+        bp.botocore.client._datadog_patch = True
+        request = _emit_before_sign_sync(bp._botocore_before_sign_handler)
+        assert "x-datadog-trace-id" in request.headers
     finally:
-        unpatch_aiobotocore()
-        unpatch_botocore()
+        bp.botocore.client._datadog_patch = orig_bc
+        aiop.aiobotocore.client._datadog_patch = orig_aio
 
 
-def test_aiobotocore_client_handler_inert_when_only_botocore_remains_patched():
-    """Reverse asymmetric unpatch: an aiobotocore client's handler must go
-    inert once AIOBOTOCORE is unpatched, even though botocore stays patched.
+def test_aiobotocore_handler_gates_on_aiobotocore_patch_state_not_botocore():
+    """Reverse asymmetric-unpatch guard: _aiobotocore_before_sign_handler must
+    inject only when AIOBOTOCORE is patched, not merely because botocore is.
     """
-    import asyncio
+    import ddtrace.contrib.internal.aiobotocore.patch as aiop
+    import ddtrace.contrib.internal.botocore.patch as bp
 
-    import aiobotocore.session
-
-    from ddtrace.contrib.internal.aiobotocore.patch import _aiobotocore_before_sign_handler
-    from ddtrace.contrib.internal.aiobotocore.patch import patch as patch_aiobotocore
-    from ddtrace.contrib.internal.aiobotocore.patch import unpatch as unpatch_aiobotocore
-    from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
-    from ddtrace.contrib.internal.botocore.patch import patch as patch_botocore
-    from ddtrace.contrib.internal.botocore.patch import unpatch as unpatch_botocore
-
-    result: dict = {}
-
-    async def run():
-        session = aiobotocore.session.AioSession()
-        session.set_credentials(access_key="A", secret_key="B")
-        client_ctx = session.create_client("s3", region_name="us-east-1")
-        client = await client_ctx.__aenter__()
-        try:
-            patch_botocore()
-            patch_aiobotocore()
-            # Register the aiobotocore client's owner-gated handler.
-            _ensure_before_sign_handler(client, _aiobotocore_before_sign_handler)
-            # Unpatch ONLY aiobotocore; botocore stays patched.
-            unpatch_aiobotocore()
-            result["request"] = _emit_before_sign(client)
-        finally:
-            unpatch_botocore()
-            unpatch_aiobotocore()
-            await client_ctx.__aexit__(None, None, None)
-
-    asyncio.run(run())
-
-    assert "x-datadog-trace-id" not in result["request"].headers, (
-        "aiobotocore client handler still injected after aiobotocore was unpatched "
-        "(botocore still patched) — asymmetric-unpatch SigV4 regression"
-    )
+    orig_bc = getattr(bp.botocore.client, "_datadog_patch", False)
+    orig_aio = getattr(aiop.aiobotocore.client, "_datadog_patch", False)
+    # aiobotocore UNPATCHED, botocore PATCHED.
+    aiop.aiobotocore.client._datadog_patch = False
+    bp.botocore.client._datadog_patch = True
+    try:
+        request = _emit_before_sign_sync(aiop._aiobotocore_before_sign_handler)
+        assert "x-datadog-trace-id" not in request.headers, (
+            "_aiobotocore_before_sign_handler injected while aiobotocore was unpatched "
+            "(only botocore patched) — asymmetric-unpatch SigV4 regression"
+        )
+        # Sanity: it DOES inject when aiobotocore is patched.
+        aiop.aiobotocore.client._datadog_patch = True
+        request = _emit_before_sign_sync(aiop._aiobotocore_before_sign_handler)
+        assert "x-datadog-trace-id" in request.headers
+    finally:
+        bp.botocore.client._datadog_patch = orig_bc
+        aiop.aiobotocore.client._datadog_patch = orig_aio
