@@ -22,6 +22,7 @@ from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -216,6 +217,10 @@ class BaseLLMObsWriter(PeriodicService):
                 self._headers["DD-APPLICATION-KEY"] = self._app_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+
+        additional_header_str = env.get("_DD_LLMOBS_WRITER_ADDITIONAL_HEADERS")
+        if additional_header_str is not None:
+            self._headers.update(parse_tags_str(additional_header_str))
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,

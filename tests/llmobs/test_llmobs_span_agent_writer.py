@@ -141,3 +141,10 @@ def test_configurable_event_size_limit(mock_writer_logs):
         mock.ANY,
         100,
     )
+
+
+def test_additional_headers(monkeypatch):
+    monkeypatch.setenv("_DD_LLMOBS_WRITER_ADDITIONAL_HEADERS", "X-Custom-Header:my-value,X-Another:foo")
+    writer = LLMObsSpanWriter(1, 1, is_agentless=False)
+    assert writer._headers["X-Custom-Header"] == "my-value"
+    assert writer._headers["X-Another"] == "foo"
