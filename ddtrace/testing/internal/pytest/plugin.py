@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.instrumentation import deregister_monitoring
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -274,6 +275,13 @@ class TestOptPlugin:
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
+
+        # If pytest-cov is enabled for this session, release sys.monitoring.COVERAGE_ID so
+        # that pytest-cov can claim it in pytest_load_initial_conftests (which runs after
+        # sessionstart). Required when a previous in-process session (e.g. pytester.inline_run)
+        # left us holding the slot; instrument_all_lines() re-registers it lazily if needed.
+        if _is_pytest_cov_enabled(session.config):
+            deregister_monitoring()
 
         self.session.start()
         self.manager.start()
