@@ -21,6 +21,7 @@ from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
+from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -74,6 +75,8 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_EVENT_SAMPLED_DD_KEY
+from ddtrace.llmobs._constants import LLMOBS_SAMPLE_RATE_DD_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
@@ -512,6 +515,11 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
+        # We always submit 100% of LLMObs span events; this sampler only computes a
+        # keep/drop decision recorded on each event so the backend can compute correct
+        # token/cost stats before discarding most I/O. RateSampler clamps the rate to [0, 1]
+        # and bases the decision on the trace id, so a whole trace shares one decision.
+        self._event_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
             # APMTracingEnabledFilter drops every trace, so ship events directly to LLMObs.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
@@ -676,6 +684,12 @@ class LLMObs(Service):
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_depth(llmobs_meta)
+        dd_attrs = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
+        # Store as strings (meta_struct ``_dd`` is dict[str, str]). Cap the sample rate at 6
+        # decimal places and strip trailing zeros; the decision is "1" (keep) / "0" (drop).
+        dd_attrs[LLMOBS_SAMPLE_RATE_DD_KEY] = f"{self._event_sampler.sample_rate:.6f}".rstrip("0").rstrip(".")
+        dd_attrs[LLMOBS_EVENT_SAMPLED_DD_KEY] = "1" if self._event_sampler.sample(span) else "0"
+
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.

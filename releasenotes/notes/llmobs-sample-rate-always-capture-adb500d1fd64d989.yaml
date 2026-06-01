@@ -1,0 +1,7 @@
+---
+upgrade:
+  - |
+    LLM Observability: ``DD_LLMOBS_SAMPLE_RATE`` no longer drops span payloads on the
+    client. All LLM Observability spans now capture their input/output data and are always
+    submitted, so Datadog can compute accurate token and cost metrics across all traffic.
+    No user action is required.
