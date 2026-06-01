@@ -235,7 +235,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable(agentless_enabled=False)
-    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
 
 
 @pytest.mark.subprocess(
@@ -1202,7 +1202,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     err=None,
 )
 def test_tag_dot_keys_preserved_on_apm_agent_path():
-    """APM_AGENT_PROXY path: dots in tag keys are not modified (agent handles encoding)."""
+    """APM_AGENT path: dots in tag keys are not modified (agent handles encoding)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._utils import get_llmobs_tags
 
