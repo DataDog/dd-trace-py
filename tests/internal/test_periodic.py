@@ -1,10 +1,12 @@
 import ctypes
+import gc
 import os
 import platform
 from threading import Event
 from threading import Thread
 from time import monotonic
 from time import sleep
+import weakref
 
 import pytest
 
