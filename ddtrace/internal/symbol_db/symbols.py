@@ -53,7 +53,7 @@ EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
-def _line_ranges(lines: set[int]) -> list[dict]:
+def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
     """Convert a set of line numbers into a list of contiguous ranges."""
     if not lines:
         return []
@@ -179,12 +179,12 @@ class Scope:
     end_line: int
     symbols: list[Symbol]
     scopes: list["Scope"]
-    injectible_lines: list[dict] = field(default_factory=list)
+    injectible_lines: list[dict[str, t.Any]] = field(default_factory=list)
     has_injectible_lines: bool = False
 
-    language_specifics: dict = field(default_factory=dict)
+    language_specifics: dict[str, t.Any] = field(default_factory=dict)
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         return asdict(self)
 
     @singledispatchmethod
@@ -426,7 +426,7 @@ class Scope:
 
     @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "classmethod[t.Any, t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -436,7 +436,7 @@ class Scope:
 
     @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "staticmethod[t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -543,7 +543,7 @@ class ScopeContext:
             # Set the timer to upload after a short delay.
             self._set_timer()
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         with self._scopes_lock:
             return {
                 "schema_version": 1,
@@ -694,7 +694,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
     @classmethod
     def update(cls) -> None:
-        instance = t.cast(SymbolDatabaseUploader, cls._instance)
+        instance = t.cast(t.Optional[SymbolDatabaseUploader], cls._instance)
         if instance is None:
             return
 

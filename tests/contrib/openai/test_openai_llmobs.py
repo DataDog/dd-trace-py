@@ -118,6 +118,46 @@ class TestLLMObsOpenaiV1:
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "unknown"
 
+    @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_provider_attribution_with_concurrent_openai_and_azure_clients(
+        self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
+    ):
+        """Regression test for provider mis-attribution when multiple OpenAI-family
+        clients are instantiated concurrently. Each span must reflect the client that
+        actually made the call, not whichever client was constructed last.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+
+        # Construction order: OpenAI first, then AzureOpenAI. Calling order: OpenAI, then Azure.
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "openai"
+        assert get_llmobs_model_provider(spans[1]) == "azure_openai"
+
+        # Reverse construction and call order to rule out passing-by-coincidence
+        # (e.g. fix only works when the "right" client was the most recently
+        # constructed one).
+        azure_client = openai.AzureOpenAI(
+            api_key=azure_openai_config["api_key"],
+            api_version=azure_openai_config["api_version"],
+            azure_endpoint=azure_openai_config["azure_endpoint"],
+        )
+        oai_client = openai.OpenAI(api_key="<not-a-real-key>")
+        azure_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        oai_client.chat.completions.create(model="gpt-3.5-turbo", messages=multi_message_input)
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 2
+        assert get_llmobs_model_provider(spans[0]) == "azure_openai"
+        assert get_llmobs_model_provider(spans[1]) == "openai"
+
     def test_completion(self, openai, openai_llmobs, test_spans):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -1553,6 +1593,33 @@ MUL: "*"
         assert get_llmobs_span_name(spans[0]) == "Deepseek.createChatCompletion"
         assert get_llmobs_model_provider(spans[0]) == "deepseek"
         assert get_llmobs_model_name(spans[0]) == "deepseek-chat"
+
+    def test_deepseek_streamed_reasoning_content(self, openai, openai_llmobs, test_spans):
+        """Regression test for #18257 / PR #18274: streamed ``reasoning_content`` deltas
+        from an OpenAI-compatible reasoning provider (DeepSeek) must be aggregated and
+        surfaced on the LLM Obs span as an output message with ``role="reasoning"``.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("deepseek_streamed_reasoning_content.yaml"):
+            client = openai.OpenAI(api_key="<not-a-real-key>", base_url="https://api.deepseek.com")
+            resp = client.chat.completions.create(
+                model="deepseek-v4-pro",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant"},
+                    {"role": "user", "content": "What is 17 * 23?"},
+                ],
+                stream=True,
+                max_tokens=1024,
+                extra_body={"reasoning_effort": "high", "thinking": {"type": "enabled"}},
+            )
+            for _ in resp:
+                pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        output_messages = get_llmobs_output_messages(spans[0]) or []
+        reasoning_messages = [m for m in output_messages if m.get("role") == "reasoning"]
+        assert reasoning_messages, f"expected a reasoning output message, got: {output_messages}"
+        assert reasoning_messages[0].get("content"), "reasoning output message had empty content"
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"

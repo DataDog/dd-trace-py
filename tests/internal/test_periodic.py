@@ -1,6 +1,7 @@
 import ctypes
 import os
 import platform
+from threading import Barrier
 from threading import Event
 from threading import Thread
 from time import monotonic
@@ -390,6 +391,27 @@ def test_periodic_thread_preserves_awake_during_restart_window():
     awaker.join(timeout=1)
 
 
+def test_timer_fires_only_once():
+    count = 0
+    fired = Event()
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal count
+            count += 1
+            fired.set()
+
+    T = 0.05
+    t = TestTimer(T)
+    t.start()
+
+    assert fired.wait(timeout=5.0), "Timer did not fire within 5s"
+    sleep(T * 5)
+
+    assert count == 1, f"Timer fired {count} times but should have fired exactly once"
+    t.join(timeout=1.0)
+
+
 def test_timer():
     end = 0
 
@@ -625,3 +647,168 @@ def test_periodic_thread_naming():
         assert native_name[0].endswith("ClassNameFit"), (
             f"Expected name ending with 'ClassNameFit', got '{native_name[0]}'"
         )
+
+
+def test_timer_reset_during_fork_does_not_break_stop():
+    """Regression test for DEBUG-5712.
+
+    ``periodic.Timer.reset()`` runs ``stop(); _set_worker(); start()``. During
+    a fork window (``ddtrace.internal.threads._forking == True``),
+    PeriodicThread.start() silently defers and the new worker ends up with
+    ``_thread == nullptr``. Without the tolerance below, the *next*
+    ``reset()`` raised ``RuntimeError("Thread not started")`` on its internal
+    ``stop()`` call. In production this killed Symbol DB's installer
+    mid-``_process_unseen_loaded_modules`` and Remote Config retried it ~6×
+    per second.
+
+    Fix: ``reset()`` swallows ``RuntimeError`` from its internal ``stop()``
+    so a deferred-start worker is replaced cleanly. The reset request is
+    still honoured — the new worker's deferred ``start()`` fires post-fork.
+    """
+    from ddtrace.internal import threads as _threads_mod
+
+    class _TestTimer(periodic.Timer):
+        def timeout(self):
+            pass
+
+    t = _TestTimer(60.0)
+    t.start()
+
+    original_forking = _threads_mod._forking
+    _threads_mod._forking = True
+    try:
+        # Repeated resets under a fork window must not raise. The first
+        # reset's start() is deferred; the second reset's internal stop()
+        # would hit the not-started worker and crash without the tolerance.
+        for _ in range(5):
+            t.reset()
+    finally:
+        _threads_mod._forking = original_forking
+        _threads_mod._threads_to_start_after_fork.clear()
+
+
+# ---------------------------------------------------------------------------
+# Concurrent stress tests
+#
+# These tests exercise the native extension under real multi-threading to catch
+# races that only manifest under concurrent load, especially on free-threaded
+# Python (Py_GIL_DISABLED) or on weak-memory-order architectures (ARM).
+# Each test uses a Barrier to maximise contention at the critical moment.
+# ---------------------------------------------------------------------------
+
+_N_THREADS = 20
+
+
+def test_concurrent_start_stop():
+    """N threads each independently create, start, and stop a PeriodicThread.
+
+    Exercises concurrent PyDict_SetItem / PyDict_DelItem on the module-level
+    periodic_threads dict from multiple native threads simultaneously.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    def worker():
+        t = periodic.PeriodicThread(60.0, lambda: None)
+        barrier.wait()
+        try:
+            t.start()
+            t.stop()
+            t.join()
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=worker) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent start/stop: {errors}"
+
+
+def test_concurrent_awake():
+    """N threads call awake() on the same PeriodicThread simultaneously.
+
+    Exercises the _awake_mutex / _request / _served Event trio under
+    concurrent writers.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+
+        def awaker():
+            barrier.wait()
+            try:
+                t.awake()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [Thread(target=awaker) for _ in range(_N_THREADS)]
+        for th in threads:
+            th.start()
+        for th in threads:
+            th.join()
+    finally:
+        t.stop()
+        t.join()
+
+    assert not errors, f"errors in concurrent awake: {errors}"
+
+
+def test_concurrent_init_dealloc():
+    """N threads simultaneously instantiate and immediately drop PeriodicThread
+    objects (without starting them).
+
+    Exercises concurrent PeriodicThread_init (PyImport_GetModule, dict lookup)
+    and PeriodicThread_dealloc (PyDict_DelItem on periodic_threads).
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    def worker():
+        barrier.wait()
+        try:
+            for _ in range(10):
+                periodic.PeriodicThread(60.0, lambda: None)
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=worker) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent init/dealloc: {errors}"
+
+
+def test_concurrent_stop_join():
+    """N threads race to call stop() and join() on the same PeriodicThread.
+
+    stop() is idempotent and join() must not deadlock when called concurrently.
+    """
+    barrier = Barrier(_N_THREADS)
+    errors = []
+
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+
+    def stopper():
+        barrier.wait()
+        try:
+            t.stop()
+            t.join()
+        except Exception as e:
+            errors.append(e)
+
+    threads = [Thread(target=stopper) for _ in range(_N_THREADS)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+
+    assert not errors, f"errors in concurrent stop/join: {errors}"
