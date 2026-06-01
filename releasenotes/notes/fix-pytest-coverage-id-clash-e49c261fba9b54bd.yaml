@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where running a pytest session with ``--ddtrace``
+    on Python 3.14+ caused a ``ValueError: tool 1 is already in use`` crash when an inner
+    session was spawned via ``pytester.inline_run(--cov)``. On Python 3.14+, coverage.py
+    switched to a ``sys.monitoring``-based backend that claims ``sys.monitoring.COVERAGE_ID``
+    (tool slot 1), the same slot ddtrace uses for line-level coverage tracking. The fix
+    releases the slot at the start of each new in-process session when pytest-cov is active,
+    allowing coverage.py to claim it; ddtrace re-registers lazily on the next module import
+    if needed.
