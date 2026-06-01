@@ -29,6 +29,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
@@ -62,6 +63,7 @@ from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
@@ -521,6 +523,12 @@ def _set_flask_request_tags(request, span, flask_config):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            # Side-channel tag for backend resource remapping; resource itself stays app-local.
+            if request.script_root:
+                span._set_attribute(
+                    FLASK_RESOURCE_FULL,
+                    " ".join((request.method, request.script_root + request.url_rule.rule)),
+                )
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -631,18 +639,29 @@ def _on_web_request_final_tags(span):
         _set_inferred_proxy_tags(span, None)
 
 
+def _django_request_path_params(request):
+    from ddtrace.contrib.internal.django.utils import _request_path_params
+
+    return _request_path_params(request)
+
+
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
     after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
+    # Forward request_path_params alongside route so AppSec normalized-route listeners can consult the matched
+    # parameter map to resolve optional regex groups (RFC-1103 rule 6).
+    trace_utils.set_http_meta(
+        span,
+        ctx.get_item("integration_config"),
+        route=span.get_tag("http.route"),
+        request_path_params=_django_request_path_params(request),
+    )
     _set_inferred_proxy_tags(span, None)
 
 
-def _on_django_start_response(
-    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[dict[str, str]]
-):
+def _on_django_start_response(ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str):
     parsed_query = request.GET
     body = extract_body(request)
     remake_body(request)
@@ -653,7 +672,7 @@ def _on_django_start_response(
         method=request.method,
         query=query,
         raw_uri=uri,
-        request_path_params=path,
+        request_path_params=_django_request_path_params(request),
         parsed_query=parsed_query,
         request_body=body,
         request_cookies=request.COOKIES,
@@ -707,10 +726,16 @@ def _on_django_after_request_headers_post(
         request_headers=request_headers,
         response_headers=response_headers,
         request_cookies=request.COOKIES,
-        request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
+        request_path_params=_django_request_path_params(request),
         peer_ip=core.get_item("http.request.remote_ip"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
+        route=span.get_tag("http.route"),
     )
 
 
@@ -1629,7 +1654,7 @@ def _set_azure_cosmos_request_tags(
     if parsed.path:
         resource_link = parsed.path
 
-    span.resource = request_params.operation_type + " " + resource_link
+    span.resource = request_params.operation_type + " " + _normalize_cosmos_resource_uri(resource_link)
     if (
         request_params.operation_type == "Create"
         and request_params.resource_type == "dbs"
