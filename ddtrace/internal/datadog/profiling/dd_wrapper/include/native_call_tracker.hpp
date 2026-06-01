@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <deque>
+#include <functional>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -43,7 +43,7 @@ class NativeCallRegistry
   public:
     // AIDEV-NOTE: Native call sites are keyed by Python code object addresses.
     // Dynamic code generators can produce an unbounded number of one-shot code
-    // objects, so keep this registry finite while preserving recent attribution.
+    // objects, so stop registering new sites once the registry reaches its cap.
     static constexpr size_t max_call_sites = 4096;
 
     NativeCallRegistry() = default;
@@ -59,9 +59,11 @@ class NativeCallRegistry
                             std::string module);
 
     // Checks if there is known native call metadata for a bytecode location and
-    // returns an owned copy when found. Eviction can erase registry entries while
-    // a sample is rendering, so callers must not hold references to map values.
-    std::optional<NativeCallEntry> lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
+    // returns it when found. Registry entries are never evicted, so references
+    // remain valid while the sampler is running.
+    std::optional<std::reference_wrapper<const NativeCallEntry>> lookup(uintptr_t code_ptr,
+                                                                        int offset_bytes,
+                                                                        int first_lineno);
 
     // Clears the registry.
     // Note: this frees the NativeCallEntry's, meaning any reference to a NativeCallEntry from
@@ -77,7 +79,6 @@ class NativeCallRegistry
   private:
     mutable std::shared_mutex mtx;
     std::unordered_map<CallSiteKey, NativeCallEntry, CallSiteKeyHash> call_sites;
-    std::deque<CallSiteKey> insertion_order;
 };
 
 } // namespace Datadog
