@@ -284,6 +284,7 @@ resolvers
 respawn
 riotfile
 RLock
+rollout
 rowcount
 rq
 runnable

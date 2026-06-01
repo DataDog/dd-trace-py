@@ -373,6 +373,20 @@ class ProfilingConfigMemory(DDConfig):
         help="",
     )
 
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
