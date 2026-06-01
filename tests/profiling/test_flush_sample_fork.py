@@ -49,21 +49,24 @@ def test_fork_does_not_deadlock_when_parent_has_no_pending_samples() -> None:
     # Parent: wait with a timeout. Use a SIGALRM-based watchdog because
     # os.waitpid has no native timeout pre-3.13.
     deadline = time.monotonic() + 10.0
+    child_exited = False
     while time.monotonic() < deadline:
         wpid, status = os.waitpid(pid, os.WNOHANG)
         if wpid != 0:
             assert not os.WIFSIGNALED(status), f"child died from signal {os.WTERMSIG(status)}"
             assert os.WEXITSTATUS(status) == 0, f"child exit={os.WEXITSTATUS(status)}"
-            return
+            child_exited = True
+            break
         time.sleep(0.05)
 
-    # Child still alive after 10s — almost certainly the fork-time deadlock.
-    try:
-        os.kill(pid, signal.SIGKILL)
-        os.waitpid(pid, 0)
-    except OSError:
-        pass
-    raise AssertionError("child hung after fork (>10s) — fork-time deadlock regression")
+    if not child_exited:
+        # Child still alive after 10s — almost certainly the fork-time deadlock.
+        try:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+        except OSError:
+            pass
+        raise AssertionError("child hung after fork (>10s) — fork-time deadlock regression")
 
 
 @pytest.mark.subprocess(
@@ -109,17 +112,20 @@ def test_fork_does_not_deadlock_when_parent_has_pending_samples() -> None:
         os._exit(0)
 
     deadline = time.monotonic() + 10.0
+    child_exited = False
     while time.monotonic() < deadline:
         wpid, status = os.waitpid(pid, os.WNOHANG)
         if wpid != 0:
             assert not os.WIFSIGNALED(status), f"child died from signal {os.WTERMSIG(status)}"
             assert os.WEXITSTATUS(status) == 0, f"child exit={os.WEXITSTATUS(status)}"
-            return
+            child_exited = True
+            break
         time.sleep(0.05)
 
-    try:
-        os.kill(pid, signal.SIGKILL)
-        os.waitpid(pid, 0)
-    except OSError:
-        pass
-    raise AssertionError("child hung after fork (>10s) — fork-time deadlock regression")
+    if not child_exited:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            os.waitpid(pid, 0)
+        except OSError:
+            pass
+        raise AssertionError("child hung after fork (>10s) — fork-time deadlock regression")
