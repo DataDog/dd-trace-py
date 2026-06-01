@@ -36,9 +36,7 @@ _MAX_META_TAG_VALUE_LENGTH = 5000
 
 
 def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
-    return {
-        key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()
-    }
+    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
 
 
 def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
