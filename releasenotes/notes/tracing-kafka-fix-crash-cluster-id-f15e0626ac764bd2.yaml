@@ -1,0 +1,4 @@
+fixes:
+  - |
+    kafka: Fixes a crash in the ``confluent-kafka`` integration where internal ``list_topics``
+    calls triggered librdkafka background metadata-refresh tasks.
