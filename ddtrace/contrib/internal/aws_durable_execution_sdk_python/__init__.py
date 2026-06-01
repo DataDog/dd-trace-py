@@ -27,4 +27,31 @@ Or use :func:`patch() <ddtrace.patch>` to manually enable the integration::
 
     from ddtrace import patch
     patch(aws_durable_execution_sdk_python=True)
+
+
+Distributed tracing across suspend/resume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A durable workflow can pause via ``SuspendExecution`` and resume in a later
+Lambda invocation. The integration keeps these invocations stitched into a
+single trace by persisting the propagation headers in the durable execution
+log.
+
+On each suspend, the integration appends a synthetic STEP operation named
+``_datadog_{N}`` whose payload is the current trace's Datadog propagation
+headers. The next invocation reads back the highest-N checkpoint and resumes
+the trace from there. No checkpoint is written for workflows that complete or
+fail terminally.
+
+Things to be aware of:
+
+- The synthetic ``_datadog_*`` STEP operations appear in your durable execution
+  log alongside user operations. They are deterministically named and only
+  written when the propagation headers actually change since the last
+  checkpoint.
+- Only Datadog-style propagation headers are written; ``DD_TRACE_PROPAGATION_STYLE_INJECT``
+  is ignored for these checkpoints since both writer and reader are Datadog.
+- To opt out, set ``DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED=False``. The
+  integration will stop writing new checkpoints but will continue to consume
+  any that already exist on resumed workflows.
 """

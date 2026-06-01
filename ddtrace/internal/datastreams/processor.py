@@ -10,6 +10,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
@@ -133,6 +134,7 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         register_on_exit_signal(partial(_atexit, obj=self))
+        ddtrace_atexit.register(partial(_atexit, obj=self))
         self.start()
 
     def on_checkpoint_creation(
