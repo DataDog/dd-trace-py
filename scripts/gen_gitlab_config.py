@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.21.0",
+#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -701,7 +701,7 @@ def gen_cached_testrunner() -> None:
         f.write(
             template(
                 "cached-testrunner",
-                current_month=datetime.datetime.now().month,
+                current_week=datetime.datetime.now().isocalendar().week,
                 testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )

@@ -16,7 +16,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "9777e7b43d6bca435236d9e231bf9bd42a6b6bb5"
+  SYSTEM_TESTS_REF: "a374e76a2f2b2382adf386e40e14c882a48c8541"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -66,6 +66,7 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - local: ".gitlab/config-registry.yml"
 
 "pipeline variables":
   stage: .pre
