@@ -210,7 +210,7 @@ def use_dummy_writer():
 def auto_enable_crashtracking():
     # Crashtracking is only supported on linux right now
     # TODO: Default to `True` when Windows and Darwin are supported
-    yield platform.system() == "Linux"
+    yield platform.system() == "Linux" and crashtracking.is_available
 
 
 @pytest.fixture(autouse=True)

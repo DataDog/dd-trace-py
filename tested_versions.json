@@ -4048,14 +4048,6 @@
           "python_version": "3.14"
         },
         {
-          "version": "0.8.1",
-          "python_version": "3.15"
-        },
-        {
-          "version": "1.0.0",
-          "python_version": "3.15"
-        },
-        {
           "version": "1.63.0",
           "python_version": "3.15"
         }

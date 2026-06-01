@@ -79,7 +79,9 @@ CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
 if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+    # AIDEV-TODO: Populate assemblies for 3.15 bytecode (tracked in #17849).
+    # Define the stub so references below don't NameError.
+    CONTEXT_RETURN_CONST: Assembly = Assembly()
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -587,7 +589,17 @@ class _UniversalWrappingContext(BaseWrappingContext):
             raise ValueError("Function is not wrapped")
         return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
 
-    if sys.version_info >= (3, 11):
+    if sys.version_info >= (3, 15):
+
+        def wrap(self) -> None:
+            # AIDEV-TODO: No-op until #17849 implements wrapping for 3.15.
+            pass
+
+        def unwrap(self) -> None:
+            # AIDEV-TODO: No-op until #17849 implements wrapping for 3.15.
+            pass
+
+    elif sys.version_info >= (3, 11):
 
         def wrap(self) -> None:
             f = self.__wrapped__

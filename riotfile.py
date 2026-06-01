@@ -3215,7 +3215,9 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # pydantic==2.12.0a1 requires pydantic-core~=2.37.x which uses
+                    # PyO3 0.25.x — capped at 3.14 since PyO3 0.25.x doesn't support 3.15+.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
