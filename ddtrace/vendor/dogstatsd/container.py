@@ -101,7 +101,7 @@ class ContainerID(object):
                     inode_path = os.path.join(
                         self.CGROUP_MOUNT_PATH,
                         controller,
-                        node_path if node_path != "/" else "",
+                        node_path.lstrip("/"),
                     )
                     inode = os.stat(inode_path).st_ino
                     # 0 is not a valid inode. 1 is a bad block inode and 2 is the root of a filesystem.
