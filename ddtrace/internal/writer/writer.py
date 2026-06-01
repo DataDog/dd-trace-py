@@ -655,7 +655,6 @@ def _build_base_exporter_builder(
     builder = (
         native.TraceExporterBuilder()
         .set_url(intake_url)
-        .set_hostname(get_hostname())
         .set_language("python")
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
@@ -663,6 +662,10 @@ def _build_base_exporter_builder(
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
+    # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
+    # from both the trace payload and the OTLP resource attributes (host.name).
+    if config._report_hostname:
+        builder.set_hostname(get_hostname())
     if config.service:
         builder.set_service(config.service)
     if config.env:
