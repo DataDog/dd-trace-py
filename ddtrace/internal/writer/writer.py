@@ -649,6 +649,7 @@ def _build_base_exporter_builder(
     test_session_token: Optional[str],
     compute_stats_enabled: bool,
     stats_opt_out: Optional[bool],
+    otlp_metrics_enabled: bool = False,
 ) -> "native.TraceExporterBuilder":
     _, commit_sha, _ = get_git_tags()
     builder = (
@@ -670,12 +671,13 @@ def _build_base_exporter_builder(
         builder.set_app_version(config.version)
     if test_session_token is not None:
         builder.set_test_session_token(test_session_token)
-    if stats_opt_out:
-        builder.set_client_computed_stats()
-    elif compute_stats_enabled:
+    # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
+    if otlp_metrics_enabled or (compute_stats_enabled and not stats_opt_out):
         stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         bucket_size_ns: int = int(stats_interval * 1e9)
         builder.enable_stats(bucket_size_ns)
+    elif stats_opt_out:
+        builder.set_client_computed_stats()
     return builder
 
 
@@ -703,6 +705,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # This setting overrides the `compute_stats_enabled` parameter.
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
+        otlp_metrics_endpoint: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -735,6 +738,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         super(NativeWriter, self).__init__(interval=processing_interval)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
+        self._otlp_metrics_endpoint = otlp_metrics_endpoint
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._test_session_token = _resolve_test_session_token(test_session_token)
@@ -752,14 +756,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
 
     @staticmethod
-    def _parse_otlp_headers() -> list:
-        """Parse OTEL_EXPORTER_OTLP_TRACES_HEADERS (or OTEL_EXPORTER_OTLP_HEADERS) into key-value pairs.
+    def _parse_otlp_headers(raw: str) -> list:
+        """Parse OTEL_EXPORTER_OTLP_*_HEADERS into key-value pairs.
 
         TODO: This parsing will move into libdatadog once header handling is supported natively.
         The current split-on-comma approach does not handle percent-encoded commas (%2C) in header
         values per the OTEL spec; that edge case will be handled correctly on the libdatadog side.
         """
-        raw = otel_config.exporter.TRACES_HEADERS
         if not raw:
             return []
         headers = []
@@ -776,14 +779,21 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._test_session_token,
             self._compute_stats_enabled,
             self._stats_opt_out,
+            self._otlp_metrics_endpoint is not None,
         )
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
-            otlp_headers = self._parse_otlp_headers()
+            otlp_headers = self._parse_otlp_headers(otel_config.exporter.TRACES_HEADERS)
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
+        if self._otlp_metrics_endpoint is not None:
+            builder.set_otlp_metrics_endpoint(self._otlp_metrics_endpoint)
+            metrics_headers = self._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS)
+            if metrics_headers:
+                builder.set_otlp_metrics_headers(metrics_headers)
+            builder.set_connection_timeout(otel_config.exporter.METRICS_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
@@ -829,6 +839,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
+            otlp_metrics_endpoint=self._otlp_metrics_endpoint,
         )
 
     def _downgrade(self, status, client):
@@ -1101,16 +1112,20 @@ def create_trace_writer(
         otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
     )
 
-    # OTLP trace metrics are computed client-side; disable native stats to avoid double-counting.
-    compute_stats_enabled = config._trace_compute_stats and not _is_otlp_trace_metrics_enabled(otel_config.exporter)
+    # When enabled, libdatadog computes span stats and exports them as OTLP metrics to this endpoint
+    # instead of the /v0.6/stats agent endpoint.
+    otlp_metrics_endpoint = (
+        otel_config.exporter.METRICS_ENDPOINT if _is_otlp_trace_metrics_enabled(otel_config.exporter) else None
+    )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
-        compute_stats_enabled=compute_stats_enabled,
+        compute_stats_enabled=config._trace_compute_stats,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,
         otlp_endpoint=otlp_endpoint,
+        otlp_metrics_endpoint=otlp_metrics_endpoint,
     )

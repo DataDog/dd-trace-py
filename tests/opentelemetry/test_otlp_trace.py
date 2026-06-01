@@ -68,16 +68,24 @@ def test_otlp_traces_sent_via_http():
         "DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED": "true",
         "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/json",
         "DD_SERVICE": "test-svc",
+        # Short stats bucket so the native concentrator flushes within the test window.
+        "_DD_TRACE_STATS_WRITER_INTERVAL": "1",
     }
 )
 def test_otlp_trace_metrics_exported_via_http():
-    """Finished spans are aggregated and exported as the dd.trace.span.duration OTLP histogram."""
+    """End-to-end: libdatadog computes span stats and exports the dd.trace.span.duration histogram.
+
+    Stats computation, OTLP encoding and export all happen natively in libdatadog; dd-trace-py only
+    supplies the OTLP metrics endpoint to the NativeWriter. The native stats worker flushes the
+    concentrator on its periodic tick and POSTs the histogram to the OTLP /v1/metrics endpoint.
+    """
     from http.server import BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer
     import json
     import os
     import queue
-    import socketserver
     import threading
+    import time
 
     received = queue.Queue()
 
@@ -91,9 +99,10 @@ def test_otlp_trace_metrics_exported_via_http():
         def log_message(self, *args):
             pass
 
-    with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
+    with ThreadingHTTPServer(("127.0.0.1", 0), OtlpHandler) as server:
         port = server.server_address[1]
-        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}"
+        # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is used as-is (full path) by libdatadog.
+        os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/metrics"
         # Route traces to the mock server too so the native writer doesn't log send failures.
         os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
 
@@ -101,25 +110,30 @@ def test_otlp_trace_metrics_exported_via_http():
         t.daemon = True
         t.start()
 
-        from ddtrace.internal.otlp_stats.processor import OtlpSpanStatsProcessor
         from ddtrace.trace import tracer
 
         with tracer.trace("test-span", service="test-svc"):
             pass
 
+        # flush() sends the trace and feeds the native concentrator. The native stats worker then
+        # flushes the aged-out bucket on its periodic tick and exports it to /v1/metrics.
         tracer.flush()
-        proc = next(p for p in tracer._span_processors if isinstance(p, OtlpSpanStatsProcessor))
-        proc.periodic()
+
+        metrics_payload = None
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            try:
+                path, content_type, body = received.get(timeout=1)
+            except queue.Empty:
+                continue
+            if path == "/v1/metrics":
+                metrics_payload = (content_type, body)
+                break
+
         server.shutdown()
 
-    metrics_payloads = []
-    while not received.empty():
-        path, content_type, body = received.get_nowait()
-        if path == "/v1/metrics":
-            metrics_payloads.append((content_type, body))
-
-    assert metrics_payloads, "No OTLP metrics payload received by mock server"
-    content_type, body = metrics_payloads[0]
+    assert metrics_payload is not None, "No OTLP metrics payload received by mock server"
+    content_type, body = metrics_payload
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
     metric = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]

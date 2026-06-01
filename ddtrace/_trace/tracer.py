@@ -120,15 +120,6 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    # AIDEV-NOTE: Imported lazily so the OTLP stats pipeline is only loaded when enabled.
-    from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
-    from ddtrace.internal.settings._opentelemetry import otel_config
-
-    if _is_otlp_trace_metrics_enabled(otel_config.exporter):
-        from ddtrace.internal.otlp_stats.processor import OtlpSpanStatsProcessor
-
-        span_processors.append(OtlpSpanStatsProcessor())
-
     return span_processors
 
 
