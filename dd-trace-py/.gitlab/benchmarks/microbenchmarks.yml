@@ -163,7 +163,7 @@ candidate:
       artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
-    echo "CANDIDATE_WHL=../../../../../../../app/benchmarks/$(ls *.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_WHL=/app/benchmarks/$(ls *.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
