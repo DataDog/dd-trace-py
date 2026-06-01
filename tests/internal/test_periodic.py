@@ -1,4 +1,5 @@
 import ctypes
+import gc
 import os
 import platform
 from threading import Barrier
@@ -6,6 +7,7 @@ from threading import Event
 from threading import Thread
 from time import monotonic
 from time import sleep
+import weakref
 
 import pytest
 
@@ -95,6 +97,53 @@ def test_periodic_awake_after_stop_returns_not_hangs():
 
     # Must return promptly. Before the fix this hung forever.
     t.awake()
+
+
+def _collect_until_cleared(ref, attempts=5):
+    for _ in range(attempts):
+        gc.collect()
+        if ref() is None:
+            return True
+        sleep(0.01)
+    return ref() is None
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_before_start():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "unstarted PeriodicThread bound-method cycle was not collected"
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_after_join():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+        def run_and_stop(self):
+            self.thread.start()
+            self.thread.stop()
+            self.thread.join()
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+    owner.run_and_stop()
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "stopped PeriodicThread bound-method cycle was not collected"
 
 
 def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
@@ -391,6 +440,27 @@ def test_periodic_thread_preserves_awake_during_restart_window():
     awaker.join(timeout=1)
 
 
+def test_timer_fires_only_once():
+    count = 0
+    fired = Event()
+
+    class TestTimer(periodic.Timer):
+        def timeout(self):
+            nonlocal count
+            count += 1
+            fired.set()
+
+    T = 0.05
+    t = TestTimer(T)
+    t.start()
+
+    assert fired.wait(timeout=5.0), "Timer did not fire within 5s"
+    sleep(T * 5)
+
+    assert count == 1, f"Timer fired {count} times but should have fired exactly once"
+    t.join(timeout=1.0)
+
+
 def test_timer():
     end = 0
 
@@ -626,6 +696,44 @@ def test_periodic_thread_naming():
         assert native_name[0].endswith("ClassNameFit"), (
             f"Expected name ending with 'ClassNameFit', got '{native_name[0]}'"
         )
+
+
+def test_timer_reset_during_fork_does_not_break_stop():
+    """Regression test for DEBUG-5712.
+
+    ``periodic.Timer.reset()`` runs ``stop(); _set_worker(); start()``. During
+    a fork window (``ddtrace.internal.threads._forking == True``),
+    PeriodicThread.start() silently defers and the new worker ends up with
+    ``_thread == nullptr``. Without the tolerance below, the *next*
+    ``reset()`` raised ``RuntimeError("Thread not started")`` on its internal
+    ``stop()`` call. In production this killed Symbol DB's installer
+    mid-``_process_unseen_loaded_modules`` and Remote Config retried it ~6×
+    per second.
+
+    Fix: ``reset()`` swallows ``RuntimeError`` from its internal ``stop()``
+    so a deferred-start worker is replaced cleanly. The reset request is
+    still honoured — the new worker's deferred ``start()`` fires post-fork.
+    """
+    from ddtrace.internal import threads as _threads_mod
+
+    class _TestTimer(periodic.Timer):
+        def timeout(self):
+            pass
+
+    t = _TestTimer(60.0)
+    t.start()
+
+    original_forking = _threads_mod._forking
+    _threads_mod._forking = True
+    try:
+        # Repeated resets under a fork window must not raise. The first
+        # reset's start() is deferred; the second reset's internal stop()
+        # would hit the not-started worker and crash without the tolerance.
+        for _ in range(5):
+            t.reset()
+    finally:
+        _threads_mod._forking = original_forking
+        _threads_mod._threads_to_start_after_fork.clear()
 
 
 # ---------------------------------------------------------------------------
