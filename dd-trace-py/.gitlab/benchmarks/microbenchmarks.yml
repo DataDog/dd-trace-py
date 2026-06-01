@@ -162,9 +162,11 @@ candidate:
       job: "build linux: [amd64, cp39-cp39, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: true
   script: |
-    cd dd-trace-py
-    cp ../pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
-    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee ../candidate.env
+    mkdir -p app/benchmarks/dd-trace-py
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl app/benchmarks/dd-trace-py
+    cd app/benchmarks/dd-trace-py
+    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee ../../../candidate.env
+    cd ../..
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a ../candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a ../candidate.env
     echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a ../candidate.env
@@ -172,7 +174,7 @@ candidate:
     reports:
       dotenv: candidate.env
     paths:
-      - "dd-trace-py/*.whl"
+      - "app/benchmarks/dd-trace-py/*.whl"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
