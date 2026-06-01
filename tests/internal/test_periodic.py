@@ -124,6 +124,8 @@ def test_periodic_thread_bound_method_cycle_is_collectible_after_join():
     del owner
 
     assert _collect_until_cleared(owner_ref), "stopped PeriodicThread bound-method cycle was not collected"
+
+
 def test_periodic_error():
     x = {"OK": False}
 
