@@ -821,6 +821,38 @@ def test_tool_version_not_leaked_onto_non_tool_spans(llmobs, llmobs_backend):
     assert "tool" not in events[0][0]["spans"][0]["meta"]
 
 
+def test_tool_version_auto_propagated_to_manual_tool_span(llmobs):
+    """tool_definitions[*].version on a parent LLM span is propagated to a manually-started child tool span."""
+    with llmobs.llm(name="my_llm") as llm_span:
+        llmobs.annotate(llm_span, tool_definitions=[{"name": "get_weather", "version": "2.0.0"}])
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert tool_meta["tool"] == {"version": "2.0.0"}
+
+
+def test_tool_version_not_propagated_when_no_matching_tool_definition(llmobs):
+    """No meta.tool.version is written when the parent LLM span has no tool_definition matching the tool span name."""
+    with llmobs.llm(name="my_llm") as llm_span:
+        llmobs.annotate(llm_span, tool_definitions=[{"name": "search", "version": "1.0"}])
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert "tool" not in tool_meta
+
+
+def test_tool_version_not_propagated_when_parent_is_not_llm_kind(llmobs):
+    """No auto-propagation when the nearest LLMObs ancestor is not an llm-kind span."""
+    with llmobs.workflow("root"):
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert "tool" not in tool_meta
+
+
 @pytest.mark.asyncio
 async def test_asyncio_trace_id_propagation(llmobs):
     """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""
