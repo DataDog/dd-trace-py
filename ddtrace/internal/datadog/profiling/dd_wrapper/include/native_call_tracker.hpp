@@ -61,9 +61,9 @@ class NativeCallRegistry
     // Checks if there is known native call metadata for a bytecode location and
     // returns it when found. Registry entries are never evicted, so references
     // remain valid while the sampler is running.
-    std::optional<std::reference_wrapper<const NativeCallEntry>> lookup(uintptr_t code_ptr,
-                                                                        int offset_bytes,
-                                                                        int first_lineno);
+    std::optional<std::reference_wrapper<NativeCallEntry>> lookup(uintptr_t code_ptr,
+                                                                  int offset_bytes,
+                                                                  int first_lineno);
 
     // Clears the registry.
     // Note: this frees the NativeCallEntry's, meaning any reference to a NativeCallEntry from
