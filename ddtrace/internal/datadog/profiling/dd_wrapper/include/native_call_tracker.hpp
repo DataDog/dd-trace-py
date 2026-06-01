@@ -41,9 +41,8 @@ struct NativeCallEntry
 class NativeCallRegistry
 {
   public:
-    // AIDEV-NOTE: Native call sites are keyed by Python code object addresses.
     // Dynamic code generators can produce an unbounded number of one-shot code
-    // objects, so keep this registry finite while preserving recent attribution.
+    // objects, so keep this registry finite.
     static constexpr size_t max_call_sites = 4096;
 
     NativeCallRegistry() = default;
