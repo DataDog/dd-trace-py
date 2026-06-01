@@ -764,6 +764,14 @@
         "default": null
       }
     ],
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30000",
+        "internal": true
+      }
+    ],
     "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": [
       {
         "implementation": "B",
