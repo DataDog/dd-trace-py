@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
 
 
 @pytest.mark.parametrize(
@@ -299,6 +300,164 @@ def test_normalize_route_django_fast_path_skips_non_eligible_shapes(route):
     from ddtrace.appsec._api_security._normalized_route import _normalize_route_django_fast_path
 
     assert _normalize_route_django_fast_path(route) is None
+
+
+# ---------------------------------------------------------------------------
+# Flask / Werkzeug normalizer  (import is at the top of the file)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Simple single-param with default (string) converter — fast path
+        ("/users/<id>", "/users/{id}"),
+        # Converter types stripped
+        ("/users/<string:id>", "/users/{id}"),
+        ("/posts/<int:post_id>", "/posts/{post_id}"),
+        ("/price/<float:value>", "/price/{value}"),
+        ("/token/<uuid:tok>", "/token/{tok}"),
+        # Multi-segment, with and without trailing slash — fast path
+        ("/asm/<int:param_int>/<string:param_str>/", "/asm/{param_int}/{param_str}/"),
+        ("/asm/<int:param_int>/<string:param_str>", "/asm/{param_int}/{param_str}"),
+        # Trailing slash preserved when declared (rule 1)
+        ("/api/", "/api/"),
+        # Root
+        ("/", "/"),
+        # Pure static with RFC-safe chars
+        ("/static/about", "/static/about"),
+        # Static URL-encoding (rule 3)
+        ("/path with space", "/path%20with%20space"),
+        ("/safe.-~_", "/safe.-~_"),
+        ("/é", "/%C3%A9"),
+        # Multi-param-in-segment — slow path (rule 5 combines with `+`)
+        ("/multi-param/<first>.<last>/", "/multi-param/{first+last}/"),
+        ("/users/<first>-<last>", "/users/{first+last}"),
+        ("/files/<a>.<b>.<c>", "/files/{a+b+c}"),
+        # Static prefix before a single param is dropped (rule 5 single-param)
+        ("/api_<version>", "/{version}"),
+        # Catch-all `<path:name>` — slow path (rule 5 catch-all exception)
+        ("/files/<path:file_path>", "/files/{file_path}"),
+        ("/<path:tail>", "/{tail}"),
+        # Catch-all with static prefix in same segment — static discarded, name survives (rule 5)
+        ("/download/prefix-<path:tail>", "/download/{tail}"),
+        # Trailing slash on catch-all
+        ("/files/<path:fp>/", "/files/{fp}/"),
+        # `any()` converter — stripped to param name uniformly
+        ("/section/<any(v1,v2):section>", "/section/{section}"),
+        # Converter with `:` in args; backtracking in [^>]+ finds the correct split point.
+        ("/x/<custom_conv([a:b]+):slug>", "/x/{slug}"),
+        # Param named "path" with no converter: NOT a catch-all (no ``path:`` prefix), fast path.
+        ("/files/<path>", "/files/{path}"),
+    ],
+)
+def test_normalize_route_flask_happy_path(route, expected):
+    assert normalize_route_flask(route) == expected
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        None,
+        "",
+        "no-leading-slash",
+        "/double//slash",
+        "/<path:tail>/and-after",  # non-terminal catch-all: rule 5 violation → omit tag
+    ],
+)
+def test_normalize_route_flask_returns_none_on_invalid(route):
+    assert normalize_route_flask(route) is None
+
+
+def test_normalize_route_flask_path_params_accepted_but_unused():
+    # Flask has no optional path elements; path_params is accepted for API parity only.
+    assert normalize_route_flask("/users/<int:id>", {"id": 42}) == "/users/{id}"
+    assert normalize_route_flask("/users/<int:id>", None) == "/users/{id}"
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Fast path: single simple-converter param per segment
+        ("/asm/<int:param_int>/<string:param_str>/", "/asm/{param_int}/{param_str}/"),
+        ("/users/<string:name>/", "/users/{name}/"),
+        ("/login/", "/login/"),
+        ("/login", "/login"),
+        ("/", "/"),
+        # Param named "path" with no converter: NOT a catch-all → fast path
+        ("/files/<path>", "/files/{path}"),
+    ],
+)
+def test_normalize_route_flask_fast_path(route, expected):
+    from ddtrace.appsec._api_security._normalized_route import _FLASK_FAST_PATH_REGEX
+    from ddtrace.appsec._api_security._normalized_route import _normalize_route_flask_cached
+
+    assert _FLASK_FAST_PATH_REGEX.match(route), f"expected fast path for {route!r}"
+    assert _normalize_route_flask_cached(route) == expected
+    # Public entry point must produce the same result (validates input-validation + cache wiring).
+    assert normalize_route_flask(route) == expected
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        "/multi-param/<first>.<last>/",  # multi-param segment
+        "/files/<path:file_path>",  # path catch-all
+        "/section/<any(v1,v2):section>",  # any() converter
+        "/api_<version>",  # static prefix + param
+    ],
+)
+def test_normalize_route_flask_fast_path_skips_non_eligible_shapes(route):
+    from ddtrace.appsec._api_security._normalized_route import _FLASK_FAST_PATH_REGEX
+
+    assert not _FLASK_FAST_PATH_REGEX.match(route), f"expected slow path for {route!r}"
+
+
+def test_normalize_route_flask_dm_assembly_via_handler():
+    """Handler reads flask.resource.full (set by DispatcherMiddleware sub-apps) to assemble the full route."""
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.appsec._constants import API_SECURITY
+    from ddtrace.appsec._handlers import _on_set_http_meta_for_normalized_route
+    from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+    from tests.utils import override_global_config
+
+    span = MagicMock()
+    # Simulate sub-app: url_rule.rule = "/<int:id>", script_root = "/asm"
+    # => FLASK_RESOURCE_FULL = "GET /asm/<int:id>"
+    span.get_tag.side_effect = lambda t: "GET /asm/<int:id>" if t == FLASK_RESOURCE_FULL else None
+    span._set_attribute = MagicMock()
+
+    asm_ctx = MagicMock()
+    asm_ctx.normalized_route_emitted = False
+
+    with (
+        override_global_config(dict(_asm_enabled=True, _api_security_enabled=True)),
+        patch("ddtrace.appsec._handlers.get_active_asm_context", return_value=asm_ctx),
+        patch("ddtrace.appsec._handlers.core.find_item") as mock_find,
+    ):
+        integration_config = MagicMock()
+        integration_config.integration_name = "flask"
+        mock_find.return_value = integration_config
+
+        _on_set_http_meta_for_normalized_route(
+            span=span,
+            request_ip=None,
+            raw_uri=None,
+            route="/<int:id>",  # sub-app-local route (no script_root prefix)
+            method="GET",
+            request_headers=None,
+            request_cookies=None,
+            parsed_query=None,
+            request_path_params=None,
+            request_body=None,
+            status_code=None,
+            response_headers=None,
+            response_cookies=None,
+        )
+
+    span._set_attribute.assert_called_once_with(API_SECURITY.NORMALIZED_ROUTE, "/asm/{id}")
 
 
 @pytest.mark.parametrize(

@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    ASM: Extends ``_dd.appsec.normalized_route`` span tag support to Flask request
+    spans when API Security is enabled. Flask / Werkzeug ``<converter:name>`` route
+    syntax is normalized following RFC-1103: converter types are stripped, multi-parameter
+    URL segments (e.g. ``/<first>.<last>/``) are combined with ``+``, ``<path:name>``
+    catch-all parameters are emitted as a single tail element, and trailing slashes
+    are preserved as declared. Routes served through ``DispatcherMiddleware`` sub-apps
+    are reported with their full assembled path (mount prefix included).
