@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
@@ -426,3 +427,56 @@ class TestPromptManagement:
 
         assert LLMObs._prompt_manager is None
         assert LLMObs._ensure_prompt_manager()._app_key == "new-app-key"
+
+    def test_refresh_prompt_requires_api_key(self):
+        manager = _make_manager()
+        manager._headers["DD-API-KEY"] = ""
+        with pytest.raises(PromptAuthError):
+            manager.refresh_prompt("greeting")
+
+    def test_hot_evict_does_not_over_evict_colon_prefixed_ids(self):
+        """evict_prompt('foo') must not drop a different prompt 'foo:bar' that shares the key prefix."""
+        manager = _make_manager()
+        manager._hot_cache.set(
+            "foo:production",
+            ManagedPrompt(id="foo", version="v1", label="production", source="registry", template=[]),
+        )
+        manager._hot_cache.set(
+            "foo:bar:production",
+            ManagedPrompt(id="foo:bar", version="v1", label="production", source="registry", template=[]),
+        )
+        assert len(manager._hot_cache) == 2
+
+        manager._evict_prompt_caches("foo")
+
+        assert manager._hot_cache.get("foo:production") is None
+        assert manager._hot_cache.get("foo:bar:production") is not None
+
+    def test_warm_cache_distinct_ids_do_not_collide_on_path(self, tmp_path):
+        """Regression: 'a/b' and 'a_b' must not share a cache file (lossy sanitization served wrong prompts)."""
+        cache = WarmCache(cache_dir=str(tmp_path), ttl_seconds=60)
+        cache.set("a/b:", ManagedPrompt(id="a/b", version="v1", label=None, source="registry", template=[]))
+        cache.set("a_b:", ManagedPrompt(id="a_b", version="v2", label=None, source="registry", template=[]))
+
+        assert cache.get("a/b:")[0].id == "a/b"
+        assert cache.get("a_b:")[0].id == "a_b"
+
+    @pytest.mark.parametrize("call", [lambda m: m.update_prompt("p1"), lambda m: m.update_prompt_version("p1", 1)])
+    def test_update_requires_a_field(self, call):
+        with pytest.raises(PromptValidationError) as exc_info:
+            call(_make_manager())
+        assert exc_info.value.status == 0
+
+    @pytest.mark.parametrize(
+        "body,expected",
+        [("", {}), ("not json{", PromptServerError)],
+    )
+    def test_request_2xx_body_handling(self, body, expected):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, body)
+        with mock_patch:
+            if isinstance(expected, type) and issubclass(expected, Exception):
+                with pytest.raises(expected):
+                    manager.list_prompts()
+            else:
+                assert manager.delete_prompt("p1") == expected

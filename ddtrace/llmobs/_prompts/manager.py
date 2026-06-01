@@ -136,6 +136,8 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
+        if not self._headers.get("DD-API-KEY"):
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
         key = cache_key(prompt_id, label)
         prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
         return prompt

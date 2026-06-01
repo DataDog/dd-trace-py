@@ -1818,8 +1818,10 @@ class LLMObs(Service):
             hot: If True, clear the hot (in-memory) cache. Defaults to True.
             warm: If True, clear the warm (file-based) cache. Defaults to True.
         """
-        if cls._prompt_manager is not None:
-            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+        if manager is not None:
+            manager.clear_cache(hot=hot, warm=warm)
         elif warm:
             # Clear file cache even if manager is not initialized
             cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")

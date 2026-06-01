@@ -8,6 +8,7 @@ from time import time
 from typing import Any
 from typing import Optional
 from typing import Union
+from urllib.parse import quote
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
@@ -79,9 +80,10 @@ class HotCache:
             self._cache.clear()
 
     def evict_prompt(self, prompt_id: str) -> None:
-        prefix = f"{prompt_id}:"
+        # Keys are f"{prompt_id}:{label}"; rsplit recovers the exact prompt_id
+        # (prompt_id may contain colons, label never does), avoiding over-eviction.
         with self._lock:
-            keys_to_remove = [k for k in self._cache if k.startswith(prefix)]
+            keys_to_remove = [k for k in self._cache if k.rsplit(":", 1)[0] == prompt_id]
             for k in keys_to_remove:
                 del self._cache[k]
 
@@ -135,14 +137,15 @@ class WarmCache:
             log.warning("Failed to create prompt cache directory: %s", e)
             self._enabled = False
 
+    def _safe_dir(self, prompt_id: str) -> Path:
+        return self._cache_dir / quote(prompt_id, safe="")
+
     def _key_to_path(self, key: str) -> Path:
-        # rsplit to handle prompt_ids containing colons (label never contains colons)
-        parts = key.rsplit(":", 1)
-        prompt_id = parts[0]
-        label = parts[1] if len(parts) > 1 and parts[1] else ""
-        safe_id = prompt_id.replace("/", "_").replace("\\", "_")
-        safe_label = label.replace("/", "_").replace("\\", "_") if label else "_default"
-        return self._cache_dir / safe_id / f"{safe_label}.json"
+        # cache_key() = f"{prompt_id}:{label or ''}"; label never contains ':'.
+        # quote() is injective (unlike replace), so distinct keys never collide on a path.
+        prompt_id, _, label = key.rpartition(":")
+        filename = quote(label, safe="") if label else "_default"
+        return self._safe_dir(prompt_id) / f"{filename}.json"
 
     def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
         """Load a prompt from file cache.
@@ -199,10 +202,8 @@ class WarmCache:
     def evict_prompt(self, prompt_id: str) -> None:
         if not self._enabled or not self._cache_dir:
             return
-        safe_id = prompt_id.replace("/", "_").replace("\\", "_")
-        prompt_dir = self._cache_dir / safe_id
         with self._lock:
-            shutil.rmtree(prompt_dir, ignore_errors=True)
+            shutil.rmtree(self._safe_dir(prompt_id), ignore_errors=True)
 
     def clear(self) -> None:
         """Clear all cached prompts."""
