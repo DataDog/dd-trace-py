@@ -18,10 +18,8 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr,
     auto it = call_sites.find(key);
     if (it == call_sites.end()) {
         if (call_sites.size() >= max_call_sites) {
-            call_sites.erase(insertion_order.front());
-            insertion_order.pop_front();
+            return;
         }
-        insertion_order.push_back(key);
         call_sites.emplace(key, NativeCallEntry{ std::move(name), std::move(module) });
     }
 }
