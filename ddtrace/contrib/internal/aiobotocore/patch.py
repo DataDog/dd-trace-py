@@ -187,15 +187,16 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        # Register the before-sign handler on this client, then suppress the
-        # aiohttp-layer injection — but ONLY if registration succeeded. aiobotocore
+        # Suppress the aiohttp-layer injection for this AWS call (aiobotocore
         # sends through aiohttp, whose subscriber would otherwise re-inject AFTER
-        # SigV4 signing and break strict-signature endpoints. If registration
-        # failed the handler can't inject, so we must NOT suppress — let aiohttp
-        # inject as a fallback rather than drop propagation entirely. Mirrors
-        # botocore.patched_api_call.
+        # SigV4 signing and break strict-signature endpoints). Same three cases as
+        # botocore.patched_api_call: distributed_tracing off -> suppress (opt-out,
+        # no headers anywhere); on + handler registered -> suppress; on +
+        # registration failed -> do NOT suppress, fall back to aiohttp injection.
         token = None
-        if _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
+        if not config.botocore["distributed_tracing"]:
+            token = _http_propagation_suppressed.set(True)
+        elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
             token = _http_propagation_suppressed.set(True)
         try:
             result = await original_func(*args, **kwargs)

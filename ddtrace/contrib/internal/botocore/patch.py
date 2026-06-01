@@ -321,19 +321,20 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
 
-    # Register the before-sign handler on this client (covers clients built
-    # before patch()), then suppress the urllib3-layer injection — but ONLY if
-    # registration succeeded. With the handler in place it has already injected
-    # pre-signing, so urllib3 must not re-inject post-signing. distributed_tracing
-    # is honored inside the handler (it bails when off); suppression stays
-    # unconditional here so that with the flag off no headers go out at any layer
-    # (gating suppression on the flag would instead let urllib3 inject). If
-    # registration failed, the handler can't inject, so we must NOT suppress —
-    # let urllib3 inject as a fallback rather than drop propagation at every
-    # layer. Setting True only on this path (with the reset) keeps the contextvar
-    # owned here, so early-return paths can't leak suppression.
+    # Suppress the urllib3-layer injection for this AWS call so trace headers are
+    # not injected post-signing. Three cases:
+    #   - distributed_tracing off: opt-out — suppress so no headers go out at any
+    #     layer (skip registering the handler, which would no-op anyway).
+    #   - on + handler registered: it injected pre-signing, so urllib3 must not
+    #     re-inject post-signing.
+    #   - on + registration failed: the handler can't inject, so do NOT suppress;
+    #     let urllib3 inject as a fallback rather than drop propagation entirely.
+    # Suppression is set/reset only on this path, so the contextvar stays owned
+    # here and early-return paths can't leak it.
     token = None
-    if _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
+    if not config.botocore["distributed_tracing"]:
+        token = _http_propagation_suppressed.set(True)
+    elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
         token = _http_propagation_suppressed.set(True)
     try:
         return patching_fn(

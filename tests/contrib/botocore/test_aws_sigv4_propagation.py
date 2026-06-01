@@ -640,6 +640,47 @@ def test_no_suppression_when_handler_registration_fails(s3_client):
     )
 
 
+def test_distributed_tracing_disabled_suppresses_even_if_registration_fails(s3_client):
+    """Opt-out edge: with DD_BOTOCORE_DISTRIBUTED_TRACING=false, urllib3 must be
+    suppressed regardless of whether handler registration succeeds.
+
+    The registration-failure fallback (don't suppress, let urllib3 inject) is
+    correct only when distributed_tracing is ON. When it is OFF, suppression must
+    stay on so no headers leak post-signing — otherwise dt=off + a failed
+    registration would pass headers via urllib3, the exact opt-out leak.
+    """
+    from ddtrace import config
+    from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
+    import ddtrace.contrib.internal.botocore.patch as bp
+
+    seen = {}
+
+    def before_send(request, **kwargs):
+        seen["suppressed"] = _http_propagation_suppressed.get()
+        raise _StopBeforeWire()
+
+    s3_client.meta.events.register_first("before-send.s3.ListBuckets", before_send)
+
+    original_reg = bp._ensure_before_sign_handler
+    original_dt = config.botocore["distributed_tracing"]
+    bp._ensure_before_sign_handler = lambda client, handler: False  # force registration failure
+    config.botocore["distributed_tracing"] = False
+    try:
+        with ddtrace.tracer.trace("test.list_buckets"):
+            try:
+                s3_client.list_buckets()
+            except _StopBeforeWire:
+                pass
+    finally:
+        bp._ensure_before_sign_handler = original_reg
+        config.botocore["distributed_tracing"] = original_dt
+
+    assert seen.get("suppressed") is True, (
+        "urllib3 injection was NOT suppressed with distributed_tracing off and registration failed — "
+        "headers would leak post-signing despite the opt-out"
+    )
+
+
 def test_pin_disabled_does_not_set_suppression(s3_client):
     """Suppression-placement guard: `_http_propagation_suppressed` is set only
     on the full traced path, AFTER the pin.enabled() early-return.
