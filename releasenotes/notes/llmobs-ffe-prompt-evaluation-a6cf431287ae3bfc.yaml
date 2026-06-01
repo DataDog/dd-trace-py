@@ -2,7 +2,10 @@
 features:
   - |
     LLMObs: ``LLMObs.get_prompt()`` now resolves prompts locally via the Feature Flags platform
-    when ``DD_ENV`` is set, enabling sub-millisecond evaluation and A/B testing.
+    when ``DD_ENV`` is set, enabling local evaluation and A/B testing.
     The HTTP path remains as fallback and for label-based resolution.
     The signature is now keyword-only after ``prompt_id`` and accepts ``targeting_key``
     and ``**attributes`` for sticky bucketing and multi-attribute targeting.
+    The Feature Flags path requires the optional ``openfeature`` extra
+    (``pip install ddtrace[openfeature]``) and ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true``;
+    without the extra the HTTP path is used unchanged.

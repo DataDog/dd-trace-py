@@ -3527,6 +3527,9 @@ venv = Venv(
                         "pytest-xdist": latest,
                         "langchain": latest,
                         "pandas": latest,
+                        # openfeature-sdk is an optional dependency (ddtrace[openfeature]) gating the
+                        # FFE prompt path; the FFE tests in test_prompts.py need it installed.
+                        "openfeature-sdk": ">=0.8,<1",
                     },
                     venvs=[
                         Venv(
