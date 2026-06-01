@@ -1,6 +1,0 @@
-features:
-  - |
-    LLM Observability: Add support for injecting custom HTTP headers into LLMObs writer
-    requests via the ``_DD_LLMOBS_WRITER_ADDITIONAL_HEADERS`` environment variable.
-    Use the format ``Key:Value,Key2:Value2``. This is useful for routing LLMObs data
-    through reverse proxies that require custom authentication headers.
