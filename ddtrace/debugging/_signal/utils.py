@@ -255,24 +255,59 @@ def capture_value(
             }
 
         collection: Optional[list[Any]] = None
+        concurrent_modification = False
         if _type in BUILTIN_MAPPING_TYPES:
-            # Mapping — snapshot items to avoid RuntimeError if another thread
-            # mutates the dict concurrently.
+            size = len(value)
+            # For small mappings, use dict.copy() which is atomic under the GIL.
+            # For large ones, only snapshot up to maxsize to avoid materializing
+            # the whole collection when most of it would be discarded anyway.
+            items_snapshot: Any = value.copy().items() if size <= maxsize else islice(value.items(), maxsize)
             try:
-                items_snapshot: Any = tuple(value.items())
+                collection = [
+                    (
+                        capture_value(
+                            k,
+                            level=level - 1,
+                            maxlen=maxlen,
+                            maxsize=maxsize,
+                            maxfields=maxfields,
+                            stopping_cond=cond,
+                        ),
+                        capture_value(
+                            v,
+                            level=level - 1,
+                            maxlen=maxlen,
+                            maxsize=maxsize,
+                            maxfields=maxfields,
+                            stopping_cond=cond,
+                        )
+                        if not (_isinstance(k, (str, bytes)) and redact(k))
+                        else redacted_value(v),
+                    )
+                    for k, v in takewhile(lambda _: not cond(_), items_snapshot)
+                ]
             except RuntimeError:
-                items_snapshot = ()
-            size = len(items_snapshot)
-            collection = [
-                (
-                    capture_value(
-                        k,
-                        level=level - 1,
-                        maxlen=maxlen,
-                        maxsize=maxsize,
-                        maxfields=maxfields,
-                        stopping_cond=cond,
-                    ),
+                collection = []
+                concurrent_modification = True
+            data = {
+                "type": qualname(_type),
+                "entries": collection,
+                "size": size,
+            }
+
+        else:
+            size = len(value)
+            # Immutable types (tuple, frozenset) are safe to iterate directly.
+            # Mutable types use .copy() for an atomic GIL-protected snapshot on
+            # the small path. For large collections only snapshot up to maxsize
+            # to avoid materializing the whole collection when most of it would
+            # be discarded anyway.
+            if size <= maxsize:
+                value_snapshot: Any = value if _type in {tuple, frozenset} else value.copy()
+            else:
+                value_snapshot = islice(value, maxsize)
+            try:
+                collection = [
                     capture_value(
                         v,
                         level=level - 1,
@@ -281,43 +316,20 @@ def capture_value(
                         maxfields=maxfields,
                         stopping_cond=cond,
                     )
-                    if not (_isinstance(k, (str, bytes)) and redact(k))
-                    else redacted_value(v),
-                )
-                for k, v in takewhile(lambda _: not cond(_), islice(items_snapshot, maxsize))
-            ]
-            data = {
-                "type": qualname(_type),
-                "entries": collection,
-                "size": size,
-            }
-
-        else:
-            # Sequence — snapshot before iterating to avoid RuntimeError if
-            # another thread mutates the collection (e.g. a deque) concurrently.
-            try:
-                value_snapshot: Any = tuple(value)
+                    for v in takewhile(lambda _: not cond(_), value_snapshot)
+                ]
             except RuntimeError:
-                value_snapshot = ()
-            size = len(value_snapshot)
-            collection = [
-                capture_value(
-                    v,
-                    level=level - 1,
-                    maxlen=maxlen,
-                    maxsize=maxsize,
-                    maxfields=maxfields,
-                    stopping_cond=cond,
-                )
-                for v in takewhile(lambda _: not cond(_), islice(value_snapshot, maxsize))
-            ]
+                collection = []
+                concurrent_modification = True
             data = {
                 "type": qualname(_type),
                 "elements": collection,
                 "size": size,
             }
 
-        if len(collection) < min(maxsize, size):
+        if concurrent_modification:
+            data["notCapturedReason"] = "concurrentModification"
+        elif len(collection) < min(maxsize, size):
             data["notCapturedReason"] = cond.__name__
         elif size > maxsize:
             data["notCapturedReason"] = "collectionSize"
