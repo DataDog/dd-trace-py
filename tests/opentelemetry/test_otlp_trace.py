@@ -94,6 +94,8 @@ def test_otlp_trace_metrics_exported_via_http():
     with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
         port = server.server_address[1]
         os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}"
+        # Route traces to the mock server too so the native writer doesn't log send failures.
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
 
         t = threading.Thread(target=server.serve_forever)
         t.daemon = True
@@ -105,13 +107,19 @@ def test_otlp_trace_metrics_exported_via_http():
         with tracer.trace("test-span", service="test-svc"):
             pass
 
+        tracer.flush()
         proc = next(p for p in tracer._span_processors if isinstance(p, OtlpSpanStatsProcessor))
         proc.periodic()
         server.shutdown()
 
-    assert not received.empty(), "No OTLP metrics payload received by mock server"
-    path, content_type, body = received.get_nowait()
-    assert path == "/v1/metrics", f"Unexpected path: {path}"
+    metrics_payloads = []
+    while not received.empty():
+        path, content_type, body = received.get_nowait()
+        if path == "/v1/metrics":
+            metrics_payloads.append((content_type, body))
+
+    assert metrics_payloads, "No OTLP metrics payload received by mock server"
+    content_type, body = metrics_payloads[0]
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
     metric = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]
