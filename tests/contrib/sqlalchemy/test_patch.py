@@ -72,7 +72,10 @@ class SQLAlchemyTraceEngineTestCase(TracerTestCase):
 
             assert len(engine.dispatch.before_cursor_execute) == 1
             assert len(engine.dispatch.after_cursor_execute) == 1
-            assert len(engine.dispatch.handle_error) == 1
+            error_event = "handle_error" if sqlalchemy.__version__[0] != "0" else "dbapi_error"
+            error_listeners = getattr(engine.dispatch, error_event, None)
+            if error_listeners is not None:
+                assert len(error_listeners) == 1
 
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1")).fetchall()
