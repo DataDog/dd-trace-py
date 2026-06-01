@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    AAP: Adds the normalized HTTP route span tag (``_dd.appsec.normalized_route``) for Tornado,
+    following RFC-1103 and the existing FastAPI, Starlette, Django, and Flask implementations.
+    The tag is emitted on every request span that already carries ``http.route`` when the API
+    Security feature is active. Tornado routes using named capturing groups (``(?P<name>...)``)
+    produce named parameters (e.g. ``/users/{id}``); positional groups produce auto-numbered
+    placeholders (e.g. ``{param1}``). Optional trailing-slash patterns (``/?``) are treated as
+    not declaring a trailing slash per RFC-1103 rule 1.

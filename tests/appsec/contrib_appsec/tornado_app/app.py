@@ -204,6 +204,18 @@ class StreamHandler(BaseHandler):
             await self.flush()
 
 
+class MultiParamHandler(BaseHandler):
+    async def get(self, first: str, last: str) -> None:
+        self.set_header("Content-Type", "text/html")
+        self.write(f"ok {first} {last}")
+
+
+class FilesHandler(BaseHandler):
+    async def get(self, file_path: str) -> None:
+        self.set_header("Content-Type", "text/html")
+        self.write(f"ok {file_path}")
+
+
 class RaspHandler(BaseHandler):
     async def _handle(self, endpoint: str) -> None:
         query_params = self._query_params()
@@ -590,11 +602,16 @@ def get_app() -> tornado.web.Application:
     app = tornado.web.Application(
         [
             (r"/", HomeHandler),
-            (r"/asm/(\d+)/([^/]+)/?", AsmHandler),
+            # Named groups so path_params arrives as a dict with proper parameter names.
+            (r"/asm/(?P<param_int>\d+)/(?P<param_str>[^/]+)/?", AsmHandler),
             (r"/asm/?", AsmNoParamHandler),
             (r"/new_service/(?P<service_name>[^/]+)/?", NewServiceHandler, {"app": None}),
             (r"/stream/?", StreamHandler),
             (r"/rasp/(?P<endpoint>[^/]+)/?", RaspHandler),
+            # Multi-param segment: two named groups share a single URL segment (rule 5 combining).
+            (r"/multi-param/(?P<first>[^./]+)\.(?P<last>[^/]+)/?", MultiParamHandler),
+            # Catch-all: named group matches across slashes (rule 5 catch-all exception).
+            (r"/files/(?P<file_path>.*)", FilesHandler),
             (r"/redirect/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHandler),
             (r"/redirect_requests/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectRequestsHandler),
             (r"/redirect_httpx/(?P<route>[^/]+)/(?P<port>\d+)/?", RedirectHttpxHandler),

@@ -1,9 +1,11 @@
 import pytest
 from tornado.testing import AsyncHTTPTestCase
 
+from ddtrace.appsec import _constants as asm_constants
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.appsec.contrib_appsec.tornado_app.app import get_app as tornado_get_app
+from tests.utils import override_global_config
 from tests.utils import scoped_tracer
 
 
@@ -97,6 +99,8 @@ class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
         "/login/?",
         "/login_sdk/?",
         "/rasp/%s/?",
+        "/multi-param/%s.%s/?",
+        "/files/%s",
     }
 
     @staticmethod
@@ -107,6 +111,42 @@ class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
         if path.endswith("/?"):
             path = path[:-2]
         return path if path.startswith("/") else ("/" + path)
+
+    # Tornado's routes use ``/?`` for optional trailing slash, which per RFC-1103 rule 1 is NOT
+    # "declared with a trailing slash". The normalizer strips ``/?`` and emits no trailing slash
+    # even when the request URL had one. Hence the expected values differ from other frameworks.
+    @pytest.mark.parametrize("asm_enabled", [True, False])
+    @pytest.mark.parametrize(
+        ("uri", "expected"),
+        [
+            # ``/?`` route: optional slash is not declared → no trailing slash in normalized form.
+            ("/asm/137/abc/", "/asm/{param_int}/{param_str}"),
+            ("/asm/137/abc", "/asm/{param_int}/{param_str}"),
+            ("/", "/"),
+            # Multi-param segment: two named groups combined with ``+`` (rule 5). ``/?`` → no trailing slash.
+            ("/multi-param/john.doe/", "/multi-param/{first+last}"),
+            # Catch-all: single ``%s`` spanning multiple URL segments (rule 5 catch-all exception).
+            ("/files/some/deep/path", "/files/{file_path}"),
+        ],
+    )
+    def test_normalized_route(self, interface: utils.Interface, get_entry_span_tag, asm_enabled, uri, expected):
+        with override_global_config(dict(_asm_enabled=asm_enabled)):
+            self.update_tracer(interface)
+            response = interface.client.get(uri)
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            if asm_enabled:
+                assert tag == expected, f"normalized_route tag mismatch: {tag!r} != {expected!r}"
+            else:
+                assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
+
+    def test_normalized_route_disabled_when_api_security_off(self, interface: utils.Interface, get_entry_span_tag):
+        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=False)):
+            self.update_tracer(interface)
+            response = interface.client.get("/asm/137/abc/")
+            assert self.status(response) == 200
+            tag = get_entry_span_tag(asm_constants.API_SECURITY.NORMALIZED_ROUTE)
+            assert tag is None, f"normalized_route should be unset when API Security is disabled, got {tag!r}"
 
 
 class Test_Tornado_RC(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats_RC):
