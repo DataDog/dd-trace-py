@@ -88,7 +88,7 @@ variables:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
-    CI_PROJECT_DIR: "dd-trace-py"
+    CI_PROJECT_DIR: "/go/src/github.com/DataDog/apm-reliability/dd-trace-py"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
@@ -163,7 +163,7 @@ candidate:
       artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
-    echo "CANDIDATE_WHL=/app/benchmarks/$(ls *.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
