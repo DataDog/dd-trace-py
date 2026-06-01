@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -510,6 +510,23 @@ class ProfilingConfigHeap(DDConfig):
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
+class ProfilingConfigMemalloc(DDConfig):
+    __item__ = __prefix__ = "memalloc"
+
+    code_cache_size = DDConfig.v(
+        int,
+        "code_cache_size",
+        default=1024,
+        validator=validators.range(64, 1 << 20),
+        help_type="Integer",
+        help=(
+            "Capacity of the PyCodeObject→function_id cache used by the heap profiler's "
+            "frame-walk path. Must be between 64 and 1048576 (1M). "
+            "The effective capacity is rounded up to the nearest multiple of 4."
+        ),
+    )
+
+
 def _validate_non_negative_int(value: int) -> None:
     if value < 0:
         raise ValueError("value must be non negative")
@@ -588,6 +605,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigMemalloc, namespace="memalloc")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 

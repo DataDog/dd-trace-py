@@ -97,12 +97,11 @@ class CodeFunctionCache
     static uint8_t clear_way_used(uint8_t mask, size_t way) { return mask & static_cast<uint8_t>(~(1u << way)); }
 };
 
-/* Public API for the heap profiler. Init reads
- * DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE from the environment and creates
- * the singleton; deinit destroys it. Both are idempotent and safe to call
- * on an unused-state. */
+/* Public API for the heap profiler.
+ * memalloc_code_cache_init creates the singleton with the given capacity;
+ * deinit destroys it. Both are idempotent and safe to call on an unused state. */
 bool
-memalloc_code_cache_init();
+memalloc_code_cache_init(size_t capacity);
 void
 memalloc_code_cache_deinit();
 void
