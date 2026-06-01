@@ -260,7 +260,7 @@ memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
 #endif // _PY312_AND_LATER
 
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, heap_sample_interval, mem_domain_enabled)\n"
+             "start($module, max_nframe, heap_sample_interval, mem_domain_enabled, code_cache_size)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
@@ -277,7 +277,9 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "overhead on hot paths (list/dict resize, buffer growth) and can\n"
              "extend the time threads hold Python locks that allocate inside\n"
              "critical sections. Enable it when you need visibility into\n"
-             "PyMem_*-only allocations that the OBJ hook does not capture.\n");
+             "PyMem_*-only allocations that the OBJ hook does not capture.\n"
+             "code_cache_size sets the capacity of the PyCodeObject->function_id\n"
+             "cache used during frame walks; see DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -314,9 +316,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     long max_nframe;
     long long int heap_sample_size;
     int enable_mem_domain;
+    unsigned long long code_cache_size;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lLp", &max_nframe, &heap_sample_size, &enable_mem_domain)) {
+    if (!PyArg_ParseTuple(args, "lLpK", &max_nframe, &heap_sample_size, &enable_mem_domain, &code_cache_size)) {
         // Don't set an error string, ParseTuple will set it to a TypeError already.
         return nullptr;
     }
@@ -333,7 +336,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size, (size_t)code_cache_size)) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
         return nullptr;
     }
@@ -538,15 +541,19 @@ memalloc_code_cache_disable(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg
 }
 
 PyDoc_STRVAR(memalloc_code_cache_enable__doc__,
-             "code_cache_enable($module, /)\n"
+             "code_cache_enable($module, capacity=1024, /)\n"
              "--\n"
              "\n"
-             "(Re-)create the singleton cache, reading capacity from "
-             "DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE. No-op if already enabled.\n");
+             "(Re-)create the singleton cache with the given capacity. No-op if already\n"
+             "enabled. For tests and A/B microbenches only; normal startup uses start().\n");
 static PyObject*
-memalloc_code_cache_enable(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+memalloc_code_cache_enable(PyObject* Py_UNUSED(module), PyObject* args)
 {
-    Datadog::memalloc_code_cache_init();
+    unsigned long long capacity = Datadog::CodeFunctionCache::DEFAULT_CAPACITY;
+    if (!PyArg_ParseTuple(args, "|K", &capacity)) {
+        return nullptr;
+    }
+    Datadog::memalloc_code_cache_init((size_t)capacity);
     Py_RETURN_NONE;
 }
 
@@ -564,7 +571,7 @@ static PyMethodDef module_methods[] = {
       METH_NOARGS,
       memalloc_code_cache_reset_counters__doc__ },
     { "code_cache_disable", (PyCFunction)memalloc_code_cache_disable, METH_NOARGS, memalloc_code_cache_disable__doc__ },
-    { "code_cache_enable", (PyCFunction)memalloc_code_cache_enable, METH_NOARGS, memalloc_code_cache_enable__doc__ },
+    { "code_cache_enable", (PyCFunction)memalloc_code_cache_enable, METH_VARARGS, memalloc_code_cache_enable__doc__ },
     /* sentinel */
     { NULL, NULL, 0, NULL }
 };

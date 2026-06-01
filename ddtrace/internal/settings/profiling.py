@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -55,7 +55,7 @@ def _derive_default_heap_sample_size(
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _check_for_ddup_available():
+def _check_for_ddup_available() -> tuple:  # type: ignore[type-arg]
     # NB: importing ddup module results in importing _ddup.so file which could
     # raise an Exception within the ddup module, but we catch it there and
     # we don't propagate up to here. And regardless of whether ddup is available,
@@ -65,7 +65,7 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_available():
+def _check_for_stack_available() -> tuple:  # type: ignore[type-arg]
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
 
@@ -90,7 +90,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
-def _update_git_metadata_tags(tags):
+def _update_git_metadata_tags(tags: dict) -> dict:  # type: ignore[type-arg]
     """
     Update profiler tags with git metadata
     """
@@ -106,7 +106,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags: dict) -> dict[str, str]:  # type: ignore[type-arg]
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -465,6 +465,23 @@ class ProfilingConfigHeap(DDConfig):
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
+class ProfilingConfigMemalloc(DDConfig):
+    __item__ = __prefix__ = "memalloc"
+
+    code_cache_size = DDConfig.v(
+        int,
+        "code_cache_size",
+        default=1024,
+        validator=validators.range(64, 1 << 20),
+        help_type="Integer",
+        help=(
+            "Capacity of the PyCodeObject→function_id cache used by the heap profiler's "
+            "frame-walk path. Must be between 64 and 1048576 (1M). "
+            "The effective capacity is rounded up to the nearest multiple of 4."
+        ),
+    )
+
+
 def _validate_non_negative_int(value: int) -> None:
     if value < 0:
         raise ValueError("value must be non negative")
@@ -534,6 +551,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigMemalloc, namespace="memalloc")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -571,7 +589,7 @@ if not stack_is_available:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config) -> str:
+def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
         # NOTE: This is intentionally left as stack_v2, to have an easy way

@@ -22,6 +22,7 @@ class ProfilingConfig(DDConfig):
     lock: ProfilingConfigLock
     memory: ProfilingConfigMemory
     heap: ProfilingConfigHeap
+    memalloc: ProfilingConfigMemalloc
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
 
@@ -48,6 +49,9 @@ class ProfilingConfigHeap(DDConfig):
     enabled: bool
     _sample_size: Optional[int]
     sample_size: int
+
+class ProfilingConfigMemalloc(DDConfig):
+    code_cache_size: int
 
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool

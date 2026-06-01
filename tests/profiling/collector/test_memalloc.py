@@ -19,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -794,7 +794,7 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, 1024)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
         # memalloc frame serialization. The test passes if the subprocess
@@ -812,7 +812,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512, False)
+    _memalloc.start(32, 512, False, 1024)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -976,41 +976,41 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512, False)
+    _memalloc.start(64, 512, False, 1024)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512, False)
+        _memalloc.start(64, 512, False, 1024)
     _memalloc.stop()
 
 
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
+    with pytest.raises(TypeError, match="function takes exactly 4 arguments \\(1 given\\)"):
         _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1, False)
+        _memalloc.start(429496, 1, False, 1024)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1, False)
+        _memalloc.start(-1, 1, False, 1024)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1, False)
+        _memalloc.start(64, -1, False, 1024)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876, False)
+        _memalloc.start(64, 345678909876, False, 1024)
 
 
 def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1, False)
+    _memalloc.start(1, 1, False, 1024)
     _memalloc.stop()
 
 
@@ -1018,7 +1018,7 @@ def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024, False)
+    _memalloc.start(64, 1024, False, 1024)
     try:
         x: list[object] = []
 
@@ -1229,7 +1229,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, 1024)
 
     stop = threading.Event()
     shared: dict[str, object] = {}

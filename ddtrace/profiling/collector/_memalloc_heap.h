@@ -10,7 +10,7 @@
 #define MAX_HEAP_SAMPLE_SIZE UINT32_MAX
 
 [[nodiscard]] bool
-memalloc_heap_tracker_init_no_cpython(uint32_t sample_size);
+memalloc_heap_tracker_init_no_cpython(uint32_t sample_size, size_t code_cache_capacity);
 void
 memalloc_heap_tracker_deinit_no_cpython(void);
 
