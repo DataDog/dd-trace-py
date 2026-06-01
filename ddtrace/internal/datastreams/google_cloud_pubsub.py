@@ -1,4 +1,5 @@
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
+from typing import Optional
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -14,11 +15,11 @@ log = get_logger(__name__)
 _PUBLISH_RESERVED_KWARGS = frozenset({"data", "ordering_key", "retry", "timeout"})
 
 
-def _extract_publish_attributes(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_publish_attributes(kwargs: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in kwargs.items() if k not in _PUBLISH_RESERVED_KWARGS}
 
 
-def dsm_pubsub_send(args: Tuple[Any, ...], kwargs: Dict[str, Any], span: Optional[Any]) -> None:
+def dsm_pubsub_send(args: tuple[Any, ...], kwargs: dict[str, Any], span: Optional[Any]) -> None:
     from . import data_streams_processor as processor
 
     topic = get_argument_value(args, kwargs, 0, "topic")
