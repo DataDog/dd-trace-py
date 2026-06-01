@@ -1126,12 +1126,8 @@ class TestSessionLifecycleMethods:
         mock_session.config = mock_config
 
         with (
-            patch(
-                "ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True
-            ) as mock_cov_check,
-            patch(
-                "ddtrace.testing.internal.pytest.plugin.deregister_monitoring"
-            ) as mock_deregister,
+            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True) as mock_cov_check,
+            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
         ):
             plugin.pytest_sessionstart(mock_session)
 
@@ -1157,12 +1153,8 @@ class TestSessionLifecycleMethods:
         mock_session.config = mock_config
 
         with (
-            patch(
-                "ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False
-            ),
-            patch(
-                "ddtrace.testing.internal.pytest.plugin.deregister_monitoring"
-            ) as mock_deregister,
+            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False),
+            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
         ):
             plugin.pytest_sessionstart(mock_session)
 
