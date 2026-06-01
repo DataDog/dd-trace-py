@@ -3201,21 +3201,26 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.9"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1"],
+                        # AIDEV-NOTE: pydantic-ai pulls pydantic-ai-slim with the `mistral` extra,
+                        # which requires `mistralai` from PyPI. The `mistralai` project is currently
+                        # quarantined on PyPI (no installable versions), so we depend on
+                        # `pydantic-ai-slim` directly with only the `openai` extra — the only
+                        # provider our pydantic_ai test suite exercises.
+                        "pydantic-ai-slim[openai]": ["==0.8.1"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==0.8.1", "==1.0.0"],
+                        "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai": ["==1.63.0"],
+                        "pydantic-ai-slim[openai]": ["==1.63.0"],
                     },
                 ),
             ],

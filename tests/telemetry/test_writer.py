@@ -364,7 +364,7 @@ import opentelemetry
         {"name": "DD_TRACE_HEALTH_METRICS_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "origin": "default", "value": "true"},
         {"name": "DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "origin": "default", "value": "500-599"},
-        {"name": "DD_TRACE_INFERRED_SPANS_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
         {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},

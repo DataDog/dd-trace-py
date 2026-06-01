@@ -10,6 +10,7 @@ from threading import Lock
 import types
 from types import FunctionType
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
 
 from ddtrace.appsec._patch_utils import get_caller_frame_info
@@ -36,6 +37,9 @@ _registry: Optional[InstrumentationRegistry] = None
 # operations so per-target locks are preserved.
 _instrumenter_instance: Optional[Instrumenter] = None
 _instrumenter_lock = Lock()
+_lazy_module_hooks: dict[str, Any] = {}
+_lazy_module_targets: dict[str, set[str]] = {}
+_lazy_hooks_lock = Lock()
 
 
 def _first_instr_line(code: types.CodeType) -> int:
@@ -81,10 +85,14 @@ def _get_caller_info() -> tuple[str, int, str]:
 
 def _reset_after_fork() -> None:
     """Reset module-level references after fork."""
-    global _registry, _instrumenter_instance, _instrumenter_lock
+    global _registry, _instrumenter_instance, _instrumenter_lock, _lazy_module_hooks, _lazy_module_targets
+    global _lazy_hooks_lock
     _registry = None
     _instrumenter_instance = None
     _instrumenter_lock = Lock()
+    _lazy_module_hooks = {}
+    _lazy_module_targets = {}
+    _lazy_hooks_lock = Lock()
 
 
 def set_registry(registry: InstrumentationRegistry) -> None:
@@ -302,19 +310,50 @@ def _register_lazy_hook(module_name: str, target_name: str) -> None:
         CRITICAL: Must not throw — runs inside Python's import machinery.
         An unhandled exception here would crash the customer's import statement.
         """
+        _instrument_lazy_targets(module_name)
+
+    with _lazy_hooks_lock:
+        _lazy_module_targets.setdefault(module_name, set()).add(target_name)
+        if module_name in _lazy_module_hooks:
+            return
+        _lazy_module_hooks[module_name] = _on_module_import
+    ModuleWatchdog.register_module_hook(module_name, _on_module_import)
+
+
+def _instrument_lazy_targets(module_name: str) -> None:
+    with _lazy_hooks_lock:
+        target_names = tuple(_lazy_module_targets.get(module_name, ()))
+
+    for target_name in target_names:
         try:
             from ddtrace.appsec.sca._registry import get_global_registry
 
             registry = get_global_registry()
-            if registry is None or registry.is_instrumented(target_name):
-                return
+            if registry.is_instrumented(target_name):
+                _unregister_lazy_target(module_name, target_name)
+                continue
             result = SymbolResolver.resolve(target_name)
             if result:
                 _, func = result
                 instrumenter = get_instrumenter(registry)
-                instrumenter.instrument(target_name, func)
+                if instrumenter.instrument(target_name, func):
+                    _unregister_lazy_target(module_name, target_name)
                 log.debug("Lazy-instrumented %s after module import", target_name)
         except Exception:
             log.debug("Failed lazy instrumentation for %s", target_name, exc_info=True)
 
-    ModuleWatchdog.register_module_hook(module_name, _on_module_import)
+
+def _unregister_lazy_target(module_name: str, target_name: str) -> None:
+    with _lazy_hooks_lock:
+        target_names = _lazy_module_targets.get(module_name)
+        if target_names is None:
+            return
+        target_names.discard(target_name)
+        if target_names:
+            return
+
+        del _lazy_module_targets[module_name]
+        hook = _lazy_module_hooks.pop(module_name, None)
+
+    if hook is not None:
+        ModuleWatchdog.unregister_module_hook(module_name, hook)
