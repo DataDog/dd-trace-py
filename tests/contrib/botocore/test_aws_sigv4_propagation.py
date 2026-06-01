@@ -271,68 +271,79 @@ def test_before_sign_handler_noop_when_botocore_distributed_tracing_disabled(
         _http_propagation_suppressed.reset(token)
 
 
-def test_patch_registers_handler_on_new_sessions():
-    """After patch() runs, emitting `before-sign` on any newly created Session
-    must trigger our handler — proven by side effect (header injected into the
-    request), not by poking botocore internals.
-    """
-    from botocore.awsrequest import AWSRequest
+def test_client_created_before_patch_still_injects():
+    """Regression: a client built BEFORE patch() must still get trace headers
+    into the SigV4-signed request once patch() is active.
 
-    from ddtrace.contrib.internal.botocore.patch import patch
+    botocore copies a Session's registered handlers onto a client at creation
+    time, so a handler added to the Session after the client exists never
+    reaches it. The before-sign handler is therefore registered on the
+    client's own emitter at API-call time. Without that, a pre-patch client
+    would be signed without trace headers while the urllib3 layer is still
+    suppressed — silently dropping propagation (worse than before this fix,
+    where urllib3 at least injected). This pins that the pre-patch client
+    still gets propagation into SignedHeaders.
+    """
+    # Build the client BEFORE patching.
+    session = botocore.session.Session()
+    session.set_credentials(
+        access_key="AKIAIOSFODNN7EXAMPLE",
+        secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    )
+    client = session.create_client("s3", region_name="us-east-1")
 
     patch()
     try:
-        session = botocore.session.Session()
-        request = AWSRequest(method="GET", url="https://example.com/")
-        with ddtrace.tracer.trace("test.span"):
-            session.emit(
-                "before-sign.s3.GetObject",
-                request=request,
-                signing_name="s3",
-                region_name="us-east-1",
-                signature_version="v4",
-                request_signer=None,
-                operation_name="GetObject",
-            )
-        assert "x-datadog-trace-id" in request.headers, (
-            f"before-sign handler did not fire on new session — registered handlers may be missing. "
-            f"Request headers after emit: {dict(request.headers)!r}"
-        )
+        headers = _capture_signed_request(client)
     finally:
         unpatch()
 
+    signed_headers = _parse_signed_headers(headers["Authorization"])
+    assert "x-datadog-trace-id" in signed_headers, (
+        f"pre-patch client did not get trace headers into SignedHeaders {signed_headers!r}"
+    )
+    assert "traceparent" in signed_headers, f"traceparent not in SignedHeaders {signed_headers!r}"
 
-def test_unpatch_removes_session_init_wrapper():
-    """After unpatch(), newly created Sessions must NOT have the handler —
-    emitting `before-sign` must not mutate the request.
+
+def test_handler_inert_after_unpatch():
+    """Self-gate: after unpatch(), a client that registered the handler while
+    patched must not inject on subsequent signing.
+
+    The handler stays on the client's emitter for the client's lifetime
+    (we don't unregister per-client on unpatch). It self-gates on patch state,
+    so once unpatched it goes inert — otherwise it would inject pre-signing
+    while a still-patched urllib3 layer injects post-signing, resurrecting the
+    exact SigV4 mismatch this fix prevents.
     """
     from botocore.awsrequest import AWSRequest
 
     from ddtrace.contrib.internal.botocore.patch import patch
 
     patch()
+    session = botocore.session.Session()
+    session.set_credentials(access_key="A", secret_key="B")
+    client = session.create_client("s3", region_name="us-east-1")
+    # A traced call registers the handler on the client's emitter.
+    _capture_signed_request(client)
     unpatch()
-    try:
-        session = botocore.session.Session()
-        request = AWSRequest(method="GET", url="https://example.com/")
-        with ddtrace.tracer.trace("test.span"):
-            session.emit(
-                "before-sign.s3.GetObject",
-                request=request,
-                signing_name="s3",
-                region_name="us-east-1",
-                signature_version="v4",
-                request_signer=None,
-                operation_name="GetObject",
-            )
-        assert "x-datadog-trace-id" not in request.headers, (
-            f"before-sign handler still fires after unpatch — Session.__init__ wrap was not removed. "
-            f"Request headers after emit: {dict(request.headers)!r}"
+
+    # Emit before-sign directly on the client's (still-registered) emitter;
+    # the handler must no-op because neither integration is patched.
+    request = AWSRequest(method="GET", url="https://example.com/")
+    with ddtrace.tracer.trace("test.span"):
+        client.meta.events.emit(
+            "before-sign.s3.GetObject",
+            request=request,
+            signing_name="s3",
+            region_name="us-east-1",
+            signature_version="v4",
+            request_signer=None,
+            operation_name="GetObject",
         )
-    finally:
-        # Defensive: if any assertion or session call leaves state inconsistent, this resets it.
-        # (Already unpatched at this point; this is harmless and symmetric with the other test.)
-        unpatch()
+    assert "x-datadog-trace-id" not in request.headers, (
+        f"before-sign handler still injects after unpatch — self-gate failed. "
+        f"Request headers after emit: {dict(request.headers)!r}"
+    )
 
 
 def test_distributed_tracing_disabled_suppresses_urllib3_injection_for_aws(s3_client):
@@ -541,12 +552,15 @@ def test_concurrent_aws_calls_do_not_leak_suppression(patched_botocore):
     assert _http_propagation_suppressed.get() is False
 
 
-def test_handler_does_not_overwrite_existing_propagation_headers():
+def test_handler_does_not_overwrite_existing_propagation_headers(patched_botocore):
     """If the application has already set a propagation header (e.g., from
     a custom propagator), the handler must not overwrite it. This is the
     'never break user intent' guard. We also verify the handler still
     injects headers it did NOT preset, so a no-op handler can't pass this
     test.
+
+    Uses the patched_botocore fixture because the handler self-gates on patch
+    state and would no-op if the integration weren't active.
     """
     from botocore.awsrequest import AWSRequest
 
@@ -565,72 +579,51 @@ def test_handler_does_not_overwrite_existing_propagation_headers():
     assert "traceparent" in request.headers
 
 
-def test_pin_disabled_does_not_leak_suppression_to_subsequent_calls(s3_client):
-    """If the tracer is disabled at runtime, pin.enabled() returns False and
-    patched_api_call early-returns before its try/finally. The before-sign
-    handler can still fire — it must NOT leave the suppression contextvar set
-    to True, because patched_api_call's try/finally never ran to reset it.
+def test_pin_disabled_does_not_set_suppression(s3_client):
+    """Suppression-placement guard: `_http_propagation_suppressed` is set only
+    on the full traced path, AFTER the pin.enabled() early-return.
 
-    Today this leaks: handler flips contextvar to True, no reset, and
-    every subsequent non-AWS HTTP call in this task silently loses trace
-    header injection.
+    When the tracer is disabled, patched_api_call returns at `if not pin or
+    not pin.enabled()` — before `_ensure_before_sign_handler` and before
+    `_http_propagation_suppressed.set(True)`. So suppression must stay False:
+    a subsequent non-AWS HTTP call in this task must still get header
+    injection. This test fails if the suppression set is ever moved above the
+    early-return (which would leak True with no try/finally reset).
     """
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 
-    # Disable the tracer so pin.enabled() returns False and patched_api_call
-    # early-returns before its try/finally.
     original_enabled = ddtrace.tracer.enabled
     ddtrace.tracer.enabled = False
     try:
-        # Make a call. The early-return path runs; the handler still fires
-        # at before-sign time because the Session wrap registered it.
-        try:
-            _capture_signed_request(s3_client)
-        except _StopBeforeWire:
-            # We intentionally short-circuit the wire send via _StopBeforeWire,
-            # which propagates. Do not catch other exceptions — if
-            # _capture_signed_request fails before reaching the signing stage
-            # (e.g., from a broken monkey-patch), the assertion below would be
-            # vacuously true and the test would be a false green.
-            pass
-
-        # The contextvar must be False after the call — the handler must
-        # not leak True into the rest of this task.
+        # Early-return path; the suppression contextvar must never be set.
+        _capture_signed_request(s3_client)
         assert _http_propagation_suppressed.get() is False, (
-            "before-sign handler leaked _http_propagation_suppressed=True outside patched_api_call's managed scope"
+            "_http_propagation_suppressed leaked True on the pin-disabled early-return path"
         )
     finally:
         ddtrace.tracer.enabled = original_enabled
 
 
-def test_submodule_excluded_does_not_leak_suppression(s3_client):
-    """If _PATCHED_SUBMODULES excludes the endpoint, patched_api_call early-returns
-    before its try/finally, but the before-sign handler still fires. Same leak
-    shape as the pin-disabled case.
+def test_submodule_excluded_does_not_set_suppression(s3_client):
+    """Suppression-placement guard for the _PATCHED_SUBMODULES early-return.
+
+    When the endpoint is excluded, patched_api_call returns at the
+    `_PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES` branch —
+    before `_ensure_before_sign_handler` and before the suppression set. So
+    suppression must stay False. Fails if the suppression set is moved above
+    this early-return.
     """
     from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
     from ddtrace.contrib.internal.botocore.patch import _PATCHED_SUBMODULES
 
-    # Exclude S3 from the patched submodules. patched_api_call hits the
-    # `_PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES` branch
-    # and early-returns. Save/restore prior state in case something else
-    # added entries before us.
+    # Exclude S3 so the call hits the submodule early-return. Save/restore in
+    # case something else added entries before us.
     original_submodules = set(_PATCHED_SUBMODULES)
     _PATCHED_SUBMODULES.add("sqs")  # something other than s3
     try:
-        try:
-            _capture_signed_request(s3_client)
-        except _StopBeforeWire:
-            # We intentionally short-circuit the wire send via _StopBeforeWire,
-            # which propagates. Do not catch other exceptions — if
-            # _capture_signed_request fails before reaching the signing stage
-            # (e.g., from a broken monkey-patch), the assertion below would be
-            # vacuously true and the test would be a false green.
-            pass
-
+        _capture_signed_request(s3_client)
         assert _http_propagation_suppressed.get() is False, (
-            "before-sign handler leaked _http_propagation_suppressed=True "
-            "when patched_api_call early-returned via _PATCHED_SUBMODULES"
+            "_http_propagation_suppressed leaked True on the _PATCHED_SUBMODULES early-return path"
         )
     finally:
         _PATCHED_SUBMODULES.clear()

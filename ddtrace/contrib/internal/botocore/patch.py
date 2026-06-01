@@ -9,7 +9,7 @@ from typing import Union  # noqa:F401
 from botocore import __version__
 import botocore.client
 import botocore.exceptions
-import botocore.session
+import botocore.parsers
 import wrapt
 
 import ddtrace
@@ -128,6 +128,12 @@ def _inject_trace_headers_handler(request, **kwargs):
     wrappers (pin disabled, submodule excluded) and out-of-scope callers
     (presigned URL generation) cannot leak suppression into subsequent
     unrelated HTTP calls in the same task.
+
+    This is the shared injection body. It is never registered directly —
+    each integration registers a thin owner-gated wrapper
+    (``_botocore_before_sign_handler`` / ``_aiobotocore_before_sign_handler``)
+    that no-ops once its own integration is unpatched. See
+    ``_ensure_before_sign_handler`` for why registration is client-level.
     """
     if not config.botocore["distributed_tracing"]:
         return
@@ -161,8 +167,8 @@ def _inject_trace_headers_handler(request, **kwargs):
     # would still inject from the global tracer's currently active span.
     # That's consistent with how other event-driven integrations behave but
     # could surprise a user who explicitly switched tracers. If a user
-    # reports this, the fix is to thread the Pin through the Session-init
-    # wrap into a closure the handler can read.
+    # reports this, the fix is to capture Pin.get_from(client) inside
+    # _ensure_before_sign_handler and bind it into the handler registered there.
     span = ddtrace.tracer.current_span()
     if span is None:
         return
@@ -181,69 +187,66 @@ def _inject_trace_headers_handler(request, **kwargs):
         request.headers[header_name] = header_value
 
 
-def _wrap_session_init(wrapped, instance, args, kwargs):
-    """Register the before-sign handler on every botocore Session at init.
+def _botocore_before_sign_handler(request, **kwargs):
+    """Owner-gated before-sign handler for the botocore integration.
 
-    boto3.session.Session instantiates botocore.session.Session internally,
-    so this single wrap covers both APIs. aiobotocore.AioSession subclasses
-    botocore.session.Session and calls super().__init__(), so it's also
-    covered.
+    Self-gates on ``botocore.client._datadog_patch`` so that a registration
+    retained on a client emitter goes inert the moment the *botocore*
+    integration is unpatched — independent of whether aiobotocore is still
+    patched. Gating on the specific owning integration (rather than "either
+    integration is patched") is what prevents the asymmetric-unpatch case:
+    if botocore is unpatched while aiobotocore stays patched, ``patched_api_call``
+    no longer runs for botocore clients, so ``_http_propagation_suppressed`` is
+    not set; a handler that still injected pre-signing here while the urllib3
+    layer injected post-signing would resurrect the SigV4 mismatch this fix
+    prevents.
     """
-    result = wrapped(*args, **kwargs)
+    if not getattr(botocore.client, "_datadog_patch", False):
+        return
+    _inject_trace_headers_handler(request, **kwargs)
+
+
+# AIDEV-NOTE: _ensure_before_sign_handler is also imported by
+# ddtrace.contrib.internal.aiobotocore.patch — treat as semi-public within
+# the botocore/aiobotocore integration family. If you rename it, update the
+# aiobotocore import too. aiobotocore passes its own owner-gated handler
+# (_aiobotocore_before_sign_handler); botocore passes _botocore_before_sign_handler.
+def _ensure_before_sign_handler(client, handler) -> None:
+    """Register an owner-gated before-sign handler on this client's event
+    emitter, exactly once per client.
+
+    Registering at API-call time on the client's OWN emitter (rather than on
+    the Session at ``Session.__init__`` time) is deliberate: botocore copies a
+    Session's registered handlers onto a client when the client is created, so
+    a handler added to a Session *after* its clients were built never reaches
+    those clients. A client built from a Session that existed before
+    ``patch()`` ran would therefore never get the handler — its requests would
+    be signed without trace headers, yet the API-call wrapper would still
+    suppress the urllib3/aiohttp-layer injection, silently dropping
+    propagation. Registering on the client emitter on the first traced call
+    closes that gap for every client regardless of when its Session was built.
+
+    ``before-sign`` is emitted on the client's emitter during signing, which
+    happens inside the wrapped ``_make_api_call``; registering here (before the
+    wrapped call proceeds) installs the handler in time for the same call.
+
+    ``handler`` is the integration's owner-gated wrapper, so a client only ever
+    carries the handler of the integration that created it.
+    """
+    if getattr(client, "_dd_before_sign_registered", False):
+        return
+    # Mark as attempted up front: register() is effectively idempotent
+    # (botocore dedupes by unique_id), and best-effort-once avoids a per-call
+    # warning-log flood on the hot path if register ever raises.
+    client._dd_before_sign_registered = True
     try:
-        instance.register(
+        client.meta.events.register(
             "before-sign",
-            _inject_trace_headers_handler,
+            handler,
             unique_id=_DD_BEFORE_SIGN_HANDLER_UID,
         )
     except Exception:
         log.warning("dd-trace-py: failed to register botocore before-sign handler", exc_info=True)
-    return result
-
-
-# AIDEV-NOTE: Shared Session.__init__ wrap state for botocore + aiobotocore.
-# Both integrations need the before-sign handler registered on every botocore
-# Session (aiobotocore.AioSession subclasses botocore.session.Session), but
-# we must only stack ONE wrapt layer regardless of which integrations are
-# patched. The previous design wrapped twice and could only unwrap once on
-# the last unpatch, leaving a stale layer behind. _patch_session_init and
-# _unpatch_session_init guard the wrap with a module-level flag and check
-# both integrations' _datadog_patch flags before unwrapping. Both
-# integrations call these helpers instead of wrapt.wrap_function_wrapper /
-# unwrap directly on Session.__init__.
-_session_init_patched: bool = False
-
-
-def _patch_session_init() -> None:
-    global _session_init_patched
-    if _session_init_patched:
-        return
-    wrapt.wrap_function_wrapper("botocore.session", "Session.__init__", _wrap_session_init)
-    _session_init_patched = True
-
-
-def _unpatch_session_init() -> None:
-    global _session_init_patched
-    if not _session_init_patched:
-        return
-    # Don't strip the wrap while another integration still needs it. Use
-    # sys.modules.get to avoid forcing an aiobotocore import.
-    import sys
-
-    if getattr(botocore.client, "_datadog_patch", False):
-        return
-    aiobotocore_client = sys.modules.get("aiobotocore.client")
-    if aiobotocore_client is not None and getattr(aiobotocore_client, "_datadog_patch", False):
-        return
-    # try/finally so the flag tracks reality even if `unwrap` raises (e.g.,
-    # because Session.__init__ was already replaced by external instrumentation
-    # and our wrapt layer is gone). If we left the flag True after a failed
-    # unwrap, a subsequent _patch_session_init() call would no-op at the
-    # idempotence guard and silently leave Session.__init__ unprotected.
-    try:
-        unwrap(botocore.session.Session, "__init__")
-    finally:
-        _session_init_patched = False
 
 
 # Botocore default settings
@@ -293,7 +296,6 @@ def patch():
 
     botocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("botocore.client", "BaseClient._make_api_call", patched_api_call(botocore))
-    _patch_session_init()
     Pin().onto(botocore.client.BaseClient)
     wrapt.wrap_function_wrapper("botocore.parsers", "ResponseParser.parse", patched_lib_fn)
     Pin().onto(botocore.parsers.ResponseParser)
@@ -306,7 +308,10 @@ def unpatch():
         botocore.client._datadog_patch = False
         unwrap(botocore.parsers.ResponseParser, "parse")
         unwrap(botocore.client.BaseClient, "_make_api_call")
-        _unpatch_session_init()
+        # The before-sign handler is registered per-client on its own emitter
+        # (see _ensure_before_sign_handler). We don't unregister from every
+        # client that ever made a call; instead _inject_trace_headers_handler
+        # self-gates on patch state, so any retained registration goes inert.
 
 
 def patch_submodules(submodules: Union[list[str], bool]) -> None:
@@ -365,6 +370,12 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         supported_operations = patched_endpoint.get(SUPPORTED_OPS_KEY)
         if supported_operations is None or operation in supported_operations:
             patching_fn = patched_endpoint[PATCHING_FN_KEY]
+
+    # Ensure this client carries the before-sign injection handler. Registering
+    # here (on the full traced path, before signing runs) guarantees the
+    # handler is present for every client that makes a traced AWS call,
+    # including clients built from a Session created before patch().
+    _ensure_before_sign_handler(instance, _botocore_before_sign_handler)
 
     # Suppress the urllib3-layer injection for AWS calls that go through this
     # managed scope. Two cases collapse cleanly:
