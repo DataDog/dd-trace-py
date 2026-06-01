@@ -404,6 +404,20 @@ Traces
          mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
          exceed the EVP proxy max event size configured in the Datadog Agent.
 
+   DD_LLMOBS_SAMPLE_RATE:
+     type: Float
+     default: 1.0
+
+     description: |
+         The proportion of LLM Observability spans (between ``0.0`` and ``1.0``) retained for full
+         processing by Datadog. Spans are not dropped on the client: all spans capture their
+         input/output and are submitted, and Datadog uses this rate to compute accurate token and
+         cost metrics before discarding the input/output of un-sampled spans.
+
+     version_added:
+        v4.12.0: |
+            This rate no longer drops spans on the client; all spans are now submitted.
+
 Trace Context propagation
 -------------------------
 
