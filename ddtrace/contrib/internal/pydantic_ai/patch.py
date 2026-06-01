@@ -98,9 +98,7 @@ async def traced_tool_run(func, instance, args, kwargs, tool_name):
     integration = pydantic_ai._datadog_integration
     resp = None
     try:
-        span = integration.trace(
-            tool_name, span_name="pydantic_ai.tool", submit_to_llmobs=True, kind="tool"
-        )
+        span = integration.trace(tool_name, span_name="pydantic_ai.tool", submit_to_llmobs=True, kind="tool")
         resp = await func(*args, **kwargs)
         return resp
     except Exception:
