@@ -2451,6 +2451,13 @@
         ]
       }
     ],
+    "DD_ML_JOB_ENV": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_METRICS_OTEL_ENABLED": [
       {
         "implementation": "A",

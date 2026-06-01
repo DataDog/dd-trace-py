@@ -9,9 +9,12 @@ from ddtrace.contrib._events.ray import RayExecutionEvent
 from ddtrace.contrib._events.ray import RayJobEvent
 from ddtrace.contrib._events.ray import RaySubmissionEvent
 from ddtrace.contrib.internal.ray.constants import DD_RAY_TRACE_CTX
+from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_CLASS_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_KWARGS
+from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_METHOD_SUBMIT_STATUS
+from ddtrace.contrib.internal.ray.constants import RAY_ACTOR_MODULE_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_ENTRYPOINT
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_JOB_STATUS
@@ -19,8 +22,17 @@ from ddtrace.contrib.internal.ray.constants import RAY_JOB_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_ERROR
 from ddtrace.contrib.internal.ray.constants import RAY_STATUS_SUCCESS
 from ddtrace.contrib.internal.ray.constants import RAY_SUBMISSION_ID
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_ACCELERATOR_TYPE
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_ARGS
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_FUNCTION_MODULE
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_FUNCTION_QUALNAME
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_KWARGS
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_MAX_RETRIES
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_NUM_CPUS
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_NUM_GPUS
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_NUM_RETURNS
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_RESOURCES_PREFIX
+from ddtrace.contrib.internal.ray.constants import RAY_TASK_SCHEDULING_STRATEGY
 from ddtrace.contrib.internal.ray.constants import RAY_TASK_SUBMIT_STATUS
 from ddtrace.contrib.internal.ray.core.utils import _extract_tracing_context_from_env
 from ddtrace.contrib.internal.ray.core.utils import _inject_context_in_kwargs
@@ -34,8 +46,12 @@ from ddtrace.contrib.internal.ray.span_manager import stop_long_running_job
 from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
 from ddtrace.internal import core
 from ddtrace.internal.core.subscriber import Subscriber
+from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.trace import tracer
+
+
+log = get_logger(__name__)
 
 
 class RayJobStartSubscriber(TracingSubscriber):
@@ -113,6 +129,17 @@ class RayExecutionSubscriber(TracingSubscriber):
             set_tag_or_truncate(span, args_tag, event.method_args)
             set_tag_or_truncate(span, kwargs_tag, method_kwargs)
 
+        if event.is_actor_method:
+            try:
+                if event.actor_class_name:
+                    span.set_tag(RAY_ACTOR_CLASS_NAME, str(event.actor_class_name))
+                if event.actor_module_name:
+                    span.set_tag(RAY_ACTOR_MODULE_NAME, str(event.actor_module_name))
+                if event.actor_method_name:
+                    span.set_tag(RAY_ACTOR_METHOD_NAME, str(event.actor_method_name))
+            except Exception:
+                log.debug("Failed to set actor metadata tags on execution span", exc_info=True)
+
         # Execution spans are finalized manually to support async/remote execution
         # boundaries that do not align with context manager auto-finish.
         start_long_running_span(span)
@@ -186,6 +213,44 @@ class RaySubmissionSubscriber(TracingSubscriber):
             kwargs_tag = RAY_TASK_KWARGS if event.is_task_submission else RAY_ACTOR_METHOD_KWARGS
             set_tag_or_truncate(span, args_tag, event.method_args)
             set_tag_or_truncate(span, kwargs_tag, event.method_kwargs)
+
+        if event.is_task_submission:
+            try:
+                if event.task_function_module:
+                    span.set_tag(RAY_TASK_FUNCTION_MODULE, str(event.task_function_module))
+                if event.task_function_qualname:
+                    span.set_tag(RAY_TASK_FUNCTION_QUALNAME, str(event.task_function_qualname))
+                if event.task_num_cpus is not None:
+                    span._set_attribute(RAY_TASK_NUM_CPUS, float(event.task_num_cpus))
+                if event.task_num_gpus is not None:
+                    span._set_attribute(RAY_TASK_NUM_GPUS, float(event.task_num_gpus))
+                if event.task_num_returns is not None:
+                    span._set_attribute(RAY_TASK_NUM_RETURNS, int(event.task_num_returns))
+                if event.task_max_retries is not None:
+                    span._set_attribute(RAY_TASK_MAX_RETRIES, int(event.task_max_retries))
+                if event.task_accelerator_type:
+                    span.set_tag(RAY_TASK_ACCELERATOR_TYPE, str(event.task_accelerator_type))
+                if event.task_scheduling_strategy:
+                    span.set_tag(RAY_TASK_SCHEDULING_STRATEGY, str(event.task_scheduling_strategy))
+                if event.task_resources:
+                    for k, v in event.task_resources.items():
+                        try:
+                            span._set_attribute(f"{RAY_TASK_RESOURCES_PREFIX}{k}", float(v))
+                        except Exception:  # nosec B110
+                            log.debug("Failed to set ray.task.resources.%s (non-numeric value)", k)
+            except Exception:
+                log.debug("Failed to set task scheduling tags", exc_info=True)
+
+        if event.is_actor_method:
+            try:
+                if event.actor_class_name:
+                    span.set_tag(RAY_ACTOR_CLASS_NAME, str(event.actor_class_name))
+                if event.actor_module_name:
+                    span.set_tag(RAY_ACTOR_MODULE_NAME, str(event.actor_module_name))
+                if event.actor_method_name:
+                    span.set_tag(RAY_ACTOR_METHOD_NAME, str(event.actor_method_name))
+            except Exception:
+                log.debug("Failed to set actor metadata tags on submission span", exc_info=True)
 
     @classmethod
     def on_ended(
