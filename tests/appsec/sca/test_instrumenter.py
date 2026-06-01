@@ -404,17 +404,17 @@ class TestLazyInstrumentationState:
         assert instance is not None
         assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
 
-    def test_new_update_prunes_stale_unresolved_lazy_targets(self):
+    def test_incremental_updates_preserve_unresolved_lazy_targets(self):
         registry, instance = self._clear_lazy_state()
 
         _instrumenter_mod.apply_instrumentation_updates(
             [
                 {
-                    "target": f"stale_unimported_module_{i}:function",
+                    "target": f"first_unimported_module_{i}:function",
                     "dependency_name": "testpkg",
-                    "cve_ids": [f"CVE-STALE-{i}"],
+                    "cve_ids": [f"CVE-FIRST-{i}"],
                 }
-                for i in range(100)
+                for i in range(3)
             ]
         )
 
@@ -428,13 +428,26 @@ class TestLazyInstrumentationState:
             ]
         )
 
-        assert set(registry._targets) == {"current_unimported_module:function"}
+        assert set(registry._targets) == {
+            "first_unimported_module_0:function",
+            "first_unimported_module_1:function",
+            "first_unimported_module_2:function",
+            "current_unimported_module:function",
+        }
         assert _instrumenter_mod._lazy_module_targets == {
-            "current_unimported_module": {"current_unimported_module:function"}
+            "first_unimported_module_0": {"first_unimported_module_0:function"},
+            "first_unimported_module_1": {"first_unimported_module_1:function"},
+            "first_unimported_module_2": {"first_unimported_module_2:function"},
+            "current_unimported_module": {"current_unimported_module:function"},
         }
         assert instance is not None
-        assert set(instance._hook_map) == {"current_unimported_module"}
-        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 1
+        assert set(instance._hook_map) == {
+            "first_unimported_module_0",
+            "first_unimported_module_1",
+            "first_unimported_module_2",
+            "current_unimported_module",
+        }
+        assert sum(len(hooks) for hooks in instance._hook_map.values()) == 4
 
 
 # ---------------------------------------------------------------------------

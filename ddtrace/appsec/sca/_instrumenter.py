@@ -226,9 +226,7 @@ def apply_instrumentation_updates(targets: list[dict], after_fork: bool = False)
     try:
         registry = get_global_registry()
         instrumenter = get_instrumenter(registry)
-        target_names = {target_info["target"] for target_info in targets}
 
-        _reconcile_lazy_targets(registry, target_names)
         _process_additions(instrumenter, registry, targets, after_fork=after_fork)
     except Exception:
         log.debug("Fatal error in apply_instrumentation_updates", exc_info=True)
@@ -320,22 +318,6 @@ def _register_lazy_hook(module_name: str, target_name: str) -> None:
             return
         _lazy_module_hooks[module_name] = _on_module_import
     ModuleWatchdog.register_module_hook(module_name, _on_module_import)
-
-
-def _reconcile_lazy_targets(registry: InstrumentationRegistry, active_target_names: set[str]) -> None:
-    with _lazy_hooks_lock:
-        stale_targets = [
-            (module_name, target_name)
-            for module_name, target_names in _lazy_module_targets.items()
-            for target_name in target_names
-            if target_name not in active_target_names
-        ]
-
-    for module_name, target_name in stale_targets:
-        if registry.is_instrumented(target_name):
-            continue
-        registry.remove_target(target_name)
-        _unregister_lazy_target(module_name, target_name)
 
 
 def _instrument_lazy_targets(module_name: str) -> None:
