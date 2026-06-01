@@ -21,8 +21,7 @@ FrameStack::render(EchionSampler& echion)
             int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
             auto maybe_entry = registry.lookup(frame.code_object, offset_bytes, frame.first_lineno);
             if (maybe_entry) {
-                auto& entry = maybe_entry->get();
-                renderer.render_native_frame(entry.name, entry.module);
+                renderer.render_native_frame(maybe_entry->name, maybe_entry->module);
             }
         }
 
