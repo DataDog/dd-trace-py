@@ -41,6 +41,10 @@ struct NativeCallEntry
 class NativeCallRegistry
 {
   public:
+    // Dynamic code generators can produce an unbounded number of one-shot code
+    // objects, so stop registering new sites once the registry reaches its cap.
+    static constexpr size_t max_call_sites = 4096;
+
     NativeCallRegistry() = default;
     ~NativeCallRegistry() = default;
 
@@ -74,8 +78,10 @@ class NativeCallRegistry
 
     void postfork_child();
 
+    size_t size() const;
+
   private:
-    std::shared_mutex mtx;
+    mutable std::shared_mutex mtx;
     std::unordered_map<CallSiteKey, NativeCallEntry, CallSiteKeyHash> call_sites;
 };
 

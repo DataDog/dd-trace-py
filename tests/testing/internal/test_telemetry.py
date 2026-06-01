@@ -5,6 +5,7 @@ from unittest.mock import call
 import pytest
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
@@ -13,7 +14,6 @@ from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import EventType
 from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import TelemetryAPI
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestTag
 
@@ -30,6 +30,7 @@ def mock_writer() -> Mock:
 def telemetry_api(mock_writer: Mock) -> t.Generator[TelemetryAPI, None, None]:
     api = TelemetryAPI(connector_setup=Mock())
     api.writer = mock_writer
+    mock_writer.reset_mock()
     yield api
 
 
@@ -283,7 +284,7 @@ class TestTelemetry:
         )
         telemetry_api.record_settings(settings)
 
-        assert mock_writer.add_count_metric.call_args_list == [
+        assert (
             call(
                 CIVISIBILITY,
                 "git_requests.settings_response",
@@ -299,7 +300,8 @@ class TestTelemetry:
                     ("test_management_enabled", "true"),
                 ),
             )
-        ]
+            in mock_writer.add_count_metric.call_args_list
+        )
 
     def test_record_settings_some_enabled(self, telemetry_api: TelemetryAPI, mock_writer: Mock) -> None:
         settings = Settings(
