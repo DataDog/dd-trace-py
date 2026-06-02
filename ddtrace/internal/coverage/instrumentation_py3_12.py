@@ -130,6 +130,10 @@ def _register_monitoring():
     sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
 
 
+def deregister_monitoring() -> None:
+    pass  # no-op stub — real implementation lives in the fix branch
+
+
 def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> tuple[CodeType, CoverageLines]:

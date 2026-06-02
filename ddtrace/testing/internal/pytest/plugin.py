@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.instrumentation import deregister_monitoring  # noqa: F401 — no-op on this branch
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
