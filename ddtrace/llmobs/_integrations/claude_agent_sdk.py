@@ -14,7 +14,6 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -288,14 +287,11 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         """Return (error_type, error_message) for an AssistantMessage carrying an error.
 
         The SDK's ``AssistantMessage.error`` is a coarse category literal (e.g. "unknown",
-        "invalid_request", "rate_limit"). The descriptive message — such as the raw
-        ``API Error: {...}`` payload returned by the API — lives in the message's
-        ``TextBlock`` content, so we surface that text as the error message and fall back
-        to the category when no text content is present.
-
-        Uncategorized errors collapse to "unknown", but the embedded ``API Error: {...}``
-        payload often carries a more specific type (e.g. "overloaded_error"). When the
-        category is "unknown" we try to recover that specific type from the message.
+        "invalid_request", "rate_limit") with no structured payload — the descriptive
+        message, such as the raw ``API Error: {...}`` text returned by the API, lives in
+        the message's ``TextBlock`` content instead. We keep the category as the error type
+        and surface that content text as the error message, falling back to the category
+        when no text content is present.
         """
         error = _get_attr(msg, "error", None)
         if not error:
@@ -310,26 +306,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     if text:
                         text_parts.append(str(text))
         error_message = "\n".join(text_parts) or error_type
-        if error_type == "unknown":
-            error_type = self._parse_error_type(error_message) or error_type
         return error_type, error_message
-
-    def _parse_error_type(self, message: str) -> str:
-        """Best-effort extract a specific error type from an ``API Error: {...}`` payload.
-
-        The content text isn't valid JSON on its own — it's prefixed with a human-readable
-        label (e.g. ``API Error: {...}``) — so we decode from the first ``{``. The embedded
-        object is shaped like ``{"type": "error", "error": {"type": "overloaded_error", ...}}``;
-        return the nested ``error.type`` when present, else "".
-        """
-        start = message.find("{")
-        if start == -1:
-            return ""
-        payload = safe_load_json(message[start:])
-        error = payload.get("error") if isinstance(payload, dict) else None
-        if isinstance(error, dict) and error.get("type"):
-            return str(error["type"])
-        return ""
 
     def _extract_usage(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}

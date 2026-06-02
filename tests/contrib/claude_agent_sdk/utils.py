@@ -181,9 +181,6 @@ MOCK_ASSISTANT_MESSAGE_ERROR_TEXT = (
     'API Error: {"type":"error","error":{"details":null,"type":"overloaded_error",'
     '"message":"Overloaded"},"request_id":"req_011Cbd5D168oye3XGdgSjVog"}'
 )
-# The descriptive payload above embeds a more specific error type than the coarse
-# "unknown" category the SDK reports; the integration parses it back out.
-MOCK_ASSISTANT_MESSAGE_PARSED_ERROR_TYPE = "overloaded_error"
 MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT = AssistantMessage(
     content=[TextBlock(text=MOCK_ASSISTANT_MESSAGE_ERROR_TEXT)],
     model=MOCK_MODEL,

@@ -11,7 +11,7 @@ from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT
-from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_PARSED_ERROR_TYPE
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
@@ -282,8 +282,8 @@ class TestLLMObsClaudeAgentSdk:
     ):
         """When the SDK reports a coarse error category (e.g. "unknown") but the descriptive
         API error lives in the assistant message content, the error message should be the
-        content text and the error type should be the specific type parsed from that
-        content (e.g. "overloaded_error") rather than the category literal.
+        content text rather than the category literal, while the error type stays the
+        category reported by the SDK.
         """
         prompt = "Hello"
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -297,7 +297,7 @@ class TestLLMObsClaudeAgentSdk:
 
         input_msgs = [{"content": prompt, "role": "user"}]
         expected_error = {
-            "type": MOCK_ASSISTANT_MESSAGE_PARSED_ERROR_TYPE,
+            "type": MOCK_ASSISTANT_MESSAGE_ERROR_TYPE,
             "message": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT,
             "stack": ANY,
         }
