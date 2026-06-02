@@ -684,6 +684,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         intake_url: str,
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
+        client_side_stats_obfuscation: bool = False,
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size: Optional[int] = None,
@@ -741,6 +742,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._compute_stats_enabled = compute_stats_enabled
+        self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
@@ -781,6 +783,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
+
+        if self._client_side_stats_obfuscation:
+            builder.enable_client_side_stats_obfuscation()
+
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
             heartbeat_ms = int(
@@ -814,6 +820,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             intake_url=self.intake_url,
             processing_interval=self._interval,
             compute_stats_enabled=self._compute_stats_enabled,
+            client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             dogstatsd=self.dogstatsd,
@@ -1222,6 +1229,7 @@ def create_trace_writer(
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
+        client_side_stats_obfuscation=config._client_side_stats_obfuscation,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,

@@ -7,6 +7,7 @@ use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::sync::Arc;
 use std::time::Duration;
+mod agent_response;
 mod exceptions;
 mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
@@ -150,6 +151,11 @@ impl TraceExporterBuilderPy {
     fn enable_stats(mut slf: PyRefMut<'_, Self>, bucket_size_ns: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?
             .enable_stats(Duration::from_nanos(bucket_size_ns));
+        Ok(slf.into())
+    }
+
+    fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_client_side_stats_obfuscation();
         Ok(slf.into())
     }
 
@@ -312,6 +318,7 @@ pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
+    agent_response::register_agent_response(m)?;
     trace_buffer::register_trace_buffer(m)?;
 
     Ok(())

@@ -1,4 +1,4 @@
-from ddtrace.internal.native import AgentResponse
+from ddtrace.internal.native import AgentResponse  # noqa: F401
 
 from .writer import DEFAULT_SMA_WINDOW
 from .writer import AgentlessTraceWriter

@@ -349,6 +349,11 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
+        """
+        Obfuscate client side stats buckets in the client instead of in the agent.
+        """
         ...
     def enable_telemetry(
         self,
@@ -443,6 +448,7 @@ class NativeTraceBuffer:
     def wait_shutdown_done(self, timeout_ns: int) -> None:
         """Wait until the background worker confirms shutdown (primarily for tests)."""
         ...
+
 
 class AgentError(Exception):
     """

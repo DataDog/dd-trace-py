@@ -3,6 +3,7 @@ from collections import deque
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
 from typing import Optional
@@ -26,9 +27,14 @@ from ddtrace.internal.wrapping import get_function_code
 
 log = get_logger(__name__)
 
-FunctionContainerType = Union[type, property, classmethod, staticmethod, tuple, ModuleType]
-
-ContainerKey = Union[str, int, type[staticmethod], type[classmethod]]
+if TYPE_CHECKING:
+    FunctionContainerType = Union[
+        type, property, classmethod[Any, Any, Any], staticmethod[Any, Any], tuple[Any, ...], ModuleType
+    ]
+    ContainerKey = Union[str, int, type[staticmethod[Any, Any]], type[classmethod[Any, Any, Any]]]
+else:
+    FunctionContainerType = Union[type, property, classmethod, staticmethod, tuple, ModuleType]
+    ContainerKey = Union[str, int, type]
 
 CONTAINER_TYPES = (type, property, classmethod, staticmethod)
 
@@ -49,7 +55,7 @@ class FullyNamedFunction(FullyNamed):
         pass
 
 
-class ContainerIterator(Iterator, FullyNamedFunction):
+class ContainerIterator(Iterator[Any], FullyNamedFunction):
     """Wrapper around different types of function containers.
 
     A container comes with an origin, i.e. a parent container and a position
@@ -227,7 +233,7 @@ def _collect_functions(module: ModuleType) -> dict[str, _FunctionCodePair]:
     return functions
 
 
-class FunctionDiscovery(defaultdict):
+class FunctionDiscovery(defaultdict[Any, Any]):
     """Discover all function objects in a module.
 
     The discovered functions can be retrieved by line number or by their
@@ -391,7 +397,7 @@ class FunctionDiscovery(defaultdict):
         """
         # Cache the function discovery on the module
         try:
-            return module.__function_discovery__
+            return cast("FunctionDiscovery", module.__function_discovery__)
         except AttributeError:
             fd = module.__function_discovery__ = cls(module)  # type: ignore[attr-defined]
             if hasattr(module, "__dd_code__"):
