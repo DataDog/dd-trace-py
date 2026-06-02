@@ -1354,7 +1354,8 @@ def _on_aiokafka_send_start(
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
     span._set_attribute(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span._set_attribute(PARTITION, partition or -1)
+    if partition is not None:
+        span._set_attribute(PARTITION, partition)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
@@ -1396,7 +1397,6 @@ def _on_aiokafka_getone_message(
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
-        message_offset = message.offset if message.offset is not None else -1
         topic = str(message.topic)
         span._set_attribute(TOPIC, topic)
         span._set_attribute(TOMBSTONE, str(message.value is None))
@@ -1404,8 +1404,10 @@ def _on_aiokafka_getone_message(
         if isinstance(message_key, str):
             span.set_tag(MESSAGE_KEY, message_key)
 
-        span._set_attribute(PARTITION, message.partition if message.partition is not None else -1)
-        span._set_attribute(MESSAGE_OFFSET, message_offset)
+        if message.partition is not None:
+            span._set_attribute(PARTITION, message.partition)
+        if message.offset is not None:
+            span._set_attribute(MESSAGE_OFFSET, message.offset)
 
     if err is not None:
         span.set_exc_info(type(err), err, err.__traceback__)

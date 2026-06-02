@@ -1,7 +1,8 @@
 ---
 fixes:
   - |
-    aiokafka: Fixes ``kafka.partition`` and ``kafka.message_offset`` consumer
-    span tags being reported as ``-1`` when the actual value was ``0`` (e.g.
-    single-partition topics or the first message in a partition). The previous
-    code used ``value or -1``, which treated the falsy integer ``0`` as missing.
+    aiokafka: Fixes ``kafka.partition`` and ``kafka.message_offset`` span tags
+    being incorrectly set to ``-1``. Consumer spans no longer misreport ``0``
+    (e.g. single-partition topics or the first message in a partition) due to
+    falsy evaluation. Producer spans and any span where the value is genuinely
+    unknown now omit these tags entirely rather than emitting a misleading ``-1``.
