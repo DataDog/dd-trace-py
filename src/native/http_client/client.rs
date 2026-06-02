@@ -1,57 +1,109 @@
-//! Python wrappers around `libdd_http_client::HttpClient` and
-//! `HttpClientBuilder`.
+//! The `HTTPClient` PyO3 class — the single public entry point for native HTTP.
 //!
-//! Each `send()` runs `runtime.block_on(inner.send(req))` inside
-//! `py.detach`, releasing the GIL for the duration of the I/O. The libdd
-//! result is mapped to a Python exception **after** `py.detach` returns —
-//! the GIL is already held by PyO3's `#[pymethods]` wrapper, so we never
-//! need to `Python::with_gil` reacquire.
+//! This is an *ergonomic* client: it owns a base URL, default headers, and the
+//! shared tokio runtime, and exposes `get`/`post`/... taking a relative path.
+//! The low-level `libdd_http_client` builder/request types are consumed here in
+//! Rust and never cross into Python — Python sees only this class, `HttpResponse`,
+//! and the error hierarchy.
+//!
+//! Each request runs `runtime.block_on(client.send(req))` inside `py.detach`,
+//! releasing the GIL for the duration of the I/O. The libdd result is mapped to a
+//! Python exception **after** `py.detach` returns (the GIL is already held by
+//! PyO3's `#[pymethods]` wrapper), so no `Python::with_gil` reacquire is needed.
+//!
+//! DEV: the runtime is passed explicitly to `__new__` rather than fetched here so
+//! the native crate never has to reach back into Python for the process-wide
+//! singleton. The thin `ddtrace.internal.http_client.HTTPClient` subclass injects
+//! `get_native_runtime()` in `__new__`.
 
-use libdd_http_client::{HttpClient, HttpClientBuilder, HttpClientError, HttpRequest, RetryConfig};
+use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, RetryConfig};
 use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use crate::http_client::{
-    errors::http_error_to_pyerr,
-    request::{HttpMethodPy, HttpRequestPy},
-    response::HttpResponsePy,
-};
+use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
 
-const CLIENT_CLOSED_MSG: &str = "HttpClient has already been shut down";
-const BUILDER_CONSUMED_MSG: &str = "HttpClientBuilder has already been consumed";
+const CLIENT_CLOSED_MSG: &str = "HTTPClient has already been shut down";
 
-/// A pooled HTTP client wrapping `libdd_http_client::HttpClient`.
+/// A pooled, base-URL HTTP client over `libdd_http_client::HttpClient`.
 ///
-/// Holds the libdd client and its tokio runtime side-by-side (in a single
-/// `Option` so both are released together on shutdown). The runtime is the
-/// `SharedRuntime` supplied at `build` time — same pattern as
-/// `TraceExporter`.
-#[pyclass(name = "HttpClient")]
+/// `subclass` so the Python `ddtrace.internal.http_client.HTTPClient` can extend
+/// it to inject the shared runtime.
+#[pyclass(name = "HTTPClient", subclass)]
 pub struct HttpClientPy {
-    // DEV: client + runtime are collapsed into one Option so both are freed
-    // together on shutdown / Drop.
+    // DEV: client + runtime collapsed into one Option so both are freed together
+    // on shutdown / Drop.
     inner: Option<(HttpClient, Arc<SharedRuntime>)>,
+    // Request origin that relative paths are joined onto (e.g.
+    // "http://localhost:8126"; "http://localhost" for UDS). No trailing slash.
+    base: String,
+    default_headers: Vec<(String, String)>,
 }
 
 impl HttpClientPy {
-    /// Shared implementation for `send` and the convenience methods. Takes
-    /// ownership of a `HttpRequest`, runs it on the runtime with the GIL
-    /// released, then maps the libdd error to a Python exception inside the
-    /// GIL.
-    fn run_send(&self, py: Python<'_>, req: HttpRequest) -> PyResult<HttpResponsePy> {
+    /// Join the base origin with a request path.
+    fn full_url(&self, path: &str) -> String {
+        if path.starts_with('/') {
+            format!("{}{}", self.base, path)
+        } else {
+            format!("{}/{}", self.base, path)
+        }
+    }
+
+    /// Merge per-request headers over the defaults (per-request value wins,
+    /// position preserved; new keys appended). Case-sensitive, matching the
+    /// dict-merge semantics of the former Python wrapper.
+    fn merge_headers(&self, headers: Option<Vec<(String, String)>>) -> Vec<(String, String)> {
+        match headers {
+            None => self.default_headers.clone(),
+            Some(extra) => {
+                let mut merged = self.default_headers.clone();
+                for (k, v) in extra {
+                    if let Some(slot) = merged.iter_mut().find(|(ek, _)| *ek == k) {
+                        slot.1 = v;
+                    } else {
+                        merged.push((k, v));
+                    }
+                }
+                merged
+            }
+        }
+    }
+
+    /// Build the libdd request, run it on the runtime with the GIL released, and
+    /// map the result to a Python response or exception.
+    fn request(
+        &self,
+        py: Python<'_>,
+        method: HttpMethod,
+        path: &str,
+        headers: Option<Vec<(String, String)>>,
+        body: Option<PyBackedBytes>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<HttpResponsePy> {
         let (client, runtime) = self
             .inner
             .as_ref()
             .ok_or_else(|| PyValueError::new_err(CLIENT_CLOSED_MSG))?;
         let runtime = runtime.clone();
-        // DEV: `SharedRuntime::block_on` returns `Result<F::Output, io::Error>`,
-        // where the inner is `Result<HttpResponse, HttpClientError>`. The
-        // io::Error wrapping is only used if the runtime fails to construct a
-        // fallback runtime (extremely unlikely outside of fork chaos); map it
-        // to HttpIoError just in case so callers never see a raw PyResult err
-        // type leak through.
+
+        let mut req = HttpRequest::new(method, self.full_url(path));
+        let merged = self.merge_headers(headers);
+        if !merged.is_empty() {
+            req.headers_mut().extend(merged);
+        }
+        if let Some(b) = body {
+            *req.body_mut() = bytes::Bytes::from_owner(b);
+        }
+        if let Some(ms) = timeout_ms {
+            req = req.with_timeout(Duration::from_millis(ms));
+        }
+
+        // DEV: `block_on` returns `Result<F::Output, io::Error>` where the inner is
+        // `Result<HttpResponse, HttpClientError>`. The io::Error only appears if the
+        // runtime fails to rebuild a fallback (fork chaos); map it to HttpIoError so
+        // callers never see a raw error type leak through.
         let result = py.detach(move || runtime.block_on(client.send(req)));
         match result {
             Ok(Ok(resp)) => Ok(HttpResponsePy::from(resp)),
@@ -66,230 +118,183 @@ impl HttpClientPy {
 
 #[pymethods]
 impl HttpClientPy {
-    /// Send a fully-built `HttpRequest`. Consumes the request — subsequent
-    /// operations on the same `HttpRequestPy` raise `ValueError`.
+    /// Construct a client bound to `runtime` (a `SharedRuntime`).
     ///
-    /// Releases the GIL for the duration of the I/O.
-    fn send(
-        &self,
+    /// `base_url` is `scheme://host[:port][/prefix]` (`http`/`https`) or
+    /// `unix:///path/to.sock`. For UDS the request host is fixed to `localhost`.
+    #[new]
+    #[pyo3(signature = (
+        base_url,
+        *,
+        runtime,
+        timeout_ms=2000,
+        headers=None,
+        retry=None,
+        treat_http_errors_as_errors=true,
+    ))]
+    fn new(
         py: Python<'_>,
-        mut request: PyRefMut<'_, HttpRequestPy>,
-    ) -> PyResult<HttpResponsePy> {
-        let req = request.take_inner()?;
-        self.run_send(py, req)
+        base_url: String,
+        runtime: PyRef<'_, SharedRuntimePy>,
+        timeout_ms: u64,
+        headers: Option<Vec<(String, String)>>,
+        retry: Option<(u32, u64, bool)>,
+        treat_http_errors_as_errors: bool,
+    ) -> PyResult<Self> {
+        let rt = runtime.as_arc().clone();
+
+        let (scheme, rest) = base_url.split_once("://").ok_or_else(|| {
+            http_error_to_pyerr(
+                py,
+                HttpClientError::InvalidConfig(format!(
+                    "invalid base_url '{base_url}': expected scheme://… (http, https, or unix)"
+                )),
+            )
+        })?;
+        let (base, unix_path) = match scheme {
+            "unix" => ("http://localhost".to_string(), Some(rest.to_string())),
+            "http" | "https" => (base_url.trim_end_matches('/').to_string(), None),
+            other => {
+                return Err(http_error_to_pyerr(
+                    py,
+                    HttpClientError::InvalidConfig(format!(
+                        "unsupported scheme '{other}' in base_url '{base_url}' (use http, https, or unix)"
+                    )),
+                ))
+            }
+        };
+
+        // libdd requires base_url to be set even though it routes on the request
+        // URL we build; set it to the origin for clarity.
+        let mut builder = HttpClient::builder()
+            .base_url(base.clone())
+            .timeout(Duration::from_millis(timeout_ms))
+            .treat_http_errors_as_errors(treat_http_errors_as_errors);
+        if let Some((max_retries, initial_delay_ms, jitter)) = retry {
+            builder = builder.retry(
+                RetryConfig::new()
+                    .max_retries(max_retries)
+                    .initial_delay(Duration::from_millis(initial_delay_ms))
+                    .with_jitter(jitter),
+            );
+        }
+        if let Some(path) = unix_path {
+            #[cfg(unix)]
+            {
+                builder = builder.unix_socket(std::path::PathBuf::from(path));
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = path;
+                return Err(PyValueError::new_err(
+                    "Unix sockets are not supported on this platform",
+                ));
+            }
+        }
+        let inner = builder.build().map_err(|e| http_error_to_pyerr(py, e))?;
+
+        Ok(Self {
+            inner: Some((inner, rt)),
+            base,
+            default_headers: headers.unwrap_or_default(),
+        })
     }
 
-    /// Convenience GET. Headers must be an iterable of ``(name, value)``
-    /// tuples.
-    #[pyo3(signature = (url, *, headers=None, timeout_ms=None))]
+    /// GET `path` (joined onto the base URL).
+    #[pyo3(signature = (path, *, headers=None, timeout_ms=None))]
     fn get(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Get, url, headers, None, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Get, &path, headers, None, timeout_ms)
     }
 
-    /// Convenience HEAD.
-    #[pyo3(signature = (url, *, headers=None, timeout_ms=None))]
+    /// HEAD `path`.
+    #[pyo3(signature = (path, *, headers=None, timeout_ms=None))]
     fn head(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Head, url, headers, None, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Head, &path, headers, None, timeout_ms)
     }
 
-    /// Convenience DELETE.
-    #[pyo3(signature = (url, *, headers=None, timeout_ms=None))]
+    /// DELETE `path`.
+    #[pyo3(signature = (path, *, headers=None, timeout_ms=None))]
     fn delete(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Delete, url, headers, None, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Delete, &path, headers, None, timeout_ms)
     }
 
-    /// Convenience POST.
-    #[pyo3(signature = (url, *, headers=None, body=None, timeout_ms=None))]
+    /// POST `path` with an optional body.
+    #[pyo3(signature = (path, *, headers=None, body=None, timeout_ms=None))]
     fn post(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         body: Option<PyBackedBytes>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Post, url, headers, body, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Post, &path, headers, body, timeout_ms)
     }
 
-    /// Convenience PUT.
-    #[pyo3(signature = (url, *, headers=None, body=None, timeout_ms=None))]
+    /// PUT `path` with an optional body.
+    #[pyo3(signature = (path, *, headers=None, body=None, timeout_ms=None))]
     fn put(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         body: Option<PyBackedBytes>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Put, url, headers, body, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Put, &path, headers, body, timeout_ms)
     }
 
-    /// Convenience PATCH.
-    #[pyo3(signature = (url, *, headers=None, body=None, timeout_ms=None))]
+    /// PATCH `path` with an optional body.
+    #[pyo3(signature = (path, *, headers=None, body=None, timeout_ms=None))]
     fn patch(
         &self,
         py: Python<'_>,
-        url: String,
+        path: String,
         headers: Option<Vec<(String, String)>>,
         body: Option<PyBackedBytes>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let req = HttpRequestPy::build_inner(HttpMethodPy::Patch, url, headers, body, timeout_ms);
-        self.run_send(py, req)
+        self.request(py, HttpMethod::Patch, &path, headers, body, timeout_ms)
     }
 
-    /// Explicit shutdown. After this, `send`/`get`/`post`/... raise
-    /// `ValueError`. Optional — `Drop` runs the same close path.
+    /// Explicit shutdown. After this, requests raise `ValueError`. Optional —
+    /// `Drop` runs the same close path.
     fn shutdown(&mut self) {
         drop(self.inner.take());
     }
 
-    fn __repr__(&self) -> &'static str {
-        if self.inner.is_some() {
-            "HttpClient(<open>)"
+    fn __repr__(&self) -> String {
+        let state = if self.inner.is_some() {
+            "open"
         } else {
-            "HttpClient(<closed>)"
-        }
+            "closed"
+        };
+        format!("HTTPClient(base={:?}, <{}>)", self.base, state)
     }
 }
 
 impl Drop for HttpClientPy {
     fn drop(&mut self) {
-        // DEV: reqwest's pool cleans up its background tasks synchronously on
-        // the runtime, no explicit timeout needed (TraceExporter has one
-        // because of its own worker threads; HttpClient has none of its own).
+        // DEV: reqwest's pool cleans up its background tasks synchronously on the
+        // runtime; no explicit timeout needed (the client owns no worker threads).
         drop(self.inner.take());
-    }
-}
-
-/// Builder for `HttpClient`. Each setter takes ownership of the inner libdd
-/// builder (which has `mut self -> Self` setters), runs the setter, and
-/// stores the new builder back. Chainable.
-#[pyclass(name = "HttpClientBuilder")]
-pub struct HttpClientBuilderPy {
-    builder: Option<HttpClientBuilder>,
-}
-
-impl HttpClientBuilderPy {
-    fn take_builder(&mut self) -> PyResult<HttpClientBuilder> {
-        self.builder
-            .take()
-            .ok_or_else(|| PyValueError::new_err(BUILDER_CONSUMED_MSG))
-    }
-}
-
-#[pymethods]
-impl HttpClientBuilderPy {
-    #[new]
-    fn new() -> Self {
-        // DEV: libdd's `HttpClientBuilder.build()` requires `base_url` to have
-        // been set or returns `InvalidConfig`. `base_url` is informational —
-        // the actual request URL is on `HttpRequest::new(method, url)` — so we
-        // pre-set an empty string here. Callers do not interact with this.
-        Self {
-            builder: Some(HttpClient::builder().base_url(String::new())),
-        }
-    }
-
-    /// Set the default request timeout. Chainable.
-    fn set_timeout_ms(mut slf: PyRefMut<'_, Self>, ms: u64) -> PyResult<Py<Self>> {
-        let b = slf.take_builder()?;
-        slf.builder = Some(b.timeout(Duration::from_millis(ms)));
-        Ok(slf.into())
-    }
-
-    /// Configure whether HTTP 4xx/5xx responses are surfaced as errors.
-    /// Default ``True``.
-    fn set_treat_http_errors_as_errors(
-        mut slf: PyRefMut<'_, Self>,
-        value: bool,
-    ) -> PyResult<Py<Self>> {
-        let b = slf.take_builder()?;
-        slf.builder = Some(b.treat_http_errors_as_errors(value));
-        Ok(slf.into())
-    }
-
-    /// Allow or disallow connection pooling. Default ``True``.
-    fn set_allow_connection_pooling(
-        mut slf: PyRefMut<'_, Self>,
-        allow: bool,
-    ) -> PyResult<Py<Self>> {
-        let b = slf.take_builder()?;
-        slf.builder = Some(b.allow_connection_pooling(allow));
-        Ok(slf.into())
-    }
-
-    /// Enable automatic retries with exponential backoff. `max_retries=0` is
-    /// equivalent to no retry — libdd skips the retry loop entirely in that
-    /// case.
-    #[pyo3(signature = (max_retries, initial_delay_ms=100, jitter=true))]
-    fn set_retry(
-        mut slf: PyRefMut<'_, Self>,
-        max_retries: u32,
-        initial_delay_ms: u64,
-        jitter: bool,
-    ) -> PyResult<Py<Self>> {
-        let b = slf.take_builder()?;
-        let cfg = RetryConfig::new()
-            .max_retries(max_retries)
-            .initial_delay(Duration::from_millis(initial_delay_ms))
-            .with_jitter(jitter);
-        slf.builder = Some(b.retry(cfg));
-        Ok(slf.into())
-    }
-
-    /// Route requests through a Unix Domain Socket. The host portion of each
-    /// `HttpRequest` URL is ignored when this is set.
-    #[cfg(unix)]
-    fn set_unix_socket(mut slf: PyRefMut<'_, Self>, path: String) -> PyResult<Py<Self>> {
-        let b = slf.take_builder()?;
-        slf.builder = Some(b.unix_socket(PathBuf::from(path)));
-        Ok(slf.into())
-    }
-
-    #[cfg(not(unix))]
-    fn set_unix_socket(_slf: PyRefMut<'_, Self>, _path: String) -> PyResult<Py<Self>> {
-        Err(PyValueError::new_err(
-            "Unix sockets are not supported on this platform",
-        ))
-    }
-
-    /// Consume the builder and return a configured `HttpClient`. The
-    /// `shared_runtime` is the process-wide `NativeRuntime` singleton from
-    /// `ddtrace.internal.native_runtime.get_native_runtime()`.
-    fn build(
-        &mut self,
-        py: Python<'_>,
-        shared_runtime: PyRef<'_, SharedRuntimePy>,
-    ) -> PyResult<HttpClientPy> {
-        let runtime = shared_runtime.as_arc().clone();
-        let builder = self.take_builder()?;
-        let inner = builder.build().map_err(|e| http_error_to_pyerr(py, e))?;
-        Ok(HttpClientPy {
-            inner: Some((inner, runtime)),
-        })
     }
 }

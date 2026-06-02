@@ -1,7 +1,4 @@
-from typing import Iterable
-from typing import Mapping
 from typing import Optional
-from typing import Union
 
 from ddtrace.internal.settings import env
 
@@ -10,16 +7,12 @@ from ._native import AgentResponse  # noqa: F401
 from ._native import BuilderError  # noqa: F401
 from ._native import ConnectionFailedError  # noqa: F401
 from ._native import DeserializationError  # noqa: F401
-from ._native import HttpClient  # noqa: F401
-from ._native import HttpClientBuilder  # noqa: F401
+from ._native import HTTPClient  # noqa: F401
 from ._native import HttpClientError  # noqa: F401
 from ._native import HttpIoError  # noqa: F401  # renamed at Rust level (avoids data_pipeline.IoError collision)
-from ._native import HttpMethod  # noqa: F401
-from ._native import HttpRequest  # noqa: F401
 from ._native import HttpResponse  # noqa: F401
 from ._native import InvalidConfigError  # noqa: F401
 from ._native import IoError  # noqa: F401
-from ._native import MultipartPart  # noqa: F401
 from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
@@ -43,27 +36,6 @@ try:
     from ._native import ffe  # noqa: F401
 except ImportError:
     pass
-
-
-def apply_container_headers(
-    headers: Optional[Union[Mapping[str, str], Iterable[tuple[str, str]]]] = None,
-) -> list[tuple[str, str]]:
-    """Apply container/entity headers (DD-Container-ID, DD-Entity-ID, etc.) on top
-    of caller-supplied headers.
-
-    The legacy ``HTTPConnectionMixin.request`` silently injected these via
-    ``container.update_headers``. The native :class:`HttpClient` does not — so
-    migration callsites call this helper before ``client.post(headers=...)`` or
-    ``client.send(req)``.
-
-    Accepts any iterable of ``(name, value)`` pairs (e.g. a dict's ``.items()``
-    view) and returns a list suitable for passing to the native client.
-    """
-    from ddtrace.internal.runtime import container
-
-    headers_dict: dict[str, str] = dict(headers or {})
-    container.update_headers(headers_dict)
-    return list(headers_dict.items())
 
 
 def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
