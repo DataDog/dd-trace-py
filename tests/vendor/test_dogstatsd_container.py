@@ -1,33 +1,63 @@
 """Tests for the vendored DogStatsD container-ID reader.
 
-Coverage for code added in the cgroup v2 origin-detection fix:
+Covers the cgroup v2 origin-detection fix (new code):
   - ContainerID.__init__: delegates to path-read vs inode-fallback
   - ContainerID._is_host_cgroup_namespace
   - ContainerID._read_cgroup_path
   - ContainerID._get_cgroup_from_inode
 
-Tests for the pre-existing _read_container_id helper live in a separate PR to
-keep this change focused on the new code.
+And the pre-existing _read_container_id helper:
+  - TestReadContainerIdFound
+  - TestReadContainerIdNotFound
+  - TestReadContainerIdErrors
 """
 
+import errno
 import os
 import tempfile
 from typing import Optional
 from unittest import mock
 
 from ddtrace.vendor.dogstatsd.container import ContainerID
+from ddtrace.vendor.dogstatsd.container import UnresolvableContainerID
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+CONTAINER_ID_64 = "3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860"
+CONTAINER_ID_K8S = "3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1"
+TASK_ID_FARGATE = "34dc0b5e626f2c5c4c5170e34b10e765-1234567890"
+
+DOCKER_CGROUP_V1 = f"11:memory:/docker/{CONTAINER_ID_64}\n10:cpu,cpuacct:/docker/{CONTAINER_ID_64}\n"
+K8S_CGROUP_V1 = (
+    f"9:memory:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/{CONTAINER_ID_K8S}\n"
+    f"1:name=systemd:/kubepods/test/pod3d274242-8ee0-11e9-a8a6-1e68d864ef1a/{CONTAINER_ID_K8S}\n"
+)
+ECS_CGROUP_V1 = (
+    f"8:memory:/ecs/test-ecs-classic/5a0d5ceddf6c44c1928d367a815d890f/{CONTAINER_ID_64}\n"
+    f"1:blkio:/ecs/test-ecs-classic/5a0d5ceddf6c44c1928d367a815d890f/{CONTAINER_ID_64}\n"
+)
+FARGATE_14_CGROUP = (
+    f"10:pids:/ecs/55091c13-b8cf-4801-b527-f4601742204d/{TASK_ID_FARGATE}\n1:name=systemd:/ecs/{TASK_ID_FARGATE}\n"
+)
+K8S_SLICE_SCOPE = (
+    f"1:name=systemd:/kubepods.slice/kubepods-burstable.slice/"
+    f"kubepods-burstable-pod2d3da189_6407_48e3_9ab6_78188d75e609.slice/"
+    f"docker-{CONTAINER_ID_64}.scope\n"
+)
+CGROUP_V2_UNIFIED = "0::/\n"
+NON_CONTAINERISED = (
+    "11:blkio:/user.slice/user-0.slice/session-14.scope\n"
+    "10:memory:/user.slice/user-0.slice/session-14.scope\n"
+    "1:name=systemd:/user.slice/user-0.slice/session-14.scope\n"
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-DOCKER_CGROUP_V1 = (
-    "11:memory:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860\n"
-    "10:cpu,cpuacct:/docker/3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860\n"
-)
-K8S_CGROUP_V1 = "9:memory:/kubepods/test/pod3d274242/3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1\n"
-CGROUP_V2_UNIFIED = "0::/\n"
 
 
 def _write_cgroup(content: str) -> str:
@@ -35,6 +65,16 @@ def _write_cgroup(content: str) -> str:
     fp.write(content)
     fp.close()
     return fp.name
+
+
+def _read(content: str) -> Optional[str]:
+    """Write ``content`` to a temp file and run _read_container_id against it."""
+    reader = ContainerID.__new__(ContainerID)
+    path = _write_cgroup(content)
+    try:
+        return reader._read_container_id(path)
+    finally:
+        os.unlink(path)
 
 
 # ---------------------------------------------------------------------------
@@ -95,16 +135,14 @@ class TestReadCgroupPath:
     def test_returns_ci_prefixed_id_for_docker_cgroup_v1(self) -> None:
         reader = self._make_reader(DOCKER_CGROUP_V1)
         try:
-            result = reader._read_cgroup_path()
-            assert result == "ci-3726184226f5d3147c25fdeab5b60097e378e8a720503a5e19ecfdf29f869860"
+            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_64}"
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_ci_prefixed_id_for_k8s_cgroup_v1(self) -> None:
         reader = self._make_reader(K8S_CGROUP_V1)
         try:
-            result = reader._read_cgroup_path()
-            assert result == "ci-3e74d3fd9db4c9dd921ae05c2502fb984d0cde1b36e581b13f79c639da4518a1"
+            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_K8S}"
         finally:
             os.unlink(reader.CGROUP_PATH)
 
@@ -199,11 +237,11 @@ class TestContainerIDInit:
     def test_uses_cgroup_path_when_host_namespace(self) -> None:
         with (
             mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=True),
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value="ci-abc123") as mock_path,
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=f"ci-{CONTAINER_ID_64}") as mock_path,
             mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
         ):
             reader = ContainerID()
-            assert reader.container_id == "ci-abc123"
+            assert reader.container_id == f"ci-{CONTAINER_ID_64}"
             mock_path.assert_called_once()
             mock_inode.assert_not_called()
 
@@ -225,3 +263,62 @@ class TestContainerIDInit:
         ):
             reader = ContainerID()
             assert reader.container_id is None
+
+
+# ---------------------------------------------------------------------------
+# _read_container_id
+# ---------------------------------------------------------------------------
+
+
+class TestReadContainerIdFound:
+    def test_docker_cgroup_v1(self) -> None:
+        assert _read(DOCKER_CGROUP_V1) == CONTAINER_ID_64
+
+    def test_k8s_cgroup_v1(self) -> None:
+        assert _read(K8S_CGROUP_V1) == CONTAINER_ID_K8S
+
+    def test_ecs_classic(self) -> None:
+        assert _read(ECS_CGROUP_V1) == CONTAINER_ID_64
+
+    def test_fargate_14_uuid_task_id(self) -> None:
+        assert _read(FARGATE_14_CGROUP) == TASK_ID_FARGATE
+
+    def test_k8s_slice_scope_path(self) -> None:
+        assert _read(K8S_SLICE_SCOPE) == CONTAINER_ID_64
+
+
+class TestReadContainerIdNotFound:
+    def test_cgroup_v2_unified(self) -> None:
+        assert _read(CGROUP_V2_UNIFIED) is None
+
+    def test_non_containerised_linux(self) -> None:
+        assert _read(NON_CONTAINERISED) is None
+
+    def test_empty_file(self) -> None:
+        assert _read("") is None
+
+
+class TestReadContainerIdErrors:
+    def test_file_not_found_returns_none(self) -> None:
+        reader = ContainerID.__new__(ContainerID)
+        assert reader._read_container_id("/nonexistent/proc/self/cgroup") is None
+
+    def test_non_enoent_io_error_raises_not_implemented(self) -> None:
+        reader = ContainerID.__new__(ContainerID)
+        io_err = IOError()
+        io_err.errno = errno.EACCES
+        with mock.patch("builtins.open", side_effect=io_err):
+            try:
+                reader._read_container_id("/some/path")
+                assert False, "expected NotImplementedError"
+            except NotImplementedError:
+                pass
+
+    def test_unexpected_exception_raises_unresolvable(self) -> None:
+        reader = ContainerID.__new__(ContainerID)
+        with mock.patch("builtins.open", side_effect=RuntimeError("boom")):
+            try:
+                reader._read_container_id("/some/path")
+                assert False, "expected UnresolvableContainerID"
+            except UnresolvableContainerID:
+                pass
