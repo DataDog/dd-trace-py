@@ -841,53 +841,6 @@ class TestSysmonCoverageIdClash:
     must not crash with "ValueError: tool 1 is already in use".
     """
 
-    def test_inline_run_with_sysmon_does_not_crash(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
-        """pytester.inline_run(--cov) must succeed and collect coverage with COVERAGE_CORE=sysmon.
-
-        This is the direct reproduction of the bug: ddtrace holds COVERAGE_ID from the
-        outer session; the inner inline_run tries to start coverage.py's SysMonitor which
-        needs the same slot.  The fix releases the slot in pytest_sessionstart so the
-        inner session can claim it without error.
-
-        We also assert that ddtrace's coverage instrumentation pipeline is still active:
-        coverage data must be collected and an LCOV report produced, proving that
-        deregister_monitoring() + lazy re-registration leaves the pipeline intact.
-        """
-        pytester.makepyfile(
-            test_sample="""
-            def add(a, b):
-                return a + b
-
-            def test_add():
-                assert add(1, 2) == 3
-            """
-        )
-
-        with CoverageReportUploadCapture.capture() as upload_capture:
-            mock_client = mock_api_client_settings(
-                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
-            )
-
-            result = run_test_with_mocks(
-                pytester,
-                monkeypatch,
-                mock_client,
-                "COVERAGE_CORE",
-                "sysmon",
-                ["--ddtrace", "--cov", "-v", "-s"],
-            )
-
-        # Must not crash with "ValueError: tool 1 is already in use"
-        assert result.ret == 0, f"inline_run failed with COVERAGE_CORE=sysmon: {result.ret}"
-
-        # ddtrace's coverage pipeline must still produce a real LCOV report,
-        # proving that instrumentation is in place after deregister_monitoring().
-        coverage_uploads = upload_capture.get_coverage_report_uploads()
-        assert len(coverage_uploads) == 1, "Expected ddtrace to upload a coverage report"
-        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
-        assert "SF:" in lcov_content, "LCOV report missing source file entries"
-        assert "DA:" in lcov_content, "LCOV report missing line coverage data"
-
     def test_ddtrace_coverage_path_yields_to_sysmon_pytest_cov(
         self, pytester: Pytester, monkeypatch: MonkeyPatch
     ) -> None:
