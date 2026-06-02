@@ -294,6 +294,25 @@ MOCK_PARALLEL_TOOL_USE_SEQUENCE = [
 ]
 
 
+# Parallel tools delivered as N AssistantMessages (1 ToolUseBlock each) + 1 UserMessage
+# carrying all N ToolResultBlocks — the wire pattern the SDK emits in practice (MLOB-7551).
+MOCK_PARALLEL_BASH_TOOL_USE_SEQUENCE_SEPARATE_MESSAGES = [
+    MOCK_SYSTEM_MESSAGE,
+    create_mock_assistant_message_with_tool_use(
+        [("Bash", {"command": "echo first"}, MOCK_PARALLEL_BASH_TOOL_IDS[0])],
+    ),
+    create_mock_assistant_message_with_tool_use(
+        [("Bash", {"command": "echo second"}, MOCK_PARALLEL_BASH_TOOL_IDS[1])],
+    ),
+    create_mock_assistant_message_with_tool_use(
+        [("Bash", {"command": "echo third"}, MOCK_PARALLEL_BASH_TOOL_IDS[2])],
+    ),
+    MOCK_PARALLEL_TOOL_RESULT_USER,
+    MOCK_FINAL_ASSISTANT,
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
+
 MOCK_TOOL_ERROR_MESSAGE = "Permission denied: /etc/hostname"
 MOCK_TOOL_ERROR_USER_READ = create_mock_user_message_with_tool_result(
     [(MOCK_READ_TOOL_ID, MOCK_TOOL_ERROR_MESSAGE)],

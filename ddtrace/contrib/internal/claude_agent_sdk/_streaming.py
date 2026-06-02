@@ -343,10 +343,13 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
+        # Tool spans belong to the current step, not the active tracer context (which is the
+        # previously-opened tool span when parallel ToolUseBlocks arrive back-to-back).
         tool_span = self.integration.trace(
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
+            parent_context=self.current_step_span,
         )
         if self._last_llm_span_ref is not None:
             add_span_link(

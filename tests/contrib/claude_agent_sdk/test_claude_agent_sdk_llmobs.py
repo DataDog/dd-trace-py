@@ -919,6 +919,10 @@ class TestLLMObsClaudeAgentSdk:
         assert len(tool_spans) == 3
         assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
 
+        # Regression: MLOB-7551 — parallel tools must be siblings under step#1, not chained.
+        for tool_span in tool_spans:
+            assert tool_span.parent_id == step_spans[0].span_id
+
         # Fan-out: each tool gets one incoming link from llm#1.
         for tool_span in tool_spans:
             _assert_span_link(llm_spans[0], tool_span, "output", "input")
@@ -934,6 +938,48 @@ class TestLLMObsClaudeAgentSdk:
                     f"Tool span {tool_span.span_id} unexpectedly links to another tool span "
                     f"({link['span_id']}); parallel tools should be siblings, not chained."
                 )
+
+        # Step-to-step link is still emitted alongside the fan-out.
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+
+    async def test_llmobs_parallel_tool_use_separate_messages_nests_under_one_step(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_parallel_tool_use_separate_messages,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """N separate AssistantMessages (one ToolUseBlock each) followed by one UserMessage with
+        all N ToolResultBlocks still fan out under one step span: parent_id, fan-out from llm#1,
+        and fan-in to llm#2 all match the single-AssistantMessage case.
+        """
+        prompt = "Run three Bash commands in parallel (one AssistantMessage each)."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.llm"], key=lambda s: s.start_ns)
+        step_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.step"], key=lambda s: s.start_ns)
+        tool_spans = [s for s in spans if "tool" in s.name]
+
+        # Sequence: 3 × assistant(1 ToolUseBlock) → user(3 ToolResultBlocks) → final assistant(text)
+        # → result. The three ToolUseBlocks land before any ToolResultBlock, so they share one
+        # step span (step#1). The final text-only assistant message opens step#2 + llm#2.
+        assert len(step_spans) == 2
+        assert len(llm_spans) == 2
+        assert len(tool_spans) == 3
+        assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
+
+        # Regression: MLOB-7551 — parallel tools must be siblings under step#1, not chained.
+        for tool_span in tool_spans:
+            assert tool_span.parent_id == step_spans[0].span_id
+
+        # Fan-out and fan-in span links must hold for the separate-messages wire pattern too:
+        # every tool links from llm#1 (the only llm span that observed a ToolUseBlock) and
+        # forward into llm#2 (the next inference cycle).
+        for tool_span in tool_spans:
+            _assert_span_link(llm_spans[0], tool_span, "output", "input")
+            _assert_span_link(tool_span, llm_spans[1], "output", "input")
 
         # Step-to-step link is still emitted alongside the fan-out.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
