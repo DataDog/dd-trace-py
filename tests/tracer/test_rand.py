@@ -202,7 +202,7 @@ def test_threadsafe():
         assert ids & new_ids == set()
         ids = ids | new_ids
 
-    assert len(ids) > 0
+    assert len(ids) > 0  # pyright: ignore[reportUnknownArgumentType]
 
 
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
@@ -269,8 +269,8 @@ def test_secure_random_one_produces_unique_ids():
 @pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true"})
 def test_secure_random_thread_safe():
     """With DD_TRACE_SECURE_RANDOM=true, concurrent rand64bits() calls must not collide."""
-    import threading
     from queue import Queue
+    import threading
 
     from ddtrace.internal.native import rand64bits
 
@@ -294,9 +294,7 @@ def test_secure_random_thread_safe():
     )
 
 
-@pytest.mark.subprocess(
-    env={"DD_TRACE_SECURE_RANDOM": "true", "PYTHONWARNINGS": "ignore::DeprecationWarning"}
-)
+@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_secure_random_fork_no_collisions():
     """With DD_TRACE_SECURE_RANDOM=true, parent and child must not share IDs after fork."""
     import os
