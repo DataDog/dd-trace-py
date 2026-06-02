@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    aiokafka: Adds ``kafka.partition`` and ``kafka.message_offset`` tags to the
+    producer span once the broker acknowledges the send. The partition reflects
+    the partition the broker actually assigned to the message, which may differ
+    from the partition the caller requested. Mirrors the behavior added to the
+    Java tracer in DataDog/dd-trace-java#11107.
