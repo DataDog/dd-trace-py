@@ -2331,11 +2331,6 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
-        if self._dataset is None:
-            raise RuntimeError(
-                "Error in Experiment._prepare_summary_evaluator_data(): missing dataset. "
-                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
-            )
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
