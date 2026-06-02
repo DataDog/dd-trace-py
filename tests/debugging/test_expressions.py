@@ -115,9 +115,13 @@ class CustomDict(dict):
         (
             {"contains": [{"ref": "payload"}, "hello"]},
             {"payload": SafeObjectProxy.safe(CustomObject("contains"))},
-            False,
+            TypeError,
         ),
-        ({"contains": [{"ref": "payload"}, "name"]}, {"payload": SafeObjectProxy.safe(CustomObject("contains"))}, True),
+        (
+            {"contains": [{"ref": "payload"}, "name"]},
+            {"payload": SafeObjectProxy.safe(CustomObject("contains"))},
+            TypeError,
+        ),
         ({"matches": [{"ref": "payload"}, "[0-9]+"]}, {"payload": "42"}, True),
         # Test literal values
         (42, {}, 42),

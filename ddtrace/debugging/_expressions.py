@@ -69,18 +69,18 @@ _type_dict_descriptor: Any = type.__dict__["__dict__"]  # type: ignore[index]
 _type_module_descriptor: Any = type.__dict__["__module__"]  # type: ignore[index]
 _type_qualname_descriptor: Any = type.__dict__["__qualname__"]  # type: ignore[index]
 
-# Builtin sized types whose __len__ is safe to call directly.  We call the
-# unbound method (e.g. list.__len__(obj)) rather than the builtin len() so
-# that custom __len__ overrides on subclasses are bypassed and cannot trigger
-# arbitrary side effects (DB queries, network calls, …).
+# Builtin sized/container types whose unbound methods are safe to call.
+# We use _isinstance (issubclass(type(obj), t) — purely C-level, no descriptors)
+# to find the first safe ancestor, then call its unbound method directly,
+# bypassing any override on the object's own class or intermediate subclasses.
 _SAFE_SIZED_BUILTINS: tuple[type, ...] = (list, tuple, set, frozenset, dict, str, bytes, bytearray, range)
+_SAFE_CONTAINS_BUILTINS: tuple[type, ...] = (list, tuple, set, frozenset, dict, str, bytes, bytearray)
 
 
 def _safe_len(obj: Any) -> int:
-    """Return the length of *obj* without invoking a custom __len__.
+    """Return len(*obj*) without invoking a custom __len__.
 
-    Only succeeds for instances of known builtin sized types; raises TypeError
-    for anything else to avoid triggering arbitrary user code as a side effect.
+    Raises TypeError when the object is not an instance of a known-safe builtin.
     """
     for t in _SAFE_SIZED_BUILTINS:
         if _isinstance(obj, t):
@@ -93,30 +93,14 @@ def _safe_is_empty(obj: Any) -> bool:
     return _safe_len(obj) == 0
 
 
-# Builtin container types whose __contains__ is safe to call directly.
-_SAFE_CONTAINS_BUILTINS: tuple[type, ...] = (list, tuple, set, frozenset, dict, str, bytes, bytearray)
-
-
 def _safe_contains(container: Any, item: Any) -> bool:
     """Check membership without invoking a custom __contains__.
 
-    Only succeeds for instances of known builtin container types.  Transparent
-    proxies (e.g. SafeObjectProxy / wrapt.ObjectProxy) are unwrapped one level
-    via object.__getattribute__ so that the underlying builtin container can be
-    inspected safely.  Raises TypeError for anything else.
+    Raises TypeError when the container is not an instance of a known-safe builtin.
     """
     for t in _SAFE_CONTAINS_BUILTINS:
         if _isinstance(container, t):
             return t.__contains__(container, item)  # type: ignore[operator, no-any-return]
-    # Unwrap transparent proxies (wrapt.ObjectProxy / SafeObjectProxy expose
-    # __wrapped__ as a C-level attribute; object.__getattribute__ bypasses any
-    # Python-level __getattribute__ override, reaching it directly).
-    try:
-        wrapped = object.__getattribute__(container, "__wrapped__")
-    except AttributeError:
-        pass
-    else:
-        return _safe_contains(wrapped, item)
     raise TypeError("Cannot safely check containment in %s without risking side effects" % type(container).__name__)
 
 
