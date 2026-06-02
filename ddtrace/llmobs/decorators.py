@@ -4,9 +4,9 @@ from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
 import sys
+from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import OrderedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
