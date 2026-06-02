@@ -156,9 +156,8 @@ def _get_or_create_bedrock_trace_step_span(
 def _propagate_inner_io_to_step_span(step_span: Span, inner_span: Span) -> None:
     """Copy first non-empty input and last output from inner_span onto step_span.
 
-    MUST be called before inner_span.finish(): LLMObs may scrub meta_struct on the inner
-    span either at finish (LLMOBS_DIRECT) or later in the sampling fallback processor
-    (APM modes, on predicted-drop).
+    MUST be called before inner_span.finish(): LLMObs._on_span_finish enqueues the event
+    and scrubs meta_struct[LLMOBS_STRUCT.KEY] on finish, leaving nothing to read.
     """
     kwargs: dict[str, Any] = {}
     if not get_llmobs_input(step_span):
