@@ -49,10 +49,9 @@ class ContainerID(object):
     CONTAINER_RE = re.compile(r"(?:.+)?({0}|{1}|{2})(?:\.scope)?$".format(UUID_SOURCE, CONTAINER_SOURCE, TASK_SOURCE))
 
     def __init__(self) -> None:
-        if self._is_host_cgroup_namespace():
-            self.container_id = self._read_cgroup_path()
-            return
-        self.container_id = self._get_cgroup_from_inode()
+        self.container_id = self._read_cgroup_path()
+        if self.container_id is None and not self._is_host_cgroup_namespace():
+            self.container_id = self._get_cgroup_from_inode()
 
     def _is_host_cgroup_namespace(self) -> bool:
         """Check whether the current process is in the host cgroup namespace.

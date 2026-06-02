@@ -234,30 +234,46 @@ class TestGetCgroupFromInode:
 
 
 class TestContainerIDInit:
-    def test_uses_cgroup_path_when_host_namespace(self) -> None:
+    def test_uses_cgroup_path_when_parseable(self) -> None:
+        # ci- path is always tried first; inode is never consulted when it succeeds.
         with (
-            mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=True),
             mock.patch.object(ContainerID, "_read_cgroup_path", return_value=f"ci-{CONTAINER_ID_64}") as mock_path,
+            mock.patch.object(ContainerID, "_is_host_cgroup_namespace") as mock_ns,
             mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
         ):
             reader = ContainerID()
             assert reader.container_id == f"ci-{CONTAINER_ID_64}"
             mock_path.assert_called_once()
+            mock_ns.assert_not_called()
             mock_inode.assert_not_called()
 
-    def test_uses_inode_fallback_when_not_host_namespace(self) -> None:
+    def test_uses_inode_fallback_when_path_empty_and_not_host_namespace(self) -> None:
+        # Typical cgroup v2: path yields None and namespace check is private → inode.
         with (
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None) as mock_path,
             mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=False),
-            mock.patch.object(ContainerID, "_read_cgroup_path") as mock_path,
             mock.patch.object(ContainerID, "_get_cgroup_from_inode", return_value="in-99999") as mock_inode,
         ):
             reader = ContainerID()
             assert reader.container_id == "in-99999"
+            mock_path.assert_called_once()
             mock_inode.assert_called_once()
-            mock_path.assert_not_called()
+
+    def test_skips_inode_when_host_namespace_and_path_empty(self) -> None:
+        # In the host namespace without a parseable path (bare non-container Linux),
+        # the inode fallback is skipped.
+        with (
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None),
+            mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=True),
+            mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
+        ):
+            reader = ContainerID()
+            assert reader.container_id is None
+            mock_inode.assert_not_called()
 
     def test_container_id_is_none_when_inode_fallback_returns_none(self) -> None:
         with (
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None),
             mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=False),
             mock.patch.object(ContainerID, "_get_cgroup_from_inode", return_value=None),
         ):
