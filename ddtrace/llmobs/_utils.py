@@ -586,9 +586,7 @@ def _annotate_llmobs_span_data(
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
-            # Tag values are stored (and ultimately serialized) as strings. The LLMObs
-            # intakes decode tags as a string->string map, so coerce non-string values
-            # (e.g. bool/int/float passed to annotate()) here, at the single write site.
+            # Tag values are serialized as strings, so coerce non-string values here.
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
