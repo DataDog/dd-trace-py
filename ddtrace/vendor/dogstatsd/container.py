@@ -25,9 +25,7 @@ class ContainerID(object):
 
     Both forms are understood by the Datadog Agent's origin detection, which
     uses them to enrich DogStatsD metrics with orchestrator tags such as
-    ``pod_name``. The previous implementation only parsed ``/proc/self/cgroup``
-    and therefore returned ``None`` on cgroup v2 nodes, which silently disabled
-    origin detection for those pods.
+    ``pod_name``.
 
     Returns:
     object: ContainerID
@@ -65,9 +63,8 @@ class ContainerID(object):
         """
         try:
             return (
-                os.stat(self.CGROUP_NS_PATH).st_ino == self.HOST_CGROUP_NAMESPACE_INODE
-                if os.path.exists(self.CGROUP_NS_PATH)
-                else False
+                os.path.exists(self.CGROUP_NS_PATH)
+                and os.stat(self.CGROUP_NS_PATH).st_ino == self.HOST_CGROUP_NAMESPACE_INODE
             )
         except Exception:
             return False
