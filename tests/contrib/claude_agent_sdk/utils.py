@@ -173,6 +173,24 @@ MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
+# Reproduces an API error surfaced in the assistant message content (e.g. an
+# overloaded_error). The SDK maps the uncategorized error to the "unknown" literal
+# while the descriptive payload lives in a TextBlock.
+MOCK_ASSISTANT_MESSAGE_ERROR_TYPE = "unknown"
+MOCK_ASSISTANT_MESSAGE_ERROR_TEXT = (
+    'API Error: {"type":"error","error":{"details":null,"type":"overloaded_error",'
+    '"message":"Overloaded"},"request_id":"req_011Cbd5D168oye3XGdgSjVog"}'
+)
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT = AssistantMessage(
+    content=[TextBlock(text=MOCK_ASSISTANT_MESSAGE_ERROR_TEXT)], model=MOCK_MODEL
+)
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT.error = MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
+MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT,
+    MOCK_RESULT_MESSAGE,
+]
+
 MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE_WITH_USAGE,

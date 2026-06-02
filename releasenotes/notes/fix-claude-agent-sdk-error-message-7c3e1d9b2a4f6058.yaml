@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue in the Claude Agent SDK integration where an agent or
+    LLM span's error message was set to the SDK's coarse error category (e.g. ``unknown``) for both the
+    error type and message, producing an unhelpful ``unknown: unknown`` error. The descriptive API error
+    text (e.g. an ``overloaded_error`` payload) carried in the assistant message content is now surfaced
+    as the error message, while the category is retained as the error type.
