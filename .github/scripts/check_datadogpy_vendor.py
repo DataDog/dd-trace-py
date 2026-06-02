@@ -21,8 +21,14 @@ import sys
 import urllib.error
 import urllib.request
 
-from packaging.version import InvalidVersion
-from packaging.version import Version
+
+# Use the copy of `packaging` that is already vendored in this repository so
+# the workflow step works without a separate `pip install` and the dependency
+# version is pinned alongside the rest of the codebase.
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ddtrace" / "vendor"))
+
+from packaging.version import InvalidVersion  # noqa: E402
+from packaging.version import Version  # noqa: E402
 
 
 PYPI_URL: str = "https://pypi.org/pypi/datadog/json"
@@ -77,11 +83,14 @@ def _vendored_version() -> str:
 
     section: str = section_match.group(1)
 
-    # Accept both formats:
-    #   "Version: 0.52.1"          (clean semver, used after the vendor bump)
-    #   "Version: 8e11af2 (0.39.1)"  (git-hash + semver in parens, used before)
+    # Accept both formats, preserving any PEP 440 suffix (rc, post, dev, …):
+    #   "Version: 0.52.1"              (clean release after the vendor bump)
+    #   "Version: 0.52.1rc1"           (hypothetical pre-release pin)
+    #   "Version: 8e11af2 (0.39.1)"    (git-hash + version in parens, legacy)
+    # The character class [^\s)] stops at whitespace or a closing paren so the
+    # parenthesised form is handled without a separate branch.
     version_match: re.Match[str] | None = re.search(
-        r"Version:.*?(\d+\.\d+\.\d+)",
+        r"Version:.*?(\d+\.\d+\.\d+[^\s)]*)",
         section,
     )
     if not version_match:
