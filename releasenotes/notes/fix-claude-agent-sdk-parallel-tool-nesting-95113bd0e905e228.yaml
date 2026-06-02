@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue with the ``claude_agent_sdk`` integration where
+    parallel tool spans were incorrectly nested in a chain (``tool#2`` parented on ``tool#1``)
+    instead of as siblings under the same ``claude_agent_sdk.step`` span. Tool spans are now
+    parented on the current step span explicitly, so parallel ``ToolUseBlock``s — whether the SDK
+    delivers them in one ``AssistantMessage`` or across several — render as siblings in the
+    trace tree.
