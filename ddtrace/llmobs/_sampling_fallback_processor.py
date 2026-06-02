@@ -1,15 +1,16 @@
-"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT_PROXY /
-APM_AGENTLESS modes.
+"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT_PROXY mode.
 
-When the SDK predicts the APM trace will be dropped (root ``sampling_priority <= 0``)
-the Agent / libdatadog can drop the chunk before it reaches intake, taking the
-``meta_struct["_llmobs"]`` payload with it. This processor re-ships the cached event
-via ``LLMObsSpanWriter``, scrubs the meta_struct entry, and stamps
-``_dd.llmobs.submitted=1`` so intake-side dedup can drop the APM extract if the Agent
-unexpectedly keeps the trace.
+Only the Agent path needs this. Spans carrying ``meta_struct["_llmobs"]`` are sent to the
+local Agent, which drops unsampled spans (root ``sampling_priority <= 0``) before they reach
+intake, taking the payload with them. This processor re-ships the cached event via
+``LLMObsSpanWriter``, scrubs the meta_struct entry, and stamps ``_dd.llmobs.submitted=1`` so
+intake-side dedup can drop the APM extract if the Agent unexpectedly keeps the trace.
 
-The processor never mutates ``sampling_priority`` — LLMObs has no influence on APM
-sampling or billing.
+Agentless export ships straight to intake at 100% (no Agent to drop it) and is never routed
+through this processor; LLMOBS_DIRECT ships via the writer at span finish.
+
+The processor never mutates ``sampling_priority`` — LLMObs has no influence on APM sampling
+or billing.
 """
 
 from typing import Optional
@@ -34,8 +35,9 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
     """Re-ships LLMObs events when the SDK predicts the APM trace will be dropped.
 
     Slotted between ``TraceSamplingProcessor`` and ``TraceTagsProcessor`` in
-    ``SpanAggregator``'s chain so it runs after sampling decides priority but before
-    tags processing mutates the span.
+    ``SpanAggregator``'s chain: it must run after sampling has finalized the root priority
+    (so the predicted-drop check is accurate) and before later processors further mutate
+    the span.
 
     Relies on ``LLMObs._on_span_finish`` having cached the rendered event on the span
     (avoids re-running the span-to-event conversion).
@@ -47,6 +49,14 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         if not trace:
+            return trace
+        # The whole chunk shares one sampling decision; read it once from the local root. In
+        # distributed traces the upstream service's reject decision is what reaches the Agent.
+        # A predicted-kept trace (priority > 0) is delivered with its meta_struct intact, so
+        # there is nothing to rescue and we skip the per-span work entirely.
+        root = trace[0]._local_root or trace[0]
+        priority = root.context.sampling_priority
+        if priority is None or priority > 0:
             return trace
         for span in trace:
             try:
@@ -63,12 +73,6 @@ class LLMObsSamplingFallbackProcessor(TraceProcessor):
         if span.span_type != SpanTypes.LLM:
             return
         if span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1":
-            return
-        # Read priority from the local root: in distributed traces the upstream
-        # service's reject decision is what reaches the Agent.
-        root = span._local_root or span
-        priority = root.context.sampling_priority
-        if priority is None or priority > 0:
             return
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:

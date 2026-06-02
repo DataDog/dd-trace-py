@@ -580,10 +580,15 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event)
             return
 
-        # APM_AGENT_PROXY / APM_AGENTLESS: payload rides the APM trace via meta_struct.
-        # Cache the rendered event so LLMObsSamplingFallbackProcessor can re-ship it without
-        # rebuilding when the SDK predicts the trace will be dropped.
-        span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+        if self._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+            # Payload rides the APM trace to the local Agent via meta_struct. The Agent drops
+            # unsampled spans before they reach intake, so cache the rendered event for
+            # LLMObsSamplingFallbackProcessor to re-ship on a predicted drop (root priority <= 0).
+            span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
+            return
+
+        # APM_AGENTLESS: payload rides the APM trace straight to intake (no Agent in the path to
+        # drop it), so it is always delivered at 100%. Leave meta_struct in place; no rescue needed.
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -749,12 +754,13 @@ class LLMObs(Service):
         # prevent disable() from incorrectly reverting it in the child process.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
-            # Rebind the rescue processor: it captured the pre-fork writer whose worker
-            # thread does not survive fork(); leaving it in place would silently buffer
-            # rescued events in the child.
-            self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
-                self._llmobs_span_writer
-            )
+            if self._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+                # Rebind the rescue processor (Agent path only): it captured the pre-fork
+                # writer whose worker thread does not survive fork(); leaving it in place
+                # would silently buffer rescued events in the child.
+                self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
+                    self._llmobs_span_writer
+                )
             self._start_service()
 
     def _start_service(self) -> None:
@@ -923,9 +929,13 @@ class LLMObs(Service):
             else:
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
-            cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
-                cls._instance._llmobs_span_writer
-            )
+            if cls._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+                # Only the Agent path drops unsampled spans before intake, so the rescue
+                # processor is installed there alone. Agentless ships straight to intake at
+                # 100% and LLMOBS_DIRECT ships via the writer at span finish — neither needs it.
+                cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
+                    cls._instance._llmobs_span_writer
+                )
             cls._instance.start()
 
             # Register hooks for span events

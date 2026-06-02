@@ -68,6 +68,36 @@ class TestExportModeKeepsMetaStruct:
         assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
         assert span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) is not None
 
+    def test_apm_agentless_keeps_meta_struct_and_skips_rescue(self, tracer):
+        """APM_AGENTLESS ships straight to intake at 100%, so finish must keep meta_struct,
+        cache no rescue event, and never enqueue to the writer — even on a predicted drop.
+        """
+        from ddtrace._trace.processor import _NoopTraceProcessor
+
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+            }
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
+            # Mirror enable() gating: agentless installs no rescue processor.
+            tracer._span_aggregator.llmobs_fallback_processor = _NoopTraceProcessor()
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+                span.context.sampling_priority = USER_REJECT
+            mock_writer.enqueue.assert_not_called()
+            assert _get_llmobs_data_metastruct(span)
+            assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+            assert span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) is None
+            llmobs_service.disable()
+
     def test_llmobs_direct_mode_still_enqueues_and_scrubs(self, tracer):
         llmobs_service.disable()
         with override_global_config(
