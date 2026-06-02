@@ -21,6 +21,9 @@ import sys
 import urllib.error
 import urllib.request
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
+
 
 PYPI_URL: str = "https://pypi.org/pypi/datadog/json"
 VENDOR_INIT: Path = Path(__file__).parent.parent.parent / "ddtrace" / "vendor" / "__init__.py"
@@ -87,26 +90,22 @@ def _vendored_version() -> str:
     return version_match.group(1)
 
 
-def _version_tuple(v: str) -> tuple[int, ...]:
-    """Convert a version string to a comparable tuple of ints.
+def _is_outdated(vendored: str, latest: str) -> bool:
+    """Return True when the PyPI release is strictly newer than the vendored pin.
 
-    Handles plain ``"X.Y.Z"`` and defensively skips PEP 440 pre-release or
-    post-release segments so the comparison never raises ``ValueError``::
+    Uses ``packaging.version.Version`` for correct PEP 440 ordering so that
+    post-releases, pre-releases, and dev releases all compare properly::
 
-        "0.53.0"       → (0, 53, 0)
-        "0.53.0rc1"    → (0, 53, 0)   # rc treated as the base release
-        "0.44.1.dev0"  → (0, 44, 1)   # dev segment dropped
-        "0.53.0.post1" → (0, 53, 0)   # post segment dropped
+        "0.53.0.post1" > "0.53.0"   → True   (post-release is newer)
+        "0.53.0rc1"    < "0.53.0"   → False  (pre-release is older)
+        "0.44.1.dev0"  < "0.44.1"   → False  (dev release is older)
+        "0.53.0"      == "0.53.0"   → False  (same)
     """
-    parts: list[int] = []
-    for segment in v.split("."):
-        numeric: re.Match[str] | None = re.match(r"(\d+)", segment)
-        if numeric:
-            parts.append(int(numeric.group(1)))
-    if not parts:
-        print(f"ERROR: cannot parse version string {v!r}", file=sys.stderr)
+    try:
+        return Version(latest) > Version(vendored)
+    except InvalidVersion as exc:
+        print(f"ERROR: cannot compare versions {vendored!r} and {latest!r}: {exc}", file=sys.stderr)
         sys.exit(1)
-    return tuple(parts)
 
 
 def main() -> None:
@@ -116,9 +115,7 @@ def main() -> None:
     print(f"Vendored datadogpy version : {vendored}")
     print(f"Latest PyPI version        : {latest}")
 
-    # Flag only when PyPI is strictly ahead; if vendored == latest or vendored
-    # is somehow newer (e.g. a pre-release pin) we consider ourselves up to date.
-    outdated: bool = _version_tuple(latest) > _version_tuple(vendored)
+    outdated: bool = _is_outdated(vendored, latest)
     if outdated:
         print("⚠ Vendored version is behind PyPI — consider a vendor bump.")
     else:
