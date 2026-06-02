@@ -23,6 +23,7 @@ Cases covered:
 import errno
 import os
 import tempfile
+from typing import Optional
 from unittest import mock
 
 from ddtrace.vendor.dogstatsd.container import ContainerID
@@ -84,7 +85,7 @@ def _write_cgroup(content: str) -> str:
     return fp.name
 
 
-def _read(content: str) -> str | None:
+def _read(content: str) -> Optional[str]:
     """Write ``content`` to a temp file and run _read_container_id against it."""
     reader = ContainerID.__new__(ContainerID)
     path = _write_cgroup(content)
