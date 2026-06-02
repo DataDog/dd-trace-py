@@ -80,15 +80,12 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 def _inject_context_in_env(context: Context) -> None:
     headers: dict[str, str] = {}
     _TraceContext._inject(context, headers)
-    tp = headers.get("traceparent", "")
-    ts = headers.get("tracestate", "")
-    if (tp, ts) == getattr(_local, "last_injected_keys", None):
-        return
     # Environment variables are used as a process-boundary fallback channel for
     # context propagation when workers have no active in-process parent span.
-    env["traceparent"] = tp
-    env["tracestate"] = ts
-    _local.last_injected_keys = (tp, ts)
+    # No dedup: env vars are process-global, so a per-thread "last written" key
+    # would be stale if another thread wrote a different context in between.
+    env["traceparent"] = headers.get("traceparent", "")
+    env["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:

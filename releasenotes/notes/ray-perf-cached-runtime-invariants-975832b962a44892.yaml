@@ -4,5 +4,5 @@ other:
     ray: Cache host name and Ray runtime invariants (gcs_address,
     namespace, version, etc.) at first access. Per-call lookups
     (``socket.gethostname()``, ``ray.get_runtime_context().get_*()``)
-    are amortized across the process lifetime, reducing overhead for
+    are amortized across the thread lifetime, reducing overhead for
     high-frequency Ray task and actor-method instrumentation.

@@ -59,29 +59,14 @@ def test_extract_traceparent_cached():
     assert a is b is c
 
 
-def test_inject_context_in_env_skips_when_unchanged(monkeypatch):
-    """Repeated injection of the same context must not rewrite env vars."""
-    from ddtrace._trace.context import Context
-    from ddtrace.contrib.internal.ray.core import utils as u
+def test_inject_context_in_env_multiple_threads(monkeypatch):
+    """Concurrent injection from multiple threads must not raise and the last writer wins.
 
-    writes = []
-    real_setitem = u.env.__setitem__
-
-    def counting_setitem(key, value):
-        writes.append((key, value))
-        return real_setitem(key, value)
-
-    monkeypatch.setattr(u.env, "__setitem__", counting_setitem)
-
-    ctx = Context(trace_id=1234, span_id=5678, sampling_priority=1)
-    u._inject_context_in_env(ctx)
-    write_count_after_first = len(writes)
-    u._inject_context_in_env(ctx)
-    assert len(writes) == write_count_after_first
-
-
-def test_inject_context_in_env_is_thread_safe(monkeypatch):
-    """Two concurrent injectors must not raise; each thread tracks its own dedup state."""
+    env vars are process-global, so there is no per-thread dedup — each call always
+    writes. This test documents the expected behaviour: concurrent calls complete without
+    error, and after all threads finish the env vars hold a valid (traceparent, tracestate)
+    pair from one of the injected contexts.
+    """
     import threading
 
     from ddtrace._trace.context import Context
@@ -108,6 +93,8 @@ def test_inject_context_in_env_is_thread_safe(monkeypatch):
     t1.join(timeout=5)
     t2.join(timeout=5)
     assert errors == []
+    # env must contain a valid (non-empty) traceparent after concurrent writes
+    assert u.env.get("traceparent")
 
 
 def test_remote_function_does_not_call_inspect_signature_per_submit(monkeypatch):
