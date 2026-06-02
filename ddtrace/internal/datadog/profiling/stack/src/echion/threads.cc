@@ -246,9 +246,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             auto& task = current_task.get();
 
             // Look up the pre-computed coroutine stack for this task.
-            // AIDEV-NOTE: FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
-            // python_stack must be appended before coroutine frames; do not reintroduce front insertion here because
-            // FrameStack is vector-backed and this path runs on every sample.
+            // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
+            // python_stack must be appended before coroutine frames.
             // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
             // This preserves the previous max_frames truncation behavior while avoiding front insertion.
             const FrameStack* task_stack = nullptr;

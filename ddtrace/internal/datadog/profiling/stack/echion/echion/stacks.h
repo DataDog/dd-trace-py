@@ -22,12 +22,6 @@ class EchionSampler;
 // FrameStack owns the Frames so that they stay valid across cache evictions
 // (asyncio unwind_tasks precomputes per-task stacks via Frame::get, which can
 // evict entries still referenced from an earlier thread-stack capture).
-//
-// Backed by std::vector<Frame> rather than std::deque<Frame>: every call site
-// uses only push_back, forward iteration, size(), clear(), and integer
-// indexing, and none retains references across mutations. Vector keeps stacks
-// in a single contiguous buffer and lets the buffer be reused via clear()
-// (which preserves capacity), avoiding deque's per-instance chunk-map layout.
 class FrameStack : public std::vector<Frame>
 {
   public:
