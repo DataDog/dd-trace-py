@@ -223,7 +223,8 @@ def test_export_mode_apm_agentless_when_agentless_enabled():
 
 def test_annotate_tag_values_are_stringified(llmobs):
     """Non-string tag values (bool/int/float/None) are coerced to strings, since the LLMObs
-    intakes decode tags as a string->string map."""
+    intakes decode tags as a string->string map.
+    """
     with llmobs.workflow("w") as span:
         llmobs.annotate(
             span=span,
