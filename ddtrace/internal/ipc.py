@@ -4,9 +4,9 @@ import os
 from pathlib import Path
 import secrets
 import tempfile
-import threading
 import typing
 
+from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import unpatched_open
 from ddtrace.internal.logger import get_logger
 
@@ -110,13 +110,16 @@ class SharedStringFile:
         # POSIX advisory file locks (fcntl.lockf) do NOT block threads within
         # the same process, so concurrent put/snatchall from different threads
         # would race on the Python write buffer vs OS flush window.
-        self._thread_lock = threading.Lock()
+        # forksafe.Lock() resets after fork so children don't inherit a locked mutex.
+        self._thread_lock = forksafe.Lock()
 
-    def put_unlocked(self, f: typing.BinaryIO, data: str) -> None:
+    def put_unlocked(self, f: typing.BinaryIO, data: str) -> bool:
         f.seek(0, os.SEEK_END)
         dt = (data + "\x00").encode()
         if f.tell() + len(dt) <= MAX_FILE_SIZE:
             f.write(dt)
+            return True
+        return False
 
     def put(self, data: str) -> bool:
         """Put a string into the file. Returns True on success, False on failure."""
@@ -125,8 +128,7 @@ class SharedStringFile:
 
         try:
             with self.lock_exclusive() as f:
-                self.put_unlocked(f, data)
-            return True
+                return self.put_unlocked(f, data)
         except Exception:  # nosec
             return False
 
