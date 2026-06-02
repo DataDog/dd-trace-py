@@ -2,7 +2,7 @@
 """Compare the vendored datadogpy version with the latest release on PyPI.
 
 Values written to ``$GITHUB_OUTPUT`` (GitHub Actions inter-step data):
-  outdated         - ``"true"`` when PyPI is ahead of the vendored pin, ``"false"`` otherwise
+  outdated         - ``"true"`` when the PyPI release is strictly newer than the vendored pin, ``"false"`` otherwise
   latest_version   - latest version string fetched from PyPI (e.g. ``"0.53.0"``)
   vendored_version - version string parsed from ``ddtrace/vendor/__init__.py`` (e.g. ``"0.52.1"``)
 
@@ -87,6 +87,11 @@ def _vendored_version() -> str:
     return version_match.group(1)
 
 
+def _version_tuple(v: str) -> tuple[int, ...]:
+    """Convert a ``"X.Y.Z"`` version string to a comparable integer tuple."""
+    return tuple(int(part) for part in v.split("."))
+
+
 def main() -> None:
     latest: str = _latest_pypi_version()
     vendored: str = _vendored_version()
@@ -94,7 +99,9 @@ def main() -> None:
     print(f"Vendored datadogpy version : {vendored}")
     print(f"Latest PyPI version        : {latest}")
 
-    outdated: bool = latest != vendored
+    # Flag only when PyPI is strictly ahead; if vendored == latest or vendored
+    # is somehow newer (e.g. a pre-release pin) we consider ourselves up to date.
+    outdated: bool = _version_tuple(latest) > _version_tuple(vendored)
     if outdated:
         print("⚠ Vendored version is behind PyPI — consider a vendor bump.")
     else:
