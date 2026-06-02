@@ -1,10 +1,5 @@
 ---
 fixes:
   - |
-    tracing: Fixes an issue where a silent write failure in the shared IPC file used to track
-    extra service names caused those names to be permanently excluded from Remote Configuration
-    payloads. Previously, if ``SharedStringFile.put()`` failed (for example, when the file was
-    unavailable), the service name was still recorded as "already sent" in an in-memory set,
-    preventing any future retry. This resulted in the ``extra_services`` field being empty in
-    all subsequent ``/v0.7/config`` requests to the agent. The fix makes ``put()`` return a
-    boolean and only marks the service as sent when the write actually succeeds.
+    tracing: Fixes a race condition where extra service names could be silently dropped from
+    Remote Configuration ``/v0.7/config`` payloads in multi-threaded applications (e.g. uWSGI).
