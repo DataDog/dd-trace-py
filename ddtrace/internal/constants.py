@@ -93,6 +93,7 @@ USER_AGENT_HEADER = "user-agent"
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
 FLASK_URL_RULE = "flask.url_rule"
+FLASK_RESOURCE_FULL = "flask.resource.full"
 
 _HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
 DEFAULT_TIMEOUT = 2.0

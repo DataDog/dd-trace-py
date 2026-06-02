@@ -55,7 +55,7 @@ def _derive_default_heap_sample_size(
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _check_for_ddup_available():
+def _check_for_ddup_available() -> tuple[str, bool]:
     # NB: importing ddup module results in importing _ddup.so file which could
     # raise an Exception within the ddup module, but we catch it there and
     # we don't propagate up to here. And regardless of whether ddup is available,
@@ -65,7 +65,7 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_available():
+def _check_for_stack_available() -> tuple[str, bool]:
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
 
@@ -90,7 +90,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
-def _update_git_metadata_tags(tags):
+def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Update profiler tags with git metadata
     """
@@ -106,7 +106,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -429,6 +429,20 @@ class ProfilingConfigMemory(DDConfig):
         help="",
     )
 
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
@@ -557,7 +571,7 @@ if not stack_is_available:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config) -> str:
+def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
         # NOTE: This is intentionally left as stack_v2, to have an easy way

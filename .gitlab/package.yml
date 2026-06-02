@@ -1,6 +1,6 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
@@ -10,6 +10,7 @@ variables:
   - "3.12"
   - "3.13"
   - "3.14"
+  - "3.15"
 
 .PYTHON_TAGS: &PYTHON_TAGS
   - "cp39-cp39"
@@ -18,14 +19,15 @@ variables:
   - "cp312-cp312"
   - "cp313-cp313"
   - "cp314-cp314"
+  - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v85383414-751efc0-manylinux2014_aarch64"
-  - "v85383359-751efc0-musllinux_1_2_aarch64"
+  - "v113741357-d2b8243-manylinux2014_aarch64"
+  - "v113741589-d2b8243-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v85383392-751efc0-manylinux2014_x86_64"
-  - "v85383325-751efc0-musllinux_1_2_x86_64"
+  - "v113741238-d2b8243-manylinux2014_x86_64"
+  - "v113741491-d2b8243-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -43,6 +45,7 @@ variables:
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
@@ -101,6 +104,12 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: *AARCH64_IMAGES
+  # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
+  # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
+  rules:
+    - if: $PYTHON_TAG == "cp315-cp315"
+      allow_failure: true
+    - when: on_success
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
     - |
@@ -130,21 +139,17 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
         DD_SERVERLESS_BUILD: "1"
 
-"build macos":
+.build_macos_base:
   extends: .build_base
-  tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
-  parallel:
-    matrix:
-      # amd64 runners are slower
-      - ARCH_TAG: "amd64"
-        PYTHON_VERSIONS:
-          - "3.9 3.10 3.11"
-          - "3.12 3.13 3.14"
-      - ARCH_TAG: "arm64"
-        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    MACOSX_DEPLOYMENT_TARGET: "14.7"
     DD_USE_SCCACHE: "1"
+  parallel:
+    matrix:
+      - PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
   script: |
     set -euo pipefail
     if ! command -v sccache &> /dev/null; then
@@ -160,6 +165,34 @@ variables:
     done
     sccache --show-stats
 
+"build macos amd64":
+  extends: .build_macos_base
+  tags: [ "macos:sonoma-amd64", "specific:true" ]
+  variables:
+    ARCH_TAG: "amd64"
+
+# Tart VMs default to using zsh instead of bash
+"build macos arm64":
+  extends: .build_macos_base
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
+  tags: [ "macos:sonoma-tart" ]
+  variables:
+    ARCH_TAG: "arm64"
+    # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
+    FF_SCRIPT_SECTIONS: "false"
+    SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
+    SCCACHE_REGION: "us-east-1"
+  before_script: |
+    setopt shwordsplit 2>/dev/null || true
+    set -euo pipefail
+    # sccache hardcodes the IMDS IP (169.254.169.254) and ignores $AWS_EC2_METADATA_SERVICE_ENDPOINT,
+    # so resolve creds from the tart iam-proxy beforehand
+    role=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/")
+    creds=$(curl -sS "${AWS_EC2_METADATA_SERVICE_ENDPOINT}/latest/meta-data/iam/security-credentials/${role}")
+    export AWS_ACCESS_KEY_ID=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["AccessKeyId"])' <<<"$creds")
+    export AWS_SECRET_ACCESS_KEY=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["SecretAccessKey"])' <<<"$creds")
+    export AWS_SESSION_TOKEN=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["Token"])' <<<"$creds")
+
 # Only amd64 manylinux2014 wheels
 "upload manylinux2014_x86_64":
   extends: .upload_wheels_base
@@ -170,7 +203,7 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
@@ -185,10 +218,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014"
@@ -256,6 +289,7 @@ variables:
   script:
     - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "debugwheelhouse/*.log"
@@ -282,6 +316,7 @@ variables:
     git config --global --add safe.directory "${CI_PROJECT_DIR}"
     .gitlab/download-wheels-from-gh-actions.sh
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
@@ -316,6 +351,7 @@ download_dependency_wheels:
       paths:
         - ${CI_PROJECT_DIR}/.cache/
   artifacts:
+    when: always
     paths:
       - "pywheels-dep/"
 
@@ -385,6 +421,7 @@ download_dependency_wheels:
   script:
     - echo "Collected $(ls pywheels/*.whl 2>/dev/null | wc -l) Windows wheels"
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
 
@@ -396,6 +433,7 @@ download_dependency_wheels:
   before_script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
   artifacts:
+    when: always
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
@@ -404,7 +442,8 @@ download_dependency_wheels:
   extends: .package_base
   needs:
     - "build linux"
-    - "build macos"
+    - "build macos amd64"
+    - "build macos arm64"
     - "build sdist"
     - "collect windows wheels"
     - "package version"

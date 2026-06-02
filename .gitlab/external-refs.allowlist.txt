@@ -23,15 +23,18 @@
 # ===== Public OSS Datadog GitHub repos (no migration risk expected) =====
 # These repos are open source and are expected to remain on `Datadog/`.
 # If that assumption changes, update the audit doc and these references.
+#
+# .github/workflows/system-tests.yml is auto-managed by
+# `scripts/update-system-tests-version.py` and the SHA pins are bumped
+# via plain string substitution, so the line numbers here remain stable
+# across version bumps. If the file structure changes, re-run
+# `python scripts/check-external-refs.py` and update these entries.
 
 .gitlab/system-tests.yml:50 OSS DataDog/system-tests, expected to stay public
-.github/workflows/system-tests.yml:96 OSS DataDog/system-tests, expected to stay public
-.github/workflows/system-tests.yml:149 OSS DataDog/system-tests, expected to stay public
-.github/workflows/system-tests.yml:346 OSS DataDog/system-tests reusable action
-.github/workflows/system-tests.yml:373 OSS DataDog/datadog-lambda-python checkout
-.github/workflows/system-tests.yml:395 OSS DataDog/system-tests reusable workflow
-.github/workflows/system-tests.yml:425 OSS DataDog/system-tests reusable workflow
-.github/workflows/system-tests.yml:435 OSS DataDog/system-tests reusable workflow
+.github/workflows/system-tests.yml:76 OSS DataDog/datadog-lambda-python checkout
+.github/workflows/system-tests.yml:98 OSS DataDog/system-tests reusable workflow (serverless)
+.github/workflows/system-tests.yml:129 OSS DataDog/system-tests reusable workflow (integration-frameworks)
+.github/workflows/system-tests.yml:141 OSS DataDog/system-tests reusable workflow (tracer-release)
 
 
 # ===== Internal benchmarking platform =====
@@ -44,6 +47,7 @@
 .gitlab/benchmarks/microbenchmarks.yml:93 dd-trace-py.git URL set as origin in benchmarking script
 .gitlab/benchmarks/microbenchmarks.yml:176 URL rewrite for internal benchmarking-platform clone
 .gitlab/benchmarks/microbenchmarks.yml:178 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/microbenchmarks.yml:189 URL rewrite for internal benchmarking-platform clone (upload-results path)
 .gitlab/benchmarks/macrobenchmarks.yml:61 internal benchmarking-platform clone via gitlab.ddbuild.io
 
 
