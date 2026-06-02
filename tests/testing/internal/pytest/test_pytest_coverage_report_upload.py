@@ -1,6 +1,7 @@
 """Integration tests for coverage report upload functionality."""
 
 from contextlib import ExitStack
+import sys
 import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -828,3 +829,120 @@ class TestCoverageConfigurationEdgeCases:
         encoded = lcov_content.encode("utf-8")
         decoded = encoded.decode("utf-8")
         assert decoded == lcov_content
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="COVERAGE_CORE=sysmon requires Python 3.12+")
+class TestSysmonCoverageIdClash:
+    """Regression tests for the sys.monitoring COVERAGE_ID clash fix.
+
+    When COVERAGE_CORE=sysmon is set, coverage.py uses sys.monitoring.COVERAGE_ID
+    (tool slot 1) from Python 3.12+.  ddtrace also claims that slot.  If an outer
+    --ddtrace session already holds it, a subsequent pytester.inline_run(--cov)
+    must not crash with "ValueError: tool 1 is already in use".
+    """
+
+    def test_inline_run_with_sysmon_does_not_crash(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """pytester.inline_run(--cov) must succeed and collect coverage with COVERAGE_CORE=sysmon.
+
+        This is the direct reproduction of the bug: ddtrace holds COVERAGE_ID from the
+        outer session; the inner inline_run tries to start coverage.py's SysMonitor which
+        needs the same slot.  The fix releases the slot in pytest_sessionstart so the
+        inner session can claim it without error.
+
+        We also assert that ddtrace's coverage instrumentation pipeline is still active:
+        coverage data must be collected and an LCOV report produced, proving that
+        deregister_monitoring() + lazy re-registration leaves the pipeline intact.
+        """
+        pytester.makepyfile(
+            test_sample="""
+            def add(a, b):
+                return a + b
+
+            def test_add():
+                assert add(1, 2) == 3
+            """
+        )
+
+        with CoverageReportUploadCapture.capture() as upload_capture:
+            mock_client = mock_api_client_settings(
+                coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
+            )
+
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "COVERAGE_CORE",
+                "sysmon",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
+
+        # Must not crash with "ValueError: tool 1 is already in use"
+        assert result.ret == 0, f"inline_run failed with COVERAGE_CORE=sysmon: {result.ret}"
+
+        # ddtrace's coverage pipeline must still produce a real LCOV report,
+        # proving that instrumentation is in place after deregister_monitoring().
+        coverage_uploads = upload_capture.get_coverage_report_uploads()
+        assert len(coverage_uploads) == 1, "Expected ddtrace to upload a coverage report"
+        lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
+        assert "SF:" in lcov_content, "LCOV report missing source file entries"
+        assert "DA:" in lcov_content, "LCOV report missing line coverage data"
+
+    def test_ddtrace_coverage_path_yields_to_sysmon_pytest_cov(
+        self, pytester: Pytester, monkeypatch: MonkeyPatch
+    ) -> None:
+        """Clash via ddtrace's own ModuleCodeCollector path (coverage_enabled, not upload).
+
+        When coverage_enabled=True and coverage_report_upload_enabled=False, ddtrace's
+        instrument_all_lines() lazily calls _register_monitoring() the first time a
+        module is imported, claiming COVERAGE_ID as 'datadog'.  We pre-claim the slot
+        here to reliably reproduce that state, then verify:
+
+        1. inline_run(--cov, COVERAGE_CORE=sysmon) does not crash.
+        2. After the inner session ends (pytest-cov releases the slot), ddtrace can
+           re-register — confirming the 'lazy re-registration' guarantee in the fix.
+        """
+        from ddtrace.internal.coverage.instrumentation_py3_12 import _register_monitoring
+
+        # Simulate ddtrace's coverage already being active in the outer session.
+        _register_monitoring()
+        try:
+            assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+
+            pytester.makepyfile(
+                test_sample="""
+                def multiply(a, b):
+                    return a * b
+
+                def test_multiply():
+                    assert multiply(3, 4) == 12
+                """
+            )
+
+            mock_client = mock_api_client_settings(coverage_enabled=True, coverage_report_upload_enabled=False)
+
+            result = run_test_with_mocks(
+                pytester,
+                monkeypatch,
+                mock_client,
+                "COVERAGE_CORE",
+                "sysmon",
+                ["--ddtrace", "--cov", "-v", "-s"],
+            )
+
+            # Must not crash with "ValueError: tool 1 is already in use"
+            assert result.ret == 0, f"inline_run failed when COVERAGE_ID was held by ddtrace: {result.ret}"
+
+            # After the inner session, pytest-cov has released the slot.
+            # instrument_all_lines() must be able to re-register lazily.
+            slot_owner = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
+            assert slot_owner in (None, "datadog"), (
+                f"COVERAGE_ID slot left in unexpected state '{slot_owner}' after inline_run"
+            )
+            if slot_owner is None:
+                # Re-register to confirm the lazy path still works.
+                _register_monitoring()
+                assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+        finally:
+            if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
+                sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)

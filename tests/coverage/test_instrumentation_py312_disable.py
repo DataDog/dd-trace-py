@@ -137,6 +137,21 @@ def test_deregister_monitoring_noop_when_held_by_other_tool():
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_deregister_monitoring_allows_subsequent_reclaim():
+    """After deregister_monitoring(), another tool can successfully claim COVERAGE_ID."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    deregister_monitoring()
+    try:
+        # This must not raise "tool 1 is already in use"
+        sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "pytest-cov")
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "pytest-cov"
+    finally:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+
+
 def test_deregister_monitoring_is_callable_on_all_python_versions():
     """instrumentation.py must export a callable deregister_monitoring() on every supported version."""
     from ddtrace.internal.coverage.instrumentation import deregister_monitoring
