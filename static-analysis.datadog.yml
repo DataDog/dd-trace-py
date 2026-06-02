@@ -1,1 +1,15 @@
-dd-trace-py/static-analysis.datadog.yml
+rulesets:
+  - python-best-practices:
+    rules:
+      any-type-disallow:
+        ignore:
+          - "dd-trace-py/ddtrace/appsec/_iast/secure_marks/sanitizers.py"
+      no-silent-exception:
+        ignore:
+          - "dd-trace-py/tests/appsec/integrations/fixtures/sql_injection_sqlalchemy.py"
+  - python-security:
+    rules:
+      os-system:
+        ignore:
+          - "dd-trace-py/tests/appsec/integrations/*"
+          - "dd-trace-py/benchmarks/*"
