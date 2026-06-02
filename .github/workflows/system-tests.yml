@@ -60,7 +60,7 @@ jobs:
             manylinux2014_x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wheels-manylinux_x86_64
           path: ./wheels/*.whl
@@ -87,7 +87,7 @@ jobs:
           ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           path: .layers/datadog_lambda_py-amd64-3.13.zip
           name: serverless_system_tests_binaries
@@ -95,7 +95,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@16f17557c29a294334d1f5a47e4cb6b3ce45f31d
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@22003dbe0de5831fa11d1ebcdd0048b3d98a692c
     secrets: inherit
     with:
       library: python_lambda
@@ -117,7 +117,7 @@ jobs:
           merge-multiple: true
 
       - name: Upload combined wheels
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-frameworks-wheels
           path: binaries/
@@ -126,7 +126,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@16f17557c29a294334d1f5a47e4cb6b3ce45f31d
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@22003dbe0de5831fa11d1ebcdd0048b3d98a692c
     secrets: inherit
     with:
       library: python
@@ -138,7 +138,7 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@16f17557c29a294334d1f5a47e4cb6b3ce45f31d
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@22003dbe0de5831fa11d1ebcdd0048b3d98a692c
     with:
       library: python
       ref: '16f17557c29a294334d1f5a47e4cb6b3ce45f31d'
