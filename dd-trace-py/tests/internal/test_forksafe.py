@@ -6,7 +6,7 @@ import pytest
 from ddtrace.internal import forksafe
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_forksafe():
     import os
 
@@ -35,7 +35,7 @@ def test_forksafe():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_registry():
     """This verifies that registered hooks are called after a fork.
 
@@ -83,7 +83,7 @@ def test_registry():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_duplicates():
     import os
 
@@ -118,7 +118,7 @@ def test_duplicates():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_method_usage():
     import os
 
@@ -202,7 +202,7 @@ def test_event_basic():
     event.clear()
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_event_fork():
     """Check that a forksafe.Event is reset after a fork().
 
@@ -229,7 +229,7 @@ def test_event_fork():
     assert exit_code == 12
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_double_fork():
     import os
 
