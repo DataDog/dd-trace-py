@@ -41,10 +41,12 @@ from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentRun
+from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
+from ddtrace.llmobs._experiment import _parse_experiment_result
 from tests.utils import override_global_config
 
 
@@ -79,6 +81,29 @@ def dummy_evaluator_with_extra_return_values(input_data, output_data, expected_o
     )
 
 
+def dummy_evaluator_multi(input_data, output_data, expected_output):
+    matches = output_data == expected_output
+    return MultiEvaluatorResult(
+        {
+            "precision": 0.9 if matches else 0.1,
+            "recall": 0.8 if matches else 0.2,
+        }
+    )
+
+
+def dummy_evaluator_multi_no_prefix(input_data, output_data, expected_output):
+    return MultiEvaluatorResult({"precision": 0.5, "recall": 0.6}, prefix=False)
+
+
+def dummy_evaluator_multi_with_inner_result(input_data, output_data, expected_output):
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="close match", assessment="pass"),
+            "recall": 0.7,
+        }
+    )
+
+
 def faulty_evaluator(input_data, output_data, expected_output):
     raise ValueError("This is a test error in evaluator")
 
@@ -93,6 +118,23 @@ def dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_result
 
 def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected_outputs, evaluators_results):
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
+
+
+def dummy_summary_evaluator_multi(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="summary precision", assessment="pass"),
+            "recall": 0.7,
+        }
+    )
+
+
+def dummy_summary_evaluator_collision_a(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult({"shared": 1}, prefix=False)
+
+
+def dummy_summary_evaluator_collision_b(inputs, outputs, expected_outputs, evaluators_results):
+    return MultiEvaluatorResult({"shared": 2}, prefix=False)
 
 
 DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
@@ -1728,6 +1770,130 @@ def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset
     }
 
 
+def test_experiment_run_evaluators_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_multi])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert len(task_results) == 1
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_evaluator_multi-precision": {"value": 0.1, "error": None},
+            "dummy_evaluator_multi-recall": {"value": 0.2, "error": None},
+        },
+    }
+
+
+def test_experiment_run_evaluators_multi_value_no_prefix(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_multi_no_prefix])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "precision": {"value": 0.5, "error": None},
+            "recall": {"value": 0.6, "error": None},
+        },
+    }
+
+
+def test_experiment_run_evaluators_multi_value_with_inner_result(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_multi_with_inner_result],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_evaluator_multi_with_inner_result-precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "close match",
+                "assessment": "pass",
+            },
+            "dummy_evaluator_multi_with_inner_result-recall": {"value": 0.7, "error": None},
+        },
+    }
+
+
+def test_experiment_generate_metrics_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_multi_with_inner_result],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    metrics = exp._experiment._generate_metrics_for_record(task_results[0], eval_results[0])
+    assert len(metrics) == 2
+    labels = sorted(m["label"] for m in metrics)
+    assert labels == [
+        "dummy_evaluator_multi_with_inner_result-precision",
+        "dummy_evaluator_multi_with_inner_result-recall",
+    ]
+    precision_metric = next(m for m in metrics if m["label"].endswith("-precision"))
+    assert precision_metric["score_value"] == 0.9
+    assert precision_metric["reasoning"] == "close match"
+    assert precision_metric["assessment"] == "pass"
+
+
+def test_multi_evaluator_result_validation():
+    with pytest.raises(ValueError):
+        MultiEvaluatorResult({})
+    with pytest.raises(TypeError):
+        MultiEvaluatorResult("not a dict")
+    with pytest.raises(ValueError):
+        MultiEvaluatorResult({"invalid name!": 1})
+
+
+def test_experiment_run_evaluators_multi_value_class_based(llmobs, test_dataset_one_record):
+    from ddtrace.llmobs._experiment import BaseEvaluator
+
+    class MultiClassEvaluator(BaseEvaluator):
+        def __init__(self):
+            super().__init__(name="multi_class_evaluator")
+
+        def evaluate(self, context):
+            return MultiEvaluatorResult({"a": 1, "b": EvaluatorResult(value=2, reasoning="r")})
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [MultiClassEvaluator()])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "multi_class_evaluator-a": {"value": 1, "error": None},
+            "multi_class_evaluator-b": {"value": 2, "error": None, "reasoning": "r"},
+        },
+    }
+
+
+def test_experiment_run_evaluators_label_collision_warns(llmobs, test_dataset_one_record, caplog):
+    """Two evaluators emitting the same label on the same row should log a warning."""
+    import logging
+
+    def evaluator_a(input_data, output_data, expected_output):
+        return MultiEvaluatorResult({"shared": 1}, prefix=False)
+
+    def evaluator_b(input_data, output_data, expected_output):
+        return MultiEvaluatorResult({"shared": 2}, prefix=False)
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [evaluator_a, evaluator_b])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._experiment"):
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    assert any("Evaluator label collision" in r.message and "shared" in r.message for r in caplog.records)
+    # Last writer wins — deterministic for the same gather order is not guaranteed, so just assert
+    # the surviving value is one of the two emitted values.
+    assert eval_results[0]["evaluations"]["shared"]["value"] in (1, 2)
+
+
 def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
@@ -1752,6 +1918,81 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
         "idx": 0,
         "evaluations": {"dummy_summary_evaluator": {"value": 4, "error": None}},
     }
+
+
+def test_experiment_run_summary_evaluators_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_multi],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "dummy_summary_evaluator_multi-precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "summary precision",
+                "assessment": "pass",
+            },
+            "dummy_summary_evaluator_multi-recall": {"value": 0.7, "error": None},
+        },
+    }
+
+
+def test_experiment_generate_metrics_summary_multi_value(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_multi],
+    )
+    run_info = run_info_with_stable_id(0)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
+    run_result = exp._experiment._merge_results(run_info, task_results, eval_results, summary_eval_results)
+    metrics = exp._experiment._generate_metrics_from_exp_results(run_result)
+
+    summary_labels = sorted(m["label"] for m in metrics if m["label"].startswith("dummy_summary_evaluator_multi-"))
+    assert summary_labels == [
+        "dummy_summary_evaluator_multi-precision",
+        "dummy_summary_evaluator_multi-recall",
+    ]
+    precision_metric = next(m for m in metrics if m["label"] == "dummy_summary_evaluator_multi-precision")
+    assert precision_metric["score_value"] == 0.9
+    assert precision_metric["reasoning"] == "summary precision"
+    assert precision_metric["assessment"] == "pass"
+
+
+def test_experiment_run_summary_evaluators_label_collision_warns(llmobs, test_dataset_one_record, caplog):
+    import logging
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        summary_evaluators=[dummy_summary_evaluator_collision_a, dummy_summary_evaluator_collision_b],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._experiment"):
+        summary_eval_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
+    assert any("Summary evaluator label collision" in r.message and "shared" in r.message for r in caplog.records)
+    assert summary_eval_results[-1]["evaluations"]["shared"]["value"] in (1, 2)
 
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
@@ -2774,6 +3015,16 @@ async def async_dummy_evaluator(input_data, output_data, expected_output):
     return int(output_data == expected_output)
 
 
+async def async_dummy_evaluator_multi(input_data, output_data, expected_output):
+    """Async multi-value evaluator."""
+    return MultiEvaluatorResult(
+        {
+            "precision": EvaluatorResult(value=0.9, reasoning="async match"),
+            "recall": 0.7,
+        }
+    )
+
+
 async def async_faulty_evaluator(input_data, output_data, expected_output):
     """Async faulty evaluator."""
     raise ValueError("This is an async test error in evaluator")
@@ -3038,6 +3289,30 @@ async def test_async_experiment_run_evaluators_async(llmobs, test_dataset_one_re
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"async_dummy_evaluator": {"value": False, "error": None}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_multi_value(llmobs, test_dataset_one_record):
+    """AsyncExperiment._run_evaluators with an async MultiEvaluatorResult evaluator."""
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator_multi],
+    )
+    task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
+    eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "async_dummy_evaluator_multi-precision": {
+                "value": 0.9,
+                "error": None,
+                "reasoning": "async match",
+            },
+            "async_dummy_evaluator_multi-recall": {"value": 0.7, "error": None},
+        },
     }
 
 
@@ -4827,6 +5102,413 @@ def test_prepare_summary_evaluator_data_handles_none_metadata():
     eval_results = [{"idx": 0, "evaluations": {"dummy_evaluator": {"value": True, "error": None}}}]
     _, _, _, metadata_list, _ = exp._prepare_summary_evaluator_data(task_results, eval_results)
     assert metadata_list == [{"experiment_config": {}}]
+
+
+class TestParseExperimentResult:
+    def test_parse_experiment_result_new_format(self):
+        """_parse_experiment_result correctly extracts all fields from the JSON:API single-object format."""
+        response = {
+            "data": {
+                "id": "328ee888-f8b4-4338-966e-1ec58d4f2f00",
+                "type": "experiment_events",
+                "attributes": {
+                    "spans": [
+                        {
+                            "duration": 798_832_000,
+                            "eval_metrics": [
+                                {
+                                    "timestamp_ms": 1776188906109,
+                                    "metric_type": "boolean",
+                                    "label": "exact_match",
+                                    "boolean_value": True,
+                                }
+                            ],
+                            "meta": {
+                                "error": {},
+                                "input": {"question": "What is the capital of China?"},
+                                "output": "Beijing",
+                                "expected_output": "Beijing",
+                                "metadata": {"difficulty": "easy"},
+                            },
+                            "name": "generate_capital",
+                            "span_id": "18038324847088772928",
+                            "start_ns": 1776188906109254000,
+                            "status": "ok",
+                            "tags": [
+                                "dataset_record_id:5dc422e6efd7435daef344390aaab33d",
+                                "experiment_id:328ee888-f8b4-4338-966e-1ec58d4f2f00",
+                            ],
+                            "trace_id": "trace-abc",
+                        },
+                        {
+                            "duration": 836_075_000,
+                            "eval_metrics": [],
+                            "meta": {
+                                "error": {},
+                                "input": {"question": "Which city is the capital of Canada?"},
+                                "output": "Ottawa",
+                                "expected_output": "Ottawa",
+                                "metadata": {},
+                            },
+                            "name": "generate_capital",
+                            "span_id": "14723195948267668179",
+                            "start_ns": 1776188906107593000,
+                            "status": "ok",
+                            "tags": [
+                                "dataset_record_id:0087dc9f23c94d82b3afc08a3db8268b",
+                            ],
+                            "trace_id": "trace-def",
+                        },
+                    ],
+                    "summary_metrics": [],
+                },
+            }
+        }
+
+        result = _parse_experiment_result(response)
+        rows = result["runs"][0].rows
+        assert len(rows) == 2
+
+        row0 = rows[0]
+        assert row0["span_id"] == "18038324847088772928"
+        assert row0["trace_id"] == "trace-abc"
+        assert row0["timestamp"] == 1776188906109254000
+        assert row0["duration"] == 798_832_000
+        assert row0["span_name"] == "generate_capital"
+        assert row0["input"] == {"question": "What is the capital of China?"}
+        assert row0["output"] == "Beijing"
+        assert row0["expected_output"] == "Beijing"
+        assert row0["metadata"] == {"difficulty": "easy"}
+        assert row0["record_id"] == "5dc422e6efd7435daef344390aaab33d"
+        assert row0["error"] == {"type": None, "message": None, "stack": None}
+        assert "exact_match" in row0["evaluations"]
+        assert row0["evaluations"]["exact_match"]["value"] is True
+        assert row0["evaluations"]["exact_match"]["type"] == "boolean"
+
+        row1 = rows[1]
+        assert row1["span_id"] == "14723195948267668179"
+        assert row1["duration"] == 836_075_000
+        assert row1["span_name"] == "generate_capital"
+        assert row1["record_id"] == "0087dc9f23c94d82b3afc08a3db8268b"
+        assert row1["evaluations"] == {}
+
+    def test_parse_experiment_result_all_metric_types(self):
+        """_parse_experiment_result correctly reads score, boolean, categorical, and json metric values."""
+
+        def _span(span_id, eval_metrics):
+            return {
+                "span_id": span_id,
+                "trace_id": "trace-x",
+                "name": "task",
+                "start_ns": 0,
+                "duration": 1,
+                "meta": {"input": {}, "output": "out", "expected_output": None, "metadata": {}, "error": {}},
+                "tags": [],
+                "eval_metrics": eval_metrics,
+            }
+
+        response = {
+            "data": {
+                "id": "exp-1",
+                "type": "experiment_events",
+                "attributes": {
+                    "spans": [
+                        _span(
+                            "s1",
+                            [
+                                {"label": "score_metric", "metric_type": "score", "score_value": 0.95},
+                                {"label": "bool_metric", "metric_type": "boolean", "boolean_value": False},
+                                {"label": "cat_metric", "metric_type": "categorical", "categorical_value": "good"},
+                                {"label": "json_metric", "metric_type": "json", "json_value": {"k": "v"}},
+                            ],
+                        )
+                    ],
+                    "summary_metrics": [],
+                },
+            }
+        }
+
+        result = _parse_experiment_result(response)
+        evals = result["runs"][0].rows[0]["evaluations"]
+        assert evals["score_metric"] == {
+            "value": 0.95,
+            "type": "score",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+        assert evals["bool_metric"] == {
+            "value": False,
+            "type": "boolean",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+        assert evals["cat_metric"] == {
+            "value": "good",
+            "type": "categorical",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+        assert evals["json_metric"] == {
+            "value": {"k": "v"},
+            "type": "json",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+
+    def test_parse_experiment_result_summary_metrics(self):
+        """_parse_experiment_result populates summary_evaluations from attributes.summary_metrics."""
+        response = {
+            "data": {
+                "id": "exp-1",
+                "type": "experiment_events",
+                "attributes": {
+                    "spans": [],
+                    "summary_metrics": [
+                        {"label": "overall_score", "metric_type": "score", "score_value": 0.88},
+                        {"label": "overall_pass", "metric_type": "boolean", "boolean_value": True},
+                        {"label": "quality", "metric_type": "categorical", "categorical_value": "high"},
+                    ],
+                },
+            }
+        }
+
+        result = _parse_experiment_result(response)
+        summary_evals = result["runs"][0].summary_evaluations
+        assert summary_evals["overall_score"] == {
+            "value": 0.88,
+            "type": "score",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+        assert summary_evals["overall_pass"] == {
+            "value": True,
+            "type": "boolean",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+        assert summary_evals["quality"] == {
+            "value": "high",
+            "type": "categorical",
+            "reasoning": None,
+            "assessment": None,
+            "status": None,
+            "error": None,
+        }
+
+    def test_parse_experiment_result_preserves_status_and_error(self):
+        """_parse_experiment_result surfaces status and error from eval metric events."""
+        response = {
+            "data": {
+                "id": "exp-1",
+                "type": "experiment_events",
+                "attributes": {
+                    "spans": [
+                        {
+                            "span_id": "s1",
+                            "trace_id": "t1",
+                            "name": "task",
+                            "start_ns": 0,
+                            "duration": 1,
+                            "meta": {
+                                "input": {},
+                                "output": "out",
+                                "expected_output": None,
+                                "metadata": {},
+                                "error": {},
+                            },
+                            "tags": [],
+                            "eval_metrics": [
+                                {
+                                    "label": "correctness",
+                                    "metric_type": "score",
+                                    "score_value": None,
+                                    "status": "error",
+                                    "error": {"type": "RuntimeError", "message": "evaluator crashed"},
+                                }
+                            ],
+                        }
+                    ],
+                    "summary_metrics": [],
+                },
+            }
+        }
+
+        result = _parse_experiment_result(response)
+        ev = result["runs"][0].rows[0]["evaluations"]["correctness"]
+        assert ev["status"] == "error"
+        assert ev["error"] == {"type": "RuntimeError", "message": "evaluator crashed"}
+
+
+MOCK_PULL_RESPONSE = {
+    "data": {
+        "id": "mock-experiment-id",
+        "type": "experiment_events",
+        "attributes": {
+            "spans": [
+                {
+                    "duration": 500_000_000,
+                    "eval_metrics": [
+                        {
+                            "label": "correctness",
+                            "metric_type": "score",
+                            "score_value": 0.9,
+                            "timestamp_ms": MOCK_TIMESTAMP_NS // 1_000_000,
+                            "assessment": "pass",
+                            "reasoning": "Correct",
+                        }
+                    ],
+                    "meta": {
+                        "input": {"question": "What is the capital of France?"},
+                        "output": {"answer": "Paris"},
+                        "expected_output": {"answer": "Paris"},
+                        "metadata": {"experiment_name": "test-exp"},
+                        "error": {},
+                    },
+                    "name": "my_task",
+                    "span_id": "abc123",
+                    "start_ns": MOCK_TIMESTAMP_NS,
+                    "status": "ok",
+                    "tags": [
+                        "dataset_record_id:rec-uuid-1",
+                        "experiment_id:mock-experiment-id",
+                        "dataset_id:mock-dataset-id",
+                        "project_id:mock-project-id",
+                    ],
+                    "trace_id": "def456",
+                }
+            ],
+            "summary_metrics": [],
+        },
+    }
+}
+
+
+def _make_pulled_experiment(
+    llmobs,
+    name="test_experiment",
+    exp_id="mock-original-exp-id",
+    project_id="mock-project-id",
+    dataset_id="mock-dataset-id",
+    project_name="my-project",
+    evaluators=None,
+    summary_evaluators=None,
+):
+    """Build a SyncExperiment as returned by LLMObs.pull_experiment() without backend calls."""
+    inner = Experiment(
+        name=name,
+        project_name=project_name,
+        evaluators=evaluators or [],
+        summary_evaluators=summary_evaluators,
+        _llmobs_instance=llmobs._instance,
+    )
+    inner._id = exp_id
+    inner._project_id = project_id
+    inner._dataset_id = dataset_id
+    return SyncExperiment(name=name, _experiment=inner, _result=None)
+
+
+def _mock_experiment_meta(
+    name="test-exp",
+    project_name="mock-project-name",
+    project_id="mock-project-id",
+    dataset_id="mock-dataset-id",
+):
+    """Return a MagicMock mimicking the Experiment object returned by DNEClient.experiment_get."""
+    m = mock.MagicMock()
+    m.name = name
+    m._project_name = project_name
+    m._project_id = project_id
+    m._dataset = mock.MagicMock()
+    m._dataset._id = dataset_id
+    return m
+
+
+class TestPullExperiment:
+    def test_pull_experiment_by_id(self, llmobs):
+        """pull_experiment() calls experiment_get and experiment_events_get, returns populated SyncExperiment."""
+        with (
+            mock.patch.object(
+                llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()
+            ) as mock_meta,
+            mock.patch.object(
+                llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE
+            ) as mock_events,
+        ):
+            exp = llmobs.pull_experiment("mock-experiment-id")
+
+        mock_meta.assert_called_once_with("mock-experiment-id")
+        mock_events.assert_called_once_with(experiment_id="mock-experiment-id")
+        assert isinstance(exp, SyncExperiment)
+        assert exp.result is not None
+        assert exp._id == "mock-experiment-id"
+        assert exp.name == "test-exp"
+        rows = exp.result["runs"][0].rows
+        assert len(rows) == 1
+        assert rows[0]["span_id"] == "abc123"
+        assert rows[0]["trace_id"] == "def456"
+        assert rows[0]["input"] == {"question": "What is the capital of France?"}
+        assert rows[0]["output"] == {"answer": "Paris"}
+
+    def test_pull_experiment_sets_metadata_from_response(self, llmobs):
+        """pull_experiment() populates _id, _project_id, and _dataset_id from experiment_get."""
+        with (
+            mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+            mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+        ):
+            exp = llmobs.pull_experiment("mock-experiment-id")
+
+        assert exp._id == "mock-experiment-id"
+        assert exp._dataset_id == "mock-dataset-id"
+        assert exp._project_id == "mock-project-id"
+
+    def test_pull_experiment_parses_eval_metrics(self, llmobs):
+        """pull_experiment() correctly parses evaluations onto result rows."""
+        with (
+            mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+            mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+        ):
+            exp = llmobs.pull_experiment("mock-experiment-id")
+
+        evals = exp.result["runs"][0].rows[0]["evaluations"]
+        assert "correctness" in evals
+        assert evals["correctness"]["value"] == 0.9
+        assert evals["correctness"]["type"] == "score"
+        assert evals["correctness"]["assessment"] == "pass"
+
+    def test_pull_experiment_populates_duration_and_span_name(self, llmobs):
+        """pull_experiment() correctly populates duration and span_name on each result row."""
+        with (
+            mock.patch.object(llmobs._instance._dne_client, "experiment_get", return_value=_mock_experiment_meta()),
+            mock.patch.object(llmobs._instance._dne_client, "experiment_events_get", return_value=MOCK_PULL_RESPONSE),
+        ):
+            exp = llmobs.pull_experiment("mock-experiment-id")
+
+        row = exp.result["runs"][0].rows[0]
+        assert row["duration"] == 500_000_000
+        assert row["span_name"] == "my_task"
+
+    def test_pull_experiment_requires_id(self, llmobs):
+        """pull_experiment('') raises ValueError."""
+        with pytest.raises(ValueError, match="experiment_id is required"):
+            llmobs.pull_experiment("")
+
+    def test_run_without_task_raises(self, llmobs):
+        """Calling run() on a pulled experiment (no task/dataset) must raise ValueError."""
+        exp = _make_pulled_experiment(llmobs, evaluators=[dummy_evaluator])
+        with pytest.raises(ValueError, match="task and dataset are required to run an experiment from scratch"):
+            exp.run()
 
 
 @pytest.mark.parametrize(

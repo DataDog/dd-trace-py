@@ -542,7 +542,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
         # RFC-1103: when API Security is active, every request span carrying http.route also carries
         # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
@@ -558,7 +558,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
         # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
         # feature is independently disabled — in that configuration the normalized route tag must still be absent.
@@ -580,6 +580,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
         # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
         # ``test_normalized_route`` against the regular span name.
+        #
+        # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
+        # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Normalized-route emission is still verified by ``test_normalized_route``.
         custom_name = "custom.framework.request"
         with (
             override_global_config(dict(_asm_enabled=True)),

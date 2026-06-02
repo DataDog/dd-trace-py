@@ -1,5 +1,4 @@
 from functools import wraps
-import inspect
 
 from ddtrace import config
 from ddtrace import tracer
@@ -77,8 +76,11 @@ def traced_submit_task(wrapped, instance, args, kwargs):
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)  # type: ignore[attr-defined]
             instance._function_signature = extract_signature(instance._function)
 
-    # Check if the task has been instrumented so we can inject the context in kwargs
-    inject_context = DD_RAY_TRACE_CTX in inspect.signature(instance._function).parameters
+    # Check if the task has been instrumented so we can inject the context in kwargs.
+    # Use the already-computed _function_signature instead of calling inspect.signature() on
+    # every submit — the signature is cached on the instance by extract_signature() above.
+    sig_params = instance._function_signature or []
+    inject_context = any(p.name == DD_RAY_TRACE_CTX for p in sig_params)
 
     if not config.ray.submission_spans:
         if inject_context:
