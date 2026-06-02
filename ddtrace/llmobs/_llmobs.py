@@ -503,7 +503,7 @@ class LLMObs(Service):
         elif llmobs_apm_trace_agentless_enabled():
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
-            self._export_mode = LLMObsExportMode.APM_AGENT_PROXY
+            self._export_mode = LLMObsExportMode.APM_AGENT
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -580,7 +580,7 @@ class LLMObs(Service):
             self._llmobs_span_writer.enqueue(span_event)
             return
 
-        if self._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+        if self._export_mode == LLMObsExportMode.APM_AGENT:
             # Payload rides the APM trace to the local Agent via meta_struct. The Agent drops
             # unsampled spans before they reach intake, so cache the rendered event for
             # LLMObsSamplingFallbackProcessor to re-ship on a predicted drop (root priority <= 0).
@@ -754,7 +754,7 @@ class LLMObs(Service):
         # prevent disable() from incorrectly reverting it in the child process.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
-            if self._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+            if self._export_mode == LLMObsExportMode.APM_AGENT:
                 # Rebind the rescue processor (Agent path only): it captured the pre-fork
                 # writer whose worker thread does not survive fork(); leaving it in place
                 # would silently buffer rescued events in the child.
@@ -929,7 +929,7 @@ class LLMObs(Service):
             else:
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
-            if cls._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY:
+            if cls._instance._export_mode == LLMObsExportMode.APM_AGENT:
                 # Only the Agent path drops unsampled spans before intake, so the rescue
                 # processor is installed there alone. Agentless ships straight to intake at
                 # 100% and LLMOBS_DIRECT ships via the writer at span finish — neither needs it.

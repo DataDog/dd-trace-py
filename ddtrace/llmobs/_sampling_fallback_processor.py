@@ -1,4 +1,4 @@
-"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT_PROXY mode.
+"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT mode.
 
 Only the Agent path needs this. Spans carrying ``meta_struct["_llmobs"]`` are sent to the
 local Agent, which drops unsampled spans (root ``sampling_priority <= 0``) before they reach

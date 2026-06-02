@@ -20,7 +20,7 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def llmobs_agent_proxy(tracer):
-    """LLMObs in APM_AGENT_PROXY mode with a mock LLMObsSpanWriter so the rescue path
+    """LLMObs in APM_AGENT mode with a mock LLMObsSpanWriter so the rescue path
     can be asserted without network I/O.
     """
     llmobs_service.disable()
@@ -335,7 +335,7 @@ class TestTracerDisabledImmediateShip:
             }
         ):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
-            assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
+            assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer
