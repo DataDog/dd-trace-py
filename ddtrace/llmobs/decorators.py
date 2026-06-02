@@ -32,7 +32,7 @@ def _get_llmobs_span_options(name, model_name, func):
     return traced_model_name, span_name
 
 
-def _get_span_inputs(args: OrderedDict) -> dict:
+def _get_span_inputs(args: dict[str, Any]) -> dict[str, Any]:
     return {arg: value for arg, value in args.items() if arg != "self"}
 
 
