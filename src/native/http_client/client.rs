@@ -292,8 +292,4 @@ impl HttpClientBuilderPy {
             inner: Some((inner, runtime)),
         })
     }
-
-    fn debug(&self) -> String {
-        format!("{:?}", self.builder)
-    }
 }

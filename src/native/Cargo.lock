@@ -1585,8 +1585,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-http-client"
-version = "33.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v33.0.0#37d17ee71ae396782242d45e1b31af2887bbbbd3"
+version = "34.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v34.0.0#3cc5a96ee3edeb512d141e79cad2ac0b0fded434"
 dependencies = [
  "bytes",
  "fastrand",

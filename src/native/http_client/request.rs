@@ -150,11 +150,7 @@ impl HttpRequestPy {
     }
 
     /// Append a header. Chainable.
-    fn with_header(
-        mut slf: PyRefMut<'_, Self>,
-        name: String,
-        value: String,
-    ) -> PyResult<Py<Self>> {
+    fn with_header(mut slf: PyRefMut<'_, Self>, name: String, value: String) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.headers_mut().push((name, value));
         Ok(slf.into())
     }
@@ -203,18 +199,29 @@ impl HttpRequestPy {
     }
 
     #[getter]
-    fn url(&self) -> PyResult<String> {
-        Ok(self.try_as_ref()?.url().to_owned())
+    fn url(&self) -> PyResult<&str> {
+        Ok(self.try_as_ref()?.url())
     }
 
     #[getter]
-    fn headers(&self) -> PyResult<Vec<(String, String)>> {
-        Ok(self.try_as_ref()?.headers().to_vec())
+    fn headers(&self) -> PyResult<Vec<(&str, &str)>> {
+        // DEV: borrow rather than .to_vec() — PyO3 builds the owned Python
+        // strings from the &str directly (no redundant Rust-side copy).
+        Ok(self
+            .try_as_ref()?
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect())
     }
 
     fn __repr__(&self) -> String {
         match &self.inner {
-            Some(req) => format!("HttpRequest(method={:?}, url={:?})", req.method(), req.url()),
+            Some(req) => format!(
+                "HttpRequest(method={:?}, url={:?})",
+                req.method(),
+                req.url()
+            ),
             None => "HttpRequest(<consumed>)".to_owned(),
         }
     }

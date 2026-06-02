@@ -15,16 +15,9 @@ mod errors;
 mod request;
 mod response;
 
-// DEV: re-exports kept for downstream Rust callers (none yet); silence
-// dead-code warnings when only the Python registration is used.
-#[allow(unused_imports)]
-pub use client::{HttpClientBuilderPy, HttpClientPy};
-#[allow(unused_imports)]
-pub use errors::HttpClientErrorPy;
-#[allow(unused_imports)]
-pub use request::{HttpMethodPy, HttpRequestPy, MultipartPartPy};
-#[allow(unused_imports)]
-pub use response::HttpResponsePy;
+use client::{HttpClientBuilderPy, HttpClientPy};
+use request::{HttpMethodPy, HttpRequestPy, MultipartPartPy};
+use response::HttpResponsePy;
 
 pub fn register_http_client(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HttpClientPy>()?;

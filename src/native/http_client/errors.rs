@@ -24,7 +24,9 @@ impl HttpClientErrorPy {
     #[new]
     #[pyo3(signature = (*_args, **_kwargs))]
     fn new(_args: Bound<'_, PyAny>, _kwargs: Option<Bound<'_, PyAny>>) -> Self {
-        // DEV: args/kwargs are forwarded to PyException via the subclass init.
+        // DEV: args/kwargs are accepted and discarded so the base is
+        // constructible (and subclassable) from Python; PyException handles
+        // the message itself.
         HttpClientErrorPy
     }
 }
