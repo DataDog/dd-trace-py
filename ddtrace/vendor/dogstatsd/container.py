@@ -19,13 +19,13 @@ class ContainerID(object):
     """
     A reader class that retrieves either:
     - The current container ID parsed from the cgroup file (cgroup v1 / host
-      cgroup namespace), prefixed with ``ci-``.
+      cgroup namespace), prefixed with `ci-`.
     - The cgroup controller inode (cgroup v2 / non-host cgroup namespace),
-      prefixed with ``in-``.
+      prefixed with `in-`.
 
     Both forms are understood by the Datadog Agent's origin detection, which
     uses them to enrich DogStatsD metrics with orchestrator tags such as
-    ``pod_name``.
+    `pod_name`.
 
     Returns:
     object: ContainerID
@@ -69,14 +69,14 @@ class ContainerID(object):
             return False
 
     def _read_cgroup_path(self) -> Optional[str]:
-        """Read the container ID from the cgroup file, prefixed with ``ci-``."""
+        """Read the container ID from the cgroup file, prefixed with `ci-`."""
         container_id = self._read_container_id(self.CGROUP_PATH)
         return "ci-{0}".format(container_id) if container_id else None
 
     def _get_cgroup_from_inode(self) -> Optional[str]:
-        """Read the container ID from the cgroup controller inode (``in-<inode>``).
+        """Read the container ID from the cgroup controller inode (`in-<inode>`).
 
-        This is the cgroup v2 fallback: on those nodes ``/proc/self/cgroup``
+        This is the cgroup v2 fallback: on those nodes `/proc/self/cgroup`
         does not contain a parseable container ID, so we resolve the inode of
         the cgroup controller node, which the Agent maps back to the container.
         """
