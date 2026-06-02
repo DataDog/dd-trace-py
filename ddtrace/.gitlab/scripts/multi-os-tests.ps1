@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 
 # Monorepo layout: repo root contains dd-trace-py/ as the Python project directory.
-$ddTracePyRoot = Join-Path $env:CI_PROJECT_DIR 'dd-trace-py'
+$ddTracePyRoot = Join-Path $env:CI_PROJECT_DIR 'ddtrace'
 if (Test-Path -LiteralPath $ddTracePyRoot) {
     Set-Location $ddTracePyRoot
     $env:CI_PROJECT_DIR = (Get-Location).Path
