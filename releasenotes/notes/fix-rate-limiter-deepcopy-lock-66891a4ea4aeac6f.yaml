@@ -1,6 +1,9 @@
 ---
 fixes:
   - |
-    tracing: Strips the internal ``threading.Lock`` from ``BudgetRateLimiterWithJitter``
-    on pickle/deepcopy so FastAPI route copying (e.g. Cadwyn) no longer fails with
-    ``TypeError: cannot pickle '_thread.lock' object``.
+    debugging: Strips internal ``threading.Lock``/``RLock`` from
+    ``BudgetRateLimiterWithJitter`` and ``DebuggerWrappingContext`` on
+    pickle/deepcopy so FastAPI/Starlette route copying (e.g. Cadwyn under
+    Airflow 3.x) no longer fails with
+    ``TypeError: cannot pickle '_thread.lock' object`` when Code Origin for
+    Spans or Dynamic Instrumentation is enabled.

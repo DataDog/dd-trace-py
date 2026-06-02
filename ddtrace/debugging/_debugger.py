@@ -191,6 +191,28 @@ class DebuggerWrappingContext(WrappingContext):
             log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)
 
+    def __getstate__(self) -> dict[str, Any]:
+        # AIDEV-NOTE: Drop live runtime collaborators on pickle/deepcopy. They
+        # transitively hold non-picklable ``threading.Lock``/``RLock`` (e.g.
+        # ``ProbeRegistry._lock``, ``SignalQueue._lock`` inside the collector,
+        # ``Tracer._shutdown_lock``) and have no meaning on a clone — the clone
+        # function's bytecode is not trampoline-wrapped, so this context will
+        # never be invoked through it. Keeping these would re-introduce the
+        # original deepcopy crash (issue #16443) under any product enablement
+        # that registers a DebuggerWrappingContext (i.e. Dynamic Instrumentation
+        # with active probes).
+        state = super().__getstate__()
+        for key in ("_collector", "_probe_registry", "_tracer", "_probe_meter"):
+            state.pop(key, None)
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        super().__setstate__(state)
+        self._collector = None  # type: ignore[assignment]
+        self._probe_registry = None  # type: ignore[assignment]
+        self._tracer = None  # type: ignore[assignment]
+        self._probe_meter = None  # type: ignore[assignment]
+
 
 class Debugger(Service):
     _instance: Optional["Debugger"] = None
