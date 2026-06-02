@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Compare the vendored datadogpy version with the latest release on PyPI.
 
-Outputs GitHub Actions step outputs:
-  outdated       - "true" if PyPI is ahead of the vendored version, "false" otherwise
-  latest_version - latest version string from PyPI
-  vendored_version - version string parsed from ddtrace/vendor/__init__.py
+Values written to ``$GITHUB_OUTPUT`` (GitHub Actions inter-step data):
+  outdated         - ``"true"`` when PyPI is ahead of the vendored pin, ``"false"`` otherwise
+  latest_version   - latest version string fetched from PyPI (e.g. ``"0.53.0"``)
+  vendored_version - version string parsed from ``ddtrace/vendor/__init__.py`` (e.g. ``"0.52.1"``)
 
 Exit codes:
-  0 - success (regardless of whether outdated)
-  1 - unexpected error (e.g. PyPI unreachable, version not parseable)
+  0 - completed successfully (regardless of whether the vendored copy is outdated)
+  1 - unexpected error (e.g. PyPI unreachable, version string not parseable)
 """
 
 from __future__ import annotations
@@ -22,24 +22,27 @@ import urllib.error
 import urllib.request
 
 
-PYPI_URL = "https://pypi.org/pypi/datadog/json"
-VENDOR_INIT = Path(__file__).parent.parent.parent / "ddtrace" / "vendor" / "__init__.py"
+PYPI_URL: str = "https://pypi.org/pypi/datadog/json"
+VENDOR_INIT: Path = Path(__file__).parent.parent.parent / "ddtrace" / "vendor" / "__init__.py"
 
 
 def _set_output(name: str, value: str) -> None:
-    """Write a GitHub Actions step output."""
-    github_output = os.environ.get("GITHUB_OUTPUT")
+    """Append ``name=value`` to the GitHub Actions step-output file.
+
+    When run locally (``$GITHUB_OUTPUT`` is unset) the value is printed to
+    stdout instead so the output is still visible.
+    """
+    github_output: str | None = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a") as fh:
             fh.write(f"{name}={value}\n")
     else:
-        # Running locally — just print
         print(f"  {name}={value}")
 
 
 def _latest_pypi_version() -> str:
     try:
-        req = urllib.request.Request(PYPI_URL)
+        req: urllib.request.Request = urllib.request.Request(PYPI_URL)
         with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310
             data: dict[str, dict[str, str]] = json.load(resp)
         version: str = data["info"]["version"]
@@ -51,31 +54,47 @@ def _latest_pypi_version() -> str:
 
 def _vendored_version() -> str:
     try:
-        content = VENDOR_INIT.read_text()
+        content: str = VENDOR_INIT.read_text()
     except FileNotFoundError:
         print(f"ERROR: {VENDOR_INIT} not found", file=sys.stderr)
         sys.exit(1)
 
-    # Match the "Version: X.Y.Z" line inside the dogstatsd section
-    match = re.search(
-        r"dogstatsd\b.*?Version:\s*(\d+\.\d+(?:\.\d+)?)",
+    # Extract just the dogstatsd section (from its header up to the next package header
+    # or end of file) so we don't accidentally pick up a Version: line from another
+    # vendored package.  Each section starts with "<name>\n---+\n"; the lookahead
+    # matches that two-line opener to stop before the next section begins.
+    section_match: re.Match[str] | None = re.search(
+        r"^dogstatsd\n-+\n(.*?)(?=\n\w[^\n]*\n-+\n|\Z)",
         content,
-        re.DOTALL | re.IGNORECASE,
+        re.DOTALL | re.MULTILINE,
     )
-    if not match:
+    if not section_match:
+        print(f"ERROR: dogstatsd section not found in {VENDOR_INIT}", file=sys.stderr)
+        sys.exit(1)
+
+    section: str = section_match.group(1)
+
+    # Accept both formats:
+    #   "Version: 0.52.1"          (clean semver, used after the vendor bump)
+    #   "Version: 8e11af2 (0.39.1)"  (git-hash + semver in parens, used before)
+    version_match: re.Match[str] | None = re.search(
+        r"Version:.*?(\d+\.\d+\.\d+)",
+        section,
+    )
+    if not version_match:
         print(f"ERROR: could not parse vendored datadogpy version from {VENDOR_INIT}", file=sys.stderr)
         sys.exit(1)
-    return match.group(1)
+    return version_match.group(1)
 
 
 def main() -> None:
-    latest = _latest_pypi_version()
-    vendored = _vendored_version()
+    latest: str = _latest_pypi_version()
+    vendored: str = _vendored_version()
 
     print(f"Vendored datadogpy version : {vendored}")
     print(f"Latest PyPI version        : {latest}")
 
-    outdated = latest != vendored
+    outdated: bool = latest != vendored
     if outdated:
         print("⚠ Vendored version is behind PyPI — consider a vendor bump.")
     else:
