@@ -328,6 +328,7 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
         "DD_MCP_SERVICE",
         "DD_METRICS_OTEL_ENABLED",
         "DD_MLFLOW_SERVICE",
+        "DD_ML_JOB_ENV",
         "DD_MODEL_LAB",
         "DD_MODEL_LAB_ENABLED",
         "DD_MOLTEN_DISTRIBUTED_TRACING",

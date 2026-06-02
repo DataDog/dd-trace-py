@@ -30,6 +30,9 @@ from tests.testing.mocks import mock_test_session
 from tests.testing.mocks import mock_test_suite
 
 
+MAX_META_TAG_VALUE_LENGTH = 5000
+
+
 class _ConcreteWriter(BaseWriter):
     """Minimal concrete subclass for testing BaseWriter."""
 
@@ -311,6 +314,51 @@ class TestTestOptWriter:
             headers={"Content-Type": "application/msgpack"},
             send_gzip=True,
         )
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    @patch("ddtrace.testing.internal.writer.msgpack_packb")
+    def test_send_events_truncates_payload_metadata_and_event_meta(
+        self, mock_packb: Mock, mock_backend_connector: Mock
+    ) -> None:
+        """Test that test-cycle payload tag values are truncated without mutating originals."""
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+        mock_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=42, elapsed_seconds=1.2
+        )
+        mock_packb.return_value = b"packed_data"
+        long_metadata_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        exact_metadata_value = "e" * MAX_META_TAG_VALUE_LENGTH
+        long_event_meta_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        unicode_event_meta_value = "é" * (MAX_META_TAG_VALUE_LENGTH + 1)
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.metadata["*"]["long_metadata"] = long_metadata_value
+        writer.metadata["*"]["exact_metadata"] = exact_metadata_value
+        event = Event(
+            type="test",
+            content={
+                "meta": {
+                    "long_meta": long_event_meta_value,
+                    "unicode_meta": unicode_event_meta_value,
+                    "numeric_meta": 123,
+                },
+                "metrics": {"metric": 1.0},
+            },
+        )
+
+        writer._send_events([event])
+
+        payload = mock_packb.call_args.args[0]
+        metadata = payload["metadata"]["*"]
+        meta = payload["events"][0]["content"]["meta"]
+        assert metadata["long_metadata"] == "m" * MAX_META_TAG_VALUE_LENGTH
+        assert metadata["exact_metadata"] == exact_metadata_value
+        assert meta["long_meta"] == "x" * MAX_META_TAG_VALUE_LENGTH
+        assert meta["unicode_meta"] == "é" * MAX_META_TAG_VALUE_LENGTH
+        assert meta["numeric_meta"] == 123
+        assert writer.metadata["*"]["long_metadata"] == long_metadata_value
+        assert event["content"]["meta"]["long_meta"] == long_event_meta_value
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_split_events(self, mock_backend_connector: Mock) -> None:
