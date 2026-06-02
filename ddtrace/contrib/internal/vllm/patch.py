@@ -35,6 +35,55 @@ logger = get_logger(__name__)
 
 config._add("vllm", {})
 
+# vLLM >= 0.14.0 moved Processor to InputProcessor in input_processor module.
+# vLLM 0.13.0 has a compatibility shim in processor.py that re-exports InputProcessor.
+# vLLM >= 0.14.0 removed the shim entirely.
+_INPUT_PROCESSOR_MODULE = "vllm.v1.engine.input_processor"
+_INPUT_PROCESSOR_CLASS = "InputProcessor"
+
+
+def _resolve_input_processor_module() -> str:
+    """Resolve the input processor module path, handling vLLM >= 0.14.0 rename."""
+    try:
+        from vllm.v1.engine import input_processor  # noqa: F401
+
+        return _INPUT_PROCESSOR_MODULE
+    except ImportError:
+        pass
+
+    # Fallback for vLLM < 0.14.0 where processor.py still exists
+    try:
+        from vllm.v1.engine import processor  # noqa: F401
+
+        return "vllm.v1.engine.processor"
+    except ImportError:
+        pass
+
+    # Default to new path; will raise if neither exists
+    return _INPUT_PROCESSOR_MODULE
+
+
+def _get_input_processor_class():
+    """Get the input processor class, handling both old and new vLLM versions."""
+    try:
+        from vllm.v1.engine.input_processor import InputProcessor
+
+        return InputProcessor
+    except ImportError:
+        pass
+
+    try:
+        from vllm.v1.engine.processor import Processor
+
+        return Processor
+    except ImportError:
+        pass
+
+    raise ImportError(
+        "Cannot find vLLM InputProcessor/Processor. "
+        "Supported vLLM versions: >= 0.10.2"
+    )
+
 
 def traced_engine_init(func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
@@ -197,7 +246,12 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+
+    # vLLM >= 0.14.0 renamed Processor -> InputProcessor and moved to input_processor module.
+    # Use _resolve_input_processor_module() to handle both old and new versions.
+    input_module = _resolve_input_processor_module()
+    wrap(input_module, f"{_INPUT_PROCESSOR_CLASS}.process_inputs", traced_processor_process_inputs)
+
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -213,7 +267,11 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+
+    # Resolve the input processor class for unwrap, handling both old and new vLLM versions.
+    input_processor_cls = _get_input_processor_class()
+    unwrap(input_processor_cls, "process_inputs")
+
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)
