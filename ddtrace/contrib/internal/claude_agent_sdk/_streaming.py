@@ -343,8 +343,10 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
-        # Tool spans belong to the current step, not the active tracer context (which is the
-        # previously-opened tool span when parallel ToolUseBlocks arrive back-to-back).
+        # AIDEV-NOTE: Tool spans belong to the current step, not the active tracer context (which
+        # is the previously-opened tool span when parallel ToolUseBlocks arrive back-to-back).
+        # BaseLLMIntegration.trace() hardcodes activate=True, so each opened tool span becomes
+        # the active context — without an explicit parent_context, tool#k would chain on tool#k-1.
         tool_span = self.integration.trace(
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,

@@ -899,8 +899,9 @@ class TestLLMObsClaudeAgentSdk:
 
         Every parallel tool span gets a link from the same llm span
         (``llm#1 → tool#k``), every parallel tool span links to the next llm
-        span (``tool#k → llm#2``), and no tool span links to any other tool
-        span (parallel tools are siblings, not a chain).
+        span (``tool#k → llm#2``), no tool span links to any other tool span,
+        and every tool span shares the same ``parent_id`` (= step#1) so the
+        trace data records them as siblings, not a chain (MLOB-7551).
         """
         prompt = "Run three Bash commands in parallel."
         async for _ in claude_agent_sdk.query(prompt=prompt):
@@ -980,6 +981,14 @@ class TestLLMObsClaudeAgentSdk:
         for tool_span in tool_spans:
             _assert_span_link(llm_spans[0], tool_span, "output", "input")
             _assert_span_link(tool_span, llm_spans[1], "output", "input")
+
+        # No tool → tool link: parallel tools are siblings, not chained.
+        for tool_span in tool_spans:
+            for link in get_llmobs_span_links(tool_span) or []:
+                assert link["span_id"] not in {str(s.span_id) for s in tool_spans}, (
+                    f"Tool span {tool_span.span_id} unexpectedly links to another tool span "
+                    f"({link['span_id']}); parallel tools should be siblings, not chained."
+                )
 
         # Step-to-step link is still emitted alongside the fan-out.
         _assert_span_link(step_spans[0], step_spans[1], "output", "input")
