@@ -1797,14 +1797,7 @@ def test_on_run_module_via_m_flag():
 
 
 def test_debugger_wrapping_context_is_deepcopyable():
-    # Regression test for https://github.com/DataDog/dd-trace-py/issues/16443:
-    # when Dynamic Instrumentation is enabled, a DebuggerWrappingContext is
-    # registered on instrumented endpoints. Its runtime collaborators
-    # (collector, probe registry, tracer, probe meter) transitively hold
-    # threading.Lock / RLock that are not picklable, which used to break
-    # copy.deepcopy of any object graph that reached the wrapped function
-    # (e.g. Cadwyn copying a FastAPI APIRoute when building its versioned
-    # router under Airflow 3.x).
+    # Regression test for https://github.com/DataDog/dd-trace-py/issues/16443.
     import copy
     import threading
 

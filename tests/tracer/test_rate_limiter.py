@@ -284,16 +284,11 @@ def test_rate_limiter_with_jitter_not_raise():
 
 def test_budget_rate_limiter_with_jitter_is_deepcopyable():
     # Regression test for https://github.com/DataDog/dd-trace-py/issues/16443.
-    # When a BudgetRateLimiterWithJitter ends up in an object graph that gets
-    # deep-copied (e.g. an EntrySpanProbe attached to a FastAPI route that
-    # Cadwyn deepcopies while building its versioned router), the internal
-    # threading.Lock used to make limit() thread-safe must not break the copy.
     limiter = BudgetRateLimiterWithJitter(limit_rate=5)
     clone = copy.deepcopy(limiter)
     assert clone is not limiter
     assert clone._lock is not limiter._lock
     assert clone.limit_rate == limiter.limit_rate
-    # The clone must still be usable after deepcopy.
     clone.limit(lambda: None)
 
 

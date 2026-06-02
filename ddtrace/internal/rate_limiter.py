@@ -244,10 +244,7 @@ class BudgetRateLimiterWithJitter:
         return limited_f
 
     def __getstate__(self) -> dict:
-        # _thread.lock is not picklable; strip it so deepcopy/pickle of any
-        # object graph that transitively holds a BudgetRateLimiterWithJitter
-        # (e.g. an EntrySpanProbe attached to a FastAPI route by code-origin)
-        # does not fail with "cannot pickle '_thread.lock' object".
+        # _thread.lock is not picklable.
         state = self.__dict__.copy()
         state.pop("_lock", None)
         return state
