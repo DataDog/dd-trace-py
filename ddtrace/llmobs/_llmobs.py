@@ -137,8 +137,10 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _sanitize_span_event_depth
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
@@ -665,6 +667,7 @@ class LLMObs(Service):
             output_type,
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
+        _sanitize_span_event_depth(llmobs_meta)
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless path: APM agentless ingestion interprets dots in tag keys as
             # nested-path separators, so replace them with underscores before encoding.
