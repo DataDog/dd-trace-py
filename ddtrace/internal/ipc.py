@@ -112,16 +112,17 @@ class SharedStringFile:
         if f.tell() + len(dt) <= MAX_FILE_SIZE:
             f.write(dt)
 
-    def put(self, data: str) -> None:
-        """Put a string into the file."""
+    def put(self, data: str) -> bool:
+        """Put a string into the file. Returns True on success, False on failure."""
         if self.filename is None:
-            return
+            return False
 
         try:
             with self.lock_exclusive() as f:
                 self.put_unlocked(f, data)
+            return True
         except Exception:  # nosec
-            pass
+            return False
 
     def peekall_unlocked(self, f: typing.BinaryIO) -> list[str]:
         f.seek(0)
