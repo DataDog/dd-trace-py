@@ -1,16 +1,13 @@
 ---
 features:
   - |
-    LLM Observability: adds agent-based export of LLM span data over the APM trace via
-    ``meta_struct["_llmobs"]``. When the APM trace is routed through the Datadog Agent and is
-    predicted to be dropped by sampling (root sampling priority is non-positive), a new
-    ``LLMObsSamplingFallbackProcessor`` re-ships the cached LLMObs event via the
-    ``LLMObsSpanWriter`` and scrubs ``meta_struct["_llmobs"]`` so the event is delivered at
-    most once. LLMObs never mutates ``sampling_priority`` and has no impact on APM sampling
-    decisions or billing.
+    LLM Observability: LLM span data can now be exported to the Datadog Agent over the APM
+    trace. When such a trace is predicted to be dropped by sampling, the LLMObs event is
+    re-shipped directly so it is still delivered exactly once. This has no effect on APM
+    sampling decisions or billing.
 upgrade:
   - |
-    LLM Observability: when both APM and LLMObs are enabled, the APM trace writer is now forced to
-    use the ``v0.4`` trace API version because ``v0.5`` does not carry ``meta_struct`` which is used to store the LLMObs span data.
-    Users who explicitly configure ``DD_TRACE_API_VERSION=v0.5`` and enable LLMObs will see a
-    warning and the writer will downgrade to ``v0.4``. No user action is required.
+    LLM Observability: when APM and LLMObs are both enabled, the APM trace writer now uses the
+    ``v0.4`` trace API version (``v0.5`` cannot carry the LLMObs span data). Setting
+    ``DD_TRACE_API_VERSION=v0.5`` with LLMObs enabled logs a warning and downgrades to
+    ``v0.4``. No user action is required.

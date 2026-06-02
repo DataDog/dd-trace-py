@@ -278,11 +278,8 @@ def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
 
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
-        # enable() raises on the missing-api-key check before it replaces _instance, so the
-        # assertions below inspect whatever _instance is currently set. Reset it to a fresh,
-        # real instance first: a prior test on the same xdist worker may have used the
-        # mock_llmobs_eval_metric_writer fixture, leaving a MagicMock writer whose
-        # status.value is not "stopped" and would fail the assertions.
+        # enable() raises before replacing _instance, so reset to a fresh real instance:
+        # a prior xdist-worker test may have left a mocked eval writer (status != "stopped").
         llmobs_service._instance = llmobs_service()
         with pytest.raises(ValueError):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
@@ -1500,9 +1497,8 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     env={
         "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
-        # Force LLMOBS_DIRECT so ``_on_span_finish`` enqueues into ``_llmobs_span_writer``
-        # directly (APM_AGENT instead caches events for the rescue chain, leaving the writer
-        # buffer empty and defeating this test's post-fork buffer assertions).
+        # Force LLMOBS_DIRECT so finish enqueues into the writer directly; APM_AGENT would
+        # cache for the rescue chain, leaving the buffer empty and defeating the assertions.
         "DD_APM_TRACING_ENABLED": "false",
         "DD_API_KEY": "<not-a-real-key>",
     }

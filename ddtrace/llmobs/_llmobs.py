@@ -518,18 +518,11 @@ class LLMObs(Service):
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
-        # Test-only: when set, the LLMOBS_DIRECT writer path skips the meta_struct["_llmobs"]
-        # scrub so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
-        # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env var.
-        # APM_AGENT already keeps meta_struct (it rides the APM trace), so the flag only
-        # affects the direct path.
+        # Test-only (_DD_LLMOBS_TEST_KEEP_META_STRUCT): keep meta_struct on the LLMOBS_DIRECT
+        # path so tests' DummyWriter can still read LLMObsSpanData after enqueue.
         self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
-        # enable() resolves config._llmobs_agentless_enabled via should_use_agentless() before
-        # constructing this instance: False means a supported Agent is present (writer uses the
-        # EVP proxy), True means direct intake.
-        # AIDEV-NOTE: the `else True` fallback only applies when __init__ runs outside enable()
-        # (config still None), defaulting to direct intake without consulting the Agent. Left
-        # as-is since the supported path always goes through enable().
+        # AIDEV-NOTE: the `else True` only applies when __init__ runs outside enable() (config
+        # still None); enable() always resolves agentless first, so the supported path is covered.
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -597,11 +590,8 @@ class LLMObs(Service):
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT or not self.tracer.enabled:
-            # APM trace is dropped (APMTracingEnabledFilter) or the tracer's on_span_finish
-            # path early-returns, so the rescue chain never runs — ship via the writer here.
-            # Tag + scrub before enqueue: a writer failure must not leave the payload on the
-            # span (would cause APM-side extract to duplicate). The test-only keep flag skips
-            # the scrub so tests' DummyWriter can still read the meta_struct payload.
+            # Rescue chain won't run (trace dropped, or tracer disabled): ship via the writer.
+            # Tag + scrub before enqueue so an APM-side extract can't duplicate the payload.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             if not self._test_mode_keep_meta_struct:
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
@@ -609,14 +599,13 @@ class LLMObs(Service):
             return
 
         if self._export_mode == LLMObsExportMode.APM_AGENT:
-            # Payload rides the APM trace to the local Agent via meta_struct. The Agent drops
-            # unsampled spans before they reach intake, so cache the rendered event for
-            # LLMObsSamplingFallbackProcessor to re-ship on a predicted drop (root priority <= 0).
+            # Agent drops unsampled spans before intake, so cache the event for the rescue
+            # processor to re-ship on a predicted drop (root priority <= 0).
             span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
             return
 
-        # APM_AGENTLESS: payload rides the APM trace straight to intake (no Agent in the path to
-        # drop it), so it is always delivered at 100%. Leave meta_struct in place; no rescue needed.
+        # APM_AGENTLESS: rides the trace straight to intake at 100% (no Agent to drop it);
+        # leave meta_struct in place, no rescue needed.
 
     def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
@@ -688,8 +677,8 @@ class LLMObs(Service):
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
-            # APM agentless path: APM agentless ingestion interprets dots in tag keys as
-            # nested-path separators, so replace them with underscores before encoding.
+            # APM agentless ingestion treats dots in tag keys as nested-path separators;
+            # replace them with underscores before encoding.
             tags = {k.replace(".", "_"): v for k, v in llmobs_data.get(LLMOBS_STRUCT.TAGS, {}).items()}
             llmobs_data[LLMOBS_STRUCT.TAGS] = tags
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_data))
@@ -777,15 +766,13 @@ class LLMObs(Service):
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
-        # The tracer's fork handler recreates the writer from existing state, so the child
-        # inherits whatever writer was active. We did not swap it here, so clear the flag to
-        # prevent disable() from incorrectly reverting it in the child process.
+        # The tracer's fork handler keeps whatever writer was active; we didn't swap it here,
+        # so clear the flag to stop disable() reverting it in the child.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
             if self._export_mode == LLMObsExportMode.APM_AGENT:
-                # Rebind the rescue processor (Agent path only): it captured the pre-fork
-                # writer whose worker thread does not survive fork(); leaving it in place
-                # would silently buffer rescued events in the child.
+                # Rebind: the processor holds the pre-fork writer whose worker thread is dead
+                # after fork(), so leaving it would silently buffer rescued events in the child.
                 self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
                     self._llmobs_span_writer
                 )
@@ -958,9 +945,8 @@ class LLMObs(Service):
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
             if cls._instance._export_mode == LLMObsExportMode.APM_AGENT:
-                # Only the Agent path drops unsampled spans before intake, so the rescue
-                # processor is installed there alone. Agentless ships straight to intake at
-                # 100% and LLMOBS_DIRECT ships via the writer at span finish — neither needs it.
+                # Only the Agent path drops unsampled spans before intake; agentless (100% to
+                # intake) and LLMOBS_DIRECT (writer at span finish) don't need the rescue.
                 cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
                     cls._instance._llmobs_span_writer
                 )

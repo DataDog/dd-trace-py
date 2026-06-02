@@ -278,10 +278,8 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        # Pin agentless_enabled=False: the default probes the Agent /info endpoint and
-        # silently flips to agentless when the Agent is unreachable, which swaps the
-        # ``tracer`` fixture's DummyWriter for an AgentlessTraceWriter and breaks the
-        # ``test_spans`` fixture invariant.
+        # Pin agentless_enabled=False: the default flips to agentless when the Agent is
+        # unreachable, swapping the ``tracer`` fixture's DummyWriter and breaking ``test_spans``.
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()

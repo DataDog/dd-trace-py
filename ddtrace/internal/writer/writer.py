@@ -121,9 +121,8 @@ def _human_size(nbytes: float) -> str:
 
 
 class TraceWriter(metaclass=abc.ABCMeta):
-    # TODO: `appsec_enabled` / `llmobs_enabled` are used to dynamically enable ASM and
-    #       LLM Observability at runtime (both require api_version=v0.4 in NativeWriter).
-    #       Find an alternative way to do this without having to pass the parameter/recreating the writer.
+    # TODO: appsec_enabled / llmobs_enabled dynamically force api_version=v0.4 in NativeWriter;
+    #       find a way to do this without recreating the writer.
     @abc.abstractmethod
     def recreate(
         self,

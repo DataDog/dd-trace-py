@@ -5,19 +5,13 @@ from typing import Final
 class LLMObsExportMode(str, Enum):
     """The primary path LLMObs span data takes to Datadog.
 
-    This describes only the primary path. The wire transport for the writer-based path
-    (Agent EVP proxy vs direct-to-intake) is NOT modeled here; it is inferred from
-    ``config._llmobs_agentless_enabled`` (the ``LLMObsSpanWriter``'s ``is_agentless``).
+    Only the primary path is modeled here; the writer's wire transport (Agent EVP proxy vs
+    direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
 
-    APM_AGENTLESS — rides the APM trace as meta_struct["_llmobs"]; APM writer swapped to
-                    AgentlessTraceWriter, shipped to intake at 100%.
-    APM_AGENT     — rides the APM trace via the Datadog Agent. The Agent drops unsampled
-                    spans, so ``LLMObsSamplingFallbackProcessor`` re-ships predicted-drop
-                    events through ``LLMObsSpanWriter``.
-    LLMOBS_DIRECT — APM trace unavailable (DD_APM_TRACING_ENABLED=false); span events ship
-                    via ``LLMObsSpanWriter`` at finish. The writer uses the Agent's EVP proxy
-                    when a supported Agent is present, else direct-to-intake (requires an API
-                    key). The APM_AGENT rescue re-ships through the same writer/transport.
+    APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
+    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; the rescue
+                    processor re-ships predicted drops through ``LLMObsSpanWriter``.
+    LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
     """
 
     LLMOBS_DIRECT = "llmobs_direct"
