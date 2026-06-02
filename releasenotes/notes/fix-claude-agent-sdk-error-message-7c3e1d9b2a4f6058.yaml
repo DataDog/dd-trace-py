@@ -4,5 +4,4 @@ fixes:
     LLM Observability: This fix resolves an issue in the Claude Agent SDK integration where a span's
     error type and message showed an uncategorized ``unknown`` error category from the upstream Claude
     Agent SDK instead of a descriptive API error. The integration now surfaces a detailed error message
-    from the assistant message content, and recovers the specific error type (e.g. ``overloaded_error``)
-    from that content when the SDK reports only the ``unknown`` category.
+    and error type from the assistant message content.
