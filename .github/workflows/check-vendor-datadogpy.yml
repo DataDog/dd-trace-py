@@ -1,0 +1,77 @@
+name: Check vendored datadogpy version
+
+# Runs weekly and on demand.  Opens (or updates) a GitHub issue when the
+# latest `datadog` release on PyPI is ahead of the version pinned in
+# ddtrace/vendor/__init__.py, so the team knows to evaluate a vendor bump.
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Compare vendored vs PyPI version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check datadogpy vendor version
+        id: check
+        run: python .github/scripts/check_datadogpy_vendor.py
+
+      - name: Open or update tracking issue
+        if: steps.check.outputs.outdated == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `chore(vendor): bump vendored datadogpy to ${process.env.LATEST_VERSION}`;
+            const body = [
+              `The \`datadog\` package on PyPI has a new release: **${process.env.LATEST_VERSION}**`,
+              `The version currently vendored in \`ddtrace/vendor/\` is **${process.env.VENDORED_VERSION}**.`,
+              ``,
+              `## Next steps`,
+              `1. Review the [datadogpy changelog](https://github.com/DataDog/datadogpy/blob/master/CHANGELOG.md) for changes in \`datadog/dogstatsd/container.py\` and related files.`,
+              `2. If there are relevant fixes or improvements, update the vendor copy following the instructions in \`ddtrace/vendor/__init__.py\`.`,
+              `3. Re-apply any local patches documented in \`ddtrace/vendor/__init__.py\` under the \`dogstatsd\` section.`,
+              `4. Close this issue once the vendor bump lands.`,
+              ``,
+              `_This issue was opened automatically by the [check-vendor-datadogpy](${{ github.server_url }}/${{ github.repository }}/actions/workflows/check-vendor-datadogpy.yml) workflow._`,
+            ].join('\n');
+
+            // Check if a tracking issue already exists (avoid duplicates)
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'vendor-bump',
+            });
+
+            const alreadyOpen = existing.data.find(i => i.title.includes('datadogpy'));
+            if (alreadyOpen) {
+              console.log(`Issue #${alreadyOpen.number} already open — updating body`);
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: alreadyOpen.number,
+                title,
+                body,
+              });
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['vendor-bump'],
+              });
+              console.log(`Opened issue #${created.data.number}`);
+            }
+        env:
+          LATEST_VERSION: ${{ steps.check.outputs.latest_version }}
+          VENDORED_VERSION: ${{ steps.check.outputs.vendored_version }}
