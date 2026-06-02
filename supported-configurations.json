@@ -5808,7 +5808,7 @@
     ],
     "_DD_PROFILING_STACK_FAST_COPY": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
         "default": "true",
         "internal": true
