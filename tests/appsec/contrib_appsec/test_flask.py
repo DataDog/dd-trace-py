@@ -131,6 +131,8 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         "/login",
         "/login_sdk",
         "/rasp/<string:endpoint>/",
+        "/multi-param/<first>.<last>/",
+        "/files/<path:file_path>",
     }
 
     @staticmethod
@@ -139,6 +141,9 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
 
         path = re.sub(r"<int:[a-z_]+>", "123", path)
         path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
+        # Bare <name> (no converter) and <path:name> catch-all — substitute a safe test value.
+        path = re.sub(r"<path:[a-z_]+>", "test/path", path)
+        path = re.sub(r"<[a-z_]+>", "test", path)
         return path
 
     # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
