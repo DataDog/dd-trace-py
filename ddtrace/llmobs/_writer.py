@@ -174,19 +174,6 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     return _SHOULD_USE_AGENTLESS
 
 
-def llmobs_apm_trace_agentless_enabled() -> bool:
-    """Whether LLMObs config requires the APM trace writer to be agentless.
-
-    Auto-detects via :func:`should_use_agentless` only when the user hasn't expressed a
-    preference (``DD_LLMOBS_AGENTLESS_ENABLED`` unset and no programmatic value resolved yet).
-    """
-    if not config._dd_api_key or config._llmobs_agentless_enabled is False:
-        return False
-    elif config._llmobs_agentless_enabled or config._trace_agentless_enabled:
-        return True
-    return should_use_agentless()
-
-
 class BaseLLMObsWriter(PeriodicService):
     """Base writer class for submitting data to Datadog LLMObs endpoints."""
 

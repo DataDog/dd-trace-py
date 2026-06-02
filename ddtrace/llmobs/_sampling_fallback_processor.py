@@ -6,6 +6,10 @@ intake, taking the payload with them. This processor re-ships the cached event v
 ``LLMObsSpanWriter``, scrubs the meta_struct entry, and stamps ``_dd.llmobs.submitted=1`` so
 intake-side dedup can drop the APM extract if the Agent unexpectedly keeps the trace.
 
+The ``LLMObsSpanWriter`` routes the rescued event via the Agent's EVP proxy when a supported
+Agent is present, else direct to intake. That wire transport is inferred from the writer's
+``is_agentless`` (set by ``should_use_agentless()`` when the writer is built), not here.
+
 Agentless export ships straight to intake at 100% (no Agent to drop it) and is never routed
 through this processor; LLMOBS_DIRECT ships via the writer at span finish.
 

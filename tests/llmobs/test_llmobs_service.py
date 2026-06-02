@@ -133,49 +133,6 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
-def test_llmobs_apm_trace_agentless_enabled_no_api_key():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is False
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is False
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is True
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is True
-
-
 @pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
@@ -246,6 +203,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     err=None,
 )
 def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
+    """APM trace dropped: span events ship via the writer (transport inferred by the writer)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMObsExportMode
 
@@ -320,6 +278,12 @@ def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
 
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
+        # enable() raises on the missing-api-key check before it replaces _instance, so the
+        # assertions below inspect whatever _instance is currently set. Reset it to a fresh,
+        # real instance first: a prior test on the same xdist worker may have used the
+        # mock_llmobs_eval_metric_writer fixture, leaving a MagicMock writer whose
+        # status.value is not "stopped" and would fail the assertions.
+        llmobs_service._instance = llmobs_service()
         with pytest.raises(ValueError):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
@@ -1536,11 +1500,9 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     env={
         "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
-        # Force LLMOBS_DIRECT export mode so ``_on_span_finish`` enqueues into
-        # ``_llmobs_span_writer`` directly. The default APM_AGENT mode now caches
-        # events on the span for ``LLMObsSamplingFallbackProcessor`` to ship via the
-        # rescue chain, leaving the writer buffer empty — which would defeat this test's
-        # assertions about per-process buffer contents post-fork.
+        # Force LLMOBS_DIRECT so ``_on_span_finish`` enqueues into ``_llmobs_span_writer``
+        # directly (APM_AGENT instead caches events for the rescue chain, leaving the writer
+        # buffer empty and defeating this test's post-fork buffer assertions).
         "DD_APM_TRACING_ENABLED": "false",
         "DD_API_KEY": "<not-a-real-key>",
     }

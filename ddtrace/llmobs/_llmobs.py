@@ -161,7 +161,6 @@ from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
-from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
@@ -511,9 +510,11 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
-            # APMTracingEnabledFilter drops every trace, so the APM path can't carry data.
+            # APMTracingEnabledFilter drops every trace, so ship via the writer instead. The
+            # writer infers its wire transport (EVP proxy vs direct) from is_agentless.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
-        elif llmobs_apm_trace_agentless_enabled():
+        elif config._llmobs_agentless_enabled:
+            # Resolved by should_use_agentless() at enable(); True means no supported Agent.
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
@@ -523,6 +524,12 @@ class LLMObs(Service):
         # APM_AGENT already keeps meta_struct (it rides the APM trace), so the flag only
         # affects the direct path.
         self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
+        # enable() resolves config._llmobs_agentless_enabled via should_use_agentless() before
+        # constructing this instance: False means a supported Agent is present (writer uses the
+        # EVP proxy), True means direct intake.
+        # AIDEV-NOTE: the `else True` fallback only applies when __init__ runs outside enable()
+        # (config still None), defaulting to direct intake without consulting the Agent. Left
+        # as-is since the supported path always goes through enable().
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
