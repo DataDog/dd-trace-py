@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Optional
 
@@ -15,6 +14,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
@@ -317,21 +317,18 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     def _parse_error_type(self, message: str) -> str:
         """Best-effort extract a specific error type from an ``API Error: {...}`` payload.
 
-        The message embeds a JSON object shaped like
-        ``{"type": "error", "error": {"type": "overloaded_error", ...}}``; return the
-        nested ``error.type`` when present, else "".
+        The content text isn't valid JSON on its own — it's prefixed with a human-readable
+        label (e.g. ``API Error: {...}``) — so we decode from the first ``{``. The embedded
+        object is shaped like ``{"type": "error", "error": {"type": "overloaded_error", ...}}``;
+        return the nested ``error.type`` when present, else "".
         """
         start = message.find("{")
         if start == -1:
             return ""
-        try:
-            payload, _ = json.JSONDecoder().raw_decode(message[start:])
-        except ValueError:
-            return ""
-        if isinstance(payload, dict):
-            error = payload.get("error")
-            if isinstance(error, dict) and error.get("type"):
-                return str(error["type"])
+        payload = safe_load_json(message[start:])
+        error = payload.get("error") if isinstance(payload, dict) else None
+        if isinstance(error, dict) and error.get("type"):
+            return str(error["type"])
         return ""
 
     def _extract_usage(self, message: Any) -> dict[str, int]:
