@@ -75,8 +75,8 @@
          "_dd.top_level": 1.0,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1.0,
-         "kafka.message_offset": -1.0,
-         "kafka.partition": -1.0,
+         "kafka.message_offset": 0.0,
+         "kafka.partition": 0.0,
          "process_id": 510.0
        },
        "duration": 1800834,
