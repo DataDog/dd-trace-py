@@ -136,6 +136,7 @@ from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _trace_id_to_wire
@@ -150,6 +151,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
@@ -169,6 +171,7 @@ from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
+from ddtrace.llmobs.types import _ToolField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
@@ -430,6 +433,16 @@ def _normalize_llmobs_meta(
         llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
+    if span_kind != "tool":
+        llmobs_meta.pop(LLMOBS_STRUCT.TOOL, None)
+    elif LLMOBS_STRUCT.TOOL not in llmobs_meta:
+        tool_name = get_llmobs_span_name(span)
+        if tool_name:
+            ancestor = _get_nearest_llmobs_ancestor(span)
+            if ancestor is not None and get_llmobs_span_kind(ancestor) == "llm":
+                version = get_tool_version_from_llm_span(ancestor, tool_name)
+                if version is not None:
+                    llmobs_meta[LLMOBS_STRUCT.TOOL] = _ToolField(version=version)
     intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
     if intent:
         llmobs_meta[LLMOBS_STRUCT.INTENT] = str(intent)
@@ -504,6 +517,12 @@ class LLMObs(Service):
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
+        # Test-only: when set, the LLMOBS_DIRECT writer path skips the meta_struct["_llmobs"]
+        # scrub so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
+        # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env var.
+        # APM_AGENT already keeps meta_struct (it rides the APM trace), so the flag only
+        # affects the direct path.
+        self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
@@ -545,7 +564,7 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        telemetry.record_span_created(span)
+        telemetry.record_span_created(span, self._export_mode)
 
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
@@ -574,9 +593,11 @@ class LLMObs(Service):
             # APM trace is dropped (APMTracingEnabledFilter) or the tracer's on_span_finish
             # path early-returns, so the rescue chain never runs — ship via the writer here.
             # Tag + scrub before enqueue: a writer failure must not leave the payload on the
-            # span (would cause APM-side extract to duplicate).
+            # span (would cause APM-side extract to duplicate). The test-only keep flag skips
+            # the scrub so tests' DummyWriter can still read the meta_struct payload.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            if not self._test_mode_keep_meta_struct:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             self._llmobs_span_writer.enqueue(span_event)
             return
 
@@ -1985,6 +2006,7 @@ class LLMObs(Service):
             context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
             return context
         return None
 

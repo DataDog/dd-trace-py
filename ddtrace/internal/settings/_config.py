@@ -638,6 +638,9 @@ class Config(object):
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -677,7 +680,7 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 

@@ -348,6 +348,11 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
+        """
+        Obfuscate client side stats buckets in the client instead of in the agent.
+        """
         ...
     def enable_telemetry(
         self,
@@ -403,6 +408,13 @@ class TraceExporterBuilder:
         Should only be used for debugging.
         """
         ...
+
+class AgentResponse:
+    """Sampling-rate response from the Datadog agent after a successful trace export."""
+
+    rate_by_service: Mapping[str, float]
+
+    def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
 
 class AgentError(Exception):
     """

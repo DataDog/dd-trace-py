@@ -18,6 +18,7 @@ from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import SummaryEvaluatorContext
@@ -37,6 +38,7 @@ __all__ = [
     "JSONType",
     "LengthEvaluator",
     "LLMJudge",
+    "MultiEvaluatorResult",
     "RegexMatchEvaluator",
     "RemoteEvaluator",
     "RemoteEvaluatorError",
