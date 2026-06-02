@@ -562,7 +562,7 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        telemetry.record_span_created(span, self._export_mode)
+        telemetry.record_span_created(span, self._export_mode, self._llmobs_span_writer._agentless)
 
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
