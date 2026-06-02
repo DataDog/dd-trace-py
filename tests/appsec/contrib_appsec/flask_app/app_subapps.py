@@ -8,9 +8,11 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from tests.appsec.contrib_appsec.flask_app.app import app as flat_app
 from tests.appsec.contrib_appsec.flask_app.app import buggy_endpoint
 from tests.appsec.contrib_appsec.flask_app.app import exception_group_block
+from tests.appsec.contrib_appsec.flask_app.app import files_catch_all
 from tests.appsec.contrib_appsec.flask_app.app import index
 from tests.appsec.contrib_appsec.flask_app.app import login_user
 from tests.appsec.contrib_appsec.flask_app.app import login_user_sdk
+from tests.appsec.contrib_appsec.flask_app.app import multi_param_segment
 from tests.appsec.contrib_appsec.flask_app.app import multi_view
 from tests.appsec.contrib_appsec.flask_app.app import new_service
 from tests.appsec.contrib_appsec.flask_app.app import rasp
@@ -36,6 +38,10 @@ def _make_root_app():
     app.route("/login_sdk/", methods=["GET"])(login_user_sdk)
     app.route("/exception-group-block", methods=["GET"])(exception_group_block)
     app.route("/buggy_endpoint/", methods=None)(buggy_endpoint)
+    # RFC-1103 normalized-route coverage: these live on the root app (not a DM sub-app) so
+    # script_root is empty and url_rule.rule already carries the full path.
+    app.route("/multi-param/<first>.<last>/", methods=["GET"])(multi_param_segment)
+    app.route("/files/<path:file_path>", methods=["GET"])(files_catch_all)
     app.before_request(service_renaming)
     return app
 
