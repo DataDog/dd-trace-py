@@ -1,15 +1,10 @@
 """Tests for the vendored DogStatsD container-ID reader.
 
-Covers the cgroup v2 origin-detection fix (new code):
-  - ContainerID.__init__: delegates to path-read vs inode-fallback
-  - ContainerID._is_host_cgroup_namespace
-  - ContainerID._read_cgroup_path
-  - ContainerID._get_cgroup_from_inode
-
-And the pre-existing _read_container_id helper:
-  - TestReadContainerIdFound
-  - TestReadContainerIdNotFound
-  - TestReadContainerIdErrors
+- ContainerID.__init__: delegates to path-read vs inode-fallback
+- ContainerID._is_host_cgroup_namespace
+- ContainerID._read_cgroup_path (returns raw container ID, no ci- prefix)
+- ContainerID._get_cgroup_from_inode (returns in-<inode>)
+- ContainerID._read_container_id (raw parsing helper)
 """
 
 import errno
@@ -132,17 +127,17 @@ class TestReadCgroupPath:
         reader.CGROUP_PATH = _write_cgroup(cgroup_content)
         return reader
 
-    def test_returns_ci_prefixed_id_for_docker_cgroup_v1(self) -> None:
+    def test_returns_raw_id_for_docker_cgroup_v1(self) -> None:
         reader: ContainerID = self._make_reader(DOCKER_CGROUP_V1)
         try:
-            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_64}"
+            assert reader._read_cgroup_path() == CONTAINER_ID_64
         finally:
             os.unlink(reader.CGROUP_PATH)
 
-    def test_returns_ci_prefixed_id_for_k8s_cgroup_v1(self) -> None:
+    def test_returns_raw_id_for_k8s_cgroup_v1(self) -> None:
         reader: ContainerID = self._make_reader(K8S_CGROUP_V1)
         try:
-            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_K8S}"
+            assert reader._read_cgroup_path() == CONTAINER_ID_K8S
         finally:
             os.unlink(reader.CGROUP_PATH)
 
@@ -235,14 +230,14 @@ class TestGetCgroupFromInode:
 
 class TestContainerIDInit:
     def test_uses_cgroup_path_when_parseable(self) -> None:
-        # ci- path is always tried first; inode is never consulted when it succeeds.
+        # cgroup path is always tried first; inode is never consulted when it succeeds.
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=f"ci-{CONTAINER_ID_64}") as mock_path,
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=CONTAINER_ID_64) as mock_path,
             mock.patch.object(ContainerID, "_is_host_cgroup_namespace") as mock_ns,
             mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
         ):
             reader: ContainerID = ContainerID()
-            assert reader.container_id == f"ci-{CONTAINER_ID_64}"
+            assert reader.container_id == CONTAINER_ID_64
             mock_path.assert_called_once()
             mock_ns.assert_not_called()
             mock_inode.assert_not_called()
