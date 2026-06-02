@@ -86,7 +86,7 @@ class ContainerID(object):
             cgroup_controllers_paths: dict[str, str] = {}
             with open(self.CGROUP_PATH, mode="r") as fp:
                 for line in fp:
-                    tokens = line.strip().split(":")
+                    tokens: list[str] = line.strip().split(":")
                     if len(tokens) != 3:
                         continue
                     if tokens[1] in (self.CGROUPV1_BASE_CONTROLLER, self.CGROUPV2_BASE_CONTROLLER):
@@ -94,13 +94,13 @@ class ContainerID(object):
 
             for controller in (self.CGROUPV1_BASE_CONTROLLER, self.CGROUPV2_BASE_CONTROLLER):
                 if controller in cgroup_controllers_paths:
-                    node_path = cgroup_controllers_paths[controller]
-                    inode_path = os.path.join(
+                    node_path: str = cgroup_controllers_paths[controller]
+                    inode_path: str = os.path.join(
                         self.CGROUP_MOUNT_PATH,
                         controller,
                         node_path.lstrip("/"),
                     )
-                    inode = os.stat(inode_path).st_ino
+                    inode: int = os.stat(inode_path).st_ino
                     # 0 is not a valid inode. 1 is a bad block inode and 2 is the root of a filesystem.
                     if inode > 2:
                         return "in-{0}".format(inode)
