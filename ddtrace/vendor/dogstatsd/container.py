@@ -112,11 +112,11 @@ class ContainerID(object):
             with open(fpath, mode="r") as fp:
                 for line in fp:
                     line = line.strip()
-                    match = self.LINE_RE.match(line)
+                    match: Optional[re.Match[str]] = self.LINE_RE.match(line)
                     if not match:
                         continue
                     _, _, path = match.groups()
-                    parts = [p for p in path.split("/")]
+                    parts: list[str] = path.split("/")
                     if len(parts):
                         match = self.CONTAINER_RE.match(parts.pop())
                         if match:
