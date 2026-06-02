@@ -768,7 +768,7 @@ class config:
         ...
 
 # -----------------------------------------------------------------------------
-# Native HTTP client (libdd-http-client wrapper)
+# HTTP client
 # -----------------------------------------------------------------------------
 
 class HttpResponse:
@@ -787,59 +787,67 @@ class HttpResponse:
     def body(self) -> bytes:
         """Return the response body as ``bytes``.
 
-        The native client does **not** auto-decompress responses; callers
-        handle their own decompression. Repeated calls return the same
-        ``bytes`` object (memoized).
+        Responses are not decompressed regardless of ``Content-Encoding``.
+        Repeated calls return the same ``bytes`` object (memoized).
         """
         ...
     def header(self, name: str) -> Optional[str]:
         """Case-insensitive header lookup; returns the first matching value."""
         ...
 
+_HTTPClientT = TypeVar("_HTTPClientT", bound="HTTPClient")
+
 class HTTPClient:
-    """A pooled, base-URL HTTP client backed by ``libdd-http-client``.
+    """A pooled, base-URL HTTP client.
 
     Construct with a base URL; request methods take a relative path joined onto
     it. ``headers`` are default headers merged into every request (per-request
     headers override by name). The GIL is released for the duration of every
-    HTTP I/O call, and instances are safe to share across threads (reqwest pools
-    connections internally).
+    HTTP I/O call, and instances are safe to share across threads (connections
+    are pooled internally).
 
     ``runtime`` is a :class:`SharedRuntime`. Application code should use
     :class:`ddtrace.internal.http_client.HTTPClient`, a subclass that injects the
     process-wide runtime automatically:
 
         >>> from ddtrace.internal.http_client import HTTPClient
-        >>> client = HTTPClient("http://localhost:8126", headers={"Datadog-Meta-Lang": "python"})
+        >>> client = HTTPClient("http://localhost:8126", headers=[("Datadog-Meta-Lang", "python")])
         >>> info = client.get("/info").body()
 
     ``base_url`` is ``scheme://host[:port][/prefix]`` (``http`` / ``https``) or
     ``unix:///path/to.sock``. For UDS the request host is fixed to ``localhost``.
 
-    Notes on libdd defaults that are NOT user-configurable in v1:
+    Behavioral notes:
 
     - Redirects are followed automatically (up to 10).
     - ``HTTP_PROXY`` / ``HTTPS_PROXY`` / ``NO_PROXY`` environment variables are
-      honored by the underlying reqwest client.
-    - Response bodies are NOT auto-decompressed; ``Content-Encoding`` is
-      preserved verbatim.
+      honored.
+    - Response bodies are not decompressed; ``Content-Encoding`` is preserved
+      verbatim.
     """
 
     def __new__(
-        cls,
+        cls: type[_HTTPClientT],
         base_url: str,
         *,
         runtime: SharedRuntime,
         timeout_ms: int = 2000,
         headers: Optional[Iterable[tuple[str, str]]] = None,
-        retry: Optional[tuple[int, int, bool]] = None,
+        max_retries: int = 0,
+        retry_initial_delay_ms: int = 100,
+        retry_jitter: bool = True,
         treat_http_errors_as_errors: bool = True,
-    ) -> "HTTPClient":
+    ) -> _HTTPClientT:
         """Build a client bound to ``runtime``.
 
-        :param retry: ``(max_retries, initial_delay_ms, jitter)``. libdd retries
-            all non-``InvalidConfig`` errors including 4xx/5xx; combine with
-            ``treat_http_errors_as_errors=False`` for "no retry on 4xx".
+        :param max_retries: number of retries after the first attempt (``0`` =
+            no retry). libdd retries all non-``InvalidConfig`` errors including
+            4xx/5xx; combine with ``treat_http_errors_as_errors=False`` for
+            "no retry on 4xx".
+        :param retry_initial_delay_ms: backoff before the first retry (doubles
+            each subsequent retry). Only applies when ``max_retries > 0``.
+        :param retry_jitter: randomize the backoff delay. Only applies when
+            ``max_retries > 0``.
         :param treat_http_errors_as_errors: when ``True`` (default), HTTP 4xx/5xx
             raise :class:`RequestFailedError`; when ``False`` they are returned
             as regular :class:`HttpResponse` objects.
@@ -946,6 +954,5 @@ class InvalidConfigError(HttpClientError):
 
 class HttpIoError(HttpClientError):
     """An I/O error occurred during the request (truncated response,
-    connection reset, etc.). Renamed from ``IoError`` at the Rust level to
-    avoid a collision with :class:`IoError` from ``data_pipeline``.
+    connection reset, etc.).
     """

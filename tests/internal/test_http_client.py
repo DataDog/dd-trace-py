@@ -1,21 +1,19 @@
 """Tests for the native HTTP client (``ddtrace.internal.http_client.HTTPClient``).
 
-The matrix mirrors NATIVE_HTTP_CLIENT_SPEC.md §6 — construction, happy-path
-requests, HTTP-error semantics, transport variants (HTTP/HTTPS/UDS),
-timeouts, retries, headers, GIL behavior, fork safety, error mapping,
-concurrency / pooling, resource management, response shape, and URL handling.
+Covers construction, happy-path requests, HTTP-error semantics, transport
+variants (HTTP/HTTPS/UDS), timeouts, retries, headers, GIL behavior, fork
+safety, error mapping, concurrency / pooling, resource management, response
+shape, and URL handling.
 
-The native FFI exposes a single ergonomic ``HTTPClient`` class: it owns the
-base URL, default headers, timeout, and retry/error config, and its request
-methods (``get``/``post``/``put``/``patch``/``delete``/``head``) take a path
-that is joined onto the base URL. ``ddtrace.internal.http_client.HTTPClient``
-is a thin subclass that injects the process-wide shared runtime, so callers
-never pass a runtime explicitly.
+``HTTPClient`` owns the base URL, default headers, timeout, and retry/error
+config. Its request methods take a relative path joined onto the base URL.
+``ddtrace.internal.http_client.HTTPClient`` is a thin subclass that injects
+the process-wide shared runtime, so callers never pass a runtime explicitly.
 
 Fixtures spin up `http.server.ThreadingHTTPServer` on port 0 so the suite is
-``pytest -n auto`` friendly. Handler shapes mirror those in
-``tests/tracer/test_writer.py`` (lines 555-720) but are inlined here because
-that file imports ``msgpack``, which is not in the ``internal`` riot venv.
+``pytest -n auto`` friendly. Handlers are inlined rather than imported from
+``tests/tracer/test_writer`` because importing that module pulls in ``msgpack``,
+which is not in the ``internal`` riot venv.
 """
 
 from __future__ import annotations
@@ -31,6 +29,7 @@ import tempfile
 import threading
 import time
 
+import psutil
 import pytest
 
 from ddtrace.internal.http_client import HTTPClient
@@ -46,10 +45,6 @@ from ddtrace.internal.native import TimedOutError
 # --------------------------------------------------------------------------- #
 # Test handlers and fixtures
 # --------------------------------------------------------------------------- #
-# DEV: these handler classes mirror the ones in tests.tracer.test_writer (lines
-# 555-720) but are inlined here because importing tests.tracer.test_writer
-# pulls in `msgpack` which is not in the `internal` riot venv. The shapes are
-# small enough that duplication is cheaper than restructuring riotfile.py.
 
 
 class _BaseHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
@@ -380,7 +375,7 @@ def uds_serve():
 
 
 # --------------------------------------------------------------------------- #
-# §6.1 Construction / config
+# Construction / config
 # --------------------------------------------------------------------------- #
 
 
@@ -390,14 +385,14 @@ def test_unsupported_scheme_raises():
 
 
 def test_retry_zero_is_one_attempt_builds(serve, make_client):
-    # Just verify it builds — actual retry-count behavior is exercised in §6.6.
+    # Just verify construction succeeds — retry-count semantics are exercised in the Retries section below.
     base = serve(EchoHandler)
-    client = make_client(base, timeout_ms=500, retry=(0, 10, False))
+    client = make_client(base, timeout_ms=500, max_retries=0, retry_initial_delay_ms=10, retry_jitter=False)
     assert client.get("/info").status_code == 200
 
 
 # --------------------------------------------------------------------------- #
-# §6.2 Happy-path requests
+# Happy-path requests
 # --------------------------------------------------------------------------- #
 
 
@@ -567,7 +562,7 @@ def test_datadog_container_tags_hash_header(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.3 HTTP error semantics
+# HTTP error semantics
 # --------------------------------------------------------------------------- #
 
 
@@ -627,7 +622,7 @@ def test_truncated_body_raises_io_error(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.4 Transport variants
+# Transport variants
 # --------------------------------------------------------------------------- #
 
 
@@ -668,7 +663,7 @@ def test_ipv6_loopback_roundtrip(make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.4 UDS transport
+# UDS transport
 # --------------------------------------------------------------------------- #
 
 
@@ -751,7 +746,7 @@ def test_uds_path_with_spaces(uds_serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.5 Timeouts
+# Timeouts
 # --------------------------------------------------------------------------- #
 
 
@@ -789,7 +784,7 @@ def test_timeout_within_tolerance(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.6 Retries
+# Retries
 # --------------------------------------------------------------------------- #
 
 
@@ -799,7 +794,7 @@ def test_retry_succeeds_after_failures(serve, make_client):
 
     _H.reset(fail_n=2, final_body=b"recovered")
     base = serve(_H)
-    client = make_client(base, timeout_ms=2000, retry=(3, 10, False))
+    client = make_client(base, timeout_ms=2000, max_retries=3, retry_initial_delay_ms=10, retry_jitter=False)
     resp = client.post("/")
     assert resp.status_code == 200
     assert _H._attempts == 3
@@ -813,7 +808,7 @@ def test_retry_all_fail_terminal_error(serve, make_client):
     # fail_n large enough that all attempts fail; we'll expect an error.
     _H.reset(fail_n=99)
     base = serve(_H)
-    client = make_client(base, timeout_ms=1000, retry=(2, 10, False))
+    client = make_client(base, timeout_ms=1000, max_retries=2, retry_initial_delay_ms=10, retry_jitter=False)
     with pytest.raises((HttpIoError, ConnectionFailedError)):
         client.post("/")
     # max_retries=2 means 1 initial + 2 retries = 3 attempts
@@ -826,7 +821,7 @@ def test_retry_zero_is_one_attempt(serve, make_client):
 
     _H.reset(fail_n=99)
     base = serve(_H)
-    client = make_client(base, timeout_ms=1000, retry=(0, 10, False))
+    client = make_client(base, timeout_ms=1000, max_retries=0, retry_initial_delay_ms=10, retry_jitter=False)
     with pytest.raises((HttpIoError, ConnectionFailedError)):
         client.post("/")
     assert _H._attempts == 1
@@ -843,7 +838,7 @@ def test_404_with_retry_retries(serve, make_client):
 
     _StatusH._hits = 0
     base = serve(_StatusH)
-    client = make_client(base, timeout_ms=2000, retry=(3, 5, False))
+    client = make_client(base, timeout_ms=2000, max_retries=3, retry_initial_delay_ms=5, retry_jitter=False)
     with pytest.raises(RequestFailedError):
         client.get("/404/notfound")
     assert _StatusH._hits == 4  # 1 + 3 retries
@@ -859,7 +854,14 @@ def test_404_with_treat_off_no_retries(serve, make_client):
 
     _StatusH._hits = 0
     base = serve(_StatusH)
-    client = make_client(base, timeout_ms=2000, treat_http_errors_as_errors=False, retry=(3, 5, False))
+    client = make_client(
+        base,
+        timeout_ms=2000,
+        treat_http_errors_as_errors=False,
+        max_retries=3,
+        retry_initial_delay_ms=5,
+        retry_jitter=False,
+    )
     resp = client.get("/404/notfound")
     assert resp.status_code == 404
     assert _StatusH._hits == 1  # no retry because not an error variant
@@ -872,7 +874,7 @@ def test_retry_delay_respected(serve, make_client):
 
     _H.reset(fail_n=2)
     base = serve(_H)
-    client = make_client(base, timeout_ms=5000, retry=(2, 200, False))
+    client = make_client(base, timeout_ms=5000, max_retries=2, retry_initial_delay_ms=200, retry_jitter=False)
     start = time.monotonic()
     client.post("/")
     elapsed = (time.monotonic() - start) * 1000
@@ -886,20 +888,22 @@ def test_retry_on_connection_refused(make_client):
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
-    client = make_client(f"http://127.0.0.1:{port}", timeout_ms=1000, retry=(2, 5, False))
+    client = make_client(
+        f"http://127.0.0.1:{port}", timeout_ms=1000, max_retries=2, retry_initial_delay_ms=5, retry_jitter=False
+    )
     with pytest.raises(ConnectionFailedError):
         client.get("/")
 
 
 def test_connection_reset_mid_response(serve, make_client):
     base = serve(_ResetAPIEndpointRequestHandlerTest)
-    client = make_client(base, timeout_ms=1000, retry=(0, 10, False))
+    client = make_client(base, timeout_ms=1000, max_retries=0, retry_initial_delay_ms=10, retry_jitter=False)
     with pytest.raises((HttpIoError, ConnectionFailedError)):
         client.post("/")
 
 
 # --------------------------------------------------------------------------- #
-# §6.7 Headers
+# Headers
 # --------------------------------------------------------------------------- #
 
 
@@ -962,7 +966,7 @@ def test_many_distinct_headers(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.9 GIL behavior / threading
+# GIL behavior / threading
 # --------------------------------------------------------------------------- #
 
 
@@ -1018,7 +1022,7 @@ def test_concurrent_threads_share_client(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.10 Fork safety
+# Fork safety
 # --------------------------------------------------------------------------- #
 
 
@@ -1087,7 +1091,7 @@ def test_fork_parent_and_child_can_send():
 
 
 # --------------------------------------------------------------------------- #
-# §6.11 Error mapping
+# Error mapping
 # --------------------------------------------------------------------------- #
 
 
@@ -1122,7 +1126,7 @@ def test_503_response(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.12 Concurrency / pooling
+# Concurrency / pooling
 # --------------------------------------------------------------------------- #
 
 
@@ -1140,12 +1144,11 @@ def test_pooling_default_few_connections(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.14 Resource management
+# Resource management
 # --------------------------------------------------------------------------- #
 
 
 def test_no_fd_leak_when_building_many_clients(serve):
-    psutil = pytest.importorskip("psutil")
     base = serve(EchoHandler)
     proc = psutil.Process()
     baseline = proc.num_fds() if hasattr(proc, "num_fds") else len(proc.open_files())
@@ -1159,7 +1162,7 @@ def test_no_fd_leak_when_building_many_clients(serve):
 
 
 # --------------------------------------------------------------------------- #
-# §6.16 Request body encoding (Datadog payload shapes)
+# Request body encoding (Datadog payload shapes)
 # --------------------------------------------------------------------------- #
 
 
@@ -1192,7 +1195,7 @@ def test_msgpack_binary_body_byte_exact(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.17 Response decompression (pinned: no auto-decompress)
+# Response decompression (pinned: no auto-decompress)
 # --------------------------------------------------------------------------- #
 
 
@@ -1216,7 +1219,7 @@ def test_gzip_response_returned_raw(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.18 URL handling
+# URL handling
 # --------------------------------------------------------------------------- #
 
 
@@ -1253,7 +1256,7 @@ def test_percent_encoded_path_preserved(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# §6.21 Lifecycle
+# Lifecycle
 # --------------------------------------------------------------------------- #
 
 
@@ -1274,7 +1277,7 @@ def test_http_client_error_is_subclassable():
 
 
 # --------------------------------------------------------------------------- #
-# §6.22 Datadog response shape sanity
+# Datadog response shape sanity
 # --------------------------------------------------------------------------- #
 
 

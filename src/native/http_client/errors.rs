@@ -89,9 +89,7 @@ impl RequestFailedErrorPy {
 
 /// Convert a libdd `HttpClientError` into the matching Python exception.
 ///
-/// **The caller must hold the GIL.** This is invoked from `client.rs` after
-/// `py.detach(...)` returns, so the GIL is already re-acquired by PyO3's
-/// `#[pymethods]` wrapper — no `Python::with_gil` reacquire is needed here.
+/// **The caller must hold the GIL.**
 pub fn http_error_to_pyerr(py: Python<'_>, err: HttpClientError) -> PyErr {
     match err {
         HttpClientError::ConnectionFailed(m) => ConnectionFailedError::new_err(m),

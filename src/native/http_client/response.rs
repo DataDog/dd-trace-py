@@ -2,9 +2,8 @@
 //!
 //! DEV: The wrapper holds the libdd `HttpResponse` by value and reads through
 //! its borrowing accessors on demand — it does NOT decompose it into owned
-//! fields. This avoids a per-response deep copy of the header `Vec` (paid even
-//! when the caller only reads `status_code`/`body()`, as RemoteConfig,
-//! telemetry, and `agent.info` do). The success-path body stays an Arc-backed
+//! fields. This avoids a per-response deep copy of the header `Vec` when only
+//! `status_code` or `body()` is read. The success-path body stays an Arc-backed
 //! `bytes::Bytes` inside the response; the Python-side `PyBytes` view is built
 //! lazily and memoized in a `std::sync::OnceLock` so repeated `body()` calls
 //! don't reallocate.
@@ -89,7 +88,7 @@ impl HttpResponsePy {
     /// the only one is the lazily-built `py_bytes` cache. `bytes` is an atomic
     /// leaf and cannot form a cycle, but PyO3 requires every `#[pyclass]` that
     /// holds a `Py<...>` to implement `__traverse__` for correct refcount
-    /// accounting (see `.sg/rules/pyclass-missing-traverse.yml`). Frozen, so no
+    /// accounting. Frozen, so no
     /// `__clear__` is needed.
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
         if let Some(b) = self.py_bytes.get() {

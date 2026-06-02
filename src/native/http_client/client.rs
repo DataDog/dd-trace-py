@@ -13,8 +13,7 @@
 //!
 //! DEV: the runtime is passed explicitly to `__new__` rather than fetched here so
 //! the native crate never has to reach back into Python for the process-wide
-//! singleton. The thin `ddtrace.internal.http_client.HTTPClient` subclass injects
-//! `get_native_runtime()` in `__new__`.
+//! singleton.
 
 use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, RetryConfig};
 use libdd_shared_runtime::SharedRuntime;
@@ -52,8 +51,7 @@ impl HttpClientPy {
     }
 
     /// Merge per-request headers over the defaults (per-request value wins,
-    /// position preserved; new keys appended). Case-sensitive, matching the
-    /// dict-merge semantics of the former Python wrapper.
+    /// position preserved; new keys appended). Case-sensitive.
     fn merge_headers(&self, headers: Option<Vec<(String, String)>>) -> Vec<(String, String)> {
         match headers {
             None => self.default_headers.clone(),
@@ -129,7 +127,9 @@ impl HttpClientPy {
         runtime,
         timeout_ms=2000,
         headers=None,
-        retry=None,
+        max_retries=0,
+        retry_initial_delay_ms=100,
+        retry_jitter=true,
         treat_http_errors_as_errors=true,
     ))]
     fn new(
@@ -138,7 +138,9 @@ impl HttpClientPy {
         runtime: PyRef<'_, SharedRuntimePy>,
         timeout_ms: u64,
         headers: Option<Vec<(String, String)>>,
-        retry: Option<(u32, u64, bool)>,
+        max_retries: u32,
+        retry_initial_delay_ms: u64,
+        retry_jitter: bool,
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc().clone();
@@ -170,12 +172,12 @@ impl HttpClientPy {
             .base_url(base.clone())
             .timeout(Duration::from_millis(timeout_ms))
             .treat_http_errors_as_errors(treat_http_errors_as_errors);
-        if let Some((max_retries, initial_delay_ms, jitter)) = retry {
+        if max_retries > 0 {
             builder = builder.retry(
                 RetryConfig::new()
                     .max_retries(max_retries)
-                    .initial_delay(Duration::from_millis(initial_delay_ms))
-                    .with_jitter(jitter),
+                    .initial_delay(Duration::from_millis(retry_initial_delay_ms))
+                    .with_jitter(retry_jitter),
             );
         }
         if let Some(path) = unix_path {
