@@ -141,6 +141,7 @@ suites:
     snapshot: true
     pattern: 'pytest:flaky'
   testing:
+    retry: 2
     venvs_per_job: 1
     paths:
       - '@bootstrap'

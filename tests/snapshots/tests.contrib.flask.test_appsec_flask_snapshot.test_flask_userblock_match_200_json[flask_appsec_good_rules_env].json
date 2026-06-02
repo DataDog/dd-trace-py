@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.normalized_route": "/checkuser/{user_id}",
       "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.user.collection_mode": "sdk",
       "_dd.appsec.waf.version": "1.30.1",
