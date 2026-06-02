@@ -1031,15 +1031,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
-class NativeTraceBuffer(TraceWriter):
+class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     """TraceWriter backed by the native Rust trace buffer.
 
     Converts :class:`~ddtrace.internal.native._native.SpanData` objects to native Rust
     span types inside ``send_chunk``; each span is consumed (left in an empty/default
     state) after the call.
 
-    Limitations compared to :class:`NativeWriter`
-    -----------------------------------------------
+    Implements :class:`AgentWriterInterface` so that tracer code that checks
+    ``isinstance(writer, AgentWriterInterface)`` (e.g., to read ``intake_url``) works
+    correctly when :class:`NativeTraceBuffer` is used as a drop-in replacement for
+    :class:`NativeWriter`.
+
     The following exporter features are intentionally not configured on this
     writer's underlying exporter:
 
@@ -1049,6 +1052,9 @@ class NativeTraceBuffer(TraceWriter):
     * **OTLP headers / connection timeout** — ``set_otlp_endpoint`` is wired
       when ``otlp_endpoint`` is provided, but ``set_otlp_headers`` and
       ``set_connection_timeout`` are not.
+    * **Sync mode** — when ``sync_mode=True`` (e.g., AWS Lambda / Cloud Functions),
+      ``write()`` calls ``flush_queue()`` immediately after buffering spans, matching
+      the behaviour of :class:`NativeWriter` and :class:`HTTPWriter`.
     """
 
     def __init__(
@@ -1060,6 +1066,7 @@ class NativeTraceBuffer(TraceWriter):
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
         test_session_token: Optional[str] = None,
+        sync_mode: bool = False,
     ) -> None:
         self.intake_url = intake_url
         self._api_version = _resolve_api_version(api_version)
@@ -1068,6 +1075,7 @@ class NativeTraceBuffer(TraceWriter):
         self._stats_opt_out = stats_opt_out
         self._otlp_endpoint = otlp_endpoint
         self._test_session_token = _resolve_test_session_token(test_session_token)
+        self._sync_mode = sync_mode
 
         exporter = self._create_exporter()
         self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
@@ -1102,6 +1110,7 @@ class NativeTraceBuffer(TraceWriter):
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             test_session_token=self._test_session_token,
+            sync_mode=self._sync_mode,
         )
 
     def write(self, spans: Optional[list] = None) -> None:
@@ -1112,9 +1121,18 @@ class NativeTraceBuffer(TraceWriter):
         # tracks actual drops but resets on each read, requiring a Python-side SMA.
         spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
         self._native_buffer.send_chunk(spans)
+        if self._sync_mode:
+            self.flush_queue()
 
-    def flush_queue(self) -> None:
+    def flush_queue(self, raise_exc: bool = False) -> None:
         self._native_buffer.force_flush()
+
+    def join(self, timeout: Optional[float] = None) -> None:
+        # DEV: NativeTraceBuffer is not a PeriodicService (no background Python thread to join).
+        # Shutdown is handled by stop() which calls NativeTraceBufferPy.shutdown() with a timeout.
+        # This no-op exists so the tracer's shutdown sequence (which calls writer.join() on
+        # PeriodicService-based writers after writer.stop()) can work without branching on type.
+        pass
 
     def stop(self, timeout: Optional[float] = None) -> None:
         timeout_ns = int((timeout or 1.0) * 1e9)
@@ -1185,6 +1203,19 @@ def create_trace_writer(
     otlp_endpoint = (
         otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
     )
+
+    # DEV: _DD_TRACE_NATIVE_BUFFER is a temporary feature flag used to validate
+    # NativeTraceBuffer across the full test suite before it becomes the default.
+    # It is intentionally undocumented and will be removed once the rollout is complete.
+    if env.get("_DD_TRACE_NATIVE_BUFFER"):
+        return NativeTraceBuffer(
+            intake_url=agent_config.trace_agent_url,
+            compute_stats_enabled=config._trace_compute_stats,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
+            sync_mode=_use_sync_mode(),
+        )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,

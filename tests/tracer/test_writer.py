@@ -25,10 +25,13 @@ from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeTraceBuffer
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer import TraceWriter
 from ddtrace.internal.writer import _human_size
+from ddtrace.internal.writer import create_trace_writer
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -528,6 +531,91 @@ class NativeTraceBufferTests(BaseTestCase):
         for i in range(5):
             writer.write([Span(name="name", trace_id=i, span_id=j + 1, parent_id=j or None) for j in range(3)])
         writer.flush_queue()
+        writer.stop(1.0)
+
+    # ── AgentWriterInterface compliance ───────────────────────────────────────
+
+    def test_is_agent_writer_interface(self):
+        """NativeTraceBuffer must satisfy AgentWriterInterface so tracer isinstance checks work."""
+        writer = self._make_writer()
+        assert isinstance(writer, AgentWriterInterface)
+        assert isinstance(writer, TraceWriter)
+        writer.stop(1.0)
+
+    def test_intake_url_accessible(self):
+        """intake_url must be readable (used by tracer._agent_url and agent_trace_url)."""
+        writer = NativeTraceBuffer("http://localhost:8126")
+        assert writer.intake_url == "http://localhost:8126"
+        writer.stop(1.0)
+
+    def test_api_version_set(self):
+        """_api_version must be set (required by AgentWriterInterface)."""
+        writer = self._make_writer()
+        assert writer._api_version is not None
+        writer.stop(1.0)
+
+    def test_flush_queue_accepts_raise_exc(self):
+        """flush_queue must accept the raise_exc keyword (AgentWriterInterface signature)."""
+        writer = self._make_writer()
+        writer.flush_queue(raise_exc=False)
+        writer.flush_queue(raise_exc=True)
+        writer.stop(1.0)
+
+    # ── Sync mode ─────────────────────────────────────────────────────────────
+
+    def test_sync_mode_false_by_default(self):
+        writer = self._make_writer()
+        assert writer._sync_mode is False
+        writer.stop(1.0)
+
+    def test_sync_mode_true_flushes_after_write(self):
+        """sync_mode=True must call flush_queue after every write (mirrors NativeWriter)."""
+        writer = NativeTraceBuffer("http://asdf:1234", sync_mode=True)
+        assert writer._sync_mode is True
+        flush_calls = []
+        original_flush = writer.flush_queue
+        writer.flush_queue = lambda raise_exc=False: flush_calls.append(1) or original_flush(raise_exc)  # type: ignore[method-assign]
+        writer.write([Span(name="s", trace_id=1, span_id=1, parent_id=None)])
+        assert len(flush_calls) == 1, "flush_queue should have been called once after write in sync mode"
+        writer.stop(1.0)
+
+    def test_recreate_preserves_sync_mode(self):
+        writer = NativeTraceBuffer("http://asdf:1234", sync_mode=True)
+        writer2 = writer.recreate()
+        assert writer2._sync_mode is True
+        writer2.stop(1.0)
+
+
+class NativeTraceBufferCreateWriterTests(BaseTestCase):
+    """Tests for the _DD_TRACE_NATIVE_BUFFER env-var gate in create_trace_writer()."""
+
+    def test_create_trace_writer_returns_native_trace_buffer_when_env_set(self):
+        with override_env({"_DD_TRACE_NATIVE_BUFFER": "1", "DD_TRACE_AGENT_URL": "http://localhost:8126"}):
+            writer = create_trace_writer()
+        assert isinstance(writer, NativeTraceBuffer), f"Expected NativeTraceBuffer, got {type(writer)}"
+        writer.stop(1.0)
+
+    def test_create_trace_writer_returns_native_writer_by_default(self):
+        with override_env({"DD_TRACE_AGENT_URL": "http://localhost:8126"}):
+            # Ensure the feature flag is unset even when running in an environment
+            # where _DD_TRACE_NATIVE_BUFFER=1 is set globally (e.g. via riotfile _base_env).
+            os.environ.pop("_DD_TRACE_NATIVE_BUFFER", None)
+            writer = create_trace_writer()
+        assert isinstance(writer, NativeWriter), f"Expected NativeWriter, got {type(writer)}"
+        # NativeWriter is a PeriodicService; it must be started before it can be stopped.
+        writer.start()
+        writer.stop(2.0)
+
+    def test_native_trace_buffer_intake_url_from_agent_config(self):
+        # agent_config.trace_agent_url is computed once by envier at import time and cached
+        # as an instance attribute; it cannot be changed by override_env.  We simply verify
+        # that NativeTraceBuffer.intake_url matches whatever agent_config resolved to.
+        from ddtrace.internal.settings._agent import config as agent_config
+
+        with override_env({"_DD_TRACE_NATIVE_BUFFER": "1"}):
+            writer = create_trace_writer()
+        assert isinstance(writer, NativeTraceBuffer)
+        assert writer.intake_url == agent_config.trace_agent_url
         writer.stop(1.0)
 
 

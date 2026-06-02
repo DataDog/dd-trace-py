@@ -285,9 +285,25 @@ impl TraceExporterPy {
 
 impl Drop for TraceExporterPy {
     fn drop(&mut self) {
-        if let Some(exporter) = self.inner.take() {
-            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
-        }
+        // DEV: Do NOT call exporter.shutdown() here — it calls SharedRuntime::block_on()
+        // which acquires self.runtime mutex, causing a recursive-lock deadlock when
+        // Drop is triggered by a Python GC cascade during SharedRuntime::shutdown_async()
+        // (which already holds that mutex on the same thread):
+        //
+        //   SharedRuntime::shutdown()         ← acquires self.runtime mutex
+        //     └─ shutdown_async()             ← awaits worker futures
+        //          └─ TraceExporterWorker::drop()  ← drops Py<PyAny> callback
+        //               └─ Python GC cascade   ← SpanAggregator → NativeTraceBuffer → TraceExporterPy
+        //                    └─ TraceExporterPy::drop()
+        //                         └─ exporter.shutdown()
+        //                              └─ SharedRuntime::block_on()
+        //                                   └─ self.runtime.lock()  ← DEADLOCK (already held)
+        //
+        // Shutdown is handled explicitly by:
+        //   - NativeTraceBuffer.stop() (via trace_buffer.rs::NativeTraceBufferPy::shutdown)
+        //   - NativeRuntime._atexit() (via SharedRuntime::shutdown)
+        // By the time this Drop runs, shutdown has already completed or is not needed.
+        drop(self.inner.take());
     }
 }
 

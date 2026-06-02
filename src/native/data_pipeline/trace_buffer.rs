@@ -178,9 +178,9 @@ impl NativeTraceBufferPy {
 
     /// Send a trace chunk (list of spans) to the buffer.
     ///
-    /// Calls `SpanData::take_data` on each span to move attributes and meta_struct into
-    /// the native span and clear the span's internal state. After this call, each span
-    /// in the list is left in an empty/default state and must not be used further.
+    /// Calls `SpanData::to_native_span` on each span to snapshot its state into a
+    /// libdatadog `Span<PyTraceData>` for encoding.  The `SpanData` fields are left
+    /// intact so callers can still read span attributes after the chunk is sent.
     fn send_chunk(&self, py: Python<'_>, spans: Vec<Py<SpanData>>) -> PyResult<()> {
         let packb = py
             .import("ddtrace.internal._encoding")
@@ -189,7 +189,7 @@ impl NativeTraceBufferPy {
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
             let mut span_ref = span.bind(py).borrow_mut();
-            chunk.push(span_ref.take_data(py, packb.as_ref()));
+            chunk.push(span_ref.to_native_span(py, packb.as_ref()));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
         // the tokio worker can pick up the chunk, export it, and fire on_export_complete
@@ -219,6 +219,23 @@ impl NativeTraceBufferPy {
     /// in-flight export finishes.
     ///
     /// After this call the buffer cannot accept new spans.
+    ///
+    /// # AIDEV-TODO: `WorkerHandle::stop()` needs timeout support in libdatadog
+    ///
+    /// `WorkerHandle::stop()` is an async fn with no timeout parameter.  If the underlying
+    /// tokio worker is blocked on a network call (e.g. a slow or unresponsive trace agent)
+    /// it will block indefinitely — there is no way for the caller to bound the wait.
+    ///
+    /// The right fix is to add `stop_with_timeout(duration: Duration)` (or make the existing
+    /// `stop()` accept one) in libdatadog so callers don't have to work around this with
+    /// fragile OS-thread spawning or unjoined threads.
+    ///
+    /// Until that lands, `stop()` is called directly.  In practice the network call is to
+    /// a local trace agent over loopback and completes quickly; the theoretical hang only
+    /// occurs when the agent is unreachable and the HTTP client has no connect/read timeout
+    /// of its own.
+    ///
+    /// Tracking: https://datadoghq.atlassian.net/browse/APMLP-941
     fn shutdown(&mut self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
         let timeout = Duration::from_nanos(timeout_ns);
 

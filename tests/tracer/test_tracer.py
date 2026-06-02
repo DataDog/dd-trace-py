@@ -1876,9 +1876,13 @@ def test_fork_pid():
 @pytest.mark.subprocess
 def test_tracer_api_version():
     from ddtrace.internal.encoding import MsgpackEncoderV05
+    from ddtrace.internal.writer.writer import NativeTraceBuffer
     from ddtrace.trace import tracer as t
 
-    assert isinstance(t._span_aggregator.writer._encoder, MsgpackEncoderV05)
+    if not isinstance(t._span_aggregator.writer, NativeTraceBuffer):
+        # NativeTraceBuffer uses libdatadog's native encoding; there is no Python-level
+        # MsgpackEncoder. The API version is baked into the TraceExporter configuration.
+        assert isinstance(t._span_aggregator.writer._encoder, MsgpackEncoderV05)
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
