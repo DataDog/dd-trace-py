@@ -143,9 +143,14 @@ class TestRescuePath:
         mock_writer.enqueue.assert_not_called()
 
     def test_rescue_idempotent_when_already_submitted(self, llmobs_agent_proxy, tracer):
+        """The submitted tag marks an event that was already shipped to the writer (e.g. via
+        the finish-time direct path). On a predicted drop the rescue must honor that flag and
+        not enqueue a duplicate.
+        """
         _llmobs, mock_writer = llmobs_agent_proxy
         with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
             _annotate_llm_span(span)
+            # Simulate "already submitted" before the rescue processor runs.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             span.context.sampling_priority = USER_REJECT
         mock_writer.enqueue.assert_not_called()

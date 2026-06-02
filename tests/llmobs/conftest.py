@@ -9,42 +9,13 @@ import time
 import mock
 import pytest
 
-from ddtrace._trace.processor import TraceProcessor
-from ddtrace.ext import SpanTypes
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
-from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from tests.llmobs._processors import TestAlwaysEnqueueLLMObsProcessor
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import request_token
-
-
-class _TestAlwaysEnqueueLLMObsProcessor(TraceProcessor):
-    """Test-only variant of ``LLMObsSamplingFallbackProcessor``: always enqueue and
-    never scrub meta_struct. Lets tests assert against both the LLMObs writer events
-    and the rendered payload that intake would extract from meta_struct.
-    """
-
-    def __init__(self, llmobs_span_writer) -> None:
-        super().__init__()
-        self._llmobs_span_writer = llmobs_span_writer
-
-    def process_trace(self, trace):
-        if not trace:
-            return trace
-        for span in trace:
-            if span.span_type != SpanTypes.LLM:
-                continue
-            if span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1":
-                continue
-            event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
-            if event is None:
-                continue
-            self._llmobs_span_writer.enqueue(event)
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-        return trace
 
 
 @pytest.fixture(autouse=True)
@@ -148,7 +119,7 @@ def mock_ragas_dependencies_not_present():
     import ragas
 
     previous = ragas.__version__
-    ## unsupported version
+    # unsupported version
     ragas.__version__ = "0.0.0"
     yield
     ragas.__version__ = previous
@@ -315,7 +286,7 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_fallback_processor = _TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
+        tracer._span_aggregator.llmobs_fallback_processor = TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()
