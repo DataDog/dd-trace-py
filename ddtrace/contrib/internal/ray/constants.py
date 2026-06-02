@@ -13,6 +13,10 @@ RAY_ACTOR_ID = "ray.actor_id"
 RAY_SUBMISSION_ID_TAG = "ray.submission_id"
 RAY_HOSTNAME = "ray.hostname"
 RAY_ENTRYPOINT = "ray.entrypoint"
+RAY_NAMESPACE = "ray.namespace"
+RAY_GCS_ADDRESS = "ray.gcs_address"
+RAY_DASHBOARD_URL = "ray.dashboard_url"
+RAY_VERSION = "ray.version"
 
 # Default job name if not set by the user
 DEFAULT_JOB_NAME = "unnamed.ray.job"
