@@ -709,6 +709,61 @@ def test_capture_value_sequence_type(_type):
     }
 
 
+def test_capture_value_deque_concurrent_mutation():
+    """capture_value must not raise when a deque is mutated by another thread."""
+    from collections import deque
+
+    d = deque(range(1000))
+    errors = []
+
+    def mutate():
+        for _ in range(500):
+            try:
+                d.appendleft(d.pop())
+            except Exception:
+                pass
+
+    t = threading.Thread(target=mutate)
+    t.start()
+    try:
+        result = utils.capture_value(d)
+    except RuntimeError as e:
+        errors.append(e)
+    finally:
+        t.join()
+
+    assert not errors, "capture_value raised RuntimeError on concurrent deque mutation"
+    assert result["type"] == "deque"
+    assert "elements" in result
+
+
+def test_capture_value_dict_concurrent_mutation():
+    """capture_value must not raise when a dict is mutated by another thread."""
+    d = {i: i for i in range(1000)}
+    errors = []
+
+    def mutate():
+        for i in range(500):
+            try:
+                d[i + 1000] = i
+                d.pop(i, None)
+            except Exception:
+                pass
+
+    t = threading.Thread(target=mutate)
+    t.start()
+    try:
+        result = utils.capture_value(d)
+    except RuntimeError as e:
+        errors.append(e)
+    finally:
+        t.join()
+
+    assert not errors, "capture_value raised RuntimeError on concurrent dict mutation"
+    assert result["type"] == "dict"
+    assert "entries" in result
+
+
 @pytest.mark.parametrize(
     "value,expected",
     [
