@@ -88,8 +88,25 @@ def _vendored_version() -> str:
 
 
 def _version_tuple(v: str) -> tuple[int, ...]:
-    """Convert a ``"X.Y.Z"`` version string to a comparable integer tuple."""
-    return tuple(int(part) for part in v.split("."))
+    """Convert a version string to a comparable tuple of ints.
+
+    Handles plain ``"X.Y.Z"`` and defensively skips PEP 440 pre-release or
+    post-release segments so the comparison never raises ``ValueError``::
+
+        "0.53.0"       → (0, 53, 0)
+        "0.53.0rc1"    → (0, 53, 0)   # rc treated as the base release
+        "0.44.1.dev0"  → (0, 44, 1)   # dev segment dropped
+        "0.53.0.post1" → (0, 53, 0)   # post segment dropped
+    """
+    parts: list[int] = []
+    for segment in v.split("."):
+        numeric: re.Match[str] | None = re.match(r"(\d+)", segment)
+        if numeric:
+            parts.append(int(numeric.group(1)))
+    if not parts:
+        print(f"ERROR: cannot parse version string {v!r}", file=sys.stderr)
+        sys.exit(1)
+    return tuple(parts)
 
 
 def main() -> None:
