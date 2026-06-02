@@ -576,7 +576,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     env={
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "zope-event": "==5.0",
@@ -621,7 +621,7 @@ venv = Venv(
                         # fork from a multi-threaded subprocess (ddtrace starts background
                         # threads on import), so suppress the warning to avoid spurious
                         # stderr output that causes @pytest.mark.subprocess() to fail.
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
@@ -4451,6 +4451,26 @@ venv = Venv(
                 "pytest-asyncio": "==0.23.7",
                 "openai": ["==1.102.0", latest],
             },
+        ),
+        Venv(
+            name="ai_guard_anthropic",
+            command="pytest {cmdargs} tests/appsec/ai_guard/anthropic/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # anthropic contrib VCR fixtures. Pinned to a single version
+                # because the suite only uses ``yaml.safe_load``.
+                "pyyaml": latest,
+            },
+            venvs=[
+                Venv(
+                    pkgs={"anthropic": "==0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                ),
+            ],
         ),
         Venv(
             name="claude_agent_sdk",

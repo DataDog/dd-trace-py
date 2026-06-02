@@ -1,15 +1,20 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
+from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
+from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -29,7 +34,7 @@ def _on_set_http_meta(
     request_headers: Optional[Mapping[str, Optional[str]]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, Optional[str]]],
@@ -61,6 +66,16 @@ def _on_set_http_meta(
                 set_waf_address(k, v)
 
 
+# Per-integration normalizer dispatch. Adding a new framework here is enough to opt it into RFC-1103 emission, provided
+# its grammar-specific normalizer exists.
+_NORMALIZED_ROUTE_BY_INTEGRATION = {
+    "starlette": normalize_route,
+    "fastapi": normalize_route,
+    "django": normalize_route_django,
+    "flask": normalize_route_flask,
+}
+
+
 def _on_set_http_meta_for_normalized_route(
     span: Span,
     request_ip: Optional[str],
@@ -70,7 +85,7 @@ def _on_set_http_meta_for_normalized_route(
     request_headers: Optional[Mapping[str, Optional[str]]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, Optional[str]]],
@@ -78,24 +93,33 @@ def _on_set_http_meta_for_normalized_route(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # RFC-1103: emit `_dd.appsec.normalized_route` on Starlette / FastAPI
-    # request spans when the API Security feature is active. The framework is
-    # identified via the IntegrationConfig that every web integration places in
-    # the request execution context (see e.g. asgi/middleware.py:258), which
-    # survives `request_span_name` user overrides and the schema-v1 span-name
-    # rewrite to "http.server.request". `normalize_route` implements the
-    # Starlette path grammar, so other frameworks must not be normalized here.
+    # RFC-1103: emit `_dd.appsec.normalized_route` for supported frameworks when API Security is active.
     if not asm_config._api_security_feature_active:
         return
     if not route:
         return
+    # No ASM context, or already emitted (idempotency for Django's dual-fire).
+    asm_env = get_active_asm_context()
+    if asm_env is None or asm_env.normalized_route_emitted:
+        return
     integration_config = core.find_item("integration_config")
     integration_name = getattr(integration_config, "integration_name", None)
-    if integration_name not in ("starlette", "fastapi"):
+    if not isinstance(integration_name, str):
         return
-    normalized = normalize_route(route, request_path_params)
+    normalizer = _NORMALIZED_ROUTE_BY_INTEGRATION.get(integration_name)
+    if normalizer is None:
+        return
+    # Flask DM sub-apps: url_rule.rule omits the mount prefix; use FLASK_RESOURCE_FULL when set.
+    if integration_name == "flask":
+        full_resource = span.get_tag(FLASK_RESOURCE_FULL)
+        if full_resource:
+            _, _, assembled = full_resource.partition(" ")
+            if assembled:
+                route = assembled
+    normalized = normalizer(route, request_path_params)
     if normalized is not None:
         span._set_attribute(API_SECURITY.NORMALIZED_ROUTE, normalized)
+        asm_env.normalized_route_emitted = True
 
 
 def _on_telemetry_periodic() -> None:

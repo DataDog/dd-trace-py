@@ -62,6 +62,35 @@ def test_start_native_monitoring_success() -> None:
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+@pytest.mark.subprocess()
+def test_native_call_registry_is_bounded_for_dynamic_code() -> None:
+    import json
+
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    native_call_monitor.start()
+    try:
+        for i in range(5000):
+            namespace = {"json": json}
+            exec(
+                compile(
+                    "\n" * i
+                    + "def f(payload):\n    data = json.loads(payload)\n    return str(data['value']).partition('x')\n",
+                    "<ddtrace_dynamic_native_%d.py>" % i,
+                    "exec",
+                ),
+                namespace,
+                namespace,
+            )
+            namespace["f"]('{"value": "abcxdef"}')
+
+        assert _stack._native_call_registry_size() == 4096
+    finally:
+        native_call_monitor.stop()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
 def test_native_frames_detection(tmp_path: Path) -> None:
     """Test that the top-most native C frame is tracked and appears as the leaf frame in the profile."""
     test_name = "test_native_frames_detection"

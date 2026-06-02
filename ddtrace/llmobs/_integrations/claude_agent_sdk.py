@@ -28,6 +28,9 @@ _CONTEXT_EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
 
 class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     _integration_name = "claude_agent_sdk"
+    # span_link emission lives in ddtrace/contrib/internal/claude_agent_sdk/_streaming.py
+    # because links are driven by SDK stream events (AssistantMessage / UserMessage / etc.)
+    # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler.
 
     def _llmobs_set_tags(
         self,

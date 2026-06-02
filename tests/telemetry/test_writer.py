@@ -162,7 +162,6 @@ import opentelemetry
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -542,6 +541,11 @@ import opentelemetry
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
+        {
+            "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},

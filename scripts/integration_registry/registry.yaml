@@ -785,7 +785,7 @@ integrations:
   tested_versions_by_dependency:
     pymysql:
       min: 0.10.1
-      max: 1.1.2
+      max: 1.2.0
 
 - integration_name: pynamodb
   is_external_package: true

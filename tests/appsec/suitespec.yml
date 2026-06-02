@@ -417,6 +417,16 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+  ai_guard_anthropic:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/anthropic/*
+    services:
+      - testagent
+    venvs_per_job: 2
   ai_guard_strands:
     paths:
       - '@bootstrap'
