@@ -30,7 +30,7 @@ jobs:
           python-version: '3.11'
 
       - name: Run flaky tests report script
-        run: python dd-trace-py/scripts/report_skipped_flaky.py
+        run: python ddtrace/scripts/report_skipped_flaky.py
 
       - name: Upload report artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

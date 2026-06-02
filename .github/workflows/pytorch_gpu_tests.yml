@@ -5,15 +5,15 @@ on:
     branches:
       - 'main'
     paths:
-      - dd-trace-py/ddtrace/internal/datadog/profiling/**
-      - dd-trace-py/ddtrace/profiling/**
-      - dd-trace-py/scripts/download-s3-wheels.sh
+      - ddtrace/ddtrace/internal/datadog/profiling/**
+      - ddtrace/ddtrace/profiling/**
+      - ddtrace/scripts/download-s3-wheels.sh
       - .github/workflows/pytorch_gpu_tests.yml
   pull_request:
     paths:
-      - dd-trace-py/ddtrace/internal/datadog/profiling/**
-      - dd-trace-py/ddtrace/profiling/**
-      - dd-trace-py/scripts/download-s3-wheels.sh
+      - ddtrace/ddtrace/internal/datadog/profiling/**
+      - ddtrace/ddtrace/profiling/**
+      - ddtrace/scripts/download-s3-wheels.sh
       - .github/workflows/pytorch_gpu_tests.yml
   workflow_dispatch:
 
@@ -46,7 +46,7 @@ jobs:
 
       - name: Download ddtrace wheels from S3
         run: |
-          bash dd-trace-py/scripts/download-s3-wheels.sh \
+          bash ddtrace/scripts/download-s3-wheels.sh \
             "${{ steps.resolve-sha.outputs.sha }}" \
             ./wheels \
             manylinux2014_x86_64
@@ -71,13 +71,13 @@ jobs:
           TEST_ROOT="$ISOLATED_DIR/tests"
 
           mkdir -p "$TEST_ROOT/profiling"
-          cp "$REPO_ROOT/dd-trace-py/tests/__init__.py" "$TEST_ROOT/"
-          cp "$REPO_ROOT/dd-trace-py/tests/utils.py" "$TEST_ROOT/"
-          cp "$REPO_ROOT/dd-trace-py/tests/subprocesstest.py" "$TEST_ROOT/"
-          cp "$REPO_ROOT/dd-trace-py/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
-          cp "$REPO_ROOT/dd-trace-py/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
-          cp "$REPO_ROOT/dd-trace-py/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
-          cp -R "$REPO_ROOT/dd-trace-py/tests/profiling/collector" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/ddtrace/tests/__init__.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/ddtrace/tests/utils.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/ddtrace/tests/subprocesstest.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/ddtrace/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/ddtrace/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/ddtrace/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
+          cp -R "$REPO_ROOT/ddtrace/tests/profiling/collector" "$TEST_ROOT/profiling/"
 
           cd "$ISOLATED_DIR"
 

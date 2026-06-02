@@ -1,0 +1,232 @@
+include:
+- project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/check-slo-breaches.template.yml'
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+
+stages:
+  - build
+  - test
+  - gate
+  - report
+
+variables:
+  BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
+  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  BENCHMARKING_BRANCH: dd-trace-py
+  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
+
+.benchmarks:
+  stage: test
+  tags: ["runner:apm-k8s-tweaked-metal"]
+  image: $MICROBENCHMARKS_CI_IMAGE
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+      interruptible: false
+    - interruptible: true
+  timeout: 30m
+  dependencies: [ "baseline:build", "candidate" ]
+  script: |
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    (cd /platform && git reset --hard "${BENCHMARKING_COMMIT_SHA}")
+    export PATH="$PATH:/platform/steps"
+
+    for SCENARIO in $(echo "$SCENARIOS" | tr -s '[:space:]' ' ');
+    do
+      export REPORTS_DIR="$(pwd)/reports/${SCENARIO}/" && (mkdir -p "${REPORTS_DIR}" || :)
+
+      capture-hardware-software-info.sh
+
+      if [[ $SCENARIO =~ ^flask_* || $SCENARIO =~ ^django_* ]];
+      then
+        BP_SCENARIO=$SCENARIO bp-runner "${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/bp-runner.yml" --debug -t
+      else
+        run-benchmarks.sh
+      fi
+
+      # Join all config results into a single results.json
+      ddtrace/.gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/candidate/"
+      ddtrace/.gitlab/benchmarks/steps/combine-results.sh "/artifacts/${CI_JOB_ID}-${SCENARIO}/baseline/"
+
+      analyze-results.sh
+      upload-results-to-s3.sh || :
+      # Copy converted JSON reports to common location
+      cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
+    done
+
+    # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
+    cp -R /artifacts ${CI_PROJECT_DIR}/
+  artifacts:
+    name: "reports"
+    when: always
+    paths:
+      - reports/
+      - artifacts/
+    expire_in: 3 months
+  cache:
+    - key:
+        # Per-scenario requirements_scenario.txt files are intentionally excluded
+        # from the cache key. This gives a best-effort incremental cache shared
+        # across all parallel jobs, keyed only on the base requirements which
+        # rarely change.
+        files:
+          - ddtrace/benchmarks/base/requirements.txt
+          - ddtrace/benchmarks/base/requirements_scenario.txt
+      paths:
+        - .cache/pip
+      policy: pull-push
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
+    CI_PROJECT_DIR: "/go/src/github.com/DataDog/apm-reliability/dd-trace-py/ddtrace"
+    CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+
+baseline:detect:
+  image: $GITHUB_CLI_IMAGE
+  tags: [ "arch:amd64" ]
+  stage: build
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
+  script: |
+    GITHUB_REPO_URL="https://github.com/DataDog/dd-trace-py.git"
+    git config --global --add safe.directory "${GITHUB_REPO_URL}"
+    git config --global --add safe.directory ${CI_PROJECT_DIR}
+    git remote set-url origin "${GITHUB_REPO_URL}"
+
+    if [ -z ${GH_TOKEN} ]
+    then
+      # Use dd-octo-sts to get GitHub token
+      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+      gh auth login --with-token < token
+      rm token
+    fi
+
+    # Determine baseline to test against and save env variables into `baseline.env`
+    ddtrace/.gitlab/benchmarks/steps/detect-baseline.sh
+  artifacts:
+    reports:
+      dotenv: baseline.env
+    paths:
+      - "baseline.env"
+
+baseline:build:
+  image: $PACKAGE_IMAGE
+  tags: [ "arch:amd64" ]
+  needs: [ "baseline:detect" ]
+  stage: build
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: 12
+    CARGO_BUILD_JOBS: 12
+  script: |
+    CACHED_WHL=../$(ls *.whl | head -n 1) 2>/dev/null || echo ""
+    if [ ! -f "${CACHED_WHL}" ];
+    then
+      ddtrace/.gitlab/benchmarks/steps/build-baseline.sh
+    else
+      echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
+    fi
+
+    echo "BASELINE_WHL=../$(ls *.whl | head -n 1)" | tee -a baseline.env
+  cache:
+    - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
+      paths:
+        - "*.whl"
+  artifacts:
+    reports:
+      dotenv: baseline.env
+    paths:
+      - "*.whl"
+
+candidate:
+  image: $PACKAGE_IMAGE
+  stage: build
+  tags: [ "arch:amd64" ]
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: "build linux: [amd64, cp39-cp39, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: true
+  script: |
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
+    echo "CANDIDATE_WHL=../$(ls *.whl | head -n 1)" | tee candidate.env
+    echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
+    echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
+  artifacts:
+    reports:
+      dotenv: candidate.env
+    paths:
+      - "*.whl"
+
+benchmarks-pr-comment:
+  image: $MICROBENCHMARKS_CI_IMAGE
+  tags: ["arch:amd64"]
+  stage: report
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
+    - job: microbenchmarks
+  when: always
+  allow_failure: true
+  script: |
+    export REPORTS_DIR="$(pwd)/reports/" && (mkdir "${REPORTS_DIR}" || :)
+    if [[ -n "$CI_JOB_TOKEN" ]];
+    then
+      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
+    fi
+    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
+    export PATH="$PATH:/platform/steps"
+
+    (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
+    if [ "$CI_COMMIT_REF_NAME" != "main" ];
+    then
+      post-pr-comment.sh || :
+    fi
+  variables:
+    UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
+    UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
+    UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
+    UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
+
+# Unlike pre-release SLO checks that run unconditionally (which have
+# "when: always"), this PR-level check runs only if benchmarks succeed.
+# Since benchmark failures block the PR directly, this job blocks the PR if
+# benchmarks succeed but there are SLO breaches.
+check-slo-breaches:
+  extends: .check-slo-breaches
+  stage: gate
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
+    - job: microbenchmarks
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - artifacts/
+      - reports/
+    expire_in: 3 months
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    SLO_FILE: "ddtrace/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
+
+microbenchmarks:
+  extends: .benchmarks
+  parallel:
+    matrix:

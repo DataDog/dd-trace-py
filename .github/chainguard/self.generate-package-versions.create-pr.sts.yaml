@@ -6,7 +6,7 @@ claim_pattern:
   event_name: (workflow_dispatch|schedule)
   ref: refs/heads/main
   ref_protected: "true"
-  job_workflow_ref: DataDog/dd-trace-py/\.github/workflows/generate-package-versions\.yml@refs/heads/main
+  job_workflow_ref: DataDog/dd-trace-py/ddtrace/\.github/workflows/generate-package-versions\.yml@refs/heads/main
 
 permissions:
   contents: write

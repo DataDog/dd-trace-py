@@ -9,4 +9,4 @@ stages:
   - release
 include:
   - local: ddtrace-internal/.gitlab-ci.yml
-  - local: dd-trace-py/.gitlab-ci.yml
+  - local: ddtrace/.gitlab-ci.yml

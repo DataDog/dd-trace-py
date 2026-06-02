@@ -1,4 +1,4 @@
 name: "CodeQL config"
 paths-ignore:
-  - "dd-trace-py/tests/appsec/iast_packages/packages/**"
-  - "dd-trace-py/tests/appsec/contrib_appsec/**"
+  - "ddtrace/tests/appsec/iast_packages/packages/**"
+  - "ddtrace/tests/appsec/contrib_appsec/**"
