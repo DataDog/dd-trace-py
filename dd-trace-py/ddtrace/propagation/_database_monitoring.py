@@ -33,8 +33,17 @@ DBM_VERSION_KEY: Literal["ddpv"] = "ddpv"
 DBM_SERVICE_HASH: Literal["ddsh"] = "ddsh"
 DBM_TRACE_PARENT_KEY: Literal["traceparent"] = "traceparent"
 DBM_TRACE_INJECTED_TAG: Literal["_dd.dbm_trace_injected"] = "_dd.dbm_trace_injected"
+DBM_PROPAGATION_MODE_DYNAMIC_SERVICE: Literal["dynamic_service"] = "dynamic_service"
+_DBM_INJECTION_MODES = ("full", "service", DBM_PROPAGATION_MODE_DYNAMIC_SERVICE)
 
 log = get_logger(__name__)
+
+
+def _should_inject_sql_basehash():
+    # type: () -> bool
+    return dbm_config.propagation_mode == DBM_PROPAGATION_MODE_DYNAMIC_SERVICE or (
+        dbm_config.propagation_mode == "service" and dbm_config.inject_sql_basehash
+    )
 
 
 def default_sql_injector(dbm_comment, sql_statement):
@@ -83,7 +92,7 @@ class _DBM_Propagator(object):
             return args, kwargs
 
         # the base hash is injected in the comment and on the span tags for correlation purpose
-        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+        if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
@@ -102,7 +111,7 @@ class _DBM_Propagator(object):
         if dbm_config.propagation_mode == "disabled":
             return None
 
-        # set the following tags if DBM injection mode is full or service
+        # set the following tags if DBM injection mode is full, service, or dynamic_service
         peer_service_enabled = PeerServiceConfig().set_defaults_enabled
         service_name_key = db_span.service
         if peer_service_enabled:
@@ -132,7 +141,7 @@ class _DBM_Propagator(object):
             db_span._set_attribute(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
-        if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
+        if _should_inject_sql_basehash() and (base_hash := process_tags.base_hash):
             dbm_tags[DBM_SERVICE_HASH] = str(base_hash)
 
         sql_comment = self.comment_generator(**dbm_tags)
@@ -170,7 +179,7 @@ _DBM_STANDARD_EVENTS = {
 
 
 def listen():
-    if dbm_config.propagation_mode in ["full", "service"]:
+    if dbm_config.propagation_mode in _DBM_INJECTION_MODES:
         for event in _DBM_STANDARD_EVENTS:
             core.on(event, handle_dbm_injection, "result")
         core.on("asyncpg.execute", handle_dbm_injection_asyncpg, "result")
