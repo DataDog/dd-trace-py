@@ -688,6 +688,12 @@ stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
 }
 
 static PyObject*
+stack_greenlet_buffer_alloc_count(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromUnsignedLongLong(greenlet_stackinfo_alloc_count());
+}
+
+static PyObject*
 stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Pause the sampling thread and wait for any in-flight sample to complete.
@@ -834,6 +840,10 @@ static PyMethodDef stack_methods[] = {
       stack_native_call_registry_size,
       METH_NOARGS,
       "Return the native call monitoring registry size" },
+    { "_greenlet_buffer_alloc_count",
+      stack_greenlet_buffer_alloc_count,
+      METH_NOARGS,
+      "Cumulative StackInfo allocations grown into the greenlet reuse buffer (test/diagnostic)" },
     { NULL, NULL, 0, NULL }
 };
 

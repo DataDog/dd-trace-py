@@ -5,7 +5,21 @@
 #include <echion/echion_sampler.h>
 
 #include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <optional>
+
+namespace {
+// Single writer (the sampling thread); read from Python via a binding. Relaxed
+// is sufficient: tests only need approximate monotonic growth, not ordering.
+std::atomic<std::uint64_t> g_greenlet_stackinfo_alloc_count{ 0 };
+} // namespace
+
+std::uint64_t
+greenlet_stackinfo_alloc_count()
+{
+    return g_greenlet_stackinfo_alloc_count.load(std::memory_order_relaxed);
+}
 
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
@@ -689,6 +703,10 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
             slot.stack.clear();
         } else {
             current_greenlets.emplace_back(snap.name, on_cpu);
+            // Buffer grew: a new StackInfo (with its FrameStack) was allocated.
+            // With reuse this only happens until the peak greenlet count is
+            // reached; a per-sample-allocation regression makes it grow forever.
+            g_greenlet_stackinfo_alloc_count.fetch_add(1, std::memory_order_relaxed);
         }
         auto& stack_info = current_greenlets[greenlet_count_];
         auto& stack = stack_info.stack;

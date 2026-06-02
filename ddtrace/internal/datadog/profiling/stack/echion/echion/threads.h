@@ -34,6 +34,14 @@
 
 class EchionSampler;
 
+// Cumulative count of StackInfo objects allocated (grown) into the per-thread
+// current_greenlets reuse buffer. The buffer-reuse optimization only allocates
+// when a sample exceeds the prior peak greenlet count, so this counter
+// plateaus once the working set is established. A regression that reverts to
+// per-sample allocation would make it grow without bound. Exposed for tests.
+std::uint64_t
+greenlet_stackinfo_alloc_count();
+
 class ThreadInfo
 {
   public:
