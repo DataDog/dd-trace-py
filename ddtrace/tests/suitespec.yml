@@ -209,6 +209,7 @@ suites:
       - '@contrib'
       - scripts/integration_registry/*
   internal:
+    retry: 2
     venvs_per_job: 2
     paths:
       - '@core'
