@@ -519,9 +519,6 @@ class LLMObs(Service):
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
-        # Test-only (_DD_LLMOBS_TEST_KEEP_META_STRUCT): keep meta_struct on the LLMOBS_DIRECT
-        # path so tests' DummyWriter can still read LLMObsSpanData after enqueue.
-        self._test_mode_keep_meta_struct = asbool(_env.get("_DD_LLMOBS_TEST_KEEP_META_STRUCT", False))
         # AIDEV-NOTE: the `else True` only applies when __init__ runs outside enable() (config
         # still None); enable() always resolves agentless first, so the supported path is covered.
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
@@ -594,8 +591,7 @@ class LLMObs(Service):
             # Rescue chain won't run (trace dropped, or tracer disabled): ship via the writer.
             # Tag + scrub before enqueue so an APM-side extract can't duplicate the payload.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            if not self._test_mode_keep_meta_struct:
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             self._llmobs_span_writer.enqueue(span_event)
             return
 
