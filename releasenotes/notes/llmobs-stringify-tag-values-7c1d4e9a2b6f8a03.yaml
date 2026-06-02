@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where non-string tag values passed to ``LLMObs.annotate(tags=...)`` were not stringified, which could cause spans to be dropped during ingestion. Tag values are now coerced to strings.
