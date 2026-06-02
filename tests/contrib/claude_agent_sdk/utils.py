@@ -181,11 +181,12 @@ MOCK_ASSISTANT_MESSAGE_ERROR_TEXT = (
     'API Error: {"type":"error","error":{"details":null,"type":"overloaded_error",'
     '"message":"Overloaded"},"request_id":"req_011Cbd5D168oye3XGdgSjVog"}'
 )
+# NOTE: assign ``error`` after construction rather than as a constructor kwarg — older
+# claude-agent-sdk versions (e.g. 0.0.23) don't accept ``error`` in AssistantMessage.__init__.
 MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT = AssistantMessage(
-    content=[TextBlock(text=MOCK_ASSISTANT_MESSAGE_ERROR_TEXT)],
-    model=MOCK_MODEL,
-    error=MOCK_ASSISTANT_MESSAGE_ERROR_TYPE,
+    content=[TextBlock(text=MOCK_ASSISTANT_MESSAGE_ERROR_TEXT)], model=MOCK_MODEL
 )
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT.error = MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT,
