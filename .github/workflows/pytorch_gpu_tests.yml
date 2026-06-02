@@ -93,4 +93,4 @@ jobs:
             --with "torch>=1.8.1,<2.7" \
             --with torchvision \
             --with zstandard \
-            pytest dd-trace-py/tests/profiling/test_pytorch.py -vvv --capture=tee-sys
+            pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys
