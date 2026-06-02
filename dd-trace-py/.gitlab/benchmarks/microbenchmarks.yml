@@ -134,7 +134,7 @@ baseline:build:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
   script: |
-    CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
+    CACHED_WHL=../$(ls *.whl | head -n 1) 2>/dev/null || echo ""
     if [ ! -f "${CACHED_WHL}" ];
     then
       dd-trace-py/.gitlab/benchmarks/steps/build-baseline.sh
@@ -142,7 +142,7 @@ baseline:build:
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
     fi
 
-    echo "BASELINE_WHL=$(ls *.whl | head -n 1)" | tee -a baseline.env
+    echo "BASELINE_WHL=../$(ls *.whl | head -n 1)" | tee -a baseline.env
   cache:
     - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
