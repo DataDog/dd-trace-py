@@ -39,6 +39,8 @@ jobs:
               `The \`datadog\` package on PyPI has a new release: **${process.env.LATEST_VERSION}**`,
               `The version currently vendored in \`ddtrace/vendor/\` is **${process.env.VENDORED_VERSION}**.`,
               ``,
+              `cc @DataDog/python-guild`,
+              ``,
               `## Next steps`,
               `1. Review the [datadogpy changelog](https://github.com/DataDog/datadogpy/blob/master/CHANGELOG.md) for changes in \`datadog/dogstatsd/container.py\` and related files.`,
               `2. If there are relevant fixes or improvements, update the vendor copy following the instructions in \`ddtrace/vendor/__init__.py\`.`,
