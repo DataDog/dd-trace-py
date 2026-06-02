@@ -1,3 +1,5 @@
+import copy
+import pickle
 import time
 
 import mock
@@ -278,3 +280,25 @@ def test_rate_limiter_with_jitter_not_raise():
     limiter = BudgetRateLimiterWithJitter(limit_rate=1, raise_on_exceed=False)
 
     assert [limiter.limit(lambda: None) for _ in range(10)][1:] == [RateLimitExceeded] * 9
+
+
+def test_budget_rate_limiter_with_jitter_is_deepcopyable():
+    # Regression test for https://github.com/DataDog/dd-trace-py/issues/16443.
+    # When a BudgetRateLimiterWithJitter ends up in an object graph that gets
+    # deep-copied (e.g. an EntrySpanProbe attached to a FastAPI route that
+    # Cadwyn deepcopies while building its versioned router), the internal
+    # threading.Lock used to make limit() thread-safe must not break the copy.
+    limiter = BudgetRateLimiterWithJitter(limit_rate=5)
+    clone = copy.deepcopy(limiter)
+    assert clone is not limiter
+    assert clone._lock is not limiter._lock
+    assert clone.limit_rate == limiter.limit_rate
+    # The clone must still be usable after deepcopy.
+    clone.limit(lambda: None)
+
+
+def test_budget_rate_limiter_with_jitter_is_picklable():
+    limiter = BudgetRateLimiterWithJitter(limit_rate=5)
+    restored = pickle.loads(pickle.dumps(limiter))
+    assert restored.limit_rate == limiter.limit_rate
+    restored.limit(lambda: None)

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Strips the internal ``threading.Lock`` from ``BudgetRateLimiterWithJitter``
+    on pickle/deepcopy so FastAPI route copying (e.g. Cadwyn) no longer fails with
+    ``TypeError: cannot pickle '_thread.lock' object``.
