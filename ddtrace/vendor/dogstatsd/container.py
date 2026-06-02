@@ -19,9 +19,10 @@ class ContainerID(object):
     """
     A reader class that retrieves either:
     - The current container ID parsed from the cgroup file (cgroup v1 / host
-      cgroup namespace), prefixed with `ci-`.
+      cgroup namespace), returned as the raw hex ID for backward compatibility
+      with all Agent versions.
     - The cgroup controller inode (cgroup v2 / non-host cgroup namespace),
-      prefixed with `in-`.
+      prefixed with `in-`, understood by Agent >= 7.51.
 
     Both forms are understood by the Datadog Agent's origin detection, which
     uses them to enrich DogStatsD metrics with orchestrator tags such as
@@ -69,9 +70,13 @@ class ContainerID(object):
             return False
 
     def _read_cgroup_path(self) -> Optional[str]:
-        """Read the container ID from the cgroup file, prefixed with `ci-`."""
-        container_id = self._read_container_id(self.CGROUP_PATH)
-        return "ci-{0}".format(container_id) if container_id else None
+        """Read the raw container ID from the cgroup file.
+
+        Returns the unprefixed hex ID so that the DogStatsD ``|c:`` header
+        remains compatible with all Agent versions (pre-7.51 Agents only
+        understand the raw form; newer Agents accept it too).
+        """
+        return self._read_container_id(self.CGROUP_PATH)
 
     def _get_cgroup_from_inode(self) -> Optional[str]:
         """Read the container ID from the cgroup controller inode (`in-<inode>`).
