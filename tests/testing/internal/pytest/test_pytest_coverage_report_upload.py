@@ -1,6 +1,7 @@
 """Integration tests for coverage report upload functionality."""
 
 from contextlib import ExitStack
+import sys
 import typing as t
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -828,3 +829,37 @@ class TestCoverageConfigurationEdgeCases:
         encoded = lcov_content.encode("utf-8")
         decoded = encoded.decode("utf-8")
         assert decoded == lcov_content
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="COVERAGE_CORE=sysmon requires Python 3.12+")
+class TestSysmonCoverageIdClash:
+    """Regression tests for the sys.monitoring COVERAGE_ID clash fix.
+
+    When COVERAGE_CORE=sysmon is set, coverage.py uses sys.monitoring.COVERAGE_ID
+    (tool slot 1) from Python 3.12+.  ddtrace also claims that slot.  If an outer
+    --ddtrace session already holds it, a subsequent pytester.inline_run(--cov)
+    must not crash with "ValueError: tool 1 is already in use".
+    """
+
+    def test_inline_run_with_sysmon_does_not_crash(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
+        """pytester.inline_run(--cov) must succeed even when COVERAGE_CORE=sysmon is set.
+
+        This is the direct reproduction of the bug: ddtrace holds COVERAGE_ID from the
+        outer session; the inner inline_run tries to start coverage.py's SysMonitor which
+        needs the same slot.  The fix releases the slot in pytest_sessionstart so the
+        inner session can claim it without error.
+        """
+        monkeypatch.setenv("COVERAGE_CORE", "sysmon")
+
+        pytester.makepyfile(
+            """
+            def test_simple():
+                assert 1 + 1 == 2
+            """
+        )
+
+        with setup_standard_mocks():
+            # Must not raise "ValueError: tool 1 is already in use"
+            result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
+
+        assert result.ret == 0, f"inline_run failed with COVERAGE_CORE=sysmon: {result.ret}"
