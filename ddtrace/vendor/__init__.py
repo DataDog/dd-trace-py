@@ -13,17 +13,28 @@ dogstatsd
 
 Website: https://datadogpy.readthedocs.io/en/latest/
 Source: https://github.com/DataDog/datadogpy
-Version: 8e11af2 (0.39.1)
+Version: 0.52.1
 License: Copyright (c) 2020, Datadog <info@datadoghq.com>
 
 Notes:
-  `dogstatsd/__init__.py` was updated to include a copy of the `datadogpy` license: https://github.com/DataDog/datadogpy/blob/master/LICENSE
-  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies
+  `dogstatsd/__init__.py` includes a copy of the datadogpy license.
+  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies.
   `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
   `datadog/util/format.py` was copied to `dogstatsd/format.py`
-  version fixed to 8e11af2
   removed type imports
   removed unnecessary compat utils
+  container.py local patches vs upstream 0.52.1:
+    - class renamed Cgroup → ContainerID (base.py compat)
+    - _read_cgroup_path: returns raw container ID without ci- prefix, for
+      backward compatibility with Agents older than 7.51; upstream returns
+      ci-<id>. Upstream PR pending to land this fix in datadogpy.
+    - _get_cgroup_from_inode: lstrip("/") instead of != "/" check, to prevent
+      os.path.join from discarding the mount prefix for absolute node paths.
+      Upstream PR pending to land this fix in datadogpy.
+    - _get_cgroup_from_inode: wrapped in try/except for safety.
+    - __init__: tries _read_cgroup_path first, uses inode only as fallback
+      when path returns None and not in host namespace. Upstream checks
+      namespace first and skips _read_cgroup_path entirely when not host.
 
 
 debtcollector
