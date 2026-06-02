@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.native import HttpClient
     from ddtrace.internal.uds import UDSHTTPConnection
 
 ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
@@ -308,6 +309,25 @@ def verify_url(url: str) -> parse.ParseResult:
         raise ValueError("Invalid file path in intake URL '%s'" % url)
 
     return parsed
+
+
+def build_native_http_client(url: str, timeout_ms: int) -> "HttpClient":
+    """Parse ``url`` (``http`` / ``https`` / ``unix``) and return a configured
+    native :class:`ddtrace.internal.native.HttpClient`.
+
+    Mirrors :func:`get_connection`'s scheme dispatch — callsites migrating to
+    the native client should use this helper instead of re-implementing
+    URL-scheme handling. The returned client is bound to the process-wide
+    :class:`ddtrace.internal.native_runtime.NativeRuntime` singleton.
+    """
+    from ddtrace.internal.native import HttpClientBuilder
+    from ddtrace.internal.native_runtime import get_native_runtime
+
+    parsed = verify_url(url)
+    builder = HttpClientBuilder().set_timeout_ms(timeout_ms)
+    if parsed.scheme == "unix":
+        builder = builder.set_unix_socket(parsed.path)
+    return builder.build(get_native_runtime())
 
 
 _HTML_BLOCKED_TEMPLATE_CACHE: Optional[str] = None

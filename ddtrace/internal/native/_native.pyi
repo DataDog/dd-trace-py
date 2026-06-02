@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any
+from typing import Iterable
 from typing import Iterator
 from typing import Literal
 from typing import Mapping
@@ -765,3 +766,310 @@ class config:
     def set_raise(val: bool) -> None:
         """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
         ...
+
+# -----------------------------------------------------------------------------
+# Native HTTP client (libdd-http-client wrapper)
+# -----------------------------------------------------------------------------
+
+class HttpMethod(Enum):
+    """Standard HTTP methods understood by ``HttpRequest``."""
+
+    Get = ...
+    Post = ...
+    Put = ...
+    Delete = ...
+    Head = ...
+    Patch = ...
+    Options = ...
+
+class MultipartPart:
+    """A single part in a multipart/form-data request body.
+
+    The ``data`` parameter accepts any object that exposes the Python buffer
+    protocol (``bytes``, ``bytearray``, ``memoryview``). The bytes are wrapped
+    zero-copy via ``bytes::Bytes::from_owner``.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        data: bytes,
+        *,
+        filename: Optional[str] = None,
+        content_type: Optional[str] = None,
+    ) -> None: ...
+
+class HttpRequest:
+    """An outgoing HTTP request, built up via fluent ``with_*`` methods.
+
+    ``url`` must be a full absolute URL (``http://`` or ``https://``). UDS is
+    configured on the client builder via ``HttpClientBuilder.set_unix_socket``,
+    not via the URL scheme.
+
+    The request is consumed by ``HttpClient.send`` — calling any method on the
+    same instance after ``send`` raises :class:`ValueError`. To retry, build a
+    fresh request.
+
+    Chain example:
+
+        >>> part = MultipartPart("payload", b"{}", content_type="application/json")
+        >>> req = (
+        ...     HttpRequest(HttpMethod.Post, "http://localhost:8126/v0.4/traces")
+        ...     .with_header("Content-Type", "application/json")
+        ...     .with_multipart_part(part)
+        ... )
+    """
+
+    def __init__(self, method: HttpMethod, url: str) -> None: ...
+    @property
+    def method(self) -> HttpMethod: ...
+    @property
+    def url(self) -> str: ...
+    @property
+    def headers(self) -> list[tuple[str, str]]: ...
+    def with_header(self, name: str, value: str) -> "HttpRequest": ...
+    def with_headers(self, headers: Iterable[tuple[str, str]]) -> "HttpRequest": ...
+    def with_body(self, body: bytes) -> "HttpRequest": ...
+    def with_timeout_ms(self, ms: int) -> "HttpRequest": ...
+    def with_multipart_part(self, part: MultipartPart) -> "HttpRequest":
+        """Append a multipart form-data part.
+
+        Setting both ``with_body(...)`` and ``with_multipart_part(...)`` on the
+        same request raises :class:`InvalidConfigError` from
+        :meth:`HttpClient.send` (not from this method).
+        """
+        ...
+
+class HttpResponse:
+    """An HTTP response. Immutable; safe to share across threads."""
+
+    @property
+    def status_code(self) -> int: ...
+    @property
+    def headers(self) -> list[tuple[str, str]]:
+        """Response headers as a list preserving insertion order and duplicates.
+
+        Multiple ``Set-Cookie`` headers, for example, are kept as distinct
+        list entries.
+        """
+        ...
+    def body(self) -> bytes:
+        """Return the response body as ``bytes``.
+
+        The native client does **not** auto-decompress responses; callers
+        handle their own decompression. Repeated calls return the same
+        ``bytes`` object (memoized).
+        """
+        ...
+    def header(self, name: str) -> Optional[str]:
+        """Case-insensitive header lookup; returns the first matching value."""
+        ...
+
+class HttpClient:
+    """A pooled HTTP client. Constructed via :meth:`HttpClientBuilder.build`.
+
+    Instances are safe to share across Python threads; the underlying reqwest
+    client pools connections internally (max 32 idle per host, 90s idle
+    timeout — reqwest defaults). The GIL is released for the duration of every
+    HTTP I/O call.
+
+    Fork safety: the shared runtime returned by
+    ``ddtrace.internal.native_runtime.get_native_runtime`` already wires
+    ``before_fork``/``after_fork_*`` hooks into ``forksafe``. Callers do not
+    invoke them.
+
+    Notes on libdd defaults that are NOT user-configurable in v1:
+
+    - Redirects are followed automatically (up to 10).
+    - ``HTTP_PROXY`` / ``HTTPS_PROXY`` / ``NO_PROXY`` environment variables
+      are honored by the underlying reqwest client.
+    - Response bodies are NOT auto-decompressed; the ``Content-Encoding``
+      header is preserved verbatim.
+    """
+
+    def send(self, request: HttpRequest) -> HttpResponse:
+        """Send a fully-built request, releasing the GIL for the call.
+
+        The ``request`` is consumed: subsequent operations on the same
+        ``HttpRequest`` raise :class:`ValueError`.
+
+            >>> req = HttpRequest(HttpMethod.Post, "http://localhost:8126/v0.4/traces").with_body(b"...")
+            >>> resp = client.send(req)
+        """
+        ...
+
+    def get(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse:
+        """Convenience GET. Headers must be an iterable of ``(name, value)`` tuples.
+
+        >>> resp = client.get("http://localhost:8126/info", headers=[("Accept", "application/json")])
+        """
+        ...
+
+    def post(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse:
+        """Convenience POST. Headers must be an iterable of ``(name, value)`` tuples.
+
+        >>> resp = client.post(
+        ...     "http://localhost:8126/v0.4/traces",
+        ...     headers=[("Content-Type", "application/msgpack")],
+        ...     body=payload,
+        ... )
+        """
+        ...
+
+    def put(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def delete(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def head(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def patch(
+        self,
+        url: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def shutdown(self) -> None:
+        """Close the underlying client. Subsequent ``send`` calls raise :class:`ValueError`.
+
+        Optional — ``__del__`` runs the same close path.
+        """
+        ...
+
+class HttpClientBuilder:
+    """Builder for :class:`HttpClient`. Chain setters then call :meth:`build`.
+
+        >>> from ddtrace.internal.native import HttpClientBuilder
+        >>> from ddtrace.internal.native_runtime import get_native_runtime
+        >>> client = (
+        ...     HttpClientBuilder()
+        ...     .set_timeout_ms(2000)
+        ...     .build(get_native_runtime())
+        ... )
+
+    See also :func:`ddtrace.internal.utils.http.build_native_http_client` which
+    handles URL-scheme dispatch (``http``/``https``/``unix``).
+    """
+
+    def __init__(self) -> None: ...
+    def set_timeout_ms(self, ms: int) -> "HttpClientBuilder": ...
+    def set_treat_http_errors_as_errors(self, value: bool) -> "HttpClientBuilder":
+        """Default ``True``. When ``True``, HTTP 4xx/5xx responses raise
+        :class:`RequestFailedError`. When ``False``, they are returned as
+        regular :class:`HttpResponse` objects.
+        """
+        ...
+    def set_retry(
+        self,
+        max_retries: int,
+        initial_delay_ms: int = 100,
+        jitter: bool = True,
+    ) -> "HttpClientBuilder":
+        """Enable automatic retries with exponential backoff.
+
+        Gotcha: libdd retries **all** non-``InvalidConfig`` errors by default,
+        including 4xx/5xx. For "no retry on 4xx" combine
+        ``set_treat_http_errors_as_errors(False)`` with ``set_retry(N)`` — 4xx
+        will be returned as a normal response and only connection/IO errors
+        will be retried.
+        """
+        ...
+    def set_unix_socket(self, path: str) -> "HttpClientBuilder":
+        """Route all requests over the given Unix Domain Socket.
+
+        The host portion of each ``HttpRequest`` URL is ignored when this is
+        set. Raises :class:`ValueError` on Windows.
+        """
+        ...
+    def set_allow_connection_pooling(self, allow: bool) -> "HttpClientBuilder": ...
+    def build(self, shared_runtime: SharedRuntime) -> HttpClient:
+        """Consume the builder and return a configured :class:`HttpClient`.
+
+        The runtime is typically
+        ``ddtrace.internal.native_runtime.get_native_runtime()``. Raises
+        :class:`ValueError` if the builder has already been consumed.
+        """
+        ...
+
+class HttpClientError(Exception):
+    """Base class for all native HTTP client errors.
+
+    Catch this to handle any failure from :meth:`HttpClient.send`. The
+    granular subclasses are :class:`ConnectionFailedError`,
+    :class:`TimedOutError`, :class:`RequestFailedError`,
+    :class:`InvalidConfigError`, and :class:`HttpIoError`.
+
+    Subclassable from Python:
+
+        >>> class MyError(HttpClientError): ...
+
+    Example exception handling:
+
+        >>> try:
+        ...     resp = client.send(req)
+        ... except TimedOutError:
+        ...     ...  # retry or surface
+        ... except ConnectionFailedError as e:
+        ...     ...  # cannot reach server
+        ... except RequestFailedError as e:
+        ...     status = e.status  # int
+        ...     body = e.body  # str (lossy-UTF-8 decoded by libdd)
+        ... except HttpClientError:
+        ...     ...  # fall-through
+    """
+
+class ConnectionFailedError(HttpClientError):
+    """TCP/socket connection to the server could not be established."""
+
+class TimedOutError(HttpClientError):
+    """The request exceeded its configured timeout."""
+
+class RequestFailedError(HttpClientError):
+    """The server returned an HTTP 4xx/5xx status code.
+
+    Only raised when ``treat_http_errors_as_errors=True`` (the default).
+    """
+
+    status: int
+    body: str  # NOTE: binary bodies are lossy-UTF-8 decoded; not byte-perfect.
+
+class InvalidConfigError(HttpClientError):
+    """The client/request configuration was invalid (e.g. zero timeout,
+    both body and multipart parts set on the same request).
+    """
+
+class HttpIoError(HttpClientError):
+    """An I/O error occurred during the request (truncated response,
+    connection reset, etc.). Renamed from ``IoError`` at the Rust level to
+    avoid a collision with :class:`IoError` from ``data_pipeline``.
+    """
