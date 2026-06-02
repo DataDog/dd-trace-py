@@ -7,12 +7,14 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -70,6 +72,7 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
     "starlette": normalize_route,
     "fastapi": normalize_route,
     "django": normalize_route_django,
+    "flask": normalize_route_flask,
 }
 
 
@@ -90,17 +93,12 @@ def _on_set_http_meta_for_normalized_route(
     peer_ip: Optional[str] = None,
     headers_are_case_sensitive: bool = False,
 ) -> None:
-    # RFC-1103: emit `_dd.appsec.normalized_route` on supported web framework request spans when API Security is
-    # active. The framework is identified via the IntegrationConfig every web integration places in the request
-    # execution context (see e.g. asgi/middleware.py:258) — survives `request_span_name` overrides and the schema-v1
-    # rename to "http.server.request". Each framework has its own URL grammar; the dispatch picks the matching
-    # normalizer. Other frameworks aren't normalized until they get their own grammar-aware implementation.
+    # RFC-1103: emit `_dd.appsec.normalized_route` for supported frameworks when API Security is active.
     if not asm_config._api_security_feature_active:
         return
     if not route:
         return
-    # No active ASM context → appsec/api-sec inactive for this request, nothing to do. The flag also gives us
-    # idempotency for repeat dispatches (Django's sync path fires twice).
+    # No ASM context, or already emitted (idempotency for Django's dual-fire).
     asm_env = get_active_asm_context()
     if asm_env is None or asm_env.normalized_route_emitted:
         return
@@ -111,6 +109,13 @@ def _on_set_http_meta_for_normalized_route(
     normalizer = _NORMALIZED_ROUTE_BY_INTEGRATION.get(integration_name)
     if normalizer is None:
         return
+    # Flask DM sub-apps: url_rule.rule omits the mount prefix; use FLASK_RESOURCE_FULL when set.
+    if integration_name == "flask":
+        full_resource = span.get_tag(FLASK_RESOURCE_FULL)
+        if full_resource:
+            _, _, assembled = full_resource.partition(" ")
+            if assembled:
+                route = assembled
     normalized = normalizer(route, request_path_params)
     if normalized is not None:
         span._set_attribute(API_SECURITY.NORMALIZED_ROUTE, normalized)
