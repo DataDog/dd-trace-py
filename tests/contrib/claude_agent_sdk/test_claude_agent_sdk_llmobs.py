@@ -10,6 +10,8 @@ from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
@@ -272,6 +274,66 @@ class TestLLMObsClaudeAgentSdk:
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             metrics=EXPECTED_QUERY_USAGE,
             error={"type": MOCK_ASSISTANT_MESSAGE_ERROR, "message": MOCK_ASSISTANT_MESSAGE_ERROR, "stack": ANY},
+            tags=COMMON_TAGS,
+        )
+
+    async def test_llmobs_assistant_message_error_uses_content_text_as_message(
+        self, claude_agent_sdk, mock_internal_client_assistant_message_error_text, claude_agent_sdk_llmobs, test_spans
+    ):
+        """When the SDK reports a coarse error category (e.g. "unknown") but the descriptive
+        API error lives in the assistant message content, the error message should be the
+        content text rather than the category literal, while the error type stays the
+        category reported by the SDK.
+        """
+        prompt = "Hello"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 3
+        agent_span = spans[0]
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        expected_error = {
+            "type": MOCK_ASSISTANT_MESSAGE_ERROR_TYPE,
+            "message": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT,
+            "stack": ANY,
+        }
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=[{"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"}],
+            error=expected_error,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json([{"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"}]),
+            error=expected_error,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(agent_span),
+            span_kind="agent",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(
+                [
+                    {"content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA), "role": "system"},
+                    {"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"},
+                    {"content": "4", "role": "assistant"},
+                ]
+            ),
+            metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
+            metrics=EXPECTED_QUERY_USAGE,
+            error=expected_error,
             tags=COMMON_TAGS,
         )
 

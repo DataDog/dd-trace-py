@@ -82,11 +82,11 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             output_messages = self.parse_content_blocks("assistant", content)
             if _get_attr(response, "usage", None):
                 metrics = self._extract_usage(response)
-            error = _get_attr(response, "error", None)
-            if error:
+            error_type, error_message = self._extract_assistant_error(response)
+            if error_type:
                 span.error = 1
-                span.set_tag(ERROR_TYPE, error)
-                span.set_tag(ERROR_MSG, error)
+                span.set_tag(ERROR_TYPE, error_type)
+                span.set_tag(ERROR_MSG, error_message)
         input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
         _annotate_llmobs_span_data(
             span,
@@ -130,10 +130,11 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             )
             if stop_reason:
                 metadata["stop_reason"] = stop_reason
-            if assistant_error:
+            error_type, error_message = assistant_error
+            if error_type:
                 span.error = 1
-                span.set_tag(ERROR_TYPE, assistant_error)
-                span.set_tag(ERROR_MSG, assistant_error)
+                span.set_tag(ERROR_TYPE, error_type)
+                span.set_tag(ERROR_MSG, error_message)
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
@@ -235,15 +236,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str, str]:
+    def _extract_output_data(
+        self, response: Any
+    ) -> tuple[list[Message], dict[str, int], dict[str, Any], str, tuple[str, str]]:
         """Extract output data from response, including output messages, usage metrics, init system message,
-        stop reason, and assistant error.
+        stop reason, and assistant error as a (error_type, error_message) tuple.
         """
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         stop_reason: str = ""
-        assistant_error: str = ""
+        assistant_error: tuple[str, str] = ("", "")
 
         if not response or not isinstance(response, list):
             return [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
@@ -253,8 +256,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if msg_type == "AssistantMessage":
                 content = _get_attr(msg, "content", []) or []
                 output_messages.extend(self.parse_content_blocks("assistant", content))
-                if not assistant_error:
-                    assistant_error = _get_attr(msg, "error", "") or ""
+                if not assistant_error[0]:
+                    assistant_error = self._extract_assistant_error(msg)
             elif msg_type == "SystemMessage":
                 data = _get_attr(msg, "data", {}) or {}
                 if data:
@@ -279,6 +282,31 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     )
 
         return output_messages or [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
+
+    def _extract_assistant_error(self, msg: Any) -> tuple[str, str]:
+        """Return (error_type, error_message) for an AssistantMessage carrying an error.
+
+        The SDK's ``AssistantMessage.error`` is a coarse category literal (e.g. "unknown",
+        "invalid_request", "rate_limit") with no structured payload — the descriptive
+        message, such as the raw ``API Error: {...}`` text returned by the API, lives in
+        the message's ``TextBlock`` content instead. We keep the category as the error type
+        and surface that content text as the error message, falling back to the category
+        when no text content is present.
+        """
+        error = _get_attr(msg, "error", None)
+        if not error:
+            return "", ""
+        error_type = str(error)
+        content = _get_attr(msg, "content", []) or []
+        text_parts: list[str] = []
+        if isinstance(content, list):
+            for block in content:
+                if type(block).__name__ == "TextBlock":
+                    text = _get_attr(block, "text", "") or ""
+                    if text:
+                        text_parts.append(str(text))
+        error_message = "\n".join(text_parts) or error_type
+        return error_type, error_message
 
     def _extract_usage(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}
