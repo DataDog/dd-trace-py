@@ -134,6 +134,7 @@ from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _trace_id_to_wire
@@ -148,6 +149,7 @@ from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
@@ -167,6 +169,7 @@ from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
+from ddtrace.llmobs.types import _ToolField
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
@@ -428,6 +431,16 @@ def _normalize_llmobs_meta(
         llmobs_meta[LLMOBS_STRUCT.MODEL_PROVIDER] = (model_provider or UNKNOWN_MODEL_PROVIDER).lower()
     if span_kind != "llm":
         llmobs_meta.pop(LLMOBS_STRUCT.TOOL_DEFINITIONS, None)
+    if span_kind != "tool":
+        llmobs_meta.pop(LLMOBS_STRUCT.TOOL, None)
+    elif LLMOBS_STRUCT.TOOL not in llmobs_meta:
+        tool_name = get_llmobs_span_name(span)
+        if tool_name:
+            ancestor = _get_nearest_llmobs_ancestor(span)
+            if ancestor is not None and get_llmobs_span_kind(ancestor) == "llm":
+                version = get_tool_version_from_llm_span(ancestor, tool_name)
+                if version is not None:
+                    llmobs_meta[LLMOBS_STRUCT.TOOL] = _ToolField(version=version)
     intent = llmobs_meta.pop(LLMOBS_STRUCT.INTENT, None)
     if intent:
         llmobs_meta[LLMOBS_STRUCT.INTENT] = str(intent)
@@ -501,7 +514,7 @@ class LLMObs(Service):
         elif llmobs_apm_trace_agentless_enabled():
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
-            self._export_mode = LLMObsExportMode.APM_AGENT_PROXY
+            self._export_mode = LLMObsExportMode.APM_AGENT
         # Test-only: when set, _on_span_finish skips the meta_struct["_llmobs"] scrub
         # so spans captured by tests' DummyWriter retain LLMObsSpanData for assertion.
         # Set by integration test conftests via the _DD_LLMOBS_TEST_KEEP_META_STRUCT env
@@ -549,7 +562,7 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
-        telemetry.record_span_created(span)
+        telemetry.record_span_created(span, self._export_mode)
 
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
@@ -575,7 +588,7 @@ class LLMObs(Service):
             self._evaluator_runner.enqueue(span_event, span)
 
         if self._export_mode != LLMObsExportMode.APM_AGENTLESS:
-            # LLMOBS_DIRECT and APM_AGENT_PROXY both route through the LLMObs span writer
+            # LLMOBS_DIRECT and APM_AGENT both route through the LLMObs span writer
             # (direct intake or agent EVP proxy respectively), preserving origin/main behavior.
             # APM_AGENTLESS is the only mode where data rides the APM trace instead.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
@@ -2003,6 +2016,7 @@ class LLMObs(Service):
             context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
             return context
         return None
 
