@@ -28,3 +28,5 @@ tenacity==8.5.0
     # via -r benchmarks/base/requirements.in
 viztracer==1.0.4
     # via -r benchmarks/base/requirements.in
+wrapt==2.2.1
+    # via -r benchmarks/base/requirements.in

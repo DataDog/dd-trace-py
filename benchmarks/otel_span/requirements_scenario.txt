@@ -22,7 +22,9 @@ tenacity==8.5.0
     # via -r benchmarks/base/requirements.in
 viztracer==1.0.4
     # via -r benchmarks/base/requirements.in
-wrapt==2.2.0
-    # via deprecated
+wrapt==2.2.1
+    # via
+    #   -r benchmarks/base/requirements.in
+    #   deprecated
 zipp==3.23.1
     # via importlib-metadata

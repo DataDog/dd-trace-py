@@ -14,7 +14,7 @@ gunicorn==23.0.0
     # via -r benchmarks/errortracking_django_simple/requirements_scenario.in
 httpretty==1.1.4
     # via -r benchmarks/base/requirements.in
-idna==3.15
+idna==3.18
     # via requests
 objprint==0.3.0
     # via viztracer
@@ -37,4 +37,6 @@ typing-extensions==4.15.0
 urllib3==2.6.3
     # via requests
 viztracer==1.0.4
+    # via -r benchmarks/base/requirements.in
+wrapt==2.2.1
     # via -r benchmarks/base/requirements.in

@@ -71,6 +71,7 @@ def run_compile(inputs: list[Path], output: Path) -> bool:
                 "uv",
                 "pip",
                 "compile",
+                "--upgrade",
                 "--python-platform",
                 PYTHON_PLATFORM,
                 "--python-version",

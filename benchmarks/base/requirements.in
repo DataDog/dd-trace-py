@@ -4,3 +4,5 @@ attrs
 httpretty==1.1.4
 tenacity~=8.0
 viztracer
+# Mirror ddtrace's wrapt constraint so lockfiles never pin an incompatible version.
+wrapt>=1,!=2.2.0,<3
