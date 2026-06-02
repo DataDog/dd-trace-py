@@ -274,6 +274,67 @@ class TestGetCgroupFromInode:
             os.unlink(reader.CGROUP_PATH)
             os.rmdir(reader.CGROUP_MOUNT_PATH)
 
+    def test_lstrip_regression_absolute_node_path_preserves_mount_prefix(self) -> None:
+        """Regression: os.path.join drops all preceding segments when given an absolute path.
+
+        Without node_path.lstrip("/"), an absolute cgroup node path such as
+        "/docker/abc123" would cause::
+
+            os.path.join("/sys/fs/cgroup", "memory", "/docker/abc123")
+            == "/docker/abc123"   # mount prefix silently discarded
+
+        With lstrip the correct path is constructed::
+
+            os.path.join("/sys/fs/cgroup", "memory", "docker/abc123")
+            == "/sys/fs/cgroup/memory/docker/abc123"
+        """
+        mount_dir: str = tempfile.mkdtemp()
+        # Create the directory tree that the fixed code should find.
+        node_dir: str = os.path.join(mount_dir, "memory", "docker", "abc123")
+        os.makedirs(node_dir)
+        # Content with an absolute cgroup node path.
+        content: str = "5:memory:/docker/abc123\n"
+        reader: ContainerID = self._make_reader(content, mount_dir)
+        try:
+            result: Optional[str] = reader._get_cgroup_from_inode()
+            # Without the lstrip fix os.stat("/docker/abc123") would either
+            # raise (path doesn't exist) or return a low inode, making result None.
+            assert result is not None, (
+                "Expected inode under mount dir; got None — likely os.path.join discarded the mount prefix"
+            )
+            assert result.startswith("in-")
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+            os.rmdir(node_dir)
+            os.rmdir(os.path.join(mount_dir, "memory", "docker"))
+            os.rmdir(os.path.join(mount_dir, "memory"))
+            os.rmdir(mount_dir)
+
+    def test_v1_inode_zero_falls_through_to_v2_controller(self) -> None:
+        """When the cgroup v1 memory controller inode is 0 (invalid), fall through to v2."""
+        mount_dir: str = tempfile.mkdtemp()
+        # Create the v2 root under mount_dir (empty string controller → mount_dir itself).
+        # No v1 "memory" subdirectory is created so its stat would fail/return 0.
+        content: str = "7:memory:/\n0::/\n"
+        reader: ContainerID = self._make_reader(content, mount_dir)
+
+        def stat_side_effect(path: str) -> mock.Mock:
+            if path == os.path.join(mount_dir, "memory", ""):
+                # v1 memory path → inode 0 (invalid, should be skipped)
+                return mock.Mock(st_ino=0)
+            if path == os.path.join(mount_dir, ""):
+                # v2 root path → valid inode
+                return mock.Mock(st_ino=9999)
+            raise FileNotFoundError(path)
+
+        try:
+            with mock.patch("os.stat", side_effect=stat_side_effect):
+                result: Optional[str] = reader._get_cgroup_from_inode()
+            assert result == "in-9999"
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+            os.rmdir(mount_dir)
+
 
 # ---------------------------------------------------------------------------
 # __init__ (branching logic)
