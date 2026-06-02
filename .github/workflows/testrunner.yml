@@ -18,6 +18,6 @@ jobs:
       tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
       platforms: 'linux/amd64,linux/arm64/v8'
       build-args: ''
-      context: ./dd-trace-py/docker
+      context: ./ddtrace/docker
     secrets:
       token: ${{ secrets.GITHUB_TOKEN }}
