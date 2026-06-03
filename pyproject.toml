@@ -33,10 +33,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "bytecode>=0.17.0,<1; python_version>='3.14.0'",
-    "bytecode>=0.16.0,<1; python_version>='3.13.0'",
-    "bytecode>=0.15.1,<1; python_version~='3.12.0'",
-    "bytecode>=0.14.0,<1; python_version~='3.11.0'",
+    "bytecode>=0.18.1,<1; python_version>='3.11.0'",
     "bytecode>=0.13.0,<1; python_version<'3.11'",
     "envier~=0.6.1",
     "opentelemetry-api>=1,<2",
@@ -116,7 +113,8 @@ lint = [
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
     "ast-grep-cli==0.39.4",
-    "bytecode==0.17.0",
+    "bytecode==0.18.1; python_version>='3.11.0'",
+    "bytecode==0.17.0; python_version<'3.11'",
 ]
 clean = [
     "cython",

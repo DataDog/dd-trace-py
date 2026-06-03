@@ -725,6 +725,73 @@ def test_wrapping_context_exc():
     assert exc.args == ("foo",)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="exception tables (TryBegin/TryEnd) require 3.11+")
+def test_wrapping_context_handler_branch_followed_by_try():
+    # Regression test: wrapping a function whose exception handler body contains
+    # a branch and is followed by another try block used to raise an
+    # AssertionError from the bytecode library's stack-size computation (the
+    # covering region is split into multiple TryBegin copies sharing one handler
+    # and a jump leaves one region and enters another). Fixed in bytecode 0.18.1.
+    # Reproduced in production on Python 3.12.
+    def foo(d, x):
+        try:
+            d["a"]
+        except KeyError:
+            if x:
+                d.setdefault("branch", "if")
+            else:
+                d["value"] = "else"
+        try:
+            del d["missing"]
+        except KeyError:
+            d["had_no_missing"] = True
+        return d.get("value", "ok")
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()  # must not raise
+    assert _UniversalWrappingContext.is_wrapped(foo)
+
+    # Handler "if" branch, then the second try's handler.
+    d = {}
+    assert foo(d, True) == "ok"
+    assert d == {"branch": "if", "had_no_missing": True}
+    assert wc.entered
+    assert wc.return_value == "ok"
+    assert not wc.exited
+
+    # Handler "else" branch.
+    assert foo({}, False) == "else"
+    assert wc.return_value == "else"
+    assert not wc.exited
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="exception tables (TryBegin/TryEnd) require 3.11+")
+def test_wrapping_context_handler_branch_exception_escapes():
+    # As above, but an exception escapes the function: the covering context's
+    # __exit__ must still fire.
+    def foo(d):
+        try:
+            d["a"]
+        except KeyError:
+            if d:
+                pass
+            else:
+                pass
+        raise RuntimeError("boom")
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    with pytest.raises(RuntimeError):
+        foo({})
+
+    assert wc.entered
+    assert wc.exited
+    _type, exc, _ = wc.exc_info
+    assert _type is RuntimeError
+    assert exc.args == ("boom",)
+
+
 def test_wrapping_context_exc_on_exit():
     class BrokenExitWrappingContext(DummyWrappingContext):
         def __exit__(self, exc_type, exc_value, traceback):

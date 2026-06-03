@@ -661,6 +661,16 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
 
+            # Generate the new code object before mutating the function. Bytecode
+            # rewriting can fail for unusual control-flow shapes; if it does we
+            # leave the function untouched rather than crash the call that
+            # triggered the (possibly lazy) wrapping.
+            try:
+                new_code = bc.to_code()
+            except Exception:
+                log.error("Failed to apply wrapping context to %r; leaving it unwrapped", f, exc_info=True)
+                return
+
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
@@ -669,7 +679,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # it later if required.
             link_function_to_code(code, f)
 
-            set_function_code(f, bc.to_code())
+            set_function_code(f, new_code)
 
         def unwrap(self) -> None:
             f = self.__wrapped__
