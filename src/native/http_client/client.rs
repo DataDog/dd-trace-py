@@ -75,7 +75,11 @@ impl HttpClientPy {
             .extend(self.default_headers.iter().cloned());
         if let Some(extra) = headers {
             for (k, v) in extra {
-                if let Some(slot) = req.headers_mut().iter_mut().find(|(ek, _)| *ek == k) {
+                if let Some(slot) = req
+                    .headers_mut()
+                    .iter_mut()
+                    .find(|(ek, _)| ek.eq_ignore_ascii_case(&k))
+                {
                     slot.1 = v;
                 } else {
                     req.headers_mut().push((k, v));
@@ -174,15 +178,10 @@ impl HttpClientPy {
                     HttpClientError::InvalidConfig(format!("base_url '{base_url}' has no host")),
                 ));
             }
-            // Reconstruct as scheme://host[:port][/path] with no trailing slash.
-            let mut base = format!(
-                "{}://{}",
-                parsed.scheme(),
-                parsed.host_str().unwrap_or("localhost")
-            );
-            if let Some(port) = parsed.port() {
-                base.push_str(&format!(":{port}"));
-            }
+            // Reconstruct as scheme://authority[/path] with no trailing slash.
+            // DEV: use `parsed.authority()` rather than `host_str()` so that
+            // IPv6 literals keep their brackets (e.g. `[::1]:8126`).
+            let mut base = format!("{}://{}", parsed.scheme(), parsed.authority());
             let path = parsed.path().trim_end_matches('/');
             if !path.is_empty() {
                 base.push_str(path);

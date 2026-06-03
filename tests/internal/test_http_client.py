@@ -278,6 +278,14 @@ def test_unsupported_scheme_raises():
         HTTPClient("ftp://localhost:8126")
 
 
+def test_ipv6_base_url_constructs():
+    # url::Url::host_str() strips IPv6 brackets; verify we re-add them so the
+    # reconstructed base URL is valid (no actual I/O needed — construction is enough).
+    client = HTTPClient("http://[::1]:8126")
+    assert "[::1]:8126" in repr(client)
+    client.shutdown()
+
+
 def test_retry_zero_is_one_attempt_builds(serve, make_client):
     # Just verify construction succeeds — retry-count semantics are exercised in the Retries section below.
     base = serve(EchoHandler)
@@ -895,6 +903,16 @@ def test_per_request_header_overrides_default(serve, make_client):
     resp = client.get("/", headers=[("X-Env", "override")])
     values = [v for k, v in _items_lower(resp.body()) if k == "x-env"]
     assert values == ["override"]
+
+
+def test_per_request_header_override_case_insensitive(serve, make_client):
+    # Header override must match case-insensitively — HTTP header names are
+    # case-insensitive, so "x-env" and "X-Env" name the same header.
+    base = serve(_HeaderEchoHandler)
+    client = make_client(base, headers=[("X-Env", "default")])
+    resp = client.get("/", headers=[("x-env", "override")])
+    values = [v for k, v in _items_lower(resp.body()) if k == "x-env"]
+    assert values == ["override"], "case-differing per-request header should replace default, not duplicate it"
 
 
 def test_per_request_header_merges_with_defaults(serve, make_client):
