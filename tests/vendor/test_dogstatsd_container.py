@@ -1,9 +1,9 @@
 """Tests for the vendored DogStatsD container-ID reader.
 
-- ContainerID.__init__: delegates to path-read vs inode-fallback
-- ContainerID._is_host_cgroup_namespace
-- ContainerID._read_cgroup_path (returns raw container ID, no ci- prefix)
-- ContainerID._get_cgroup_from_inode (returns in-<inode>)
+- Cgroup.__init__: delegates to path-read vs inode-fallback
+- Cgroup._is_host_cgroup_namespace
+- Cgroup._read_cgroup_path (returns raw container ID, no ci- prefix)
+- Cgroup._get_cgroup_from_inode (returns in-<inode>)
 """
 
 import errno
@@ -12,7 +12,7 @@ import tempfile
 from typing import Optional
 from unittest import mock
 
-from ddtrace.vendor.dogstatsd.container import ContainerID
+from ddtrace.vendor.dogstatsd.container import Cgroup
 from ddtrace.vendor.dogstatsd.container import UnresolvableContainerID
 
 
@@ -68,12 +68,12 @@ def _write_cgroup(content: str) -> str:
 
 class TestIsHostCgroupNamespace:
     def test_returns_false_when_ns_path_missing(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_NS_PATH = "/nonexistent/ns/cgroup"
         assert reader._is_host_cgroup_namespace() is False
 
     def test_returns_false_when_inode_does_not_match(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         with tempfile.NamedTemporaryFile(delete=False) as fp:
             path: str = fp.name
         try:
@@ -84,7 +84,7 @@ class TestIsHostCgroupNamespace:
             os.unlink(path)
 
     def test_returns_true_when_inode_matches(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         with tempfile.NamedTemporaryFile(delete=False) as fp:
             path: str = fp.name
         try:
@@ -96,7 +96,7 @@ class TestIsHostCgroupNamespace:
             os.unlink(path)
 
     def test_returns_false_on_unexpected_exception(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_NS_PATH = "/nonexistent"
         with (
             mock.patch("os.path.exists", return_value=True),
@@ -111,43 +111,43 @@ class TestIsHostCgroupNamespace:
 
 
 class TestReadCgroupPath:
-    def _make_reader(self, cgroup_content: str) -> ContainerID:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+    def _make_reader(self, cgroup_content: str) -> Cgroup:
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = _write_cgroup(cgroup_content)
         return reader
 
     # --- found ---
 
     def test_returns_raw_id_for_docker_cgroup_v1(self) -> None:
-        reader: ContainerID = self._make_reader(DOCKER_CGROUP_V1)
+        reader: Cgroup = self._make_reader(DOCKER_CGROUP_V1)
         try:
             assert reader._read_cgroup_path() == CONTAINER_ID_64
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_raw_id_for_k8s_cgroup_v1(self) -> None:
-        reader: ContainerID = self._make_reader(K8S_CGROUP_V1)
+        reader: Cgroup = self._make_reader(K8S_CGROUP_V1)
         try:
             assert reader._read_cgroup_path() == CONTAINER_ID_K8S
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_raw_id_for_ecs_classic(self) -> None:
-        reader: ContainerID = self._make_reader(ECS_CGROUP_V1)
+        reader: Cgroup = self._make_reader(ECS_CGROUP_V1)
         try:
             assert reader._read_cgroup_path() == CONTAINER_ID_64
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_raw_id_for_fargate_14_task(self) -> None:
-        reader: ContainerID = self._make_reader(FARGATE_14_CGROUP)
+        reader: Cgroup = self._make_reader(FARGATE_14_CGROUP)
         try:
             assert reader._read_cgroup_path() == TASK_ID_FARGATE
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_raw_id_for_k8s_slice_scope_path(self) -> None:
-        reader: ContainerID = self._make_reader(K8S_SLICE_SCOPE)
+        reader: Cgroup = self._make_reader(K8S_SLICE_SCOPE)
         try:
             assert reader._read_cgroup_path() == CONTAINER_ID_64
         finally:
@@ -156,35 +156,35 @@ class TestReadCgroupPath:
     # --- not found ---
 
     def test_returns_none_for_cgroup_v2_unified(self) -> None:
-        reader: ContainerID = self._make_reader(CGROUP_V2_UNIFIED)
+        reader: Cgroup = self._make_reader(CGROUP_V2_UNIFIED)
         try:
             assert reader._read_cgroup_path() is None
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_none_for_non_containerised_linux(self) -> None:
-        reader: ContainerID = self._make_reader(NON_CONTAINERISED)
+        reader: Cgroup = self._make_reader(NON_CONTAINERISED)
         try:
             assert reader._read_cgroup_path() is None
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_none_for_empty_file(self) -> None:
-        reader: ContainerID = self._make_reader("")
+        reader: Cgroup = self._make_reader("")
         try:
             assert reader._read_cgroup_path() is None
         finally:
             os.unlink(reader.CGROUP_PATH)
 
     def test_returns_none_when_cgroup_file_missing(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = "/nonexistent/cgroup"
         assert reader._read_cgroup_path() is None
 
     # --- errors ---
 
     def test_non_enoent_io_error_raises_not_implemented(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = "/some/path"
         io_err: IOError = IOError()
         io_err.errno = errno.EACCES
@@ -196,7 +196,7 @@ class TestReadCgroupPath:
                 pass
 
     def test_unexpected_exception_raises_unresolvable(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = "/some/path"
         with mock.patch("builtins.open", side_effect=RuntimeError("boom")):
             try:
@@ -212,15 +212,15 @@ class TestReadCgroupPath:
 
 
 class TestGetCgroupFromInode:
-    def _make_reader(self, cgroup_content: str, mount_dir: Optional[str] = None) -> ContainerID:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+    def _make_reader(self, cgroup_content: str, mount_dir: Optional[str] = None) -> Cgroup:
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = _write_cgroup(cgroup_content)
         reader.CGROUP_MOUNT_PATH = mount_dir or tempfile.mkdtemp()
         return reader
 
     def test_returns_in_prefixed_inode_for_cgroup_v2(self) -> None:
         mount_dir: str = tempfile.mkdtemp()
-        reader: ContainerID = self._make_reader(CGROUP_V2_UNIFIED, mount_dir)
+        reader: Cgroup = self._make_reader(CGROUP_V2_UNIFIED, mount_dir)
         try:
             result: Optional[str] = reader._get_cgroup_from_inode()
             assert result is not None
@@ -238,7 +238,7 @@ class TestGetCgroupFromInode:
         mem_dir: str = os.path.join(mount_dir, "memory", "docker", "abc123")
         os.makedirs(mem_dir)
         content: str = "5:memory:/docker/abc123\n"
-        reader: ContainerID = self._make_reader(content, mount_dir)
+        reader: Cgroup = self._make_reader(content, mount_dir)
         try:
             result: Optional[str] = reader._get_cgroup_from_inode()
             assert result is not None
@@ -251,13 +251,13 @@ class TestGetCgroupFromInode:
             os.rmdir(mount_dir)
 
     def test_returns_none_when_cgroup_file_missing(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader: Cgroup = Cgroup.__new__(Cgroup)
         reader.CGROUP_PATH = "/nonexistent/cgroup"
         reader.CGROUP_MOUNT_PATH = "/nonexistent/sys/fs/cgroup"
         assert reader._get_cgroup_from_inode() is None
 
     def test_returns_none_when_mount_path_missing(self) -> None:
-        reader: ContainerID = self._make_reader(CGROUP_V2_UNIFIED, "/nonexistent/mount")
+        reader: Cgroup = self._make_reader(CGROUP_V2_UNIFIED, "/nonexistent/mount")
         try:
             assert reader._get_cgroup_from_inode() is None
         finally:
@@ -265,7 +265,7 @@ class TestGetCgroupFromInode:
 
     def test_returns_none_when_inode_is_root(self) -> None:
         # Simulate an inode <= 2 (root of a filesystem), which should be skipped.
-        reader: ContainerID = self._make_reader(CGROUP_V2_UNIFIED)
+        reader: Cgroup = self._make_reader(CGROUP_V2_UNIFIED)
         try:
             with mock.patch("os.stat") as mock_stat:
                 mock_stat.return_value = mock.Mock(st_ino=2)
@@ -294,7 +294,7 @@ class TestGetCgroupFromInode:
         os.makedirs(node_dir)
         # Content with an absolute cgroup node path.
         content: str = "5:memory:/docker/abc123\n"
-        reader: ContainerID = self._make_reader(content, mount_dir)
+        reader: Cgroup = self._make_reader(content, mount_dir)
         try:
             result: Optional[str] = reader._get_cgroup_from_inode()
             # Without the lstrip fix os.stat("/docker/abc123") would either
@@ -316,7 +316,7 @@ class TestGetCgroupFromInode:
         # Create the v2 root under mount_dir (empty string controller → mount_dir itself).
         # No v1 "memory" subdirectory is created so its stat would fail/return 0.
         content: str = "7:memory:/\n0::/\n"
-        reader: ContainerID = self._make_reader(content, mount_dir)
+        reader: Cgroup = self._make_reader(content, mount_dir)
 
         def stat_side_effect(path: str) -> mock.Mock:
             if path == os.path.join(mount_dir, "memory", ""):
@@ -341,15 +341,15 @@ class TestGetCgroupFromInode:
 # ---------------------------------------------------------------------------
 
 
-class TestContainerIDInit:
+class TestCgroupInit:
     def test_uses_cgroup_path_when_parseable(self) -> None:
         # cgroup path is always tried first; inode is never consulted when it succeeds.
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=CONTAINER_ID_64) as mock_path,
-            mock.patch.object(ContainerID, "_is_host_cgroup_namespace") as mock_ns,
-            mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
+            mock.patch.object(Cgroup, "_read_cgroup_path", return_value=CONTAINER_ID_64) as mock_path,
+            mock.patch.object(Cgroup, "_is_host_cgroup_namespace") as mock_ns,
+            mock.patch.object(Cgroup, "_get_cgroup_from_inode") as mock_inode,
         ):
-            reader: ContainerID = ContainerID()
+            reader: Cgroup = Cgroup()
             assert reader.container_id == CONTAINER_ID_64
             mock_path.assert_called_once()
             mock_ns.assert_not_called()
@@ -358,11 +358,11 @@ class TestContainerIDInit:
     def test_uses_inode_fallback_when_path_empty_and_not_host_namespace(self) -> None:
         # Typical cgroup v2: path yields None and namespace check is private → inode.
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None) as mock_path,
-            mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=False),
-            mock.patch.object(ContainerID, "_get_cgroup_from_inode", return_value="in-99999") as mock_inode,
+            mock.patch.object(Cgroup, "_read_cgroup_path", return_value=None) as mock_path,
+            mock.patch.object(Cgroup, "_is_host_cgroup_namespace", return_value=False),
+            mock.patch.object(Cgroup, "_get_cgroup_from_inode", return_value="in-99999") as mock_inode,
         ):
-            reader: ContainerID = ContainerID()
+            reader: Cgroup = Cgroup()
             assert reader.container_id == "in-99999"
             mock_path.assert_called_once()
             mock_inode.assert_called_once()
@@ -371,19 +371,19 @@ class TestContainerIDInit:
         # In the host namespace without a parseable path (bare non-container Linux),
         # the inode fallback is skipped.
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None),
-            mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=True),
-            mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
+            mock.patch.object(Cgroup, "_read_cgroup_path", return_value=None),
+            mock.patch.object(Cgroup, "_is_host_cgroup_namespace", return_value=True),
+            mock.patch.object(Cgroup, "_get_cgroup_from_inode") as mock_inode,
         ):
-            reader: ContainerID = ContainerID()
+            reader: Cgroup = Cgroup()
             assert reader.container_id is None
             mock_inode.assert_not_called()
 
     def test_container_id_is_none_when_inode_fallback_returns_none(self) -> None:
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=None),
-            mock.patch.object(ContainerID, "_is_host_cgroup_namespace", return_value=False),
-            mock.patch.object(ContainerID, "_get_cgroup_from_inode", return_value=None),
+            mock.patch.object(Cgroup, "_read_cgroup_path", return_value=None),
+            mock.patch.object(Cgroup, "_is_host_cgroup_namespace", return_value=False),
+            mock.patch.object(Cgroup, "_get_cgroup_from_inode", return_value=None),
         ):
-            reader: ContainerID = ContainerID()
+            reader: Cgroup = Cgroup()
             assert reader.container_id is None

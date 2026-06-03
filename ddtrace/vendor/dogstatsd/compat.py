@@ -5,6 +5,7 @@
 """
 Imports for compatibility with Python 2, Python 3 and Google App Engine.
 """
+
 from functools import wraps
 import logging
 import socket
@@ -32,3 +33,31 @@ else:
 
     def iscoroutinefunction(*args, **kwargs):
         return False
+
+
+def is_p3k():
+    """
+    Assert that Python is version 3 or higher.
+    """
+    return sys.version_info[0] >= 3
+
+
+def is_higher_py32():
+    """
+    Assert that Python is version 3.2 or higher.
+    """
+    return sys.version_info >= (3, 2)
+
+
+def conditional_lru_cache(func):
+    """
+    A decorator that conditionally enables a lru_cache of size 512 if
+    the version of Python can support it (>3.2) and otherwise returns
+    the original function.
+    """
+    if not is_higher_py32():
+        return func
+
+    from functools import lru_cache
+
+    return lru_cache(maxsize=512)(func)

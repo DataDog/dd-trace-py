@@ -15,7 +15,7 @@ class UnresolvableContainerID(Exception):
     """
 
 
-class ContainerID(object):
+class Cgroup(object):
     """
     A reader class that retrieves either:
     - The current container ID parsed from the cgroup file (cgroup v1 / host
@@ -29,7 +29,7 @@ class ContainerID(object):
     ``pod_name``.
 
     Returns:
-    object: ContainerID
+    object: Cgroup
 
     Raises:
         `NotImplementedError`: No proc filesystem is found (non-Linux systems)

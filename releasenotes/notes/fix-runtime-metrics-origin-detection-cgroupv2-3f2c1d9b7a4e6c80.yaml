@@ -4,3 +4,10 @@ fixes:
     runtime metrics: Fixes an issue where runtime metrics were missing
     container and orchestrator tags (such as ``pod_name``) on hosts using
     cgroup v2.
+other:
+  - |
+    dogstatsd: Bumps vendored ``datadog.dogstatsd`` module from 0.47.0 to
+    0.52.1, bringing in client-side aggregation, fork safety via
+    ``os.register_at_fork``, cardinality tagging, and per-context metric
+    sampling. Local patches on ``container.py`` are preserved for backward
+    compatibility with older Agents.

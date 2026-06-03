@@ -18,13 +18,14 @@ License: Copyright (c) 2020, Datadog <info@datadoghq.com>
 
 Notes:
   `dogstatsd/__init__.py` includes a copy of the datadogpy license.
-  Only `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies.
-  `datadog/util/compat.py` was copied to `dogstatsd/compat.py`
-  `datadog/util/format.py` was copied to `dogstatsd/format.py`
-  removed type imports
-  removed unnecessary compat utils
+  The full `datadog.dogstatsd` module was vendored to avoid unnecessary dependencies.
+  All absolute `datadog.*` imports replaced with relative imports.
+  `datadog/util/compat.py` was copied to `dogstatsd/compat.py` (minimal subset: text,
+    iscoroutinefunction, is_p3k, is_higher_py32, conditional_lru_cache).
+  `datadog/util/format.py` was copied to `dogstatsd/format.py` (minimal subset with
+    normalize_tags, validate_cardinality, and supporting helpers).
+  `datadog.version.__version__` hardcoded to "0.52.1" in base.py.
   container.py local patches vs upstream 0.52.1:
-    - class renamed Cgroup → ContainerID (base.py compat)
     - _read_cgroup_path: returns raw container ID without ci- prefix, for
       backward compatibility with Agents older than 7.51; upstream returns
       ci-<id>. Upstream PR pending to land this fix in datadogpy.
