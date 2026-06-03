@@ -1739,10 +1739,9 @@ def tag_context_delta(
 ) -> None:
     """Emit ``meta.metadata._dd.context_delta`` on an agent-kind span.
 
-    Shape mirrors claude_agent_sdk's _parse_context_delta so the LLMObs UI's
-    ContextUsageBar renders the growth visualization identically across integrations.
-    No-ops when both first and last input_tokens are zero (matches the Claude integration's
-    None-return guard).
+    Shape mirrors ``claude_agent_sdk._parse_context_delta`` so the LLMObs backend renders
+    the per-category growth identically across integrations. No-ops when both first and
+    last input_tokens are zero (matches the Claude integration's None-return guard).
     """
     if first_input_tokens <= 0 and last_input_tokens <= 0:
         return
