@@ -33,11 +33,11 @@ class TaskLabel
         return label;
     }
 
-    [[nodiscard]] static TaskLabel from_asyncio_task_id(long long id)
+    [[nodiscard]] static TaskLabel from_asyncio_task_id(std::uint64_t id)
     {
         TaskLabel label;
         label.kind_ = Kind::AsyncioTaskId;
-        label.signed_id_ = id;
+        label.numeric_id_ = id;
         return label;
     }
 
@@ -45,7 +45,7 @@ class TaskLabel
     {
         TaskLabel label;
         label.kind_ = Kind::GreenletId;
-        label.unsigned_id_ = id;
+        label.numeric_id_ = id;
         return label;
     }
 
@@ -68,11 +68,11 @@ class TaskLabel
                 callback(std::string_view(literal_));
                 return;
             case Kind::AsyncioTaskId:
-                formatted = std::string("Task-") + std::to_string(signed_id_);
+                formatted = std::string("Task-") + std::to_string(numeric_id_);
                 callback(std::string_view(formatted));
                 return;
             case Kind::GreenletId:
-                formatted = std::string("Greenlet-") + std::to_string(unsigned_id_);
+                formatted = std::string("Greenlet-") + std::to_string(numeric_id_);
                 callback(std::string_view(formatted));
                 return;
             case Kind::Unknown:
@@ -108,7 +108,6 @@ class TaskLabel
     }
 
     Kind kind_ = Kind::Unknown;
-    long long signed_id_ = 0;
-    std::uint64_t unsigned_id_ = 0;
+    std::uint64_t numeric_id_ = 0;
     std::string literal_;
 };

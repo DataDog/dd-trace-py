@@ -19,7 +19,7 @@ read_task_name(PyObject* task_name)
     // default names to the global StringTable.
     auto maybe_long = pylong_to_llong(task_name);
     if (maybe_long) {
-        return TaskLabel::from_asyncio_task_id(*maybe_long);
+        return TaskLabel::from_asyncio_task_id(static_cast<std::uint64_t>(*maybe_long));
     }
 #endif
 
