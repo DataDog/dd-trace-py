@@ -35,23 +35,48 @@ The user has provided a native crash stack trace. The format is typically:
 Frames may have: hex address only, hex address + symbol, or symbol + `.so` name + offset. Parse
 all available information.
 
+### Determine the source revision
+
+The crash may come from a released wheel or a branch other than `main`. GitHub links must point
+at the exact revision that built the crashing binary so that line numbers match.
+
+**Ask the user**: Before starting analysis, ask:
+
+> Do you know the commit SHA or release tag for the dd-trace-py version that crashed?
+> (e.g., `v2.18.0`, `abc1234`). If not, I'll use `main`.
+
+**Resolution order** (use the first that succeeds):
+
+1. **User-provided value** — commit SHA or tag supplied in the prompt or in response to the
+   question above. Use it verbatim as `GIT_REF`.
+2. **Version string in the stack trace** — if the wheel filename or ddtrace version appears in
+   the trace (e.g., `ddtrace-2.18.0`), try the corresponding git tag (`v2.18.0`). Verify it
+   exists: `git rev-parse --verify "v2.18.0" 2>/dev/null`.
+3. **Current checkout** — if the local repo is not on `main`, use `git rev-parse HEAD` to get
+   the current SHA.
+4. **Fallback** — use `main`.
+
+Store the resolved value as `GIT_REF` and use it in all GitHub links for the rest of the
+analysis. State which ref you are using and why at the top of the report (in Additional Context).
+
 ## Analysis Workflow
 
 ### GitHub Link Generation
 
-When referencing files in dd-trace-py, always provide clickable GitHub links:
+When referencing files in dd-trace-py, always provide clickable GitHub links using the resolved
+`GIT_REF` (see "Determine the source revision" above).
 
 **Format**:
 ```
-[filename:line](https://github.com/DataDog/dd-trace-py/blob/main/path/to/file#Lline)
+[filename:line](https://github.com/DataDog/dd-trace-py/blob/{GIT_REF}/path/to/file#Lline)
 ```
 
-**Examples**:
-- Single line: `[_threads.cpp:226](https://github.com/DataDog/dd-trace-py/blob/main/ddtrace/internal/_threads.cpp#L226)`
-- Range: `[_threads.cpp:226-252](https://github.com/DataDog/dd-trace-py/blob/main/ddtrace/internal/_threads.cpp#L226-L252)`
+**Examples** (assuming `GIT_REF=v2.18.0`):
+- Single line: `[_threads.cpp:226](https://github.com/DataDog/dd-trace-py/blob/v2.18.0/ddtrace/internal/_threads.cpp#L226)`
+- Range: `[_threads.cpp:226-252](https://github.com/DataDog/dd-trace-py/blob/v2.18.0/ddtrace/internal/_threads.cpp#L226-L252)`
 
-**Path construction**: base URL is `https://github.com/DataDog/dd-trace-py/blob/main/`, then
-append the repo-relative path (strip any build-specific prefixes like `/home/runner/work/`,
+**Path construction**: base URL is `https://github.com/DataDog/dd-trace-py/blob/{GIT_REF}/`,
+then append the repo-relative path (strip any build-specific prefixes like `/home/runner/work/`,
 `/usr/local/lib/`, etc.).
 
 ---
@@ -359,10 +384,13 @@ stack trace and code evidence. Do not prescribe specific fixes.
 
 ### Phase 6: Find Related Code and History
 
-Use Bash + git to find context:
+Use Bash + git to find context. When `GIT_REF` is not `main`, scope history queries to that
+ref so results reflect the code that actually shipped in the crashing binary.
 
-1. Recent commits to affected files: `git log --oneline -10 {file}`
-2. Search for relevant changes: `git log --grep="GIL" --grep="finalize" --grep="crash" --oneline -20`
+1. Recent commits to affected files (up to the crashing revision):
+   `git log --oneline -10 {GIT_REF} -- {file}`
+2. Search for relevant changes:
+   `git log --grep="GIL" --grep="finalize" --grep="crash" --oneline -20 {GIT_REF}`
    (use keywords relevant to the crash area)
 3. For each relevant commit, extract PR numbers from the message (e.g., `(#7659)`) and link:
    `https://github.com/DataDog/dd-trace-py/pull/{number}`
@@ -381,6 +409,7 @@ of each type — cross-reference them when a heuristic from Phase 4 matches.
 ```markdown
 # Crash Analysis Report
 **Generated**: {ISO 8601 timestamp}
+**Source ref**: [`{GIT_REF}`](https://github.com/DataDog/dd-trace-py/tree/{GIT_REF}) {— reason, e.g. "user-provided tag" or "fallback to main"}
 
 ## Attribution
 **{dd-trace-py bug | third-party bug ({library name}) | CPython bug | interaction/race | unknown}**
@@ -467,7 +496,8 @@ If no known pattern matched, say so.}
   stop before suggesting specific code changes.
 - **Continue with missing info**: If a symbol can't be found in source, note it and continue.
 - **Mark uncertainties**: If something is speculative, say so explicitly.
-- **Always include GitHub links**: Every file:line reference should be a clickable link.
+- **Always include GitHub links**: Every file:line reference should be a clickable link using the
+  resolved `GIT_REF` — never hard-code `main` unless it is the resolved ref.
 - **Prefer PR links over commits**: Extract `(#NNNN)` from commit messages and link to the PR.
 
 ## Now Analyze
