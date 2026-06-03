@@ -245,7 +245,7 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
-MAX_NESTED_DEPTH = 14
+MAX_NESTED_META_DEPTH = 14
 
 
 def _sanitize_span_event_depth(obj: Any) -> None:
@@ -263,12 +263,12 @@ def _sanitize_span_event_depth(obj: Any) -> None:
             if not isinstance(val, (dict, list)):
                 continue
             child_path = f"{path}.{key}" if path else str(key)
-            if depth + 1 >= MAX_NESTED_DEPTH:
+            if depth + 1 >= MAX_NESTED_META_DEPTH:
                 log.warning(
                     "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be stringified "
                     "to avoid backend parsing errors.",
                     child_path,
-                    MAX_NESTED_DEPTH,
+                    MAX_NESTED_META_DEPTH,
                 )
                 node[key] = safe_json(val)
             else:
