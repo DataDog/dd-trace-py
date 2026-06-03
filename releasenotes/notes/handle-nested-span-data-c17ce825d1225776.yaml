@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    LLM Observability: Fixes an issue where LLM Observability spans exceeding the maximum allowed JSON depth
-    were not being sanitized properly. The LLM Observability integration now detects nested fields in spans
+    LLM Observability: Fixes an issue where spans with very large JSON depth nested fields
+    were being submitted but dropped by Datadog. The LLM Observability integration now detects nested fields
     that exceed the allowed depth and stringifies them, preserving all data while ensuring the span is
     processed correctly.
