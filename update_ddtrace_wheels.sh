@@ -239,14 +239,17 @@ elif [[ "$INPUT_REF" =~ ^[0-9a-f]{40}$ ]]; then
 elif [[ "$INPUT_REF" =~ ^[0-9a-f]{4,39}$ ]]; then
   echo "Resolving short commit SHA '${INPUT_REF}' against ${BUCKET_URL} ..."
   LIST_RESP=$(curl -fsSL "${BUCKET_URL}/?prefix=${INPUT_REF}&delimiter=/&max-keys=10")
-  MATCHES=$(echo "$LIST_RESP" | grep -oE '<Prefix>[0-9a-f]{40}/</Prefix>' | sed -E 's|<Prefix>([0-9a-f]{40})/</Prefix>|\1|' | sort -u)
-  N_MATCHES=$(echo -n "$MATCHES" | grep -c '^' || true)
-  if [[ "$N_MATCHES" -eq 0 ]]; then
+  # grep exits 1 when 0 lines match; || true prevents pipefail from killing the script.
+  MATCHES=$(echo "$LIST_RESP" | grep -oE '<Prefix>[0-9a-f]{40}/</Prefix>' | sed -E 's|<Prefix>([0-9a-f]{40})/</Prefix>|\1|' | sort -u || true)
+  if [[ -z "$MATCHES" ]]; then
     echo "ERROR: no S3 prefix matches commit '${INPUT_REF}'."
-    echo "  Wheels may not be uploaded yet (check the GitLab pipeline status),"
-    echo "  or the SHA prefix is wrong. You can also pass the pipeline ID directly."
+    echo "  The wheel for this commit is not available yet."
+    echo "  Check the GitLab pipeline status; once it uploads wheels, retry."
+    echo "  You can also pass the pipeline ID directly instead of the SHA."
     exit 1
-  elif [[ "$N_MATCHES" -gt 1 ]]; then
+  fi
+  N_MATCHES=$(echo "$MATCHES" | wc -l | tr -d ' ')
+  if [[ "$N_MATCHES" -gt 1 ]]; then
     echo "ERROR: multiple S3 prefixes match commit '${INPUT_REF}':"
     echo "$MATCHES" | sed 's/^/  /'
     echo "Pass a longer SHA prefix to disambiguate."
@@ -315,7 +318,12 @@ if grep -qE '^(<<<<<<<|=======|>>>>>>>)' requirements.txt 2>/dev/null; then
 fi
 
 echo "Fetching wheel listing from ${INDEX_URL} ..."
-LISTING=$(curl -fsSL "${INDEX_URL}")
+if ! LISTING=$(curl -fsSL "${INDEX_URL}" 2>/dev/null); then
+  echo "ERROR: wheel index not yet available at ${INDEX_URL}"
+  echo "  The CI build for ${RESOLVED_REF} is still in progress (or failed)."
+  echo "  Wait a few minutes, then retry once the wheels are uploaded."
+  exit 1
+fi
 
 WHEELS=$(echo "$LISTING" | grep -oE 'ddtrace-[^"<>]+\.whl' | sort -u)
 
