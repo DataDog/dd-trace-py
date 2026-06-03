@@ -108,7 +108,7 @@ target/
 .ipynb_checkpoints
 
 # pyenv
-.python-version
+./.python-version
 
 # celery beat schedule file
 celerybeat-schedule*
@@ -213,7 +213,7 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 .download_cache/
 
 # .env file
-.env
+./.env
 .envrc
 
 *.debug
