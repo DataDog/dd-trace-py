@@ -333,8 +333,7 @@ def _inject():
     spec = None
     try:
         if OVERRIDE_USER_DDTRACE:
-            # A user-installed ddtrace is present, but the operator requested that the injected
-            # (bundled) version take precedence. Fall through to the injection path.
+            # If the user wants to override any manually installed tracers, switch to injection.
             raise ModuleNotFoundError("ddtrace")
 
         # `find_spec` is only available in Python 3.4+
@@ -514,7 +513,8 @@ def _inject():
             RESULT_CLASS = "incorrect_installation"
             return
 
-        # Add the custom site-packages directory to the Python path to load the ddtrace package.
+        # Add the custom site-packages directory to the Python path to load the ddtrace package. Prepend if the user
+        # wishes to override any manual ddtrace install.
         if OVERRIDE_USER_DDTRACE:
             sys.path.insert(0, site_pkgs_path)
         else:
