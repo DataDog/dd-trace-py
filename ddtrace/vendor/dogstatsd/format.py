@@ -5,7 +5,11 @@
 import calendar
 import datetime
 import json
+import logging
 import re
+
+from .compat import conditional_lru_cache
+
 
 TAG_INVALID_CHARS_RE = re.compile(r"[^\w\d_\-:/\.]", re.UNICODE)
 TAG_INVALID_CHARS_SUBS = "_"
@@ -29,5 +33,20 @@ def force_to_epoch_seconds(epoch_sec_or_dt):
     return epoch_sec_or_dt
 
 
+@conditional_lru_cache
+def _normalize_tags_with_cache(tag_list):
+    return [TAG_INVALID_CHARS_RE.sub(TAG_INVALID_CHARS_SUBS, tag) for tag in tag_list]
+
+
 def normalize_tags(tag_list):
-    return [re.sub(TAG_INVALID_CHARS_RE, TAG_INVALID_CHARS_SUBS, tag) for tag in tag_list]
+    return _normalize_tags_with_cache(tuple(tag_list))
+
+
+def validate_cardinality(cardinality):
+    if cardinality not in (None, "none", "low", "orchestrator", "high"):
+        logging.warning(
+            "Cardinality must be one of the following: 'none', 'low', 'orchestrator' or 'high'. "
+            "Falling back to default cardinality."
+        )
+        return None
+    return cardinality
