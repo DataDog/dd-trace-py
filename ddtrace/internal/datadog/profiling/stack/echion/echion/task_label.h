@@ -84,7 +84,7 @@ class TaskLabel
 
   private:
     [[nodiscard]] static std::optional<std::uint64_t> parse_prefixed_uint(std::string_view value,
-                                                                         std::string_view prefix)
+                                                                          std::string_view prefix)
     {
         if (value.size() <= prefix.size() || value.compare(0, prefix.size(), prefix) != 0) {
             return std::nullopt;
