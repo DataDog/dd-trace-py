@@ -80,14 +80,6 @@ class StringTable
         return table_.size();
     }
 
-    [[nodiscard]] inline size_t stable_size() const { return size(); }
-
-    // Kept for profiler metadata/backward-compatible callers. Task/greenlet
-    // labels are not stored in this table anymore, so there are no ephemeral entries.
-    [[nodiscard]] inline size_t ephemeral_size() const { return 0; }
-
-    void clear_ephemeral() {}
-
     void erase(Key key)
     {
         const std::lock_guard<std::mutex> lock(table_lock);

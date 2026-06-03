@@ -368,7 +368,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             borrow.stats().increment_sampling_event_count();
             borrow.stats().set_string_table_count(echion->string_table().size());
-            borrow.stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
             borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
             borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
             borrow.stats().set_greenlet_count(greenlet_count);
