@@ -274,8 +274,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
                                           ? python_stack.size() - upper_python_stack_size - task_stack_size
                                           : 0;
-                // These frames should render before the coroutine frames. Append them first in leaf-to-root order
-                // instead of prepending them one at a time, which would repeatedly shift the vector contents.
+                // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
                     const auto& python_frame = python_stack[i];
 
