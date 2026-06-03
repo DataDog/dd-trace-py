@@ -80,7 +80,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
     if coverage_tool is not None and coverage_tool != "datadog":
-        # AIDEV-NOTE: When pytest-cov uses SysMonitor (coverage.py>=7.4 with COVERAGE_CORE=sysmon,
+        # When pytest-cov uses SysMonitor (coverage.py>=7.4 with COVERAGE_CORE=sysmon,
         # or coverage.py>=7.9.1 on Python 3.14+ by default), it holds COVERAGE_ID and ddtrace
         # yields here.  This means ITR per-test coverage bitmaps will be empty for the entire
         # session — ITR is effectively disabled.  A proper fix would require either coordinating
