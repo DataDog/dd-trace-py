@@ -1,7 +1,7 @@
 ---
 name: analyze-crash
-description: Native crash stack trace analysis for dd-trace-py
-argument-hint: <paste-stack-trace>
+description: Native crash log analysis for dd-trace-py
+argument-hint: <crash-uuid-or-paste-log>
 disable-model-invocation: false
 context: fork
 agent: general-purpose
@@ -11,18 +11,49 @@ allowed-tools:
   - Grep
   - Glob
   - TodoWrite
+  - WebSearch
 ---
 
 # Native Crash Stack Trace Analysis for dd-trace-py
 
-You are analyzing a native crash stack trace captured by dd-trace-py's crashtracker. Perform a
-comprehensive investigation to help engineers understand and triage the crash. The crashtracker
-captures **all process-level native crashes**, so the crashing code may or may not be in dd-trace-py
-itself — your first job is to determine attribution.
+You are analyzing a native crash captured by dd-trace-py's crashtracker. Perform a comprehensive
+investigation to help engineers understand and triage the crash. The crashtracker captures **all
+process-level native crashes**, so the crashing code may or may not be in dd-trace-py itself —
+investigate the code and patterns thoroughly before making the attribution call.
 
 ## Input Processing
 
-The user has provided a native crash stack trace. The format is typically:
+The user will provide crash data in one of two ways:
+
+### Option A: Crash UUID (preferred)
+
+The user provides a crash UUID from Datadog crash telemetry. Use the fetch script bundled with
+this skill to retrieve and process the full crash log:
+
+```bash
+cd .claude/skills/analyze-crash && dd-auth .venv/bin/python fetch_crash.py <UUID> [--tracer-version X.Y.Z] [--days 14]
+```
+
+This fetches the crash log from Datadog, processes the stack frames (demangling C++ symbols,
+resolving addresses against `/proc/self/maps`), and outputs structured JSON with:
+- **Metadata**: tracer version, runtime version, service, org, platform, architecture, signal
+- **Processed stack**: each frame with demangled symbol, binary file, offset, source file/line
+- **Binary mappings**: summary of loaded shared objects
+- **Datadog log link**: direct URL to the crash event
+
+If the user provides only a UUID with no other context, ask:
+
+> What is the crash UUID? Any additional filters (tracer version, org ID, language)?
+
+**Setup** (one-time): run `cd .claude/skills/analyze-crash && uv sync` to create the venv and
+install dependencies.
+
+**Authentication**: use `dd-auth` as a command wrapper — it injects Datadog API credentials
+into the environment for the wrapped process.
+
+### Option B: Pasted crash log or stack trace
+
+The user pastes a raw crash log or stack trace directly. The format is typically:
 
 ```
 0x7f6e81c51fb7 PyUnicode_AsUTF8AndSize
@@ -33,7 +64,8 @@ The user has provided a native crash stack trace. The format is typically:
 ```
 
 Frames may have: hex address only, hex address + symbol, or symbol + `.so` name + offset. Parse
-all available information.
+all available information. If the paste includes full crash JSON (with `error.stack` and
+`files./proc/self/maps`), extract the metadata and processed stack from it.
 
 ### Determine the source revision
 
@@ -49,12 +81,14 @@ at the exact revision that built the crashing binary so that line numbers match.
 
 1. **User-provided value** — commit SHA or tag supplied in the prompt or in response to the
    question above. Use it verbatim as `GIT_REF`.
-2. **Version string in the stack trace** — if the wheel filename or ddtrace version appears in
-   the trace (e.g., `ddtrace-2.18.0`), try the corresponding git tag (`v2.18.0`). Verify it
-   exists: `git rev-parse --verify "v2.18.0" 2>/dev/null`.
-3. **Current checkout** — if the local repo is not on `main`, use `git rev-parse HEAD` to get
+2. **Crash metadata** — if the crash was fetched via UUID and includes a `tracer_version`
+   field (e.g., `2.18.0`), try the corresponding git tag (`v2.18.0`). Verify it exists:
+   `git rev-parse --verify "v2.18.0" 2>/dev/null`.
+3. **Version string in the stack trace** — if the wheel filename or ddtrace version appears in
+   the trace (e.g., `ddtrace-2.18.0`), try the corresponding git tag.
+4. **Current checkout** — if the local repo is not on `main`, use `git rev-parse HEAD` to get
    the current SHA.
-4. **Fallback** — use `main`.
+5. **Fallback** — use `main`.
 
 Store the resolved value as `GIT_REF` and use it in all GitHub links for the rest of the
 analysis. State which ref you are using and why at the top of the report (in Additional Context).
@@ -147,28 +181,7 @@ Create a classification table:
 
 ---
 
-### Phase 2: Attribute the Crash
-
-Before diving into code, answer: **Is this a dd-trace-py bug?**
-
-Use these signals:
-
-1. **Is any dd-trace-py native frame in the crashing thread?** If the only dd-trace-py frames are
-   in other threads (not the crashing one), or absent entirely, dd-trace-py may not be the root cause.
-
-2. **Is the crashing `.so` a known third-party library?**
-   - `_native__lib.cpython-*.so` in a `pyroscope/` path → Pyroscope bug
-   - `libev-*.so` in a gevent-using app → gevent/libev interaction
-   - Customer `.so` (e.g., `pycbc`, `grpc`) → third-party extension bug
-
-3. **Does the crash match a known dd-trace-py pattern?** (see Phase 4)
-
-State the attribution clearly: **dd-trace-py bug**, **third-party bug**, **CPython bug**,
-**interaction/race between components**, or **unknown**.
-
----
-
-### Phase 3: Locate dd-trace-py Source Code
+### Phase 2: Locate dd-trace-py Source Code
 
 For each dd-trace-py frame that can be mapped to source code:
 
@@ -200,7 +213,7 @@ Format:
 
 ---
 
-### Phase 4: Apply General Crash Heuristics
+### Phase 3: Apply General Crash Heuristics
 
 dd-trace-py maintains two complementary native code safety references:
 
@@ -210,7 +223,7 @@ dd-trace-py maintains two complementary native code safety references:
 Read **both files now**. Use their framework to classify the crash. The categories below
 summarize the key stack-trace signals; refer to the docs for full rationale and PR history.
 
-#### 4.1 — GIL Lifecycle During Finalization
+#### 3.1 — GIL Lifecycle During Finalization
 
 **Stack signals**: `PyGILState_Ensure`, `PyEval_RestoreThread`, `take_gil`, `new_threadstate`,
 `PyThread_exit_thread`, `pthread_exit`, `abort`, `gsignal`, `__forced_unwind`,
@@ -242,7 +255,7 @@ summarize the key stack-trace signals; refer to the docs for full rationale and 
 `PeriodicThread_start`), `ddtrace/internal/threads.py` (atexit handler),
 `src/native/data_pipeline/mod.rs` (Rust pyo3 GIL release/restore).
 
-#### 4.2 — Fork Safety
+#### 3.2 — Fork Safety
 
 **Stack signals**: `pthread_mutex_lock`, `pthread_cond_wait`, `__lll_lock_wait` deep in a
 thread that recently went through `_after_fork`, `__clone3` / `start_thread` in a crash that
@@ -259,7 +272,7 @@ occurs shortly after a fork event.
 **Key source locations**: `ddtrace/internal/_threads.cpp` (`_before_fork`, `_after_fork`,
 `safe_reset_thread`), `ddtrace/internal/threads.py` (`_before_fork`, `_after_fork_child`).
 
-#### 4.3 — Object Lifetime Across Thread Boundaries (Use-After-Free)
+#### 3.3 — Object Lifetime Across Thread Boundaries (Use-After-Free)
 
 **Stack signals**: SIGSEGV or SIGBUS at a CPython refcount operation (`Py_INCREF`,
 `Py_DECREF`, `_Py_Dealloc`), or inside a `PyObject*` dereference inside a native thread
@@ -275,7 +288,7 @@ shortly after the thread started or while it was shutting down.
 
 **Key source locations**: `ddtrace/internal/_threads.cpp`
 
-#### 4.4 — Memory Safety in Allocator Hooks
+#### 3.4 — Memory Safety in Allocator Hooks
 
 **Stack signals**: Crash inside `_memalloc.cpython-*.so` with CPython allocation functions
 (`PyMem_Malloc`, `PyObject_Malloc`) or frame-walking functions (`PyThreadState_GetFrame`,
@@ -295,7 +308,7 @@ if the crash is a heap corruption SIGABRT or a SIGSEGV inside a seemingly unrela
 **Key source locations**: `ddtrace/profiling/collector/_memalloc.cpp`,
 `ddtrace/profiling/collector/_memalloc_tb.cpp`
 
-#### 4.5 — FFI Exception and Unwind Propagation
+#### 3.5 — FFI Exception and Unwind Propagation
 
 **Stack signals**: `rust_begin_unwind`, `rust_panic`, `__rust_start_panic` in frames from
 `_native.cpython-*.so`; or `abi::__cxa_throw` / `__cxa_rethrow` crossing between `.so`
@@ -314,7 +327,7 @@ files; or `std::terminate` called from inside Rust code.
 **Key source locations**: `src/native/data_pipeline/mod.rs`, `ddtrace/internal/_threads.cpp`
 (thread lambda catch blocks).
 
-#### 4.6 — Unbounded Loops and Recursion
+#### 3.6 — Unbounded Loops and Recursion
 
 **Stack signals**: Deep or repeating identical frames (same function appearing many times),
 deadlock-style hangs with a lock held (visible in thread dumps as `pthread_mutex_lock` with
@@ -330,7 +343,7 @@ no progress), or `SIGABRT` from `std::terminate` after a recursive call depth is
 **Key source locations**: Any loop over `interp->next`, greenlet chains, or stack chunks in
 `ddtrace/internal/datadog/profiling/stack/`.
 
-#### 4.7 — Cython Silent Exception Swallowing
+#### 3.7 — Cython Silent Exception Swallowing
 
 **Stack signals**: Incorrect/unexpected behavior rather than a hard crash; or a crash inside
 a Cython-generated `.so` (`__pyx_*` frames) where a NULL pointer is dereferenced after a
@@ -347,7 +360,7 @@ function returned 0/NULL with no exception set.
 **Key source locations**: `ddtrace/profiling/collector/_exception.pyx`,
 `ddtrace/profiling/collector/_lock.pyx`, `ddtrace/internal/_encoding.pyx`.
 
-#### 4.8 — Stripped Binary Misattribution
+#### 3.8 — Stripped Binary Misattribution
 
 **Stack signals**: Symbol names that don't match the `.so` they appear in, or a crash at an
 address that doesn't correspond to any named symbol in the frame (address-only frames at the
@@ -362,6 +375,45 @@ top of a crashing `.so`).
   and symbol layouts differ between versions.
 - If the reported function seems inconsistent with the rest of the stack, treat it as
   approximate and look at the surrounding frames for the true call site.
+
+---
+
+### Phase 4: Attribute the Crash
+
+Now that you have investigated the source code (Phase 2) and matched against known patterns
+(Phase 3), determine attribution: **Is this a dd-trace-py bug?**
+
+Use these signals:
+
+1. **Frame ownership**: Are any dd-trace-py native frames in the crashing thread? If the only
+   dd-trace-py frames are in other threads (not the crashing one), or absent entirely,
+   dd-trace-py may not be the root cause.
+
+2. **Known third-party library**:
+   - `_native__lib.cpython-*.so` in a `pyroscope/` path → Pyroscope bug
+   - `libev-*.so` in a gevent-using app → gevent/libev interaction
+   - Customer `.so` (e.g., `pycbc`, `grpc`) → third-party extension bug
+
+3. **Pattern match from Phase 3**: Did the crash match a known dd-trace-py pattern?
+
+4. **Code evidence from Phase 2**: Does the source code reveal a bug in dd-trace-py, or does
+   it show dd-trace-py code operating correctly while a third-party or CPython component fails?
+
+5. **Web search for upstream issues**: If the crash appears to involve CPython internals or a
+   third-party library, use `WebSearch` to check whether this is a known upstream bug:
+   - Search for the crashing symbol + "crash" or "segfault" + the library/CPython version
+   - Check the CPython issue tracker (`github.com/python/cpython/issues`)
+   - Check the third-party library's issue tracker
+   - Search for related GitHub issues in `DataDog/dd-trace-py`
+
+   Example searches:
+   - `"take_gil" crash CPython 3.12 pthread_exit site:github.com/python/cpython`
+   - `PyThread_exit_thread finalization crash cpython issue`
+   - `site:github.com/DataDog/dd-trace-py/issues SIGSEGV _memalloc`
+
+State the attribution clearly: **dd-trace-py bug**, **third-party bug** (name the library),
+**CPython bug** (cite the upstream issue if found), **interaction/race between components**,
+or **unknown**.
 
 ---
 
@@ -400,7 +452,7 @@ ref so results reflect the code that actually shipped in the crashing binary.
 
 **Prioritize PR links** — PRs have descriptions and discussion context that commit messages lack.
 The historical examples in `docs/native-code-review.md` also contain PR links for past crashes
-of each type — cross-reference them when a heuristic from Phase 4 matches.
+of each type — cross-reference them when a heuristic from Phase 3 matches.
 
 ---
 
@@ -409,12 +461,20 @@ of each type — cross-reference them when a heuristic from Phase 4 matches.
 ```markdown
 # Crash Analysis Report
 **Generated**: {ISO 8601 timestamp}
-**Source ref**: [`{GIT_REF}`](https://github.com/DataDog/dd-trace-py/tree/{GIT_REF}) {— reason, e.g. "user-provided tag" or "fallback to main"}
+**Source ref**: [`{GIT_REF}`](https://github.com/DataDog/dd-trace-py/tree/{GIT_REF}) {— reason, e.g. "from crash metadata v2.18.0" or "fallback to main"}
 
-## Attribution
-**{dd-trace-py bug | third-party bug ({library name}) | CPython bug | interaction/race | unknown}**
+## Crash Metadata
+{If fetched via UUID, include this section. Omit if the user pasted a raw stack trace.}
 
-{1-2 sentence justification.}
+| Field | Value |
+|-------|-------|
+| Tracer version | {tracer_version} |
+| Runtime version | {runtime_version} |
+| Service | {service} |
+| Platform / Arch | {platform} / {architecture} |
+| Signal | {signal, e.g. SIGSEGV, SIGABRT} |
+| Org ID | {org_id} |
+| Log link | [{log_id}]({log_url}) |
 
 ## Executive Summary
 {2-3 sentences: what crashed, which component, what the crashing thread was doing.
@@ -429,10 +489,6 @@ De-mystify the hex addresses — translate them to human-readable description of
 
 {Note any other threads if provided, but focus on the crashed thread.}
 
-## Pattern Match
-{If a known pattern matched, name it and explain why.
-If no known pattern matched, say so.}
-
 ## Code Context
 
 {For each critical dd-trace-py frame:}
@@ -446,6 +502,16 @@ If no known pattern matched, say so.}
 
 **Analysis**: {what the code does and why it crashed}
 
+## Pattern Match
+{If a known pattern from Phase 3 matched, name it and explain why.
+If no known pattern matched, say so.}
+
+## Attribution
+**{dd-trace-py bug | third-party bug ({library name}) | CPython bug ({link to issue if found}) | interaction/race | unknown}**
+
+{2-3 sentence justification referencing evidence from code investigation, pattern matching,
+and web search results. Explain WHY this attribution was chosen.}
+
 ## Crash Flow Reconstruction
 
 {Step-by-step narrative}
@@ -458,6 +524,9 @@ If no known pattern matched, say so.}
 
 **Relevant PRs and commits**:
 - [#{number}](https://github.com/DataDog/dd-trace-py/pull/{number}): {title} — {why relevant}
+
+**Upstream issues** (if any):
+- [{issue title}]({url}) — {relevance}
 
 **Related code locations**:
 - [{file}:{line}](GitHub link) — {description}
@@ -483,9 +552,10 @@ If no known pattern matched, say so.}
 
 ## Important Guidelines
 
-- **Attribution first**: Always determine whether the crash is in dd-trace-py before diving deep.
-  The crashtracker captures all process crashes — many will be in third-party code (Pyroscope,
-  customer extensions, gevent) and should be clearly labeled as such.
+- **Investigate before attributing**: The crashtracker captures all process crashes — many will
+  be in third-party code (Pyroscope, customer extensions, gevent). Investigate the code and
+  apply heuristics (Phases 2-3) before making the attribution call (Phase 4). The evidence
+  you gather significantly improves attribution accuracy.
 - **Native frames are opaque**: Stack frames often have only a hex address and symbol name, no
   file:line. Use the symbol name + `.so` name to classify and find source.
 - **`_native__lib` vs `_native`**: `_native__lib` (double underscore, in `pyroscope/`) is ALWAYS
@@ -502,5 +572,5 @@ If no known pattern matched, say so.}
 
 ## Now Analyze
 
-Parse the stack trace provided by the user and follow the workflow above to generate a
-comprehensive crash analysis.
+Obtain the crash data (fetch by UUID or parse the pasted log), resolve the source revision,
+and follow the workflow above to generate a comprehensive crash analysis.
