@@ -8,6 +8,7 @@
 #include <Python.h>
 
 #include <deque>
+#include <unordered_set>
 #include <utility>
 
 #include <echion/config.h>
@@ -36,6 +37,20 @@ class FrameStack : public std::deque<Frame>
 class EchionSampler;
 
 // ----------------------------------------------------------------------------
+// Primary entry point. The caller supplies the cycle-detection set; callers on
+// the sampling thread should pass EchionSampler::seen_frames_scratch() so the
+// hash table's capacity is reused across calls instead of reallocated per call.
+// `seen_frames` is cleared on entry.
+size_t
+unwind_frame(EchionSampler& echion,
+             PyObject* frame_addr,
+             FrameStack& stack,
+             std::unordered_set<PyObject*>& seen_frames,
+             size_t max_depth = max_frames);
+
+// Convenience variant that owns a local scratch set, for callers that have no
+// reusable scratch to share (fuzz harnesses and other callers outside the
+// sampling thread). Prefer the primary overload above on the sampling thread.
 size_t
 unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
 

@@ -40,5 +40,5 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
-    unwind_frame(echion, frame_addr, stack);
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch());
 }

@@ -263,7 +263,7 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
-        auto new_frames = unwind_frame(echion, frame, stack, 1);
+        auto new_frames = unwind_frame(echion, frame, stack, echion.seen_frames_scratch(), 1);
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
