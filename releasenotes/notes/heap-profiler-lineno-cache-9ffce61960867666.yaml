@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    profiling: Adds a per-way ``lasti``-to-line cache in the heap profiler's
+    ``CodeFunctionCache``. Repeated allocation sites that hit the cache now
+    reuse the previously resolved line number, skipping ``parse_linetable``
+    on the frame-walk hot path during heap sample construction.

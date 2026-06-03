@@ -13,6 +13,25 @@
 
 namespace Datadog {
 
+/* Result of a cache lookup.
+ * func_id == nullptr: cache miss — caller must do a full miss (intern strings, insert).
+ * line == -1: lasti didn't match the stored value — caller must resolve the line for this frame.
+ * line >= 0: lasti matched; cached line number is valid.
+ *
+ * CacheHit is intentionally kept small to make lookup() cheap to return by value.
+ * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
+struct CacheHit
+{
+    Datadog::function_id func_id; // nullptr = miss
+    int line;                     // -1 = lasti mismatch; >=0 = cached line
+};
+
+/* Keep CacheHit small; increasing its size can force some ABIs to use a hidden
+ * return pointer (sret), adding per-lookup overhead on the allocator-hook hot path. */
+static_assert(sizeof(CacheHit) <= 16,
+              "CacheHit exceeds 16B — consider measuring lookup() "
+              "return overhead on supported ABIs before adding fields");
+
 /* CodeFunctionCache caches libdatadog function_id values keyed by
  * PyCodeObject*. Frame walks during heap-profiler sample construction
  * call ProfilesDictionary::insert_str twice and insert_function once
@@ -53,14 +72,23 @@ class CodeFunctionCache
      * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
     explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
 
-    /* Returns the cached function_id for `code` only if present AND its stored
-     * identity still matches the supplied (name, filename, firstlineno),
-     * guarding against PyCodeObject address reuse. Otherwise a miss. */
-    std::optional<Datadog::function_id> lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno);
+    /* Returns a CacheHit for `code` only if present AND its stored identity
+     * still matches the supplied (name, filename, firstlineno), guarding
+     * against PyCodeObject address reuse. Check hit.func_id != nullptr for a
+     * hit; hit.line >= 0 means lasti matched the stored value so the caller
+     * can skip parse_linetable. */
+    CacheHit lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
 
     /* Inserts (code, id) together with the identity used to validate future
-     * lookups. If the target set is full, evicts via FIFO. */
-    void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
+     * lookups plus the (lasti, line) pair. If the target set is full, evicts
+     * via FIFO. */
+    void insert(PyCodeObject* code,
+                Datadog::function_id id,
+                PyObject* name,
+                PyObject* filename,
+                int firstlineno,
+                int lasti,
+                int line);
 
     /* Drops every entry. Counters are preserved (use reset_counters to
      * zero them). */
@@ -93,6 +121,8 @@ class CodeFunctionCache
         PyObject* names[WAYS_PER_SET] = { nullptr, nullptr };
         PyObject* filenames[WAYS_PER_SET] = { nullptr, nullptr };
         int firstlines[WAYS_PER_SET] = { 0, 0 };
+        int lastis[WAYS_PER_SET] = { -1, -1 }; // -1 = no lasti cached
+        int lines[WAYS_PER_SET] = { 0, 0 };
         /* FIFO eviction: next way to overwrite, alternates 0/1. */
         uint8_t next_evict = 0;
     };

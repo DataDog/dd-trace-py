@@ -62,8 +62,8 @@ CodeFunctionCache::occupancy_histogram() const
     return hist;
 }
 
-std::optional<Datadog::function_id>
-CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno)
+CacheHit
+CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
@@ -74,14 +74,16 @@ CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename
              * re-interns and overwrites it via insert(). */
             if (s.names[i] == name && s.filenames[i] == filename && s.firstlines[i] == firstlineno) {
                 ++hits_;
-                return s.functions[i];
+                /* line >= 0 only when the stored lasti matches, letting the
+                 * caller skip parse_linetable; otherwise -1 signals a reparse. */
+                return CacheHit{ s.functions[i], s.lastis[i] == lasti ? s.lines[i] : -1 };
             }
             ++misses_;
-            return std::nullopt;
+            return CacheHit{ nullptr, -1 };
         }
     }
     ++misses_;
-    return std::nullopt;
+    return CacheHit{ nullptr, -1 };
 }
 
 void
@@ -89,7 +91,9 @@ CodeFunctionCache::insert(PyCodeObject* code,
                           Datadog::function_id id,
                           PyObject* name,
                           PyObject* filename,
-                          int firstlineno)
+                          int firstlineno,
+                          int lasti,
+                          int line)
 {
     Set& s = sets_[set_index(code)];
 
@@ -100,6 +104,8 @@ CodeFunctionCache::insert(PyCodeObject* code,
             s.names[i] = name;
             s.filenames[i] = filename;
             s.firstlines[i] = firstlineno;
+            s.lastis[i] = lasti;
+            s.lines[i] = line;
             return;
         }
     }
@@ -113,6 +119,8 @@ CodeFunctionCache::insert(PyCodeObject* code,
     s.names[way] = name;
     s.filenames[way] = filename;
     s.firstlines[way] = firstlineno;
+    s.lastis[way] = lasti;
+    s.lines[way] = line;
 }
 
 void
