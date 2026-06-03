@@ -111,18 +111,12 @@ class TaskLabel
             return std::nullopt;
         }
 
+        const char* suffix_begin = value.data() + prefix.size();
+        const char* suffix_end = value.data() + value.size();
         std::uint64_t result = 0;
-        for (size_t i = prefix.size(); i < value.size(); i++) {
-            char c = value[i];
-            if (c < '0' || c > '9') {
-                return std::nullopt;
-            }
-
-            auto digit = static_cast<std::uint64_t>(c - '0');
-            if (result > (std::numeric_limits<std::uint64_t>::max() - digit) / 10) {
-                return std::nullopt;
-            }
-            result = (result * 10) + digit;
+        auto [ptr, ec] = std::from_chars(suffix_begin, suffix_end, result);
+        if (ec != std::errc{} || ptr != suffix_end) {
+            return std::nullopt;
         }
 
         return result;
