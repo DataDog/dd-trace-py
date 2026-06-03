@@ -60,7 +60,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
+StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -124,8 +124,8 @@ StackRenderer::render_frame(Frame& frame)
 
     auto line = frame.line;
 
-    // DEV: Echion pushes a dummy frame containing task name, and its line
-    // number is set to 0.
+    // Synthetic task-name frames use line 0. Task labels are rendered before
+    // the stack today, but keep this fallback for any line-0 frame path.
     if (line == 0) {
         if (!pushed_task_name) {
             std::string_view name_str;

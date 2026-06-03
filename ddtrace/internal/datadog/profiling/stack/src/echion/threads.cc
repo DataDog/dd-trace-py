@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <string_view>
 
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
@@ -281,8 +282,8 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 }
             }
 
-            // Add the task name frame
-            stack.push_back(Frame::get(echion, task.name));
+            // Task labels are rendered separately from frames; do not add a synthetic
+            // frame for the task name here.
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
@@ -722,13 +723,8 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
-            auto maybe_task_name = echion.string_table().lookup(task_stack_info->task_name);
-            if (!maybe_task_name) {
-                return ErrorKind::ThreadInfoError;
-            }
-
-            const auto& task_name = maybe_task_name->get();
-            renderer.render_task_begin(task_name, task_stack_info->on_cpu);
+            task_stack_info->task_name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, task_stack_info->on_cpu); });
 
             task_stack_info->stack.render(echion);
 
@@ -738,13 +734,8 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         current_tasks.clear();
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
-            auto maybe_task_name = echion.string_table().lookup(greenlet_stack->task_name);
-            if (!maybe_task_name) {
-                return ErrorKind::ThreadInfoError;
-            }
-
-            const auto& task_name = maybe_task_name->get();
-            renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
+            greenlet_stack->task_name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
 
             auto& stack = greenlet_stack->stack;
             stack.render(echion);

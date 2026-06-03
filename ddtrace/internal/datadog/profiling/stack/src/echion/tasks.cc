@@ -1,11 +1,36 @@
 #include <echion/echion_sampler.h>
 #include <echion/tasks.h>
 
-#include <echion/echion_sampler.h>
+#include <echion/long.h>
 
 #include <array>
 #include <stack>
+#include <utility>
 #include <vector>
+
+namespace {
+Result<TaskLabel>
+read_task_name(PyObject* task_name)
+{
+#if PY_VERSION_HEX >= 0x030c0000
+    // CPython stores the default asyncio task name as a PyLong and formats
+    // "Task-N" lazily. Keep the integer in the task snapshot and format the
+    // label only when rendering the sample, instead of adding high-cardinality
+    // default names to the global StringTable.
+    auto maybe_long = pylong_to_llong(task_name);
+    if (maybe_long) {
+        return TaskLabel::from_asyncio_task_id(*maybe_long);
+    }
+#endif
+
+    auto maybe_unicode = pyunicode_to_utf8(task_name);
+    if (!maybe_unicode) {
+        return ErrorKind::PyUnicodeError;
+    }
+
+    return TaskLabel::from_literal(std::move(*maybe_unicode));
+}
+} // namespace
 
 Result<GenInfo::Ptr>
 GenInfo::create(PyObject* gen_addr)
@@ -144,12 +169,12 @@ TaskInfo::create_impl(EchionSampler& echion, TaskObj* task_addr, size_t recursio
         return ErrorKind::TaskInfoGeneratorError;
     }
 
-    auto maybe_name = echion.string_table().key(task.task_name, StringTag::TaskName);
+    auto maybe_name = read_task_name(task.task_name);
     if (!maybe_name) {
         return ErrorKind::TaskInfoError;
     }
 
-    auto task_name = *maybe_name;
+    auto task_name = std::move(*maybe_name);
     auto task_loop = task.task_loop;
 
     TaskInfo::Ptr task_waiter = nullptr;
@@ -161,8 +186,11 @@ TaskInfo::create_impl(EchionSampler& echion, TaskObj* task_addr, size_t recursio
         }
     }
 
-    return std::make_unique<TaskInfo>(
-      reinterpret_cast<PyObject*>(task_addr), task_loop, std::move(*maybe_coro), task_name, std::move(task_waiter));
+    return std::make_unique<TaskInfo>(reinterpret_cast<PyObject*>(task_addr),
+                                      task_loop,
+                                      std::move(*maybe_coro),
+                                      std::move(task_name),
+                                      std::move(task_waiter));
 }
 
 // When uvloop.run() is used, the top-level Task contains a wrapper coroutine

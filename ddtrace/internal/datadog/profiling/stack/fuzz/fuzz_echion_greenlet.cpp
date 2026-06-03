@@ -33,7 +33,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // pointers gracefully), resolves version-specific frame layouts, and
     // calls unwind_frame to walk the Python frame chain.
     {
-        GreenletInfo greenlet(/*id=*/42, reinterpret_cast<PyObject*>(p0), StringTable::UNKNOWN);
+        GreenletInfo greenlet(/*id=*/42, reinterpret_cast<PyObject*>(p0), TaskLabel());
         PyThreadState tstate;
         std::memset(&tstate, 0, sizeof(tstate));
 
@@ -52,7 +52,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // Also test with Py_None as the frame (indicates on-CPU greenlet),
     // which takes a different code path through the tstate.
     {
-        GreenletInfo on_cpu_greenlet(/*id=*/43, Py_None, StringTable::UNKNOWN);
+        GreenletInfo on_cpu_greenlet(/*id=*/43, Py_None, TaskLabel());
         PyThreadState tstate;
         std::memset(&tstate, 0, sizeof(tstate));
 
