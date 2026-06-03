@@ -245,7 +245,7 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
-_MAX_NESTED_META_DEPTH = 13
+_MAX_NESTED_META_DEPTH = 12
 
 
 def _sanitize_span_event_depth(obj: Any) -> Any:
