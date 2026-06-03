@@ -9,7 +9,7 @@ from ._native import ConnectionFailedError  # noqa: F401
 from ._native import DeserializationError  # noqa: F401
 from ._native import HTTPClient  # noqa: F401
 from ._native import HttpClientError  # noqa: F401
-from ._native import HttpIoError  # noqa: F401  # renamed at Rust level (avoids data_pipeline.IoError collision)
+from ._native import HttpIoError  # noqa: F401
 from ._native import HttpResponse  # noqa: F401
 from ._native import InvalidConfigError  # noqa: F401
 from ._native import IoError  # noqa: F401

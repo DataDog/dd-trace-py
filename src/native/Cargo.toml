@@ -21,6 +21,7 @@ anyhow = { version = "1.0", optional = true }
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
+url = "2"
 libc = { version = "0.2", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"

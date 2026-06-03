@@ -901,9 +901,11 @@ class HTTPClient:
     def shutdown(self) -> None:
         """Close the underlying client. Subsequent requests raise :class:`ValueError`.
 
-        Optional — ``__del__`` runs the same close path.
+        Optional — ``__del__`` and ``__exit__`` run the same close path.
         """
         ...
+    def __enter__(self) -> "HTTPClient": ...
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool: ...
 
 class HttpClientError(Exception):
     """Base class for all native HTTP client errors.

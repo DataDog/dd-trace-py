@@ -596,7 +596,6 @@ venv = Venv(
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
-                "psutil": latest,
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
                 "python-json-logger": "==2.0.7",

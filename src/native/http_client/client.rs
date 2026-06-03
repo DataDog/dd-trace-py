@@ -19,6 +19,7 @@ use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, Re
 use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::{sync::Arc, time::Duration};
+use url::Url;
 
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
@@ -111,6 +112,7 @@ impl HttpClientPy {
     /// `base_url` is `scheme://host[:port][/prefix]` (`http`/`https`) or
     /// `unix:///path/to.sock`. For UDS the request host is fixed to `localhost`.
     #[new]
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (
         base_url,
         *,
@@ -135,25 +137,57 @@ impl HttpClientPy {
     ) -> PyResult<Self> {
         let rt = runtime.as_arc().clone();
 
-        let (scheme, rest) = base_url.split_once("://").ok_or_else(|| {
-            http_error_to_pyerr(
-                py,
-                HttpClientError::InvalidConfig(format!(
-                    "invalid base_url '{base_url}': expected scheme://… (http, https, or unix)"
-                )),
-            )
-        })?;
-        let (base, unix_path) = match scheme {
-            "unix" => ("http://localhost".to_string(), Some(rest.to_string())),
-            "http" | "https" => (base_url.trim_end_matches('/').to_string(), None),
-            other => {
+        // Parse the base URL to validate it and extract the canonical base origin.
+        // unix:// is not a registered URL scheme so we handle it first; http/https
+        // go through url::Url for proper host/port validation.
+        let (base, unix_path) = if let Some(path) = base_url.strip_prefix("unix://") {
+            if path.is_empty() {
                 return Err(http_error_to_pyerr(
                     py,
-                    HttpClientError::InvalidConfig(format!(
-                        "unsupported scheme '{other}' in base_url '{base_url}' (use http, https, or unix)"
-                    )),
-                ))
+                    HttpClientError::InvalidConfig(
+                        "unix:// base_url requires a socket path".to_string(),
+                    ),
+                ));
             }
+            ("http://localhost".to_string(), Some(path.to_string()))
+        } else {
+            let parsed = Url::parse(&base_url).map_err(|e| {
+                http_error_to_pyerr(
+                    py,
+                    HttpClientError::InvalidConfig(format!("invalid base_url '{base_url}': {e}")),
+                )
+            })?;
+            match parsed.scheme() {
+                "http" | "https" => {}
+                other => {
+                    return Err(http_error_to_pyerr(
+                        py,
+                        HttpClientError::InvalidConfig(format!(
+                            "unsupported scheme '{other}' in base_url '{base_url}' (use http, https, or unix)"
+                        )),
+                    ))
+                }
+            }
+            if parsed.host().is_none() {
+                return Err(http_error_to_pyerr(
+                    py,
+                    HttpClientError::InvalidConfig(format!("base_url '{base_url}' has no host")),
+                ));
+            }
+            // Reconstruct as scheme://host[:port][/path] with no trailing slash.
+            let mut base = format!(
+                "{}://{}",
+                parsed.scheme(),
+                parsed.host_str().unwrap_or("localhost")
+            );
+            if let Some(port) = parsed.port() {
+                base.push_str(&format!(":{port}"));
+            }
+            let path = parsed.path().trim_end_matches('/');
+            if !path.is_empty() {
+                base.push_str(path);
+            }
+            (base, None)
         };
 
         // libdd requires base_url to be set even though it routes on the request
@@ -271,6 +305,20 @@ impl HttpClientPy {
     /// `Drop` runs the same close path.
     fn shutdown(&mut self) {
         drop(self.inner.take());
+    }
+
+    fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __exit__(
+        &mut self,
+        _exc_type: &Bound<'_, PyAny>,
+        _exc_val: &Bound<'_, PyAny>,
+        _exc_tb: &Bound<'_, PyAny>,
+    ) -> bool {
+        self.shutdown();
+        false // do not suppress exceptions
     }
 
     fn __repr__(&self) -> String {

@@ -1,14 +1,11 @@
 """Tests for the native HTTP client (``ddtrace.internal.http_client.HTTPClient``).
 
-Covers construction, happy-path requests, HTTP-error semantics, transport
-variants (HTTP/HTTPS/UDS), timeouts, retries, headers, GIL behavior, fork
-safety, error mapping, concurrency / pooling, resource management, response
-shape, and URL handling.
+Covers the FFI boundary: base-URL joining, header merging, scheme dispatch,
+PyO3 type conversions (body as bytes, headers as list of tuples, exceptions),
+GIL release, fork safety, and lifecycle (shutdown, context manager).
 
-``HTTPClient`` owns the base URL, default headers, timeout, and retry/error
-config. Its request methods take a relative path joined onto the base URL.
-``ddtrace.internal.http_client.HTTPClient`` is a thin subclass that injects
-the process-wide shared runtime, so callers never pass a runtime explicitly.
+The underlying HTTP transport (libdd-http-client / reqwest) is tested by its
+own test suite; these tests do not re-verify transport internals.
 
 Fixtures spin up `http.server.ThreadingHTTPServer` on port 0 so the suite is
 ``pytest -n auto`` friendly. Handlers are inlined rather than imported from
@@ -19,7 +16,6 @@ which is not in the ``internal`` riot venv.
 from __future__ import annotations
 
 import contextlib
-import gzip
 import http.server
 import os
 import socket
@@ -29,7 +25,6 @@ import tempfile
 import threading
 import time
 
-import psutil
 import pytest
 
 from ddtrace.internal.http_client import HTTPClient
@@ -70,19 +65,6 @@ class _TimeoutAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
 
     def do_POST(self):
         time.sleep(5)
-
-
-class _ResetAPIEndpointRequestHandlerTest(_BaseHTTPRequestHandler):
-    """Closes the connection without sending a response."""
-
-    def do_GET(self):
-        return
-
-    def do_PUT(self):
-        return
-
-    def do_POST(self):
-        return
 
 
 class _IncompleteReadRequestHandlerTest(_BaseHTTPRequestHandler):
@@ -182,43 +164,6 @@ class _UDSHTTPServer(socketserver.UnixStreamServer, http.server.HTTPServer):  # 
         http.server.HTTPServer.server_bind(self)
 
 
-class _FailNTimesHandler(_BaseHTTPRequestHandler):
-    """Handler that fails (closes the connection) the first N attempts then
-    returns 200. ``_attempts`` and ``_fail_n`` are set on the class before use.
-    """
-
-    _attempts = 0
-    _fail_n = 0
-    _final_body = b"OK"
-
-    @classmethod
-    def reset(cls, fail_n=0, final_body=b"OK"):
-        cls._attempts = 0
-        cls._fail_n = fail_n
-        cls._final_body = final_body
-
-    def _serve(self):
-        # Pre-increment so attempts is 1-based for the first hit.
-        type(self)._attempts += 1
-        if type(self)._attempts <= type(self)._fail_n:
-            # Close the connection without responding — looks like an IO error.
-            return
-        body = type(self)._final_body
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        self._serve()
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        if length:
-            self.rfile.read(length)
-        self._serve()
-
-
 class _HeaderEchoHandler(_BaseHTTPRequestHandler):
     """Echoes received request headers as JSON in body."""
 
@@ -250,57 +195,6 @@ def _items_lower(json_body: bytes):
 
     items = json.loads(json_body)
     return [(name.lower(), value) for name, value in items]
-
-
-class _AcceptCountingHandler(_BaseHTTPRequestHandler):
-    """Tracks every TCP connection that hit the server.
-
-    Uses HTTP/1.1 so connection reuse / keep-alive can happen — otherwise
-    each handle_one_request() exits and the connection is torn down,
-    defeating the point of the pooling assertion.
-    """
-
-    # DEV: setting protocol_version to HTTP/1.1 enables persistent connections
-    # on the server side; reqwest's default is also HTTP/1.1 keep-alive.
-    protocol_version = "HTTP/1.1"
-    accept_count = 0
-    accept_lock = threading.Lock()
-
-    def setup(self):
-        super().setup()
-        with type(self).accept_lock:
-            type(self).accept_count += 1
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-Length", "2")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-
-class _BodyCapturingHandler(_BaseHTTPRequestHandler):
-    last_body = b""
-    last_headers: dict = {}
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0))
-        type(self).last_body = self.rfile.read(length) if length else b""
-        type(self).last_headers = {k.lower(): v for k, v in self.headers.items()}
-        self.send_response(200)
-        self.send_header("Content-Length", "2")
-        self.end_headers()
-        self.wfile.write(b"OK")
-
-
-class _PathCapturingHandler(_BaseHTTPRequestHandler):
-    last_path = ""
-
-    def do_GET(self):
-        type(self).last_path = self.path
-        self.send_response(200)
-        self.send_header("Content-Length", "2")
-        self.end_headers()
-        self.wfile.write(b"OK")
 
 
 @pytest.fixture
@@ -486,30 +380,6 @@ def test_empty_body_response(serve, make_client):
     assert resp.body() == b""
 
 
-def test_large_body_request_roundtrip(serve, make_client):
-    base = serve(EchoHandler)
-    client = make_client(base, timeout_ms=20_000)
-    payload = b"X" * (10 * 1024 * 1024)  # 10 MB
-    resp = client.post("/", body=payload)
-    assert resp.status_code == 200
-    assert resp.body() == b"POST:" + payload
-
-
-def test_large_body_response_roundtrip(serve, make_client):
-    class LargeHandler(_BaseHTTPRequestHandler):
-        def do_GET(self):
-            body = b"Y" * (10 * 1024 * 1024)
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-    base = serve(LargeHandler)
-    client = make_client(base, timeout_ms=20_000)
-    resp = client.get("/")
-    assert len(resp.body()) == 10 * 1024 * 1024
-
-
 def test_binary_body_preserved(serve, make_client):
     # Use bytes containing every possible byte value.
     payload = bytes(range(256))
@@ -622,47 +492,6 @@ def test_truncated_body_raises_io_error(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# Transport variants
-# --------------------------------------------------------------------------- #
-
-
-@pytest.mark.skipif(
-    os.environ.get("CI_OFFLINE") == "1",
-    reason="Network smoke test (set CI_OFFLINE=1 to skip)",
-)
-def test_https_smoke(make_client):
-    """Smoke test against example.com — gated by CI_OFFLINE env var."""
-    try:
-        client = make_client("https://example.com", timeout_ms=10_000)
-        resp = client.get("/")
-        assert resp.status_code in (200, 301, 302)
-    except (ConnectionFailedError, HttpIoError, TimedOutError):
-        pytest.skip("Network unavailable")
-
-
-def test_ipv6_loopback_roundtrip(make_client):
-    try:
-        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-        sock.close()
-    except OSError:
-        pytest.skip("IPv6 not supported on this host")
-
-    class _IPv6Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
-        address_family = socket.AF_INET6
-
-    srv = _IPv6Server(("::1", 0), EchoHandler)
-    thread = threading.Thread(target=srv.serve_forever, daemon=True)
-    thread.start()
-    try:
-        client = make_client(f"http://[::1]:{srv.server_address[1]}")
-        resp = client.get("/")
-        assert resp.status_code == 200
-    finally:
-        srv.shutdown()
-        thread.join(timeout=2)
-
-
-# --------------------------------------------------------------------------- #
 # UDS transport
 # --------------------------------------------------------------------------- #
 
@@ -679,60 +508,6 @@ def test_uds_happy_path(uds_serve, make_client):
 @pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
 def test_uds_missing_path(make_client):
     client = make_client("unix:///nonexistent/uds.sock", timeout_ms=1000)
-    with pytest.raises((ConnectionFailedError, HttpIoError, TimedOutError)):
-        client.get("/info")
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
-def test_uds_stale_socket(make_client):
-    # Create a file at the path but with no listener — connection should fail.
-    sock_dir = tempfile.mkdtemp(prefix="ddtrace-http-uds-stale-")
-    sock_path = os.path.join(sock_dir, "stale.sock")
-    # Open and close a socket so the file exists but nobody is listening.
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        s.bind(sock_path)
-        # No listen() / accept() — connection attempts will fail.
-        client = make_client("unix://" + sock_path, timeout_ms=1000)
-        with pytest.raises((ConnectionFailedError, HttpIoError, TimedOutError)):
-            client.get("/info")
-    finally:
-        s.close()
-        with contextlib.suppress(OSError):
-            os.unlink(sock_path)
-        with contextlib.suppress(OSError):
-            os.rmdir(sock_dir)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
-def test_uds_regular_file(make_client):
-    # A regular file at the socket path should not panic.
-    with tempfile.NamedTemporaryFile() as f:
-        client = make_client("unix://" + f.name, timeout_ms=1000)
-        with pytest.raises((ConnectionFailedError, HttpIoError, TimedOutError)):
-            client.get("/info")
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
-def test_uds_directory(make_client):
-    # A directory at the socket path should not panic.
-    d = tempfile.mkdtemp(prefix="ddtrace-http-uds-dir-")
-    try:
-        client = make_client("unix://" + d, timeout_ms=1000)
-        with pytest.raises((ConnectionFailedError, HttpIoError, TimedOutError)):
-            client.get("/info")
-    finally:
-        os.rmdir(d)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="UDS is unix-only")
-def test_uds_long_path(make_client):
-    # Linux sun_path limit is 108 bytes; create a path longer than that.
-    # Should fail gracefully, not panic.
-    long_segment = "a" * 50
-    path = os.path.join(tempfile.gettempdir(), long_segment, long_segment, long_segment, "sock")
-    # No need to create the path — we expect a clean error either way.
-    client = make_client("unix://" + path, timeout_ms=500)
     with pytest.raises((ConnectionFailedError, HttpIoError, TimedOutError)):
         client.get("/info")
 
@@ -773,135 +548,6 @@ def test_per_request_timeout_longer_than_client(serve, make_client):
     assert resp.status_code == 200
 
 
-def test_timeout_within_tolerance(serve, make_client):
-    base = serve(_TimeoutAPIEndpointRequestHandlerTest)
-    client = make_client(base, timeout_ms=500)
-    start = time.monotonic()
-    with pytest.raises(TimedOutError):
-        client.post("/")
-    elapsed = (time.monotonic() - start) * 1000
-    assert 300 <= elapsed <= 1500, f"timeout fired at {elapsed}ms, expected ~500ms"
-
-
-# --------------------------------------------------------------------------- #
-# Retries
-# --------------------------------------------------------------------------- #
-
-
-def test_retry_succeeds_after_failures(serve, make_client):
-    class _H(_FailNTimesHandler):
-        pass
-
-    _H.reset(fail_n=2, final_body=b"recovered")
-    base = serve(_H)
-    client = make_client(base, timeout_ms=2000, max_retries=3, retry_initial_delay_ms=10, retry_jitter=False)
-    resp = client.post("/")
-    assert resp.status_code == 200
-    assert _H._attempts == 3
-
-
-def test_retry_all_fail_terminal_error(serve, make_client):
-    # A server that always fails: counts attempts and raises after.
-    class _H(_FailNTimesHandler):
-        pass
-
-    # fail_n large enough that all attempts fail; we'll expect an error.
-    _H.reset(fail_n=99)
-    base = serve(_H)
-    client = make_client(base, timeout_ms=1000, max_retries=2, retry_initial_delay_ms=10, retry_jitter=False)
-    with pytest.raises((HttpIoError, ConnectionFailedError)):
-        client.post("/")
-    # max_retries=2 means 1 initial + 2 retries = 3 attempts
-    assert _H._attempts == 3
-
-
-def test_retry_zero_is_one_attempt(serve, make_client):
-    class _H(_FailNTimesHandler):
-        pass
-
-    _H.reset(fail_n=99)
-    base = serve(_H)
-    client = make_client(base, timeout_ms=1000, max_retries=0, retry_initial_delay_ms=10, retry_jitter=False)
-    with pytest.raises((HttpIoError, ConnectionFailedError)):
-        client.post("/")
-    assert _H._attempts == 1
-
-
-def test_404_with_retry_retries(serve, make_client):
-    # libdd default: 4xx ARE retried (gotcha).
-    class _StatusH(StatusCodeHandler):
-        _hits = 0
-
-        def do_GET(self):
-            _StatusH._hits += 1
-            self._serve()
-
-    _StatusH._hits = 0
-    base = serve(_StatusH)
-    client = make_client(base, timeout_ms=2000, max_retries=3, retry_initial_delay_ms=5, retry_jitter=False)
-    with pytest.raises(RequestFailedError):
-        client.get("/404/notfound")
-    assert _StatusH._hits == 4  # 1 + 3 retries
-
-
-def test_404_with_treat_off_no_retries(serve, make_client):
-    class _StatusH(StatusCodeHandler):
-        _hits = 0
-
-        def do_GET(self):
-            _StatusH._hits += 1
-            self._serve()
-
-    _StatusH._hits = 0
-    base = serve(_StatusH)
-    client = make_client(
-        base,
-        timeout_ms=2000,
-        treat_http_errors_as_errors=False,
-        max_retries=3,
-        retry_initial_delay_ms=5,
-        retry_jitter=False,
-    )
-    resp = client.get("/404/notfound")
-    assert resp.status_code == 404
-    assert _StatusH._hits == 1  # no retry because not an error variant
-
-
-def test_retry_delay_respected(serve, make_client):
-    # With jitter disabled, the delay must be >= initial_delay_ms.
-    class _H(_FailNTimesHandler):
-        pass
-
-    _H.reset(fail_n=2)
-    base = serve(_H)
-    client = make_client(base, timeout_ms=5000, max_retries=2, retry_initial_delay_ms=200, retry_jitter=False)
-    start = time.monotonic()
-    client.post("/")
-    elapsed = (time.monotonic() - start) * 1000
-    # 200ms before retry 1 + 400ms before retry 2 = at least 600ms.
-    assert elapsed >= 400, f"retries elapsed only {elapsed}ms, expected >= 400"
-
-
-def test_retry_on_connection_refused(make_client):
-    # Bind a socket, close it — connecting will fail.
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
-    client = make_client(
-        f"http://127.0.0.1:{port}", timeout_ms=1000, max_retries=2, retry_initial_delay_ms=5, retry_jitter=False
-    )
-    with pytest.raises(ConnectionFailedError):
-        client.get("/")
-
-
-def test_connection_reset_mid_response(serve, make_client):
-    base = serve(_ResetAPIEndpointRequestHandlerTest)
-    client = make_client(base, timeout_ms=1000, max_retries=0, retry_initial_delay_ms=10, retry_jitter=False)
-    with pytest.raises((HttpIoError, ConnectionFailedError)):
-        client.post("/")
-
-
 # --------------------------------------------------------------------------- #
 # Headers
 # --------------------------------------------------------------------------- #
@@ -935,34 +581,12 @@ def test_unicode_header_value(serve, make_client):
         pass
 
 
-@pytest.mark.parametrize("bad_value", ["v\r\nX-Injected: 1", "v\nX-Injected: 1", "v\x00v"])
-def test_crlf_injection_rejected(serve, make_client, bad_value):
-    # CRLF / LF / NUL must be rejected to prevent header injection.
-    base = serve(EchoHandler)
-    client = make_client(base)
-    with pytest.raises((InvalidConfigError, ConnectionFailedError, HttpIoError, ValueError)):
-        client.get("/", headers=[("X", bad_value)])
-
-
 def test_empty_header_value_accepted(serve, make_client):
     base = serve(_HeaderEchoHandler)
     client = make_client(base)
     resp = client.get("/", headers=[("X-Empty", "")])
     items = _items_lower(resp.body())
     assert ("x-empty", "") in items
-
-
-def test_many_distinct_headers(serve, make_client):
-    # DEV: Python's http.server caps at ~100 total request headers (HTTP 431
-    # otherwise); 50 user headers is well within that budget while still
-    # being a meaningful "lots of headers" smoke test.
-    headers = [(f"X-H{i}", f"v{i}") for i in range(50)]
-    base = serve(_HeaderEchoHandler)
-    client = make_client(base)
-    resp = client.get("/", headers=headers)
-    items = _items_lower(resp.body())
-    for name, value in headers:
-        assert (name.lower(), value) in items
 
 
 # --------------------------------------------------------------------------- #
@@ -992,33 +616,6 @@ def test_gil_released_during_send(serve, make_client):
         t.join(timeout=1)
     # The counter thread should have made significant progress.
     assert counter[0] > 1000, f"GIL appears to be held: only {counter[0]} iterations"
-
-
-def test_concurrent_threads_share_client(serve, make_client):
-    base = serve(EchoHandler)
-    client = make_client(base)
-    errors = []
-    successes = [0]
-    lock = threading.Lock()
-
-    def worker():
-        try:
-            for _ in range(10):
-                resp = client.get("/")
-                if resp.status_code == 200:
-                    with lock:
-                        successes[0] += 1
-        except Exception as e:
-            with lock:
-                errors.append(e)
-
-    threads = [threading.Thread(target=worker) for _ in range(10)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    assert not errors, f"threading errors: {errors}"
-    assert successes[0] == 100
 
 
 # --------------------------------------------------------------------------- #
@@ -1126,133 +723,43 @@ def test_503_response(serve, make_client):
 
 
 # --------------------------------------------------------------------------- #
-# Concurrency / pooling
-# --------------------------------------------------------------------------- #
-
-
-def test_pooling_default_few_connections(serve, make_client):
-    _AcceptCountingHandler.accept_count = 0
-    base = serve(_AcceptCountingHandler)
-    client = make_client(base)
-    for _ in range(50):
-        resp = client.get("/")
-        assert resp.status_code == 200
-    # With pooling on, we expect far fewer than 50 connections.
-    assert _AcceptCountingHandler.accept_count <= 10, (
-        f"expected pooling, got {_AcceptCountingHandler.accept_count} connections"
-    )
-
-
-# --------------------------------------------------------------------------- #
-# Resource management
-# --------------------------------------------------------------------------- #
-
-
-def test_no_fd_leak_when_building_many_clients(serve):
-    base = serve(EchoHandler)
-    proc = psutil.Process()
-    baseline = proc.num_fds() if hasattr(proc, "num_fds") else len(proc.open_files())
-    for _ in range(100):
-        c = HTTPClient(base, timeout_ms=500)
-        c.shutdown()
-        del c
-    # Allow a small slack for runtime-internal bookkeeping.
-    after = proc.num_fds() if hasattr(proc, "num_fds") else len(proc.open_files())
-    assert after - baseline < 20, f"possible FD leak: {baseline} -> {after}"
-
-
-# --------------------------------------------------------------------------- #
-# Request body encoding (Datadog payload shapes)
-# --------------------------------------------------------------------------- #
-
-
-def test_pre_gzipped_body_sent_verbatim(serve, make_client):
-    raw = b'{"k":"v"}' * 100
-    gzipped = gzip.compress(raw)
-    base = serve(_BodyCapturingHandler)
-    client = make_client(base)
-    resp = client.post(
-        "/",
-        headers=[("Content-Type", "application/json"), ("Content-Encoding", "gzip")],
-        body=gzipped,
-    )
-    assert resp.status_code == 200
-    assert _BodyCapturingHandler.last_body == gzipped
-    assert _BodyCapturingHandler.last_headers.get("content-encoding") == "gzip"
-
-
-def test_msgpack_binary_body_byte_exact(serve, make_client):
-    # Synthetic msgpack-ish bytes.
-    payload = b"\x81\xa3foo\x01" + bytes(range(64))
-    base = serve(_BodyCapturingHandler)
-    client = make_client(base)
-    client.post(
-        "/",
-        headers=[("Content-Type", "application/msgpack")],
-        body=payload,
-    )
-    assert _BodyCapturingHandler.last_body == payload
-
-
-# --------------------------------------------------------------------------- #
-# Response decompression (pinned: no auto-decompress)
-# --------------------------------------------------------------------------- #
-
-
-def test_gzip_response_returned_raw(serve, make_client):
-    raw = b"hello world! " * 100
-    gzipped = gzip.compress(raw)
-
-    class _GZHandler(_BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header("Content-Encoding", "gzip")
-            self.send_header("Content-Length", str(len(gzipped)))
-            self.end_headers()
-            self.wfile.write(gzipped)
-
-    base = serve(_GZHandler)
-    client = make_client(base)
-    resp = client.get("/")
-    assert resp.body() == gzipped
-    assert resp.header("content-encoding") == "gzip"
-
-
-# --------------------------------------------------------------------------- #
 # URL handling
 # --------------------------------------------------------------------------- #
 
 
 def test_query_string_preserved(serve, make_client):
-    base = serve(_PathCapturingHandler)
+    seen = []
+
+    class _PathHandler(_BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    base = serve(_PathHandler)
     client = make_client(base)
     client.get("/v0.4/traces?a=1&b=foo%20bar")
-    assert "?a=1&b=foo%20bar" in _PathCapturingHandler.last_path
-
-
-def test_fragment_not_sent(serve, make_client):
-    base = serve(_PathCapturingHandler)
-    client = make_client(base)
-    client.get("/info#section")
-    # HTTP standard: fragments are client-side only.
-    assert "#" not in _PathCapturingHandler.last_path
+    assert seen and "?a=1&b=foo%20bar" in seen[-1]
 
 
 def test_trailing_slash_distinct(serve, make_client):
-    base = serve(_PathCapturingHandler)
+    seen = []
+
+    class _PathHandler(_BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.path)
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    base = serve(_PathHandler)
     client = make_client(base)
     client.get("/v0.4/traces")
-    no_slash = _PathCapturingHandler.last_path
+    no_slash = seen[-1]
     client.get("/v0.4/traces/")
-    with_slash = _PathCapturingHandler.last_path
+    with_slash = seen[-1]
     assert no_slash != with_slash
-
-
-def test_percent_encoded_path_preserved(serve, make_client):
-    base = serve(_PathCapturingHandler)
-    client = make_client(base)
-    client.get("/path%2Fwith%20encoding")
-    assert "%2F" in _PathCapturingHandler.last_path or "%2f" in _PathCapturingHandler.last_path.lower()
 
 
 # --------------------------------------------------------------------------- #
@@ -1274,6 +781,15 @@ def test_http_client_error_is_subclassable():
 
     # Just verify subclass relationship works.
     assert issubclass(MyError, HttpClientError)
+
+
+def test_context_manager(serve):
+    base = serve(EchoHandler)
+    with HTTPClient(base) as client:
+        assert client.get("/").status_code == 200
+    # After __exit__, client is shut down
+    with pytest.raises(ValueError):
+        client.get("/")
 
 
 # --------------------------------------------------------------------------- #
