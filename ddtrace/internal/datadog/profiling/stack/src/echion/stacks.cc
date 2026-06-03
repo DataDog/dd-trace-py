@@ -78,7 +78,8 @@ unwind_frame(EchionSampler& echion,
     return count;
 }
 
-// Convenience wrapper that owns its own scratch set.
+// Convenience variant that owns its own scratch set and delegates to the
+// primary overload above. For callers without a reusable scratch set to share.
 size_t
 unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth)
 {

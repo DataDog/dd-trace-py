@@ -130,7 +130,12 @@ class EchionSampler
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
 
-        seen_frames_scratch_.clear();
+        // Reset the scratch set via placement new instead of clear() for the
+        // same fork-safety reason as frame_cache_: the Sampling Thread may have
+        // been mid-insert (e.g. rehash) when fork snapshotted the set, so
+        // traversing its buckets to free nodes (as clear() does) could crash.
+        // Abandon the old buckets (intentional one-time leak).
+        new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary
