@@ -223,14 +223,6 @@ class PromptSource(str, Enum):
     FALLBACK = "fallback"
 
 
-class FFEvalState(str, Enum):
-    FF = "ff"
-    NOT_READY = "not_ready"
-    NO_FLAG = "no_flag"
-    DISABLED = "disabled"
-    ERROR = "error"
-
-
 class PromptRoutingSignal(str, Enum):
     LABEL_ONLY = "label_only"
     ENV_ONLY = "env_only"

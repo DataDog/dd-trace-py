@@ -9,7 +9,6 @@ import warnings
 import pytest
 
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import FFEvalState
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
@@ -390,7 +389,7 @@ class TestPromptRouting:
             _uuid="u1",
             _version_uuid="v1",
         )
-        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, FFEvalState.FF)) as ff_mock:
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "staging"
                 prompt = manager.get_prompt("greeting")
@@ -412,7 +411,7 @@ class TestPromptRouting:
     def test_no_flag_falls_through_to_http_floor_with_env_label(self):
         manager = _make_manager(agentless=False)
         sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
-        with patch.object(manager, "_fetch_from_ff", return_value=(None, FFEvalState.NO_FLAG)) as ff_mock:
+        with patch.object(manager, "_fetch_from_ff", return_value=(None, False)) as ff_mock:
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                     cfg.env = "staging"
@@ -440,7 +439,7 @@ class TestPromptRouting:
             source="ff",
             template="Hello!",
         )
-        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, FFEvalState.FF)) as ff_mock:
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                 cfg.env = "staging"
                 manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
@@ -505,76 +504,64 @@ class TestPromptNotReady:
     to the HTTP path, which uses it only if the HTTP request itself fails.
     """
 
-    def test_not_ready_with_fallback_falls_through_to_http_floor(self):
+    @pytest.mark.parametrize("fallback", ["Hi {{user}}", None])
+    def test_not_ready_falls_through_to_http_floor(self, fallback):
         manager = _make_manager()
         sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
         with _ffe_enabled():
             with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
-                prompt = manager.get_prompt("greeting", fallback="Hi {{user}}")
-        http_mock.assert_called_once_with("greeting", label="staging", fallback="Hi {{user}}")
-        assert prompt.source == "registry"
-
-    def test_not_ready_without_fallback_falls_through_to_http_floor(self):
-        manager = _make_manager()
-        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
-        with _ffe_enabled():
-            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
-                prompt = manager.get_prompt("greeting")
-        http_mock.assert_called_once_with("greeting", label="staging", fallback=None)
+                prompt = manager.get_prompt("greeting", fallback=fallback)
+        http_mock.assert_called_once_with("greeting", label="staging", fallback=fallback)
         assert prompt.source == "registry"
 
 
-class TestFetchFromFFStateMapping:
-    """_fetch_from_ff maps real OpenFeature evaluation outcomes to routing states."""
+class TestFetchFromFF:
+    """_fetch_from_ff returns (prompt, not_ready) for real OpenFeature evaluation outcomes."""
 
     def test_disabled_when_flag_off(self):
         import ddtrace.internal.settings.openfeature as ffe_settings
 
         manager = _make_manager()
         with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
-            assert manager._fetch_from_ff("greeting", None, {}) == (None, FFEvalState.DISABLED)
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
 
     def test_provider_not_ready(self):
         manager = _make_manager()
         with _ffe_enabled():  # no config delivered -> provider stays NOT_READY
-            assert manager._fetch_from_ff("greeting", None, {}) == (None, FFEvalState.NOT_READY)
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, True)
 
-    def test_flag_not_found_is_no_flag(self):
+    def test_flag_not_found(self):
         manager = _make_manager()
         with _ffe_enabled():
             _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt"})
-            assert manager._fetch_from_ff("greeting", None, {}) == (None, FFEvalState.NO_FLAG)
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
 
     def test_valid_variant_is_ff(self):
         manager = _make_manager()
         with _ffe_enabled():
             _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "3", "template": "Hello!"})
-            prompt, state = manager._fetch_from_ff("greeting", None, {})
-        assert state == FFEvalState.FF
+            prompt, not_ready = manager._fetch_from_ff("greeting", None, {})
+        assert not_ready is False
         assert prompt.source == "ff"
         assert prompt.version == "3"
 
 
 class TestWaitForReady:
-    def test_returns_false_when_agentless(self):
-        manager = _make_manager(agentless=True)
-        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-            cfg.env = "staging"
-            assert manager.wait_for_ready(0.1) is False
-
-    def test_returns_false_when_no_env(self):
-        manager = _make_manager()
-        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-            cfg.env = None
-            assert manager.wait_for_ready(0.1) is False
-
-    def test_returns_false_when_disabled(self):
+    @pytest.mark.parametrize(
+        "agentless, env, enabled",
+        [
+            (True, "staging", True),  # agentless
+            (False, None, True),  # no DD_ENV
+            (False, "staging", False),  # opt-in disabled
+        ],
+    )
+    def test_returns_false_when_preconditions_unmet(self, agentless, env, enabled):
         import ddtrace.internal.settings.openfeature as ffe_settings
 
-        manager = _make_manager()
+        manager = _make_manager(agentless=agentless)
         with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-            cfg.env = "staging"
-            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
+            cfg.env = env
+            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", enabled):
                 assert manager.wait_for_ready(0.1) is False
 
     def test_returns_true_when_ready(self):

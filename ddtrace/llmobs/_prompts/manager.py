@@ -15,7 +15,6 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
-from ddtrace.llmobs._constants import FFEvalState
 from ddtrace.llmobs._constants import PromptRoutingSignal
 from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._http import get_connection
@@ -96,11 +95,11 @@ class PromptManager:
             telemetry.record_prompt_routing_signal(PromptRoutingSignal.NEITHER)
 
         if label is None and dd_env and not self._agentless:
-            prompt, ff_state = self._fetch_from_ff(prompt_id, targeting_key, attributes)
-            if ff_state == FFEvalState.FF and prompt is not None:
+            prompt, not_ready = self._fetch_from_ff(prompt_id, targeting_key, attributes)
+            if prompt is not None:
                 telemetry.record_prompt_source(PromptSource.FF)
                 return prompt
-            if ff_state == FFEvalState.NOT_READY:
+            if not_ready:
                 telemetry.record_prompt_source(PromptSource.NOT_READY)
             # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
             # the HTTP floor (label=DD_ENV); callers needing FFE resolved first use wait_for_ready.
@@ -286,12 +285,17 @@ class PromptManager:
         prompt_id: str,
         targeting_key: Optional[str],
         attributes: dict[str, Any],
-    ) -> tuple[Optional[ManagedPrompt], FFEvalState]:
-        """Evaluate a prompt via the OpenFeature SDK."""
+    ) -> tuple[Optional[ManagedPrompt], bool]:
+        """Evaluate a prompt via the OpenFeature SDK.
+
+        Returns (prompt, not_ready). A prompt is returned only on a positive FF hit; not_ready is
+        True when the provider has not yet received its Remote Config payload. All other outcomes
+        (disabled, no flag, error) return (None, False) and fall through to the HTTP floor.
+        """
         from ddtrace.internal.settings.openfeature import config as ffe_config
 
         if not ffe_config.experimental_flagging_provider_enabled:
-            return None, FFEvalState.DISABLED
+            return None, False
 
         try:
             from openfeature import api
@@ -299,7 +303,7 @@ class PromptManager:
             from openfeature.exception import ErrorCode
         except ImportError:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
-            return None, FFEvalState.DISABLED
+            return None, False
 
         self._ensure_ffe_rc()
         self._ensure_ffe_provider()
@@ -314,16 +318,16 @@ class PromptManager:
             details = client.get_object_details(flag_key, {}, context)
 
             if details.error_code == ErrorCode.PROVIDER_NOT_READY:
-                return None, FFEvalState.NOT_READY
+                return None, True
 
             value = details.value
             if isinstance(value, dict) and value:
-                return self._parse_prompt(value, source="ff"), FFEvalState.FF
+                return self._parse_prompt(value, source="ff"), False
 
-            return None, FFEvalState.NO_FLAG
+            return None, False
         except Exception:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
-            return None, FFEvalState.ERROR
+            return None, False
 
     def wait_for_ready(self, timeout: float) -> bool:
         """Block up to timeout for the FFE provider to receive its first Remote Config payload."""
@@ -401,7 +405,7 @@ class PromptManager:
     @staticmethod
     def _parse_prompt(
         raw: Union[str, dict[str, Any]],
-        source: Literal["registry", "cache", "fallback", "ff"],
+        source: Literal["registry", "ff"],
         prompt_id: str = "",
         label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
