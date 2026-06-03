@@ -99,20 +99,6 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id, int lasti
 }
 
 void
-CodeFunctionCache::update_line(PyCodeObject* code, int lasti, int line)
-{
-    Set& s = sets_[set_index(code)];
-    for (size_t i = 0; i < WAYS_PER_SET; ++i) {
-        if (s.codes[i] == code) {
-            s.lastis[i] = lasti;
-            s.lines[i] = line;
-            return;
-        }
-    }
-    /* Code was evicted between lookup and update_line — safe to ignore. */
-}
-
-void
 CodeFunctionCache::clear()
 {
     std::fill(sets_.begin(), sets_.end(), Set{});

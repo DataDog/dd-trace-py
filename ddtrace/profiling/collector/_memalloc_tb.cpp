@@ -124,11 +124,10 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             std::optional<Datadog::CacheHit> hit = cache->lookup(code, lasti);
             if (hit) {
                 /* Code-cache hit. Reuse cached line if lasti matches; otherwise
-                 * parse the line table once and update the cached lasti/line. */
+                 * resolve once. update_line is intentionally omitted: writing
+                 * lastis[way]/lines[way] on every lasti-mismatch hit dirtifies
+                 * cache line 1 of Set and evicts workload data from L1/L2. */
                 int line = hit->line_valid ? hit->line : resolve_lineno(code, lasti);
-                if (!hit->line_valid) {
-                    cache->update_line(code, lasti, line);
-                }
                 sample.push_frame(hit->func_id, 0, line);
                 ++pushed_frames;
                 continue;

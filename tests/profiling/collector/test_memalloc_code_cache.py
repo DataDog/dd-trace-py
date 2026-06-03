@@ -31,7 +31,7 @@ def _alloc_burst(n: int = 200) -> list[bytearray]:
 
 
 def _start() -> None:
-    _memalloc.start(MAX_FRAMES, HEAP_SAMPLE_SIZE, True)
+    _memalloc.start(MAX_FRAMES, HEAP_SAMPLE_SIZE, True, 1024)
 
 
 def _stop() -> None:

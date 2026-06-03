@@ -549,9 +549,28 @@ PyDoc_STRVAR(memalloc_code_cache_enable__doc__,
 static PyObject*
 memalloc_code_cache_enable(PyObject* Py_UNUSED(module), PyObject* args)
 {
-    unsigned long long capacity = Datadog::CodeFunctionCache::DEFAULT_CAPACITY;
-    if (!PyArg_ParseTuple(args, "|K", &capacity)) {
+    PyObject* capacity_obj = nullptr;
+    if (!PyArg_ParseTuple(args, "|O", &capacity_obj)) {
         return nullptr;
+    }
+
+    unsigned long long capacity;
+    if (capacity_obj != nullptr) {
+        capacity = PyLong_AsUnsignedLongLong(capacity_obj);
+        if (PyErr_Occurred()) {
+            return nullptr;
+        }
+    } else {
+        /* No explicit arg: read from env var so tests can override via
+         * DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE without going through start(). */
+        const char* env_val = std::getenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE");
+        if (env_val != nullptr && *env_val != '\0') {
+            char* end = nullptr;
+            unsigned long long parsed = std::strtoull(env_val, &end, 10);
+            capacity = (end != env_val && *end == '\0') ? parsed : Datadog::CodeFunctionCache::DEFAULT_CAPACITY;
+        } else {
+            capacity = Datadog::CodeFunctionCache::DEFAULT_CAPACITY;
+        }
     }
     Datadog::memalloc_code_cache_init((size_t)capacity);
     Py_RETURN_NONE;

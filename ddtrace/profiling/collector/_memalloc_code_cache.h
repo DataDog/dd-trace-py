@@ -62,10 +62,6 @@ class CodeFunctionCache
     /* Inserts (code, id, lasti, line). If the target set is full, evicts via FIFO. */
     void insert(PyCodeObject* code, Datadog::function_id id, int lasti, int line);
 
-    /* Updates the lasti/line for an already-cached code object. No-op if code
-     * was evicted between lookup and update. */
-    void update_line(PyCodeObject* code, int lasti, int line);
-
     /* Drops every entry. Counters are preserved (use reset_counters to
      * zero them). */
     void clear();
