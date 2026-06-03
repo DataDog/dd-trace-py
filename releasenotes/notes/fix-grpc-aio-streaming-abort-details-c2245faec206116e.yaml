@@ -3,4 +3,4 @@ fixes:
   - |
     grpc: Fix streaming ``grpc.aio`` client spans intermittently reporting
     ``error.message`` as ``"Internal error from Core"`` instead of the
-    application-set abort details when a server aborts the RPC.
+    application-set abort details when a server aborts the RPC. #18015
