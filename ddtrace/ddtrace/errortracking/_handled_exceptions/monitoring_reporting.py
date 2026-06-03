@@ -58,7 +58,7 @@ def create_should_report_exception_optimized(checks: set[str | None]) -> Callabl
     else:
         # It means that all exceptions should be reported. We still want to exclude python internals and ddtrace
         def should_report(file_name: str, file_path: Path) -> bool:
-            return "frozen" not in file_name and is_stdlib(file_path) is False and "ddtrace" not in file_name
+            return "frozen" not in file_name and is_stdlib(file_path) is False and "ddtrace/ddtrace" not in file_name
 
     return should_report
 

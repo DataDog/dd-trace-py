@@ -22,7 +22,7 @@ if _is_iast_propagation_debug_enabled():
             return
         line_no = frame.f_lineno
         filename = co.co_filename
-        if "ddtrace" in filename:
+        if "ddtrace/ddtrace" in filename:
             return
         if event == "call":
             f_locals = frame.f_locals
