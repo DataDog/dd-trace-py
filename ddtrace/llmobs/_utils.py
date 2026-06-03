@@ -268,7 +268,8 @@ def _nested_depth(obj: Any) -> int:
 def _sanitize_span_event_depth(obj: Any) -> None:
     """Walk a dict/list in-place, replacing any container value that reaches
     MAX_NESTED_DEPTH levels from the root with its JSON string representation.
-    A warning is logged for each stringified field, including its dotted path."""
+    A warning is logged for each stringified field, including its dotted path.
+    """
     if not isinstance(obj, (dict, list)):
         return
     stack = [(obj, 0, "")]  # (node, depth, path)
