@@ -248,23 +248,6 @@ def _unserializable_default_repr(obj):
 MAX_NESTED_DEPTH = 14
 
 
-def _nested_depth(obj: Any) -> int:
-    """Return the maximum nesting depth of a dict/list structure."""
-    max_depth = 0
-    stack = [(obj, 0)]
-    while stack:
-        node, depth = stack.pop()
-        if depth > max_depth:
-            max_depth = depth
-        if isinstance(node, dict):
-            for v in node.values():
-                stack.append((v, depth + 1))
-        elif isinstance(node, list):
-            for item in node:
-                stack.append((item, depth + 1))
-    return max_depth
-
-
 def _sanitize_span_event_depth(obj: Any) -> None:
     """Walk a dict/list in-place, replacing any container value that reaches
     MAX_NESTED_DEPTH levels from the root with its JSON string representation.
@@ -272,7 +255,7 @@ def _sanitize_span_event_depth(obj: Any) -> None:
     """
     if not isinstance(obj, (dict, list)):
         return
-    stack = [(obj, 0, "")]  # (node, depth, path)
+    stack = [(obj, 0, "")]
     while stack:
         node, depth, path = stack.pop()
         items = list(node.items() if isinstance(node, dict) else enumerate(node))
