@@ -543,10 +543,10 @@ and web search results. Explain WHY this attribution was chosen.}
 
 ## Output File Management
 
-1. **Create output directory**: `mkdir -p ~/.claude/analysis && echo ~/.claude/analysis`
+1. **Create output directory**: `mkdir -p .claude/skills/analyze-crash/reports`
 2. **Generate filename**: `crash-analysis-{YYYYMMDD-HHMMSS}.md`
-3. **Save file**: Write the markdown analysis to the file
-4. **Tell the user** the full path where the analysis was saved
+3. **Save file**: Write the markdown analysis to `.claude/skills/analyze-crash/reports/{filename}`
+4. **Tell the user** the path where the analysis was saved
 
 ---
 

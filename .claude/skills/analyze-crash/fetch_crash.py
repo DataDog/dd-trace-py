@@ -9,16 +9,21 @@ Requires: pip install datadog-api-client
 """
 
 import argparse
+from collections import OrderedDict
+from ctypes import CDLL
+from ctypes import c_char_p
+from ctypes import c_int
+from ctypes import c_void_p
 import ctypes.util
+from datetime import datetime
+from datetime import timedelta
 import json
 import re
 import sys
-from collections import OrderedDict
-from ctypes import CDLL, c_char_p, c_int, c_void_p
-from datetime import datetime, timedelta
 from time import sleep
 
-from datadog_api_client import ApiClient, Configuration
+from datadog_api_client import ApiClient
+from datadog_api_client import Configuration
 from datadog_api_client.exceptions import ApiException
 from datadog_api_client.v2.api import logs_api
 from datadog_api_client.v2.model.logs_list_request import LogsListRequest
@@ -37,6 +42,7 @@ class _DateTimeEncoder(json.JSONEncoder):
 # ---------------------------------------------------------------------------
 # C++ symbol demangling
 # ---------------------------------------------------------------------------
+
 
 def _init_demangler():
     lib = ctypes.util.find_library("c++")
@@ -198,9 +204,7 @@ def process_crash_log(raw_attrs):
         if "frames" in stack_data:
             raw_frames = stack_data["frames"]
         elif stack_data.get("incomplete"):
-            raw_frames = [
-                {"ip": "0x0", "sp": "0x0", "names": [{"name": "INCOMPLETE_STACK"}]}
-            ]
+            raw_frames = [{"ip": "0x0", "sp": "0x0", "names": [{"name": "INCOMPLETE_STACK"}]}]
         else:
             raw_frames = []
     elif isinstance(stack_data, list):
@@ -226,16 +230,8 @@ def process_crash_log(raw_attrs):
 
     result = OrderedDict()
     result["tracer_version"] = raw_attrs.get("tracer_version", "unknown")
-    result["runtime_version"] = (
-        raw_attrs.get("language_version")
-        or tag_map.get("runtime_version")
-        or "unknown"
-    )
-    result["service"] = (
-        raw_attrs.get("instrumented_service")
-        or tag_map.get("service")
-        or "unknown"
-    )
+    result["runtime_version"] = raw_attrs.get("language_version") or tag_map.get("runtime_version") or "unknown"
+    result["service"] = raw_attrs.get("instrumented_service") or tag_map.get("service") or "unknown"
     result["org_id"] = raw_attrs.get("org_id", "unknown")
     result["platform"] = os_info.get("os_type") or host.get("os", "unknown")
     result["architecture"] = os_info.get("architecture") or host.get("arch") or "unknown"
@@ -274,9 +270,7 @@ def process_crash_log(raw_attrs):
             name = entry["file"]
             if name not in seen and not name.startswith("["):
                 seen.add(name)
-                binary_mappings.append(
-                    f"  {hex(entry['start'])}-{hex(entry['end'])} {name}"
-                )
+                binary_mappings.append(f"  {hex(entry['start'])}-{hex(entry['end'])} {name}")
         result["binary_mappings_summary"] = binary_mappings[:50]
 
     return result
@@ -346,8 +340,7 @@ def fetch_crash_by_uuid(uuid, lib_language="python", tracer_version="*", org_id=
         processed = process_crash_log(raw_attrs)
         if processed is None:
             print(
-                "Crash log found but could not be processed "
-                "(missing error.stack or unexpected format).",
+                "Crash log found but could not be processed (missing error.stack or unexpected format).",
                 file=sys.stderr,
             )
             json.dump(raw_attrs, sys.stderr, indent=2, cls=_DateTimeEncoder)
