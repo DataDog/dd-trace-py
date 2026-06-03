@@ -166,9 +166,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
 
-    def _resolve_model_name(
-        self, span: Span, response: Optional[Any], model_name: str, model_provider: str
-    ) -> str:
+    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
         # Azure requires an arbitrary deployment name as the request model; the canonical model
         # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
         # "azure_ai/<deployment>", which would not match the cost catalog.

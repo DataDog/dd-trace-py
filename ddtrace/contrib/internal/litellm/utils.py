@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
@@ -43,13 +44,16 @@ class BaseLiteLLMStreamHandler:
         for span, kwargs in self.spans:
             response_model = getattr(self, "response_model", None)
             if response_model:
-                _, provider = self.integration._model_map.get(kwargs.get("model", ""), ("", ""))
+                # Resolve the requested model from args or kwargs (callers may pass it positionally,
+                # e.g. litellm.completion("azure/<deployment>", ...)) so provider detection works.
+                requested_model = get_argument_value(self.request_args, kwargs, 0, "model", optional=True) or ""
+                _, provider = self.integration._model_map.get(requested_model, ("", ""))
                 if provider in ("azure", "azure_text"):
                     span.set_tag("litellm.response.model", response_model)
             if not formatted_completions:
                 formatted_completions = self._process_finished_stream(span)
             self.integration.llmobs_set_tags(
-                span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
+                span, args=self.request_args, kwargs=kwargs, response=formatted_completions, operation=span.resource
             )
             span.finish()
 

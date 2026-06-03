@@ -993,20 +993,31 @@ def test_azure_ai_model_name_unchanged(tracer):
 
 
 @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-def test_azure_streaming_completion_e2e(litellm, request_vcr, litellm_llmobs, test_spans, consume_stream, monkeypatch):
+@pytest.mark.parametrize("positional_model", [False, True])
+def test_azure_streaming_completion_e2e(
+    litellm, request_vcr, litellm_llmobs, test_spans, consume_stream, positional_model, monkeypatch
+):
     """End-to-end: azure streaming via litellm.completion tags the canonical response model,
     not the deployment name. Exercises the stream handler -> litellm.response.model tag -> override.
+    Covers the model passed both as a keyword and positionally (the positional form is not present
+    in kwargs, so provider detection must read it from args).
     """
     monkeypatch.setenv("AZURE_API_KEY", "<not-a-real-key>")
     monkeypatch.setenv("AZURE_API_BASE", "https://test-azure.openai.azure.com")
     monkeypatch.setenv("AZURE_API_VERSION", "2024-12-01-preview")
+    messages = [{"content": "Hey, what is up?", "role": "user"}]
     with request_vcr.use_cassette("completion_azure_stream.yaml"):
-        resp = litellm.completion(
-            model="azure/gpt-5.2_2025-12-11",
-            messages=[{"content": "Hey, what is up?", "role": "user"}],
-            stream=True,
-            stream_options={"include_usage": True},
-        )
+        if positional_model:
+            resp = litellm.completion(
+                "azure/gpt-5.2_2025-12-11", messages=messages, stream=True, stream_options={"include_usage": True}
+            )
+        else:
+            resp = litellm.completion(
+                model="azure/gpt-5.2_2025-12-11",
+                messages=messages,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
         consume_stream(resp, 1)
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
