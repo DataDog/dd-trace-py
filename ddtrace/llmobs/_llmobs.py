@@ -114,6 +114,7 @@ from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_report_evaluator
+from ddtrace.llmobs._experiment import _parse_experiment_result
 from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
@@ -1054,6 +1055,44 @@ class LLMObs(Service):
         return ds
 
     @classmethod
+    def pull_experiment(cls, experiment_id: str) -> SyncExperiment:
+        """Fetch a previously-run experiment by ID and return a ``SyncExperiment`` whose ``.result`` is populated.
+
+        The returned object has no task or dataset attached. Call ``rerun_evaluators()`` on it to
+        re-score the stored results with new or updated evaluators without re-executing the original task.
+        Calling ``run()`` on the returned object will raise because task and dataset are required for that.
+
+        :param experiment_id: UUID of an experiment that has already been run.
+        :raises ValueError: if LLMObs is not enabled or the backend call fails.
+        """
+        if cls._instance is None or not cls.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling pull_experiment().")
+        if not experiment_id:
+            raise ValueError("experiment_id is required.")
+
+        experiment_meta = cls._instance._dne_client.experiment_get(str(experiment_id))
+
+        raw = cls._instance._dne_client.experiment_events_get(experiment_id=str(experiment_id))
+        result = _parse_experiment_result(raw)
+
+        project_name = experiment_meta._project_name or cls._project_name or "default"
+        dataset_id = experiment_meta._dataset._id if experiment_meta._dataset is not None else None
+
+        inner_exp = Experiment(
+            name=experiment_meta.name,
+            task=None,
+            dataset=None,
+            evaluators=[],
+            project_name=project_name,
+            _llmobs_instance=cls._instance,
+        )
+        inner_exp._id = str(experiment_id)
+        inner_exp._project_id = experiment_meta._project_id
+        inner_exp._dataset_id = dataset_id
+
+        return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
+
+    @classmethod
     def create_dataset(
         cls,
         dataset_name: str,
@@ -1595,6 +1634,8 @@ class LLMObs(Service):
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
         experiment = cls._instance._dne_client.experiment_get(experiment_id)
         experiment._llmobs_instance = cls._instance
+        if experiment._dataset is None:
+            raise ValueError("Cannot run experiment: dataset is not available.")
         experiment._dataset._records = dataset_records
         experiment._task = task
         experiment._evaluators = evaluators
