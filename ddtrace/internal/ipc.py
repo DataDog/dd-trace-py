@@ -111,7 +111,7 @@ class SharedStringFile:
         # the same process, so concurrent put/snatchall from different threads
         # would race on the Python write buffer vs OS flush window.
         # forksafe.Lock() resets after fork so children don't inherit a locked mutex.
-        self._thread_lock = forksafe.Lock()
+        self._file_thread_lock = forksafe.Lock()
 
     def put_unlocked(self, f: typing.BinaryIO, data: str) -> bool:
         f.seek(0, os.SEEK_END)
@@ -184,7 +184,7 @@ class SharedStringFile:
             # file-like so the context manager always yields and callers get [] from peek.
             yield io.BytesIO(b"")
             return
-        with self._thread_lock:
+        with self._file_thread_lock:
             with open_file(self.filename, "rb") as f, ReadLock(f):
                 yield f
 
@@ -199,7 +199,7 @@ class SharedStringFile:
         # Acquire the thread-level lock first to prevent same-process threads
         # from bypassing the POSIX file lock (fcntl.lockf only blocks across
         # processes, not within the same process).
-        with self._thread_lock:
+        with self._file_thread_lock:
             with open_file(self.filename, "r+b") as f, WriteLock(f):
                 yield f
                 # Flush before releasing the lock. Here we first release the lock,
