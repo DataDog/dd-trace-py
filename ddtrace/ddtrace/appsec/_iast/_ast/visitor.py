@@ -217,7 +217,9 @@ class AstVisitor(ast.NodeTransformer):
         self.codetype = CODE_TYPE_FIRST_PARTY
         if "ast/tests/fixtures" in self.filename:
             self.codetype = CODE_TYPE_FIRST_PARTY
-        elif "ddtrace/ddtrace" in self.filename and ("site-packages" in self.filename or "dist-packages" in self.filename):
+        elif "ddtrace/ddtrace" in self.filename and (
+            "site-packages" in self.filename or "dist-packages" in self.filename
+        ):
             self.codetype = CODE_TYPE_DD
         elif "site-packages" in self.filename or "dist-packages" in self.filename:
             self.codetype = CODE_TYPE_SITE_PACKAGES
