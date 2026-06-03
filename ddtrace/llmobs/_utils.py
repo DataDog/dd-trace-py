@@ -249,32 +249,46 @@ _MAX_NESTED_META_DEPTH_AGENT = 17
 _MAX_NESTED_META_DEPTH_AGENTLESS = 12
 
 
-def _sanitize_span_event_depth(obj: Any, apm_agentless: bool = False) -> None:
-    """Walk a dict/list in-place, replacing any container value that exceeds
-    the safe nesting depth with its JSON string representation.
+def _sanitize_span_event_depth(obj: Any, apm_agentless: bool = False) -> Any:
+    """Return a sanitized copy of obj with any container value that exceeds
+    the safe nesting depth replaced by its JSON string representation.
     A warning is logged for each stringified field, including its dotted path.
     """
     if not isinstance(obj, (dict, list)):
-        return
+        return obj
     max_depth = _MAX_NESTED_META_DEPTH_AGENTLESS if apm_agentless else _MAX_NESTED_META_DEPTH_AGENT
-    stack = [(obj, 0, "")]
+    root: Any = {} if isinstance(obj, dict) else []
+    stack = [(obj, root, 0, "")]
     while stack:
-        node, depth, path = stack.pop()
-        items = list(node.items() if isinstance(node, dict) else enumerate(node))
+        source, dest, depth, path = stack.pop()
+        items = source.items() if isinstance(source, dict) else enumerate(source)
         for key, val in items:
-            if not isinstance(val, (dict, list)):
-                continue
             child_path = f"{path}.{key}" if path else str(key)
-            if depth + 1 >= max_depth:
-                log.warning(
-                    "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be stringified "
-                    "to avoid backend parsing errors.",
-                    child_path,
-                    max_depth,
-                )
-                node[key] = safe_json(val)
+            if isinstance(val, (dict, list)):
+                if depth + 1 >= max_depth:
+                    log.warning(
+                        "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be stringified "
+                        "to avoid backend parsing errors.",
+                        child_path,
+                        max_depth,
+                    )
+                    if isinstance(dest, list):
+                        dest.append(safe_json(val))
+                    else:
+                        dest[key] = safe_json(val)
+                else:
+                    child: Any = {} if isinstance(val, dict) else []
+                    if isinstance(dest, list):
+                        dest.append(child)
+                    else:
+                        dest[key] = child
+                    stack.append((val, child, depth + 1, child_path))
             else:
-                stack.append((val, depth + 1, child_path))
+                if isinstance(dest, list):
+                    dest.append(val)
+                else:
+                    dest[key] = val
+    return root
 
 
 def safe_json(obj, ensure_ascii=True):
