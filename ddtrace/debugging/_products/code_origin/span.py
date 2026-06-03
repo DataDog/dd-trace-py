@@ -6,15 +6,10 @@ import typing as t
 
 import ddtrace.internal.core as core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.products import manager as product_manager
-from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.settings.code_origin import config
 
 
 log = get_logger(__name__)
-
-CO_ENABLED = "DD_CODE_ORIGIN_FOR_SPANS_ENABLED"
-DI_PRODUCT_KEY = "dynamic-instrumentation"
 
 # TODO[gab]: Uncomment this when the feature is ready
 # requires = ["tracer"]
@@ -42,10 +37,7 @@ def start() -> None:
 
 
 def enabled() -> bool:
-    # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
-    # we'll enable code origin for spans.
-    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
-    return config.span.enabled or di_enabled
+    return config.span.enabled
 
 
 def restart(join: bool = False) -> None:

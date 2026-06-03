@@ -8,7 +8,6 @@ from ddtrace.debugging._products.code_origin.span import apm_tracing_rc
 from ddtrace.debugging._products.code_origin.span import enabled
 from ddtrace.debugging._products.code_origin.span import post_preload
 from ddtrace.debugging._products.code_origin.span import restart
-from ddtrace.internal.settings._core import ValueSource
 
 
 def test_post_preload_is_noop():
@@ -72,46 +71,25 @@ def test_core_event_handler_tracer_wrap_instruments_view():
         mock_proc.instrument_view.assert_called_with(f)
 
 
-def test_enabled_span_enabled_by_default():
-    """enabled() returns True when config.span.enabled is True (the default)."""
+def test_enabled_span_disabled_by_default():
+    """enabled() returns False when config.span.enabled is False (the default)."""
+    from ddtrace.internal.settings.code_origin import config
+
+    with patch.object(config.span, "enabled", False):
+        assert enabled() is False
+
+
+def test_enabled_span_explicitly_enabled():
     from ddtrace.internal.settings.code_origin import config
 
     with patch.object(config.span, "enabled", True):
         assert enabled() is True
 
 
-def test_enabled_span_explicitly_disabled_di_not_active(monkeypatch):
-    """enabled() returns False when span.enabled=False and DI is not active."""
+def test_enabled_dynamic_instrumentation_does_not_enable_code_origin_for_spans():
     from ddtrace.internal.settings.code_origin import config
 
-    with (
-        patch.object(config.span, "enabled", False),
-        patch.object(co_product.product_manager, "is_enabled", return_value=False),
-    ):
-        assert enabled() is False
-
-
-def test_enabled_di_takeover_when_span_disabled(monkeypatch):
-    """enabled() returns True via di_enabled when DI is on and CO_ENABLED is at default."""
-    from ddtrace.internal.settings.code_origin import config
-
-    with (
-        patch.object(config.span, "enabled", False),
-        patch.object(co_product.product_manager, "is_enabled", return_value=True),
-        patch.object(config, "value_source", return_value=ValueSource.DEFAULT),
-    ):
-        assert enabled() is True
-
-
-def test_enabled_di_active_but_co_explicitly_set(monkeypatch):
-    """enabled() returns False when DI is on but CO_ENABLED was explicitly set (not default)."""
-    from ddtrace.internal.settings.code_origin import config
-
-    with (
-        patch.object(config.span, "enabled", False),
-        patch.object(co_product.product_manager, "is_enabled", return_value=True),
-        patch.object(config, "value_source", return_value=ValueSource.ENV_VAR),
-    ):
+    with patch.object(config.span, "enabled", False):
         assert enabled() is False
 
 
