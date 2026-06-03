@@ -48,6 +48,7 @@ RUNTIMES_ALLOW_LIST = {
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
+OVERRIDE_USER_DDTRACE = os.environ.get("DD_INJECT_OVERRIDE_USER_DDTRACE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = "DD_INJECTION_ENABLED" in os.environ
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -331,6 +332,11 @@ def _inject():
     runtime_incomp = False
     spec = None
     try:
+        if OVERRIDE_USER_DDTRACE:
+            # A user-installed ddtrace is present, but the operator requested that the injected
+            # (bundled) version take precedence. Fall through to the injection path.
+            raise ModuleNotFoundError("ddtrace")
+
         # `find_spec` is only available in Python 3.4+
         # https://docs.python.org/3/library/importlib.html#importlib.util.find_spec
         # DEV: It is ok to fail here on import since it'll only fail on Python versions we don't support / inject into
@@ -345,7 +351,10 @@ def _inject():
         # enable safe instrumentation for ddtrace which won't patch incompatible integrations
         os.environ["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "true"
 
-        _log("user-installed ddtrace not found, configuring application to use injection site-packages")
+        if OVERRIDE_USER_DDTRACE:
+            _log("DD_INJECT_OVERRIDE_USER_DDTRACE is set, preferring injection site-packages")
+        else:
+            _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_2"
         # Determine architecture
@@ -506,7 +515,11 @@ def _inject():
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
-        sys.path.append(site_pkgs_path)
+        if OVERRIDE_USER_DDTRACE:
+            sys.path.insert(0, site_pkgs_path)
+        else:
+            sys.path.append(site_pkgs_path)
+
         _log("sys.path %s" % sys.path, level="debug")
         # Used to track whether the ddtrace package was successfully injected. Must be set before importing ddtrace
         os.environ["_DD_PY_SSI_INJECT"] = "1"
