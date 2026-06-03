@@ -276,13 +276,6 @@ class TestOptPlugin:
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
 
-        # If pytest-cov is enabled for this session, release sys.monitoring.COVERAGE_ID so
-        # that pytest-cov can claim it in pytest_load_initial_conftests (which runs after
-        # sessionstart). Required when a previous in-process session (e.g. pytester.inline_run)
-        # left us holding the slot; instrument_all_lines() re-registers it lazily if needed.
-        if _is_pytest_cov_enabled(session.config):
-            deregister_monitoring()
-
         self.session.start()
         self.manager.start()
 
@@ -1127,6 +1120,12 @@ def pytest_load_initial_conftests(
     if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
         # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
+
+    # Release sys.monitoring.COVERAGE_ID before other plugins run so that pytest-cov's
+    # SysMonitor can claim it in its own pytest_load_initial_conftests without crashing.
+    # deregister_monitoring() is a no-op if we don't hold the slot.
+    if _is_pytest_cov_enabled(early_config):
+        deregister_monitoring()
 
     yield
 
