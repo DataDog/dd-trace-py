@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -514,11 +515,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
-
-
-class AgentResponse(object):
-    def __init__(self, rate_by_service: dict[str, float]) -> None:
-        self.rate_by_service = rate_by_service
 
 
 class AgentWriterInterface(metaclass=abc.ABCMeta):

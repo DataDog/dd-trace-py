@@ -27,6 +27,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -462,6 +463,7 @@ def _openai_extract_tool_calls_and_results_chat(
                         "trace_id": format_trace_id(llm_span.trace_id),
                         "span_id": str(llm_span.span_id),
                     },
+                    get_tool_version_from_llm_span(llm_span, tool_name),
                 ),
             )
         raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
@@ -554,6 +556,7 @@ def capture_plain_text_tool_usage(
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
                         },
+                        get_tool_version_from_llm_span(span, tool_name),
                     ),
                 )
     except Exception:
