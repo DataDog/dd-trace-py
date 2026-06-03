@@ -55,6 +55,7 @@ EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.moni
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
+_coverage_id_conflict_warned: bool = False
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
@@ -81,11 +82,17 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     if coverage_tool is not None and coverage_tool != "datadog":
         # AIDEV-NOTE: When pytest-cov uses SysMonitor (coverage.py>=7.4 with COVERAGE_CORE=sysmon,
         # or coverage.py>=7.9.1 on Python 3.14+ by default), it holds COVERAGE_ID and ddtrace
-        # silently yields here.  This means ITR per-test coverage bitmaps will be empty for the
-        # entire session — ITR is effectively disabled without any warning.  A proper fix would
-        # require either coordinating slot ownership with coverage.py or using a separate monitoring
-        # mechanism that does not depend on COVERAGE_ID.
-        log.debug("Coverage tool '%s' already registered, not gathering coverage", coverage_tool)
+        # yields here.  This means ITR per-test coverage bitmaps will be empty for the entire
+        # session — ITR is effectively disabled.  A proper fix would require either coordinating
+        # slot ownership with coverage.py or using a mechanism that does not depend on COVERAGE_ID.
+        global _coverage_id_conflict_warned
+        if not _coverage_id_conflict_warned:
+            _coverage_id_conflict_warned = True
+            log.warning(
+                "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
+                "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
+                coverage_tool,
+            )
         return code, CoverageLines()
 
     if coverage_tool is None:
@@ -144,10 +151,12 @@ def deregister_monitoring() -> None:
     hitting "ValueError: tool 1 is already in use".  The next instrumentation call
     will re-register us if coverage is still needed.
     """
+    global _coverage_id_conflict_warned
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
         sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
         _CODE_HOOKS.clear()
+    _coverage_id_conflict_warned = False
 
 
 def _instrument_with_monitoring(
