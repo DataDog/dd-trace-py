@@ -35,6 +35,34 @@ print("LOADED_DDTRACE_VERSION=" + str(getattr(ddtrace, "__version__", "unknown")
 """
 
 
+# Script that imports ddtrace (triggering the injected sitecustomize to rewrite PYTHONPATH for
+# children), then spawns a child interpreter inheriting that environment and reports which
+# ddtrace package the *child* resolves. This exercises the subprocess code path that rewrites
+# os.environ["PYTHONPATH"].
+SPAWN_CHILD_SCRIPT = """
+import os
+import subprocess
+import sys
+
+import ddtrace
+
+child = subprocess.run(
+    [
+        sys.executable,
+        "-c",
+        "import ddtrace; print('CHILD_DDTRACE_FILE=' + str(getattr(ddtrace, '__file__', 'unknown')))",
+    ],
+    capture_output=True,
+    text=True,
+    env=os.environ.copy(),
+    timeout=120,
+)
+print("PARENT_DDTRACE_FILE=" + str(getattr(ddtrace, "__file__", "unknown")))
+sys.stdout.write(child.stdout)
+sys.stderr.write(child.stderr)
+"""
+
+
 def _run_app(python_executable, env, venv_dir):
     return subprocess.run(
         [python_executable, "-c", REPORT_DDTRACE_SCRIPT],
@@ -148,6 +176,56 @@ def test_user_ddtrace_present_without_override_aborts(test_venv, mock_telemetry_
         abort_metric = points[0]
         assert abort_metric["name"] == "library_entrypoint.abort"
         assert "reason:ddtrace_already_present" in abort_metric["tags"]
+
+    except subprocess.CalledProcessError as e:
+        pytest.fail(f"Subprocess failed:\nExit Code: {e.returncode}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+    except subprocess.TimeoutExpired as e:
+        pytest.fail(f"Subprocess timed out:\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")
+
+
+def test_override_user_ddtrace_prefers_injected_in_child_process(test_venv, mock_telemetry_forwarder, tmp_path):
+    """The override precedence is propagated to spawned child processes via PYTHONPATH.
+
+    With a user-installed ddtrace reachable through PYTHONPATH, the rewritten PYTHONPATH must
+    place the injected site-packages ahead of the user entry so that a child interpreter (which
+    rebuilds sys.path from PYTHONPATH) also resolves ``import ddtrace`` to the injected package.
+    """
+    python_executable, sitecustomize_dir, base_env, venv_dir = test_venv({})
+
+    user_site = _make_user_ddtrace_stub(str(tmp_path / "user_site"))
+
+    env = base_env.copy()
+    venv_pythonpath = base_env.get("PYTHONPATH", "")
+    # The user stub is reachable via PYTHONPATH (not just site-packages); this is the configuration
+    # in which a tail-appended injected path would lose to the user copy in a child interpreter.
+    env["PYTHONPATH"] = os.pathsep.join([sitecustomize_dir, user_site, venv_pythonpath])
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_INJECTION_ENABLED"] = "true"
+    env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
+    env["DD_INJECT_FORCE"] = "false"
+    env["DD_INJECT_OVERRIDE_USER_DDTRACE"] = "true"
+    mock_telemetry_forwarder(env, python_executable)
+
+    try:
+        result = subprocess.run(
+            [python_executable, "-c", SPAWN_CHILD_SCRIPT],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=venv_dir,
+            check=True,
+            timeout=180,
+        )
+        stdout = result.stdout
+
+        # Both the parent and the spawned child resolve the injected (bundled) ddtrace.
+        parent_line = next((line for line in stdout.splitlines() if line.startswith("PARENT_DDTRACE_FILE=")), "")
+        child_line = next((line for line in stdout.splitlines() if line.startswith("CHILD_DDTRACE_FILE=")), "")
+
+        assert "ddtrace_pkgs" in parent_line, f"parent did not load injected ddtrace: {parent_line!r}"
+        assert child_line, f"child did not report a ddtrace path. stdout: {stdout}"
+        assert "ddtrace_pkgs" in child_line, f"child did not load injected ddtrace: {child_line!r}"
+        assert "user_site" not in child_line, f"child loaded user-installed ddtrace: {child_line!r}"
 
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Subprocess failed:\nExit Code: {e.returncode}\nstdout:\n{e.stdout}\nstderr:\n{e.stderr}")

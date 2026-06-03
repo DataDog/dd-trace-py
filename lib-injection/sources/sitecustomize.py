@@ -568,7 +568,13 @@ def _inject():
                     for entry in os.getenv("PYTHONPATH", "").split(os.pathsep)
                     if not any(path in entry for path in path_segments_indicating_removal)
                 ]
-                python_path.append(site_pkgs_path)
+                if OVERRIDE_USER_DDTRACE:
+                    # Mirror the precedence applied to the current interpreter's sys.path: the injected
+                    # site-packages must come before any user-controlled PYTHONPATH entries so that child
+                    # processes also resolve `import ddtrace` to the injected (bundled) package.
+                    python_path.insert(0, site_pkgs_path)
+                else:
+                    python_path.append(site_pkgs_path)
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
                 os.environ["PYTHONPATH"] = python_path
