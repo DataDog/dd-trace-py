@@ -158,3 +158,96 @@ def test_deregister_monitoring_is_callable_on_all_python_versions():
 
     # Must be callable without raising on any Python version
     deregister_monitoring()
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the foreign-tool warning in instrument_all_lines()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_instrument_all_lines_warns_once_when_slot_held_by_foreign_tool():
+    """A single warning is emitted when COVERAGE_ID is held by a foreign tool, not once per call."""
+    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
+    from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+
+    code_obj = compile("x = 1", "<test>", "exec")
+
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
+    mod._coverage_id_conflict_warned = False
+    try:
+        with pytest.MonkeyPatch().context() as mp:
+            warnings = []
+            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
+
+            # First call — must warn
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            assert len(warnings) == 1
+            assert "coverage.py" in warnings[0]
+            assert "ITR" in warnings[0]
+
+            # Subsequent calls — must stay silent
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            assert len(warnings) == 1
+    finally:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+        mod._coverage_id_conflict_warned = False
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_instrument_all_lines_no_warning_when_slot_is_free():
+    """No warning is emitted when COVERAGE_ID is unclaimed — ddtrace registers normally."""
+    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
+    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+    from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+
+    code_obj = compile("y = 2", "<test>", "exec")
+
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+    mod._coverage_id_conflict_warned = False
+    try:
+        with pytest.MonkeyPatch().context() as mp:
+            warnings = []
+            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
+
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            assert warnings == []
+    finally:
+        deregister_monitoring()
+        mod._coverage_id_conflict_warned = False
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_instrument_all_lines_warning_resets_after_deregister():
+    """deregister_monitoring() resets the warned flag so a new session can warn again."""
+    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
+    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+    from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+
+    code_obj = compile("z = 3", "<test>", "exec")
+
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
+    mod._coverage_id_conflict_warned = False
+    try:
+        with pytest.MonkeyPatch().context() as mp:
+            warnings = []
+            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
+
+            # First session: one warning
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            assert len(warnings) == 1
+
+            # Simulate end of session — deregister resets the flag
+            sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+            deregister_monitoring()  # resets _coverage_id_conflict_warned
+
+            # Second session: foreign tool re-appears, must warn again
+            sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
+            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+            assert len(warnings) == 2
+    finally:
+        if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
+            sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+        mod._coverage_id_conflict_warned = False
