@@ -11,6 +11,7 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import add_span_link
@@ -343,10 +344,14 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_id = getattr(block, "id", "")
         tool_name = getattr(block, "name", "unknown_tool")
         tool_input = getattr(block, "input", {})
-        # AIDEV-NOTE: Tool spans belong to the current step, not the active tracer context (which
-        # is the previously-opened tool span when parallel ToolUseBlocks arrive back-to-back).
-        # BaseLLMIntegration.trace() hardcodes activate=True, so each opened tool span becomes
-        # the active context — without an explicit parent_context, tool#k would chain on tool#k-1.
+        # AIDEV-NOTE: Tool spans belong to the current step, not the previously-opened tool span.
+        # BaseLLMIntegration.trace() hardcodes activate=True and defaults its parent to whichever
+        # span is active in each context provider, so without intervention parallel ToolUseBlocks
+        # chain on the prior in-flight tool span in BOTH the APM trace (via tracer.context_provider)
+        # and the LLM Obs UI (via LLMObs._llmobs_context_provider, which reads parent at span start
+        # in _on_span_start). Pin both: parent_context for APM, activate(step) for LLMObs.
+        if self.current_step_span is not None and LLMObs.enabled:
+            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
         tool_span = self.integration.trace(
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
