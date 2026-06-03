@@ -102,6 +102,10 @@ class _MetaIO(TypedDict, total=False):
     documents: list[Document]
 
 
+class _ToolField(TypedDict, total=False):
+    version: str
+
+
 class _Meta(TypedDict, total=False):
     model_name: str
     model_provider: str
@@ -112,6 +116,7 @@ class _Meta(TypedDict, total=False):
     output: _MetaIO
     expected_output: _MetaIO
     evaluations: Any
+    tool: _ToolField
     tool_definitions: list[ToolDefinition]
     intent: str
 

@@ -221,6 +221,26 @@ def test_export_mode_apm_agentless_when_agentless_enabled():
     assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENTLESS
 
 
+def test_annotate_tag_values_are_stringified(llmobs):
+    """Non-string tag values (bool/int/float/None) are coerced to strings, since the LLMObs
+    intakes decode tags as a string->string map.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(
+            span=span,
+            tags={"is_streaming": True, "retries": 3, "ratio": 0.5, "none_tag": None, "str_tag": "ok"},
+        )
+    tags = get_llmobs_tags(span)
+    assert all(isinstance(v, str) for v in tags.values()), tags
+    assert {
+        "is_streaming": "True",
+        "retries": "3",
+        "ratio": "0.5",
+        "none_tag": "None",
+        "str_tag": "ok",
+    }.items() <= tags.items()
+
+
 @pytest.mark.subprocess(
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
@@ -235,7 +255,7 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable(agentless_enabled=False)
-    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT_PROXY
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
 
 
 @pytest.mark.subprocess(
@@ -664,7 +684,8 @@ def test_annotate_metadata_wrong_type_raises(llmobs):
 def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}.items() <= get_llmobs_tags(span).items()
+        # Non-string tag values are coerced to strings at annotation time.
+        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": "10"}.items() <= get_llmobs_tags(span).items()
 
 
 def test_annotate_tag_can_set_session_id(llmobs):
@@ -1202,7 +1223,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     err=None,
 )
 def test_tag_dot_keys_preserved_on_apm_agent_path():
-    """APM_AGENT_PROXY path: dots in tag keys are not modified (agent handles encoding)."""
+    """APM_AGENT path: dots in tag keys are not modified (agent handles encoding)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._utils import get_llmobs_tags
 
