@@ -753,7 +753,7 @@ class TelemetryWriter(PeriodicService):
                 contrib_index = dir_parts.index("contrib")
                 # Check if the filename has the following format:
                 # `../ddtrace/contrib/integration_name/..(subpath and/or file)...`
-                if ddtrace_index + 1 == contrib_index and len(dir_parts) - 2 > contrib_index:
+                if ddtrace_index + 2 == contrib_index and len(dir_parts) - 2 > contrib_index:
                     integration_name = dir_parts[contrib_index + 1]
                     if "internal" in dir_parts:
                         # Check if the filename has the format:
