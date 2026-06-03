@@ -16,6 +16,7 @@ use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use crate::py_string::PyTraceData;
 use crate::span::SpanData;
 
+use super::agent_response::AgentResponsePy;
 use super::TraceExporterPy;
 
 /// Implements [Export] for [Span]<[PyTraceData]> by forwarding to a [TraceExporter].
@@ -86,29 +87,6 @@ impl ExportSync {
             .gen_cvar
             .wait_timeout_while(guard, timeout, |g| *g <= current_gen);
     }
-}
-
-/// Python-facing `AgentResponse` object passed to the `response_callback` after each
-/// successful export that returns a changed sampling-rate payload.
-#[pyclass(name = "AgentResponse")]
-pub struct AgentResponsePy {
-    #[pyo3(get)]
-    rate_by_service: Py<PyDict>,
-}
-
-#[pymethods]
-impl AgentResponsePy {
-    #[new]
-    fn new(rate_by_service: Py<PyDict>) -> Self {
-        Self { rate_by_service }
-    }
-
-    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
-        visit.call(&self.rate_by_service)?;
-        Ok(())
-    }
-
-    fn __clear__(&mut self) {}
 }
 
 /// Python-facing wrapper around a [TraceBuffer]<[Span]<[PyTraceData]>>.
@@ -317,7 +295,6 @@ fn invoke_response_callback(cb: &Py<PyAny>, body: &str) {
 }
 
 pub fn register_trace_buffer(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<AgentResponsePy>()?;
     m.add_class::<NativeTraceBufferPy>()?;
     Ok(())
 }

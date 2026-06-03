@@ -9,7 +9,7 @@ use pyo3::{
 #[pyclass(name = "AgentResponse")]
 pub struct AgentResponsePy {
     #[pyo3(get)]
-    rate_by_service: Py<PyDict>,
+    pub(super) rate_by_service: Py<PyDict>,
 }
 
 #[pymethods]
