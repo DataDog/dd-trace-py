@@ -538,11 +538,11 @@ def test_model_and_provider_are_set(llmobs, tracer):
     assert get_llmobs_model_provider(llm_span) == "model_provider"
 
 
-def test_malformed_span_logs_error_instead_of_raising(llmobs, tracer, mock_llmobs_logs):
+def test_malformed_span_logs_error_instead_of_raising(llmobs, tracer, mock_llmobs_processor_logs):
     """A malformed span (missing span kind) is dropped and its meta_struct cleared."""
     with tracer.trace("root_llm_span", span_type=SpanTypes.LLM) as llm_span:
         pass  # span does not have SPAN_KIND tag
-    mock_llmobs_logs.error.assert_called_with(
+    mock_llmobs_processor_logs.error.assert_called_with(
         "Error preparing LLMObs span event for span %s, missing span kind in span context.", llm_span
     )
     assert _get_llmobs_data_metastruct(llm_span) == {}
@@ -960,7 +960,7 @@ def test_llmobs_trace_id_not_overwritten_by_sibling_workflows(llmobs):
 
 
 def test_llmobs_submitted_tag_set_on_apm_span(llmobs):
-    """Test that _dd.llmobs.submitted is set on the APM span when SDK submits an LLMObs event."""
+    """_dd.llmobs.submitted is set on the APM span when its LLMObs event is directly submitted."""
     with llmobs.workflow("my-workflow") as span:
         pass
 
@@ -968,7 +968,7 @@ def test_llmobs_submitted_tag_set_on_apm_span(llmobs):
 
 
 def test_llmobs_submitted_tag_not_set_without_llmobs(llmobs):
-    """Test that _dd.llmobs.submitted is NOT set on regular APM spans."""
+    """_dd.llmobs.submitted is NOT set on regular APM spans."""
     with llmobs._instance.tracer.trace("regular_span") as span:
         pass
 

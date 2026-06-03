@@ -334,7 +334,7 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
-        self.llmobs_fallback_processor: TraceProcessor = _NoopTraceProcessor()
+        self.llmobs_processor: TraceProcessor = _NoopTraceProcessor()
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
@@ -416,9 +416,10 @@ class SpanAggregator(SpanProcessor):
             self.user_processors,
             [
                 self.sampling_processor,
-                # MUST sit between sampling_processor (decides priority) and tags_processor
-                # (mutates span). LLMObsSamplingFallbackProcessor reads both.
-                self.llmobs_fallback_processor,
+                # LLMObsProcessor finalizes meta_struct, ships LLMOBS_DIRECT events, and may
+                # drop the APM trace when APM tracing is off. Runs after sampling and before
+                # tags_processor mutates the span.
+                self.llmobs_processor,
                 self.tags_processor,
                 self.service_name_processor,
             ],

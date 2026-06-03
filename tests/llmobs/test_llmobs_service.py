@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import assemble_llmobs_span_event
 from ddtrace.llmobs._utils import get_llmobs_cost_tags
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -772,16 +773,18 @@ def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
         llmobs.annotate(span=span, input_data=[{"content": "test_input"}])
 
         # force the span event to be created - this is where we normalize the role
-        llmobs._instance._prepare_llmobs_span_data(span, "llm")
-        span_event = llmobs._instance._llmobs_span_event(span)
+        processor = llmobs._instance.tracer._span_aggregator.llmobs_processor
+        llmobs_data = processor._prepare_llmobs_span_data(span, "llm")
+        span_event = assemble_llmobs_span_event(span, processor._export_mode, llmobs_data)
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 
 def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": None}])
-        llmobs._instance._prepare_llmobs_span_data(span, "llm")
-        span_event = llmobs._instance._llmobs_span_event(span)
+        processor = llmobs._instance.tracer._span_aggregator.llmobs_processor
+        llmobs_data = processor._prepare_llmobs_span_data(span, "llm")
+        span_event = assemble_llmobs_span_event(span, processor._export_mode, llmobs_data)
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 

@@ -19,9 +19,6 @@ class LLMObsExportMode(str, Enum):
     APM_AGENT = "apm_agent"
 
 
-CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
-
-
 SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"

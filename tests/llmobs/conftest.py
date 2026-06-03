@@ -101,6 +101,13 @@ def mock_llmobs_logs():
 
 
 @pytest.fixture
+def mock_llmobs_processor_logs():
+    with mock.patch("ddtrace.llmobs._processor.log") as m:
+        yield m
+        m.reset_mock()
+
+
+@pytest.fixture
 def ddtrace_global_config():
     config = {}
     return config
@@ -284,7 +291,7 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_fallback_processor = TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
+        tracer._span_aggregator.llmobs_processor = TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()

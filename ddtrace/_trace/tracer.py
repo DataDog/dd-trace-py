@@ -598,8 +598,9 @@ class Tracer(object):
         if activate:
             self.context_provider.activate(span)
 
-        # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        # config._llmobs_enabled keeps the chain running with APM tracing off so LLMObsProcessor
+        # can still ship events and drop the APM trace.
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -634,8 +635,9 @@ class Tracer(object):
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
 
-        # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        # config._llmobs_enabled keeps the chain running with APM tracing off so LLMObsProcessor
+        # can still ship events and drop the APM trace.
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
