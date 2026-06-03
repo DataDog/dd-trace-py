@@ -3,7 +3,7 @@ name: Update system-tests pin
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 6 * * 1-5' # weekdays at 06:00 UTC
+    - cron: '0 14 * * 1-5' # weekdays at 09:00 EST (14:00 UTC)
 
 permissions:
   id-token: write
@@ -45,6 +45,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.changes.outputs.changed == 'true'
+        id: create-pr
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.octo-sts.outputs.token }}
@@ -58,3 +59,14 @@ jobs:
             Automated bump of the system-tests SHA pin to the latest `main`.
 
             Run by the [Update system-tests pin](https://github.com/DataDog/dd-trace-py/actions/workflows/update-system-tests.yml) workflow.
+
+      - name: Notify Slack on PR created
+        if: steps.changes.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-operation == 'created'
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_APM_PYTHON_RELEASE }}
+          PR_URL: ${{ steps.create-pr.outputs.pull-request-url }}
+          NEW_SHA: ${{ steps.changes.outputs.new_sha }}
+        run: |
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\": \":robot_face: *Automated PR created:* <${PR_URL}|ci: update system-tests pin to \`${NEW_SHA}\`>\n\nThe system-tests SHA pin has been bumped to the latest \`main\`. Please review and merge when ready.\", \"unfurl_links\": false}"
