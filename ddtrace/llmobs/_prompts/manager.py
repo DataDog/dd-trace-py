@@ -25,7 +25,6 @@ from ddtrace.llmobs.types import PromptAPIError
 from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptConflictError
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.llmobs.types import PromptLabel
 from ddtrace.llmobs.types import PromptNotFoundError
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptServerError
@@ -349,7 +348,7 @@ class PromptManager:
         title: str = "",
         description: str = "",
         user_version: str = "",
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -371,7 +370,7 @@ class PromptManager:
         *,
         description: str = "",
         user_version: str = "",
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -409,7 +408,7 @@ class PromptManager:
         prompt_id: str,
         version: int,
         *,
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
         description: Optional[str] = None,
     ) -> PromptVersionResponse:
         if labels is None and description is None:

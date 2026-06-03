@@ -43,6 +43,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -164,7 +165,6 @@ from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.llmobs.types import PromptLabel
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
 from ddtrace.llmobs.types import _ErrorField
@@ -175,6 +175,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -1770,14 +1771,15 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[PromptLabel] = None,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version;
+                      if omitted, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
@@ -1807,6 +1809,12 @@ class LLMObs(Service):
                     messages=prompt.format(**variables)
                 )
         """
+        if label is not None:
+            deprecate(
+                prefix="The 'label' parameter of LLMObs.get_prompt() is deprecated",
+                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+                category=DDTraceDeprecationWarning,
+            )
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(prompt_id, label, fallback)
 
@@ -1832,7 +1840,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[PromptLabel] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1840,11 +1848,18 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: Deprecated; set DD_ENV instead. Deployment label selecting a version;
+                if omitted, returns the latest version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
         """
+        if label is not None:
+            deprecate(
+                prefix="The 'label' parameter of LLMObs.refresh_prompt() is deprecated",
+                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+                category=DDTraceDeprecationWarning,
+            )
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
 
@@ -1857,7 +1872,7 @@ class LLMObs(Service):
         title: str = "",
         description: str = "",
         user_version: str = "",
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
@@ -1867,7 +1882,7 @@ class LLMObs(Service):
             title: Optional human-readable title.
             description: Optional description of the prompt.
             user_version: Optional user-defined version string.
-            labels: Optional list of labels ("development" and/or "production").
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
 
         Returns:
             The created prompt.
@@ -1891,7 +1906,7 @@ class LLMObs(Service):
         *,
         description: str = "",
         user_version: str = "",
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
@@ -1900,7 +1915,7 @@ class LLMObs(Service):
             template: List of chat messages defining the new version's template.
             description: Optional description of this version.
             user_version: Optional user-defined version string.
-            labels: Optional list of labels ("development" and/or "production").
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
 
         Returns:
             The created prompt version.
@@ -1949,7 +1964,7 @@ class LLMObs(Service):
         prompt_id: str,
         version: int,
         *,
-        labels: Optional[list[PromptLabel]] = None,
+        labels: Optional[list[str]] = None,
         description: Optional[str] = None,
     ) -> PromptVersionResponse:
         """Update a specific prompt version's metadata.

@@ -1,6 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -41,9 +40,6 @@ class ToolDefinition(TypedDict, total=False):
     description: str
     schema: dict[str, Any]
     version: str
-
-
-PromptLabel = Literal["development", "production"]
 
 
 class ChatMessage(TypedDict):
