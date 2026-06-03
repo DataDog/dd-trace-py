@@ -16,7 +16,7 @@ variables:
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   after_script:
     - bash .gitlab/scripts/generate-core-backtraces.sh
-  retry: 2
+  retry: 0
   variables:
     # Default to 4 when `-n auto` is used
     # DEV: auto/logical doesn't work well in k8s so we manually set it

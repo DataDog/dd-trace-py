@@ -109,6 +109,7 @@ components:
     - ddtrace/contrib/internal/gevent/*
   google_cloud_pubsub:
     - ddtrace/contrib/internal/google_cloud_pubsub/*
+    - ddtrace/internal/datastreams/google_cloud_pubsub.py
   graphql:
     - ddtrace/contrib/internal/graphql/*
   grpc:
@@ -344,6 +345,7 @@ suites:
     pattern: asgi$
     snapshot: true
   asyncpg:
+    retry: 2
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -520,6 +522,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
+    retry: 2
     parallelism: 11
     paths:
       - '@bootstrap'
@@ -897,6 +900,7 @@ suites:
       - tests/contrib/jinja2/*
     snapshot: true
   kafka:
+    retry: 2
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -1015,6 +1019,7 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     snapshot: true
   protobuf:
+    retry: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1214,6 +1219,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   sourcecode:
+    retry: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1248,6 +1254,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   stdlib:
+    retry: 2
     parallelism: 2
     paths:
       - '@tracing'
