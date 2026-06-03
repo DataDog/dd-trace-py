@@ -59,14 +59,14 @@ CodeFunctionCache::occupancy_histogram() const
     return hist;
 }
 
-std::optional<Datadog::function_id>
-CodeFunctionCache::lookup(PyCodeObject* code)
+std::optional<CacheHit>
+CodeFunctionCache::lookup(PyCodeObject* code, int lasti)
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
         if (s.codes[i] == code) {
             ++hits_;
-            return s.functions[i];
+            return CacheHit{ s.functions[i], s.lines[i], s.lastis[i] == lasti };
         }
     }
     ++misses_;
@@ -74,7 +74,7 @@ CodeFunctionCache::lookup(PyCodeObject* code)
 }
 
 void
-CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
+CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id, int lasti, int line)
 {
     Set& s = sets_[set_index(code)];
 
@@ -82,6 +82,8 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
         if (s.codes[i] == nullptr || s.codes[i] == code) {
             s.codes[i] = code;
             s.functions[i] = id;
+            s.lastis[i] = lasti;
+            s.lines[i] = line;
             return;
         }
     }
@@ -92,6 +94,22 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
     ++evictions_;
     s.codes[way] = code;
     s.functions[way] = id;
+    s.lastis[way] = lasti;
+    s.lines[way] = line;
+}
+
+void
+CodeFunctionCache::update_line(PyCodeObject* code, int lasti, int line)
+{
+    Set& s = sets_[set_index(code)];
+    for (size_t i = 0; i < WAYS_PER_SET; ++i) {
+        if (s.codes[i] == code) {
+            s.lastis[i] = lasti;
+            s.lines[i] = line;
+            return;
+        }
+    }
+    /* Code was evicted between lookup and update_line — safe to ignore. */
 }
 
 void

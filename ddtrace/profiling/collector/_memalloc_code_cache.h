@@ -13,6 +13,16 @@
 
 namespace Datadog {
 
+/* Result of a successful cache lookup. line_valid is true when lasti matched
+ * the stored value for this way, meaning the cached line number can be used
+ * directly without calling parse_linetable. */
+struct CacheHit
+{
+    Datadog::function_id func_id;
+    int line;
+    bool line_valid;
+};
+
 /* CodeFunctionCache caches libdatadog function_id values keyed by
  * PyCodeObject*. Frame walks during heap-profiler sample construction
  * call ProfilesDictionary::insert_str twice and insert_function once
@@ -45,11 +55,16 @@ class CodeFunctionCache
      * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
     explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
 
-    /* Returns cached function_id if present. */
-    std::optional<Datadog::function_id> lookup(PyCodeObject* code);
+    /* Returns CacheHit if code is cached; line_valid is true when lasti
+     * matches the stored value so parse_linetable can be skipped. */
+    std::optional<CacheHit> lookup(PyCodeObject* code, int lasti);
 
-    /* Inserts (code, id). If the target set is full, evicts via FIFO. */
-    void insert(PyCodeObject* code, Datadog::function_id id);
+    /* Inserts (code, id, lasti, line). If the target set is full, evicts via FIFO. */
+    void insert(PyCodeObject* code, Datadog::function_id id, int lasti, int line);
+
+    /* Updates the lasti/line for an already-cached code object. No-op if code
+     * was evicted between lookup and update. */
+    void update_line(PyCodeObject* code, int lasti, int line);
 
     /* Drops every entry. Counters are preserved (use reset_counters to
      * zero them). */
@@ -76,6 +91,8 @@ class CodeFunctionCache
     {
         PyCodeObject* codes[WAYS_PER_SET] = { nullptr, nullptr };
         Datadog::function_id functions[WAYS_PER_SET] = { nullptr, nullptr };
+        int lastis[WAYS_PER_SET] = { -1, -1 }; // -1 = no lasti cached
+        int lines[WAYS_PER_SET] = { 0, 0 };
         /* FIFO eviction: next way to overwrite, alternates 0/1. */
         uint8_t next_evict = 0;
     };
