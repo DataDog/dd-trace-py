@@ -50,25 +50,6 @@ impl HttpClientPy {
         }
     }
 
-    /// Merge per-request headers over the defaults (per-request value wins,
-    /// position preserved; new keys appended). Case-sensitive.
-    fn merge_headers(&self, headers: Option<Vec<(String, String)>>) -> Vec<(String, String)> {
-        match headers {
-            None => self.default_headers.clone(),
-            Some(extra) => {
-                let mut merged = self.default_headers.clone();
-                for (k, v) in extra {
-                    if let Some(slot) = merged.iter_mut().find(|(ek, _)| *ek == k) {
-                        slot.1 = v;
-                    } else {
-                        merged.push((k, v));
-                    }
-                }
-                merged
-            }
-        }
-    }
-
     /// Build the libdd request, run it on the runtime with the GIL released, and
     /// map the result to a Python response or exception.
     fn request(
@@ -87,9 +68,18 @@ impl HttpClientPy {
         let runtime = runtime.clone();
 
         let mut req = HttpRequest::new(method, self.full_url(path));
-        let merged = self.merge_headers(headers);
-        if !merged.is_empty() {
-            req.headers_mut().extend(merged);
+        // Populate headers directly into the request without an intermediate Vec:
+        // push defaults first, then per-request overrides (last writer wins by name).
+        req.headers_mut()
+            .extend(self.default_headers.iter().cloned());
+        if let Some(extra) = headers {
+            for (k, v) in extra {
+                if let Some(slot) = req.headers_mut().iter_mut().find(|(ek, _)| *ek == k) {
+                    slot.1 = v;
+                } else {
+                    req.headers_mut().push((k, v));
+                }
+            }
         }
         if let Some(b) = body {
             *req.body_mut() = bytes::Bytes::from_owner(b);

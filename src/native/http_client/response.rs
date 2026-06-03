@@ -8,22 +8,26 @@
 //! lazily and memoized in a `std::sync::OnceLock` so repeated `body()` calls
 //! don't reallocate.
 //!
-//! DEV: `OnceLock<Py<PyBytes>>` (std, not `PyOnceLock`) is used so the cached
-//! reference can be read in `__traverse__` without a `Python` token (which the
-//! GC protocol does not provide). `body()` always holds the GIL when it
-//! initializes the cell, and the GIL serializes those calls, so the std cell
-//! is sound here.
+//! DEV: `OnceLock<Py<…>>` (std, not `PyOnceLock`) is used so cached Python
+//! references can be read in `__traverse__` without a `Python` token (which the
+//! GC protocol does not provide). All initialization paths hold the GIL, and
+//! the GIL serializes those calls, so the std cells are sound here.
 
 use libdd_http_client::HttpResponse;
 use std::sync::OnceLock;
 
-use pyo3::{prelude::*, types::PyBytes};
+use pyo3::{
+    prelude::*,
+    types::{PyBytes, PyList},
+};
 
 #[pyclass(name = "HttpResponse", frozen)]
 pub struct HttpResponsePy {
     inner: HttpResponse,
-    // DEV: lazy `PyBytes` view — repeated `body()` calls reuse the same object.
+    // DEV: lazy Python views — built once on first access, reused on every
+    // subsequent call (refcount bump only).
     py_bytes: OnceLock<Py<PyBytes>>,
+    py_headers: OnceLock<Py<PyList>>,
 }
 
 impl From<HttpResponse> for HttpResponsePy {
@@ -32,6 +36,7 @@ impl From<HttpResponse> for HttpResponsePy {
         Self {
             inner,
             py_bytes: OnceLock::new(),
+            py_headers: OnceLock::new(),
         }
     }
 }
@@ -43,23 +48,29 @@ impl HttpResponsePy {
         self.inner.status_code()
     }
 
-    /// Response headers as `(name, value)` tuples. The list preserves
+    /// Response headers as a list of `(name, value)` tuples. The list preserves
     /// insertion order and allows duplicate header names (e.g. multiple
-    /// `Set-Cookie`).
+    /// `Set-Cookie`). Builds the Python list once and reuses it across calls.
     #[getter]
-    fn headers(&self) -> Vec<(&str, &str)> {
-        // DEV: borrow rather than clone — PyO3 materializes owned Python
-        // strings from the &str directly, so the only header copy is the
-        // unavoidable one into the Python objects.
-        self.inner
-            .headers()
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect()
+    fn headers<'py>(&self, py: Python<'py>) -> Bound<'py, PyList> {
+        self.py_headers
+            .get_or_init(|| {
+                PyList::new(
+                    py,
+                    self.inner
+                        .headers()
+                        .iter()
+                        .map(|(k, v)| (k.as_str(), v.as_str())),
+                )
+                .expect("header strings are valid UTF-8")
+                .unbind()
+            })
+            .bind(py)
+            .clone()
     }
 
-    /// Return the response body as `bytes`. Allocates a single `PyBytes`
-    /// lazily and reuses it across calls.
+    /// Return the response body as `bytes`. Builds the Python object once and
+    /// reuses it across calls.
     fn body<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
         self.py_bytes
             .get_or_init(|| PyBytes::new(py, self.inner.body()).unbind())
@@ -84,15 +95,16 @@ impl HttpResponsePy {
         )
     }
 
-    /// Cyclic-GC traversal. `HttpResponse` itself holds no Python references;
-    /// the only one is the lazily-built `py_bytes` cache. `bytes` is an atomic
-    /// leaf and cannot form a cycle, but PyO3 requires every `#[pyclass]` that
-    /// holds a `Py<...>` to implement `__traverse__` for correct refcount
-    /// accounting. Frozen, so no
+    /// Cyclic-GC traversal. Neither `bytes` nor header strings can form cycles,
+    /// but PyO3 requires every `#[pyclass]` holding `Py<…>` to implement
+    /// `__traverse__` for correct refcount accounting. Frozen, so no
     /// `__clear__` is needed.
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
         if let Some(b) = self.py_bytes.get() {
             visit.call(b)?;
+        }
+        if let Some(h) = self.py_headers.get() {
+            visit.call(h)?;
         }
         Ok(())
     }
