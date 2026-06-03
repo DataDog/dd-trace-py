@@ -64,10 +64,10 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - run: python dd-trace-py/scripts/freshvenvs.py generate
+      - run: python ddtrace/scripts/freshvenvs.py generate
 
       - name: Generate table
-        run: python dd-trace-py/scripts/generate_table.py
+        run: python ddtrace/scripts/generate_table.py
 
       - run: git diff
 

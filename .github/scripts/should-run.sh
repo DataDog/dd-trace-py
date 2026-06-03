@@ -25,34 +25,34 @@ changed=$(git diff --name-only "$BASE_SHA" HEAD)
 
 is_ignored() {
     local f="$1"
-    [[ "$f" == "dd-trace-py/.gitlab-ci.yml" ]] && return 0
-    [[ "$f" == dd-trace-py/.gitlab/* ]] && return 0
-    [[ "$f" == dd-trace-py/.cursor/* ]] && return 0
-    [[ "$f" == dd-trace-py/.claude/* ]] && return 0
-    [[ "$f" == dd-trace-py/docs/* ]] && return 0
-    [[ "$f" == dd-trace-py/releasenotes/* ]] && return 0
-    [[ "$f" == dd-trace-py/*.md ]] && return 0
-    [[ "$f" == dd-trace-py/*.rst ]] && return 0
-    [[ "$f" == dd-trace-py/LICENSE* ]] && return 0
-    [[ "$f" == "dd-trace-py/NOTICE" ]] && return 0
-    [[ "$f" == dd-trace-py/tests/* ]] && return 0
-    [[ "$f" == dd-trace-py/benchmarks/* ]] && return 0
-    [[ "$f" == "dd-trace-py/.gitignore" ]] && return 0
-    [[ "$f" == "dd-trace-py/.gitattributes" ]] && return 0
-    [[ "$f" == dd-trace-py/hooks/* ]] && return 0
+    [[ "$f" == "ddtrace/.gitlab-ci.yml" ]] && return 0
+    [[ "$f" == ddtrace/.gitlab/* ]] && return 0
+    [[ "$f" == ddtrace/.cursor/* ]] && return 0
+    [[ "$f" == ddtrace/.claude/* ]] && return 0
+    [[ "$f" == ddtrace/docs/* ]] && return 0
+    [[ "$f" == ddtrace/releasenotes/* ]] && return 0
+    [[ "$f" == ddtrace/*.md ]] && return 0
+    [[ "$f" == ddtrace/*.rst ]] && return 0
+    [[ "$f" == ddtrace/LICENSE* ]] && return 0
+    [[ "$f" == "ddtrace/NOTICE" ]] && return 0
+    [[ "$f" == ddtrace/tests/* ]] && return 0
+    [[ "$f" == ddtrace/benchmarks/* ]] && return 0
+    [[ "$f" == "ddtrace/.gitignore" ]] && return 0
+    [[ "$f" == "ddtrace/.gitattributes" ]] && return 0
+    [[ "$f" == ddtrace/hooks/* ]] && return 0
     # scripts/ — only ignore subdirectories that are clearly CI/dev tooling.
     # Individual script files are NOT ignored since some affect wheel builds
     # (e.g. zip_filter.py, validate_wheel.py, download-s3-wheels.sh).
-    [[ "$f" == dd-trace-py/scripts/ci-analysis/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/ci_visibility/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/docs/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/iast/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/import-analysis/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/integration_registry/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/tested_versions/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/profiles/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/trace_flares/* ]] && return 0
-    [[ "$f" == dd-trace-py/scripts/vcr/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/ci-analysis/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/ci_visibility/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/docs/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/iast/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/import-analysis/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/integration_registry/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/tested_versions/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/profiles/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/trace_flares/* ]] && return 0
+    [[ "$f" == ddtrace/scripts/vcr/* ]] && return 0
     return 1
 }
 

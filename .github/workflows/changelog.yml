@@ -26,7 +26,7 @@ jobs:
       - name: Ensure release note added
         # Only run this on pull requests
         if: github.event_name == 'pull_request'
-        run: dd-trace-py/scripts/check-releasenotes
+        run: ddtrace/scripts/check-releasenotes
 
       - uses: ./.github/actions/setup-ci-deps
         with:

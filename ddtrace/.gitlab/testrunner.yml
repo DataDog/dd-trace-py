@@ -1,0 +1,44 @@
+variables:
+  TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v115521171-bbc5877-testrunner@sha256:a3e99a5fab74078806d5507b9743370ca375e63dd36b0a0eace4d05cfd1ecda3
+
+.testrunner:
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
+  # DEV: we have a larger pool of amd64 runners, prefer that over arm64
+  tags: [ "arch:amd64" ]
+  timeout: 20m
+  before_script:
+    # this gets reused a lot, so make sure the cd only happens when appropriate
+    - if [[ ! $(pwd) =~ "dd-trace-py/ddtrace" ]]; then cd ddtrace; fi
+    - ulimit -c unlimited
+    - git config --global --add safe.directory ${CI_PROJECT_DIR}
+    - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
+    - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
+  after_script:
+    - if [[ ! $(pwd) =~ "dd-trace-py/ddtrace" ]]; then cd ddtrace; fi
+    - bash .gitlab/scripts/generate-core-backtraces.sh
+  retry: 2
+  variables:
+    # Default to 4 when `-n auto` is used
+    # DEV: auto/logical doesn't work well in k8s so we manually set it
+    PYTEST_XDIST_AUTO_NUM_WORKERS: "4"
+  artifacts:
+    when: always
+    paths:
+      - core.*
+    reports:
+      junit: test-results/junit*.xml
+    expire_in: 1 week
+
+.testrunner_gpu:
+  extends: .testrunner
+  image:
+    name: ${TESTRUNNER_IMAGE}
+  tags: [ "gpu:a10-amd64" ]
+  timeout: 40m
+  before_script:
+    - !reference [.testrunner, before_script]
+    - export NVIDIA_VISIBLE_DEVICES=all
+    - export NVIDIA_DRIVER_CAPABILITIES=compute,utility

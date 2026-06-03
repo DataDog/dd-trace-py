@@ -1,0 +1,169 @@
+---
+description: dd-trace-py repository structure
+globs:
+alwaysApply: false
+---
+# Repository Structure
+
+# dd-trace-py Repository Structure
+
+```
+ddtrace/
+├── ddtrace/
+│   ├── __init__.py            # Package initializer
+│   ├── _trace/                # Core tracer implementation (private)
+│   │   ├── __init__.py
+│   │   ├── context.py         # Span context propagation
+│   │   ├── provider.py        # Tracer provider abstraction
+│   │   ├── span.py           # Span object definition and lifecycle
+│   │   ├── tracer.py         # Main Tracer class implementation
+│   │   ├── utils.py          # Helper functions for tracing internals
+│   │   ├── _limits.py        # Span/tag size limits and validation
+│   │   └── processor/        # Trace processing pipeline
+│   │
+│   ├── contrib/               # Official integrations (100+ libraries)
+│   │   ├── flask/            # Flask framework integration
+│   │   ├── django/           # Django framework integration
+│   │   ├── sqlalchemy/       # SQLAlchemy ORM integration
+│   │   ├── requests/         # HTTP client instrumentation
+│   │   ├── psycopg/          # PostgreSQL adapter integration
+│   │   ├── aiobotocore/      # Async AWS SDK tracing
+│   │   ├── langchain/        # LLM framework integration
+│   └── ├── …                 # Many more (see “Integration Registry" for full list)
+│   │   ├── internal/         # Shared utilities for integrations
+│   │   │   ├── asgi.py       # ASGI framework utilities
+│   │   │   ├── wsgi.py       # WSGI framework utilities
+│   │   │   └── utils.py      # Common integration helpers
+│   │   └── integration_registry/ # Integration discovery and management
+│   │
+│   ├── appsec/               # Application Security features
+│   │   ├── __init__.py       # AppSec public API
+│   │   ├── _iast/            # Interactive Application Security Testing
+│   │   ├── _ddwaf/          # Datadog Web Application Firewall
+│   │   ├── _exploit_prevention/ # Runtime exploit prevention
+│   │   └── trace_utils.py    # AppSec trace enrichment
+│   │
+│   ├── internal/             # Core implementation utilities (private)
+│   │   ├── ci_visibility/    # Continuous Integration visibility
+│   │   ├── datastreams/      # Data Streams Monitoring
+│   │   ├── telemetry/        # Internal telemetry collection
+│   │   ├── coverage/         # Code coverage tracking
+│   │   ├── remoteconfig/     # Remote configuration management
+│   │   ├── _encoding.pyx     # Cython encoding optimizations
+│   │   └── utils/           # Shared internal utilities
+│   │
+│   ├── llmobs/              # Large Language Model observability
+│   │   ├── __init__.py      # LLM observability public API
+│   │   ├── _context.py      # LLM-specific context management
+│   │   ├── _integrations/   # LLM framework integrations
+│   │   └── _evaluators/     # LLM evaluation metrics
+│   │
+│   ├── profiling/           # Continuous profiling
+│   │   ├── __init__.py      # Profiling public API
+│   │   ├── collector/       # Native & Python collectors
+│   │   ├── exporter/        # Profile data export
+│   │   └── bootstrap/       # Profiling initialization
+│   │
+│   ├── debugging/           # Dynamic debugging and remote config
+│   │   ├── __init__.py      # Debugging public API
+│   │   ├── _probe/          # Debug probe management
+│   │   ├── _signal/         # Signal handling for debugging
+│   │   └── _products/       # Product-specific debugging
+│   │
+│   ├── errortracking/       # Error tracking functionality
+│   │   ├── __init__.py      # Error tracking public API
+│   │   └── _handled_exceptions/ # Exception capture and reporting
+│   │
+│   ├── ext/                 # Extension constants and tag definitions
+│   │   ├── __init__.py
+│   │   ├── aws.py           # AWS service constants
+│   │   ├── http.py          # HTTP status and header constants
+│   │   └── sql.py           # SQL operation constants
+│   │
+│   ├── opentelemetry/       # OpenTelemetry compatibility layer
+│   ├── opentracer/          # OpenTracing compatibility layer
+│   ├── propagation/         # Trace context propagation protocols
+│   ├── settings/            # Configuration management
+│   ├── sourcecode/          # Source code integration
+│   ├── bootstrap/           # Package initialization and CLI bootstrap
+│   └── vendor/              # Vendored third-party dependencies
+│
+├── tests/                   # Comprehensive test suite
+│   ├── contrib/             # Integration tests (mirrors ddtrace/contrib/)
+│   ├── appsec/             # Application Security tests
+│   ├── debugging/          # Dynamic debugging tests
+│   ├── internal/           # Internal component tests
+│   ├── tracer/             # Core tracer functionality tests
+│   ├── snapshots/          # Test output snapshots for regression testing
+│   └── conftest.py         # PyTest configuration and shared fixtures
+│
+├── benchmarks/             # Performance benchmarks and regression detection
+│   ├── base/               # Base benchmark framework
+│   ├── bm/                 # Benchmark utilities and fixtures
+│   ├── django_simple/      # Django framework benchmarks
+│   ├── flask_simple/       # Flask framework benchmarks
+│   ├── startup/            # Import and startup time benchmarks
+│   └── threading/          # Multi-threading performance tests
+│
+├── scripts/                # Development and maintenance utilities
+│   ├── ci_visibility/      # CI pipeline automation scripts
+│   ├── iast/              # IAST development tools
+│   ├── integration_registry/ # Integration management scripts
+│   └── profiles/          # Profiling analysis tools
+│
+├── docs/                   # Documentation
+│   ├── contributing.rst    # Main contributing guide
+│   ├── contributing-testing.rst # Testing setup and procedures
+│   ├── api.rst            # API reference documentation
+│   └── basic_usage.rst    # Getting started guide
+│
+├── src/                    # Native code sources
+│   └── native/            # C/C++ native extensions for performance
+│
+├── lib-injection/         # Library injection for serverless and containers
+├── docker/               # Docker build configurations
+├── hooks/                # Git hooks for code quality
+├── ci/                   # CI configuration and utilities
+├── releasenotes/         # Release notes management
+├── templates/            # Code generation templates
+│
+├── setup.py              # Package build configuration
+├── pyproject.toml        # Modern Python project configuration
+├── riotfile.py           # Multi-version testing with Riot
+├── docker-compose.yml    # Development environment setup
+└── conftest.py           # Global PyTest configuration
+```
+
+## Internal Implementation Details
+
+**`internal/` folders:** Contains private methods and functionality used by the library itself. Code that is not part of the public API and not intended for direct use by customers.
+
+## Key Components
+
+### Core Library (`ddtrace/`)
+- **Main Package**: Contains the primary tracing functionality and public APIs
+- **Contrib**: 100+ integrations with popular Python libraries (Django, Flask, Redis, etc.)
+- **AppSec**: Application security features including IAST and WAF protection
+- **Profiling**: Continuous profiling capabilities for CPU, memory, and I/O
+- **Internal**: Implementation details not part of the public API
+
+### Testing (`tests/`)
+- **Comprehensive Test Suite**: Unit tests, integration tests, and end-to-end tests
+- **Snapshots**: Regression testing using captured test outputs
+- **Contrib Tests**: Specific tests for each third-party integration
+
+### Development Tools
+- **Benchmarks**: Performance testing and regression detection
+- **Scripts**: Development utilities and automation tools
+- **Hooks**: Git hooks for code quality enforcement
+- **Docker**: Containerized development and testing environments
+
+### Build & Distribution
+- **Native Code**: C/C++ extensions for performance-critical components
+- **Build Systems**: setuptools with native extensions (C/C++/Cython/Rust) and modern Python packaging
+- **Release Management**: Automated release notes and versioning
+
+### Documentation & Contributing
+- **Extensive Docs**: API documentation, usage guides, and contributing guidelines
+- **Templates**: Code generation templates for new integrations
+- **CI/CD**: Comprehensive testing and deployment pipelines

@@ -34,7 +34,7 @@ jobs:
             const lint = require('@commitlint/lint').default;
 
             const CONFIG = {
-              extends: ['./dd-trace-py/commitlint.config.js'],
+              extends: ['./ddtrace/commitlint.config.js'],
             };
 
             const title = context.payload.pull_request.title;

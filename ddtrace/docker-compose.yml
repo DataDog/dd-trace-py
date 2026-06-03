@@ -1,0 +1,279 @@
+# remember to use this compose file __ONLY__ for development/testing purposes
+services:
+    elasticsearch:
+        image: elasticsearch:7.17.13
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+        ports:
+            - "127.0.0.1:9200:9200"
+    opensearch:
+        image: opensearchproject/opensearch:1.3.6
+        environment:
+            - "DISABLE_SECURITY_PLUGIN=true"
+            - "discovery.type=single-node"
+        ports:
+            - "127.0.0.1:9201:9200"
+    cassandra:
+        image: cassandra:3.11.7
+        environment:
+            - MAX_HEAP_SIZE=512M
+            - HEAP_NEWSIZE=256M
+        ports:
+            - "127.0.0.1:9042:9042"
+    consul:
+        image: consul:1.6.0
+        ports:
+            - "127.0.0.1:8500:8500"
+    postgres:
+        image: postgres:12-alpine
+        environment:
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_USER=postgres
+            - POSTGRES_DB=postgres
+        ports:
+            - "127.0.0.1:5432:5432"
+    mariadb:
+        image: mariadb:lts
+        environment:
+            - MYSQL_ROOT_PASSWORD=example
+            - MYSQL_DATABASE=test
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+        ports:
+            - "127.0.0.1:3306:3306"
+    mysql:
+        image: mysql:5.7
+        platform: linux/amd64
+        environment:
+            - MYSQL_ROOT_PASSWORD=admin
+            - MYSQL_PASSWORD=test
+            - MYSQL_USER=test
+            - MYSQL_DATABASE=test
+        ports:
+            - "127.0.0.1:3306:3306"
+    redis:
+        image: redis:4.0-alpine
+        ports:
+            - "127.0.0.1:6379:6379"
+    kafka:
+        platform: linux/arm64
+        image: apache/kafka:3.8.0
+        ports:
+            - "127.0.0.1:29092:29092"
+        environment:
+            - ALLOW_PLAINTEXT_LISTENER=yes
+            - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+            - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+            - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+            - KAFKA_NODE_ID=1
+            - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+            - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+            - CLUSTER_ID=5L6g3nShT-eMCtK--X86sw
+            - KAFKA_PROCESS_ROLES=broker,controller
+            - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+            - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+    rediscluster:
+        platform: linux/amd64
+        image: grokzen/redis-cluster:6.2.0
+        environment:
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
+    mongo:
+        image: mongo:4.4
+        ports:
+            - "127.0.0.1:27017:27017"
+    memcached:
+        image: memcached:1.5-alpine
+        ports:
+            - "127.0.0.1:11211:11211"
+    moto:
+        image: motoserver/moto:5.1.0
+        environment:
+            - MOTO_PORT=3000
+        ports:
+            - "127.0.0.1:3000:3000"
+    rabbitmq:
+        image: rabbitmq:3.7-alpine
+        ports:
+            - "127.0.0.1:5672:5672"
+    ddagent:
+        image: datadog/agent:latest
+        environment:
+            - DD_HOSTNAME=github-actions-worker
+            - DD_BIND_HOST=0.0.0.0
+            - DD_REMOTE_CONFIGURATION_ENABLED=true
+            - DD_SITE=${DD_SITE-datadoghq.com}
+            - DD_API_KEY=${DD_API_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_KEY=${DD_REMOTE_CONFIGURATION_KEY-invalid_but_this_is_fine}
+            - DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL=5s
+            - DD_APM_RECEIVER_SOCKET=/tmp/ddagent/trace.sock
+            - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+        ports:
+            - 8126:8126
+            - 8125:8125/udp
+        volumes:
+          - ddagent:/tmp/ddagent:rw
+    testagent:
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.43.0
+        ports:
+            - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
+        volumes:
+            - ./ddtrace/tests/snapshots:/snapshots
+            - ./ddtrace/tests/cassettes:/cassettes
+        environment:
+            - LOG_LEVEL=WARNING
+            - SNAPSHOT_DIR=/snapshots
+            - VCR_CASSETTES_DIRECTORY=/cassettes
+            - VCR_PROVIDER_MAP=azure_openai=https://llmobs-test-resource.openai.azure.com/
+            - SNAPSHOT_CI=0
+            - DD_POOL_TRACE_CHECK_FAILURES=true
+            - DD_DISABLE_ERROR_RESPONSES=true
+            - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
+            - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id,meta._dd.git.repository_url
+
+    vertica:
+        image: vertica/vertica-ce
+        environment:
+          - VP_TEST_USER=dbadmin
+          - VP_TEST_PASSWORD=abc123
+          - VP_TEST_DATABASE=docker
+        ports:
+          - "127.0.0.1:5433:5433"
+    azurecosmosemulator:
+        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview
+        ports:
+            - "127.0.0.1:8081:8081"
+            - "127.0.0.1:8080:8080"
+            - "127.0.0.1:1234:1234"
+        environment:
+            ACCEPT_EULA: "Y"
+            BLOB_SERVER: azurite
+            METADATA_SERVER: azurite
+    azureeventhubsemulator:
+        image: mcr.microsoft.com/azure-messaging/eventhubs-emulator:2.1.0
+        ports:
+            - "127.0.0.1:5672:5672"
+            - "127.0.0.1:9092:9092"
+            - "127.0.0.1:5300:5300"
+        environment:
+            ACCEPT_EULA: "Y"
+            BLOB_SERVER: azurite
+            METADATA_SERVER: azurite
+    azureservicebusemulator:
+        image: mcr.microsoft.com/azure-messaging/servicebus-emulator:1.1.2
+        ports:
+            - "127.0.0.1:5672:5672"
+            - "127.0.0.1:5300:5300"
+        environment:
+            ACCEPT_EULA: "Y"
+            MSSQL_SA_PASSWORD: "Localtestpass1!"
+            SQL_SERVER: dd-trace-py-azuresqledge-1
+    azuresqledge:
+        image: mcr.microsoft.com/azure-sql-edge:1.0.7
+        ports:
+            - "127.0.0.1:1433:1433"
+        environment:
+            ACCEPT_EULA: "Y"
+            MSSQL_SA_PASSWORD: "Localtestpass1!"
+    azurite:
+        image: mcr.microsoft.com/azure-storage/azurite:3.34.0
+        ports:
+            - "127.0.0.1:10000:10000"
+            - "127.0.0.1:10001:10001"
+            - "127.0.0.1:10002:10002"
+
+
+    selenium-chrome:
+        image: selenium/standalone-chrome:latest
+        platform: linux/amd64
+        network_mode: host
+        environment:
+            - SE_NODE_MAX_SESSIONS=2
+            - SE_VNC_NO_PASSWORD=1
+        shm_size: 2g
+
+    testrunner:
+        # DEV uncomment to test local changes to the Dockerfile
+        # build:
+        #  context: ./docker
+        #  dockerfile: Dockerfile
+        image: ghcr.io/datadog/dd-trace-py/testrunner:4d842eb2d0671790e4dc3e30309a8e3ffe91ac8b
+        command: bash
+        # Resource limits: defaults to 0 (unlimited, uses all available system resources)
+        # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
+        cpus: "${DD_TEST_CPUS:-0}"
+        mem_limit: "${DD_TEST_MEMORY:-0}"
+        cap_add:
+          - SYS_PTRACE
+          - SYS_ADMIN
+        environment:
+          DD_FAST_BUILD: "1"
+          CMAKE_BUILD_PARALLEL_LEVEL: "12"
+          CARGO_BUILD_JOBS: "12"
+          CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
+          DD_USE_SCCACHE: "1"
+          SCCACHE_DIR: "/home/bits/.cache/sccache"
+          DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
+        network_mode: host
+        userns_mode: host
+        working_dir: /home/bits/project/
+        volumes:
+          - ddagent:/tmp/ddagent
+          - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache
+          - ./:/home/bits/project
+          - ../ddtrace-internal:/home/bits/ddtrace-internal
+
+    localstack:
+        image: localstack/localstack:1.4.0
+        ports:
+          - "127.0.0.1:4566:4566"
+          - "127.0.0.1:4571:4571"
+        environment:
+          - SERVICES=${SERVICES- }
+          - DEBUG=${DEBUG- }
+          - LAMBDA_EXECUTOR=local
+          - KINESIS_ERROR_PROBABILITY=${KINESIS_ERROR_PROBABILITY- }
+          - DOCKER_HOST=unix:///var/run/docker.sock
+        volumes:
+          - "${TMPDIR:-/var/lib/localstack}:/var/lib/localstack"
+          - "/var/run/docker.sock:/var/run/docker.sock"
+
+    httpbin:
+      image: kennethreitz/httpbin@sha256:2c7abc4803080c22928265744410173b6fea3b898872c01c5fd0f0f9df4a59fb
+      platform: linux/amd64
+      ports:
+        - "127.0.0.1:8001:80"
+
+    valkey:
+        image: valkey/valkey:8.0-alpine
+        ports:
+            - "127.0.0.1:6379:6379"
+
+    pubsub:
+        image: google/cloud-sdk:557.0.0-emulators
+        command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+        ports:
+            - "127.0.0.1:8085:8085"
+
+    valkeycluster:
+        platform: linux/amd64
+        image: grokzen/redis-cluster:6.2.0
+        environment:
+            - IP=0.0.0.0
+        ports:
+            - "127.0.0.1:7000:7000"
+            - "127.0.0.1:7001:7001"
+            - "127.0.0.1:7002:7002"
+            - "127.0.0.1:7003:7003"
+            - "127.0.0.1:7004:7004"
+            - "127.0.0.1:7005:7005"
+
+volumes:
+    ddagent:

@@ -63,7 +63,7 @@ jobs:
           docker compose --version
 
       - name: Start docker service
-        run: cd dd-trace-py && docker compose up -d testagent
+        run: cd ddtrace && docker compose up -d testagent
 
       - name: Install system dependencies
         run: |
@@ -77,15 +77,15 @@ jobs:
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
       - name: Run regenerate-riot-latest
-        run: dd-trace-py/scripts/regenerate-riot-latest.sh
+        run: ddtrace/scripts/regenerate-riot-latest.sh
 
       - name: Run integration registry update
-        run: python dd-trace-py/scripts/integration_registry/update_and_format_registry.py
+        run: python ddtrace/scripts/integration_registry/update_and_format_registry.py
 
       - name: Get latest version
         id: new-latest
         run: |
-          NEW_LATEST=$(python dd-trace-py/scripts/get_latest_version.py ${{ env.VENV_NAME }})
+          NEW_LATEST=$(python ddtrace/scripts/get_latest_version.py ${{ env.VENV_NAME }})
           echo "NEW_LATEST=$NEW_LATEST" >> $GITHUB_ENV
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
