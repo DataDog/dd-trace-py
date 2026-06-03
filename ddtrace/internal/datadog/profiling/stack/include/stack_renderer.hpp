@@ -72,10 +72,6 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
-    // Whether task name has been pushed for the current sample. Whenever
-    // the sample is created, this has to be reset.
-    bool pushed_task_name = false;
-
   public:
     StackRenderer();
     void render_thread_begin(PyThreadState* tstate,

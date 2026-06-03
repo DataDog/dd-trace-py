@@ -45,8 +45,6 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
                                   // since we don't know if we'll get a CPU time here.
 
-    pushed_task_name = false;
-
     // Finalize the thread information we have
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
@@ -101,7 +99,6 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
     }
 
     sample->push_task_name(task_name);
-    pushed_task_name = true;
 }
 
 void
@@ -123,26 +120,6 @@ StackRenderer::render_frame(Frame& frame)
     const auto& string_table = Sampler::get().get_echion().string_table();
 
     auto line = frame.line;
-
-    // Synthetic task-name frames use line 0. Task labels are rendered before
-    // the stack today, but keep this fallback for any line-0 frame path.
-    if (line == 0) {
-        if (!pushed_task_name) {
-            std::string_view name_str;
-            auto maybe_name_str = string_table.lookup(frame.name);
-            if (maybe_name_str) {
-                name_str = maybe_name_str->get();
-            } else {
-                name_str = missing_name;
-            }
-
-            sample->push_task_name(name_str);
-            pushed_task_name = true;
-        }
-        // And return early to avoid pushing task name as a frame
-        // TODO: We may want to do that for clarity, actually. Let's reconvene.
-        return;
-    }
 
     string_id name_id;
     auto maybe_name_id = string_id_cache.find(frame.name);
