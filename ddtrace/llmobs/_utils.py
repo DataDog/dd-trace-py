@@ -254,6 +254,7 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
     The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
+
     def _walk(node: Any, depth: int, path: str) -> Any:
         if not isinstance(node, (dict, list)):
             return node
