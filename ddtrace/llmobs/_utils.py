@@ -245,50 +245,31 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
-_MAX_NESTED_META_DEPTH_AGENT = 17
-_MAX_NESTED_META_DEPTH_AGENTLESS = 12
+_MAX_NESTED_META_DEPTH = 13
 
 
-def _sanitize_span_event_depth(obj: Any, apm_agentless: bool = False) -> Any:
+def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
-    the safe nesting depth replaced by its JSON string representation.
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation.
+    The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
-    if not isinstance(obj, (dict, list)):
-        return obj
-    max_depth = _MAX_NESTED_META_DEPTH_AGENTLESS if apm_agentless else _MAX_NESTED_META_DEPTH_AGENT
-    root: Any = {} if isinstance(obj, dict) else []
-    stack = [(obj, root, 0, "")]
-    while stack:
-        source, dest, depth, path = stack.pop()
-        items = source.items() if isinstance(source, dict) else enumerate(source)
-        for key, val in items:
-            child_path = f"{path}.{key}" if path else str(key)
-            if isinstance(val, (dict, list)):
-                if depth + 1 >= max_depth:
-                    log.warning(
-                        "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be stringified "
-                        "to avoid backend parsing errors.",
-                        child_path,
-                        max_depth,
-                    )
-                    if isinstance(dest, list):
-                        dest.append(safe_json(val))
-                    else:
-                        dest[key] = safe_json(val)
-                else:
-                    child: Any = {} if isinstance(val, dict) else []
-                    if isinstance(dest, list):
-                        dest.append(child)
-                    else:
-                        dest[key] = child
-                    stack.append((val, child, depth + 1, child_path))
-            else:
-                if isinstance(dest, list):
-                    dest.append(val)
-                else:
-                    dest[key] = val
-    return root
+    def _walk(node: Any, depth: int, path: str) -> Any:
+        if not isinstance(node, (dict, list)):
+            return node
+        if depth >= _MAX_NESTED_META_DEPTH:
+            log.warning(
+                "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
+                "stringified to avoid backend parsing errors.",
+                path,
+                _MAX_NESTED_META_DEPTH,
+            )
+            return safe_json(node)
+        if isinstance(node, dict):
+            return {k: _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+        return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+
+    return _walk(obj, 0, "")
 
 
 def safe_json(obj, ensure_ascii=True):
