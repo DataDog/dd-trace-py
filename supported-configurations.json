@@ -2451,6 +2451,13 @@
         ]
       }
     ],
+    "DD_ML_JOB_ENV": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null
+      }
+    ],
     "DD_METRICS_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -3738,6 +3745,13 @@
       }
     ],
     "DD_TRACE_AWS_DURABLE_EXECUTION_SDK_PYTHON_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5794,9 +5808,9 @@
     ],
     "_DD_PROFILING_STACK_FAST_COPY": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
