@@ -990,3 +990,29 @@ def test_azure_ai_model_name_unchanged(tracer):
         integration._llmobs_set_tags(span, ["azure_ai/my_deployment"], {}, response=None, operation="chat")
 
     assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "my_deployment"
+
+
+@pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+def test_azure_streaming_completion_e2e(litellm, request_vcr, litellm_llmobs, test_spans, consume_stream, monkeypatch):
+    """End-to-end: azure streaming via litellm.completion tags the canonical response model,
+    not the deployment name. Exercises the stream handler -> litellm.response.model tag -> override.
+    """
+    monkeypatch.setenv("AZURE_API_KEY", "<not-a-real-key>")
+    monkeypatch.setenv("AZURE_API_BASE", "https://test-azure.openai.azure.com")
+    monkeypatch.setenv("AZURE_API_VERSION", "2024-12-01-preview")
+    with request_vcr.use_cassette("completion_azure_stream.yaml"):
+        resp = litellm.completion(
+            model="azure/gpt-5.2_2025-12-11",
+            messages=[{"content": "Hey, what is up?", "role": "user"}],
+            stream=True,
+            stream_options={"include_usage": True},
+        )
+        consume_stream(resp, 1)
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert spans[0].get_tag("litellm.response.model") == "gpt-5.2-2025-12-11"
+    meta = _get_llmobs_data_metastruct(spans[0]).get("meta", {})
+    assert meta.get("model_name") == "gpt-5.2-2025-12-11"
+    assert meta.get("model_name") != "gpt-5.2_2025-12-11"
+    assert meta.get("model_provider") == "azure"
