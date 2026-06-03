@@ -1774,7 +1774,7 @@ class LLMObs(Service):
         cls,
         prompt_id: str,
         *,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
         targeting_key: Optional[str] = None,
         **attributes: Any,
@@ -1863,7 +1863,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 

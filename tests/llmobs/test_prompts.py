@@ -13,7 +13,6 @@ from ddtrace.llmobs._constants import FFEvalState
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
-from ddtrace.llmobs.types import PromptProviderNotReady
 from tests.utils import override_global_config
 
 
@@ -398,15 +397,28 @@ class TestPromptRouting:
         ff_mock.assert_called_once_with("greeting", None, {})
         assert prompt.source == "ff"
 
-    def test_no_label_with_env_agentless_routes_to_http(self):
+    def test_no_label_with_env_agentless_routes_to_http_with_env_label(self):
         manager = _make_manager(agentless=True)
-        with mock_api(200, TEXT_PROMPT_RESPONSE):
-            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="production", source="registry", template="Hi")
+        with patch.object(manager, "_fetch_from_ff") as ff_mock:
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
                     cfg.env = "production"
                     prompt = manager.get_prompt("greeting")
         ff_mock.assert_not_called()
+        http_mock.assert_called_once_with("greeting", label="production", fallback=None)
         assert prompt.source == "registry"
+
+    def test_no_flag_falls_through_to_http_floor_with_env_label(self):
+        manager = _make_manager(agentless=False)
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
+        with patch.object(manager, "_fetch_from_ff", return_value=(None, FFEvalState.NO_FLAG)) as ff_mock:
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "staging"
+                    manager.get_prompt("greeting")
+        ff_mock.assert_called_once()
+        http_mock.assert_called_once_with("greeting", label="staging", fallback=None)
 
     def test_opt_in_off_with_env_routes_to_http(self):
         import ddtrace.internal.settings.openfeature as ffe_settings
@@ -488,25 +500,28 @@ def _reset_ffe_global_config():
 class TestPromptNotReady:
     """get_prompt end-to-end against the real provider with no RC payload delivered (NOT_READY).
 
-    Only the RC-delivery boundary is controlled (no config delivered). The real DataDogProvider
-    resolves PROVIDER_NOT_READY, so the FFE path must never serve HTTP "latest".
+    NOT_READY is not a hard failure: it falls through to the HTTP floor with label=DD_ENV, same as
+    NO_FLAG. Callers needing FFE resolved before evaluating use wait_for_ready(). fallback is left
+    to the HTTP path, which uses it only if the HTTP request itself fails.
     """
 
-    def test_not_ready_with_fallback_returns_fallback_not_http(self):
+    def test_not_ready_with_fallback_falls_through_to_http_floor(self):
         manager = _make_manager()
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
         with _ffe_enabled():
-            with patch.object(manager, "_get_prompt_http") as http_mock:
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 prompt = manager.get_prompt("greeting", fallback="Hi {{user}}")
-        http_mock.assert_not_called()
-        assert prompt.source == "fallback"
+        http_mock.assert_called_once_with("greeting", label="staging", fallback="Hi {{user}}")
+        assert prompt.source == "registry"
 
-    def test_not_ready_without_fallback_raises_not_http(self):
+    def test_not_ready_without_fallback_falls_through_to_http_floor(self):
         manager = _make_manager()
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
         with _ffe_enabled():
-            with patch.object(manager, "_get_prompt_http") as http_mock:
-                with pytest.raises(PromptProviderNotReady):
-                    manager.get_prompt("greeting")
-        http_mock.assert_not_called()
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                prompt = manager.get_prompt("greeting")
+        http_mock.assert_called_once_with("greeting", label="staging", fallback=None)
+        assert prompt.source == "registry"
 
 
 class TestFetchFromFFStateMapping:

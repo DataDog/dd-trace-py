@@ -26,7 +26,6 @@ from ddtrace.llmobs._prompts.utils import cache_key
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.llmobs.types import PromptProviderNotReady
 
 
 log = get_logger(__name__)
@@ -103,12 +102,11 @@ class PromptManager:
                 return prompt
             if ff_state == FFEvalState.NOT_READY:
                 telemetry.record_prompt_source(PromptSource.NOT_READY)
-                if fallback is not None:
-                    telemetry.record_prompt_source(PromptSource.FALLBACK)
-                    return ManagedPrompt.from_fallback(prompt_id, fallback)
-                raise PromptProviderNotReady(prompt_id)
+            # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
+            # the HTTP floor (label=DD_ENV); callers needing FFE resolved first use wait_for_ready.
 
-        return self._get_prompt_http(prompt_id, label=label, fallback=fallback)
+        http_label = label if label is not None else dd_env
+        return self._get_prompt_http(prompt_id, label=http_label, fallback=fallback)
 
     def _get_prompt_http(
         self,
