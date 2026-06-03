@@ -80,12 +80,6 @@ class StringTable
         return table_.size();
     }
 
-    void erase(Key key)
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-        table_.erase(key);
-    }
-
     StringTable()
     {
         table_.emplace(0, "");
