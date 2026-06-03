@@ -40,7 +40,12 @@ DEEP_TOOL_SCHEMA = {
                             "properties": {
                                 "l4": {
                                     "type": "object",
-                                    "properties": {"l5": {"type": "string"}},
+                                    "properties": {
+                                        "l5": {
+                                            "type": "object",
+                                            "properties": {"l6": {"type": "string"}},
+                                        }
+                                    },
                                 }
                             },
                         }
