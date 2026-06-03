@@ -126,7 +126,7 @@ def collect() -> dict[str, Any]:
         sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
         debug=logger.isEnabledFor(logging.DEBUG),
-        enabled_cli="ddtrace" in env.get("PYTHONPATH", ""),
+        enabled_cli="ddtrace/ddtrace" in env.get("PYTHONPATH", ""),
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
