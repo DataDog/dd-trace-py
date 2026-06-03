@@ -13,7 +13,7 @@ dogstatsd
 
 Website: https://datadogpy.readthedocs.io/en/latest/
 Source: https://github.com/DataDog/datadogpy
-Version: 0.52.1
+Version: 8e11af2 (0.39.1)
 License: Copyright (c) 2020, Datadog <info@datadoghq.com>
 
 Notes:
