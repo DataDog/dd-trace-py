@@ -13,14 +13,17 @@
 
 namespace Datadog {
 
-/* Result of a successful cache lookup. line_valid is true when lasti matched
- * the stored value for this way, meaning the cached line number can be used
- * directly without calling parse_linetable. */
+/* Result of a cache lookup.
+ * func_id == nullptr: cache miss — caller must do a full miss (intern strings, insert).
+ * line == -1: lasti didn't match the stored value — caller must call resolve_lineno.
+ * line >= 0: lasti matched; cached line number is valid.
+ *
+ * Struct is 16B (function_id 8B + int 4B + 4B implicit pad), which fits in two
+ * integer registers (RAX:RDX) on x86-64 System V ABI — no hidden-pointer overhead. */
 struct CacheHit
 {
-    Datadog::function_id func_id;
-    int line;
-    bool line_valid;
+    Datadog::function_id func_id; // nullptr = miss
+    int line;                     // -1 = lasti mismatch; >=0 = cached line
 };
 
 /* CodeFunctionCache caches libdatadog function_id values keyed by
@@ -55,9 +58,9 @@ class CodeFunctionCache
      * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
     explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
 
-    /* Returns CacheHit if code is cached; line_valid is true when lasti
-     * matches the stored value so parse_linetable can be skipped. */
-    std::optional<CacheHit> lookup(PyCodeObject* code, int lasti);
+    /* Returns a CacheHit. Check hit.func_id != nullptr for a hit; check
+     * hit.line >= 0 to skip parse_linetable (lasti matched the stored value). */
+    CacheHit lookup(PyCodeObject* code, int lasti) noexcept;
 
     /* Inserts (code, id, lasti, line). If the target set is full, evicts via FIFO. */
     void insert(PyCodeObject* code, Datadog::function_id id, int lasti, int line);

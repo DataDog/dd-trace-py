@@ -59,18 +59,19 @@ CodeFunctionCache::occupancy_histogram() const
     return hist;
 }
 
-std::optional<CacheHit>
-CodeFunctionCache::lookup(PyCodeObject* code, int lasti)
+CacheHit
+CodeFunctionCache::lookup(PyCodeObject* code, int lasti) noexcept
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
         if (s.codes[i] == code) {
             ++hits_;
-            return CacheHit{ s.functions[i], s.lines[i], s.lastis[i] == lasti };
+            int line = (s.lastis[i] == lasti) ? s.lines[i] : -1;
+            return { s.functions[i], line };
         }
     }
     ++misses_;
-    return std::nullopt;
+    return { nullptr, -1 };
 }
 
 void
