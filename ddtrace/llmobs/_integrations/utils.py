@@ -1679,15 +1679,13 @@ def extract_instance_metadata_from_stack(
         return default_variable_name, default_module_name
 
 
-# AIDEV-NOTE: MLOB-7584 — Context Visualization helpers shared across LLM integrations.
+# AIDEV-NOTE: MLOB-7584 — section name constants for the context_delta payload.
 #
-# Contract shape is load-bearing and mirrors the existing Claude Agent SDK emitter at
-# ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta. The UI consumer is
-# the ContextUsageBar component in DataDog/web-ui (introducing PR #288158, file
-# packages/apps/llm/toolkit/tracing/StaticApp/ContextUsageBar.tsx). The component filters
-# section names through a SECTION_CONFIG allowlist; unknown names are silently dropped.
-# Use the lowercase generic keys below for cross-framework compatibility — they are
-# pre-baked into SECTION_CONFIG and render with proper icons / labels / colors.
+# Contract shape is load-bearing and mirrors the existing emitter at
+# ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta. The backend
+# rendering layer filters section names against a finite allowlist; the four keys below
+# are the cross-framework generic entries and are safe to use from any integration. Other
+# names may be silently dropped by the consumer.
 CONTEXT_SECTION_SYSTEM = "system"
 CONTEXT_SECTION_TOOLS = "tools"
 CONTEXT_SECTION_USER_MESSAGES = "user_messages"
@@ -1700,8 +1698,10 @@ def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dic
     AIDEV-NOTE: approximation. The total is authoritative (model-reported), but the
     per-category distribution drifts up to ~20% when categories have very different
     token-per-character density (JSON-dense tool definitions vs natural-language prose).
-    Acceptable for visualization; not for billing. A future upgrade to a per-provider
-    tokenizer (e.g. tiktoken for OpenAI models) would not change the contract shape.
+    Additionally, integer truncation (``int(...)`` floor) means the per-category sum may
+    be lower than ``total_tokens`` by up to ``len(char_counts) - 1`` tokens. Acceptable
+    for visualization; not for billing. A future upgrade to a per-provider tokenizer
+    (e.g. tiktoken for OpenAI models) would not change the contract shape.
     """
     if total_tokens <= 0 or not char_counts:
         return {name: 0 for name in char_counts}

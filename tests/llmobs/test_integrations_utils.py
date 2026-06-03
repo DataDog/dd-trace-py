@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
@@ -551,3 +553,311 @@ class TestTagContextDelta:
         assert "first_sections" not in delta
         # last_sections is non-empty; should be present.
         assert delta["last_sections"] == [{"name": "system", "tokens": 100, "pct": 100.0}]
+
+
+# -- MLOB-7584: OpenAIAgentsIntegration adapter methods + helpers --------------
+
+
+class _MinimalIntegrationConfig:
+    """Minimal stub for BaseLLMIntegration's integration_config requirement."""
+
+    distributed_tracing = False
+    service = ""
+    metrics_enabled = False
+    logs_enabled = False
+    log_prompt_completion_sample_rate = 0.0
+    span_prompt_completion_sample_rate = 0.0
+
+
+def _make_integration():
+    """Build an OpenAIAgentsIntegration.
+
+    Tests that exercise ``record_llm_side`` / ``record_agent_side`` / ``emit_context_delta``
+    must enable LLMObs via the ``_enable_llmobs`` autouse fixture on
+    ``TestOpenAIAgentsContextState`` — ``llmobs_enabled`` is a property reading the global
+    ``LLMObs.enabled`` flag.
+    """
+    from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+
+    return OpenAIAgentsIntegration(integration_config=_MinimalIntegrationConfig())
+
+
+class TestOpenAIAgentsContextWindow:
+    """Cover the model -> context_window resolver, including the o1-preview prefix bug."""
+
+    def test_exact_match(self):
+        integration = _make_integration()
+        assert integration._context_window_for("gpt-4o") == 128_000
+        assert integration._context_window_for("gpt-4") == 8_192
+        assert integration._context_window_for("o1") == 200_000
+
+    def test_dated_prefix_match(self):
+        # gpt-4o-2024-08-06 -> gpt-4o (longest-prefix wins)
+        integration = _make_integration()
+        assert integration._context_window_for("gpt-4o-2024-08-06") == 128_000
+        assert integration._context_window_for("gpt-4o-mini-2024-07-18") == 128_000
+
+    def test_o1_preview_resolves_to_128k_not_200k(self):
+        # Regression: longest-prefix sort must pick "o1-preview" (128k) over "o1" (200k).
+        integration = _make_integration()
+        assert integration._context_window_for("o1-preview") == 128_000
+        assert integration._context_window_for("o1-preview-2024-09-12") == 128_000
+
+    def test_o1_mini_not_confused_with_o1(self):
+        integration = _make_integration()
+        assert integration._context_window_for("o1-mini") == 128_000
+        assert integration._context_window_for("o1-mini-2024-09-12") == 128_000
+
+    def test_gpt_4_mini_not_confused_with_gpt_4(self):
+        integration = _make_integration()
+        # gpt-4o-mini must match the 128k entry, not gpt-4 (8k).
+        assert integration._context_window_for("gpt-4o-mini") == 128_000
+
+    def test_unknown_model_returns_zero(self):
+        integration = _make_integration()
+        assert integration._context_window_for("some-unknown-model") == 0
+        assert integration._context_window_for("") == 0
+        assert integration._context_window_for(None) == 0  # defensive
+
+
+class TestOpenAIAgentsContextState:
+    """Cover the per-trace snapshot lifecycle: record -> emit -> pop."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_llmobs(self):
+        """``record_*`` methods short-circuit when LLMObs is disabled. Flip the global
+        flag for each test, then restore.
+        """
+        from ddtrace.llmobs import LLMObs
+
+        prior = LLMObs.enabled
+        LLMObs.enabled = True
+        try:
+            yield
+        finally:
+            LLMObs.enabled = prior
+
+    def _make_span(self):
+        from ddtrace._trace.span import Span as DDSpan
+
+        return DDSpan(name="agent_root")
+
+    def test_first_call_locks_first_llm_subsequent_overwrites_last(self):
+        integration = _make_integration()
+        integration.record_llm_side(
+            trace_id=1,
+            input_tokens=100,
+            system_chars=20,
+            user_chars=50,
+            assistant_chars=30,
+            model="gpt-4o",
+        )
+        integration.record_llm_side(
+            trace_id=1,
+            input_tokens=500,
+            system_chars=20,
+            user_chars=80,
+            assistant_chars=400,
+            model="gpt-4o",
+        )
+
+        state = integration._context_state[1]
+        assert state["first_llm"]["input_tokens"] == 100
+        assert state["last_llm"]["input_tokens"] == 500
+
+    def test_record_agent_side_locks_first_overwrites_last(self):
+        integration = _make_integration()
+        integration.record_agent_side(trace_id=2, tools_chars=300)
+        integration.record_agent_side(trace_id=2, tools_chars=500)
+
+        state = integration._context_state[2]
+        assert state["first_agent"]["tools_chars"] == 300
+        assert state["last_agent"]["tools_chars"] == 500
+
+    def test_record_skips_when_llmobs_disabled(self):
+        # Override the autouse-enabled flag for this single test.
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.enabled = False
+        try:
+            integration = _make_integration()
+            integration.record_llm_side(
+                trace_id=3,
+                input_tokens=100,
+                system_chars=0,
+                user_chars=0,
+                assistant_chars=0,
+                model="",
+            )
+            integration.record_agent_side(trace_id=3, tools_chars=100)
+            assert 3 not in integration._context_state
+        finally:
+            LLMObs.enabled = True  # restore for the rest of the test class
+
+    def test_emit_assembles_and_pops_state(self):
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        integration = _make_integration()
+        integration.record_llm_side(
+            trace_id=4,
+            input_tokens=1000,
+            system_chars=100,
+            user_chars=400,
+            assistant_chars=500,
+            model="gpt-4o",
+        )
+        integration.record_agent_side(trace_id=4, tools_chars=200)
+        integration.record_llm_side(
+            trace_id=4,
+            input_tokens=2000,
+            system_chars=100,
+            user_chars=400,
+            assistant_chars=1500,
+            model="gpt-4o",
+        )
+        integration.record_agent_side(trace_id=4, tools_chars=200)
+
+        span = self._make_span()
+        integration.emit_context_delta(span, trace_id=4)
+
+        # State was popped.
+        assert 4 not in integration._context_state
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        delta = meta["metadata"]["_dd"]["context_delta"]
+        assert delta["first_input_tokens"] == 1000
+        assert delta["last_input_tokens"] == 2000
+        assert delta["delta_tokens"] == 1000
+        assert delta["context_window_size"] == 128_000  # from gpt-4o
+        # All four generic categories should be present in first_sections and last_sections.
+        first_names = {s["name"] for s in delta["first_sections"]}
+        assert first_names == {"system", "tools", "user_messages", "assistant_messages"}
+        last_names = {s["name"] for s in delta["last_sections"]}
+        assert last_names == {"system", "tools", "user_messages", "assistant_messages"}
+
+    def test_emit_skips_when_no_llm_snapshots(self):
+        integration = _make_integration()
+        # Only agent-side data — no LLM call happened.
+        integration.record_agent_side(trace_id=5, tools_chars=200)
+
+        span = self._make_span()
+        integration.emit_context_delta(span, trace_id=5)
+
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        assert "context_delta" not in meta.get("metadata", {}).get("_dd", {})
+        # State still popped.
+        assert 5 not in integration._context_state
+
+    def test_emit_skips_when_no_state_for_trace(self):
+        integration = _make_integration()
+        span = self._make_span()
+        # Never recorded anything for trace 999.
+        integration.emit_context_delta(span, trace_id=999)
+
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        assert "context_delta" not in meta.get("metadata", {}).get("_dd", {})
+
+    def test_clear_state_clears_context_state(self):
+        integration = _make_integration()
+        integration.record_llm_side(
+            trace_id=6, input_tokens=100, system_chars=0, user_chars=0, assistant_chars=0, model=""
+        )
+        assert 6 in integration._context_state
+        integration.clear_state()
+        assert integration._context_state == {}
+
+
+class TestSplitMessageChars:
+    """Cover the role-split helper that drives per-category char counts."""
+
+    def test_string_input_is_bucketed_as_user(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        assert split_message_chars("hello world") == (11, 0)
+
+    def test_empty_string(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        assert split_message_chars("") == (0, 0)
+
+    def test_neither_string_nor_list_returns_zeros(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        assert split_message_chars(None) == (0, 0)
+        assert split_message_chars(42) == (0, 0)
+        assert split_message_chars({"role": "user", "content": "x"}) == (0, 0)
+
+    def test_role_split_dicts(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            {"role": "user", "content": "hello"},  # 5
+            {"role": "assistant", "content": "hi there"},  # 8
+            {"role": "user", "content": "tell me a story"},  # 15
+        ]
+        assert split_message_chars(messages) == (20, 8)
+
+    def test_role_split_objects(self):
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            SimpleNamespace(role="user", content="abc"),
+            SimpleNamespace(role="assistant", content="defgh"),
+        ]
+        assert split_message_chars(messages) == (3, 5)
+
+    def test_system_and_tool_roles_are_ignored(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        # System tokens come via response_system_instructions; tool tokens via count_tools_chars.
+        # Both should be excluded from the user/assistant split here.
+        messages = [
+            {"role": "system", "content": "you are a helpful agent"},
+            {"role": "user", "content": "hi"},
+            {"role": "tool", "content": "some tool output that should not be counted"},
+            {"role": "assistant", "content": "ok"},
+        ]
+        assert split_message_chars(messages) == (2, 2)
+
+    def test_none_content_is_zero(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [{"role": "user", "content": None}, {"role": "assistant"}]
+        assert split_message_chars(messages) == (0, 0)
+
+
+class TestCountToolsChars:
+    """Cover the tools+handoffs char counter."""
+
+    def test_empty_agent_returns_zero(self):
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+
+        agent = SimpleNamespace()
+        assert count_tools_chars(agent) == 0
+
+    def test_none_attributes_return_zero(self):
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+
+        agent = SimpleNamespace(tools=None, handoffs=None)
+        assert count_tools_chars(agent) == 0
+
+    def test_tools_and_handoffs_counted_together(self):
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+
+        # Both serialize via safe_json or str fallback.
+        agent = SimpleNamespace(tools=[{"name": "research"}], handoffs=[{"agent_name": "summary"}])
+        chars = count_tools_chars(agent)
+        # Both objects serialize to at least the dict's str form length.
+        assert chars > 0

@@ -38,23 +38,72 @@ from ddtrace.trace import Span
 logger = get_logger(__name__)
 
 
+def count_tools_chars(agent) -> int:
+    """Sum character counts for the agent's tools + handoffs serialized representations.
+
+    AIDEV-NOTE: MLOB-7584 — handoffs are folded into the ``tools`` category because the
+    context_delta payload has no dedicated handoffs key.
+    """
+    chars = 0
+    for tool in getattr(agent, "tools", None) or []:
+        chars += len(safe_json(tool) or str(tool))
+    for handoff in getattr(agent, "handoffs", None) or []:
+        chars += len(safe_json(handoff) or str(handoff))
+    return chars
+
+
+def split_message_chars(messages: Any) -> tuple[int, int]:
+    """Return ``(user_chars, assistant_chars)`` for a response-span's ``input`` payload.
+
+    AIDEV-NOTE: MLOB-7584 — ``input`` is typed as ``str | list[Any]``. When the initial
+    user prompt is the only input it arrives as a string and is bucketed into ``user``.
+    When the agent loop has run for >=1 turn, the message list contains role-tagged
+    dicts/objects. ``system``-role and ``tool``-role entries are intentionally ignored
+    here: system tokens come through ``response_system_instructions`` and tool messages
+    are accounted for in ``count_tools_chars``.
+    """
+    if isinstance(messages, str):
+        return len(messages), 0
+    if not isinstance(messages, list):
+        return 0, 0
+    user_chars = 0
+    assistant_chars = 0
+    for msg in messages:
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+        content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+        chars = len(str(content)) if content is not None else 0
+        if role == "user":
+            user_chars += chars
+        elif role == "assistant":
+            assistant_chars += chars
+    return user_chars, assistant_chars
+
+
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
-    # AIDEV-NOTE: MLOB-7584 — OpenAI doesn't expose context_window via the API response.
-    # Maintained here; update on new model launches. The 0 fallback matches the Claude
-    # integration's behavior when its /context output can't parse a window size. Lift to a
-    # shared registry when Slice 2 (CrewAI) needs the same mapping — premature now.
+    # AIDEV-NOTE: MLOB-7584 — OpenAI doesn't expose context_window via the API response, so
+    # maintain a static map here; update on new model launches. The 0 fallback matches the
+    # Claude integration's behavior when its /context output cannot parse a window size.
+    # Lift to a shared registry only when a second integration requires the same mapping.
+    # Entry ordering does not matter at lookup time — the resolver sorts keys by length
+    # descending so longer prefixes (e.g. "gpt-4o-mini", "o1-preview") win over shorter
+    # ones (e.g. "gpt-4o", "o1").
     _OPENAI_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
-        "gpt-4o": 128_000,
         "gpt-4o-mini": 128_000,
+        "gpt-4o": 128_000,
         "gpt-4-turbo": 128_000,
+        "gpt-4.1": 1_047_576,
         "gpt-4": 8_192,
         "gpt-3.5-turbo": 16_385,
-        "o1": 200_000,
+        "gpt-5-mini": 400_000,
+        "gpt-5": 400_000,
+        "o1-preview": 128_000,
         "o1-mini": 128_000,
-        "o3": 200_000,
+        "o1": 200_000,
         "o3-mini": 200_000,
+        "o3": 200_000,
+        "o4-mini": 200_000,
     }
 
     def __init__(self, integration_config: Any) -> None:
@@ -341,6 +390,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         Called from ``LLMObsTraceProcessor.on_span_end`` when ``span_type == "response"``.
         First call locks the ``first_llm`` snapshot; every subsequent call overwrites ``last_llm``.
+
+        AIDEV-NOTE: MLOB-7584 — model is saved on both ``first_llm`` and ``last_llm`` snapshots,
+        but the emitted payload contains a single ``context_window_size`` field (matching the
+        Claude integration's contract — see _parse_context_delta in claude_agent_sdk.py). The
+        resolver picks the last-turn model's window for both usage_pct fields. For multi-model
+        handoff traces this may under/overstate the first-turn percentage; the contract does
+        not currently support per-snapshot windows.
         """
         if not self.llmobs_enabled:
             return
@@ -349,13 +405,12 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             "system_chars": system_chars,
             "user_chars": user_chars,
             "assistant_chars": assistant_chars,
+            "model": model or "",
         }
         state = self._context_state.setdefault(trace_id, {})
         if "first_llm" not in state:
             state["first_llm"] = snapshot
         state["last_llm"] = snapshot
-        if model:
-            state["model"] = model
 
     def record_agent_side(self, trace_id: int, *, tools_chars: int) -> None:
         """MLOB-7584 — hook B. Capture per-turn agent-side category (tools + handoffs).
@@ -410,7 +465,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             last_token_counts=last_token_counts,
             first_input_tokens=first_llm["input_tokens"],
             last_input_tokens=last_llm["input_tokens"],
-            context_window_size=self._context_window_for(state.get("model", "")),
+            context_window_size=self._context_window_for(last_llm.get("model", "")),
         )
 
     def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any], agent_index: int) -> None:

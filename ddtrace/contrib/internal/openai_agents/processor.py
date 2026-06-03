@@ -7,6 +7,7 @@ from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._integrations.openai_agents import split_message_chars
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 
@@ -86,14 +87,15 @@ class LLMObsTraceProcessor(TracingProcessor):
         self._integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
 
         # MLOB-7584: on response-type spans (LLM calls), capture per-call context categories
-        # for the Context Visualization. Tokens come from the model's reported usage; per-category
-        # chars are derived from the system instructions + role-split message history.
+        # for the context_delta payload. Tokens come from the model's reported usage;
+        # per-category chars are derived from the system instructions + role-split message
+        # history. split_message_chars lives in openai_agents.py alongside count_tools_chars.
         if span_adapter.span_type == "response":
             metrics = span_adapter.llmobs_metrics or {}
             input_tokens = metrics.get("input_tokens", 0)
             if input_tokens > 0:
                 system_chars = len(span_adapter.response_system_instructions or "")
-                user_chars, assistant_chars = _split_message_chars(span_adapter.input)
+                user_chars, assistant_chars = split_message_chars(span_adapter.input)
                 self._integration.record_llm_side(
                     llmobs_span.trace_id,
                     input_tokens=input_tokens,
@@ -110,28 +112,3 @@ class LLMObsTraceProcessor(TracingProcessor):
 
     def shutdown(self) -> None:
         self._integration.clear_state()
-
-
-def _split_message_chars(messages: Any) -> tuple[int, int]:
-    """Return ``(user_chars, assistant_chars)`` for a response-span's ``input`` payload.
-
-    AIDEV-NOTE: MLOB-7584 — OaiSpanAdapter.input is typed as ``str | list[Any]``. When the
-    initial user prompt is the only input, it arrives as a string and we bucket all of it
-    into user_chars. When the agent loop has run for ≥1 turn, the message list contains
-    role-tagged dicts/objects and we split by ``role``.
-    """
-    if isinstance(messages, str):
-        return len(messages), 0
-    if not isinstance(messages, list):
-        return 0, 0
-    user_chars = 0
-    assistant_chars = 0
-    for msg in messages:
-        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
-        content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
-        chars = len(str(content)) if content is not None else 0
-        if role == "user":
-            user_chars += chars
-        elif role == "assistant":
-            assistant_chars += chars
-    return user_chars, assistant_chars

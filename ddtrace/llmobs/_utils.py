@@ -580,10 +580,9 @@ def _annotate_llmobs_span_data(
             if agent_manifest is not None:
                 metadata_dd[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
             if context_delta is not None:
-                # AIDEV-NOTE: MLOB-7584 — context_delta is the contract consumed by the LLMObs UI's
-                # ContextUsageBar component (DataDog/web-ui#288158). Shape is mirrored from
-                # ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta. Emit via
-                # the dedicated kwarg so it merges into the existing _dd dict alongside agent_manifest.
+                # AIDEV-NOTE: MLOB-7584 — emit context_delta via a dedicated kwarg so it merges
+                # into the existing _dd dict alongside agent_manifest. The canonical shape is
+                # pinned by ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta.
                 metadata_dd[LLMOBS_STRUCT.CONTEXT_DELTA] = context_delta
             if cost_tags is not None:
                 existing_cost_tags = metadata_dd.setdefault(LLMOBS_STRUCT.COST_TAGS, [])
