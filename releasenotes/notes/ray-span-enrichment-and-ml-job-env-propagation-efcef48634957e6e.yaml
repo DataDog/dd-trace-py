@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    ray: Added ``DD_ML_JOB_ENV`` — a single opt-in env var for forwarding
+    configuration into Ray job workers. Set it on the dashboard process
+    as a semicolon-separated list of ``KEY:VALUE`` pairs, e.g.
+    ``DD_SERVICE:my-svc;DD_AGENT_HOST:10.0.0.1``, and workers receive them
+    verbatim as ``DD_SERVICE=my-svc``, ``DD_AGENT_HOST=10.0.0.1``, etc.
