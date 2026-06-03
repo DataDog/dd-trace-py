@@ -4,8 +4,11 @@
 
 #pragma once
 
+#include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <string>
@@ -62,18 +65,15 @@ class TaskLabel
     template<typename Callback>
     void visit_string(Callback&& callback) const
     {
-        std::string formatted;
         switch (kind_) {
             case Kind::Literal:
                 callback(std::string_view(literal_));
                 return;
             case Kind::AsyncioTaskId:
-                formatted = std::string("Task-") + std::to_string(numeric_id_);
-                callback(std::string_view(formatted));
+                visit_prefixed_number("Task-", numeric_id_, std::forward<Callback>(callback));
                 return;
             case Kind::GreenletId:
-                formatted = std::string("Greenlet-") + std::to_string(numeric_id_);
-                callback(std::string_view(formatted));
+                visit_prefixed_number("Greenlet-", numeric_id_, std::forward<Callback>(callback));
                 return;
             case Kind::Unknown:
             default:
@@ -83,6 +83,27 @@ class TaskLabel
     }
 
   private:
+    template<std::size_t PrefixSize, typename Callback>
+    static void visit_prefixed_number(const char (&prefix)[PrefixSize], std::uint64_t value, Callback&& callback)
+    {
+        constexpr std::size_t prefix_size = PrefixSize - 1;
+        constexpr std::size_t max_digits = std::numeric_limits<std::uint64_t>::digits10 + 1;
+        std::array<char, prefix_size + max_digits> buffer{};
+
+        std::memcpy(buffer.data(), prefix, prefix_size);
+        auto* begin = buffer.data();
+        auto* digits_begin = begin + prefix_size;
+        auto* end = begin + buffer.size();
+
+        auto [ptr, ec] = std::to_chars(digits_begin, end, value);
+        if (ec != std::errc{}) {
+            callback(std::string_view("<unknown>"));
+            return;
+        }
+
+        callback(std::string_view(begin, static_cast<std::size_t>(ptr - begin)));
+    }
+
     [[nodiscard]] static std::optional<std::uint64_t> parse_prefixed_uint(std::string_view value,
                                                                           std::string_view prefix)
     {
