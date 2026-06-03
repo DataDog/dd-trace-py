@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: Reduces memory and allocation overhead for applications with
+    many default-named asyncio tasks or gevent greenlets by avoiding storing
+    generated task and greenlet names in the profiler's internal string table.
