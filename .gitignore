@@ -4,35 +4,35 @@ __pycache__/
 *$py.class
 
 # C extensions
-ddtrace/appsec/_ddwaf.cpp
-ddtrace/appsec/include
-ddtrace/appsec/share
-ddtrace/profiling/collector/_task.c
-ddtrace/profiling/collector/_fast_poisson.c
-ddtrace/profiling/collector/_exception.c
-ddtrace/profiling/collector/_sampler.c
-ddtrace/profiling/collector/_lock.c
-ddtrace/profiling/_threading.c
-ddtrace/profiling/collector/_traceback.c
-ddtrace/profiling/collector/stack.c
-ddtrace/profiling/exporter/pprof.c
-ddtrace/profiling/_build.c
-ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
-ddtrace/internal/_encoding.c
-ddtrace/internal/_tagset.c
-ddtrace/internal/telemetry/metrics_namespaces.c
+ddtrace/ddtrace/appsec/_ddwaf.cpp
+ddtrace/ddtrace/appsec/include
+ddtrace/ddtrace/appsec/share
+ddtrace/ddtrace/profiling/collector/_task.c
+ddtrace/ddtrace/profiling/collector/_fast_poisson.c
+ddtrace/ddtrace/profiling/collector/_exception.c
+ddtrace/ddtrace/profiling/collector/_sampler.c
+ddtrace/ddtrace/profiling/collector/_lock.c
+ddtrace/ddtrace/profiling/_threading.c
+ddtrace/ddtrace/profiling/collector/_traceback.c
+ddtrace/ddtrace/profiling/collector/stack.c
+ddtrace/ddtrace/profiling/exporter/pprof.c
+ddtrace/ddtrace/profiling/_build.c
+ddtrace/ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
+ddtrace/ddtrace/internal/_encoding.c
+ddtrace/ddtrace/internal/_tagset.c
+ddtrace/ddtrace/internal/telemetry/metrics_namespaces.c
 pygoat/*
 *.so
 *.dylib
 *.a
 
 # Cython annotate HTML files
-ddtrace/**/*.html
+ddtrace/ddtrace/**/*.html
 
 # Dynamic binary libraries
-ddtrace/appsec/_ddwaf/libddwaf/
+ddtrace/ddtrace/appsec/_ddwaf/libddwaf/
 libddwaf*.sha256
-ddtrace/internal/datadog/profiling/libdatadog/
+ddtrace/ddtrace/internal/datadog/profiling/libdatadog/
 
 # Distribution / packaging
 .Python
@@ -164,30 +164,30 @@ CLAUDE.local.md
 .omc/
 
 # Riot
-.riot/venv*
-.riot/envs/
-.riot/.build.lock
-.riot/requirements/*.in
+ddtrace/.riot/venv*
+ddtrace/.riot/envs/
+ddtrace/.riot/.build.lock
+ddtrace/.riot/requirements/*.in
 
 # Benchmarks
 artifacts/
 
 # IAST cpp
-ddtrace/appsec/_iast/_taint_tracking/cmake_install.cmake
-ddtrace/appsec/_iast/_taint_tracking/CMakeCache.txt
-ddtrace/appsec/_iast/_taint_tracking/Makefile
-ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/*
-ddtrace/appsec/_iast/_taint_tracking/_deps/*
-ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
-ddtrace/appsec/_iast/_taint_tracking/tests/CMakeFiles/*
-ddtrace/appsec/_iast/_taint_tracking/tests/cmake_install.cmake
-ddtrace/appsec/_iast/_taint_tracking/tests/CMakeCache.txt
-ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
-ddtrace/appsec/_iast/_taint_tracking/tests/CTestTestfile.cmake
-ddtrace/appsec/_iast/_taint_tracking/tests/native_tests*
-ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/Makefile
-ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
-ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/cmake_install.cmake
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/CMakeCache.txt
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/Makefile
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/_deps/*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/CMakeFiles/*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/CMakeFiles/*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/cmake_install.cmake
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/CMakeCache.txt
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/CTestTestfile.cmake
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/tests/native_tests*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/Makefile
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/CMakeFiles/*
+ddtrace/ddtrace/appsec/_iast/_taint_tracking/_vendor/pybind11/cmake_install.cmake
 # Those folders are required for tests/appsec/iast_packages/test_packages.py
 template_venv/
 template_venv.lock
@@ -200,11 +200,11 @@ cloned_venvs/
 .gitlab-ci-local/
 
 # Automatically generated fixtures
-tests/appsec/iast/fixtures/aspects/obj_callers*.py
-tests/appsec/iast/fixtures/aspects/unpatched_obj_callers*.py
-tests/appsec/iast/fixtures/aspects/callers*.py
-tests/appsec/iast/fixtures/aspects/unpatched_callers*.py
-tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
+ddtrace/tests/appsec/iast/fixtures/aspects/obj_callers*.py
+ddtrace/tests/appsec/iast/fixtures/aspects/unpatched_obj_callers*.py
+ddtrace/tests/appsec/iast/fixtures/aspects/callers*.py
+ddtrace/tests/appsec/iast/fixtures/aspects/unpatched_callers*.py
+ddtrace/tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 #MacOS files
 .DS_Store
@@ -220,7 +220,7 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 *.dSYM/
 
 # Rust build artifacts
-src/native/target*
+ddtrace/src/native/target*
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
