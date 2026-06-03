@@ -1,14 +1,3 @@
-"""Predicted-drop rescue for LLMObs payloads riding APM traces in APM_AGENT mode.
-
-Spans carrying ``meta_struct["_llmobs"]`` go to the local Agent, which drops unsampled spans
-(root ``sampling_priority <= 0``) before intake, taking the payload with them. This re-ships
-the cached event via ``LLMObsSpanWriter``, scrubs the meta_struct, and stamps
-``_dd.llmobs.submitted=1`` for intake-side dedup if the Agent unexpectedly keeps the trace.
-
-Only the Agent path needs this; it never mutates ``sampling_priority`` (no effect on APM
-sampling or billing).
-"""
-
 from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
@@ -28,7 +17,12 @@ __all__ = ["LLMObsSamplingFallbackProcessor"]
 
 
 class LLMObsSamplingFallbackProcessor(TraceProcessor):
-    """Re-ships LLMObs events when the SDK predicts the APM trace will be dropped.
+    """Re-ships LLMObs events when the SDK predicts the APM trace will be dropped (APM_AGENT mode).
+
+    Spans carrying ``meta_struct["_llmobs"]`` go to the local Agent, which drops unsampled spans
+    (root ``sampling_priority <= 0``) before intake, taking the payload with them. On a predicted
+    drop this re-ships the cached event via ``LLMObsSpanWriter`` and scrubs the meta_struct. It
+    never mutates ``sampling_priority`` (no effect on APM sampling or billing).
 
     Must run after sampling finalizes the root priority and before later processors mutate the
     span (slotted between ``TraceSamplingProcessor`` and ``TraceTagsProcessor``). Relies on

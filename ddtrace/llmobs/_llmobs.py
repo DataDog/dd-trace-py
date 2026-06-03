@@ -511,16 +511,14 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
-            # APMTracingEnabledFilter drops every trace, so ship via the writer instead. The
-            # writer infers its wire transport (EVP proxy vs direct) from is_agentless.
+            # APMTracingEnabledFilter drops every trace, so ship events directly to LLMObs.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
         elif config._llmobs_agentless_enabled:
-            # Resolved by should_use_agentless() at enable(); True means no supported Agent.
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
-        # AIDEV-NOTE: the `else True` only applies when __init__ runs outside enable() (config
-        # still None); enable() always resolves agentless first, so the supported path is covered.
+        # AIDEV-NOTE: config._llmobs_agentless_enabled is None until enable() resolves it via
+        # should_use_agentless(); when __init__ runs before that, default the writer to agentless.
         agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),

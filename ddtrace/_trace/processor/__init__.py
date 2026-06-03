@@ -416,8 +416,8 @@ class SpanAggregator(SpanProcessor):
             self.user_processors,
             [
                 self.sampling_processor,
-                # MUST sit between sampling_processor (decides priority) and tags_processor
-                # (mutates span). LLMObsSamplingFallbackProcessor reads both.
+                # Runs after sampling_processor finalizes the root priority and before
+                # tags_processor mutates the span.
                 self.llmobs_fallback_processor,
                 self.tags_processor,
                 self.service_name_processor,

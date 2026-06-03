@@ -2,9 +2,8 @@
 features:
   - |
     LLM Observability: LLM span data can now be exported to the Datadog Agent over the APM
-    trace. When such a trace is predicted to be dropped by sampling, the LLMObs event is
-    re-shipped directly so it is still delivered exactly once. This has no effect on APM
-    sampling decisions or billing.
+    trace, and is reliably delivered even when the APM trace is not sampled. This has no
+    effect on APM sampling decisions or billing.
 upgrade:
   - |
     LLM Observability: when APM and LLMObs are both enabled, the APM trace writer now uses the
