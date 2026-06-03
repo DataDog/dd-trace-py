@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from enum import auto
 from typing import Any
 from typing import Optional
 from urllib.parse import quote
@@ -10,9 +11,11 @@ from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.collector import SignalCollectorEnqueue
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal import agent
 from ddtrace.internal import logger
+from ddtrace.internal.core.event_hub import on as core_on
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -48,6 +51,24 @@ class SignalUploaderError(Exception):
     pass
 
 
+class UploaderState(Enum):
+    """FSM states for SignalUploader lifecycle.
+
+    Transitions:
+        IDLE    -> RUNNING  (first signal enqueued while products are registered)
+        IDLE    -> STOPPED  (all products unregistered before any signal)
+        RUNNING -> STOPPED  (all products unregistered after the worker started)
+        RUNNING -> ERROR    (unrecoverable worker failure)
+        ERROR   -> STOPPED  (cleanup after error, via unregister)
+        STOPPED -> IDLE     (new product registered after a full stop)
+    """
+
+    IDLE = auto()
+    RUNNING = auto()
+    STOPPED = auto()
+    ERROR = auto()
+
+
 class SignalUploader(agent.AgentCheckPeriodicService):
     """Signal uploader.
 
@@ -66,6 +87,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
+
+        self._uploader_state = UploaderState.IDLE
 
         self._endpoint_suffix = endpoint_suffix = (
             f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
@@ -86,6 +109,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             ),
         }
         self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
+        core_on(SignalCollectorEnqueue.event_name, self._on_signal_enqueue)
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
@@ -178,11 +202,22 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         """Upload request."""
         self.awake()
 
+    def _start_service(self, *args: Any, **kwargs: Any) -> None:
+        self._uploader_state = UploaderState.RUNNING
+        log.debug("SignalUploader: starting worker (-> RUNNING)")
+        super()._start_service(*args, **kwargs)
+
     def reset(self) -> None:
         """Reset the buffer on fork."""
         for track in self._tracks.values():
             track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
         self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
+
+    def _on_signal_enqueue(self, event: SignalCollectorEnqueue) -> None:
+        if event.collector is not self._collector:
+            return
+        if self._uploader_state is UploaderState.IDLE:
+            self.start()
 
     def _downgrade_to_diagnostics(self) -> None:
         """Downgrade both tracks to the diagnostics endpoint."""
@@ -247,7 +282,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         if cls._instance is None:
             cls._instance = cls()
-            cls._instance.start()
+            log.debug("SignalUploader: product %s registered, waiting for first signal (-> IDLE)", product)
 
     @classmethod
     def unregister(cls, product: UploaderProduct) -> None:
@@ -257,5 +292,15 @@ class SignalUploader(agent.AgentCheckPeriodicService):
         cls._products.remove(product)
 
         if not cls._products and cls._instance is not None:
-            cls._instance.stop()
+            prev_state = cls._instance._uploader_state
+            cls._instance._uploader_state = UploaderState.STOPPED
+
+            if prev_state is UploaderState.RUNNING:
+                cls._instance.stop()
+                log.debug("SignalUploader: last product unregistered, worker stopped (RUNNING -> STOPPED)")
+            elif prev_state is UploaderState.IDLE:
+                log.debug("SignalUploader: last product unregistered before any signal (IDLE -> STOPPED)")
+            elif prev_state is UploaderState.ERROR:
+                log.debug("SignalUploader: last product unregistered after error (ERROR -> STOPPED)")
+
             cls._instance = None

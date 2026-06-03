@@ -1,6 +1,8 @@
+from dataclasses import dataclass
 import os
 from typing import Any
 from typing import Callable
+from typing import ClassVar
 
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
@@ -10,6 +12,8 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import ExcInfoType
+from ddtrace.internal.core import dispatch_event
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 
 
@@ -17,6 +21,19 @@ CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType
 
 log = get_logger(__name__)
 meter = metrics.get_meter("signal.collector")
+
+
+@dataclass
+class SignalCollectorEnqueue(Event):
+    """Fired by SignalCollector every time a signal is enqueued.
+
+    The ``collector`` field carries the emitting instance so that listeners can
+    verify they are reacting to the correct collector before acting.
+    """
+
+    event_name: ClassVar[str] = "debugging.signal_collector.enqueue"
+
+    collector: "SignalCollector"
 
 
 class SignalCollector(object):
@@ -32,6 +49,8 @@ class SignalCollector(object):
         self._tracks = tracks
 
     def _enqueue(self, log_signal: LogSignal) -> None:
+        dispatch_event(SignalCollectorEnqueue(collector=self))
+
         try:
             log.debug(
                 "[%s][P: %s] SignalCollector enqueue signal on track %s",
