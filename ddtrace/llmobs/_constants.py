@@ -183,6 +183,7 @@ class LLMOBS_STRUCT:
     MESSAGES: Final = "messages"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
+    CONTEXT_DELTA: Final = "context_delta"
     SPAN: Final = "span"
     KIND: Final = "kind"
     MODEL_NAME: Final = "model_name"

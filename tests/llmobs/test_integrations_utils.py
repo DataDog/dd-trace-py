@@ -390,3 +390,164 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
+
+
+# -- MLOB-7584: Context Visualization shared helpers ----------------------------
+
+
+class TestSplitTokensByChars:
+    def test_distributes_proportionally(self):
+        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+
+        # 800 chars total; cat A = 200, B = 600. Split of 1000 tokens: A=250, B=750.
+        result = split_tokens_by_chars(1000, {"A": 200, "B": 600})
+        assert result == {"A": 250, "B": 750}
+
+    def test_zero_total_tokens_returns_zeros(self):
+        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+
+        result = split_tokens_by_chars(0, {"A": 100, "B": 200})
+        assert result == {"A": 0, "B": 0}
+
+    def test_zero_total_chars_returns_zeros(self):
+        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+
+        # All categories empty — proportional split is undefined; return zeros.
+        result = split_tokens_by_chars(1000, {"A": 0, "B": 0})
+        assert result == {"A": 0, "B": 0}
+
+    def test_negative_total_tokens_returns_zeros(self):
+        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+
+        # Defensive: negative or malformed totals shouldn't blow up the visualization.
+        result = split_tokens_by_chars(-5, {"A": 100})
+        assert result == {"A": 0}
+
+    def test_empty_categories_returns_empty(self):
+        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+
+        assert split_tokens_by_chars(1000, {}) == {}
+
+
+class TestSectionsWithPct:
+    def test_builds_sections_with_rounded_pct(self):
+        from ddtrace.llmobs._integrations.utils import _sections_with_pct
+
+        result = _sections_with_pct({"system": 200, "tools": 800})
+        assert result == [
+            {"name": "system", "tokens": 200, "pct": 20.0},
+            {"name": "tools", "tokens": 800, "pct": 80.0},
+        ]
+
+    def test_omits_zero_token_categories(self):
+        from ddtrace.llmobs._integrations.utils import _sections_with_pct
+
+        # Empty categories shouldn't render empty segments in the UI bar — drop them here.
+        result = _sections_with_pct({"system": 100, "tools": 0, "user_messages": 100})
+        names = [s["name"] for s in result]
+        assert names == ["system", "user_messages"]
+
+    def test_empty_input_returns_empty(self):
+        from ddtrace.llmobs._integrations.utils import _sections_with_pct
+
+        assert _sections_with_pct({}) == []
+        assert _sections_with_pct({"tools": 0}) == []
+
+
+class TestTagContextDelta:
+    """Direct tests on the helper using a real Span — exercise the emission path end-to-end."""
+
+    def _make_span(self):
+        # Use the LLMObs test harness span fixture. Mirrors patterns in tests/llmobs/test_llmobs.py.
+        from ddtrace._trace.span import Span as DDSpan
+
+        return DDSpan(name="test_agent")
+
+    def test_emits_when_either_first_or_last_tokens_present(self):
+        from ddtrace.llmobs._integrations.utils import tag_context_delta
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        tag_context_delta(
+            span,
+            first_token_counts={"system": 100, "tools": 200, "user_messages": 50, "assistant_messages": 0},
+            last_token_counts={"system": 100, "tools": 200, "user_messages": 100, "assistant_messages": 200},
+            first_input_tokens=350,
+            last_input_tokens=600,
+            context_window_size=128_000,
+        )
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        delta = meta.get("metadata", {}).get("_dd", {}).get("context_delta")
+        assert delta is not None
+        assert delta["first_input_tokens"] == 350
+        assert delta["last_input_tokens"] == 600
+        assert delta["delta_tokens"] == 250
+        assert delta["context_window_size"] == 128_000
+        # 350/128000 ≈ 0.27, rounded to 0.3.
+        assert delta["first_usage_pct"] == 0.3
+        # 600/128000 ≈ 0.469, rounded to 0.5.
+        assert delta["last_usage_pct"] == 0.5
+        # assistant_messages == 0 in first should be dropped from first_sections.
+        first_section_names = [s["name"] for s in delta["first_sections"]]
+        assert "assistant_messages" not in first_section_names
+        last_section_names = [s["name"] for s in delta["last_sections"]]
+        assert last_section_names == ["system", "tools", "user_messages", "assistant_messages"]
+
+    def test_skips_emission_when_both_tokens_zero(self):
+        from ddtrace.llmobs._integrations.utils import tag_context_delta
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        tag_context_delta(
+            span,
+            first_token_counts={},
+            last_token_counts={},
+            first_input_tokens=0,
+            last_input_tokens=0,
+            context_window_size=128_000,
+        )
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        # No context_delta key should have been set.
+        assert "context_delta" not in meta.get("metadata", {}).get("_dd", {})
+
+    def test_unknown_context_window_emits_zero_pct(self):
+        from ddtrace.llmobs._integrations.utils import tag_context_delta
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        tag_context_delta(
+            span,
+            first_token_counts={"system": 100},
+            last_token_counts={"system": 100},
+            first_input_tokens=100,
+            last_input_tokens=100,
+            context_window_size=0,  # unknown model
+        )
+
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        delta = meta["metadata"]["_dd"]["context_delta"]
+        assert delta["context_window_size"] == 0
+        assert delta["first_usage_pct"] == 0.0
+        assert delta["last_usage_pct"] == 0.0
+
+    def test_omits_section_lists_when_all_zero(self):
+        from ddtrace.llmobs._integrations.utils import tag_context_delta
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        tag_context_delta(
+            span,
+            first_token_counts={"system": 0, "tools": 0},
+            last_token_counts={"system": 100},
+            first_input_tokens=100,  # nonzero so emission isn't skipped
+            last_input_tokens=100,
+            context_window_size=128_000,
+        )
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        delta = meta["metadata"]["_dd"]["context_delta"]
+        # first_sections has all-zero categories; should be entirely omitted.
+        assert "first_sections" not in delta
+        # last_sections is non-empty; should be present.
+        assert delta["last_sections"] == [{"name": "system", "tokens": 100, "pct": 100.0}]

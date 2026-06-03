@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: The ``openai_agents`` integration now emits a per-agent-invocation
+    ``context_delta`` payload that populates the Context Growth visualization in the
+    LLMObs UI for OpenAI Agents traces. The payload categorizes input tokens into
+    ``system`` (instructions), ``tools`` (function tools and handoffs), ``user_messages``,
+    and ``assistant_messages``, with first/last snapshots taken across the agent's
+    turns. Per-category token attribution uses a character-proportional split of the
+    model's reported ``usage.input_tokens``.

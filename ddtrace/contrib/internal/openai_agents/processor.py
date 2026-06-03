@@ -63,6 +63,10 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"oai_trace": trace_adapter},
         )
+        # MLOB-7584: emit the assembled context_delta onto the agent-kind root span before
+        # finishing. Snapshots were populated by on_span_end (response-type spans, llm side)
+        # and by _patched_run_single_turn in patch.py (agent side).
+        self._integration.emit_context_delta(trace_root_span, trace_root_span.trace_id)
         self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
         trace_root_span.finish()
 
@@ -80,6 +84,25 @@ class LLMObsTraceProcessor(TracingProcessor):
         if not llmobs_span:
             return
         self._integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
+
+        # MLOB-7584: on response-type spans (LLM calls), capture per-call context categories
+        # for the Context Visualization. Tokens come from the model's reported usage; per-category
+        # chars are derived from the system instructions + role-split message history.
+        if span_adapter.span_type == "response":
+            metrics = span_adapter.llmobs_metrics or {}
+            input_tokens = metrics.get("input_tokens", 0)
+            if input_tokens > 0:
+                system_chars = len(span_adapter.response_system_instructions or "")
+                user_chars, assistant_chars = _split_message_chars(span_adapter.input)
+                self._integration.record_llm_side(
+                    llmobs_span.trace_id,
+                    input_tokens=input_tokens,
+                    system_chars=system_chars,
+                    user_chars=user_chars,
+                    assistant_chars=assistant_chars,
+                    model=span_adapter.llmobs_model_name or "",
+                )
+
         llmobs_span.finish()
 
     def force_flush(self) -> None:
@@ -87,3 +110,28 @@ class LLMObsTraceProcessor(TracingProcessor):
 
     def shutdown(self) -> None:
         self._integration.clear_state()
+
+
+def _split_message_chars(messages: Any) -> tuple[int, int]:
+    """Return ``(user_chars, assistant_chars)`` for a response-span's ``input`` payload.
+
+    AIDEV-NOTE: MLOB-7584 — OaiSpanAdapter.input is typed as ``str | list[Any]``. When the
+    initial user prompt is the only input, it arrives as a string and we bucket all of it
+    into user_chars. When the agent loop has run for ≥1 turn, the message list contains
+    role-tagged dicts/objects and we split by ``role``.
+    """
+    if isinstance(messages, str):
+        return len(messages), 0
+    if not isinstance(messages, list):
+        return 0, 0
+    user_chars = 0
+    assistant_chars = 0
+    for msg in messages:
+        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
+        content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+        chars = len(str(content)) if content is not None else 0
+        if role == "user":
+            user_chars += chars
+        elif role == "assistant":
+            assistant_chars += chars
+    return user_chars, assistant_chars

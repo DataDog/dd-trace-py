@@ -1677,3 +1677,92 @@ def extract_instance_metadata_from_stack(
     except Exception:
         logger.warning("Failed to extract prompt variable name")
         return default_variable_name, default_module_name
+
+
+# AIDEV-NOTE: MLOB-7584 — Context Visualization helpers shared across LLM integrations.
+#
+# Contract shape is load-bearing and mirrors the existing Claude Agent SDK emitter at
+# ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta. The UI consumer is
+# the ContextUsageBar component in DataDog/web-ui (introducing PR #288158, file
+# packages/apps/llm/toolkit/tracing/StaticApp/ContextUsageBar.tsx). The component filters
+# section names through a SECTION_CONFIG allowlist; unknown names are silently dropped.
+# Use the lowercase generic keys below for cross-framework compatibility — they are
+# pre-baked into SECTION_CONFIG and render with proper icons / labels / colors.
+CONTEXT_SECTION_SYSTEM = "system"
+CONTEXT_SECTION_TOOLS = "tools"
+CONTEXT_SECTION_USER_MESSAGES = "user_messages"
+CONTEXT_SECTION_ASSISTANT_MESSAGES = "assistant_messages"
+
+
+def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dict[str, int]:
+    """Distribute ``total_tokens`` across categories proportional to ``char_counts``.
+
+    AIDEV-NOTE: approximation. The total is authoritative (model-reported), but the
+    per-category distribution drifts up to ~20% when categories have very different
+    token-per-character density (JSON-dense tool definitions vs natural-language prose).
+    Acceptable for visualization; not for billing. A future upgrade to a per-provider
+    tokenizer (e.g. tiktoken for OpenAI models) would not change the contract shape.
+    """
+    if total_tokens <= 0 or not char_counts:
+        return {name: 0 for name in char_counts}
+    total_chars = sum(char_counts.values())
+    if total_chars <= 0:
+        return {name: 0 for name in char_counts}
+    return {name: int(total_tokens * (chars / total_chars)) for name, chars in char_counts.items()}
+
+
+def _sections_with_pct(token_counts: dict[str, int]) -> list[dict[str, Any]]:
+    """Build the ``sections`` list with rounded percent-of-used-tokens.
+
+    Matches the convention in claude_agent_sdk's _parse_snapshot: pct is share of
+    used tokens (sum of section tokens), not share of the full context window.
+    Zero-token categories are omitted so the UI doesn't render empty segments.
+    """
+    total = sum(token_counts.values())
+    sections: list[dict[str, Any]] = []
+    for name, tokens in token_counts.items():
+        if tokens <= 0:
+            continue
+        pct = round(tokens / total * 100, 1) if total > 0 else 0.0
+        sections.append({"name": name, "tokens": tokens, "pct": pct})
+    return sections
+
+
+def tag_context_delta(
+    span: Span,
+    *,
+    first_token_counts: dict[str, int],
+    last_token_counts: dict[str, int],
+    first_input_tokens: int,
+    last_input_tokens: int,
+    context_window_size: int,
+) -> None:
+    """Emit ``meta.metadata._dd.context_delta`` on an agent-kind span.
+
+    Shape mirrors claude_agent_sdk's _parse_context_delta so the LLMObs UI's
+    ContextUsageBar renders the growth visualization identically across integrations.
+    No-ops when both first and last input_tokens are zero (matches the Claude integration's
+    None-return guard).
+    """
+    if first_input_tokens <= 0 and last_input_tokens <= 0:
+        return
+
+    first_pct = round(first_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+    last_pct = round(last_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+
+    delta: dict[str, Any] = {
+        "first_input_tokens": first_input_tokens,
+        "last_input_tokens": last_input_tokens,
+        "delta_tokens": last_input_tokens - first_input_tokens,
+        "context_window_size": context_window_size,
+        "first_usage_pct": first_pct,
+        "last_usage_pct": last_pct,
+    }
+    first_sections = _sections_with_pct(first_token_counts)
+    last_sections = _sections_with_pct(last_token_counts)
+    if first_sections:
+        delta["first_sections"] = first_sections
+    if last_sections:
+        delta["last_sections"] = last_sections
+
+    _annotate_llmobs_span_data(span, context_delta=delta)

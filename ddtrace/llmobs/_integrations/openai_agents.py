@@ -16,9 +16,15 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_ASSISTANT_MESSAGES
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_SYSTEM
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_TOOLS
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_USER_MESSAGES
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+from ddtrace.llmobs._integrations.utils import tag_context_delta
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -35,6 +41,22 @@ logger = get_logger(__name__)
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
+    # AIDEV-NOTE: MLOB-7584 — OpenAI doesn't expose context_window via the API response.
+    # Maintained here; update on new model launches. The 0 fallback matches the Claude
+    # integration's behavior when its /context output can't parse a window size. Lift to a
+    # shared registry when Slice 2 (CrewAI) needs the same mapping — premature now.
+    _OPENAI_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+        "gpt-4o": 128_000,
+        "gpt-4o-mini": 128_000,
+        "gpt-4-turbo": 128_000,
+        "gpt-4": 8_192,
+        "gpt-3.5-turbo": 16_385,
+        "o1": 200_000,
+        "o1-mini": 128_000,
+        "o3": 200_000,
+        "o3-mini": 200_000,
+    }
+
     def __init__(self, integration_config: Any) -> None:
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
@@ -42,6 +64,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+        # MLOB-7584: per-trace context snapshot state (keyed by ddtrace trace_id).
+        # Populated by record_llm_side / record_agent_side; consumed by emit_context_delta.
+        self._context_state: dict[int, dict[str, Any]] = {}
 
     def trace(
         self,
@@ -287,6 +312,106 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
+        self._context_state.clear()
+
+    def _context_window_for(self, model: str) -> int:
+        """Look up the model's context window. Returns 0 if unknown."""
+        if not model:
+            return 0
+        if model in self._OPENAI_MODEL_CONTEXT_WINDOWS:
+            return self._OPENAI_MODEL_CONTEXT_WINDOWS[model]
+        # Prefix match for dated model names (e.g. "gpt-4o-2024-08-06" -> "gpt-4o").
+        # Iterate longest-prefix-first so "gpt-4o-mini" wins over "gpt-4o" / "gpt-4".
+        for prefix in sorted(self._OPENAI_MODEL_CONTEXT_WINDOWS, key=len, reverse=True):
+            if model.startswith(prefix):
+                return self._OPENAI_MODEL_CONTEXT_WINDOWS[prefix]
+        return 0
+
+    def record_llm_side(
+        self,
+        trace_id: int,
+        *,
+        input_tokens: int,
+        system_chars: int,
+        user_chars: int,
+        assistant_chars: int,
+        model: str,
+    ) -> None:
+        """MLOB-7584 — hook A. Capture per-LLM-call context categories from a response span.
+
+        Called from ``LLMObsTraceProcessor.on_span_end`` when ``span_type == "response"``.
+        First call locks the ``first_llm`` snapshot; every subsequent call overwrites ``last_llm``.
+        """
+        if not self.llmobs_enabled:
+            return
+        snapshot = {
+            "input_tokens": input_tokens,
+            "system_chars": system_chars,
+            "user_chars": user_chars,
+            "assistant_chars": assistant_chars,
+        }
+        state = self._context_state.setdefault(trace_id, {})
+        if "first_llm" not in state:
+            state["first_llm"] = snapshot
+        state["last_llm"] = snapshot
+        if model:
+            state["model"] = model
+
+    def record_agent_side(self, trace_id: int, *, tools_chars: int) -> None:
+        """MLOB-7584 — hook B. Capture per-turn agent-side category (tools + handoffs).
+
+        Called from ``_patched_run_single_turn`` after the awaited function returns.
+        First call locks the ``first_agent`` snapshot; every subsequent call overwrites ``last_agent``.
+        """
+        if not self.llmobs_enabled:
+            return
+        snapshot = {"tools_chars": tools_chars}
+        state = self._context_state.setdefault(trace_id, {})
+        if "first_agent" not in state:
+            state["first_agent"] = snapshot
+        state["last_agent"] = snapshot
+
+    def emit_context_delta(self, trace_root_span: Span, trace_id: int) -> None:
+        """MLOB-7584 — hook C. Emit the assembled context_delta on the agent-kind root span.
+
+        Called from ``LLMObsTraceProcessor.on_trace_end`` just before the root span finishes.
+        No-ops if neither LLM snapshot was captured (degenerate trace).
+        """
+        state = self._context_state.pop(trace_id, None)
+        if not state:
+            return
+        first_llm = state.get("first_llm")
+        last_llm = state.get("last_llm")
+        if not first_llm or not last_llm:
+            return
+
+        first_agent = state.get("first_agent", {"tools_chars": 0})
+        last_agent = state.get("last_agent", {"tools_chars": 0})
+
+        first_chars = {
+            CONTEXT_SECTION_SYSTEM: first_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: first_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: first_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: first_llm["assistant_chars"],
+        }
+        last_chars = {
+            CONTEXT_SECTION_SYSTEM: last_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: last_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: last_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: last_llm["assistant_chars"],
+        }
+
+        first_token_counts = split_tokens_by_chars(first_llm["input_tokens"], first_chars)
+        last_token_counts = split_tokens_by_chars(last_llm["input_tokens"], last_chars)
+
+        tag_context_delta(
+            trace_root_span,
+            first_token_counts=first_token_counts,
+            last_token_counts=last_token_counts,
+            first_input_tokens=first_llm["input_tokens"],
+            last_input_tokens=last_llm["input_tokens"],
+            context_window_size=self._context_window_for(state.get("model", "")),
+        )
 
     def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any], agent_index: int) -> None:
         agent = get_argument_value(args, kwargs, agent_index, "agent", True)
