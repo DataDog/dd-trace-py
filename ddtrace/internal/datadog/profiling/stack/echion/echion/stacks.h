@@ -7,9 +7,9 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <deque>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include <echion/config.h>
 #include <echion/frame.h>
@@ -25,7 +25,7 @@ class EchionSampler;
 // FrameStack owns the Frames so that they stay valid across cache evictions
 // (asyncio unwind_tasks precomputes per-task stacks via Frame::get, which can
 // evict entries still referenced from an earlier thread-stack capture).
-class FrameStack : public std::deque<Frame>
+class FrameStack : public std::vector<Frame>
 {
   public:
     using Key = Frame::Key;

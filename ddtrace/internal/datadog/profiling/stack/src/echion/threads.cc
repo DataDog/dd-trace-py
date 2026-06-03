@@ -246,15 +246,19 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
             auto& task = current_task.get();
 
-            // Look up the pre-computed coroutine stack for this task
+            // Look up the pre-computed coroutine stack for this task.
+            // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
+            // python_stack must be appended before coroutine frames.
+            // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
+            // This preserves the previous max_frames truncation behavior while avoiding front insertion.
+            const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
+            size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
-                task_stack_size = it->second.size();
-                for (const Frame& coro_frame : it->second) {
-                    if (stack.size() >= max_frames) {
-                        break;
-                    }
-                    stack.push_back(coro_frame);
+                task_stack = &it->second;
+                task_stack_size = task_stack->size();
+                if (stack.size() < max_frames) {
+                    task_frames_to_push = std::min(task_stack_size, max_frames - stack.size());
                 }
             }
             if (task.is_on_cpu) {
@@ -271,14 +275,20 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
                                           ? python_stack.size() - upper_python_stack_size - task_stack_size
                                           : 0;
+                // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[frames_to_push - i - 1];
+                    const auto& python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
                     }
-                    stack.push_front(python_frame);
+                    stack.push_back(python_frame);
+                }
+            }
+            if (task_stack != nullptr) {
+                for (size_t i = 0; i < task_frames_to_push; i++) {
+                    stack.push_back((*task_stack)[i]);
                 }
             }
 
