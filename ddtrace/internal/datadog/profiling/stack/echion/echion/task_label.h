@@ -13,44 +13,20 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 class TaskLabel
 {
   public:
-    enum class Kind : std::uint8_t
-    {
-        Unknown,
-        Literal,
-        AsyncioTaskId,
-        GreenletId,
-    };
-
     TaskLabel() = default;
 
-    [[nodiscard]] static TaskLabel from_literal(std::string value)
-    {
-        TaskLabel label;
-        label.kind_ = Kind::Literal;
-        label.literal_ = std::move(value);
-        return label;
-    }
+    [[nodiscard]] static TaskLabel from_literal(std::string value) { return TaskLabel(std::move(value)); }
 
-    [[nodiscard]] static TaskLabel from_asyncio_task_id(std::uint64_t id)
-    {
-        TaskLabel label;
-        label.kind_ = Kind::AsyncioTaskId;
-        label.numeric_id_ = id;
-        return label;
-    }
+    [[nodiscard]] static TaskLabel from_asyncio_task_id(std::uint64_t id) { return TaskLabel(AsyncioTaskId{ id }); }
 
-    [[nodiscard]] static TaskLabel from_greenlet_id(std::uint64_t id)
-    {
-        TaskLabel label;
-        label.kind_ = Kind::GreenletId;
-        label.numeric_id_ = id;
-        return label;
-    }
+    [[nodiscard]] static TaskLabel from_greenlet_id(std::uint64_t id) { return TaskLabel(GreenletId{ id }); }
 
     [[nodiscard]] static TaskLabel from_gevent_name(std::string_view name)
     {
@@ -65,24 +41,49 @@ class TaskLabel
     template<typename Callback>
     void visit_string(Callback&& callback) const
     {
-        switch (kind_) {
-            case Kind::Literal:
-                callback(std::string_view(literal_));
-                return;
-            case Kind::AsyncioTaskId:
-                visit_prefixed_number("Task-", numeric_id_, std::forward<Callback>(callback));
-                return;
-            case Kind::GreenletId:
-                visit_prefixed_number("Greenlet-", numeric_id_, std::forward<Callback>(callback));
-                return;
-            case Kind::Unknown:
-            default:
-                callback(std::string_view("<unknown>"));
-                return;
-        }
+        std::visit(
+          [&](const auto& v) {
+              using T = std::decay_t<decltype(v)>;
+              if constexpr (std::is_same_v<T, Unknown>) {
+                  callback(std::string_view("<unknown>"));
+              } else if constexpr (std::is_same_v<T, std::string>) {
+                  callback(std::string_view(v));
+              } else if constexpr (std::is_same_v<T, AsyncioTaskId>) {
+                  visit_prefixed_number("Task-", v.value, callback);
+              } else if constexpr (std::is_same_v<T, GreenletId>) {
+                  visit_prefixed_number("Greenlet-", v.value, callback);
+              }
+          },
+          storage_);
     }
 
   private:
+    struct Unknown
+    {};
+    struct AsyncioTaskId
+    {
+        std::uint64_t value;
+    };
+    struct GreenletId
+    {
+        std::uint64_t value;
+    };
+
+    using Storage = std::variant<Unknown, std::string, AsyncioTaskId, GreenletId>;
+
+    explicit TaskLabel(std::string s)
+      : storage_(std::move(s))
+    {
+    }
+    explicit TaskLabel(AsyncioTaskId id)
+      : storage_(id)
+    {
+    }
+    explicit TaskLabel(GreenletId id)
+      : storage_(id)
+    {
+    }
+
     template<std::size_t PrefixSize, typename Callback>
     static void visit_prefixed_number(const char (&prefix)[PrefixSize], std::uint64_t value, Callback&& callback)
     {
@@ -122,7 +123,5 @@ class TaskLabel
         return result;
     }
 
-    Kind kind_ = Kind::Unknown;
-    std::uint64_t numeric_id_ = 0;
-    std::string literal_;
+    Storage storage_;
 };
