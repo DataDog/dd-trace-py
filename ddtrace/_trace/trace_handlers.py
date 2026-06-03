@@ -1366,8 +1366,18 @@ def _on_aiokafka_send_start(
 
 
 def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    record_metadata: Optional[Any],
 ) -> None:
+    span = ctx.span
+    if span is not None and record_metadata is not None:
+        partition = getattr(record_metadata, "partition", None)
+        offset = getattr(record_metadata, "offset", None)
+        if isinstance(partition, int):
+            span._set_attribute(PARTITION, partition)
+        if isinstance(offset, int):
+            span._set_attribute(MESSAGE_OFFSET, offset)
     _finish_span(ctx, exc_info)
 
 
