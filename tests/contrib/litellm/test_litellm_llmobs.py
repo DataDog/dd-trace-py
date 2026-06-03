@@ -102,7 +102,8 @@ class TestLLMObsLiteLLM:
     def test_completion_with_tools(self, litellm, request_vcr, litellm_llmobs, test_spans, stream, n, consume_stream):
         if stream and n > 1:
             pytest.skip(
-                "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
+                "Streamed responses with multiple completions and tool calls are not supported: "
+                "see open issue https://github.com/BerriAI/litellm/issues/8977"
             )
         with request_vcr.use_cassette(get_cassette_name(stream, n, tools=True)):
             messages = [{"content": "What is the weather like in San Francisco, CA?", "role": "user"}]
@@ -833,6 +834,22 @@ def test_shadow_tags_completion_when_llmobs_disabled(tracer):
     assert span.get_metric("_dd.llmobs.total_tokens") == 10
 
 
+def test_azure_shadow_tags_use_response_model(tracer):
+    """For azure provider, shadow model_name uses the response model, not the deployment name."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "gpt-4o-2024-08-06")
+        integration._set_apm_shadow_tags(span, ["azure/my_deployment_name"], {}, response=None, operation="chat")
+
+    assert span.get_tag("_dd.llmobs.model_name") == "gpt-4o-2024-08-06"
+
+
 def test_shadow_tags_completion_with_cache_tokens(tracer):
     """Verify cache-token shadow metrics propagate from litellm usage to APM span."""
     from unittest.mock import MagicMock
@@ -854,3 +871,122 @@ def test_shadow_tags_completion_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 7
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 4
+
+
+# --- Azure streaming model name tests ---
+
+
+def test_stream_handler_captures_chunk_model():
+    """Stream handler records the first non-empty chunk.model as response_model."""
+    from collections import defaultdict
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
+
+    handler = BaseLiteLLMStreamHandler.__new__(BaseLiteLLMStreamHandler)
+    handler.chunks = defaultdict(list)
+    handler.spans = []
+
+    chunk = MagicMock()
+    chunk.model = "gpt-4o-2024-08-06"
+    chunk.choices = []
+    chunk.usage = None
+
+    handler._process_chunk(chunk)
+    assert handler.response_model == "gpt-4o-2024-08-06"
+
+    # Second chunk does not override the first captured model.
+    chunk2 = MagicMock()
+    chunk2.model = "different-model"
+    chunk2.choices = []
+    chunk2.usage = None
+    handler._process_chunk(chunk2)
+    assert handler.response_model == "gpt-4o-2024-08-06"
+
+
+def test_stream_handler_skips_empty_chunk_model():
+    """Stream handler ignores chunks with no model field."""
+    from collections import defaultdict
+    from unittest.mock import MagicMock
+
+    from ddtrace.contrib.internal.litellm.utils import BaseLiteLLMStreamHandler
+
+    handler = BaseLiteLLMStreamHandler.__new__(BaseLiteLLMStreamHandler)
+    handler.chunks = defaultdict(list)
+    handler.spans = []
+
+    empty_chunk = MagicMock()
+    empty_chunk.model = None
+    empty_chunk.choices = []
+    empty_chunk.usage = None
+    handler._process_chunk(empty_chunk)
+    assert not getattr(handler, "response_model", None)
+
+
+def test_azure_streaming_model_name_uses_response_model(tracer):
+    """For azure provider, _llmobs_set_tags prefers the litellm.response.model span tag."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "gpt-4o-2024-08-06")
+        integration._llmobs_set_tags(span, ["azure/my_deployment_name"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o-2024-08-06"
+
+
+def test_azure_non_streaming_model_name_uses_response_model(tracer):
+    """For azure provider, _llmobs_set_tags prefers response.model on non-streaming responses."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure/my_deployment_name"] = ("my_deployment_name", "azure")
+
+    response = MagicMock()
+    response.model = "gpt-4o-2024-08-06"
+    response.usage.prompt_tokens = 5
+    response.usage.completion_tokens = 3
+    response.usage.total_tokens = 8
+
+    with tracer.trace("litellm.request") as span:
+        integration._llmobs_set_tags(span, ["azure/my_deployment_name"], {}, response=response, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o-2024-08-06"
+
+
+def test_non_azure_streaming_model_name_unchanged(tracer):
+    """For non-azure providers, model_name is not overridden and litellm.response.model is not set."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["openai/gpt-4o"] = ("gpt-4o", "openai")
+
+    with tracer.trace("litellm.request") as span:
+        integration._llmobs_set_tags(span, ["openai/gpt-4o"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "gpt-4o"
+    assert span.get_tag("litellm.response.model") is None
+
+
+def test_azure_ai_model_name_unchanged(tracer):
+    """azure_ai provider is not affected — its response.model is 'azure_ai/<deployment>' and must not be preferred."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.litellm import LiteLLMIntegration
+
+    integration = LiteLLMIntegration(MagicMock())
+    integration._model_map["azure_ai/my_deployment"] = ("my_deployment", "azure_ai")
+
+    with tracer.trace("litellm.request") as span:
+        span.set_tag("litellm.response.model", "azure_ai/my_deployment")
+        integration._llmobs_set_tags(span, ["azure_ai/my_deployment"], {}, response=None, operation="chat")
+
+    assert _get_llmobs_data_metastruct(span).get("meta", {}).get("model_name") == "my_deployment"

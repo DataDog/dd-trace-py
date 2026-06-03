@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where Azure OpenAI streaming calls via the LiteLLM integration
+    tagged ``model_name`` with the request deployment name (e.g. ``my-deployment``) instead of the
+    canonical model returned by the API (e.g. ``gpt-4o-2024-08-06``). This caused cost attribution
+    to fail for deployments whose names differ from the canonical model identifier. The fix applies
+    only to ``azure`` and ``azure_text`` providers, where the response ``model`` field reliably
+    carries the canonical identifier.

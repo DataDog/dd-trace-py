@@ -26,6 +26,12 @@ class BaseLiteLLMStreamHandler:
         self.spans.append((span, kwargs))
 
     def _process_chunk(self, chunk, iterator=None):
+        # Capture the first non-empty response model. Only emitted as a span tag for azure/azure_text
+        # providers (in finalize_stream), where the request model is an arbitrary deployment name.
+        if not getattr(self, "response_model", None):
+            chunk_model = getattr(chunk, "model", None)
+            if chunk_model:
+                self.response_model = chunk_model
         for choice in getattr(chunk, "choices", []):
             choice_index = getattr(choice, "index", 0)
             self.chunks[choice_index].append(choice)
@@ -35,6 +41,11 @@ class BaseLiteLLMStreamHandler:
     def finalize_stream(self, exception=None):
         formatted_completions = None
         for span, kwargs in self.spans:
+            response_model = getattr(self, "response_model", None)
+            if response_model:
+                _, provider = self.integration._model_map.get(kwargs.get("model", ""), ("", ""))
+                if provider in ("azure", "azure_text"):
+                    span.set_tag("litellm.response.model", response_model)
             if not formatted_completions:
                 formatted_completions = self._process_finished_stream(span)
             self.integration.llmobs_set_tags(
