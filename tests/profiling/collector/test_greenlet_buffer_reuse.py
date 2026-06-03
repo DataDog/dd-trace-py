@@ -9,7 +9,7 @@ greenlet -- a large source of native heap churn under gevent.
 RSS/arena size cannot distinguish the two implementations (on the single
 sampling thread, freed blocks are reused next sample, so the footprint is
 identical). What differs is the *number of allocations*. The native module
-exposes a cumulative counter, ``stack._greenlet_buffer_alloc_count()``, that is
+exposes a cumulative counter, ``stack._stack._greenlet_buffer_alloc_count()``, that is
 incremented only on the buffer-growth path. With reuse it plateaus once the
 working set is sampled; a per-sample-allocation regression makes it grow
 without bound.
@@ -73,11 +73,11 @@ def test_greenlet_unwind_buffer_reuse() -> None:
         # Warm up: across several full samples the reuse buffer grows to the
         # peak greenlet count and then stops allocating.
         gevent.sleep(WARMUP_S)
-        c1 = stack._greenlet_buffer_alloc_count()
+        c1 = stack._stack._greenlet_buffer_alloc_count()
 
         # Sustained sampling: with reuse the counter must not keep climbing.
         gevent.sleep(MEASURE_S)
-        c2 = stack._greenlet_buffer_alloc_count()
+        c2 = stack._stack._greenlet_buffer_alloc_count()
 
         gevent.killall(idles, timeout=5)
     finally:
