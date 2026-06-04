@@ -26,6 +26,15 @@ struct CacheHit
     int line;                     // -1 = lasti mismatch; >=0 = cached line
 };
 
+/* CacheHit must stay <=16B so the x86-64 System V ABI returns it in registers
+ * (RAX:RDX) rather than via a hidden pointer + stack copy.  Every cache hit
+ * in the allocator hook pays this cost, so a silent size increase would add
+ * measurable per-frame overhead.  Grow with care: benchmark before and after. */
+static_assert(sizeof(CacheHit) <= 16,
+              "CacheHit exceeds 16B — lookup() return will use hidden-pointer ABI, "
+              "adding stack overhead on every allocation-hook cache hit; "
+              "benchmark the impact before adding fields");
+
 /* CodeFunctionCache caches libdatadog function_id values keyed by
  * PyCodeObject*. Frame walks during heap-profiler sample construction
  * call ProfilesDictionary::insert_str twice and insert_function once
