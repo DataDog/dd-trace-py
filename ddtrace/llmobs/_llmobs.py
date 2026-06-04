@@ -1993,11 +1993,8 @@ class LLMObs(Service):
         return prompt_manager.delete_prompt(prompt_id)
 
     @classmethod
-    def list_prompts(cls, *, ml_app: Optional[str] = None) -> list[PromptResponse]:
-        """List all prompts, optionally filtered by ml_app.
-
-        Args:
-            ml_app: Optional ml_app name to filter by.
+    def list_prompts(cls) -> list[PromptResponse]:
+        """List all prompts.
 
         Returns:
             A list of prompts.
@@ -2007,7 +2004,7 @@ class LLMObs(Service):
             PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
-        return prompt_manager.list_prompts(ml_app=ml_app)
+        return prompt_manager.list_prompts()
 
     @classmethod
     def list_prompt_versions(cls, prompt_id: str) -> list[PromptVersionResponse]:

@@ -332,7 +332,9 @@ class PromptManager:
 
         encoded_body = json.dumps(body).encode("utf-8") if body else None
         try:
-            status, response_body = self._http_request(method, path, body=encoded_body, headers=headers, timeout=timeout)
+            status, response_body = self._http_request(
+                method, path, body=encoded_body, headers=headers, timeout=timeout
+            )
         except Exception as e:
             raise PromptAPIError(0, str(e))
 
@@ -445,11 +447,8 @@ class PromptManager:
         self._evict_prompt_caches(prompt_id)
         return result
 
-    def list_prompts(self, *, ml_app: Optional[str] = None) -> list[PromptResponse]:
-        path = PROMPTS_ENDPOINT
-        if ml_app:
-            path = f"{PROMPTS_ENDPOINT}?{urlencode({'filter[ml_app]': ml_app})}"
-        result: list[PromptResponse] = self._request("GET", path, require_app_key=False)
+    def list_prompts(self) -> list[PromptResponse]:
+        result: list[PromptResponse] = self._request("GET", PROMPTS_ENDPOINT, require_app_key=False)
         return result
 
     def list_prompt_versions(self, prompt_id: str) -> list[PromptVersionResponse]:
