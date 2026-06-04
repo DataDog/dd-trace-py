@@ -316,14 +316,12 @@ def pytest_load_initial_conftests(early_config, parser, args):
     properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
     """
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
-    # Release sys.monitoring.COVERAGE_ID before other plugins run so that pytest-cov's
-    # SysMonitor can claim it in its own pytest_load_initial_conftests without crashing.
-    # unregister_coverage() is a no-op if we don't hold the slot.
-    # Supplement getoption() with a raw args scan: during early init,
-    # config.getoption("--cov") may not reflect the CLI value yet.
-    if _is_pytest_cov_enabled(early_config) or "--cov" in args:
-        unregister_coverage()
+    # Always release COVERAGE_ID before yield so that any coverage tool
+    # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
+    # After yield, reclaim if still available.
+    unregister_coverage()
     yield
+    register_coverage()
 
 
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
@@ -373,8 +371,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         # Main process doesn't need coverage when using xdist since it doesn't run tests
         using_xdist = num_workers not in (0, None, XDIST_UNSET)
 
-        pytest_cov_enabled = _is_pytest_cov_enabled(early_config) or "--cov" in args
-        if should_collect_coverage and (not using_xdist or is_worker) and not pytest_cov_enabled:
+        if should_collect_coverage and (not using_xdist or is_worker):
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
@@ -383,7 +380,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
                 process_type,
                 [workspace_path],
             )
-            register_coverage()
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:

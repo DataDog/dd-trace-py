@@ -75,10 +75,11 @@ def test_event_handler_returns_disable_for_missing_code():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
 def test_unregister_coverage_releases_coverage_id_when_held_by_datadog():
     """unregister_coverage() must free COVERAGE_ID when we hold it as 'datadog'."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
     from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
-    # Claim the slot as "datadog" (mirrors what register_coverage does)
-    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    # Ensure we hold the slot as "datadog" (idempotent if already held)
+    register_coverage()
     try:
         unregister_coverage()
         # Slot must now be free so another tool can claim it
@@ -92,17 +93,19 @@ def test_unregister_coverage_releases_coverage_id_when_held_by_datadog():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_unregister_coverage_clears_code_hooks():
-    """unregister_coverage() must empty _CODE_HOOKS so stale entries don't fire."""
+def test_unregister_coverage_preserves_code_hooks():
+    """unregister_coverage() must preserve _CODE_HOOKS for re-registration."""
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
     from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
-    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    register_coverage()
     code_obj = compile("z = 3", "<test>", "exec")
     _CODE_HOOKS[code_obj] = (lambda li: None, "/fake/path.py", {})
     try:
         unregister_coverage()
-        assert len(_CODE_HOOKS) == 0
+        # _CODE_HOOKS must be preserved so register_coverage() can re-enable events
+        assert code_obj in _CODE_HOOKS
     finally:
         _CODE_HOOKS.pop(code_obj, None)
         try:
@@ -254,27 +257,23 @@ def test_instrument_all_lines_skips_when_slot_held_by_foreign_tool():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_instrument_all_lines_lazily_registers_when_slot_is_free():
-    """instrument_all_lines() lazily registers when COVERAGE_ID is unclaimed.
+def test_instrument_all_lines_skips_when_slot_is_free():
+    """instrument_all_lines() returns empty when COVERAGE_ID is unclaimed.
 
-    This supports standalone callers (e.g. installer.install() in subprocesses)
-    that don't go through the pytest plugin's explicit register_coverage() path.
+    Registration is handled by installer.install() or the pytest plugins,
+    not by instrument_all_lines() itself.
     """
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
-    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     # Ensure slot is free
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
-    try:
-        code_obj = compile("y = 2\nz = 3", "<test>", "exec")
-        _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-        # Should have lazily registered and instrumented
-        assert len(lines) > 0
-        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
-    finally:
-        unregister_coverage()
+    code_obj = compile("y = 2", "<test>", "exec")
+    _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+    assert len(lines) == 0
+    # Slot must still be free — no lazy registration
+    assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")

@@ -1090,18 +1090,20 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
-    # Evaluate once; used on every exit path below.
-    # Supplement getoption() with a raw args scan: during early init,
-    # config.getoption("--cov") may not reflect the CLI value yet.
-    pytest_cov_enabled = _is_pytest_cov_enabled(early_config) or "--cov" in args
+    _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
+    # Always release COVERAGE_ID before yield so that any coverage tool
+    # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
+    # After yield, reclaim if still available — register_coverage() re-enables
+    # set_local_events() for all previously-instrumented code objects.
+    unregister_coverage()
+    yield
+    register_coverage()
 
+
+def _pytest_load_initial_conftests_pre_yield(
+    early_config: pytest.Config, parser: pytest.Parser, args: list[str]
+) -> None:
     if not _is_enabled_early(early_config, args):
-        # Release COVERAGE_ID even when ddtrace is disabled: a previous inline session
-        # may have left us holding the slot.  unregister_coverage() is a no-op when
-        # we don't hold it, so this is always safe.
-        if pytest_cov_enabled:
-            unregister_coverage()
-        yield
         return
 
     setup_logging()
@@ -1117,9 +1119,6 @@ def pytest_load_initial_conftests(
         session_manager = SessionManager(session=session)
     except SetupError as e:
         log.error("%s", e)
-        if pytest_cov_enabled:
-            unregister_coverage()
-        yield
         return
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
@@ -1131,24 +1130,11 @@ def pytest_load_initial_conftests(
     # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
     # when we know if pytest-cov is available.
     if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only install our own coverage collector when pytest-cov is NOT active.
-        # When pytest-cov is enabled, it may use coverage.py's SysMonitor backend which claims
-        # sys.monitoring.COVERAGE_ID — the same slot ddtrace uses.  Skipping installation
-        # avoids the slot conflict.
-        if not pytest_cov_enabled:
-            setup_coverage_collection()
-
-    # Release COVERAGE_ID after all our setup so pytest-cov's SysMonitor can claim it
-    # in its own pytest_load_initial_conftests hook (which runs after this yield).
-    if pytest_cov_enabled:
-        unregister_coverage()
-
-    yield
+        setup_coverage_collection()
 
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    register_coverage()
     install_coverage(workspace_path)
 
 

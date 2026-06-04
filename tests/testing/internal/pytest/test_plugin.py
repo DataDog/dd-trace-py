@@ -1106,13 +1106,13 @@ class TestSessionLifecycleMethods:
         plugin.manager.writer.put_item.assert_not_called()
         plugin.manager.finish.assert_called_once()
 
-    def test_load_initial_conftests_unregisters_coverage_when_pytest_cov_enabled(self) -> None:
-        """unregister_coverage() is called in pytest_load_initial_conftests when pytest-cov is active.
+    def test_load_initial_conftests_always_unregisters_and_reregisters_coverage(self) -> None:
+        """unregister_coverage() + register_coverage() are always called around the yield.
 
         Regression test for the fix that prevents "ValueError: tool 1 is already in use"
-        when pytester.inline_run(--cov) is called inside a session that already holds
-        sys.monitoring.COVERAGE_ID as 'datadog'.  The call must happen before the yield
-        so that pytest-cov's own pytest_load_initial_conftests can claim the slot.
+        when another coverage tool (pytest-cov, coverage.py, etc.) tries to claim
+        sys.monitoring.COVERAGE_ID.  The slot is always released before yield and
+        reclaimed after, regardless of whether pytest-cov is detected.
         """
         from ddtrace.testing.internal.pytest.plugin import pytest_load_initial_conftests
 
@@ -1120,42 +1120,19 @@ class TestSessionLifecycleMethods:
 
         with (
             patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True) as mock_cov_check,
             patch("ddtrace.testing.internal.pytest.plugin.unregister_coverage") as mock_unregister,
+            patch("ddtrace.testing.internal.pytest.plugin.register_coverage") as mock_register,
         ):
             gen = pytest_load_initial_conftests(mock_config, Mock(), [])
-            next(gen)
+            next(gen)  # runs pre-yield code including unregister_coverage()
+            mock_unregister.assert_called_once()
+            mock_register.assert_not_called()
             try:
-                next(gen)
+                next(gen)  # runs post-yield code including register_coverage()
             except StopIteration:
                 pass
 
-        mock_cov_check.assert_called_once_with(mock_config)
-        mock_unregister.assert_called_once()
-
-    def test_load_initial_conftests_skips_unregistration_when_pytest_cov_disabled(self) -> None:
-        """unregister_coverage() is NOT called in v3 plugin when pytest-cov is absent.
-
-        Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
-        own coverage tracking is not disrupted by an unnecessary unregistration.
-        """
-        from ddtrace.testing.internal.pytest.plugin import pytest_load_initial_conftests
-
-        mock_config = Mock()
-
-        with (
-            patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin.unregister_coverage") as mock_unregister,
-        ):
-            gen = pytest_load_initial_conftests(mock_config, Mock(), [])
-            next(gen)
-            try:
-                next(gen)
-            except StopIteration:
-                pass
-
-        mock_unregister.assert_not_called()
+        mock_register.assert_called_once()
 
 
 class TestReportAndLoggingMethods:
