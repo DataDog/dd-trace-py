@@ -707,6 +707,10 @@ def normalize_route_flask(route: Optional[str], path_params: _PathParams = None)
 # ``_skip_char_class`` is the shared scanner used by both functions to walk past a
 # ``[...]`` character class.
 
+# Group prefixes that indicate a zero-width assertion or atomic group — these produce no
+# URL-path content and cannot be normalized as static or dynamic.
+_LOOKAHEAD_PREFIXES = ("?=", "?!", "?<=", "?<!", "?>")
+
 
 def _skip_char_class(s: str, start: int) -> int:
     r"""Return the index just past the ``]`` that closes the class opening at ``s[start] == '['``.
@@ -730,24 +734,27 @@ def _skip_char_class(s: str, start: int) -> int:
     return j
 
 
-def _classify_static_segment(seg: str) -> str:
+def _classify_static_segment(seg: str) -> tuple[str, str]:
     r"""Classify a ``count == 0`` (no ``%s``) segment for Tornado normalization.
 
-    Returns one of three strings:
+    Returns a 2-tuple ``(classification, literal)``\:
 
-    - ``"invalid"`` — contains structural ambiguity (bare ``|`` alternation, or a group whose
-      body contains alternation, or a lookahead/lookbehind/atomic group).  The caller must
-      return ``None`` (omit tag rather than emit an inaccurate value).
-    - ``"dynamic"`` — contains an anonymous dynamic pattern: character classes (``[a-z]``),
-      regex shorthands (``\d``, ``\w``, ``\s``, …), wildcards (``.*``, ``.+``), or a
-      non-capturing group whose body has no alternation (``(?:[^/]+)``).  The caller must emit
-      a ``{paramN}`` placeholder.
-    - ``"static"`` — plain text after stripping backslash escapes for literal characters
-      (``\(`` → ``(``, ``\.`` → ``.``).  The caller must URL-encode and emit.
+    - ``("invalid", "")`` — structural ambiguity (bare ``|``, group with alternation or
+      lookahead).  Caller must return ``None``.
+    - ``("dynamic", "")`` — anonymous dynamic pattern (char class, regex shorthand, wildcard,
+      non-capturing group whose body is dynamic).  Caller must emit ``{paramN}``.
+    - ``("static", literal)`` — literal URL text.  ``literal`` is the actual path characters
+      with non-capturing group wrappers stripped and backslash escapes removed.  Caller must
+      ``_encode_static(literal)``.
+
+    Non-capturing groups with a purely static body (e.g. ``(?:bar)``) are handled as static
+    with the unwrapped body "bar", so ``/foo/(?:bar)/`` normalizes to ``/foo/bar/`` instead
+    of the inaccurate ``/foo/{param1}/``.
     """
     i = 0
     n = len(seg)
     has_dynamic = False
+    literal_buf: list[str] = []  # accumulates URL-literal chars for the "static" result
 
     while i < n:
         c = seg[i]
@@ -755,17 +762,18 @@ def _classify_static_segment(seg: str) -> str:
         # Backslash escape
         if c == "\\" and i + 1 < n:
             if seg[i + 1].isalnum():
-                has_dynamic = True  # \d, \w, \s, … — regex shorthand
-            # Non-alphanumeric \X is an escaped literal (\(, \., …) — skip, not a metachar.
+                has_dynamic = True  # \d, \w, \s, … — regex shorthand; no literal contribution
+            else:
+                literal_buf.append(seg[i + 1])  # \( → (, \. → .
             i += 2
             continue
 
         # Opening paren — non-capturing group, lookahead, or similar construct
         if c == "(":
             rest = seg[i + 1 :]
-            if any(rest.startswith(p) for p in ("?=", "?!", "?<=", "?<!", "?>")):
-                return "invalid"  # lookahead / lookbehind / atomic group
-            # Walk the group body to detect bare | at depth 1 (alternation).
+            if any(rest.startswith(p) for p in _LOOKAHEAD_PREFIXES):
+                return "invalid", ""  # lookahead / lookbehind / atomic group
+            # Walk the group body to detect bare | (alternation) at any depth.
             # Skip character classes inside the body to avoid treating [a|b] as alternation.
             depth = 1
             j = i + 1
@@ -775,7 +783,6 @@ def _classify_static_segment(seg: str) -> str:
                     j += 2
                     continue
                 if seg[j] == "[":
-                    # Skip character class, which can contain | without being alternation.
                     j = _skip_char_class(seg, j)
                     continue
                 if seg[j] == "(":
@@ -786,14 +793,27 @@ def _classify_static_segment(seg: str) -> str:
                     found_pipe = True  # alternation at any nesting depth → invalid
                 j += 1
             if depth != 0:
-                return "invalid"  # unbalanced group — likely split across a ``/`` in the route
+                return "invalid", ""  # unbalanced — likely split across a ``/`` in the route
             if found_pipe:
-                return "invalid"  # alternation inside group — cannot normalize
-            has_dynamic = True  # non-capturing group without alternation → dynamic
+                return "invalid", ""  # alternation inside group — cannot normalize
+            # Balanced group, no alternation.  Recursively classify the body to decide whether
+            # the group is static (e.g. ``(?:bar)`` → literal "bar") or dynamic (e.g.
+            # ``(?:[^/]+)`` → ``{paramN}``).
+            body_start = i + 1
+            if seg[body_start : body_start + 2] == "?:":
+                body_start += 2  # skip non-capturing prefix
+            body = seg[body_start : j - 1]
+            body_cls, body_lit = _classify_static_segment(body)
+            if body_cls == "invalid":
+                return "invalid", ""
+            if body_cls == "dynamic":
+                has_dynamic = True
+            else:
+                literal_buf.append(body_lit)  # static body → contribute its literal text
             i = j
             continue
 
-        # Character class
+        # Character class — always dynamic
         if c == "[":
             has_dynamic = True
             i = _skip_char_class(seg, i)
@@ -801,40 +821,20 @@ def _classify_static_segment(seg: str) -> str:
 
         # Bare alternation outside any group
         if c == "|":
-            return "invalid"
+            return "invalid", ""
 
-        # Quantifier on the preceding element (+*?{) — marks the segment as dynamic. This also
-        # covers regex wildcards ``.*`` / ``.+`` (the quantifier after the ``.`` triggers it) and
-        # ``{n}`` / ``{n,m}`` brace quantifiers (e.g. ``a{3}``, ``\d{2,4}``).
+        # Quantifier on the preceding element (+*?{) — marks the segment as dynamic.
+        # Also covers ``.*``/``.+`` (quantifier after ``.`` triggers here) and ``{n,m}``.
         if c in ("+", "*", "?", "{") and i > 0:
             has_dynamic = True
+        else:
+            literal_buf.append(c)  # plain character contributes to literal
 
         i += 1
 
-    return "dynamic" if has_dynamic else "static"
-
-
-def _unescape_regex_static(seg: str) -> str:
-    r"""Strip backslash escapes from a static ``http.route`` segment.
-
-    ``_regex_to_route`` keeps ``\X`` sequences verbatim for non-alphanumeric ``X``
-    (e.g. ``\.`` → ``\.``, ``\(`` → ``\(``). Each such sequence represents the
-    literal character ``X`` in the URL path, so we remove the leading backslash before
-    URL-encoding the segment.
-    """
-    if "\\" not in seg:
-        return seg
-    result: list[str] = []
-    i = 0
-    n = len(seg)
-    while i < n:
-        if seg[i] == "\\" and i + 1 < n:
-            result.append(seg[i + 1])  # literal character, drop the backslash
-            i += 2
-        else:
-            result.append(seg[i])
-            i += 1
-    return "".join(result)
+    if has_dynamic:
+        return "dynamic", ""
+    return "static", "".join(literal_buf)
 
 
 def _split_route_body(body: str) -> list[str]:
@@ -947,14 +947,15 @@ def _normalize_route_tornado_cached(
     # numbered continuing from the highest ``paramK`` already used by ``%s`` params, per RFC
     # rule 4 ("N should not collide with any framework-supplied parameter name").
     anon_used: set[int] = {int(name[5:]) for name in names_list if name.startswith("param") and name[5:].isdigit()}
-    anon_next = [1]  # mutable so the inner loop can advance it
+    anon_next = 1
 
     def _next_anon_name() -> str:
-        while anon_next[0] in anon_used:
-            anon_next[0] += 1
-        n = anon_next[0]
+        nonlocal anon_next
+        while anon_next in anon_used:
+            anon_next += 1
+        n = anon_next
         anon_used.add(n)
-        anon_next[0] += 1
+        anon_next += 1
         return "param{}".format(n)
 
     name_idx = 0
@@ -968,7 +969,7 @@ def _normalize_route_tornado_cached(
         count = seg.count("%s")
 
         if count == 0:
-            cls = _classify_static_segment(seg)
+            cls, literal = _classify_static_segment(seg)
             if cls == "invalid":
                 # Structural ambiguity (alternation, lookaheads) — omit tag.
                 return None
@@ -977,8 +978,9 @@ def _normalize_route_tornado_cached(
                 # group without alternation) — emit an auto-numbered placeholder per rule 4.
                 out_segments.append("{" + _encode_param_name(_next_anon_name()) + "}")
             else:
-                # Plain static text — unescape backslash literals then URL-encode.
-                out_segments.append(_encode_static(_unescape_regex_static(seg)))
+                # Static literal text extracted by _classify_static_segment (non-capturing group
+                # wrappers already stripped, backslash escapes already removed) — URL-encode.
+                out_segments.append(_encode_static(literal))
         elif count == 1:
             if name_idx >= len(names_list):
                 return None
@@ -993,21 +995,19 @@ def _normalize_route_tornado_cached(
             # Multiple dynamic parameters in the same segment — combine with ``+`` (rule 5).
             if name_idx + count > len(names_list):
                 return None
-            if absent_indices:
-                present = [names_list[name_idx + j] for j in range(count) if (name_idx + j) not in absent_indices]
-                name_idx += count
-                if not present:
-                    continue  # all absent — drop segment
-                out_segments.append(
-                    "{" + _encode_param_name(present[0]) + "}"
-                    if len(present) == 1
-                    else "{" + "+".join(_encode_param_name(n) for n in present) + "}"
-                )
-            else:
-                segment_names = names_list[name_idx : name_idx + count]
-                name_idx += count
-                combined = "+".join(_encode_param_name(n) for n in segment_names)
-                out_segments.append("{" + combined + "}")
+            present = [
+                names_list[name_idx + j]
+                for j in range(count)
+                if not absent_indices or (name_idx + j) not in absent_indices
+            ]
+            name_idx += count
+            if not present:
+                continue  # all absent — drop segment
+            out_segments.append(
+                "{" + _encode_param_name(present[0]) + "}"
+                if len(present) == 1
+                else "{" + "+".join(_encode_param_name(n) for n in present) + "}"
+            )
 
     if not out_segments:
         return "/"
@@ -1038,6 +1038,8 @@ def normalize_route_tornado(route: Optional[str], path_params: _PathParams = Non
         param_names: Optional[tuple[str, ...]] = keys
         absent = frozenset(i for i, k in enumerate(keys) if path_params[k] is None or path_params[k] in ("", b""))
     elif isinstance(path_params, Sequence) and not isinstance(path_params, (str, bytes, bytearray)):
+        # An empty list means "no positional groups" — valid only when total_pct_s == 0.
+        # A non-empty list must match the number of ``%s`` placeholders exactly.
         if path_params and len(path_params) != total_pct_s:
             return None
         param_names = None  # positional: auto-generate param1, param2, …

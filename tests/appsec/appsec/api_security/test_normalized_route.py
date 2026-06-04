@@ -610,6 +610,9 @@ def test_normalize_route_django_nested_non_capturing_doesnt_drift_args_index(rou
     [
         # Root route (no groups).
         ("/", {}, "/"),
+        # Non-capturing group with a static body → unwrapped to literal text (not {paramN}).
+        ("/foo/(?:bar)/", {}, "/foo/bar/"),
+        ("/api/(?:v1.0)/items", {}, "/api/v1.0/items"),
         # Static route with optional trailing slash: ``/?`` is not "declared with trailing slash".
         ("/asm/?", {}, "/asm"),
         # Static route with explicit trailing slash: kept.

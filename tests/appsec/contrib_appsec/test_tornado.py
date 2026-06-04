@@ -101,6 +101,7 @@ class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
         "/rasp/%s/?",
         "/multi-param/%s.%s/?",
         "/files/%s",
+        "/pos/%s/%s/?",
     }
 
     @staticmethod
@@ -127,6 +128,8 @@ class Test_Tornado(_Test_Tornado_Base, utils.Contrib_TestClass_For_Threats):
             ("/multi-param/john.doe/", "/multi-param/{first+last}"),
             # Catch-all: single ``%s`` spanning multiple URL segments (rule 5 catch-all exception).
             ("/files/some/deep/path", "/files/{file_path}"),
+            # Positional (unnamed) groups: path_params is a list → auto-numbered param1, param2.
+            ("/pos/books/42/", "/pos/{param1}/{param2}"),
         ],
     )
     def test_normalized_route(self, interface: utils.Interface, get_entry_span_tag, asm_enabled, uri, expected):

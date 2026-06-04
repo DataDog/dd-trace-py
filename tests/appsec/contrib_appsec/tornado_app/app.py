@@ -204,6 +204,14 @@ class StreamHandler(BaseHandler):
             await self.flush()
 
 
+class PositionalHandler(BaseHandler):
+    """Route uses positional (unnamed) groups so path_params arrives as a list."""
+
+    async def get(self, category: str, item_id: str) -> None:
+        self.set_header("Content-Type", "text/html")
+        self.write(f"ok {category} {item_id}")
+
+
 class MultiParamHandler(BaseHandler):
     async def get(self, first: str, last: str) -> None:
         self.set_header("Content-Type", "text/html")
@@ -608,6 +616,8 @@ def get_app() -> tornado.web.Application:
             (r"/new_service/(?P<service_name>[^/]+)/?", NewServiceHandler, {"app": None}),
             (r"/stream/?", StreamHandler),
             (r"/rasp/(?P<endpoint>[^/]+)/?", RaspHandler),
+            # Positional (unnamed) groups: path_params arrives as a list → auto-numbered paramN.
+            (r"/pos/([^/]+)/(\d+)/?", PositionalHandler),
             # Multi-param segment: two named groups share a single URL segment (rule 5 combining).
             (r"/multi-param/(?P<first>[^./]+)\.(?P<last>[^/]+)/?", MultiParamHandler),
             # Catch-all: named group matches across slashes (rule 5 catch-all exception).
