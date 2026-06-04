@@ -103,10 +103,8 @@ class BaseLLMIntegration:
             self._set_apm_shadow_tags(span, args, kwargs, response, operation)
         except Exception:
             log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
-        # LLMObs I/O is always captured (and sent at 100%) when LLMObs is enabled. The
-        # effective sample rate and keep/drop decision are recorded on the span event's
-        # ``_dd`` object at finish so the backend can compute token/cost stats before
-        # dropping most of the I/O. See ``LLMObs._prepare_llmobs_span_data``.
+        # I/O is always captured when LLMObs is enabled; the sampling decision is recorded
+        # on the span event at finish (see ``LLMObs._prepare_llmobs_span_data``).
         if not self.llmobs_enabled:
             return
         try:

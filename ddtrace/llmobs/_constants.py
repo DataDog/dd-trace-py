@@ -70,9 +70,8 @@ LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
-# Keys written into the LLMObs span event ``_dd`` object so the backend can compute
-# token/cost stats and decide which spans' I/O to retain. We always send 100% of events;
-# these fields describe the sampling decision rather than dropping events client-side.
+# Sampling decision recorded on each LLMObs span event's ``_dd`` object. All events are
+# sent; the backend uses these to compute token/cost stats and pick which I/O to retain.
 LLMOBS_SAMPLE_RATE_DD_KEY = "llmo_sample_rate"
 LLMOBS_EVENT_SAMPLED_DD_KEY = "llmo_keep_event"
 
