@@ -42,7 +42,12 @@ def count_tools_chars(agent) -> int:
     """Sum character counts for the agent's tools + handoffs serialized representations.
 
     AIDEV-NOTE: MLOB-7584 — handoffs are folded into the ``tools`` category because the
-    context_delta payload has no dedicated handoffs key.
+    context_delta payload has no dedicated handoffs key. MCP server tools (``agent.mcp_servers``)
+    are intentionally NOT counted here: their definitions are fetched asynchronously at runtime
+    via ``agent.get_mcp_tools()`` and including them would require a separate async-aware
+    accounting path. Agents that rely heavily on MCP server tools will see their ``tools``
+    category under-counted in the resulting context_delta. A follow-up slice can capture
+    MCP-tools tokens once there is signal that it matters.
     """
     chars = 0
     for tool in getattr(agent, "tools", None) or []:
