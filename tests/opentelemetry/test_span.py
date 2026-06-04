@@ -1,5 +1,6 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
+from unittest.mock import patch
 
 from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
@@ -12,6 +13,7 @@ from opentelemetry.trace.status import Status as OtelStatus
 from opentelemetry.trace.status import StatusCode as OtelStatusCode
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
 
@@ -274,3 +276,21 @@ def test_otel_span_interoperability(oteltracer):
         otel_span_clone = Span(otel_span_og._ddspan)
         # Ensure all properties are consistent
         assert otel_span_clone.__dict__ == otel_span_og.__dict__
+
+
+def test_otel_span_attribute_remapping_default(oteltracer):
+    """DD_TRACE_OTEL_COMPATIBILITY_ENABLED=false (default): OTel attributes are remapped to DD names."""
+    with oteltracer.start_span("test-remapping") as span:
+        span.set_attribute("http.response.status_code", 200)
+        assert span._ddspan.get_tag("http.status_code") == "200"
+        assert span._ddspan.get_tag("http.response.status_code") is None
+
+
+def test_otel_span_attribute_remapping_disabled_with_otel_compatibility(oteltracer):
+    """DD_TRACE_OTEL_COMPATIBILITY_ENABLED=true: OTel attributes are stored as-is without remapping."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        with oteltracer.start_span("test-no-remapping") as span:
+            span.set_attribute("http.response.status_code", 200)
+            # int values are stored as metrics under the original OTel key (not remapped to http.status_code)
+            assert span._ddspan.get_metrics().get("http.response.status_code") == 200
+            assert span._ddspan.get_tag("http.status_code") is None
