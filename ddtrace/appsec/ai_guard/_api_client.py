@@ -32,6 +32,14 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 
+TRUNCATE_PREFIX_LENGTH = 8
+
+
+def _truncate_text(value: str) -> str:
+    if len(value) <= TRUNCATE_PREFIX_LENGTH:
+        return value
+    return value[:TRUNCATE_PREFIX_LENGTH] + f" [truncated {len(value) - TRUNCATE_PREFIX_LENGTH} chars]"
+
 
 class Function(TypedDict):
     name: str
@@ -124,7 +132,14 @@ class AIGuardAbortError(DDBlockException):
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str, meta: Optional[dict[str, str]] = None):
+    def __init__(
+        self,
+        endpoint: str,
+        api_key: str,
+        app_key: str,
+        meta: Optional[dict[str, str]] = None,
+        _privacy_mode: str = "DEFAULT",
+    ):
         """Initialize AI Guard client.
 
         Args:
@@ -146,23 +161,49 @@ class AIGuardClient:
             for key, value in meta.items():
                 self._meta[key] = value
         self._timeout = ai_guard_config._ai_guard_timeout // 1000
+        self._privacy_mode = _privacy_mode
 
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
-        max_messages_length = ai_guard_config._ai_guard_max_messages_length
-        if len(messages) > max_messages_length:
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
-            )
-        messages = messages[-max_messages_length:]
+    def _truncate_message_content(message: Message) -> Message:
+        # deepcopy so the original message cannot be mutated before serialization
+        message = deepcopy(message)
+        content = message.get("content")
+        if isinstance(content, str):
+            message["content"] = _truncate_text(content)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    part["text"] = _truncate_text(part["text"])
+        return message
 
-        max_content_size = ai_guard_config._ai_guard_max_content_size
-        content_truncated = False
+    def _truncate_coding_agent_messages(self, messages: list[Message], action: str) -> list[Message]:
+        if not messages:
+            return messages
 
+        # In coding agent mode we keep only the first user message and the last message, dropping
+        # everything in between to avoid sending large amounts of (potentially sensitive) context.
+        last_message = messages[-1]
+        first_user_message = next((message for message in messages if message.get("role") == "user"), None)
+
+        result: list[Message] = []
+        if first_user_message is not None:
+            result.append(first_user_message)
+
+        # When the first user message is also the last message keep a single copy.
+        if first_user_message is not last_message:
+            # If the action is ALLOW and the last message is not the user message, truncate its
+            # content (_truncate_message_content already performs a deep copy before mutating).
+            if action == ALLOW:
+                last_message = self._truncate_message_content(last_message)
+            result.append(last_message)
+
+        return result
+
+    def _messages_for_meta_struct(self, action: str, messages: list[Message]) -> list[Message]:
         def truncate_message(message: Message) -> Message:
             nonlocal content_truncated
             # ensure the message cannot be modified before serialization
@@ -182,12 +223,25 @@ class AIGuardClient:
                             content_truncated = True
             return new_message
 
-        result = [truncate_message(message) for message in messages]
-        if content_truncated:
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
-            )
-        return result
+        if self._privacy_mode == "CODING_AGENT":
+            return self._truncate_coding_agent_messages(messages, action)
+        else:
+            max_messages_length = ai_guard_config._ai_guard_max_messages_length
+            if len(messages) > max_messages_length:
+                telemetry.telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
+                )
+            messages = messages[-max_messages_length:]
+
+            max_content_size = ai_guard_config._ai_guard_max_content_size
+            content_truncated = False
+
+            result = [truncate_message(message) for message in messages]
+            if content_truncated:
+                telemetry.telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
+                )
+            return result
 
     @staticmethod
     def _has_tool_calls(message: Message) -> bool:
@@ -270,7 +324,7 @@ class AIGuardClient:
                 else:
                     span.set_tag(AI_GUARD.TARGET_TAG, "prompt")
 
-                meta_struct = {"messages": self._messages_for_meta_struct(messages)}
+                meta_struct = {}
                 span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                 try:
@@ -317,6 +371,7 @@ class AIGuardClient:
                         errors=result["errors"] if "errors" in result else None,
                     )
 
+                meta_struct["messages"] = self._messages_for_meta_struct(action, messages)
                 should_block = self._is_blocking_enabled(options, blocking_enabled) and action != ALLOW
                 self._add_request_to_telemetry(
                     (
@@ -379,6 +434,7 @@ class AIGuardClient:
 
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
+    mode: Optional[str] = "DEFAULT",
     meta: Optional[dict[str, str]] = None,
 ) -> AIGuardClient:
     api_key = config._dd_api_key
@@ -392,4 +448,4 @@ def new_ai_guard_client(
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 
-    return AIGuardClient(endpoint, api_key, app_key, meta)
+    return AIGuardClient(endpoint, api_key, app_key, meta, mode)
