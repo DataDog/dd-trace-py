@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.instrumentation import allow_monitoring
 from ddtrace.internal.coverage.instrumentation import deregister_monitoring
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
@@ -1149,6 +1150,9 @@ def pytest_load_initial_conftests(
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
+    # Allow instrument_all_lines() to claim COVERAGE_ID again (resets the flag set by any
+    # previous deregister_monitoring() call that was suppressing lazy re-registration).
+    allow_monitoring()
     install_coverage(workspace_path)
 
 

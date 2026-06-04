@@ -66,6 +66,7 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
+from ddtrace.internal.coverage.instrumentation import allow_monitoring
 from ddtrace.internal.coverage.instrumentation import deregister_monitoring
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -371,11 +372,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         using_xdist = num_workers not in (0, None, XDIST_UNSET)
 
         pytest_cov_enabled = _is_pytest_cov_enabled(early_config)
-        # Skip installing our coverage collector when pytest-cov is active: its SysMonitor backend
-        # claims sys.monitoring.COVERAGE_ID (the same slot ddtrace uses), and install_coverage()
-        # with collect_import_time_coverage=True would re-claim the slot even after
-        # deregister_monitoring() releases it.  instrument_all_lines() would yield to the foreign
-        # tool anyway, so no ITR coverage would be collected regardless.
         if should_collect_coverage and (not using_xdist or is_worker) and not pytest_cov_enabled:
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
@@ -385,6 +381,8 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
                 process_type,
                 [workspace_path],
             )
+            # Reset the yield flag so instrument_all_lines() can claim COVERAGE_ID again.
+            allow_monitoring()
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:
