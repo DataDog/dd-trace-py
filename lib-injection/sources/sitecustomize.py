@@ -48,7 +48,9 @@ RUNTIMES_ALLOW_LIST = {
 }
 
 FORCE_INJECT = os.environ.get("DD_INJECT_FORCE", "").lower() in ("true", "1", "t")
-OVERRIDE_USER_DDTRACE = os.environ.get("DD_INJECT_OVERRIDE_USER_DDTRACE", "").lower() in ("true", "1", "t")
+# When this is set, all ddtrace packages will be preferred over the user installed packages. For example, wrapt,
+# bytecode, and others.
+OVERRIDE_USER_DDTRACE = os.environ.get("DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE", "").lower() in ("true", "1", "t")
 FORWARDER_EXECUTABLE = os.environ.get("DD_TELEMETRY_FORWARDER_PATH", "")
 TELEMETRY_ENABLED = "DD_INJECTION_ENABLED" in os.environ
 DEBUG_MODE = os.environ.get("DD_TRACE_DEBUG", "").lower() in ("true", "1", "t")
@@ -351,7 +353,7 @@ def _inject():
         os.environ["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "true"
 
         if OVERRIDE_USER_DDTRACE:
-            _log("DD_INJECT_OVERRIDE_USER_DDTRACE is set, preferring injection site-packages")
+            _log("DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE is set, preferring injection site-packages")
         else:
             _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 

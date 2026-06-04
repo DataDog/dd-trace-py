@@ -76,7 +76,7 @@ def _run_app(python_executable, env, venv_dir):
 
 
 def test_override_user_ddtrace_prefers_injected(test_venv, mock_telemetry_forwarder, tmp_path):
-    """When DD_INJECT_OVERRIDE_USER_DDTRACE is set, the injected (bundled) ddtrace
+    """When DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE is set, the injected (bundled) ddtrace
     takes precedence even though a user-installed ddtrace is present on the path.
     """
     python_executable, sitecustomize_dir, base_env, venv_dir = test_venv({})
@@ -92,7 +92,7 @@ def test_override_user_ddtrace_prefers_injected(test_venv, mock_telemetry_forwar
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
     env["DD_INJECT_FORCE"] = "false"
-    env["DD_INJECT_OVERRIDE_USER_DDTRACE"] = "true"
+    env["DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE"] = "true"
     telemetry_file = mock_telemetry_forwarder(env, python_executable)
 
     try:
@@ -101,7 +101,7 @@ def test_override_user_ddtrace_prefers_injected(test_venv, mock_telemetry_forwar
         stdout = result.stdout
 
         # The override path logs a distinct message instead of "user-installed ddtrace not found".
-        assert "DD_INJECT_OVERRIDE_USER_DDTRACE is set, preferring injection site-packages" in stderr, (
+        assert "DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE is set, preferring injection site-packages" in stderr, (
             f"override log message not found. stderr: {stderr}"
         )
 
@@ -147,7 +147,7 @@ def test_user_ddtrace_present_without_override_aborts(test_venv, mock_telemetry_
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
     env["DD_INJECT_FORCE"] = "false"
-    # DD_INJECT_OVERRIDE_USER_DDTRACE deliberately unset.
+    # DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE deliberately unset.
     telemetry_file = mock_telemetry_forwarder(env, python_executable)
 
     try:
@@ -157,7 +157,7 @@ def test_user_ddtrace_present_without_override_aborts(test_venv, mock_telemetry_
 
         # Injection detects the user-installed ddtrace and aborts.
         assert "user-installed ddtrace found" in stderr, f"expected abort log, stderr: {stderr}"
-        assert "DD_INJECT_OVERRIDE_USER_DDTRACE is set" not in stderr
+        assert "DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE is set" not in stderr
 
         # The user stub is what the application imported.
         file_line = next((line for line in stdout.splitlines() if line.startswith("LOADED_DDTRACE_FILE=")), "")
@@ -203,7 +203,7 @@ def test_override_user_ddtrace_prefers_injected_in_child_process(test_venv, mock
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
     env["DD_INJECT_FORCE"] = "false"
-    env["DD_INJECT_OVERRIDE_USER_DDTRACE"] = "true"
+    env["DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE"] = "true"
     mock_telemetry_forwarder(env, python_executable)
 
     try:

@@ -1,5 +1,7 @@
 ---
 features:
   - |
-    This change adds the ability to override a manually installed tracer for Single Step Instrumentation. To ensure
-    the injected library takes precedence, ``DD_INJECT_OVERRIDE_USER_DDTRACE=true`` can be added to the environment.
+    This change adds the ability to override a manually installed tracer for Single Step Instrumentation. When this is
+    set, all ddtrace packages will be preferred over the user installed packages. For example, wrapt, bytecode, and
+    others. To ensure the injected library takes precedence, ``DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE=true`` can
+    be added to the environment.
