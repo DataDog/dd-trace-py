@@ -67,11 +67,13 @@ def link_existing_loop_to_current_thread() -> None:
     _call_init_asyncio(asyncio)
 
 
-# AIDEV-NOTE: sys.monitoring (Python 3.12+) is used for task-creation tracking
+# AIDEV-NOTE: sys.monitoring (Python 3.15+) is used for task-creation tracking
 # on create_task / TaskGroup.create_task, where PY_RETURN gives us the new Task
 # object directly. All other asyncio hooks use simple attribute replacement —
 # sys.monitoring CALL/PY_START callbacks don't expose the callee's arguments, so
 # there is no advantage over plain monkey-patching for those sites.
+# TODO(py-315): Evaluate rolling sys.monitoring path out to 3.12–3.14 as a Q3
+# follow-up once there's proper CI coverage for those versions.
 _monitoring_tool_id: typing.Optional[int] = None
 # Maps id(code) -> handler(return_value) for PY_RETURN dispatch
 _py_return_handlers: dict[int, typing.Callable[[typing.Any], None]] = {}
@@ -84,14 +86,14 @@ def _py_return_dispatch(code: typing.Any, instruction_offset: int, return_value:
 
 
 def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[typing.Any], None]) -> bool:
-    """Register a sys.monitoring PY_RETURN hook for *func* on Python 3.12+.
+    """Register a sys.monitoring PY_RETURN hook for *func* on Python 3.15+.
 
-    Returns True if the hook was installed, False if sys.monitoring is unavailable
-    (Python < 3.12) and the caller should fall back to monkey-patching.
+    Returns True if the hook was installed, False if sys.monitoring is not used
+    (Python < 3.15) and the caller should fall back to monkey-patching.
     """
     global _monitoring_tool_id
 
-    if sys.version_info >= (3, 12):
+    if sys.version_info >= (3, 15):
         m = sys.monitoring  # type: ignore[attr-defined]
 
         if _monitoring_tool_id is None:
@@ -125,7 +127,7 @@ def _unregister_all_return_hooks() -> None:
 
     _py_return_handlers.clear()
 
-    if _monitoring_tool_id is not None and sys.version_info >= (3, 12):
+    if _monitoring_tool_id is not None and sys.version_info >= (3, 15):
         try:
             sys.monitoring.free_tool_id(_monitoring_tool_id)  # type: ignore[attr-defined]
         except Exception:  # nosec B110 — best-effort cleanup
@@ -282,7 +284,7 @@ def _(asyncio: ModuleType) -> None:
                             stack.link_tasks(parent, task)
 
                     if not _register_return_hook(taskgroup_class.create_task, _on_taskgroup_create_task_return):
-                        # Fallback for Python 3.9-3.11: simple monkey-patch
+                        # Fallback for Python < 3.15: simple monkey-patch
                         _original_tg_create_task = taskgroup_class.create_task
 
                         def _patched_tg_create_task(
@@ -316,7 +318,7 @@ def _(asyncio: ModuleType) -> None:
                 stack.weak_link_tasks(parent, task)
 
         if not _register_return_hook(_original_create_task, _on_create_task_return):
-            # Fallback for Python 3.9-3.11: simple monkey-patch
+            # Fallback for Python < 3.15: simple monkey-patch
             def _patched_create_task(*args: typing.Any, **kwargs: typing.Any) -> "aio.Task[typing.Any]":
                 task: "aio.Task[typing.Any]" = _original_create_task(*args, **kwargs)
                 try:
