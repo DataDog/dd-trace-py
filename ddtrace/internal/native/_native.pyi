@@ -393,6 +393,13 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
+    def enable_otel_trace_compatibility(self) -> TraceExporterBuilder:
+        """
+        Enable OTel trace compatibility mode: omit DD-specific per-span attributes
+        (service.name, operation.name, resource.name, span.type) from the OTLP payload.
+        Use when DD_TRACE_OTEL_COMPATIBILITY_ENABLED=true.
+        """
+        ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.

@@ -781,6 +781,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if otlp_headers:
                 builder.set_otlp_headers(otlp_headers)
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
+            if config._otel_trace_compatibility_enabled:
+                builder.enable_otel_trace_compatibility()
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
 

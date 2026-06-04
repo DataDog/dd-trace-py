@@ -193,6 +193,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn enable_otel_trace_compatibility(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_otel_trace_compatibility();
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
     /// The builder shouldn't be reused.
