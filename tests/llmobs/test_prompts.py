@@ -11,6 +11,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs.types import PromptAPIError
 from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptConflictError
 from ddtrace.llmobs.types import PromptNotFoundError
@@ -433,6 +434,42 @@ class TestPromptManagement:
         manager._headers["DD-API-KEY"] = ""
         with pytest.raises(PromptAuthError):
             manager.refresh_prompt("greeting")
+
+    def test_crud_requires_api_key_raises_prompt_auth_error(self):
+        with override_global_config(dict(_dd_api_key="")):
+            LLMObs._prompt_manager = None
+            with pytest.raises(PromptAuthError):
+                LLMObs.create_prompt("greeting", [{"role": "user", "content": "hi"}])
+
+    def test_request_transport_error_raises_prompt_api_error(self):
+        manager = _make_manager()
+        with patch.object(manager, "_http_request", side_effect=RuntimeError("connection failed")):
+            with pytest.raises(PromptAPIError) as exc_info:
+                manager.list_prompts()
+        assert exc_info.value.status == 0
+        assert "connection failed" in exc_info.value.detail
+
+    @pytest.mark.parametrize(
+        "response,call,expected",
+        [
+            (
+                {"ID": "prompt-uuid", "prompt_id": "p1"},
+                lambda m: m.delete_prompt("p1"),
+                {"id": "prompt-uuid", "prompt_id": "p1"},
+            ),
+            (
+                [{"ID": "prompt-uuid", "prompt_id": "p1"}],
+                lambda m: m.list_prompts(),
+                [{"id": "prompt-uuid", "prompt_id": "p1"}],
+            ),
+        ],
+    )
+    def test_request_normalizes_backend_id_key(self, response, call, expected):
+        manager = _make_manager()
+        _, mock_patch = _mock_write_api(200, response)
+        with mock_patch:
+            result = call(manager)
+        assert result == expected
 
     def test_hot_evict_does_not_over_evict_colon_prefixed_ids(self):
         """evict_prompt('foo') must not drop a different prompt 'foo:bar' that shares the key prefix."""

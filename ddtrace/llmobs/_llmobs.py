@@ -163,6 +163,7 @@ from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import PromptResponse
 from ddtrace.llmobs.types import PromptVersionResponse
@@ -2032,7 +2033,7 @@ class LLMObs(Service):
         api_key = config._dd_api_key
 
         if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)

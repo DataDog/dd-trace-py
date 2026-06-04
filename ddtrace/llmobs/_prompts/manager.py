@@ -43,6 +43,17 @@ _STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
 }
 
 
+def _normalize_response_ids(data: Any) -> Any:
+    def normalize_item(item: Any) -> Any:
+        if isinstance(item, dict) and "ID" in item and "id" not in item:
+            item["id"] = item.pop("ID")
+        return item
+
+    if isinstance(data, list):
+        return [normalize_item(item) for item in data]
+    return normalize_item(data)
+
+
 class PromptManager:
     """Manages prompt retrieval and caching."""
 
@@ -320,13 +331,16 @@ class PromptManager:
             headers["DD-APPLICATION-KEY"] = self._app_key
 
         encoded_body = json.dumps(body).encode("utf-8") if body else None
-        status, response_body = self._http_request(method, path, body=encoded_body, headers=headers, timeout=timeout)
+        try:
+            status, response_body = self._http_request(method, path, body=encoded_body, headers=headers, timeout=timeout)
+        except Exception as e:
+            raise PromptAPIError(0, str(e))
 
         if 200 <= status < 300:
             if not response_body:
                 return {}
             try:
-                return json.loads(response_body)
+                return _normalize_response_ids(json.loads(response_body))
             except (json.JSONDecodeError, ValueError):
                 raise PromptServerError(status, "invalid JSON in response body")
 
