@@ -47,12 +47,14 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
+from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
@@ -130,6 +132,45 @@ class RemoteEvaluatorResult(EvaluatorResult):
     ) -> None:
         super().__init__(value=value, reasoning=reasoning, assessment=assessment)
         self.status = status
+
+
+class MultiEvaluatorResult:
+    """Container that lets one evaluator emit multiple named evaluation values.
+
+    Each entry of ``values`` may be either a bare JSON-serializable value or an
+    :class:`EvaluatorResult` carrying its own reasoning/assessment/metadata/tags.
+    Each entry is emitted as its own backend metric.
+
+    By default, emitted metric labels are prefixed with the evaluator's name
+    (e.g. ``"my_evaluator-precision"``). Set ``prefix=False`` to use raw keys.
+
+    Example::
+
+        def precision_recall(input_data, output_data, expected_output):
+            return MultiEvaluatorResult({
+                "precision": 0.9,
+                "recall": EvaluatorResult(value=0.8, reasoning="missed two items"),
+            })
+
+    :param values: Non-empty mapping of sub-metric name to value or EvaluatorResult.
+                   Keys must be valid evaluator names (alphanumeric, ``_``, ``-``).
+    :param prefix: If True (default), sub-metric labels become
+                   ``"<evaluator_name>-<key>"``. If False, the raw key is used.
+    """
+
+    def __init__(
+        self,
+        values: dict[str, Union[JSONType, EvaluatorResult]],
+        prefix: bool = True,
+    ) -> None:
+        if not isinstance(values, dict):
+            raise TypeError("MultiEvaluatorResult.values must be a dict")
+        if not values:
+            raise ValueError("MultiEvaluatorResult.values must be a non-empty dict")
+        for key in values:
+            _validate_evaluator_name(key)
+        self.values = values
+        self.prefix = prefix
 
 
 def _validate_evaluator_name(name: str) -> None:
@@ -260,6 +301,20 @@ class BaseEvaluator(ABC):
                     tags={"type": "semantic"}
                 )
 
+    Example (emitting multiple named values from one evaluator)::
+
+        class PrecisionRecallEvaluator(BaseEvaluator):
+            def __init__(self):
+                super().__init__(name="quality")
+
+            def evaluate(self, context: EvaluatorContext):
+                precision, recall = compute_pr(context.output_data, context.expected_output)
+                return MultiEvaluatorResult({
+                    "precision": precision,
+                    "recall": EvaluatorResult(value=recall, reasoning="missed two items"),
+                })
+                # Emits metrics labeled "quality-precision" and "quality-recall".
+
     Note: The ``evaluate`` method may be called concurrently from multiple threads.
     Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
     """
@@ -280,14 +335,15 @@ class BaseEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult, "MultiEvaluatorResult"]:
         """Perform evaluation.
 
         This method must be implemented by all subclasses.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None)
-                 or an EvaluatorResult object containing the value plus additional metadata
+        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None),
+                 an EvaluatorResult object containing the value plus additional metadata, or a
+                 MultiEvaluatorResult to emit multiple named values from one evaluator.
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -338,14 +394,16 @@ class BaseSummaryEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+    def evaluate(self, context: SummaryEvaluatorContext) -> Union[JSONType, EvaluatorResult, "MultiEvaluatorResult"]:
         """Perform summary evaluation on aggregated experiment results.
 
         This method must be implemented by all subclasses.
 
         :param context: The summary evaluation context containing all inputs, outputs,
                         expected outputs, and per-row evaluation results
-        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
+        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None),
+                 an EvaluatorResult object containing the value plus additional metadata, or a
+                 MultiEvaluatorResult to emit multiple named values from one summary evaluator.
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -474,7 +532,7 @@ class BaseAsyncEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    async def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+    async def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult, MultiEvaluatorResult]:
         """Perform async evaluation."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -498,7 +556,9 @@ class BaseAsyncSummaryEvaluator(ABC):
         self.name = name
 
     @abstractmethod
-    async def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+    async def evaluate(
+        self, context: SummaryEvaluatorContext
+    ) -> Union[JSONType, EvaluatorResult, MultiEvaluatorResult]:
         """Perform async summary evaluation on aggregated experiment results."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
@@ -509,7 +569,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     EvaluatorType: TypeAlias = Union[
         Callable[
             [JSONType, JSONType, JSONType],
-            Union[JSONType, "EvaluatorResult"],
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseEvaluator,
         _DeepEvalListType,
@@ -517,7 +577,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     AsyncEvaluatorType: TypeAlias = Union[
         Callable[
             [JSONType, JSONType, JSONType],
-            Awaitable[Union[JSONType, "EvaluatorResult"]],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
         _DeepEvalListType,
@@ -526,14 +586,14 @@ else:
     EvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
             [JSONType, JSONType, JSONType],
-            Union[JSONType, "EvaluatorResult"],
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseEvaluator,
     ]
     AsyncEvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
         Callable[
             [JSONType, JSONType, JSONType],
-            Awaitable[Union[JSONType, "EvaluatorResult"]],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncEvaluator,
     ]
@@ -551,7 +611,7 @@ if PydanticReportEvaluator is not None:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            JSONType,
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseSummaryEvaluator,
         PydanticReportEvaluator,
@@ -564,7 +624,7 @@ if PydanticReportEvaluator is not None:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            Awaitable[JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncSummaryEvaluator,
         PydanticReportEvaluator,
@@ -578,7 +638,7 @@ else:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            JSONType,
+            Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"],
         ],
         BaseSummaryEvaluator,
     ]
@@ -590,7 +650,7 @@ else:
                 Sequence[JSONType],
                 dict[str, Sequence[JSONType]],
             ],
-            Awaitable[JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult", "MultiEvaluatorResult"]],
         ],
         BaseAsyncSummaryEvaluator,
     ]
@@ -1140,7 +1200,7 @@ class _ExperimentRunInfo:
         self._run_iteration = run_interation + 1
 
 
-class ExperimentRowResult(TypedDict):
+class _ExperimentRowResultRequired(TypedDict):
     idx: int
     record_id: Optional[str]
     span_id: str
@@ -1152,6 +1212,12 @@ class ExperimentRowResult(TypedDict):
     evaluations: dict[str, dict[str, JSONType]]
     metadata: dict[str, JSONType]
     error: dict[str, Optional[str]]
+
+
+class ExperimentRowResult(_ExperimentRowResultRequired, total=False):
+    # Populated only when results come from pull_experiment(); not set during run()
+    duration: int
+    span_name: str
 
 
 class ExperimentRun:
@@ -1237,6 +1303,8 @@ class ExperimentRun:
 
             data_rows.append(flat)
 
+        if not column_tuples:
+            return pd.DataFrame()
         records = [[flat.get(col) for col in column_tuples] for flat in data_rows]
         return pd.DataFrame(data=records, columns=pd.MultiIndex.from_tuples(column_tuples))
 
@@ -1246,6 +1314,117 @@ class ExperimentResult(TypedDict):
     summary_evaluations: dict[str, dict[str, JSONType]]
     rows: list[ExperimentRowResult]
     runs: list[ExperimentRun]
+
+
+def _parse_experiment_result(response: dict) -> "ExperimentResult":
+    """Deserialise a backend ``/events`` response into an ``ExperimentResult``.
+
+    Response shape (single JSON:API object):
+    ``{"data": {"id": "<experiment_id>", "type": "experiment_events",
+    "attributes": {"spans": [...], "summary_metrics": [...]}}}``
+
+    Each item in ``attributes.spans`` is one experiment span with flat fields
+    (``span_id``, ``trace_id``, ``name``, ``start_ns``, ``duration``, ``tags``,
+    ``meta`` containing ``input``/``output``/``expected_output``/``metadata``/``error``,
+    and ``eval_metrics``).  ``eval_metrics`` on each span (when present) are converted
+    to the ``evaluations`` dict format used by ``ExperimentRowResult``.  When multiple
+    eval events share the same label (e.g. original run + re-run), the one with the
+    latest ``timestamp_ms`` wins.
+    """
+    data = response.get("data") or {}
+    attributes = data.get("attributes") or {}
+    spans = attributes.get("spans") or []
+
+    rows: list[ExperimentRowResult] = []
+    for i, span in enumerate(spans):
+        meta = span.get("meta") or {}
+        metadata: dict = meta.get("metadata") or {}
+
+        idx: int = i
+
+        # record_id is stored as a "dataset_record_id:<uuid>" tag
+        record_id: Optional[str] = None
+        for tag in span.get("tags") or []:
+            if isinstance(tag, str) and tag.startswith("dataset_record_id:"):
+                record_id = tag.split(":", 1)[1]
+                break
+
+        # Convert eval_metrics list → evaluations dict keyed by label.
+        # Multiple events per label are possible (original run + re-run); keep latest by timestamp_ms.
+        evaluations: dict = {}
+        latest_ts: dict[str, int] = {}
+        for em in span.get("eval_metrics") or []:
+            label = em.get("label", "")
+            if not label:
+                continue
+            ts = em.get("timestamp_ms", 0) or 0
+            if label in latest_ts and ts < latest_ts[label]:
+                continue
+            latest_ts[label] = ts
+            metric_type = em.get("metric_type", "score")
+            value = em.get(f"{metric_type}_value")
+            evaluations[label] = {
+                "value": value,
+                "type": metric_type,
+                "reasoning": em.get("reasoning"),
+                "assessment": em.get("assessment"),
+                "status": em.get("status"),
+                "error": em.get("error"),
+            }
+
+        # Normalise error: the API returns an empty dict {} when there is no error.
+        raw_error = meta.get("error") or {}
+        normalised_error: dict[str, Optional[str]] = {
+            "type": raw_error.get("type") or None,
+            "message": raw_error.get("message") or None,
+            "stack": raw_error.get("stack") or None,
+        }
+
+        duration = span.get("duration") or 0
+        if not duration:
+            logger.warning(
+                "Span %s from experiment pull response is missing a duration field; "
+                "rerun_evaluators() will use a fallback of 1 ns.",
+                span.get("span_id", "<unknown>"),
+            )
+
+        row: ExperimentRowResult = {
+            "idx": idx,
+            "record_id": record_id,
+            "span_id": span.get("span_id", ""),
+            "trace_id": span.get("trace_id", ""),
+            "timestamp": span.get("start_ns", 0),
+            "duration": duration,
+            "span_name": span.get("name", "experiment_record"),
+            "input": meta.get("input") or {},
+            "output": meta.get("output"),
+            "expected_output": meta.get("expected_output"),
+            "evaluations": evaluations,
+            "metadata": metadata,
+            "error": normalised_error,
+        }
+        rows.append(row)
+
+    rows.sort(key=lambda r: r["idx"])
+
+    summary_evaluations: dict[str, dict[str, JSONType]] = {}
+    for sm in attributes.get("summary_metrics") or []:
+        label = sm.get("label", "")
+        if not label:
+            continue
+        metric_type = sm.get("metric_type", "score")
+        summary_evaluations[label] = {
+            "value": sm.get(f"{metric_type}_value"),
+            "type": metric_type,
+            "reasoning": sm.get("reasoning"),
+            "assessment": sm.get("assessment"),
+            "status": sm.get("status"),
+            "error": sm.get("error"),
+        }
+
+    run_info = _ExperimentRunInfo(run_interation=0)
+    experiment_run = ExperimentRun(run_info, summary_evaluations=summary_evaluations, rows=rows)
+    return Experiment._build_result([experiment_run])
 
 
 class Dataset:
@@ -1681,7 +1860,7 @@ class Experiment:
     or ``LLMObs.experiment()`` to get a ``SyncExperiment`` wrapper (for sync callers).
     """
 
-    _task: Union[TaskType, AsyncTaskType]
+    _task: Optional[Union[TaskType, AsyncTaskType]]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
@@ -1693,10 +1872,10 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]] = (),
+        project_name: str = "",
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
@@ -1707,7 +1886,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters if task is not None else False
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._remote_evaluator_names: set[str] = {
@@ -1720,11 +1899,16 @@ class Experiment:
         self._tags: dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
-        self._tags["dataset_name"] = dataset.name
+        self._tags["dataset_name"] = dataset.name if dataset is not None else ""
         self._tags["experiment_name"] = name
+        repository_url, commit_sha = resolve_llmobs_git_metadata()
+        if repository_url and git.REPOSITORY_URL not in self._tags:
+            self._tags[git.REPOSITORY_URL] = repository_url
+        if commit_sha and git.COMMIT_SHA not in self._tags:
+            self._tags[git.COMMIT_SHA] = commit_sha
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
-        if dataset.filter_tags:
+        if dataset is not None and dataset.filter_tags:
             self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
@@ -1740,8 +1924,13 @@ class Experiment:
         self._project_name = project_name
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
+        # Populated from dataset if provided, or extracted from span tags during pull_experiment()
+        # so that rerun_evaluators() can reference them without a dataset.
+        self._dataset_id: Optional[str] = dataset._id if dataset is not None else None
+        self._dataset_version: Optional[int] = dataset._version if dataset is not None else None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self.result: Optional[ExperimentResult] = None
 
     @property
     def url(self) -> str:
@@ -1755,6 +1944,11 @@ class Experiment:
         evaluations: list[EvaluationResult],
         summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
+        if self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._merge_results(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
@@ -1887,6 +2081,18 @@ class Experiment:
                 "",
                 latest_timestamp,
                 source="summary",
+                reasoning=str(summary_eval_data.get("reasoning"))
+                if isinstance(summary_eval_data.get("reasoning"), str)
+                else None,
+                assessment=str(summary_eval_data.get("assessment"))
+                if isinstance(summary_eval_data.get("assessment"), str)
+                else None,
+                metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
+                if isinstance(summary_eval_data.get("metadata"), dict)
+                else None,
+                tags=cast(dict[str, str], summary_eval_data.get("tags"))
+                if isinstance(summary_eval_data.get("tags"), dict)
+                else None,
             )
             eval_metrics.append(eval_metric)
         return eval_metrics
@@ -1930,6 +2136,11 @@ class Experiment:
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
         """Get dataset containing the first sample_size records of the original dataset."""
+        if self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._get_subset_dataset(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -1945,8 +2156,9 @@ class Experiment:
             )
         return self._dataset
 
-    def _extract_evaluator_result(
-        self, eval_result: Union[JSONType, EvaluatorResult]
+    @staticmethod
+    def _extract_single_evaluator_result(
+        eval_result: Union[JSONType, EvaluatorResult],
     ) -> tuple[JSONType, dict[str, JSONType]]:
         extra_return_values: dict[str, JSONType] = {}
         if isinstance(eval_result, EvaluatorResult):
@@ -1962,6 +2174,27 @@ class Experiment:
                 extra_return_values["status"] = eval_result.status
             return eval_result.value, extra_return_values
         return eval_result, extra_return_values
+
+    def _extract_evaluator_result(
+        self,
+        eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult],
+        evaluator_name: str,
+    ) -> list[tuple[str, JSONType, dict[str, JSONType]]]:
+        """Extract one or more ``(label, value, extra_return_values)`` triples.
+
+        For a bare ``JSONType`` or ``EvaluatorResult`` returns a single triple keyed
+        by ``evaluator_name``. For a ``MultiEvaluatorResult`` returns one triple per
+        sub-value, with labels built from the container's ``prefix`` flag.
+        """
+        if isinstance(eval_result, MultiEvaluatorResult):
+            triples: list[tuple[str, JSONType, dict[str, JSONType]]] = []
+            for sub_key, sub_result in eval_result.values.items():
+                value, extras = self._extract_single_evaluator_result(sub_result)
+                label = f"{evaluator_name}-{sub_key}" if eval_result.prefix else sub_key
+                triples.append((label, value, extras))
+            return triples
+        value, extras = self._extract_single_evaluator_result(eval_result)
+        return [(evaluator_name, value, extras)]
 
     def _build_evaluator_error(self, exc: Exception) -> dict[str, Any]:
         if isinstance(exc, RemoteEvaluatorError) and exc.backend_error:
@@ -1989,6 +2222,11 @@ class Experiment:
         list[dict[str, Any]],
         dict[str, list[JSONType]],
     ]:
+        if self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._prepare_summary_evaluator_data(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
         inputs: list[JSONType] = []
         outputs: list[JSONType] = []
         expected_outputs: list[JSONType] = []
@@ -2022,6 +2260,11 @@ class Experiment:
     def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
+        if self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._setup_experiment(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
 
         project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project.get("_id", "")
@@ -2076,6 +2319,12 @@ class Experiment:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
+        if self._task is None or self._dataset is None:
+            raise ValueError(
+                "task and dataset are required to run an experiment from scratch. "
+                "Provide them when creating the experiment, or use "
+                "`LLMObs.pull_experiment(experiment_id)` to load a previously-run experiment."
+            )
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -2109,6 +2358,7 @@ class Experiment:
             self._update_status("failed", error=self._build_error_summary(result))
         else:
             self._update_status("completed")
+        self.result = result
         return result
 
     @staticmethod
@@ -2198,6 +2448,11 @@ class Experiment:
         asyncio = get_asyncio()
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
+        if self._task is None or self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._process_record(): missing task or dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
         async with semaphore:
             idx, record = idx_record
             with self._llmobs_instance._experiment(
@@ -2363,15 +2618,15 @@ class Experiment:
 
         async def _run_single_evaluator(
             evaluator: Union[EvaluatorType, AsyncEvaluatorType],
-        ) -> tuple[str, dict[str, JSONType]]:
+        ) -> list[tuple[str, dict[str, JSONType]]]:
             async with semaphore:
-                eval_result_value: JSONType = None
+                eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult] = None
                 eval_err: JSONType = None
-                extra_return_values: dict[str, JSONType] = {}
+                error_extras: dict[str, JSONType] = {}
                 evaluator_name = ""
+                success = False
 
                 for attempt in range(1 + max_retries):
-                    eval_result_value = None
                     eval_err = None
                     try:
                         if isinstance(evaluator, BaseAsyncEvaluator):
@@ -2391,7 +2646,11 @@ class Experiment:
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[misc, operator]
+                            eval_result = await evaluator(
+                                input_data,
+                                output_data,
+                                expected_output,
+                            )  # type: ignore[misc, operator]
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {
@@ -2426,11 +2685,10 @@ class Experiment:
                             evaluator_name = str(evaluator)
                             eval_result = None
 
-                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
+                        success = True
                         break
 
                     except Exception as e:
-                        extra_return_values = {}
                         eval_err = self._build_evaluator_error(e)
                         if attempt < max_retries:
                             self._retries.append(
@@ -2444,16 +2702,27 @@ class Experiment:
                             finally:
                                 await semaphore.acquire()
                             continue
-                        extra_return_values = {"status": self._build_evaluator_status(e)}
+                        error_extras = {"status": self._build_evaluator_status(e)}
                         self._has_errors = True
                         if raise_errors:
                             raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
-                return evaluator_name, {
-                    "value": eval_result_value,
-                    "error": eval_err,
-                    **extra_return_values,
-                }
+                if not success:
+                    return [
+                        (
+                            evaluator_name,
+                            {"value": None, "error": eval_err, **error_extras},
+                        )
+                    ]
+
+                triples = self._extract_evaluator_result(eval_result, evaluator_name)
+                return [
+                    (
+                        label,
+                        {"value": value, "error": None, **extras},
+                    )
+                    for label, value, extras in triples
+                ]
 
         results = await asyncio.gather(
             *[_run_single_evaluator(ev) for ev in self._evaluators],
@@ -2465,8 +2734,16 @@ class Experiment:
                 if raise_errors:
                     raise r
                 continue
-            name, result = r
-            row_results[name] = result
+            for name, result in r:
+                if name in row_results:
+                    logger.warning(
+                        "Evaluator label collision on row %d: '%s' is emitted by multiple evaluators; "
+                        "the later value will overwrite the earlier one. "
+                        "Use unique sub-metric keys or set prefix=True on MultiEvaluatorResult to disambiguate.",
+                        idx,
+                        name,
+                    )
+                row_results[name] = result
         return {"idx": idx, "evaluations": row_results}
 
     async def _run_evaluators(
@@ -2477,6 +2754,11 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        if self._dataset is None:
+            raise RuntimeError(
+                "Error in Experiment._run_evaluators(): missing dataset. "
+                "Likely due to running an experiment returned by LLMObs.pull_experiment()."
+            )
         asyncio = get_asyncio()
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -2588,11 +2870,12 @@ class Experiment:
 
         async def _evaluate_summary_single(
             summary_evaluator: Any,
-        ) -> tuple[str, dict[str, JSONType]]:
+        ) -> list[tuple[str, dict[str, JSONType]]]:
             async with semaphore:
-                eval_result_value: JSONType = None
+                eval_result: Union[JSONType, EvaluatorResult, MultiEvaluatorResult] = None
                 eval_err: JSONType = None
                 evaluator_name = ""
+                success = False
 
                 try:
                     if isinstance(summary_evaluator, BaseAsyncSummaryEvaluator):
@@ -2651,20 +2934,18 @@ class Experiment:
                                 expected_outputs,
                                 eval_results_by_name,
                             )
-                    eval_result_value = eval_result
+                    success = True
                 except Exception as e:
                     self._has_errors = True
                     eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
-                return (
-                    evaluator_name,
-                    {
-                        "value": eval_result_value,
-                        "error": eval_err,
-                    },
-                )
+                if not success:
+                    return [(evaluator_name, {"value": None, "error": eval_err})]
+
+                triples = self._extract_evaluator_result(eval_result, evaluator_name)
+                return [(label, {"value": value, "error": None, **extras}) for label, value, extras in triples]
 
         coros = [_evaluate_summary_single(summary_evaluator) for summary_evaluator in self._summary_evaluators]
         results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
@@ -2675,8 +2956,16 @@ class Experiment:
         for idx, result in enumerate(results):
             if isinstance(result, BaseException):
                 continue
-            evaluator_name, eval_data = cast(tuple[str, dict[str, JSONType]], result)
-            evals_dict[evaluator_name] = eval_data
+            entries = cast(list[tuple[str, dict[str, JSONType]]], result)
+            for evaluator_name, eval_data in entries:
+                if evaluator_name in evals_dict:
+                    logger.warning(
+                        "Summary evaluator label collision: '%s' is emitted by multiple summary evaluators; "
+                        "the later value will overwrite the earlier one. "
+                        "Use unique sub-metric keys or set prefix=True on MultiEvaluatorResult to disambiguate.",
+                        evaluator_name,
+                    )
+                evals_dict[evaluator_name] = eval_data
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         if evals_dict and self._id and self._llmobs_instance:
@@ -2697,6 +2986,18 @@ class Experiment:
                         "",
                         latest_timestamp,
                         source="summary",
+                        reasoning=str(summary_eval_data.get("reasoning"))
+                        if isinstance(summary_eval_data.get("reasoning"), str)
+                        else None,
+                        assessment=str(summary_eval_data.get("assessment"))
+                        if isinstance(summary_eval_data.get("assessment"), str)
+                        else None,
+                        metadata=cast(dict[str, JSONType], summary_eval_data.get("metadata"))
+                        if isinstance(summary_eval_data.get("metadata"), dict)
+                        else None,
+                        tags=cast(dict[str, str], summary_eval_data.get("tags"))
+                        if isinstance(summary_eval_data.get("tags"), dict)
+                        else None,
                     )
                 )
             if metrics:
@@ -2804,18 +3105,26 @@ class SyncExperiment:
     def __init__(
         self,
         name: str,
-        task: Union[TaskType, AsyncTaskType],
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
+        task: Optional[Union[TaskType, AsyncTaskType]] = None,
+        dataset: Optional[Dataset] = None,
+        evaluators: Optional[Sequence[Union[EvaluatorType, AsyncEvaluatorType]]] = None,
+        project_name: Optional[str] = None,
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
+        _experiment: Optional["Experiment"] = None,
+        _result: Optional[ExperimentResult] = None,
     ) -> None:
-        self.result: Optional[ExperimentResult] = None
+        if _experiment is not None:
+            self._experiment = _experiment
+            self.result = _result
+            return
+        if task is None or dataset is None or evaluators is None or project_name is None:
+            raise TypeError("SyncExperiment requires name, task, dataset, evaluators, and project_name")
+        self.result = None
         self._experiment = Experiment(
             name=name,
             task=task,
@@ -2899,7 +3208,7 @@ class SyncExperiment:
             ) from e
 
         if self.result is None:
-            raise ValueError("No result found. Call run() before as_dataframe().")
+            raise ValueError("No result found. Call run() or LLMObs.pull_experiment() before calling as_dataframe().")
 
         frames = []
         for run in self.result.get("runs", []):
@@ -2917,6 +3226,22 @@ class SyncExperiment:
     @property
     def url(self) -> str:
         return self._experiment.url
+
+    @property
+    def name(self) -> str:
+        return self._experiment.name
+
+    @property
+    def _id(self) -> Optional[str]:
+        return self._experiment._id
+
+    @property
+    def _project_id(self) -> Optional[str]:
+        return self._experiment._project_id
+
+    @property
+    def _dataset_id(self) -> Optional[str]:
+        return self._experiment._dataset_id
 
 
 def _get_base_url() -> str:

@@ -8,7 +8,7 @@ on:
   pull_request: {}
   workflow_dispatch: {}
   schedule:
-    - cron: '00 04 * * 2-6'
+    - cron: '00 04 * * *'
 
 permissions:
   id-token: write
@@ -65,303 +65,6 @@ jobs:
           name: wheels-manylinux_x86_64
           path: ./wheels/*.whl
 
-  system-tests-build-weblog:
-    needs:
-      - download-s3-wheels
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - weblog-variant: flask-poc
-          - weblog-variant: uwsgi-poc
-          - weblog-variant: django-poc
-          - weblog-variant: fastapi
-          # runs django-poc for 3.12
-          - weblog-variant: python3.12
-          - weblog-variant: django-py3.13
-          - weblog-variant: tornado
-      fail-fast: false
-    env:
-      TEST_LIBRARY: python
-      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 12
-    steps:
-      - name: Install Dependencies
-        run: sudo apt-get install -y patchelf
-
-      - name: Checkout system tests
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          repository: 'DataDog/system-tests'
-          # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7'
-
-      - name: Download wheels to binaries directory
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: wheels-*
-          path: binaries/
-          merge-multiple: true
-
-      - name: Build
-        run: ./build.sh -i weblog
-
-      - name: Save
-        id: save
-        run: |
-          docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
-
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ matrix.weblog-variant }}_${{ github.sha }}
-          path: |
-            ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
-          retention-days: 2
-
-  system-tests:
-    runs-on: ubuntu-latest
-    needs: [system-tests-build-weblog]
-    strategy:
-      matrix:
-        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13, tornado]
-        scenario: [remote-config, appsec, appsec-1, other]
-        include:
-          - weblog-variant: flask-poc
-            scenario: debugger-1
-          - weblog-variant: flask-poc
-            scenario: debugger-2
-          - weblog-variant: uwsgi-poc
-            scenario: debugger-1
-          - weblog-variant: uwsgi-poc
-            scenario: debugger-2
-      fail-fast: false
-    env:
-      TEST_LIBRARY: python
-      WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      CMAKE_BUILD_PARALLEL_LEVEL: 12
-    steps:
-
-      - name: Checkout system tests
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          repository: 'DataDog/system-tests'
-          # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7'
-
-      - name: Build runner
-        uses: ./.github/actions/install_runner
-
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ matrix.weblog-variant }}_${{ github.sha }}
-          path: images_artifacts/
-
-      - name: docker load
-        id: docker_load
-        run: |
-          docker load < images_artifacts/${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
-
-      - name: Run DEFAULT
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh DEFAULT
-
-      - name: Run SAMPLING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh SAMPLING
-
-      - name: Run INTEGRATIONS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh INTEGRATIONS
-
-      - name: Run CROSSED_TRACING_LIBRARIES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh CROSSED_TRACING_LIBRARIES
-
-      - name: Run PROFILING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: |
-          cat /proc/sys/kernel/perf_event_paranoid
-          sudo sysctl kernel.perf_event_paranoid=1
-          sudo sysctl -p
-          ./run.sh PROFILING
-
-      - name: Run AGENT_SUPPORTING_SPAN_EVENTS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh AGENT_SUPPORTING_SPAN_EVENTS
-
-      - name: Run RUNTIME_METRICS_ENABLED
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh RUNTIME_METRICS_ENABLED
-        
-      - name: Run TELEMETRY_APP_STARTED_PRODUCTS_DISABLED
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other'
-        run: ./run.sh TELEMETRY_APP_STARTED_PRODUCTS_DISABLED
-
-      - name: Run AI_GUARD
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'other' && matrix.weblog-variant == 'flask-poc'
-        run: ./run.sh AI_GUARD
-
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_FEATURES
-
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_LIVE_DEBUGGING
-
-      - name: Run REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'remote-config'
-        run: ./run.sh REMOTE_CONFIG_MOCKED_BACKEND_ASM_DD
-
-      - name: Run APPSEC_MISSING_RULES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_MISSING_RULES
-
-      - name: Run APPSEC_ATO_SDK
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_ATO_SDK
-
-      - name: Run APPSEC_AUTO_EVENTS_EXTENDED
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_AUTO_EVENTS_EXTENDED
-
-      - name: Run APPSEC_CUSTOM_RULES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_CUSTOM_RULES
-
-      - name: Run APPSEC_CORRUPTED_RULES
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_CORRUPTED_RULES
-
-      - name: Run APPSEC_RULES_MONITORING_WITH_ERRORS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_RULES_MONITORING_WITH_ERRORS
-
-      - name: Run APPSEC_LOW_WAF_TIMEOUT
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_LOW_WAF_TIMEOUT
-
-      - name: Run APPSEC_CUSTOM_OBFUSCATION
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_CUSTOM_OBFUSCATION
-
-      - name: Run APPSEC_RATE_LIMITER
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec'
-        run: ./run.sh APPSEC_RATE_LIMITER
-
-      - name: Run APPSEC_STANDALONE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_STANDALONE
-
-      - name: Run APPSEC_STANDALONE_API_SECURITY
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_STANDALONE_API_SECURITY
-
-      - name: Run APPSEC_API_SECURITY
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_API_SECURITY
-
-      - name: Run IAST_STANDALONE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh IAST_STANDALONE
-
-      - name: Run SCA_STANDALONE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh SCA_STANDALONE
-
-      - name: Run APPSEC_RUNTIME_ACTIVATION
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_RUNTIME_ACTIVATION
-
-      - name: Run APPSEC_WAF_TELEMETRY
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_WAF_TELEMETRY
-
-      - name: Run APPSEC_DISABLED
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_DISABLED
-
-      - name: Run APPSEC_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_BLOCKING
-
-      - name: Run APPSEC_BLOCKING_FULL_DENYLIST
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_BLOCKING_FULL_DENYLIST
-
-      - name: Run APPSEC_RASP
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_RASP
-
-      - name: Run APPSEC_RASP_NON_BLOCKING
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_RASP_NON_BLOCKING
-
-      - name: Run APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_MAX
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_MAX
-
-      - name: Run APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_SAMPLE_RATE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_RASP_WITHOUT_DOWNSTREAM_BODY_ANALYSIS_USING_SAMPLE_RATE
-
-      - name: Run APPSEC_STANDALONE_RASP
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
-        run: ./run.sh APPSEC_STANDALONE_RASP
-
-      - name: Run DEBUGGER_PROBES_STATUS
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_PROBES_STATUS
-
-      - name: Run DEBUGGER_PROBES_SNAPSHOT
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_PROBES_SNAPSHOT
-
-      - name: Run DEBUGGER_PII_REDACTION
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_PII_REDACTION
-
-      - name: Run DEBUGGER_EXPRESSION_LANGUAGE
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-1'
-        run: ./run.sh DEBUGGER_EXPRESSION_LANGUAGE
-
-      - name: Run DEBUGGER_EXCEPTION_REPLAY
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
-        run: ./run.sh DEBUGGER_EXCEPTION_REPLAY
-
-      - name: Run DEBUGGER_SYMDB
-        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
-        run: ./run.sh DEBUGGER_SYMDB
-
-      - name: Get Datadog credentials
-        id: dd-sts
-        uses: DataDog/dd-sts-action@2e8187910199bd93129520183c093e19aa585c75 # v1.0.0
-        with:
-          policy: dd-trace-py-github
-
-      - name: Upload test results to Test Optimization
-        if: always() && steps.docker_load.outcome == 'success'
-        uses: DataDog/system-tests/.github/actions/push_to_test_optim@1e5d6b7096279ca43ce4826fda3cc805635b63c1
-        with:
-          datadog_api_key: ${{ steps.dd-sts.outputs.api_key }}
-
-      # The compress step speed up a lot the upload artifact process
-      - name: Compress artifact
-        if: always() && steps.docker_load.outcome == 'success'
-        id: compress-artifact
-        run: tar -czvf artifact.tar.gz $(ls | grep logs)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        if: always() && steps.docker_load.outcome == 'success'
-        with:
-          name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
-          path: artifact.tar.gz
-
-
-
   serverless-system-tests-build-layer:
     runs-on: ubuntu-latest
     needs: [download-s3-wheels]
@@ -392,10 +95,11 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@fc35d0cc26e4479a6c55163d0882b20bde7fda91
     secrets: inherit
     with:
       library: python_lambda
+      ref: 'fc35d0cc26e4479a6c55163d0882b20bde7fda91'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -422,40 +126,42 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@0c5de1b1354fa47fb24b88695e9fdafdfb69b6f7
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@fc35d0cc26e4479a6c55163d0882b20bde7fda91
     secrets: inherit
     with:
       library: python
+      ref: 'fc35d0cc26e4479a6c55163d0882b20bde7fda91'
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
 
   tracer-release:
-    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
+    needs:
+      - download-s3-wheels
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@fc35d0cc26e4479a6c55163d0882b20bde7fda91
     with:
       library: python
-      ref: main
+      ref: 'fc35d0cc26e4479a6c55163d0882b20bde7fda91'
+      binaries_artifact: wheels-manylinux_x86_64
+      desired_execution_time: 900
       scenarios_groups: tracer-release
-      _system_tests_dev_mode: true
+      skip_empty_scenarios: ${{github.event_name == 'pull_request'}}
       push_to_test_optimization: true
+
 
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
+    needs: [serverless-system-tests, integration-frameworks-system-tests, tracer-release]
     if: always()
     steps:
       - name: Print results
         run: |
-          echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
           echo "integration-frameworks-system-tests: ${{ needs.integration-frameworks-system-tests.result }}"
           echo "tracer-release: ${{ needs.tracer-release.result }}"
       - name: Fail if any dependency failed or was cancelled
         if: |
-          needs.system-tests.result == 'failure' ||
-          needs.system-tests.result == 'cancelled' ||
           needs.serverless-system-tests.result == 'failure' ||
           needs.serverless-system-tests.result == 'cancelled' ||
           needs.integration-frameworks-system-tests.result == 'failure' ||

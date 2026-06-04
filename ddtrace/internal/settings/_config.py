@@ -634,7 +634,12 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
-        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", True, asbool)
+        self._trace_compute_stats = _get_config(
+            "DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool
+        )
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -674,7 +679,7 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
@@ -701,9 +706,7 @@ class Config(object):
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._inferred_proxy_services_enabled = _get_config(
-            ["DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "DD_TRACE_INFERRED_SPANS_ENABLED"], False, asbool
-        )
+        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
@@ -776,8 +779,8 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:

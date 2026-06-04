@@ -245,15 +245,19 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
             auto& task = current_task.get();
 
-            // Look up the pre-computed coroutine stack for this task
+            // Look up the pre-computed coroutine stack for this task.
+            // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
+            // python_stack must be appended before coroutine frames.
+            // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
+            // This preserves the previous max_frames truncation behavior while avoiding front insertion.
+            const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
+            size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
-                task_stack_size = it->second.size();
-                for (const Frame& coro_frame : it->second) {
-                    if (stack.size() >= max_frames) {
-                        break;
-                    }
-                    stack.push_back(coro_frame);
+                task_stack = &it->second;
+                task_stack_size = task_stack->size();
+                if (stack.size() < max_frames) {
+                    task_frames_to_push = std::min(task_stack_size, max_frames - stack.size());
                 }
             }
             if (task.is_on_cpu) {
@@ -270,14 +274,20 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                 size_t frames_to_push = (python_stack.size() > upper_python_stack_size + task_stack_size)
                                           ? python_stack.size() - upper_python_stack_size - task_stack_size
                                           : 0;
+                // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[frames_to_push - i - 1];
+                    const auto& python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
                     }
-                    stack.push_front(python_frame);
+                    stack.push_back(python_frame);
+                }
+            }
+            if (task_stack != nullptr) {
+                for (size_t i = 0; i < task_frames_to_push; i++) {
+                    stack.push_back((*task_stack)[i]);
                 }
             }
 
@@ -671,6 +681,31 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         }
 
         current_greenlets.push_back(std::move(stack_info));
+    }
+
+    // Make sure the on-CPU greenlet is first. render_task_begin reuses the
+    // sample created by render_thread_begin for the first task it renders;
+    // that sample already received push_cputime via render_cpu_time. Tasks
+    // rendered after the first start a new sample and, if on_cpu is true,
+    // push thread_state.cpu_time_ns again, double-counting CPU time.
+    //
+    // unwind_tasks performs the analogous swap on leaf_tasks above. Note that
+    // the "on-CPU" signal differs: asyncio's is_on_cpu is derived from frame
+    // matching during unwind, while a greenlet's on_cpu is set from
+    // snap.frame == Py_None (see the loop above), which is the sentinel
+    // greenlet uses for its currently-running greenlet. If that sentinel
+    // changes, this swap silently no-ops and the over-count returns.
+    //
+    // If no greenlet is on CPU (e.g. all workers are sleeping while the Hub
+    // is running, which is filtered out as a parent), no entry triggers
+    // render_task_begin's push_cputime branch, so order does not matter and
+    // this loop falls through harmlessly. Empty current_greenlets is also
+    // safe (loop body never executes).
+    for (size_t i = 1; i < current_greenlets.size(); i++) {
+        if (current_greenlets[i]->on_cpu) {
+            std::swap(current_greenlets[i], current_greenlets[0]);
+            break;
+        }
     }
 }
 

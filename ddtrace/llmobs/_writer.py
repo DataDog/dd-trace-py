@@ -145,10 +145,19 @@ class EvaluatorInferResponse(TypedDict, total=False):
     status: Optional[str]
 
 
+_SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
+
+    global _SHOULD_USE_AGENTLESS
+
+    if _SHOULD_USE_AGENTLESS is False:
+        # perf: Agent with EVP proxy confirmed present; skip the network call on repeat invocations.
+        return _SHOULD_USE_AGENTLESS
 
     agent_info: Optional[dict[str, Any]]
 
@@ -161,7 +170,21 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         return True
 
     endpoints = agent_info.get("endpoints", [])
-    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    _SHOULD_USE_AGENTLESS = not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    return _SHOULD_USE_AGENTLESS
+
+
+def llmobs_apm_trace_agentless_enabled() -> bool:
+    """Whether LLMObs config requires the APM trace writer to be agentless.
+
+    Auto-detects via :func:`should_use_agentless` only when the user hasn't expressed a
+    preference (``DD_LLMOBS_AGENTLESS_ENABLED`` unset and no programmatic value resolved yet).
+    """
+    if not config._dd_api_key or config._llmobs_agentless_enabled is False:
+        return False
+    elif config._llmobs_agentless_enabled or config._trace_agentless_enabled:
+        return True
+    return should_use_agentless()
 
 
 class BaseLLMObsWriter(PeriodicService):
@@ -889,6 +912,48 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def experiment_events_get(
+        self,
+        experiment_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+        include_eval_metrics: bool = True,
+    ) -> dict:
+        """Fetch span events for a prior experiment run.
+
+        Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
+        ``experiment_name`` for name-based resolution (returns latest run).
+
+        Response shape (JSON:API):
+        ``{"data": {"id": "<uuid>", "type": "experiment_events",``
+        ``"attributes": {"spans": [...], "summary_metrics": []}}}``
+
+        Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
+        ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
+        ``expected_output``, ``metadata``, ``error`` sub-keys), and ``eval_metrics``
+        (populated when ``include_eval_metrics=True``).
+        """
+        if experiment_id:
+            path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            if include_eval_metrics:
+                path += "?include[eval_metrics]=true"
+        elif project_name and experiment_name:
+            encoded_project = urllib.parse.quote(project_name, safe="")
+            encoded_name = urllib.parse.quote(experiment_name, safe="")
+            path = (
+                f"/api/unstable/llm-obs/v1/experiments/events"
+                f"?filter[project_name]={encoded_project}"
+                f"&filter[experiment_name]={encoded_name}"
+            )
+            if include_eval_metrics:
+                path += "&include[eval_metrics]=true"
+        else:
+            raise ValueError("Either experiment_id or (project_name and experiment_name) must be provided.")
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
+        return resp.get_json()
 
     def evaluator_infer(
         self,

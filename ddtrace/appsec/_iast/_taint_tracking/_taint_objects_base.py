@@ -1,6 +1,7 @@
 from typing import Any
 
 from ddtrace.appsec._constants import IAST
+from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
@@ -69,7 +70,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
         return tuple()
     try:
-        return get_ranges(pyobject)
+        return get_ranges(pyobject, _get_iast_context_id())
     except ValueError as e:
         iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)
     return tuple()
@@ -80,7 +81,7 @@ def is_pyobject_tainted(pyobject: Any) -> bool:
         return False
 
     try:
-        return is_in_taint_map(pyobject)
+        return is_in_taint_map(pyobject, _get_iast_context_id())
     except ValueError as e:
         iast_propagation_error_log("Checking tainted object error", exc=e)
     return False

@@ -9,7 +9,7 @@ def post_preload() -> None:
 
 
 def enabled() -> bool:
-    return config.enabled
+    return bool(config.enabled)
 
 
 def start() -> None:

@@ -1,6 +1,24 @@
 {
   "version": "2",
   "supportedConfigurations": {
+    "DATADOG_TAGS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null,
+        "internal": true,
+        "deprecated": true
+      }
+    ],
+    "DATADOG_TRACE_AGENT_HOSTNAME": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true,
+        "deprecated": true
+      }
+    ],
     "DD_ACTION_EXECUTION_ID": [
       {
         "implementation": "A",
@@ -651,28 +669,32 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_INCLUDE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_OUTPUT_FILE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_BYTECODE_INJECTION_STATUS_MESSAGES": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_CARGO_ARGS": [
@@ -874,16 +896,9 @@
     ],
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_CODE_ORIGIN_MAX_USER_FRAMES": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "8"
       }
     ],
     "DD_COMPILE_ABSEIL": [
@@ -928,6 +943,13 @@
         ]
       }
     ],
+    "DD_CRASHTRACKING_COLLECT_ALL_THREADS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_CRASHTRACKING_CREATE_ALT_STACK": [
       {
         "implementation": "A",
@@ -951,9 +973,16 @@
     ],
     "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
+      }
+    ],
+    "DD_CRASHTRACKING_MAX_THREADS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "128"
       }
     ],
     "DD_CRASHTRACKING_STACKTRACE_RESOLVER": [
@@ -1088,91 +1117,104 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_CONSERVATIVE": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_ELUSIVE": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_ENCODE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_INCLUDE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_OUTPUT_FILE": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_PROFILER_INSTRUMENTATION_RATE": [
       {
         "implementation": "A",
         "type": "decimal",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DEBUGGER_EXPL_STATUS_MESSAGES": [
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "internal": true
       }
     ],
     "DD_DISABLE_VPA": [
@@ -1514,14 +1556,24 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "false"
+        "default": "false",
+        "experimental": true
+      }
+    ],
+    "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS": [
+      {
+        "implementation": "B",
+        "type": "int",
+        "default": "10000",
+        "experimental": true
       }
     ],
     "DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": [
       {
         "implementation": "B",
         "type": "boolean",
-        "default": "true"
+        "default": "true",
+        "experimental": true
       }
     ],
     "DD_EXTERNAL_ENV": [
@@ -1898,13 +1950,6 @@
         "default": "true"
       }
     ],
-    "DD_IAST_DEBUG": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_IAST_DEDUPLICATE_ENABLED": [
       {
         "implementation": "A",
@@ -1947,20 +1992,6 @@
         "default": "30"
       }
     ],
-    "DD_IAST_PROPAGATION_DEBUG": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_IAST_PROPAGATION_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_IAST_REDACTION_ENABLED": [
       {
         "implementation": "A",
@@ -2001,13 +2032,6 @@
         "implementation": "B",
         "type": "string",
         "default": null
-      }
-    ],
-    "DD_IAST_SINK_POINTS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
       }
     ],
     "DD_IAST_STACK_TRACE_ENABLED": [
@@ -2099,13 +2123,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
       }
     ],
     "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": [
@@ -2434,6 +2451,13 @@
         ]
       }
     ],
+    "DD_ML_JOB_ENV": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null
+      }
+    ],
     "DD_METRICS_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -2586,27 +2610,6 @@
         "implementation": "A",
         "type": "string",
         "default": null
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_MAX_INTERVAL_US": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "1_000_000"
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_TARGET_OVERHEAD": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "1.0"
       }
     ],
     "DD_PROFILING_AGENTLESS": [
@@ -2782,6 +2785,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PROFILING_NAME_INSPECT_DIR": [
@@ -3406,13 +3416,6 @@
         ]
       }
     ],
-    "DD_SYMBOL_DATABASE_FORCE_UPLOAD": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_SYMBOL_DATABASE_INCLUDES": [
       {
         "implementation": "A",
@@ -3439,13 +3442,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": [
-      {
-        "implementation": "B",
-        "type": "decimal",
-        "default": "86400.0"
       }
     ],
     "DD_TELEMETRY_FORWARDER_PATH": [
@@ -3755,6 +3751,13 @@
         "default": "true"
       }
     ],
+    "DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AWS_LAMBDA_ENABLED": [
       {
         "implementation": "B",
@@ -3907,16 +3910,6 @@
         "implementation": "B",
         "type": "string",
         "default": null
-      }
-    ],
-    "DD_TRACE_COMPUTE_STATS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true",
-        "aliases": [
-          "DD_TRACE_STATS_COMPUTATION_ENABLED"
-        ]
       }
     ],
     "DD_TRACE_CONSUL_ENABLED": [
@@ -4806,6 +4799,16 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_STATS_COMPUTATION_ENABLED": [
+      {
+        "implementation": "C",
+        "type": "boolean",
+        "default": "true",
+        "aliases": [
+          "DD_TRACE_COMPUTE_STATS"
+        ]
+      }
+    ],
     "DD_TRACE_STRUCTLOG_ENABLED": [
       {
         "implementation": "A",
@@ -5465,6 +5468,502 @@
         "implementation": "C",
         "type": "string",
         "default": null
+      }
+    ],
+    "_DD_APM_TRACING_AGENTLESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_APPSEC_DEDUPLICATION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30000",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_ITR_SUITE_MODE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_RESPONSE_CACHE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_CODE_ORIGIN_MAX_USER_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "8",
+        "internal": true
+      }
+    ],
+    "_DD_CONFIG_ENDPOINT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_CONFIG_ENDPOINT_RETRIES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1",
+        "internal": true
+      }
+    ],
+    "_DD_CONFIG_ENDPOINT_TIMEOUT": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "2",
+        "internal": true
+      }
+    ],
+    "_DD_COVERAGE_FILE_LEVEL": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_CRASHTRACKING_TEST_TOKEN": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_GLOBAL_TRACER_INIT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_DENY_MODULES": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_IAST_LAZY_TAINT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_NO_DIR_PATCH": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_PATCH_MODULES": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_IAST_PROPAGATION_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_PROPAGATION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_SINK_POINTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_USE_ROOT_SPAN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_LLMOBS_EVALUATOR_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "1.0",
+        "internal": true
+      }
+    ],
+    "_DD_LLMOBS_EXPORT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "llmobs",
+        "internal": true
+      }
+    ],
+    "_DD_LLMOBS_TEST_KEEP_META_STRUCT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_LLMOBS_WRITER_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "1.0",
+        "internal": true
+      }
+    ],
+    "_DD_LLMOBS_WRITER_TIMEOUT": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "5.0",
+        "internal": true
+      }
+    ],
+    "_DD_NATIVE_LOGGING_BACKEND": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_NATIVE_LOGGING_FILE_PATH": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "native.log",
+        "internal": true
+      }
+    ],
+    "_DD_NATIVE_LOGGING_FILE_ROTATION_LEN": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1",
+        "internal": true
+      }
+    ],
+    "_DD_NATIVE_LOGGING_FILE_SIZE_BYTES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "4096",
+        "internal": true
+      }
+    ],
+    "_DD_NATIVE_LOGGING_LOG_LEVEL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "warning",
+        "internal": true
+      }
+    ],
+    "_DD_PARENT_PY_SESSION_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "1000000",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_TARGET_OVERHEAD": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "1.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_FAST_COPY": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_MAX_THREADS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "25",
+        "internal": true
+      }
+    ],
+    "_DD_PYTEST_XDIST_INFERRED_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_PY_SSI_INJECT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_REMOTE_CONFIGURATION_LOG_PAYLOADS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_REMOTE_CONFIGURATION_SKIP_SHUTDOWN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_ROOT_PY_SESSION_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_SC_LOCAL_FILE_OVERRIDE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "internal": true
+      }
+    ],
+    "_DD_SC_MANAGED_FILE_OVERRIDE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "internal": true
+      }
+    ],
+    "_DD_SYMBOL_DATABASE_FORCE_UPLOAD": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "86400.0",
+        "internal": true
+      }
+    ],
+    "_DD_TEST_FORCE_ENABLE_ATR": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TEST_SKIP_QUARANTINED_TESTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_STATS_WRITER_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "10.0",
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_WRITER_ADDITIONAL_HEADERS": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_USE_INTERNAL_COVERAGE": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED": [
+      {
+        "version": "B",
+        "type": "boolean",
+        "default": "false",
+        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
       }
     ]
   }
