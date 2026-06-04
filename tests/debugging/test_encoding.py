@@ -773,3 +773,33 @@ def test_capture_value_dict_concurrent_mutation():
 )
 def test_serialize_builtins(value, expected):
     assert utils.serialize(value) == expected
+
+
+def test_serialize_custom_object_at_level_zero():
+    class Obj:
+        pass
+
+    result = utils.serialize(Obj(), level=0)
+    assert result == repr(type(Obj()))
+
+
+def test_capture_value_arbitrary_object_depth_exceeded():
+    class Obj:
+        def __init__(self):
+            self.x = 1
+
+    result = utils.capture_value(Obj(), level=-1)
+    assert result == {
+        "type": "test_capture_value_arbitrary_object_depth_exceeded.<locals>.Obj",
+        "notCapturedReason": "depth",
+    }
+
+
+def test_capture_value_arbitrary_object_redacted_type():
+    class SensitiveModel:
+        def __init__(self):
+            self.value = 42
+
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="*.SensitiveModel"):
+        result = utils.capture_value(SensitiveModel())
+    assert result == utils.redacted_type(SensitiveModel)
