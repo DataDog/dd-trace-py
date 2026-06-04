@@ -1612,10 +1612,10 @@ class TestLLMObsAnthropic:
             ],
         )
 
-    def test_tool_with_deep_schema_has_schema_truncated(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
-        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
-        replacing over-limit containers with empty containers while preserving name, description,
-        and all fields within the limit. Tools with shallow schemas are unaffected.
+    def test_tool_with_deep_schema_has_schema_stringified(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """Tool schemas that exceed the maximum nested depth are stringified at the point where
+        they exceed the limit, preserving all data as a JSON string while keeping shallower
+        structure intact. Tools with shallow schemas are unaffected.
         """
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
@@ -1667,7 +1667,11 @@ class TestLLMObsAnthropic:
                                                 "properties": {
                                                     "l4": {
                                                         "type": "object",
-                                                        "properties": {"l5": {}},
+                                                        "properties": (
+                                                            '{"l5": {"properties": {"l6": {"properties":'
+                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
+                                                            ' "type": "object"}}'
+                                                        ),
                                                     }
                                                 },
                                             }

@@ -566,8 +566,12 @@ def test_utf_non_ascii_io(llmobs, llmobs_backend):
             llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
-    assert events[0][0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
-    assert events[0][1]["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+    # Batch order follows span start, not finish, so match events by meta.input shape
+    # rather than positional indices.
+    llm_event = next(e for e in events[0] if "messages" in e["spans"][0]["meta"].get("input", {}))
+    workflow_event = next(e for e in events[0] if "value" in e["spans"][0]["meta"].get("input", {}))
+    assert llm_event["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert workflow_event["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
 
 
 def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
