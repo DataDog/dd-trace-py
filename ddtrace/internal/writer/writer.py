@@ -1050,8 +1050,11 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     correctly when :class:`NativeTraceBuffer` is used as a drop-in replacement for
     :class:`NativeWriter`.
 
-    The following exporter features are intentionally not configured on this
-    writer's underlying exporter:
+    Config is passed directly to the Rust constructor; this class has no dependency on
+    :class:`~ddtrace.internal.native.TraceExporterBuilder` or
+    :class:`~ddtrace.internal.native.TraceExporter`.
+
+    The following exporter features are intentionally not configured:
 
     * **Process tags** (``set_process_tags``) — not set.
     * **Telemetry** (``enable_telemetry``) — not emitted.
@@ -1083,29 +1086,38 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self._otlp_endpoint = otlp_endpoint
         self._test_session_token = _resolve_test_session_token(test_session_token)
         self._sync_mode = sync_mode
+        self._native_buffer = self._create_native_buffer()
 
-        exporter = self._create_exporter()
-        self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
-
-    def _create_exporter(self) -> native.TraceExporter:
-        builder = _build_base_exporter_builder(
-            self.intake_url,
-            self._test_session_token,
-            self._compute_stats_enabled,
-            self._stats_opt_out,
+    def _create_native_buffer(self) -> "native.NativeTraceBuffer":
+        _, commit_sha, _ = get_git_tags()
+        stats_interval_ns: Optional[int] = None
+        if self._compute_stats_enabled and not self._stats_opt_out:
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            stats_interval_ns = int(stats_interval * 1e9)
+        return native.NativeTraceBuffer(
+            shared_runtime=get_native_runtime(),
+            intake_url=self.intake_url,
+            api_version=self._api_version,
+            service=config.service or None,
+            env=config.env or None,
+            app_version=config.version or None,
+            hostname=get_hostname(),
+            language_version=compat.PYTHON_VERSION,
+            language_interpreter=compat.PYTHON_INTERPRETER,
+            tracer_version=__version__,
+            git_commit_sha=commit_sha or None,
+            compute_stats_enabled=self._compute_stats_enabled,
+            stats_opt_out=bool(self._stats_opt_out),
+            stats_interval_ns=stats_interval_ns,
+            test_session_token=self._test_session_token,
+            otlp_endpoint=self._otlp_endpoint,
+            response_callback=self._response_cb,
         )
-        # Input format is not set: the exporter's decode path is unused because Span objects
-        # are passed directly to send_trace_chunks_async, not as pre-encoded bytes.
-        builder.set_output_format(self._api_version)
-        if self._otlp_endpoint is not None:
-            builder.set_otlp_endpoint(self._otlp_endpoint)
-        return builder.build(get_native_runtime())
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._test_session_token = token
         self.stop()
-        exporter = self._create_exporter()
-        self._native_buffer = native.NativeTraceBuffer(exporter, self._response_cb)
+        self._native_buffer = self._create_native_buffer()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeTraceBuffer":
         self.stop()

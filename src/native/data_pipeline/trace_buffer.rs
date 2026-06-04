@@ -7,17 +7,20 @@ use std::time::Duration;
 use libdd_capabilities_impl::NativeCapabilities;
 use libdd_data_pipeline::{
     trace_buffer::{Export, ResponseHandler, TraceBuffer, TraceBufferConfig},
-    trace_exporter::{agent_response::AgentResponse, error::TraceExporterError, TraceExporter},
+    trace_exporter::{
+        agent_response::AgentResponse, error::TraceExporterError, TraceExporter,
+        TraceExporterBuilder, TraceExporterOutputFormat,
+    },
 };
 use libdd_shared_runtime::{SharedRuntime, WorkerHandle};
 use libdd_trace_utils::span::v04::Span;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
 use crate::py_string::PyTraceData;
+use crate::shared_runtime::SharedRuntimePy;
 use crate::span::SpanData;
 
 use super::agent_response::AgentResponsePy;
-use super::TraceExporterPy;
 
 /// Implements [Export] for [Span]<[PyTraceData]> by forwarding to a [TraceExporter].
 ///
@@ -91,8 +94,9 @@ impl ExportSync {
 
 /// Python-facing wrapper around a [TraceBuffer]<[Span]<[PyTraceData]>>.
 ///
-/// `new` takes ownership of the [TraceExporter] from the given [TraceExporterPy]
-/// (setting its inner to `None`) and spawns a background worker on the shared runtime.
+/// `new` builds a [TraceExporter] from the supplied config, then spawns a background
+/// worker on the shared runtime.  This type has no dependency on [TraceExporterBuilderPy]
+/// or [TraceExporterPy]: those classes can be removed without changing this code.
 #[pyclass(name = "NativeTraceBuffer")]
 pub struct NativeTraceBufferPy {
     buffer: TraceBuffer<Span<PyTraceData>>,
@@ -111,25 +115,125 @@ impl fmt::Debug for NativeTraceBufferPy {
 impl NativeTraceBufferPy {
     /// Create a new NativeTraceBuffer.
     ///
-    /// Takes ownership of the inner [TraceExporter] from `exporter` (after this call,
-    /// `exporter.send()` will return an error). Spawns a background flush worker on
-    /// `shared_runtime`.
+    /// Builds a [TraceExporter] from the supplied config params and spawns a background
+    /// flush worker on `shared_runtime`.
+    ///
     /// `response_callback` is an optional Python callable invoked after each successful export
     /// when the agent returns a changed sampling-rate payload. It receives one positional
     /// argument: `AgentResponse(rate_by_service=...)`. Only called when the agent response
     /// body contains a `rate_by_service` key.
+    ///
+    /// `api_version` must be `"v0.4"` or `"v0.5"`.
+    ///
+    /// `stats_interval_ns` is only used when `compute_stats_enabled=true` and
+    /// `stats_opt_out=false`; if omitted it defaults to 10 seconds.
     #[new]
-    #[pyo3(signature = (exporter, response_callback = None))]
-    fn new(exporter: &mut TraceExporterPy, response_callback: Option<Py<PyAny>>) -> PyResult<Self> {
-        let inner = exporter
-            .take_inner()
-            .ok_or_else(|| PyValueError::new_err("TraceExporter has already been consumed"))?;
-        let runtime = exporter.runtime_arc().clone();
+    #[pyo3(signature = (
+        shared_runtime,
+        intake_url,
+        api_version,
+        service = None,
+        env = None,
+        app_version = None,
+        hostname = None,
+        language_version = None,
+        language_interpreter = None,
+        tracer_version = None,
+        git_commit_sha = None,
+        compute_stats_enabled = false,
+        stats_opt_out = false,
+        stats_interval_ns = None,
+        test_session_token = None,
+        otlp_endpoint = None,
+        response_callback = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        shared_runtime: PyRef<'_, SharedRuntimePy>,
+        intake_url: &str,
+        api_version: &str,
+        service: Option<&str>,
+        env: Option<&str>,
+        app_version: Option<&str>,
+        hostname: Option<&str>,
+        language_version: Option<&str>,
+        language_interpreter: Option<&str>,
+        tracer_version: Option<&str>,
+        git_commit_sha: Option<&str>,
+        compute_stats_enabled: bool,
+        stats_opt_out: bool,
+        stats_interval_ns: Option<u64>,
+        test_session_token: Option<&str>,
+        otlp_endpoint: Option<&str>,
+        response_callback: Option<Py<PyAny>>,
+    ) -> PyResult<Self> {
+        let runtime = shared_runtime.as_arc().clone();
+
+        // Build the TraceExporter from flat config params.  This type has no dependency on
+        // TraceExporterBuilderPy or TraceExporterPy — those classes can be deleted without
+        // touching this code.
+        let output_format = match api_version {
+            "v0.4" => TraceExporterOutputFormat::V04,
+            "v0.5" => TraceExporterOutputFormat::V05,
+            other => {
+                return Err(PyValueError::new_err(format!(
+                    "Invalid api_version {other:?}: expected \"v0.4\" or \"v0.5\""
+                )))
+            }
+        };
+
+        let mut builder = TraceExporterBuilder::default();
+        builder.set_url(intake_url);
+        builder.set_language("python");
+        builder.set_client_computed_top_level();
+        builder.set_output_format(output_format);
+        if let Some(h) = hostname {
+            builder.set_hostname(h);
+        }
+        if let Some(v) = language_version {
+            builder.set_language_version(v);
+        }
+        if let Some(i) = language_interpreter {
+            builder.set_language_interpreter(i);
+        }
+        if let Some(v) = tracer_version {
+            builder.set_tracer_version(v);
+        }
+        if let Some(s) = git_commit_sha {
+            builder.set_git_commit_sha(s);
+        }
+        if let Some(s) = service {
+            builder.set_service(s);
+        }
+        if let Some(e) = env {
+            builder.set_env(e);
+        }
+        if let Some(v) = app_version {
+            builder.set_app_version(v);
+        }
+        if let Some(t) = test_session_token {
+            builder.set_test_session_token(t);
+        }
+        if let Some(u) = otlp_endpoint {
+            builder.set_otlp_endpoint(u);
+        }
+        if stats_opt_out {
+            builder.set_client_computed_stats();
+        } else if compute_stats_enabled {
+            // Default to 10 s if the caller didn't supply an interval.
+            let interval = Duration::from_nanos(stats_interval_ns.unwrap_or(10_000_000_000));
+            builder.enable_stats(interval);
+        }
+        builder.set_shared_runtime(runtime.clone());
+
+        let exporter = builder
+            .build::<NativeCapabilities>()
+            .map_err(|e| PyValueError::new_err(format!("TraceExporter build failed: {e}")))?;
 
         let export_sync = ExportSync::new();
         let export_sync_clone = export_sync.clone();
 
-        let py_export = PyExport { exporter: inner };
+        let py_export = PyExport { exporter };
         let response_handler: ResponseHandler = Box::new(move |result| {
             export_sync_clone.on_export_complete();
             if let Ok(AgentResponse::Changed { ref body }) = result {
@@ -138,9 +242,9 @@ impl NativeTraceBufferPy {
                 }
             }
         });
-        let config = TraceBufferConfig::default();
+        let buffer_config = TraceBufferConfig::default();
 
-        let (buffer, worker) = TraceBuffer::new(config, response_handler, Box::new(py_export));
+        let (buffer, worker) = TraceBuffer::new(buffer_config, response_handler, Box::new(py_export));
 
         let worker_handle = runtime.spawn_worker(worker, true).map_err(|e| {
             PyValueError::new_err(format!("Failed to spawn trace buffer worker: {e}"))

@@ -228,22 +228,11 @@ impl TraceExporterBuilderPy {
 pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities>>,
     /// Kept alive so the runtime is not shut down while this exporter is in use.
+    /// Never read explicitly — holding the Arc is sufficient to prevent shutdown.
+    #[allow(dead_code)]
     runtime: Arc<SharedRuntime>,
 }
 
-impl TraceExporterPy {
-    /// Take the inner `TraceExporter`, leaving `inner` as `None`.
-    ///
-    /// Used by `NativeTraceBufferPy` to take ownership of the exporter.
-    pub(crate) fn take_inner(&mut self) -> Option<TraceExporter<NativeCapabilities>> {
-        self.inner.take()
-    }
-
-    /// Return a reference to the shared runtime Arc.
-    pub(crate) fn runtime_arc(&self) -> &Arc<SharedRuntime> {
-        &self.runtime
-    }
-}
 
 #[pymethods]
 impl TraceExporterPy {

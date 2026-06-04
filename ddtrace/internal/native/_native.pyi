@@ -422,13 +422,28 @@ class NativeTraceBuffer:
     Native Rust trace buffer that serializes SpanData objects to the agent
     wire format on a background tokio worker.
 
-    Takes ownership of the TraceExporter passed to the constructor;
-    after construction, the exporter's ``send()`` method will return an error.
+    Builds a TraceExporter internally from the supplied config params.
+    Has no dependency on TraceExporterBuilder or TraceExporter.
     """
 
     def __init__(
         self,
-        exporter: TraceExporter,
+        shared_runtime: SharedRuntime,
+        intake_url: str,
+        api_version: str,
+        service: Optional[str] = None,
+        env: Optional[str] = None,
+        app_version: Optional[str] = None,
+        hostname: Optional[str] = None,
+        language_version: Optional[str] = None,
+        language_interpreter: Optional[str] = None,
+        tracer_version: Optional[str] = None,
+        git_commit_sha: Optional[str] = None,
+        compute_stats_enabled: bool = False,
+        stats_opt_out: bool = False,
+        stats_interval_ns: Optional[int] = None,
+        test_session_token: Optional[str] = None,
+        otlp_endpoint: Optional[str] = None,
         response_callback: Optional[Callable[..., None]] = None,
     ) -> None: ...
     def send_chunk(self, spans: list[SpanData]) -> None:
