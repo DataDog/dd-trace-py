@@ -510,13 +510,11 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        config._llmobs_agentless_enabled = should_use_agentless(
-            user_defined_agentless_enabled=config._llmobs_agentless_enabled
-        )
+        agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
             # APMTracingEnabledFilter drops every trace, so ship events directly to LLMObs.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
-        elif config._llmobs_agentless_enabled:
+        elif agentless_enabled:
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
             self._export_mode = LLMObsExportMode.APM_AGENT
@@ -524,12 +522,12 @@ class LLMObs(Service):
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            is_agentless=config._llmobs_agentless_enabled,
+            is_agentless=agentless_enabled,
         )
         self._llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            is_agentless=config._llmobs_agentless_enabled,
+            is_agentless=agentless_enabled,
         )
         self._evaluator_runner = EvaluatorRunner(
             interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
