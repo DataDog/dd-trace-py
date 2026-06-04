@@ -2893,7 +2893,11 @@ MUL: "*"
                                                 "properties": {
                                                     "l4": {
                                                         "type": "object",
-                                                        "properties": '{"l5": {"properties": {"l6": {"properties": {"l7": {"type": "string"}}, "type": "object"}}, "type": "object"}}',
+                                                        "properties": (
+                                                            '{"l5": {"properties": {"l6": {"properties":'
+                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
+                                                            ' "type": "object"}}'
+                                                        ),
                                                     }
                                                 },
                                             }
