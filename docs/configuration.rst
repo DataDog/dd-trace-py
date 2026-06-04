@@ -409,14 +409,17 @@ Traces
      default: 1.0
 
      description: |
-         The proportion of LLM Observability spans (between ``0.0`` and ``1.0``) retained for full
-         processing by Datadog. Spans are not dropped on the client: all spans capture their
-         input/output and are submitted, and Datadog uses this rate to compute accurate token and
-         cost metrics before discarding the input/output of un-sampled spans.
+         The proportion of LLM Observability spans (between ``0.0`` and ``1.0``) that Datadog retains
+         after intake. 100% of LLM Observability spans are always submitted; this rate controls how
+         many are retained in full. For example, ``0.1`` keeps roughly 10% of your LLM Observability
+         spans with their complete input/output data.
+
+         This only affects LLM Observability span retention. It does **not** affect APM span
+         retention, and it does **not** affect metrics: token usage, cost, and other LLM Observability
+         metrics are always computed from 100% of traffic regardless of the configured rate.
 
      version_added:
-        v4.12.0: |
-            This rate no longer drops spans on the client; all spans are now submitted.
+        v4.12.0:
 
 Trace Context propagation
 -------------------------
