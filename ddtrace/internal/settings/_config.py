@@ -777,8 +777,8 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:
