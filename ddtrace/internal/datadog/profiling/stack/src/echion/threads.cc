@@ -622,10 +622,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
                 continue;
             }
 
-            GreenletSnapshot snap;
-            snap.greenlet_id = gid;
-            snap.name = greenlet->name;
-            snap.frame = frame;
+            GreenletSnapshot snap{ gid, greenlet->name, frame, {} };
 
             // Precompute parent chain while we still hold the lock
             auto current_id = gid;

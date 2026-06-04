@@ -1,11 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,8 +17,6 @@
 class TaskName
 {
   public:
-    TaskName() = default;
-
     [[nodiscard]] static TaskName from_literal(std::string value) { return TaskName(std::move(value)); }
 
     [[nodiscard]] static TaskName from_asyncio_task_id(std::uint64_t id) { return TaskName(AsyncioTaskId{ id }); }
@@ -40,9 +39,7 @@ class TaskName
         std::visit(
           [&](const auto& v) {
               using T = std::decay_t<decltype(v)>;
-              if constexpr (std::is_same_v<T, Unknown>) {
-                  callback(std::string_view("<unknown>"));
-              } else if constexpr (std::is_same_v<T, std::string>) {
+              if constexpr (std::is_same_v<T, std::string>) {
                   callback(std::string_view(v));
               } else if constexpr (std::is_same_v<T, AsyncioTaskId>) {
                   visit_prefixed_number("Task-", v.value, callback);
@@ -54,8 +51,6 @@ class TaskName
     }
 
   private:
-    struct Unknown
-    {};
     struct AsyncioTaskId
     {
         std::uint64_t value;
@@ -65,7 +60,7 @@ class TaskName
         std::uint64_t value;
     };
 
-    using Storage = std::variant<Unknown, std::string, AsyncioTaskId, GreenletId>;
+    using Storage = std::variant<std::string, AsyncioTaskId, GreenletId>;
 
     explicit TaskName(std::string s)
       : storage_(std::move(s))
@@ -87,18 +82,15 @@ class TaskName
         constexpr std::size_t max_digits = std::numeric_limits<std::uint64_t>::digits10 + 1;
         std::array<char, prefix_size + max_digits> buffer{};
 
-        std::memcpy(buffer.data(), prefix, prefix_size);
-        auto* begin = buffer.data();
-        auto* digits_begin = begin + prefix_size;
-        auto* end = begin + buffer.size();
+        auto digits_begin = std::copy_n(prefix, prefix_size, buffer.begin());
 
-        auto [ptr, ec] = std::to_chars(digits_begin, end, value);
+        auto [ptr, ec] = std::to_chars(std::to_address(digits_begin), buffer.data() + buffer.size(), value);
         if (ec != std::errc{}) {
             callback(std::string_view("<unknown>"));
             return;
         }
 
-        callback(std::string_view(begin, static_cast<std::size_t>(ptr - begin)));
+        callback(std::string_view(buffer.data(), static_cast<std::size_t>(ptr - buffer.data())));
     }
 
     [[nodiscard]] static std::optional<std::uint64_t> parse_prefixed_uint(std::string_view value,
