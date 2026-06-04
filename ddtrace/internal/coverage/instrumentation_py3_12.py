@@ -150,6 +150,8 @@ def register_coverage() -> bool:
             sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID),
         )
         return False
+    mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
+    log.debug("Registering %s coverage tool", mode)
     sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
     # Re-enable LINE/PY_START events for all previously-instrumented code objects.
     # This is needed after an unregister/register cycle because free_tool_id()
