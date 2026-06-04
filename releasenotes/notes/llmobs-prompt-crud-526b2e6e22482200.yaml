@@ -3,7 +3,3 @@ features:
   - |
     LLM Observability: Adds prompt management methods to ``LLMObs`` for creating, updating, deleting, and listing
     prompts and prompt versions in the prompt registry.
-deprecations:
-  - |
-    LLM Observability: The ``label`` parameter of ``LLMObs.get_prompt()`` and ``LLMObs.refresh_prompt()`` is
-    deprecated. Set ``DD_ENV`` instead; the prompt version is resolved for that environment.

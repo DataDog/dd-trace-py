@@ -43,7 +43,6 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -175,7 +174,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -1778,8 +1776,7 @@ class LLMObs(Service):
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deprecated; set ``DD_ENV`` instead. Deployment label selecting a version;
-                      if omitted, returns the latest version.
+        :param label: Deployment label selecting a version; if omitted, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
@@ -1809,12 +1806,6 @@ class LLMObs(Service):
                     messages=prompt.format(**variables)
                 )
         """
-        if label is not None:
-            deprecate(
-                prefix="The 'label' parameter of LLMObs.get_prompt() is deprecated",
-                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
-                category=DDTraceDeprecationWarning,
-            )
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(prompt_id, label, fallback)
 
@@ -1848,18 +1839,11 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: Deprecated; set DD_ENV instead. Deployment label selecting a version;
-                if omitted, returns the latest version.
+            label: Deployment label selecting a version; if omitted, returns the latest version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
         """
-        if label is not None:
-            deprecate(
-                prefix="The 'label' parameter of LLMObs.refresh_prompt() is deprecated",
-                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
-                category=DDTraceDeprecationWarning,
-            )
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
 
