@@ -75,8 +75,8 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LLMOBS_EVENT_SAMPLED_DD_KEY
 from ddtrace.llmobs._constants import LLMOBS_SAMPLE_RATE_DD_KEY
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING_DECISION_DD_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
@@ -685,7 +685,7 @@ class LLMObs(Service):
         dd_attrs = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
         # ``_dd`` values are strings; rate capped to 6 decimals with trailing zeros stripped.
         dd_attrs[LLMOBS_SAMPLE_RATE_DD_KEY] = f"{self._event_sampler.sample_rate:.6f}".rstrip("0").rstrip(".")
-        dd_attrs[LLMOBS_EVENT_SAMPLED_DD_KEY] = "1" if self._event_sampler.sample(span) else "0"
+        dd_attrs[LLMOBS_SAMPLING_DECISION_DD_KEY] = "1" if self._event_sampler.sample(span) else "0"
 
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;

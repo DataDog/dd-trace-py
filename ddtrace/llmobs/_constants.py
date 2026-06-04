@@ -72,8 +72,8 @@ LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
 # Sampling decision recorded on each LLMObs span event's ``_dd`` object. All events are
 # sent; the backend uses these to compute token/cost stats and pick which I/O to retain.
-LLMOBS_SAMPLE_RATE_DD_KEY = "llmo_sample_rate"
-LLMOBS_EVENT_SAMPLED_DD_KEY = "llmo_keep"
+LLMOBS_SAMPLE_RATE_DD_KEY = "sample_rate"
+LLMOBS_SAMPLING_DECISION_DD_KEY = "sampling_decision"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
