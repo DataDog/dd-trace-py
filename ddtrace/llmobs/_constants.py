@@ -9,8 +9,8 @@ class LLMObsExportMode(str, Enum):
     direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
 
     APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
-    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; the rescue
-                    processor re-ships predicted drops through ``LLMObsSpanWriter``.
+    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; LLMObs
+                    processor re-ships predicted drops through ``LLMObsSpanWriter`` agent proxy.
     LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
     """
 

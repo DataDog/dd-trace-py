@@ -103,8 +103,6 @@ class BaseLLMIntegration:
             self._set_apm_shadow_tags(span, args, kwargs, response, operation)
         except Exception:
             log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
-        # I/O is always captured when LLMObs is enabled; the sampling decision is recorded
-        # on the span event at finish (see ``LLMObs._prepare_llmobs_span_data``).
         if not self.llmobs_enabled:
             return
         try:
