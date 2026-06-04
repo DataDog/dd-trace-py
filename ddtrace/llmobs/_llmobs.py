@@ -1795,7 +1795,8 @@ class LLMObs(Service):
 
         Example::
 
-            # Simple usage - returns the latest version
+            # Simple usage. With DD_ENV set, the HTTP fallback uses DD_ENV as the label;
+            # without DD_ENV, the HTTP path returns the latest version.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
 
@@ -1871,7 +1872,8 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: The prompt label. If not provided and DD_ENV is set, the HTTP fallback
+                   uses DD_ENV as the label; otherwise the HTTP path returns the latest version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
@@ -1883,9 +1885,6 @@ class LLMObs(Service):
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
-
-        if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)

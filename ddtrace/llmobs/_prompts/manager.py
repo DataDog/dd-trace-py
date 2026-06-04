@@ -50,10 +50,12 @@ class PromptManager:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
         self._agentless = agentless
+        self._api_key = api_key
         self._headers: dict[str, str] = {
-            "DD-API-KEY": api_key,
             "X-Datadog-SDK-Language": "python",
         }
+        if api_key:
+            self._headers["DD-API-KEY"] = api_key
         self._cache_enabled = cache_ttl > 0
 
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
@@ -367,6 +369,9 @@ class PromptManager:
         self, prompt_id: str, label: Optional[str], timeout: float
     ) -> tuple[Optional[ManagedPrompt], bool, str]:
         """Fetch from registry. Returns (prompt, not_found, reason)."""
+        if not self._api_key:
+            return None, False, "DD_API_KEY is required for the Prompt Registry"
+
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout)
