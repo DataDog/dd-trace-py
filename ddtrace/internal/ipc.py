@@ -6,6 +6,7 @@ import secrets
 import tempfile
 import typing
 
+from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import unpatched_open
 from ddtrace.internal.logger import get_logger
 
@@ -105,23 +106,31 @@ class SharedStringFile:
         )
         if self.filename is not None:
             Path(self.filename).touch(exist_ok=True)
+        # Thread-level lock to serialize access within the same process.
+        # POSIX advisory file locks (fcntl.lockf) do NOT block threads within
+        # the same process, so concurrent put/snatchall from different threads
+        # would race on the Python write buffer vs OS flush window.
+        # forksafe.Lock() resets after fork so children don't inherit a locked mutex.
+        self._file_thread_lock = forksafe.Lock()
 
-    def put_unlocked(self, f: typing.BinaryIO, data: str) -> None:
+    def put_unlocked(self, f: typing.BinaryIO, data: str) -> bool:
         f.seek(0, os.SEEK_END)
         dt = (data + "\x00").encode()
         if f.tell() + len(dt) <= MAX_FILE_SIZE:
             f.write(dt)
+            return True
+        return False
 
-    def put(self, data: str) -> None:
-        """Put a string into the file."""
+    def put(self, data: str) -> bool:
+        """Put a string into the file. Returns True on success, False on failure."""
         if self.filename is None:
-            return
+            return False
 
         try:
             with self.lock_exclusive() as f:
-                self.put_unlocked(f, data)
+                return self.put_unlocked(f, data)
         except Exception:  # nosec
-            pass
+            return False
 
     def peekall_unlocked(self, f: typing.BinaryIO) -> list[str]:
         f.seek(0)
@@ -175,8 +184,9 @@ class SharedStringFile:
             # file-like so the context manager always yields and callers get [] from peek.
             yield io.BytesIO(b"")
             return
-        with open_file(self.filename, "rb") as f, ReadLock(f):
-            yield f
+        with self._file_thread_lock:
+            with open_file(self.filename, "rb") as f, ReadLock(f):
+                yield f
 
     @contextmanager
     def lock_exclusive(self):
@@ -186,9 +196,13 @@ class SharedStringFile:
             # file-like so the context manager always yields and callers run without failing.
             yield io.BytesIO(b"")
             return
-        with open_file(self.filename, "r+b") as f, WriteLock(f):
-            yield f
-            # Flush before releasing the lock. Here we first release the lock,
-            # then close the file. If a read happens in between these two
-            # operations, the reader might see outdated data.
-            f.flush()
+        # Acquire the thread-level lock first to prevent same-process threads
+        # from bypassing the POSIX file lock (fcntl.lockf only blocks across
+        # processes, not within the same process).
+        with self._file_thread_lock:
+            with open_file(self.filename, "r+b") as f, WriteLock(f):
+                yield f
+                # Flush before releasing the lock. Here we first release the lock,
+                # then close the file. If a read happens in between these two
+                # operations, the reader might see outdated data.
+                f.flush()

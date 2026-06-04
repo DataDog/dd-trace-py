@@ -659,7 +659,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             bc.append(bytecode.TryEnd(last_try_begin))
             bc.append(except_label)
-            bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}))
+            bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
 
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
@@ -775,7 +775,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
 
             bc.append(except_label)
-            bc.extend(CONTEXT_FOOT.bind())
+            bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
 
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
