@@ -90,8 +90,11 @@ class FunctionStore(object):
     def wrap(self, function: FunctionType, wrapping_context: WrappingContext) -> None:
         """Wrap a function with a hook."""
         self._store(function)
-        self._wrapper_map[function] = wrapping_context
+        # Only record the wrapper once the bytecode wrapping has actually
+        # succeeded: if it raises, the function is left unwrapped and we must not
+        # track it as managed/wrapped (the failure propagates to the caller).
         wrapping_context.wrap()
+        self._wrapper_map[function] = wrapping_context
 
     def unwrap(self, function: FullyNamedContextWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""

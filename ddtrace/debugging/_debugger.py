@@ -533,7 +533,22 @@ class Debugger(Service):
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
                 )
-                self._function_store.wrap(cast(FunctionType, function), context)
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except Exception as exc:
+                    # Bytecode wrapping can fail for unusual control-flow shapes.
+                    # Report the probe as errored rather than reporting it
+                    # installed (the context callbacks would never run) or
+                    # letting the failure escape the module import hook.
+                    message = f"Cannot install probe {probe.probe_id}: failed to wrap function '{probe.func_qname}'"
+                    self._probe_registry.set_error(probe, type(exc).__name__, message)
+                    log.error(
+                        "Cannot install probe %s: failed to wrap function '%s'",
+                        probe.probe_id,
+                        probe.func_qname,
+                        exc_info=True,
+                    )
+                    continue
                 log.debug(
                     "[%s][P: %s] Function probe %r wrapped around %r",
                     os.getpid(),

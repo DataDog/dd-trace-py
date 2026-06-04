@@ -792,6 +792,31 @@ def test_wrapping_context_handler_branch_exception_escapes():
     assert exc.args == ("boom",)
 
 
+def test_wrapping_context_wrap_failure_propagates(monkeypatch):
+    # If the bytecode rewrite fails, wrap() must propagate the error and leave
+    # the function untouched, rather than silently reporting success while the
+    # function is not actually wrapped (which would make consumers, e.g. the
+    # debugger, manage a probe whose callbacks can never run).
+    import bytecode
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("synthetic to_code failure")
+
+    monkeypatch.setattr(bytecode.Bytecode, "to_code", boom)
+
+    def foo():
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    with pytest.raises(RuntimeError):
+        wc.wrap()
+
+    # The function is left pristine and not reported as wrapped.
+    assert not _UniversalWrappingContext.is_wrapped(foo)
+    assert foo() == 42
+    assert not wc.entered
+
+
 def test_wrapping_context_exc_on_exit():
     class BrokenExitWrappingContext(DummyWrappingContext):
         def __exit__(self, exc_type, exc_value, traceback):
