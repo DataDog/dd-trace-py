@@ -218,6 +218,34 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
+_MAX_NESTED_META_DEPTH = 12
+
+
+def _sanitize_span_event_depth(obj: Any) -> Any:
+    """Return a sanitized copy of obj with any container value that exceeds
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation.
+    The original structure is never mutated.
+    A warning is logged for each stringified field, including its dotted path.
+    """
+
+    def _walk(node: Any, depth: int, path: str) -> Any:
+        if not isinstance(node, (dict, list)):
+            return node
+        if depth >= _MAX_NESTED_META_DEPTH:
+            log.warning(
+                "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
+                "stringified to avoid backend parsing errors.",
+                path,
+                _MAX_NESTED_META_DEPTH,
+            )
+            return safe_json(node)
+        if isinstance(node, dict):
+            return {k: _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+        return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+
+    return _walk(obj, 0, "")
+
+
 def safe_json(obj, ensure_ascii=True):
     if isinstance(obj, str):
         return obj
