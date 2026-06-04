@@ -294,3 +294,17 @@ def test_otel_span_attribute_remapping_disabled_with_otel_compatibility(oteltrac
             # int values are stored as metrics under the original OTel key (not remapped to http.status_code)
             assert span._ddspan.get_metrics().get("http.response.status_code") == 200
             assert span._ddspan.get_tag("http.status_code") is None
+
+
+def test_otel_span_kind_not_set_with_otel_compatibility(oteltracer):
+    """DD_TRACE_OTEL_COMPATIBILITY_ENABLED=true: span.kind is not set regardless of OTel SpanKind."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        for kind in (
+            OtelSpanKind.CLIENT,
+            OtelSpanKind.SERVER,
+            OtelSpanKind.PRODUCER,
+            OtelSpanKind.CONSUMER,
+            OtelSpanKind.INTERNAL,
+        ):
+            with oteltracer.start_span("test-kind", kind=kind) as span:
+                assert span._ddspan.get_tag("span.kind") is None
