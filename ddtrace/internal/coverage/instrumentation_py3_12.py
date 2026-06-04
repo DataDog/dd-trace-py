@@ -73,17 +73,23 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     after recording, meaning each line/function is only reported once per coverage context.
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-    if coverage_tool != "datadog":
-        if coverage_tool is not None:
-            global _foreign_tool_warned
-            if not _foreign_tool_warned:
-                _foreign_tool_warned = True
-                log.warning(
-                    "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
-                    "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
-                    coverage_tool,
-                )
+    if coverage_tool is not None and coverage_tool != "datadog":
+        global _foreign_tool_warned
+        if not _foreign_tool_warned:
+            _foreign_tool_warned = True
+            log.warning(
+                "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
+                "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
+                coverage_tool,
+            )
         return code, CoverageLines()
+
+    if coverage_tool is None:
+        # Lazy registration for callers that use installer.install() directly
+        # (e.g. multiprocessing child processes, standalone scripts).
+        # The pytest plugins call register_coverage() explicitly before this point.
+        if not register_coverage():
+            return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
 

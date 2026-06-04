@@ -254,23 +254,27 @@ def test_instrument_all_lines_skips_when_slot_held_by_foreign_tool():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_instrument_all_lines_skips_when_slot_is_free():
-    """instrument_all_lines() returns empty CoverageLines when nobody owns COVERAGE_ID.
+def test_instrument_all_lines_lazily_registers_when_slot_is_free():
+    """instrument_all_lines() lazily registers when COVERAGE_ID is unclaimed.
 
-    Without eager registration via register_coverage(), instrument_all_lines()
-    does not lazily claim the slot — it only instruments when we already own it.
+    This supports standalone callers (e.g. installer.install() in subprocesses)
+    that don't go through the pytest plugin's explicit register_coverage() path.
     """
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     # Ensure slot is free
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
-    code_obj = compile("y = 2", "<test>", "exec")
-    _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-    assert len(lines) == 0
-    # Slot must still be free (no lazy registration)
-    assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is None
+    try:
+        code_obj = compile("y = 2\nz = 3", "<test>", "exec")
+        _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+        # Should have lazily registered and instrumented
+        assert len(lines) > 0
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+    finally:
+        unregister_coverage()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
