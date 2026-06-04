@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    openai_agents: Adds compatibility with ``openai-agents`` versions where the per-turn function moved from ``AgentRunner._run_single_turn`` (instance method) to a module-level free function in ``agents.run_internal.run_loop.run_single_turn``. The integration now detects the module-level shape, wraps the call-site re-export in ``agents.run`` (rather than the definition module, which is reached too late after ``agents/run.py`` imports the symbol at module load), and extracts the agent from ``bindings.execution_agent`` (the older positional ``agent`` argument no longer exists). Without this fix, the agent-side context capture and agent-manifest tagging silently no-op'd on affected versions.
+  - |
+    openai_agents: Fixes ``assistant_chars=0`` regression on Responses API runs. ``split_message_chars`` now buckets non-role input items (``function_call``, ``function_call_output``, ``tool_call``, ``reasoning``, and related types) into ``assistant_chars`` by ``type``. Previously these items had no ``role`` field and were silently dropped, causing the ``assistant_messages`` category in the emitted ``context_delta`` to read zero on every multi-turn tool-using run.
