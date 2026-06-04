@@ -8,6 +8,7 @@ import warnings
 
 import pytest
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
@@ -170,14 +171,16 @@ class TestPrompts:
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
         with mock_api(200, TEXT_PROMPT_RESPONSE):
-            prod_prompt = LLMObs.get_prompt("greeting", label="production")
+            with pytest.warns(DDTraceDeprecationWarning):
+                prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
         assert prod_prompt.label == "production"
 
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
         with mock_api(200, DEV_PROMPT_RESPONSE):
-            dev_prompt = LLMObs.get_prompt("greeting", label="development")
+            with pytest.warns(DDTraceDeprecationWarning):
+                dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
         assert dev_prompt.label == "development"
         assert "DEBUG" in dev_prompt.format(name="Test")
@@ -244,7 +247,8 @@ class TestPrompts:
         detail = "prompt 'support-assistant' exists but label 'production' was not found"
         with mock_api(404, {"detail": detail}):
             with pytest.raises(ValueError) as exc_info:
-                LLMObs.get_prompt("support-assistant", label="production")
+                with pytest.warns(DDTraceDeprecationWarning):
+                    LLMObs.get_prompt("support-assistant", label="production")
         assert "could not be fetched and no fallback was provided" in str(exc_info.value)
         assert detail in str(exc_info.value)
 
