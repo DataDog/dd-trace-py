@@ -62,7 +62,7 @@ impl HttpResponsePy {
                         .iter()
                         .map(|(k, v)| (k.as_str(), v.as_str())),
                 )
-                .expect("header strings are valid UTF-8")
+                .expect("header strings must be valid UTF-8")
                 .unbind()
             })
             .bind(py)
