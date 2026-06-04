@@ -78,9 +78,11 @@ class MockHTTPResponse:
         self._body = body
 
     def read(self) -> bytes:
-        if isinstance(self._body, dict):
-            return json.dumps(self._body).encode("utf-8")
-        return self._body.encode("utf-8") if isinstance(self._body, str) else b""
+        if isinstance(self._body, str):
+            return self._body.encode("utf-8")
+        if self._body is None:
+            return b""
+        return json.dumps(self._body).encode("utf-8")
 
 
 class MockHTTPConnection:
