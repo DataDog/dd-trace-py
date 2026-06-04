@@ -1,7 +1,3 @@
-// This file is part of "echion" which is released under MIT.
-//
-// Copyright (c) 2026 Datadog, Inc.
-
 #pragma once
 
 #include <array>
