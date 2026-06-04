@@ -1,8 +1,8 @@
 [[
   {
-    "name": "test_agent",
+    "name": "pydantic_ai.agent",
     "service": "tests.contrib.pydantic_ai",
-    "resource": "Pydantic Agent",
+    "resource": "test_agent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

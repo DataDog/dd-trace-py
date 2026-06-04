@@ -42,6 +42,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
     _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+    _MAX_META_TAG_VALUE_LENGTH = 5000
 
     def __init__(self, *args: Any) -> None:
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
@@ -176,7 +177,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return CIVisibilityEncoderV01._pack_payload(
             {
                 "version": self.PAYLOAD_FORMAT_VERSION,
-                "metadata": self._metadata,
+                "metadata": self._truncate_payload_metadata(self._metadata),
                 "events": spans,
             }
         )
@@ -197,6 +198,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if dd_origin is not None:
             sp["meta"].update({"_dd.origin": dd_origin})
         sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)
+        sp["meta"] = CIVisibilityEncoderV01._truncate_meta_string_values(sp["meta"])
 
         version = CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION
         if span.get_tag(EVENT_TYPE) == "test":
@@ -243,6 +245,20 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             sp[ITR_CORRELATION_ID_TAG_NAME] = sp["meta"][ITR_CORRELATION_ID_TAG_NAME]
             del sp["meta"][ITR_CORRELATION_ID_TAG_NAME]
         return sp
+
+    @staticmethod
+    def _truncate_meta_string_values(meta: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value[: CIVisibilityEncoderV01._MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value
+            for key, value in meta.items()
+        }
+
+    @staticmethod
+    def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
+        return {
+            event_type: CIVisibilityEncoderV01._truncate_meta_string_values(event_metadata)
+            for event_type, event_metadata in metadata.items()
+        }
 
 
 class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
