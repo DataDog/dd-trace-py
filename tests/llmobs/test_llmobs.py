@@ -1169,4 +1169,4 @@ def test_llmobs_event_records_sampling_metadata(llmobs, llmobs_events):
     assert len(llmobs_events) == 1
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["llmo_sample_rate"] == "1"
-    assert event_dd["llmo_keep_event"] == "1"
+    assert event_dd["llmo_keep"] == "1"

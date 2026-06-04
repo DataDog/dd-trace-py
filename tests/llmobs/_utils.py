@@ -369,7 +369,7 @@ def _llmobs_base_span_event(
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
             "llmo_sample_rate": mock.ANY,
-            "llmo_keep_event": mock.ANY,
+            "llmo_keep": mock.ANY,
         },
     }
     if session_id:
@@ -781,7 +781,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
             "span_links": mock.ANY,
         },
@@ -808,7 +808,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
     ]
@@ -844,7 +844,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
         {
@@ -870,7 +870,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
         {
@@ -896,7 +896,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
             "span_links": mock.ANY,
         },
@@ -916,7 +916,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
         {
@@ -942,7 +942,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
             "span_links": mock.ANY,
         },
@@ -962,7 +962,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
         {
@@ -985,7 +985,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
     ]
@@ -1016,7 +1016,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
             "span_links": mock.ANY,
         },
@@ -1041,7 +1041,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
         {
@@ -1065,7 +1065,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
                 "trace_id": mock.ANY,
                 "apm_trace_id": mock.ANY,
                 "llmo_sample_rate": mock.ANY,
-                "llmo_keep_event": mock.ANY,
+                "llmo_keep": mock.ANY,
             },
         },
     ]
