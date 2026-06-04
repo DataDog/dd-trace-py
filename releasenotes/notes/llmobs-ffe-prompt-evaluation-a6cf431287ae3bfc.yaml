@@ -8,4 +8,4 @@ features:
     and ``**attributes`` for sticky bucketing and multi-attribute targeting.
     The Feature Flags path requires the optional ``openfeature`` extra
     (``pip install ddtrace[openfeature]``) and ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true``;
-    without the extra the HTTP path is used unchanged.
+    without the extra, the HTTP path is used, with ``DD_ENV`` acting as the label when set. #18127
