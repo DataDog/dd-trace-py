@@ -63,9 +63,17 @@ def split_message_chars(messages: Any) -> tuple[int, int]:
     AIDEV-NOTE: MLOB-7584 — ``input`` is typed as ``str | list[Any]``. When the initial
     user prompt is the only input it arrives as a string and is bucketed into ``user``.
     When the agent loop has run for >=1 turn, the message list contains role-tagged
-    dicts/objects. ``system``-role and ``tool``-role entries are intentionally ignored
-    here: system tokens come through ``response_system_instructions`` and tool messages
-    are accounted for in ``count_tools_chars``.
+    dicts/objects with roles ``user``, ``assistant``, ``system``, and ``tool``.
+
+    Bucketing rules:
+    - ``user`` -> user_chars
+    - ``assistant`` and ``tool`` -> assistant_chars. ``tool`` (tool-result) messages are
+      injected into the input after each tool call by the agent loop. Bucketing them with
+      ``assistant`` keeps the agent-produced side of the conversation cohesive AND ensures
+      total counted chars equals total response.input chars, so the char-proportional
+      token split stays accurate on multi-turn tool-using runs.
+    - ``system`` is excluded here; system tokens flow through ``response_system_instructions``
+      directly into the ``system`` category.
     """
     if isinstance(messages, str):
         return len(messages), 0
@@ -79,7 +87,7 @@ def split_message_chars(messages: Any) -> tuple[int, int]:
         chars = len(str(content)) if content is not None else 0
         if role == "user":
             user_chars += chars
-        elif role == "assistant":
+        elif role in ("assistant", "tool"):
             assistant_chars += chars
     return user_chars, assistant_chars
 

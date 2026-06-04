@@ -812,18 +812,21 @@ class TestSplitMessageChars:
         ]
         assert split_message_chars(messages) == (3, 5)
 
-    def test_system_and_tool_roles_are_ignored(self):
+    def test_system_is_ignored_tool_is_bucketed_with_assistant(self):
         from ddtrace.llmobs._integrations.openai_agents import split_message_chars
 
-        # System tokens come via response_system_instructions; tool tokens via count_tools_chars.
-        # Both should be excluded from the user/assistant split here.
+        # System messages flow through response_system_instructions, not the message list,
+        # so they are excluded here. Tool-result messages (role=tool) are injected into
+        # response.input after each tool call by the agent loop; bucketing them with
+        # role=assistant keeps total counted chars equal to total response.input chars,
+        # which is what the proportional token split relies on.
         messages = [
-            {"role": "system", "content": "you are a helpful agent"},
-            {"role": "user", "content": "hi"},
-            {"role": "tool", "content": "some tool output that should not be counted"},
-            {"role": "assistant", "content": "ok"},
+            {"role": "system", "content": "you are a helpful agent"},  # 23 chars, excluded
+            {"role": "user", "content": "hi"},  # 2 chars -> user
+            {"role": "tool", "content": "result body"},  # 11 chars -> assistant
+            {"role": "assistant", "content": "ok"},  # 2 chars -> assistant
         ]
-        assert split_message_chars(messages) == (2, 2)
+        assert split_message_chars(messages) == (2, 13)
 
     def test_none_content_is_zero(self):
         from ddtrace.llmobs._integrations.openai_agents import split_message_chars
