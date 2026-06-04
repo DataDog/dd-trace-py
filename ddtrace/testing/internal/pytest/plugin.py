@@ -1094,11 +1094,9 @@ def pytest_load_initial_conftests(
     pytest_cov_enabled = _is_pytest_cov_enabled(early_config)
 
     if not _is_enabled_early(early_config, args):
-        # Release COVERAGE_ID even when ddtrace is disabled: a previous inline session
-        # may have left us holding the slot.  deregister_monitoring() is a no-op when
-        # we don't hold it, so this is always safe.
-        if pytest_cov_enabled:
-            deregister_monitoring()
+        # Always deregister: sets _yield_to_external_tool so any module import between
+        # here and pytest-cov's hook cannot re-claim the slot; free the slot if we hold it.
+        deregister_monitoring()
         yield
         return
 
@@ -1115,8 +1113,7 @@ def pytest_load_initial_conftests(
         session_manager = SessionManager(session=session)
     except SetupError as e:
         log.error("%s", e)
-        if pytest_cov_enabled:
-            deregister_monitoring()
+        deregister_monitoring()
         yield
         return
 
@@ -1140,10 +1137,12 @@ def pytest_load_initial_conftests(
         if not pytest_cov_enabled:
             setup_coverage_collection()
 
-    # Release COVERAGE_ID after all our setup so pytest-cov's SysMonitor can claim it
+    # Always deregister: sets _yield_to_external_tool (blocks lazy re-registration race)
+    # and releases COVERAGE_ID if we hold it, so pytest-cov's SysMonitor can claim it
     # in its own pytest_load_initial_conftests hook (which runs after this yield).
-    if pytest_cov_enabled:
-        deregister_monitoring()
+    # allow_monitoring() called above in setup_coverage_collection() ensures that
+    # ddtrace-only sessions still re-register on the next module import.
+    deregister_monitoring()
 
     yield
 

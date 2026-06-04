@@ -1106,56 +1106,37 @@ class TestSessionLifecycleMethods:
         plugin.manager.writer.put_item.assert_not_called()
         plugin.manager.finish.assert_called_once()
 
-    def test_load_initial_conftests_deregisters_monitoring_when_pytest_cov_enabled(self) -> None:
-        """deregister_monitoring() is called in pytest_load_initial_conftests when pytest-cov is active.
+    def test_load_initial_conftests_always_deregisters_monitoring(self) -> None:
+        """deregister_monitoring() is always called in pytest_load_initial_conftests.
 
         Regression test for the fix that prevents "ValueError: tool 1 is already in use"
         when pytester.inline_run(--cov) is called inside a session that already holds
         sys.monitoring.COVERAGE_ID as 'datadog'.  The call must happen before the yield
         so that pytest-cov's own pytest_load_initial_conftests can claim the slot.
+
+        The call is unconditional: deregister_monitoring() also sets _yield_to_external_tool=True
+        which prevents any module import between the yield and pytest-cov's hook from
+        lazily re-claiming COVERAGE_ID, regardless of whether _is_pytest_cov_enabled() returns
+        True or False.
         """
         from ddtrace.testing.internal.pytest.plugin import pytest_load_initial_conftests
 
         mock_config = Mock()
 
-        with (
-            patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True) as mock_cov_check,
-            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
-        ):
-            gen = pytest_load_initial_conftests(mock_config, Mock(), [])
-            next(gen)
-            try:
+        for cov_enabled in (True, False):
+            with (
+                patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
+                patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=cov_enabled),
+                patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
+            ):
+                gen = pytest_load_initial_conftests(mock_config, Mock(), [])
                 next(gen)
-            except StopIteration:
-                pass
+                try:
+                    next(gen)
+                except StopIteration:
+                    pass
 
-        mock_cov_check.assert_called_once_with(mock_config)
-        mock_deregister.assert_called_once()
-
-    def test_load_initial_conftests_skips_deregistration_when_pytest_cov_disabled(self) -> None:
-        """deregister_monitoring() is NOT called in v3 plugin when pytest-cov is absent.
-
-        Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
-        own coverage tracking is not disrupted by an unnecessary deregistration.
-        """
-        from ddtrace.testing.internal.pytest.plugin import pytest_load_initial_conftests
-
-        mock_config = Mock()
-
-        with (
-            patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
-        ):
-            gen = pytest_load_initial_conftests(mock_config, Mock(), [])
-            next(gen)
-            try:
-                next(gen)
-            except StopIteration:
-                pass
-
-        mock_deregister.assert_not_called()
+            mock_deregister.assert_called_once()
 
 
 class TestReportAndLoggingMethods:

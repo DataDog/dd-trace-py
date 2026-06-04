@@ -175,12 +175,14 @@ def deregister_monitoring() -> None:
     tool's startup do not race back in and re-claim the slot.
     """
     global _coverage_id_conflict_warned, _yield_to_external_tool
+    # Set the flag FIRST so that any module import triggered during the cleanup below
+    # cannot race in and re-claim the slot via instrument_all_lines().
+    _yield_to_external_tool = True
+    _coverage_id_conflict_warned = False
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
         sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
         _CODE_HOOKS.clear()
-    _yield_to_external_tool = True
-    _coverage_id_conflict_warned = False
 
 
 def _instrument_with_monitoring(

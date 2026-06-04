@@ -316,11 +316,12 @@ def pytest_load_initial_conftests(early_config, parser, args):
     properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
     """
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
-    # Release sys.monitoring.COVERAGE_ID before other plugins run so that pytest-cov's
-    # SysMonitor can claim it in its own pytest_load_initial_conftests without crashing.
-    # deregister_monitoring() is a no-op if we don't hold the slot.
-    if _is_pytest_cov_enabled(early_config):
-        deregister_monitoring()
+    # Always call deregister_monitoring(): it sets _yield_to_external_tool=True to prevent
+    # any module import triggered by subsequent hooks from re-claiming COVERAGE_ID, and
+    # releases the slot if ddtrace currently holds it.  allow_monitoring() inside
+    # setup_coverage_collection() (called from pre-yield when pytest-cov is absent) ensures
+    # ddtrace-only sessions can still re-register lazily after this point.
+    deregister_monitoring()
     yield
 
 
