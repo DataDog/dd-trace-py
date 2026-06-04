@@ -133,7 +133,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mcp_c
             "integration": "mcp",
             "mcp_server_name": "TestServer",
             "mcp_server_version": importlib.metadata.version("mcp"),
-            "mcp_server_title": None,
+            # server title is unset (None) and tag values are coerced to strings at annotation time
+            "mcp_server_title": "None",
         },
         name="MCP Client Session",
     )
