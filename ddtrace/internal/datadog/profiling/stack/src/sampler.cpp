@@ -719,7 +719,7 @@ Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
-Sampler::track_greenlet(uintptr_t greenlet_id, TaskLabel name, PyObject* frame)
+Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 

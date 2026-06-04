@@ -10,7 +10,7 @@
 
 #include "constants.hpp"
 
-#include "echion/task_label.h"
+#include "echion/task_name.h"
 #include "echion/timing.h"
 
 #include <Python.h>
@@ -101,7 +101,7 @@ class Sampler
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
-    void track_greenlet(uintptr_t greenlet_id, TaskLabel name, PyObject* frame);
+    void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);

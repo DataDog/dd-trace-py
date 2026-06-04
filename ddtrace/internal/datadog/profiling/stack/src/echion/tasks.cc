@@ -9,7 +9,7 @@
 #include <vector>
 
 namespace {
-Result<TaskLabel>
+Result<TaskName>
 read_task_name(PyObject* task_name)
 {
 #if PY_VERSION_HEX >= 0x030c0000
@@ -19,7 +19,7 @@ read_task_name(PyObject* task_name)
     // default names to the global StringTable.
     auto maybe_long = pylong_to_llong(task_name);
     if (maybe_long) {
-        return TaskLabel::from_asyncio_task_id(static_cast<std::uint64_t>(*maybe_long));
+        return TaskName::from_asyncio_task_id(static_cast<std::uint64_t>(*maybe_long));
     }
 #endif
 
@@ -28,7 +28,7 @@ read_task_name(PyObject* task_name)
         return ErrorKind::PyUnicodeError;
     }
 
-    return TaskLabel::from_literal(std::move(*maybe_unicode));
+    return TaskName::from_literal(std::move(*maybe_unicode));
 }
 } // namespace
 

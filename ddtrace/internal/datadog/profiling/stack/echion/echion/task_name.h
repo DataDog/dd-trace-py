@@ -17,18 +17,18 @@
 #include <utility>
 #include <variant>
 
-class TaskLabel
+class TaskName
 {
   public:
-    TaskLabel() = default;
+    TaskName() = default;
 
-    [[nodiscard]] static TaskLabel from_literal(std::string value) { return TaskLabel(std::move(value)); }
+    [[nodiscard]] static TaskName from_literal(std::string value) { return TaskName(std::move(value)); }
 
-    [[nodiscard]] static TaskLabel from_asyncio_task_id(std::uint64_t id) { return TaskLabel(AsyncioTaskId{ id }); }
+    [[nodiscard]] static TaskName from_asyncio_task_id(std::uint64_t id) { return TaskName(AsyncioTaskId{ id }); }
 
-    [[nodiscard]] static TaskLabel from_greenlet_id(std::uint64_t id) { return TaskLabel(GreenletId{ id }); }
+    [[nodiscard]] static TaskName from_greenlet_id(std::uint64_t id) { return TaskName(GreenletId{ id }); }
 
-    [[nodiscard]] static TaskLabel from_gevent_name(std::string_view name)
+    [[nodiscard]] static TaskName from_gevent_name(std::string_view name)
     {
         auto maybe_id = parse_prefixed_uint(name, "Greenlet-");
         if (maybe_id) {
@@ -71,15 +71,15 @@ class TaskLabel
 
     using Storage = std::variant<Unknown, std::string, AsyncioTaskId, GreenletId>;
 
-    explicit TaskLabel(std::string s)
+    explicit TaskName(std::string s)
       : storage_(std::move(s))
     {
     }
-    explicit TaskLabel(AsyncioTaskId id)
+    explicit TaskName(AsyncioTaskId id)
       : storage_(id)
     {
     }
-    explicit TaskLabel(GreenletId id)
+    explicit TaskName(GreenletId id)
       : storage_(id)
     {
     }

@@ -306,7 +306,7 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
         return NULL;
     }
 
-    auto greenlet_name = TaskLabel::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
+    auto greenlet_name = TaskName::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
 
     auto& sampler = Sampler::get();
     Py_BEGIN_ALLOW_THREADS;

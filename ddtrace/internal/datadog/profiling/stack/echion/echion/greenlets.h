@@ -12,7 +12,7 @@
 #endif
 
 #include <echion/stacks.h>
-#include <echion/task_label.h>
+#include <echion/task_name.h>
 
 #include <functional>
 #include <memory>
@@ -31,10 +31,10 @@ class GreenletInfo
     typedef uintptr_t ID;
 
     ID greenlet_id = 0;
-    TaskLabel name;
+    TaskName name;
     PyObject* frame = NULL;
 
-    GreenletInfo(ID id, PyObject* frame, TaskLabel name)
+    GreenletInfo(ID id, PyObject* frame, TaskName name)
       : greenlet_id(id)
       , name(std::move(name))
       , frame(frame)
@@ -51,8 +51,8 @@ class GreenletInfo
 struct GreenletSnapshot
 {
     GreenletInfo::ID greenlet_id;
-    TaskLabel name;
+    TaskName name;
     PyObject* frame; // potentially-stale address, read via copy_type in unwind
     // Parent chain: (parent_name, parent_frame) pairs in order from immediate parent up
-    std::vector<std::pair<TaskLabel, PyObject*>> parent_chain;
+    std::vector<std::pair<TaskName, PyObject*>> parent_chain;
 };

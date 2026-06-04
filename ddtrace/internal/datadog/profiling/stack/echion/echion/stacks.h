@@ -13,7 +13,7 @@
 
 #include <echion/config.h>
 #include <echion/frame.h>
-#include <echion/task_label.h>
+#include <echion/task_name.h>
 #if PY_VERSION_HEX >= 0x030b0000
 #include "echion/stack_chunk.h"
 #endif // PY_VERSION_HEX >= 0x030b0000
@@ -62,11 +62,11 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 class StackInfo
 {
   public:
-    TaskLabel task_name;
+    TaskName task_name;
     bool on_cpu;
     FrameStack stack;
 
-    StackInfo(TaskLabel task_name, bool on_cpu)
+    StackInfo(TaskName task_name, bool on_cpu)
       : task_name(std::move(task_name))
       , on_cpu(on_cpu)
     {
