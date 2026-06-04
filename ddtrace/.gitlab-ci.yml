@@ -7,7 +7,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "56306b666c80c76f447b429b0a23ce7531ff93ac"
+  SYSTEM_TESTS_REF: "fc35d0cc26e4479a6c55163d0882b20bde7fda91"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -38,6 +38,8 @@ workflow:
       auto_cancel:
         on_new_commit: none
     - if: !reference [.is_release_branch]
+      variables:
+        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
       auto_cancel:
         on_new_commit: none
     - when: always

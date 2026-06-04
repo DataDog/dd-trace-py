@@ -583,6 +583,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         #
         # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
         # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Skipped on Tornado: ``execute()`` hard-codes the span name via
+        # ``schematize_url_operation("tornado.request", ...)`` and does not read
+        # ``config.tornado.request_span_name``, so the span name can't be overridden by integration config.
         # Normalized-route emission is still verified by ``test_normalized_route``.
         custom_name = "custom.framework.request"
         with (

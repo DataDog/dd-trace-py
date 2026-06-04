@@ -105,6 +105,7 @@ suites:
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
   langchain:
+    retry: 2
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -185,6 +186,7 @@ suites:
     snapshot: true
     venvs_per_job: 4
   crewai:
+    retry: 2
     parallelism: 3
     paths:
       - '@bootstrap'

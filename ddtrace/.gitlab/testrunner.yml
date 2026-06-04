@@ -19,7 +19,7 @@ variables:
   after_script:
     - if [[ ! $(pwd) =~ "dd-trace-py/ddtrace" ]]; then cd ddtrace; fi
     - bash .gitlab/scripts/generate-core-backtraces.sh
-  retry: 2
+  retry: 0
   variables:
     # Default to 4 when `-n auto` is used
     # DEV: auto/logical doesn't work well in k8s so we manually set it

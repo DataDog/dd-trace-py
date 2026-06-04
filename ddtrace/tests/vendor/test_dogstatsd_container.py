@@ -1,15 +1,9 @@
 """Tests for the vendored DogStatsD container-ID reader.
 
-Covers the cgroup v2 origin-detection fix (new code):
-  - ContainerID.__init__: delegates to path-read vs inode-fallback
-  - ContainerID._is_host_cgroup_namespace
-  - ContainerID._read_cgroup_path
-  - ContainerID._get_cgroup_from_inode
-
-And the pre-existing _read_container_id helper:
-  - TestReadContainerIdFound
-  - TestReadContainerIdNotFound
-  - TestReadContainerIdErrors
+- ContainerID.__init__: delegates to path-read vs inode-fallback
+- ContainerID._is_host_cgroup_namespace
+- ContainerID._read_cgroup_path (returns raw container ID, no ci- prefix)
+- ContainerID._get_cgroup_from_inode (returns in-<inode>)
 """
 
 import errno
@@ -67,16 +61,6 @@ def _write_cgroup(content: str) -> str:
     return fp.name
 
 
-def _read(content: str) -> Optional[str]:
-    """Write ``content`` to a temp file and run _read_container_id against it."""
-    reader: ContainerID = ContainerID.__new__(ContainerID)
-    path: str = _write_cgroup(content)
-    try:
-        return reader._read_container_id(path)
-    finally:
-        os.unlink(path)
-
-
 # ---------------------------------------------------------------------------
 # _is_host_cgroup_namespace
 # ---------------------------------------------------------------------------
@@ -132,22 +116,61 @@ class TestReadCgroupPath:
         reader.CGROUP_PATH = _write_cgroup(cgroup_content)
         return reader
 
-    def test_returns_ci_prefixed_id_for_docker_cgroup_v1(self) -> None:
+    # --- found ---
+
+    def test_returns_raw_id_for_docker_cgroup_v1(self) -> None:
         reader: ContainerID = self._make_reader(DOCKER_CGROUP_V1)
         try:
-            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_64}"
+            assert reader._read_cgroup_path() == CONTAINER_ID_64
         finally:
             os.unlink(reader.CGROUP_PATH)
 
-    def test_returns_ci_prefixed_id_for_k8s_cgroup_v1(self) -> None:
+    def test_returns_raw_id_for_k8s_cgroup_v1(self) -> None:
         reader: ContainerID = self._make_reader(K8S_CGROUP_V1)
         try:
-            assert reader._read_cgroup_path() == f"ci-{CONTAINER_ID_K8S}"
+            assert reader._read_cgroup_path() == CONTAINER_ID_K8S
         finally:
             os.unlink(reader.CGROUP_PATH)
+
+    def test_returns_raw_id_for_ecs_classic(self) -> None:
+        reader: ContainerID = self._make_reader(ECS_CGROUP_V1)
+        try:
+            assert reader._read_cgroup_path() == CONTAINER_ID_64
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+
+    def test_returns_raw_id_for_fargate_14_task(self) -> None:
+        reader: ContainerID = self._make_reader(FARGATE_14_CGROUP)
+        try:
+            assert reader._read_cgroup_path() == TASK_ID_FARGATE
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+
+    def test_returns_raw_id_for_k8s_slice_scope_path(self) -> None:
+        reader: ContainerID = self._make_reader(K8S_SLICE_SCOPE)
+        try:
+            assert reader._read_cgroup_path() == CONTAINER_ID_64
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+
+    # --- not found ---
 
     def test_returns_none_for_cgroup_v2_unified(self) -> None:
         reader: ContainerID = self._make_reader(CGROUP_V2_UNIFIED)
+        try:
+            assert reader._read_cgroup_path() is None
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+
+    def test_returns_none_for_non_containerised_linux(self) -> None:
+        reader: ContainerID = self._make_reader(NON_CONTAINERISED)
+        try:
+            assert reader._read_cgroup_path() is None
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+
+    def test_returns_none_for_empty_file(self) -> None:
+        reader: ContainerID = self._make_reader("")
         try:
             assert reader._read_cgroup_path() is None
         finally:
@@ -157,6 +180,30 @@ class TestReadCgroupPath:
         reader: ContainerID = ContainerID.__new__(ContainerID)
         reader.CGROUP_PATH = "/nonexistent/cgroup"
         assert reader._read_cgroup_path() is None
+
+    # --- errors ---
+
+    def test_non_enoent_io_error_raises_not_implemented(self) -> None:
+        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader.CGROUP_PATH = "/some/path"
+        io_err: IOError = IOError()
+        io_err.errno = errno.EACCES
+        with mock.patch("builtins.open", side_effect=io_err):
+            try:
+                reader._read_cgroup_path()
+                assert False, "expected NotImplementedError"
+            except NotImplementedError:
+                pass
+
+    def test_unexpected_exception_raises_unresolvable(self) -> None:
+        reader: ContainerID = ContainerID.__new__(ContainerID)
+        reader.CGROUP_PATH = "/some/path"
+        with mock.patch("builtins.open", side_effect=RuntimeError("boom")):
+            try:
+                reader._read_cgroup_path()
+                assert False, "expected UnresolvableContainerID"
+            except UnresolvableContainerID:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +274,67 @@ class TestGetCgroupFromInode:
             os.unlink(reader.CGROUP_PATH)
             os.rmdir(reader.CGROUP_MOUNT_PATH)
 
+    def test_lstrip_regression_absolute_node_path_preserves_mount_prefix(self) -> None:
+        """Regression: os.path.join drops all preceding segments when given an absolute path.
+
+        Without node_path.lstrip("/"), an absolute cgroup node path such as
+        "/docker/abc123" would cause::
+
+            os.path.join("/sys/fs/cgroup", "memory", "/docker/abc123")
+            == "/docker/abc123"   # mount prefix silently discarded
+
+        With lstrip the correct path is constructed::
+
+            os.path.join("/sys/fs/cgroup", "memory", "docker/abc123")
+            == "/sys/fs/cgroup/memory/docker/abc123"
+        """
+        mount_dir: str = tempfile.mkdtemp()
+        # Create the directory tree that the fixed code should find.
+        node_dir: str = os.path.join(mount_dir, "memory", "docker", "abc123")
+        os.makedirs(node_dir)
+        # Content with an absolute cgroup node path.
+        content: str = "5:memory:/docker/abc123\n"
+        reader: ContainerID = self._make_reader(content, mount_dir)
+        try:
+            result: Optional[str] = reader._get_cgroup_from_inode()
+            # Without the lstrip fix os.stat("/docker/abc123") would either
+            # raise (path doesn't exist) or return a low inode, making result None.
+            assert result is not None, (
+                "Expected inode under mount dir; got None — likely os.path.join discarded the mount prefix"
+            )
+            assert result.startswith("in-")
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+            os.rmdir(node_dir)
+            os.rmdir(os.path.join(mount_dir, "memory", "docker"))
+            os.rmdir(os.path.join(mount_dir, "memory"))
+            os.rmdir(mount_dir)
+
+    def test_v1_inode_zero_falls_through_to_v2_controller(self) -> None:
+        """When the cgroup v1 memory controller inode is 0 (invalid), fall through to v2."""
+        mount_dir: str = tempfile.mkdtemp()
+        # Create the v2 root under mount_dir (empty string controller → mount_dir itself).
+        # No v1 "memory" subdirectory is created so its stat would fail/return 0.
+        content: str = "7:memory:/\n0::/\n"
+        reader: ContainerID = self._make_reader(content, mount_dir)
+
+        def stat_side_effect(path: str) -> mock.Mock:
+            if path == os.path.join(mount_dir, "memory", ""):
+                # v1 memory path → inode 0 (invalid, should be skipped)
+                return mock.Mock(st_ino=0)
+            if path == os.path.join(mount_dir, ""):
+                # v2 root path → valid inode
+                return mock.Mock(st_ino=9999)
+            raise FileNotFoundError(path)
+
+        try:
+            with mock.patch("os.stat", side_effect=stat_side_effect):
+                result: Optional[str] = reader._get_cgroup_from_inode()
+            assert result == "in-9999"
+        finally:
+            os.unlink(reader.CGROUP_PATH)
+            os.rmdir(mount_dir)
+
 
 # ---------------------------------------------------------------------------
 # __init__ (branching logic)
@@ -235,14 +343,14 @@ class TestGetCgroupFromInode:
 
 class TestContainerIDInit:
     def test_uses_cgroup_path_when_parseable(self) -> None:
-        # ci- path is always tried first; inode is never consulted when it succeeds.
+        # cgroup path is always tried first; inode is never consulted when it succeeds.
         with (
-            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=f"ci-{CONTAINER_ID_64}") as mock_path,
+            mock.patch.object(ContainerID, "_read_cgroup_path", return_value=CONTAINER_ID_64) as mock_path,
             mock.patch.object(ContainerID, "_is_host_cgroup_namespace") as mock_ns,
             mock.patch.object(ContainerID, "_get_cgroup_from_inode") as mock_inode,
         ):
             reader: ContainerID = ContainerID()
-            assert reader.container_id == f"ci-{CONTAINER_ID_64}"
+            assert reader.container_id == CONTAINER_ID_64
             mock_path.assert_called_once()
             mock_ns.assert_not_called()
             mock_inode.assert_not_called()
@@ -279,62 +387,3 @@ class TestContainerIDInit:
         ):
             reader: ContainerID = ContainerID()
             assert reader.container_id is None
-
-
-# ---------------------------------------------------------------------------
-# _read_container_id
-# ---------------------------------------------------------------------------
-
-
-class TestReadContainerIdFound:
-    def test_docker_cgroup_v1(self) -> None:
-        assert _read(DOCKER_CGROUP_V1) == CONTAINER_ID_64
-
-    def test_k8s_cgroup_v1(self) -> None:
-        assert _read(K8S_CGROUP_V1) == CONTAINER_ID_K8S
-
-    def test_ecs_classic(self) -> None:
-        assert _read(ECS_CGROUP_V1) == CONTAINER_ID_64
-
-    def test_fargate_14_uuid_task_id(self) -> None:
-        assert _read(FARGATE_14_CGROUP) == TASK_ID_FARGATE
-
-    def test_k8s_slice_scope_path(self) -> None:
-        assert _read(K8S_SLICE_SCOPE) == CONTAINER_ID_64
-
-
-class TestReadContainerIdNotFound:
-    def test_cgroup_v2_unified(self) -> None:
-        assert _read(CGROUP_V2_UNIFIED) is None
-
-    def test_non_containerised_linux(self) -> None:
-        assert _read(NON_CONTAINERISED) is None
-
-    def test_empty_file(self) -> None:
-        assert _read("") is None
-
-
-class TestReadContainerIdErrors:
-    def test_file_not_found_returns_none(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
-        assert reader._read_container_id("/nonexistent/proc/self/cgroup") is None
-
-    def test_non_enoent_io_error_raises_not_implemented(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
-        io_err: IOError = IOError()
-        io_err.errno = errno.EACCES
-        with mock.patch("builtins.open", side_effect=io_err):
-            try:
-                reader._read_container_id("/some/path")
-                assert False, "expected NotImplementedError"
-            except NotImplementedError:
-                pass
-
-    def test_unexpected_exception_raises_unresolvable(self) -> None:
-        reader: ContainerID = ContainerID.__new__(ContainerID)
-        with mock.patch("builtins.open", side_effect=RuntimeError("boom")):
-            try:
-                reader._read_container_id("/some/path")
-                assert False, "expected UnresolvableContainerID"
-            except UnresolvableContainerID:
-                pass
