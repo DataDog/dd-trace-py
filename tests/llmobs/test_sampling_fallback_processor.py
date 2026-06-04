@@ -12,7 +12,7 @@ from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
-from ddtrace.llmobs._sampling_fallback_processor import LLMObsSamplingFallbackProcessor
+from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.utils import override_global_config
@@ -36,7 +36,7 @@ def llmobs_agent_proxy(tracer):
         mock_writer = mock.MagicMock()
         llmobs_service._instance._llmobs_span_writer = mock_writer
         # The processor was bound to the original writer at enable() time; re-bind.
-        tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(mock_writer)
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, llmobs_service._instance._export_mode)
         yield llmobs_service, mock_writer
         llmobs_service.disable()
 
@@ -85,7 +85,7 @@ class TestExportModeKeepsMetaStruct:
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
             llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
             # Mirror enable() gating: agentless installs no rescue processor.
-            tracer._span_aggregator.llmobs_fallback_processor = _NoopTraceProcessor()
+            tracer._span_aggregator.llmobs_processor = _NoopTraceProcessor()
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer
@@ -240,12 +240,12 @@ class TestV04Forcing:
 
 class TestProcessorChainOrdering:
     def test_chain_order_includes_llmobs_slot(self, tracer):
-        assert tracer._span_aggregator.llmobs_fallback_processor is not None
+        assert tracer._span_aggregator.llmobs_processor is not None
 
     def test_default_slot_is_noop(self, tracer):
         from ddtrace._trace.processor import _NoopTraceProcessor
 
-        assert isinstance(tracer._span_aggregator.llmobs_fallback_processor, _NoopTraceProcessor)
+        assert isinstance(tracer._span_aggregator.llmobs_processor, _NoopTraceProcessor)
 
     def test_enable_disable_swaps_slot(self, tracer):
         from ddtrace._trace.processor import _NoopTraceProcessor
@@ -259,9 +259,9 @@ class TestProcessorChainOrdering:
             }
         ):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
-            assert isinstance(tracer._span_aggregator.llmobs_fallback_processor, LLMObsSamplingFallbackProcessor)
+            assert isinstance(tracer._span_aggregator.llmobs_processor, LLMObsProcessor)
             llmobs_service.disable()
-            assert isinstance(tracer._span_aggregator.llmobs_fallback_processor, _NoopTraceProcessor)
+            assert isinstance(tracer._span_aggregator.llmobs_processor, _NoopTraceProcessor)
 
     def test_chain_positions_rescue_between_sampling_and_tags(self, tracer):
         """Mirrors the hardcoded list in SpanAggregator.on_span_finish; fails loudly
@@ -270,12 +270,12 @@ class TestProcessorChainOrdering:
         agg = tracer._span_aggregator
         chain_order = [
             agg.sampling_processor,
-            agg.llmobs_fallback_processor,
+            agg.llmobs_processor,
             agg.tags_processor,
             agg.service_name_processor,
         ]
         positions = {type(p).__name__: i for i, p in enumerate(chain_order)}
-        rescue_pos = next(i for i, p in enumerate(chain_order) if p is agg.llmobs_fallback_processor)
+        rescue_pos = next(i for i, p in enumerate(chain_order) if p is agg.llmobs_processor)
         assert positions["TraceSamplingProcessor"] < rescue_pos
         assert rescue_pos < positions["TraceTagsProcessor"]
         assert positions["TraceTagsProcessor"] < positions["ServiceNameProcessor"]
@@ -290,7 +290,7 @@ class TestRescueEdgeCases:
         from ddtrace.llmobs._constants import LLMOBS_STRUCT
 
         mock_writer = mock.MagicMock()
-        processor = LLMObsSamplingFallbackProcessor(mock_writer)
+        processor = LLMObsProcessor(mock_writer, LLMObsExportMode.APM_AGENT)
 
         span = Span(name="llm-span", span_type=SpanTypes.LLM)
         span._set_struct_tag(LLMOBS_STRUCT.KEY, {"trace_id": "abc", "span_id": "1"})
@@ -311,7 +311,7 @@ class TestRescueEdgeCases:
         from ddtrace._trace.span import Span
 
         mock_writer = mock.MagicMock()
-        processor = LLMObsSamplingFallbackProcessor(mock_writer)
+        processor = LLMObsProcessor(mock_writer, LLMObsExportMode.APM_AGENT)
         root = Span(name="root-apm-span")
         child_llm = Span(name="llm-child", span_type=SpanTypes.LLM)
         unrelated = Span(name="apm-child")

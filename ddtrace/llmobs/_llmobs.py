@@ -121,6 +121,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
+from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -131,7 +132,6 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
-from ddtrace.llmobs._sampling_fallback_processor import LLMObsSamplingFallbackProcessor
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -559,6 +559,10 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
+        # Record telemetry once per LLM span here (the only LLM-guarded hook that runs for every
+        # export mode), tagged with the mode's intake. The rescue processor must not record: it
+        # runs on every APM trace chunk (would count non-LLM spans) and is skipped entirely in
+        # LLMOBS_DIRECT mode (trace dropped upstream).
         telemetry.record_span_created(span, self._export_mode, self._llmobs_span_writer._agentless)
 
         span_kind = get_llmobs_span_kind(span)
@@ -764,12 +768,12 @@ class LLMObs(Service):
         # so clear the flag to stop disable() reverting it in the child.
         self._apm_writer_switched_to_agentless = False
         if self.enabled:
-            if self._export_mode == LLMObsExportMode.APM_AGENT:
-                # Rebind: the processor holds the pre-fork writer whose worker thread is dead
-                # after fork(), so leaving it would silently buffer rescued events in the child.
-                self.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
-                    self._llmobs_span_writer
-                )
+            # Rebind: the processor holds the pre-fork writer whose worker thread is dead
+            # after fork(), so leaving it would silently buffer rescued events in the child.
+            self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                self._llmobs_span_writer,
+                self._export_mode,
+            )
             self._start_service()
 
     def _start_service(self) -> None:
@@ -938,12 +942,9 @@ class LLMObs(Service):
             else:
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
-            if cls._instance._export_mode == LLMObsExportMode.APM_AGENT:
-                # Only the Agent path drops unsampled spans before intake; agentless (100% to
-                # intake) and LLMOBS_DIRECT (writer at span finish) don't need the rescue.
-                cls._instance.tracer._span_aggregator.llmobs_fallback_processor = LLMObsSamplingFallbackProcessor(
-                    cls._instance._llmobs_span_writer
-                )
+            cls._instance.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                cls._instance._llmobs_span_writer, cls._instance._export_mode
+            )
             cls._instance.start()
 
             # Register hooks for span events
@@ -1706,7 +1707,7 @@ class LLMObs(Service):
         cls._instance.stop()
         if cls._instance._apm_writer_switched_to_agentless:
             cls._instance.tracer._span_aggregator.configure_agentless_writer(enable=False)
-        cls._instance.tracer._span_aggregator.llmobs_fallback_processor = _NoopTraceProcessor()
+        cls._instance.tracer._span_aggregator.llmobs_processor = _NoopTraceProcessor()
         cls.enabled = False
         # Align config._llmobs_enabled with effective state for user-initiated calls.
         # When _auto=True, the caller (RC handler) has already written _rc_value;

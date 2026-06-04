@@ -13,7 +13,7 @@ from ddtrace.llmobs._llmobs import LLMObs
 
 
 class TestAlwaysEnqueueLLMObsProcessor(TraceProcessor):
-    """Test-only variant of ``LLMObsSamplingFallbackProcessor``: always enqueue and
+    """Test-only variant of ``LLMObsProcessor``: always enqueue and
     never scrub meta_struct. Lets tests assert against both the LLMObs writer events
     and the rendered payload that intake would extract from meta_struct.
     """
@@ -41,7 +41,7 @@ class TestAlwaysEnqueueLLMObsProcessor(TraceProcessor):
 def install_mock_llmobs_writer(tracer: Tracer, mock_writer=None):
     """Stop the real writer, attach a mock, and rebind the fallback processor.
 
-    ``LLMObs.enable()`` wires ``LLMObsSamplingFallbackProcessor`` to the real writer;
+    ``LLMObs.enable()`` wires ``LLMObsProcessor`` to the real writer;
     contrib fixtures must call this after swapping in a mock so meta_struct is not
     scrubbed when the SDK predicts the trace will be dropped.
     """
@@ -49,5 +49,5 @@ def install_mock_llmobs_writer(tracer: Tracer, mock_writer=None):
         mock_writer = mock.MagicMock()
     LLMObs._instance._llmobs_span_writer.stop()
     LLMObs._instance._llmobs_span_writer = mock_writer
-    tracer._span_aggregator.llmobs_fallback_processor = TestAlwaysEnqueueLLMObsProcessor(mock_writer)
+    tracer._span_aggregator.llmobs_processor = TestAlwaysEnqueueLLMObsProcessor(mock_writer)
     return mock_writer
