@@ -25,6 +25,6 @@ def register_coverage() -> bool:
     return True
 
 
-def unregister_coverage() -> None:
+def unregister_coverage() -> bool:
     # No-op: instrumentation is not yet implemented for Python 3.16+
-    pass
+    return False

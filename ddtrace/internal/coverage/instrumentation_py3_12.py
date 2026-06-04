@@ -161,7 +161,7 @@ def register_coverage() -> bool:
     return True
 
 
-def unregister_coverage() -> None:
+def unregister_coverage() -> bool:
     """Release sys.monitoring.COVERAGE_ID if currently held by datadog.
 
     Called before yielding in pytest hooks so that another coverage tool
@@ -170,12 +170,16 @@ def unregister_coverage() -> None:
 
     Preserves _CODE_HOOKS so that register_coverage() can re-enable
     set_local_events() for all known code objects if we reclaim the slot.
+
+    Returns True if the slot was released, False if we didn't hold it.
     """
     global _foreign_tool_warned
+    _foreign_tool_warned = False
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
         sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-    _foreign_tool_warned = False
+        return True
+    return False
 
 
 def _instrument_with_monitoring(

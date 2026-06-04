@@ -316,12 +316,13 @@ def pytest_load_initial_conftests(early_config, parser, args):
     properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
     """
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
-    # Always release COVERAGE_ID before yield so that any coverage tool
+    # Release COVERAGE_ID before yield so that any coverage tool
     # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
-    # After yield, reclaim if still available.
-    unregister_coverage()
+    # After yield, reclaim if we held it.
+    was_registered = unregister_coverage()
     yield
-    register_coverage()
+    if was_registered:
+        register_coverage()
 
 
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):

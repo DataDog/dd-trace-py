@@ -16,8 +16,8 @@ elif sys.version_info >= (3, 11):
     def register_coverage() -> bool:  # noqa: E306
         return True  # sys.monitoring not available on Python < 3.12
 
-    def unregister_coverage() -> None:  # noqa: E306
-        pass  # sys.monitoring not available on Python < 3.12
+    def unregister_coverage() -> bool:  # noqa: E306
+        return False  # sys.monitoring not available on Python < 3.12
 
 elif sys.version_info >= (3, 10):
     from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines  # noqa
@@ -25,8 +25,8 @@ elif sys.version_info >= (3, 10):
     def register_coverage() -> bool:  # noqa: E306
         return True  # sys.monitoring not available on Python < 3.12
 
-    def unregister_coverage() -> None:  # noqa: E306
-        pass  # sys.monitoring not available on Python < 3.12
+    def unregister_coverage() -> bool:  # noqa: E306
+        return False  # sys.monitoring not available on Python < 3.12
 
 else:
     from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # noqa
@@ -34,5 +34,5 @@ else:
     def register_coverage() -> bool:  # noqa: E306
         return True  # sys.monitoring not available on Python < 3.12
 
-    def unregister_coverage() -> None:  # noqa: E306
-        pass  # sys.monitoring not available on Python < 3.12
+    def unregister_coverage() -> bool:  # noqa: E306
+        return False  # sys.monitoring not available on Python < 3.12

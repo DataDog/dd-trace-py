@@ -1091,13 +1091,14 @@ def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
-    # Always release COVERAGE_ID before yield so that any coverage tool
+    # Release COVERAGE_ID before yield so that any coverage tool
     # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
-    # After yield, reclaim if still available — register_coverage() re-enables
+    # After yield, reclaim if we held it — register_coverage() re-enables
     # set_local_events() for all previously-instrumented code objects.
-    unregister_coverage()
+    was_registered = unregister_coverage()
     yield
-    register_coverage()
+    if was_registered:
+        register_coverage()
 
 
 def _pytest_load_initial_conftests_pre_yield(
