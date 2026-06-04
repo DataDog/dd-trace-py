@@ -187,11 +187,12 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        # Override reserved OTel span attributes
-        ddattribute = _OTelDatadogMapping.get(key)
-        if ddattribute is not None:
-            _ddmap(self._ddspan, ddattribute, value)
-            return
+        # Override reserved OTel span attributes unless OTel compatibility mode is enabled
+        if not config._otel_trace_compatibility_enabled:
+            ddattribute = _OTelDatadogMapping.get(key)
+            if ddattribute is not None:
+                _ddmap(self._ddspan, ddattribute, value)
+                return
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
