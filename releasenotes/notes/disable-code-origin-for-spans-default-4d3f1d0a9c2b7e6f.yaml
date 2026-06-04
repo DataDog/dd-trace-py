@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    code origin for spans: Disabled Code Origin for Spans by default and
+    prevented Dynamic Instrumentation from enabling it implicitly. The feature
+    can still be enabled explicitly with ``DD_CODE_ORIGIN_FOR_SPANS_ENABLED=true``
+    or remote configuration.
