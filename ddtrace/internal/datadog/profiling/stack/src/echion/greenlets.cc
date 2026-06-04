@@ -41,6 +41,4 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
     unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch());
-
-    stack.push_back(Frame::get(echion, name));
 }

@@ -72,10 +72,6 @@ class StackRenderer
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
-    // Whether task name has been pushed for the current sample. Whenever
-    // the sample is created, this has to be reset.
-    bool pushed_task_name = false;
-
   public:
     StackRenderer();
     void render_thread_begin(PyThreadState* tstate,
@@ -83,7 +79,7 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
-    void render_task_begin(const std::string& task_name, bool on_cpu);
+    void render_task_begin(std::string_view task_name, bool on_cpu);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);

@@ -55,7 +55,8 @@
          "span.kind": "internal"
        },
        "metrics": {
-         "_dd.measured": 1.0
+         "_dd.measured": 1.0,
+         "aws.durable.operation_attempt": 0
        },
        "duration": 122864958,
        "start": 1777293127438563051
