@@ -77,6 +77,7 @@ jobs:
           cp "$REPO_ROOT/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_cpu.py" "$TEST_ROOT/profiling/"
           cp -R "$REPO_ROOT/tests/profiling/collector" "$TEST_ROOT/profiling/"
 
           cd "$ISOLATED_DIR"
