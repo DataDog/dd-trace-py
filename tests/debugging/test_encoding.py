@@ -650,8 +650,8 @@ def test_capture_value_redacted_type():
     with debugger_config(
         DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES=",".join(
             (
-                utils.qualname(Foo),
-                utils.qualname(Bar),
+                Foo.__qualname__,
+                Bar.__qualname__,
                 "*.Secret*",
             )
         )
@@ -685,7 +685,7 @@ def test_capture_value_mapping_type(_type):
         d = _type(int, {"bar": 42})
 
     assert utils.capture_value(d) == {
-        "type": utils.qualname(_type),
+        "type": _type.__qualname__,
         "entries": [
             (
                 {"type": "str", "value": "'bar'"},
@@ -701,7 +701,7 @@ def test_capture_value_sequence_type(_type):
     s = _type(["foo"])
 
     assert utils.capture_value(s) == {
-        "type": utils.qualname(_type),
+        "type": _type.__qualname__,
         "elements": [
             {"type": "str", "value": "'foo'"},
         ],

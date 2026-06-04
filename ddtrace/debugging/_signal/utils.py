@@ -31,7 +31,6 @@ from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.cache import cached
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
@@ -57,17 +56,6 @@ CALLABLE_TYPES = (
     classmethod,
     staticmethod,
 )
-
-
-@cached()
-def qualname(_type: type) -> str:
-    try:
-        return _type.__qualname__
-    except AttributeError:
-        try:
-            return _type.__name__
-        except AttributeError:
-            return repr(_type)
 
 
 def _serialize_collection(
@@ -180,11 +168,11 @@ def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
 
 
 def redacted_value(v: Any) -> dict[str, Any]:
-    return {"type": qualname(type(v)), "notCapturedReason": "redactedIdent"}
+    return {"type": type(v).__qualname__, "notCapturedReason": "redactedIdent"}
 
 
 def redacted_type(t: Any) -> dict[str, Any]:
-    return {"type": qualname(t), "notCapturedReason": "redactedType"}
+    return {"type": t.__qualname__, "notCapturedReason": "redactedType"}
 
 
 def capture_pairs(
@@ -219,7 +207,7 @@ def capture_value(
 
         if cond(value):
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
             }
 
@@ -227,12 +215,12 @@ def capture_value(
         value_repr_len = len(value_repr)
         return (
             {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "value": value_repr,
             }
             if value_repr_len <= maxlen
             else {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "value": value_repr[:maxlen],
                 "truncated": True,
                 "size": value_repr_len,
@@ -242,14 +230,14 @@ def capture_value(
     if _type in BUILTIN_CONTAINER_TYPES:
         if level < 0:
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": "depth",
                 "size": len(value),
             }
 
         if cond(value):
             return {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "notCapturedReason": cond.__name__,
                 "size": len(value),
             }
@@ -290,7 +278,7 @@ def capture_value(
                 collection = []
                 concurrent_modification = True
             data = {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "entries": collection,
                 "size": size,
             }
@@ -322,7 +310,7 @@ def capture_value(
                 collection = []
                 concurrent_modification = True
             data = {
-                "type": qualname(_type),
+                "type": _type.__qualname__,
                 "elements": collection,
                 "size": size,
             }
@@ -339,16 +327,16 @@ def capture_value(
     # Arbitrary object
     if level < 0:
         return {
-            "type": qualname(_type),
+            "type": _type.__qualname__,
             "notCapturedReason": "depth",
         }
 
-    if redact_type(qualname(_type)):
+    if redact_type(_type.__qualname__):
         return redacted_type(_type)
 
     if cond(value):
         return {
-            "type": qualname(_type),
+            "type": _type.__qualname__,
             "notCapturedReason": cond.__name__,
         }
 
@@ -371,7 +359,7 @@ def capture_value(
         for n, v in takewhile(lambda _: not cond(_), islice(fields.copy().items(), maxfields))
     }
     data = {
-        "type": qualname(_type),
+        "type": _type.__qualname__,
         "fields": captured_fields,
     }
     if len(captured_fields) < min(maxfields, len(fields)):
