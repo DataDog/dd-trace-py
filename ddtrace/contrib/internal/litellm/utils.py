@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import FrozenInstanceError
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -35,7 +36,7 @@ class BaseLiteLLMStreamHandler:
                 try:
                     self.response_model = chunk_model
                 except (AttributeError, FrozenInstanceError):
-                     pass
+                    pass
         for choice in getattr(chunk, "choices", []):
             choice_index = getattr(choice, "index", 0)
             self.chunks[choice_index].append(choice)
