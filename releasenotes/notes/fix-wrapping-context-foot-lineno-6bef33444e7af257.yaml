@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    code origin: fixed an issue that could have caused pytest to crash
+    internally when inspecting the call stack from an exception thrown by a view
+    function when Code Origin is enabled.
