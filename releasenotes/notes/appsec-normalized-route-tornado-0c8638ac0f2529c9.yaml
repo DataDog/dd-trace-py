@@ -7,4 +7,4 @@ features:
     Security feature is active. Tornado routes using named capturing groups (``(?P<name>...)``)
     produce named parameters (e.g. ``/users/{id}``); positional groups produce auto-numbered
     placeholders (e.g. ``{param1}``). Optional trailing-slash patterns (``/?``) are treated as
-    not declaring a trailing slash per RFC-1103 rule 1.
+    not declaring a trailing slash per RFC-1103 rule 1. #18398
