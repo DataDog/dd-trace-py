@@ -55,59 +55,35 @@ EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.moni
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
-_coverage_id_conflict_warned: bool = False
-# Set to True by deregister_monitoring() to prevent lazy re-registration after deliberately
-# releasing COVERAGE_ID for another tool (e.g. pytest-cov).  Reset to False by
-# _register_monitoring() or allow_monitoring() when ddtrace is allowed to claim the slot again.
-_yield_to_external_tool: bool = False
+_foreign_tool_warned: bool = False
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
 
+    Only instruments when ddtrace owns COVERAGE_ID (registered via register_coverage()).
+    If another tool holds the slot — or nobody has registered yet — returns empty coverage.
+
     This function supports two modes based on _DD_COVERAGE_FILE_LEVEL:
     - Line-level (default): Uses LINE events for detailed line-by-line coverage
     - File-level: Uses PY_START events for faster file-level coverage
-
-    Args:
-        code: The code object to instrument
-        hook: The hook function to call
-        path: The file path
-        package: The package name
-
-    Returns:
-        Tuple of (code object, CoverageLines with instrumentable lines)
 
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
     coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-    if coverage_tool is not None and coverage_tool != "datadog":
-        # When pytest-cov uses SysMonitor (coverage.py>=7.4 with COVERAGE_CORE=sysmon,
-        # or coverage.py>=7.9.1 on Python 3.14+ by default), it holds COVERAGE_ID and ddtrace
-        # yields here.  This means ITR per-test coverage bitmaps will be empty for the entire
-        # session — ITR is effectively disabled.  A proper fix would require either coordinating
-        # slot ownership with coverage.py or using a mechanism that does not depend on COVERAGE_ID.
-        global _coverage_id_conflict_warned
-        if not _coverage_id_conflict_warned:
-            _coverage_id_conflict_warned = True
-            log.warning(
-                "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
-                "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
-                coverage_tool,
-            )
+    if coverage_tool != "datadog":
+        if coverage_tool is not None:
+            global _foreign_tool_warned
+            if not _foreign_tool_warned:
+                _foreign_tool_warned = True
+                log.warning(
+                    "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
+                    "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
+                    coverage_tool,
+                )
         return code, CoverageLines()
-
-    if coverage_tool is None:
-        if _yield_to_external_tool:
-            # We explicitly released COVERAGE_ID for another tool; do not re-claim it.
-            # Any module import between deregister_monitoring() and that tool's startup
-            # would otherwise race back in and steal the slot before it can be claimed.
-            return code, CoverageLines()
-        mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
-        log.debug("Registering %s coverage tool", mode)
-        _register_monitoring()
 
     return _instrument_with_monitoring(code, hook, path, package)
 
@@ -142,45 +118,53 @@ def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABL
     return sys.monitoring.DISABLE
 
 
-def _register_monitoring():
-    """
-    Register the coverage tool with the monitoring system.
+def register_coverage() -> bool:
+    """Eagerly claim sys.monitoring.COVERAGE_ID for ddtrace.
 
-    This sets up the appropriate callback based on the coverage mode.
+    Called once from the coverage installer before the import hook is set up.
+    Returns True if we now own the slot, False otherwise.
     """
-    global _yield_to_external_tool
-    _yield_to_external_tool = False
-    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    current_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
+    if current_tool == "datadog":
+        return True  # Already ours
+    if current_tool is not None:
+        log.warning(
+            "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
+            "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
+            current_tool,
+        )
+        return False
+    try:
+        sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
+    except ValueError:
+        # Race: another tool claimed COVERAGE_ID between our check and our claim
+        log.warning(
+            "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
+            "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
+            sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID),
+        )
+        return False
     sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
+    return True
 
 
-def allow_monitoring() -> None:
-    """Allow ddtrace to lazily re-register COVERAGE_ID on the next module import.
-
-    Call this before installing ddtrace's own coverage collector so that
-    instrument_all_lines() is permitted to claim the slot again after a previous
-    deregister_monitoring() had suppressed lazy re-registration.
-    """
-    global _yield_to_external_tool
-    _yield_to_external_tool = False
-
-
-def deregister_monitoring() -> None:
+def unregister_coverage() -> None:
     """Release sys.monitoring.COVERAGE_ID if currently held by datadog.
 
-    Called at the start of each new in-process pytest session (e.g. pytester.inline_run)
-    so that another coverage tool such as pytest-cov can claim COVERAGE_ID without
-    hitting "ValueError: tool 1 is already in use".  Sets _yield_to_external_tool so
-    that module imports triggered by other hooks between this call and the external
-    tool's startup do not race back in and re-claim the slot.
+    Called before yielding in pytest hooks so that another coverage tool
+    (e.g. pytest-cov) can claim the slot without hitting
+    "ValueError: tool 1 is already in use".
+
+    Since instrument_all_lines() only instruments when we own the slot,
+    freeing it here is sufficient — no additional flags are needed to
+    prevent re-registration during the gap before the other tool claims it.
     """
-    global _coverage_id_conflict_warned, _yield_to_external_tool
+    global _foreign_tool_warned
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
         sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
         _CODE_HOOKS.clear()
-    _yield_to_external_tool = True
-    _coverage_id_conflict_warned = False
+    _foreign_tool_warned = False
 
 
 def _instrument_with_monitoring(

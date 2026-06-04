@@ -1,8 +1,10 @@
 """
-Unit test for Python 3.12+ instrumentation DISABLE optimization.
+Unit tests for Python 3.12+ coverage instrumentation.
 
-Verifies that _line_event_handler returns sys.monitoring.DISABLE to prevent
-repeated callbacks for the same line within a context.
+Verifies:
+- _event_handler returns sys.monitoring.DISABLE for performance
+- register_coverage() / unregister_coverage() slot management
+- instrument_all_lines() only instruments when ddtrace owns COVERAGE_ID
 """
 
 import sys
@@ -13,7 +15,7 @@ import pytest
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_event_handler_returns_disable():
     """
-    Test that _line_event_handler returns DISABLE after recording a line.
+    Test that _event_handler returns DISABLE after recording a line.
 
     This is critical for performance - returning DISABLE prevents the monitoring
     system from calling the handler repeatedly for the same line (e.g., in loops).
@@ -65,20 +67,20 @@ def test_event_handler_returns_disable_for_missing_code():
 
 
 # ---------------------------------------------------------------------------
-# Regression tests for deregister_monitoring()
+# Regression tests for unregister_coverage()
 # Fix: release sys.monitoring.COVERAGE_ID so inline sub-sessions can use it
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_deregister_monitoring_releases_coverage_id_when_held_by_datadog():
-    """deregister_monitoring() must free COVERAGE_ID when we hold it as 'datadog'."""
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_unregister_coverage_releases_coverage_id_when_held_by_datadog():
+    """unregister_coverage() must free COVERAGE_ID when we hold it as 'datadog'."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
-    # Claim the slot as "datadog" (mirrors what instrument_all_lines does)
+    # Claim the slot as "datadog" (mirrors what register_coverage does)
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
     try:
-        deregister_monitoring()
+        unregister_coverage()
         # Slot must now be free so another tool can claim it
         assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is None
     finally:
@@ -90,16 +92,16 @@ def test_deregister_monitoring_releases_coverage_id_when_held_by_datadog():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_deregister_monitoring_clears_code_hooks():
-    """deregister_monitoring() must empty _CODE_HOOKS so stale entries don't fire."""
+def test_unregister_coverage_clears_code_hooks():
+    """unregister_coverage() must empty _CODE_HOOKS so stale entries don't fire."""
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
     code_obj = compile("z = 3", "<test>", "exec")
     _CODE_HOOKS[code_obj] = (lambda li: None, "/fake/path.py", {})
     try:
-        deregister_monitoring()
+        unregister_coverage()
         assert len(_CODE_HOOKS) == 0
     finally:
         _CODE_HOOKS.pop(code_obj, None)
@@ -110,27 +112,27 @@ def test_deregister_monitoring_clears_code_hooks():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_deregister_monitoring_noop_when_slot_is_free():
-    """deregister_monitoring() must be a no-op when COVERAGE_ID is not registered."""
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_unregister_coverage_noop_when_slot_is_free():
+    """unregister_coverage() must be a no-op when COVERAGE_ID is not registered."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     # Ensure the slot is free before the test
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
     # Should not raise
-    deregister_monitoring()
+    unregister_coverage()
     assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_deregister_monitoring_noop_when_held_by_other_tool():
-    """deregister_monitoring() must not steal COVERAGE_ID from a foreign tool."""
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_unregister_coverage_noop_when_held_by_other_tool():
+    """unregister_coverage() must not steal COVERAGE_ID from a foreign tool."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "other_tool")
     try:
-        deregister_monitoring()
+        unregister_coverage()
         # Slot must still belong to the other tool
         assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "other_tool"
     finally:
@@ -138,12 +140,12 @@ def test_deregister_monitoring_noop_when_held_by_other_tool():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_deregister_monitoring_allows_subsequent_reclaim():
-    """After deregister_monitoring(), another tool can successfully claim COVERAGE_ID."""
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_unregister_coverage_allows_subsequent_reclaim():
+    """After unregister_coverage(), another tool can successfully claim COVERAGE_ID."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-    deregister_monitoring()
+    unregister_coverage()
     try:
         # This must not raise "tool 1 is already in use"
         sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "pytest-cov")
@@ -152,102 +154,141 @@ def test_deregister_monitoring_allows_subsequent_reclaim():
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
 
-def test_deregister_monitoring_is_callable_on_all_python_versions():
-    """instrumentation.py must export a callable deregister_monitoring() on every supported version."""
-    from ddtrace.internal.coverage.instrumentation import deregister_monitoring
+def test_unregister_coverage_is_callable_on_all_python_versions():
+    """instrumentation.py must export a callable unregister_coverage() on every supported version."""
+    from ddtrace.internal.coverage.instrumentation import unregister_coverage
 
     # Must be callable without raising on any Python version
-    deregister_monitoring()
+    unregister_coverage()
 
 
 # ---------------------------------------------------------------------------
-# Regression tests for the foreign-tool warning in instrument_all_lines()
+# Tests for register_coverage()
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_instrument_all_lines_warns_once_when_slot_held_by_foreign_tool():
-    """A single warning is emitted when COVERAGE_ID is held by a foreign tool, not once per call."""
-    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
+def test_register_coverage_claims_slot():
+    """register_coverage() must claim COVERAGE_ID as 'datadog'."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
+
+    # Ensure slot is free
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+
+    try:
+        result = register_coverage()
+        assert result is True
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+    finally:
+        unregister_coverage()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_register_coverage_returns_true_if_already_owned():
+    """register_coverage() returns True without raising if we already own the slot."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
+
+    # Ensure slot is free
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+
+    try:
+        assert register_coverage() is True
+        # Calling again should succeed (idempotent)
+        assert register_coverage() is True
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+    finally:
+        unregister_coverage()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_register_coverage_returns_false_when_slot_taken():
+    """register_coverage() returns False when another tool holds COVERAGE_ID."""
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+
+    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "other_tool")
+    try:
+        result = register_coverage()
+        assert result is False
+        # Slot must still belong to the other tool
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "other_tool"
+    finally:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+
+
+def test_register_coverage_is_callable_on_all_python_versions():
+    """instrumentation.py must export a callable register_coverage() on every supported version."""
+    from ddtrace.internal.coverage.instrumentation import register_coverage
+
+    # Must be callable without raising on any Python version
+    register_coverage()
+
+
+# ---------------------------------------------------------------------------
+# Tests for instrument_all_lines() behavior
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
+def test_instrument_all_lines_skips_when_slot_held_by_foreign_tool():
+    """instrument_all_lines() returns empty CoverageLines when another tool holds COVERAGE_ID."""
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
     code_obj = compile("x = 1", "<test>", "exec")
 
+    # The test suite may have registered ddtrace's coverage; release it first.
+    unregister_coverage()
     sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
-    mod._coverage_id_conflict_warned = False
     try:
-        with pytest.MonkeyPatch().context() as mp:
-            warnings = []
-            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
-
-            # First call — must warn
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            assert len(warnings) == 1
-            assert "coverage.py" in warnings[0]
-            assert "ITR" in warnings[0]
-
-            # Subsequent calls — must stay silent
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            assert len(warnings) == 1
+        _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+        assert len(lines) == 0
     finally:
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-        mod._coverage_id_conflict_warned = False
+        # Restore ddtrace's registration if it was active.
+        register_coverage()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_instrument_all_lines_no_warning_when_slot_is_free():
-    """No warning is emitted when COVERAGE_ID is unclaimed — ddtrace registers normally."""
-    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_instrument_all_lines_skips_when_slot_is_free():
+    """instrument_all_lines() returns empty CoverageLines when nobody owns COVERAGE_ID.
+
+    Without eager registration via register_coverage(), instrument_all_lines()
+    does not lazily claim the slot — it only instruments when we already own it.
+    """
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
 
-    code_obj = compile("y = 2", "<test>", "exec")
-
+    # Ensure slot is free
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-    mod._coverage_id_conflict_warned = False
-    try:
-        with pytest.MonkeyPatch().context() as mp:
-            warnings = []
-            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
 
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            assert warnings == []
-    finally:
-        deregister_monitoring()
-        mod._coverage_id_conflict_warned = False
+    code_obj = compile("y = 2", "<test>", "exec")
+    _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+    assert len(lines) == 0
+    # Slot must still be free (no lazy registration)
+    assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is None
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring available on Python 3.12+")
-def test_instrument_all_lines_warning_resets_after_deregister():
-    """deregister_monitoring() resets the warned flag so a new session can warn again."""
-    import ddtrace.internal.coverage.instrumentation_py3_12 as mod
-    from ddtrace.internal.coverage.instrumentation_py3_12 import deregister_monitoring
+def test_instrument_all_lines_works_when_we_own_slot():
+    """instrument_all_lines() instruments code when we own COVERAGE_ID."""
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+    from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage
 
-    code_obj = compile("z = 3", "<test>", "exec")
+    # Ensure slot is free, then register
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
+        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
 
-    sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
-    mod._coverage_id_conflict_warned = False
     try:
-        with pytest.MonkeyPatch().context() as mp:
-            warnings = []
-            mp.setattr(mod.log, "warning", lambda msg, *args: warnings.append(msg % args))
-
-            # First session: one warning
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            assert len(warnings) == 1
-
-            # Simulate end of session — deregister resets the flag
-            sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-            deregister_monitoring()  # resets _coverage_id_conflict_warned
-
-            # Second session: foreign tool re-appears, must warn again
-            sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "coverage.py")
-            instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
-            assert len(warnings) == 2
+        register_coverage()
+        code_obj = compile("z = 3\nw = 4", "<test>", "exec")
+        _, lines = instrument_all_lines(code_obj, lambda li: None, "/fake.py", "pkg")
+        # Should have instrumented some lines
+        assert len(lines) > 0
     finally:
-        if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) is not None:
-            sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-        mod._coverage_id_conflict_warned = False
+        unregister_coverage()

@@ -20,11 +20,11 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     return code, CoverageLines()
 
 
-def deregister_monitoring() -> None:
+def register_coverage() -> bool:
     # No-op: instrumentation is not yet implemented for Python 3.16+
-    pass
+    return True
 
 
-def allow_monitoring() -> None:
+def unregister_coverage() -> None:
     # No-op: instrumentation is not yet implemented for Python 3.16+
     pass

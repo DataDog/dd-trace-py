@@ -66,8 +66,8 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
-from ddtrace.internal.coverage.instrumentation import allow_monitoring
-from ddtrace.internal.coverage.instrumentation import deregister_monitoring
+from ddtrace.internal.coverage.instrumentation import register_coverage
+from ddtrace.internal.coverage.instrumentation import unregister_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -318,9 +318,11 @@ def pytest_load_initial_conftests(early_config, parser, args):
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
     # Release sys.monitoring.COVERAGE_ID before other plugins run so that pytest-cov's
     # SysMonitor can claim it in its own pytest_load_initial_conftests without crashing.
-    # deregister_monitoring() is a no-op if we don't hold the slot.
-    if _is_pytest_cov_enabled(early_config):
-        deregister_monitoring()
+    # unregister_coverage() is a no-op if we don't hold the slot.
+    # Supplement getoption() with a raw args scan: during early init,
+    # config.getoption("--cov") may not reflect the CLI value yet.
+    if _is_pytest_cov_enabled(early_config) or "--cov" in args:
+        unregister_coverage()
     yield
 
 
@@ -371,7 +373,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         # Main process doesn't need coverage when using xdist since it doesn't run tests
         using_xdist = num_workers not in (0, None, XDIST_UNSET)
 
-        pytest_cov_enabled = _is_pytest_cov_enabled(early_config)
+        pytest_cov_enabled = _is_pytest_cov_enabled(early_config) or "--cov" in args
         if should_collect_coverage and (not using_xdist or is_worker) and not pytest_cov_enabled:
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
@@ -381,8 +383,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
                 process_type,
                 [workspace_path],
             )
-            # Reset the yield flag so instrument_all_lines() can claim COVERAGE_ID again.
-            allow_monitoring()
+            register_coverage()
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
             log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
         elif using_xdist and not is_worker:

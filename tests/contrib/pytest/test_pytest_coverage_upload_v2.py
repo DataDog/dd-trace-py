@@ -346,8 +346,8 @@ class TestPytestV2CoverageUpload:
     # Regression tests: COVERAGE_ID deregistration in pytest_sessionstart
     # ------------------------------------------------------------------
 
-    def test_load_initial_conftests_deregisters_monitoring_when_pytest_cov_enabled(self):
-        """deregister_monitoring() is called in pytest_load_initial_conftests when pytest-cov is active.
+    def test_load_initial_conftests_unregisters_coverage_when_pytest_cov_enabled(self):
+        """unregister_coverage() is called in pytest_load_initial_conftests when pytest-cov is active.
 
         Regression test for the fix that prevents "ValueError: tool 1 is already in use"
         when pytester.inline_run(--cov) is called inside a session that already holds
@@ -363,24 +363,24 @@ class TestPytestV2CoverageUpload:
             patch(
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=True
             ) as mock_cov_check,
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring") as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.unregister_coverage") as mock_unregister,
         ):
             # Consume the hookwrapper generator
             gen = pytest_load_initial_conftests(mock_config, Mock(), [])
-            next(gen)  # runs pre-yield code including deregister_monitoring()
+            next(gen)  # runs pre-yield code including unregister_coverage()
             try:
                 next(gen)
             except StopIteration:
                 pass
 
         mock_cov_check.assert_called_once_with(mock_config)
-        mock_deregister.assert_called_once()
+        mock_unregister.assert_called_once()
 
-    def test_load_initial_conftests_skips_deregistration_when_pytest_cov_disabled(self):
-        """deregister_monitoring() is NOT called when pytest-cov is absent or disabled.
+    def test_load_initial_conftests_skips_unregistration_when_pytest_cov_disabled(self):
+        """unregister_coverage() is NOT called when pytest-cov is absent or disabled.
 
         Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
-        own coverage tracking is not disrupted by an unnecessary deregistration.
+        own coverage tracking is not disrupted by an unnecessary unregistration.
         """
         from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_load_initial_conftests
 
@@ -389,7 +389,7 @@ class TestPytestV2CoverageUpload:
         with (
             patch("ddtrace.contrib.internal.pytest._plugin_v2._pytest_load_initial_conftests_pre_yield"),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.deregister_monitoring") as mock_deregister,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.unregister_coverage") as mock_unregister,
         ):
             gen = pytest_load_initial_conftests(mock_config, Mock(), [])
             next(gen)
@@ -398,4 +398,4 @@ class TestPytestV2CoverageUpload:
             except StopIteration:
                 pass
 
-        mock_deregister.assert_not_called()
+        mock_unregister.assert_not_called()

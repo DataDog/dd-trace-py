@@ -1106,8 +1106,8 @@ class TestSessionLifecycleMethods:
         plugin.manager.writer.put_item.assert_not_called()
         plugin.manager.finish.assert_called_once()
 
-    def test_load_initial_conftests_deregisters_monitoring_when_pytest_cov_enabled(self) -> None:
-        """deregister_monitoring() is called in pytest_load_initial_conftests when pytest-cov is active.
+    def test_load_initial_conftests_unregisters_coverage_when_pytest_cov_enabled(self) -> None:
+        """unregister_coverage() is called in pytest_load_initial_conftests when pytest-cov is active.
 
         Regression test for the fix that prevents "ValueError: tool 1 is already in use"
         when pytester.inline_run(--cov) is called inside a session that already holds
@@ -1121,7 +1121,7 @@ class TestSessionLifecycleMethods:
         with (
             patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
             patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=True) as mock_cov_check,
-            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
+            patch("ddtrace.testing.internal.pytest.plugin.unregister_coverage") as mock_unregister,
         ):
             gen = pytest_load_initial_conftests(mock_config, Mock(), [])
             next(gen)
@@ -1131,13 +1131,13 @@ class TestSessionLifecycleMethods:
                 pass
 
         mock_cov_check.assert_called_once_with(mock_config)
-        mock_deregister.assert_called_once()
+        mock_unregister.assert_called_once()
 
-    def test_load_initial_conftests_skips_deregistration_when_pytest_cov_disabled(self) -> None:
-        """deregister_monitoring() is NOT called in v3 plugin when pytest-cov is absent.
+    def test_load_initial_conftests_skips_unregistration_when_pytest_cov_disabled(self) -> None:
+        """unregister_coverage() is NOT called in v3 plugin when pytest-cov is absent.
 
         Regression guard: pure --ddtrace sessions must keep COVERAGE_ID so that ddtrace's
-        own coverage tracking is not disrupted by an unnecessary deregistration.
+        own coverage tracking is not disrupted by an unnecessary unregistration.
         """
         from ddtrace.testing.internal.pytest.plugin import pytest_load_initial_conftests
 
@@ -1146,7 +1146,7 @@ class TestSessionLifecycleMethods:
         with (
             patch("ddtrace.testing.internal.pytest.plugin._is_enabled_early", return_value=False),
             patch("ddtrace.testing.internal.pytest.plugin._is_pytest_cov_enabled", return_value=False),
-            patch("ddtrace.testing.internal.pytest.plugin.deregister_monitoring") as mock_deregister,
+            patch("ddtrace.testing.internal.pytest.plugin.unregister_coverage") as mock_unregister,
         ):
             gen = pytest_load_initial_conftests(mock_config, Mock(), [])
             next(gen)
@@ -1155,7 +1155,7 @@ class TestSessionLifecycleMethods:
             except StopIteration:
                 pass
 
-        mock_deregister.assert_not_called()
+        mock_unregister.assert_not_called()
 
 
 class TestReportAndLoggingMethods:

@@ -846,21 +846,20 @@ class TestSysmonCoverageIdClash:
     ) -> None:
         """Clash via ddtrace's own ModuleCodeCollector path (coverage_enabled, not upload).
 
-        When coverage_enabled=True and coverage_report_upload_enabled=False, ddtrace's
-        instrument_all_lines() lazily calls _register_monitoring() the first time a
-        module is imported, claiming COVERAGE_ID as 'datadog'.  We pre-claim the slot
-        here to reliably reproduce that state, then verify:
+        register_coverage() eagerly claims COVERAGE_ID as 'datadog'.  We pre-claim
+        the slot here to reliably reproduce that state, then verify:
 
         1. inline_run(--cov, COVERAGE_CORE=sysmon) does not crash.
         2. After the inner session ends (pytest-cov releases the slot), ddtrace can
-           re-register — confirming the 'lazy re-registration' guarantee in the fix.
+           re-register — confirming register_coverage() still works.
         """
-        from ddtrace.internal.coverage.instrumentation_py3_12 import _register_monitoring
+        from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage  # type: ignore[attr-defined]
+        from ddtrace.internal.coverage.instrumentation_py3_12 import unregister_coverage  # type: ignore[attr-defined]
 
         # Simulate ddtrace's coverage already being active in the outer session.
-        _register_monitoring()
+        register_coverage()
         try:
-            assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+            assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"  # type: ignore[attr-defined]
 
             pytester.makepyfile(
                 test_sample="""
@@ -887,15 +886,13 @@ class TestSysmonCoverageIdClash:
             assert result.ret == 0, f"inline_run failed when COVERAGE_ID was held by ddtrace: {result.ret}"
 
             # After the inner session, pytest-cov has released the slot.
-            # instrument_all_lines() must be able to re-register lazily.
-            slot_owner = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
+            slot_owner = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)  # type: ignore[attr-defined]
             assert slot_owner in (None, "datadog"), (
                 f"COVERAGE_ID slot left in unexpected state '{slot_owner}' after inline_run"
             )
             if slot_owner is None:
-                # Re-register to confirm the lazy path still works.
-                _register_monitoring()
-                assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"
+                # Re-register to confirm register_coverage() still works.
+                assert register_coverage() is True
+                assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog"  # type: ignore[attr-defined]
         finally:
-            if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
-                sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
+            unregister_coverage()

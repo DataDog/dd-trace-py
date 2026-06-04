@@ -19,8 +19,8 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
-from ddtrace.internal.coverage.instrumentation import allow_monitoring
-from ddtrace.internal.coverage.instrumentation import deregister_monitoring
+from ddtrace.internal.coverage.instrumentation import register_coverage
+from ddtrace.internal.coverage.instrumentation import unregister_coverage
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -1091,14 +1091,16 @@ def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
     # Evaluate once; used on every exit path below.
-    pytest_cov_enabled = _is_pytest_cov_enabled(early_config)
+    # Supplement getoption() with a raw args scan: during early init,
+    # config.getoption("--cov") may not reflect the CLI value yet.
+    pytest_cov_enabled = _is_pytest_cov_enabled(early_config) or "--cov" in args
 
     if not _is_enabled_early(early_config, args):
         # Release COVERAGE_ID even when ddtrace is disabled: a previous inline session
-        # may have left us holding the slot.  deregister_monitoring() is a no-op when
+        # may have left us holding the slot.  unregister_coverage() is a no-op when
         # we don't hold it, so this is always safe.
         if pytest_cov_enabled:
-            deregister_monitoring()
+            unregister_coverage()
         yield
         return
 
@@ -1116,7 +1118,7 @@ def pytest_load_initial_conftests(
     except SetupError as e:
         log.error("%s", e)
         if pytest_cov_enabled:
-            deregister_monitoring()
+            unregister_coverage()
         yield
         return
 
@@ -1130,29 +1132,23 @@ def pytest_load_initial_conftests(
     # when we know if pytest-cov is available.
     if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
         # Only install our own coverage collector when pytest-cov is NOT active.
-        # When pytest-cov is enabled it may use coverage.py's SysMonitor backend which claims
-        # sys.monitoring.COVERAGE_ID — the same slot ddtrace uses.  install_coverage() with
-        # collect_import_time_coverage=True instruments already-imported modules, which would
-        # re-claim COVERAGE_ID via instrument_all_lines() even after deregister_monitoring() has
-        # released it.  Since instrument_all_lines() yields to any foreign tool anyway (the slot
-        # would immediately be surrendered back), skipping installation avoids the slot conflict
-        # without losing any ITR coverage that would have been collected.
+        # When pytest-cov is enabled, it may use coverage.py's SysMonitor backend which claims
+        # sys.monitoring.COVERAGE_ID — the same slot ddtrace uses.  Skipping installation
+        # avoids the slot conflict.
         if not pytest_cov_enabled:
             setup_coverage_collection()
 
     # Release COVERAGE_ID after all our setup so pytest-cov's SysMonitor can claim it
     # in its own pytest_load_initial_conftests hook (which runs after this yield).
     if pytest_cov_enabled:
-        deregister_monitoring()
+        unregister_coverage()
 
     yield
 
 
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    # Allow instrument_all_lines() to claim COVERAGE_ID again (resets the flag set by any
-    # previous deregister_monitoring() call that was suppressing lazy re-registration).
-    allow_monitoring()
+    register_coverage()
     install_coverage(workspace_path)
 
 
