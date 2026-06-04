@@ -1186,11 +1186,11 @@ def test_gevent_unwind_greenlets_rss_stable() -> None:
     )
 
 
-def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> None:
-    """Verify that tracking/untracking greenlets across 25+ uploads (which triggers
-    ephemeral string table clearing) does not crash or lose greenlet names.
+def test_greenlet_labels_do_not_depend_on_string_table_cleanup(tmp_path: Path) -> None:
+    """Verify that tracking/untracking greenlets across many uploads does not
+    crash or lose greenlet names now that greenlet labels are not StringTable entries.
     """
-    test_name = "test_greenlet_string_table_cleanup_after_ephemeral_clear"
+    test_name = "test_greenlet_labels_do_not_depend_on_string_table_cleanup"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -1202,7 +1202,7 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
     from ddtrace.internal.datadog.profiling import stack as native_stack
 
     with stack.StackCollector():
-        # Track a long-lived greenlet that should survive the ephemeral clear
+        # Track a long-lived greenlet that should survive many uploads
         long_lived_id = 0xDEAD0001
         native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
 
@@ -1212,12 +1212,12 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
             native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
             native_stack.untrack_greenlet(short_id)
 
-        # Do 30 uploads to trigger the ephemeral clear (threshold is 25)
+        # Do 30 uploads to exercise repeated profile serialization.
         for _ in range(30):
             ddup.upload()
 
-        # Track more short-lived greenlets after the clear to make sure the
-        # string table is still functional
+        # Track more short-lived greenlets after repeated uploads to make sure
+        # label handling remains functional
         for i in range(50):
             short_id = 0xCAFE0000 + i
             native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
@@ -1228,7 +1228,7 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
 
         native_stack.untrack_greenlet(long_lived_id)
 
-    # Final upload — if the string table is corrupted this would crash
+    # Final upload — if label handling is corrupted this would crash
     ddup.upload()
 
     # Verify we got a valid profile (no crash, no corruption)

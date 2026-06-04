@@ -50,6 +50,12 @@ class EchionSampler
     std::unordered_set<GreenletInfo::ID> greenlet_parents_scratch_;
     std::unordered_set<GreenletInfo::ID> greenlet_visited_scratch_;
 
+    // Sampling-thread scratch buffer. Only the single sampling thread
+    // (Sampler::sampling_thread) touches this. unwind_frame clears it on
+    // entry; reusing the hash table across calls eliminates per-call
+    // allocator churn.
+    std::unordered_set<PyObject*> seen_frames_scratch_;
+
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
     // reflects tasks from the sampled subset, not all threads in the process.
@@ -100,6 +106,7 @@ class EchionSampler
     std::vector<GreenletSnapshot>& greenlet_snapshots_scratch() { return greenlet_snapshots_scratch_; }
     std::unordered_set<GreenletInfo::ID>& greenlet_parents_scratch() { return greenlet_parents_scratch_; }
     std::unordered_set<GreenletInfo::ID>& greenlet_visited_scratch() { return greenlet_visited_scratch_; }
+    std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
 
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
@@ -138,6 +145,13 @@ class EchionSampler
         greenlet_snapshots_scratch_.clear();
         greenlet_parents_scratch_.clear();
         greenlet_visited_scratch_.clear();
+
+        // Reset the scratch set via placement new instead of clear() for the
+        // same fork-safety reason as frame_cache_: the Sampling Thread may have
+        // been mid-insert (e.g. rehash) when fork snapshotted the set, so
+        // traversing its buckets to free nodes (as clear() does) could crash.
+        // Abandon the old buckets (intentional one-time leak).
+        new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary
