@@ -300,8 +300,13 @@ impl HttpClientPy {
         self.request(py, HttpMethod::Patch, &path, headers, body, timeout_ms)
     }
 
-    /// Explicit shutdown. After this, requests raise `ValueError`. Optional —
-    /// `Drop` runs the same close path.
+    /// Explicit shutdown — releases the connection pool and tokio handle
+    /// immediately rather than waiting for garbage collection.
+    ///
+    /// Calling this is optional: `__exit__` (context manager) and `__del__`
+    /// (GC / refcount-zero) both run the same path. Use `shutdown()` when you
+    /// want a deterministic teardown boundary (e.g. before fork, or at the end
+    /// of a request-handling scope where latency matters).
     fn shutdown(&mut self) {
         drop(self.inner.take());
     }
@@ -327,13 +332,5 @@ impl HttpClientPy {
             "closed"
         };
         format!("HTTPClient(base={:?}, <{}>)", self.base, state)
-    }
-}
-
-impl Drop for HttpClientPy {
-    fn drop(&mut self) {
-        // DEV: reqwest's pool cleans up its background tasks synchronously on the
-        // runtime; no explicit timeout needed (the client owns no worker threads).
-        drop(self.inner.take());
     }
 }

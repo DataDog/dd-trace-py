@@ -4,14 +4,8 @@
 //! its borrowing accessors on demand — it does NOT decompose it into owned
 //! fields. This avoids a per-response deep copy of the header `Vec` when only
 //! `status_code` or `body()` is read. The success-path body stays an Arc-backed
-//! `bytes::Bytes` inside the response; the Python-side `PyBytes` view is built
-//! lazily and memoized in a `std::sync::OnceLock` so repeated `body()` calls
-//! don't reallocate.
-//!
-//! DEV: `OnceLock<Py<…>>` (std, not `PyOnceLock`) is used so cached Python
-//! references can be read in `__traverse__` without a `Python` token (which the
-//! GC protocol does not provide). All initialization paths hold the GIL, and
-//! the GIL serializes those calls, so the std cells are sound here.
+//! `bytes::Bytes` inside the response; the Python-side `PyBytes` and `PyList`
+//! views are built lazily and memoized so repeated calls don't reallocate.
 
 use libdd_http_client::HttpResponse;
 use std::sync::OnceLock;
@@ -99,6 +93,12 @@ impl HttpResponsePy {
     /// but PyO3 requires every `#[pyclass]` holding `Py<…>` to implement
     /// `__traverse__` for correct refcount accounting. Frozen, so no
     /// `__clear__` is needed.
+    ///
+    /// DEV: the caches use `std::sync::OnceLock<Py<…>>` rather than
+    /// `pyo3::sync::PyOnceLock` because `__traverse__` is called without a
+    /// `Python` token (the GC protocol does not provide one). `OnceLock::get`
+    /// needs no token; all initialization paths hold the GIL, so the cells
+    /// are sound.
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
         if let Some(b) = self.py_bytes.get() {
             visit.call(b)?;
