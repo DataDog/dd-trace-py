@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import current_thread
 from time import monotonic_ns
-from types import FrameType
 from types import FunctionType
 from types import MethodType
 import typing as t
@@ -26,13 +25,6 @@ from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
 log = get_logger(__name__)
-
-
-def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
-    _frame: t.Optional[FrameType] = frame
-    while _frame is not None:
-        yield _frame
-        _frame = _frame.f_back
 
 
 @dataclass
