@@ -619,6 +619,25 @@ class TestOpenAIAgentsContextWindow:
         assert integration._context_window_for("") == 0
         assert integration._context_window_for(None) == 0  # defensive
 
+    def test_o_series_models_resolve_correctly(self):
+        # o-series models are the most likely to be used with Responses API features;
+        # ensure the prefix resolver returns the right window for each.
+        integration = _make_integration()
+        assert integration._context_window_for("o3") == 200_000
+        assert integration._context_window_for("o3-2025-04-16") == 200_000
+        assert integration._context_window_for("o3-mini") == 200_000
+        assert integration._context_window_for("o3-mini-2025-01-31") == 200_000
+        assert integration._context_window_for("o4-mini") == 200_000
+        assert integration._context_window_for("o4-mini-2025-04-16") == 200_000
+
+    def test_gpt_41_dated_variants_resolve_via_prefix(self):
+        # gpt-4.1 has a 1M context window. Dated variants (e.g. ...-2025-04-14) must
+        # also resolve to the same window via longest-prefix sort.
+        integration = _make_integration()
+        assert integration._context_window_for("gpt-4.1") == 1_047_576
+        assert integration._context_window_for("gpt-4.1-2025-04-14") == 1_047_576
+        assert integration._context_window_for("gpt-4.1-mini") == 1_047_576
+
 
 class TestOpenAIAgentsContextState:
     """Cover the per-trace snapshot lifecycle: record -> emit -> pop."""
@@ -673,6 +692,96 @@ class TestOpenAIAgentsContextState:
         state = integration._context_state[2]
         assert state["first_agent"]["tools_chars"] == 300
         assert state["last_agent"]["tools_chars"] == 500
+
+    def test_handoff_locks_snapshots_to_first_agent(self):
+        # MLOB-7584 — multi-agent handoff scenario. The first agent (Researcher) makes 2 LLM
+        # calls + 2 turns, then hands off to a second agent (Summarizer). The emitted context
+        # delta should reflect the Researcher's loop only; the Summarizer's fresh-context
+        # turn must NOT overwrite last_llm / last_agent. This avoids the "context shrinks
+        # after handoff" regression visible in the bar otherwise.
+        integration = _make_integration()
+
+        # Researcher turn 1
+        integration.record_llm_side(
+            trace_id=7, input_tokens=100, system_chars=200, user_chars=50, assistant_chars=0, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=7, tools_chars=1500, agent_id="Researcher")
+        # Researcher turn 2
+        integration.record_llm_side(
+            trace_id=7, input_tokens=300, system_chars=200, user_chars=50, assistant_chars=400, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=7, tools_chars=1500, agent_id="Researcher")
+        # Handoff: Summarizer's first turn (tools=0, smaller system, fresh context)
+        integration.record_llm_side(
+            trace_id=7, input_tokens=250, system_chars=80, user_chars=50, assistant_chars=400, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=7, tools_chars=0, agent_id="Summarizer")
+
+        state = integration._context_state[7]
+        assert state["first_agent_id"] == "Researcher"
+        # last_agent locked to Researcher's last turn — NOT the Summarizer's 0-tools call.
+        assert state["last_agent"]["tools_chars"] == 1500
+        # last_llm_first_agent locked to Researcher's last LLM call (input_tokens=300).
+        assert state["last_llm_first_agent"]["input_tokens"] == 300
+        # Handoff was flagged for telemetry.
+        assert state.get("_handoff_detected") is True
+
+        # Emit: should use the locked first-agent snapshots.
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        integration.emit_context_delta(span, trace_id=7)
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        delta = meta["metadata"]["_dd"]["context_delta"]
+        # Growth reflects the Researcher's loop only: 100 -> 300 = +200 tokens.
+        assert delta["first_input_tokens"] == 100
+        assert delta["last_input_tokens"] == 300
+        assert delta["delta_tokens"] == 200
+
+    def test_multi_handoff_chain_stays_locked_to_first_agent(self):
+        # MLOB-7584 — chain of TWO handoffs: A -> B -> C. After A's first turn locks
+        # first_agent_id="A", both B's and C's record_agent_side calls must be dropped
+        # so the emitted delta still reflects A's loop only. This is the case the
+        # single-handoff test doesn't cover: a buggy implementation that re-locked
+        # first_agent_id on each new agent would still pass the single-handoff test.
+        integration = _make_integration()
+
+        # Agent A — turn 1
+        integration.record_llm_side(
+            trace_id=8, input_tokens=100, system_chars=200, user_chars=50, assistant_chars=0, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=8, tools_chars=1500, agent_id="A")
+        # Agent A — turn 2
+        integration.record_llm_side(
+            trace_id=8, input_tokens=250, system_chars=200, user_chars=50, assistant_chars=300, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=8, tools_chars=1500, agent_id="A")
+        # Handoff #1: Agent B
+        integration.record_llm_side(
+            trace_id=8, input_tokens=400, system_chars=80, user_chars=50, assistant_chars=400, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=8, tools_chars=500, agent_id="B")
+        # Handoff #2: Agent C (second hop). last_agent / last_llm_first_agent must
+        # still reflect Agent A's turn 2 state — neither B nor C should overwrite.
+        integration.record_llm_side(
+            trace_id=8, input_tokens=600, system_chars=90, user_chars=50, assistant_chars=500, model="gpt-4o"
+        )
+        integration.record_agent_side(trace_id=8, tools_chars=200, agent_id="C")
+
+        state = integration._context_state[8]
+        assert state["first_agent_id"] == "A", "first_agent_id must stay locked to A through both handoffs"
+        assert state["last_agent"]["tools_chars"] == 1500, "last_agent must reflect Agent A only"
+        assert state["last_llm_first_agent"]["input_tokens"] == 250, "last_llm_first_agent must reflect A's turn 2"
+        assert state["_handoff_detected"] is True
+
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        span = self._make_span()
+        integration.emit_context_delta(span, trace_id=8)
+        delta = _get_llmobs_data_metastruct(span)["meta"]["metadata"]["_dd"]["context_delta"]
+        assert delta["first_input_tokens"] == 100
+        assert delta["last_input_tokens"] == 250
+        assert delta["delta_tokens"] == 150
 
     def test_record_skips_when_llmobs_disabled(self):
         # Override the autouse-enabled flag for this single test.
@@ -834,6 +943,66 @@ class TestSplitMessageChars:
         messages = [{"role": "user", "content": None}, {"role": "assistant"}]
         assert split_message_chars(messages) == (0, 0)
 
+    def test_developer_role_is_ignored_like_system(self):
+        # OpenAI Responses API accepts both "system" and "developer" roles. Both feed
+        # response.instructions and flow through response_system_instructions, so neither
+        # should be counted in user/assistant.
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            {"role": "developer", "content": "dev-only sysprompt 17ch"},
+            {"role": "user", "content": "x"},
+        ]
+        assert split_message_chars(messages) == (1, 0)
+
+    def test_responses_api_function_call_and_output_bucketed_into_assistant(self):
+        # AIDEV-NOTE: MLOB-7584 — Responses API surfaces tool-call activity as non-role
+        # items keyed by ``type``. ``split_message_chars`` originally only looked at
+        # ``role`` and silently dropped these items, so on multi-turn tool-using runs
+        # ``assistant_chars`` was always 0 and the context_delta bar rendered without
+        # the Assistant segment. The shape below mirrors what agents 0.17.x emits for
+        # function_call + function_call_output input items (verified empirically against
+        # the openai-agents library's ResponseInputItemParam shapes).
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            {"role": "user", "content": "Research three topics"},  # 21 chars -> user
+            {
+                "type": "function_call",
+                "call_id": "call_1",
+                "name": "research",
+                "arguments": '{"q":"photosynthesis"}',  # 22 chars -> assistant
+            },
+            {
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "Photosynthesis converts sunlight",  # 32 chars -> assistant
+            },
+        ]
+        assert split_message_chars(messages) == (21, 22 + 32)
+
+    def test_responses_api_reasoning_item_bucketed_into_assistant(self):
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            {"role": "user", "content": "ok"},
+            {"type": "reasoning", "content": "thinking..."},
+        ]
+        assert split_message_chars(messages) == (2, 11)
+
+    def test_object_attribute_items_extracted(self):
+        # Some SDK code paths surface dataclass-like objects instead of dicts.
+        # split_message_chars walks both shapes via getattr fallback.
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import split_message_chars
+
+        messages = [
+            SimpleNamespace(role="user", content="hello"),  # 5 -> user
+            SimpleNamespace(type="function_call", arguments="args"),  # 4 -> assistant
+        ]
+        assert split_message_chars(messages) == (5, 4)
+
 
 class TestCountToolsChars:
     """Cover the tools+handoffs char counter."""
@@ -854,13 +1023,205 @@ class TestCountToolsChars:
         agent = SimpleNamespace(tools=None, handoffs=None)
         assert count_tools_chars(agent) == 0
 
+    def test_only_tools_contributes_when_handoffs_empty(self):
+        # Tighter than asserting >0 — this test would fail if the handoffs loop
+        # ever silently broke (since the tools loop alone would still produce >0).
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+        from ddtrace.llmobs._utils import safe_json
+
+        tools = [{"name": "research"}]
+        agent = SimpleNamespace(tools=tools, handoffs=[])
+        assert count_tools_chars(agent) == len(safe_json(tools[0]))
+
+    def test_only_handoffs_contributes_when_tools_empty(self):
+        # Mirror of the previous test for the handoffs path — catches the bug class
+        # where the handoffs loop silently skips while tools still contributes.
+        from types import SimpleNamespace
+
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+        from ddtrace.llmobs._utils import safe_json
+
+        handoffs = [{"agent_name": "summary"}]
+        agent = SimpleNamespace(tools=[], handoffs=handoffs)
+        assert count_tools_chars(agent) == len(safe_json(handoffs[0]))
+
     def test_tools_and_handoffs_counted_together(self):
         from types import SimpleNamespace
 
         from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+        from ddtrace.llmobs._utils import safe_json
 
-        # Both serialize via safe_json or str fallback.
-        agent = SimpleNamespace(tools=[{"name": "research"}], handoffs=[{"agent_name": "summary"}])
-        chars = count_tools_chars(agent)
-        # Both objects serialize to at least the dict's str form length.
-        assert chars > 0
+        tools = [{"name": "research"}]
+        handoffs = [{"agent_name": "summary"}]
+        agent = SimpleNamespace(tools=tools, handoffs=handoffs)
+        # Exact: sum of both serialized representations.
+        assert count_tools_chars(agent) == len(safe_json(tools[0])) + len(safe_json(handoffs[0]))
+
+
+class TestOpenAIAgentsPatchCompat:
+    """Cover the agents-version compatibility shims in patch.py.
+
+    AIDEV-NOTE: MLOB-7584 — the module-level run_single_turn wrappers were
+    previously untested at the dd-trace-py unit level; logic-mirror tests lived
+    in an external eyeball directory. The class below covers:
+      - ``_has_module_level_run_loop`` detection
+      - ``_MODULE_RUN_LOOP_WRAP_TARGETS`` shape
+      - ``_patched_run_single_turn_module`` wrapper behavior (agent extraction
+        from ``bindings.execution_agent``, ``record_agent_side`` call with
+        ``agent_id``, ``tag_agent_manifest_from_agent`` invocation)
+    """
+
+    @pytest.fixture(autouse=True)
+    def _enable_llmobs(self):
+        from ddtrace.llmobs import LLMObs
+
+        prior = LLMObs.enabled
+        LLMObs.enabled = True
+        try:
+            yield
+        finally:
+            LLMObs.enabled = prior
+
+    def test_module_run_loop_wrap_targets_structure(self):
+        from ddtrace.contrib.internal.openai_agents.patch import _MODULE_RUN_LOOP_WRAP_TARGETS
+
+        assert len(_MODULE_RUN_LOOP_WRAP_TARGETS) >= 2
+        for entry in _MODULE_RUN_LOOP_WRAP_TARGETS:
+            module_path, attr_name, wrapper_name = entry
+            assert isinstance(module_path, str) and module_path.startswith("agents.")
+            assert attr_name in ("run_single_turn", "run_single_turn_streamed")
+            assert isinstance(wrapper_name, str) and wrapper_name.startswith("patched_run_single_turn")
+
+        # Critical: the non-streamed wrap target MUST be on agents.run, not
+        # agents.run_internal.run_loop. The import-binding gotcha means wrapping
+        # the definition module is too late — run.py already holds a stale ref.
+        non_streamed = [e for e in _MODULE_RUN_LOOP_WRAP_TARGETS if e[1] == "run_single_turn"]
+        assert non_streamed, "expected a non-streamed wrap target"
+        assert non_streamed[0][0] == "agents.run", (
+            "non-streamed run_single_turn must be wrapped on agents.run (the call-site module), "
+            "not agents.run_internal.run_loop (the definition module). See AIDEV-NOTE in patch.py."
+        )
+
+    def test_patched_module_wrapper_extracts_execution_agent_and_records(self):
+        # Direct call into _patched_run_single_turn_module with a mock bindings object
+        # matching the real AgentBindings shape (execution_agent + public_agent).
+        # Validates: agent extraction, record_agent_side invocation with agent_id from
+        # agent.name, tag_agent_manifest_from_agent invocation, and return-value pass-through.
+        import asyncio
+        from types import SimpleNamespace
+
+        import agents
+
+        from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn_module
+        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
+        from ddtrace.trace import tracer
+
+        if not getattr(agents, "_datadog_patch", False):
+            patch_openai_agents()
+
+        integration = agents._datadog_integration
+        captured_agent_side = []
+        captured_manifest = []
+        orig_record = integration.record_agent_side
+        orig_manifest = integration.tag_agent_manifest_from_agent
+        integration.record_agent_side = lambda trace_id, **kw: captured_agent_side.append({"trace_id": trace_id, **kw})
+        integration.tag_agent_manifest_from_agent = lambda span, agent: captured_manifest.append(
+            {"agent_name": getattr(agent, "name", None)}
+        )
+
+        mock_agent = SimpleNamespace(name="TestAgent", instructions="be helpful", tools=[{"name": "t"}], handoffs=[])
+        bindings = SimpleNamespace(execution_agent=mock_agent, public_agent=mock_agent)
+
+        async def inner(*args, **kwargs):
+            return "INNER_RESULT"
+
+        async def _run():
+            with tracer.trace("test_root"):
+                return await _patched_run_single_turn_module(inner, None, (bindings,), {})
+
+        try:
+            result = asyncio.run(_run())
+            assert result == "INNER_RESULT"
+            assert len(captured_agent_side) == 1
+            assert captured_agent_side[0]["agent_id"] == "TestAgent"
+            assert captured_agent_side[0]["tools_chars"] > 0
+            assert len(captured_manifest) == 1
+            assert captured_manifest[0]["agent_name"] == "TestAgent"
+        finally:
+            integration.record_agent_side = orig_record
+            integration.tag_agent_manifest_from_agent = orig_manifest
+
+    def test_patched_module_wrapper_prefers_execution_over_public_agent(self):
+        # When bindings has both execution_agent and public_agent (handoff scenario in
+        # newer agents versions where public/execution can differ), use execution.
+        import asyncio
+        from types import SimpleNamespace
+
+        import agents
+
+        from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn_module
+        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
+        from ddtrace.trace import tracer
+
+        if not getattr(agents, "_datadog_patch", False):
+            patch_openai_agents()
+
+        integration = agents._datadog_integration
+        captured = []
+        orig = integration.record_agent_side
+        integration.record_agent_side = lambda trace_id, **kw: captured.append(kw)
+
+        public_agent = SimpleNamespace(name="PublicAgent", tools=[], handoffs=[])
+        execution_agent = SimpleNamespace(name="ExecutionAgent", tools=[], handoffs=[])
+        bindings = SimpleNamespace(execution_agent=execution_agent, public_agent=public_agent)
+
+        async def inner(*args, **kwargs):
+            return None
+
+        async def _run():
+            with tracer.trace("test"):
+                await _patched_run_single_turn_module(inner, None, (bindings,), {})
+
+        try:
+            asyncio.run(_run())
+            assert captured[0]["agent_id"] == "ExecutionAgent", "must prefer execution_agent over public_agent"
+        finally:
+            integration.record_agent_side = orig
+
+    def test_patched_module_wrapper_handles_missing_agent_gracefully(self):
+        # If bindings has neither execution_agent, public_agent, nor agent, the
+        # wrapper must not crash and must NOT call record_agent_side.
+        import asyncio
+        from types import SimpleNamespace
+
+        import agents
+
+        from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn_module
+        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
+        from ddtrace.trace import tracer
+
+        if not getattr(agents, "_datadog_patch", False):
+            patch_openai_agents()
+
+        integration = agents._datadog_integration
+        captured = []
+        orig = integration.record_agent_side
+        integration.record_agent_side = lambda trace_id, **kw: captured.append(kw)
+
+        bindings_no_agent = SimpleNamespace()  # missing all three attrs
+
+        async def inner(*args, **kwargs):
+            return "ok"
+
+        async def _run():
+            with tracer.trace("test"):
+                return await _patched_run_single_turn_module(inner, None, (bindings_no_agent,), {})
+
+        try:
+            result = asyncio.run(_run())
+            assert result == "ok"
+            assert len(captured) == 0, "record_agent_side must not fire when agent is missing"
+        finally:
+            integration.record_agent_side = orig

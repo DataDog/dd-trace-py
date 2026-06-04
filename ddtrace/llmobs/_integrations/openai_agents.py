@@ -57,23 +57,47 @@ def count_tools_chars(agent) -> int:
     return chars
 
 
+# AIDEV-NOTE: MLOB-7584 — OpenAI Agents Responses API input items that count as
+# agent-produced (bucket into ``assistant_chars``). Includes function-call and
+# tool-result variants surfaced empirically on agents 0.17.x. Add new ``type``
+# values here as the Responses API surface grows. ``message`` items carry their
+# own ``role`` field, so they are bucketed by role, not by type.
+_ASSISTANT_PRODUCED_ITEM_TYPES = frozenset(
+    {
+        "function_call",
+        "function_call_output",
+        "tool_call",
+        "tool_call_output",
+        "computer_call",
+        "computer_call_output",
+        "code_interpreter_call",
+        "file_search_call",
+        "web_search_call",
+        "reasoning",
+        "reasoning_item",
+    }
+)
+
+
 def split_message_chars(messages: Any) -> tuple[int, int]:
     """Return ``(user_chars, assistant_chars)`` for a response-span's ``input`` payload.
 
     AIDEV-NOTE: MLOB-7584 — ``input`` is typed as ``str | list[Any]``. When the initial
     user prompt is the only input it arrives as a string and is bucketed into ``user``.
-    When the agent loop has run for >=1 turn, the message list contains role-tagged
-    dicts/objects with roles ``user``, ``assistant``, ``system``, and ``tool``.
+    When the agent loop has run for >=1 turn, the input list mixes role-tagged
+    ``Message`` items (role ``user`` / ``assistant`` / ``system`` / ``developer``) with
+    non-role Responses API items keyed by ``type`` (``function_call``,
+    ``function_call_output``, ``reasoning``, etc. — see ``_ASSISTANT_PRODUCED_ITEM_TYPES``).
 
     Bucketing rules:
-    - ``user`` -> user_chars
-    - ``assistant`` and ``tool`` -> assistant_chars. ``tool`` (tool-result) messages are
-      injected into the input after each tool call by the agent loop. Bucketing them with
-      ``assistant`` keeps the agent-produced side of the conversation cohesive AND ensures
-      total counted chars equals total response.input chars, so the char-proportional
-      token split stays accurate on multi-turn tool-using runs.
-    - ``system`` is excluded here; system tokens flow through ``response_system_instructions``
-      directly into the ``system`` category.
+    - ``role == "user"`` -> user_chars (uses ``content``)
+    - ``role in ("assistant", "tool")`` -> assistant_chars (uses ``content``)
+    - ``type in _ASSISTANT_PRODUCED_ITEM_TYPES`` -> assistant_chars (uses ``content`` /
+      ``output`` / ``arguments`` whichever is present; these items have no ``role``)
+    - ``role in ("system", "developer")`` -> excluded; system tokens flow through
+      ``response_system_instructions`` directly into the ``system`` category
+    - everything else -> ignored (don't pollute the char-proportional split with
+      unrecognized shapes)
     """
     if isinstance(messages, str):
         return len(messages), 0
@@ -82,13 +106,36 @@ def split_message_chars(messages: Any) -> tuple[int, int]:
     user_chars = 0
     assistant_chars = 0
     for msg in messages:
-        role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
-        content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
-        chars = len(str(content)) if content is not None else 0
+        if isinstance(msg, dict):
+            role = msg.get("role")
+            item_type = msg.get("type")
+            content = msg.get("content")
+            output = msg.get("output")
+            arguments = msg.get("arguments")
+        else:
+            role = getattr(msg, "role", None)
+            item_type = getattr(msg, "type", None)
+            content = getattr(msg, "content", None)
+            output = getattr(msg, "output", None)
+            arguments = getattr(msg, "arguments", None)
+        # Pick the text payload for this item — content beats output beats arguments
+        # because role-tagged messages always populate content, and only non-role
+        # items use output/arguments.
+        if content is not None:
+            chars = len(str(content))
+        elif output is not None:
+            chars = len(str(output))
+        elif arguments is not None:
+            chars = len(str(arguments))
+        else:
+            chars = 0
         if role == "user":
             user_chars += chars
         elif role in ("assistant", "tool"):
             assistant_chars += chars
+        elif item_type in _ASSISTANT_PRODUCED_ITEM_TYPES:
+            assistant_chars += chars
+        # role in ("system", "developer") and unknown shapes: skip
     return user_chars, assistant_chars
 
 
@@ -109,6 +156,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         "gpt-4.1": 1_047_576,
         "gpt-4": 8_192,
         "gpt-3.5-turbo": 16_385,
+        # AIDEV-NOTE: provisional entries — values are pre-populated for forward
+        # compatibility based on the publicly-discussed direction at the time of
+        # writing. Re-verify against OpenAI's official model spec before relying on
+        # these for any usage-bar accuracy claim, and update on confirmed launch.
         "gpt-5-mini": 400_000,
         "gpt-5": 400_000,
         "o1-preview": 128_000,
@@ -402,14 +453,19 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         """MLOB-7584 — hook A. Capture per-LLM-call context categories from a response span.
 
         Called from ``LLMObsTraceProcessor.on_span_end`` when ``span_type == "response"``.
-        First call locks the ``first_llm`` snapshot; every subsequent call overwrites ``last_llm``.
+        First call locks ``first_llm``; every subsequent call updates ``last_llm``.
+
+        The snapshot is also buffered in ``_pending_llm`` for the immediately-following
+        ``record_agent_side`` pairing, which uses ``agent_id`` to detect handoffs and lock
+        ``last_llm_first_agent`` to the original agent's turns (see emit_context_delta).
 
         AIDEV-NOTE: MLOB-7584 — model is saved on both ``first_llm`` and ``last_llm`` snapshots,
         but the emitted payload contains a single ``context_window_size`` field (matching the
         Claude integration's contract — see _parse_context_delta in claude_agent_sdk.py). The
-        resolver picks the last-turn model's window for both usage_pct fields. For multi-model
-        handoff traces this may under/overstate the first-turn percentage; the contract does
-        not currently support per-snapshot windows.
+        resolver picks the *first agent's* last LLM call's model (via ``last_llm_first_agent``
+        — see emit_context_delta), not the last LLM call of the entire trace, so multi-model
+        handoff traces consistently surface the original agent's model rather than the
+        receiving agent's. The wire contract does not currently support per-snapshot windows.
         """
         if not self.llmobs_enabled:
             return
@@ -424,32 +480,71 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if "first_llm" not in state:
             state["first_llm"] = snapshot
         state["last_llm"] = snapshot
+        # Buffer for pairing with record_agent_side. The agent-side hook fires
+        # right after the awaited turn function, so the pending value is consumed
+        # in the same turn it was buffered.
+        state["_pending_llm"] = snapshot
 
-    def record_agent_side(self, trace_id: int, *, tools_chars: int) -> None:
+    def record_agent_side(self, trace_id: int, *, tools_chars: int, agent_id: Optional[str] = None) -> None:
         """MLOB-7584 — hook B. Capture per-turn agent-side category (tools + handoffs).
 
         Called from ``_patched_run_single_turn`` after the awaited function returns.
-        First call locks the ``first_agent`` snapshot; every subsequent call overwrites ``last_agent``.
+        First call locks the ``first_agent`` snapshot and the ``first_agent_id`` identity.
+        Subsequent calls update ``last_agent`` and ``last_llm_first_agent`` ONLY when the
+        ``agent_id`` matches the first agent — handoffs to a different agent are dropped,
+        so the emitted context_delta reflects the original agent's loop rather than a
+        post-handoff regression to a fresh-context agent.
+
+        ``agent_id`` is the agent's ``name`` (or ``None`` for older / legacy callers that
+        don't supply it; behavior is unchanged in that case — None == None == "always first
+        agent" — so single-agent traces are not affected).
         """
         if not self.llmobs_enabled:
             return
         snapshot = {"tools_chars": tools_chars}
         state = self._context_state.setdefault(trace_id, {})
-        if "first_agent" not in state:
-            state["first_agent"] = snapshot
-        state["last_agent"] = snapshot
+
+        if "first_agent_id" not in state:
+            state["first_agent_id"] = agent_id
+
+        if agent_id == state["first_agent_id"]:
+            if "first_agent" not in state:
+                state["first_agent"] = snapshot
+            state["last_agent"] = snapshot
+            # Promote the buffered LLM snapshot from this turn to "first-agent last".
+            pending = state.get("_pending_llm")
+            if pending is not None:
+                state["last_llm_first_agent"] = pending
+        else:
+            # Handoff to a different agent — preserve the locked first-agent snapshots
+            # and flag for telemetry / debugging.
+            state["_handoff_detected"] = True
+
+        # Drop the buffered LLM snapshot whether or not we committed it.
+        state.pop("_pending_llm", None)
 
     def emit_context_delta(self, trace_root_span: Span, trace_id: int) -> None:
         """MLOB-7584 — hook C. Emit the assembled context_delta on the agent-kind root span.
 
         Called from ``LLMObsTraceProcessor.on_trace_end`` just before the root span finishes.
-        No-ops if neither LLM snapshot was captured (degenerate trace).
+        No-ops if no LLM snapshot was captured (degenerate trace).
+
+        AIDEV-NOTE: MLOB-7584 — handoff-aware. ``last_llm`` is sourced preferentially from
+        ``last_llm_first_agent`` (the original agent's last LLM call, set by
+        ``record_agent_side`` only while the executing agent matches the locked-in
+        ``first_agent_id``). Falls back to ``last_llm`` for legacy paths or older agents
+        versions where the agent-side hook didn't fire. This means multi-agent handoff
+        traces emit the first agent's loop (clean monotonic growth) instead of regressing
+        to the handoff agent's fresh context.
         """
         state = self._context_state.pop(trace_id, None)
         if not state:
             return
         first_llm = state.get("first_llm")
-        last_llm = state.get("last_llm")
+        # Prefer the first-agent's locked last LLM snapshot. Falls back to last_llm
+        # for traces where record_agent_side didn't fire (older agents versions,
+        # tests that exercise record_llm_side in isolation, etc.).
+        last_llm = state.get("last_llm_first_agent") or state.get("last_llm")
         if not first_llm or not last_llm:
             return
 
@@ -482,7 +577,17 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         )
 
     def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any], agent_index: int) -> None:
+        """Pre-0.10-agents path: extract agent from positional args, then delegate."""
         agent = get_argument_value(args, kwargs, agent_index, "agent", True)
+        self.tag_agent_manifest_from_agent(span, agent)
+
+    def tag_agent_manifest_from_agent(self, span: Span, agent: Any) -> None:
+        """Build and attach the agent manifest directly from an agent object.
+
+        AIDEV-NOTE: MLOB-7584 — extracted from tag_agent_manifest so that the module-level
+        run_single_turn wrapper (agents >= ~0.10) can pass ``bindings.agent`` directly
+        without round-tripping through positional-arg extraction.
+        """
         if not agent or not self.llmobs_enabled:
             return
 
@@ -522,7 +627,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         # convert model_settings to dict if it's not already
         model_settings = agent.model_settings
-        if type(model_settings) != dict:
+        if not isinstance(model_settings, dict):
             model_settings = getattr(model_settings, "__dict__", None)
 
         return load_data_value(model_settings)

@@ -65,8 +65,11 @@ class LLMObsTraceProcessor(TracingProcessor):
             {"oai_trace": trace_adapter},
         )
         # MLOB-7584: emit the assembled context_delta onto the agent-kind root span before
-        # finishing. Snapshots were populated by on_span_end (response-type spans, llm side)
-        # and by _patched_run_single_turn in patch.py (agent side).
+        # finishing. Snapshots were populated by on_span_end (response-type spans, LLM side)
+        # and by patch.py's agent-side wrappers — ``_patched_run_single_turn`` for agents
+        # versions where the per-turn function is an instance method (Runner/AgentRunner)
+        # and ``_patched_run_single_turn_module`` for agents >= ~0.10 where it moved to a
+        # module-level free function in agents.run_internal.run_loop.
         self._integration.emit_context_delta(trace_root_span, trace_root_span.trace_id)
         self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
         trace_root_span.finish()
