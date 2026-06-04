@@ -32,7 +32,10 @@ class BaseLiteLLMStreamHandler:
         if not getattr(self, "response_model", None):
             chunk_model = getattr(chunk, "model", None)
             if chunk_model:
-                self.response_model = chunk_model
+                try:
+                    self.response_model = chunk_model
+                except (AttributeError, FrozenInstanceError):
+                     pass
         for choice in getattr(chunk, "choices", []):
             choice_index = getattr(choice, "index", 0)
             self.chunks[choice_index].append(choice)

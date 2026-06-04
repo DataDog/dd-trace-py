@@ -2,9 +2,6 @@
 fixes:
   - |
     LLM Observability: Resolves an issue where Azure OpenAI calls through the LiteLLM integration
-    tagged ``model_name`` with the request deployment name (for example ``my-deployment``) instead
-    of the canonical model returned by the API (for example ``gpt-4o-2024-08-06``). Because Azure
-    requires an arbitrary deployment name in the request, this broke cost attribution for
-    deployments whose names differ from the canonical model identifier. The integration now prefers
-    the response model for the ``azure`` and ``azure_text`` providers, on both the LLM Observability
-    span and the APM shadow tag. ``azure_ai`` is intentionally unaffected.
+    tagged ``model_name`` with the request deployment name (e.g. ``my-deployment``) instead
+    of the canonical model returned by the API (e.g. ``gpt-4o-2024-08-06``). The integration now prefers
+    the response model for the ``azure`` and ``azure_text`` providers.
