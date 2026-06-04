@@ -1089,15 +1089,15 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
-    # Release sys.monitoring.COVERAGE_ID before other plugins run so that pytest-cov's
-    # SysMonitor can claim it in its own pytest_load_initial_conftests without crashing.
-    # Done unconditionally (before the _is_enabled_early check) so it fires even when
-    # ddtrace is disabled for this session but a previous inline session left us holding
-    # the slot.  deregister_monitoring() is a no-op if we don't hold it.
-    if _is_pytest_cov_enabled(early_config):
-        deregister_monitoring()
+    # Evaluate once; used on every exit path below.
+    pytest_cov_enabled = _is_pytest_cov_enabled(early_config)
 
     if not _is_enabled_early(early_config, args):
+        # Release COVERAGE_ID even when ddtrace is disabled: a previous inline session
+        # may have left us holding the slot.  deregister_monitoring() is a no-op when
+        # we don't hold it, so this is always safe.
+        if pytest_cov_enabled:
+            deregister_monitoring()
         yield
         return
 
@@ -1114,6 +1114,8 @@ def pytest_load_initial_conftests(
         session_manager = SessionManager(session=session)
     except SetupError as e:
         log.error("%s", e)
+        if pytest_cov_enabled:
+            deregister_monitoring()
         yield
         return
 
@@ -1126,8 +1128,17 @@ def pytest_load_initial_conftests(
     # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
     # when we know if pytest-cov is available.
     if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only use our own coverage collector if report upload is not enabled
+        # Only use our own coverage collector if report upload is not enabled.
+        # IMPORTANT: setup_coverage_collection() with collect_import_time_coverage=True instruments
+        # already-imported modules, which re-claims COVERAGE_ID via instrument_all_lines(). We
+        # therefore call deregister_monitoring() AFTER this, not before, so we release the slot
+        # after all our setup is complete and right before other plugins (pytest-cov) run.
         setup_coverage_collection()
+
+    # Release COVERAGE_ID after all our setup so pytest-cov's SysMonitor can claim it
+    # in its own pytest_load_initial_conftests hook (which runs after this yield).
+    if pytest_cov_enabled:
+        deregister_monitoring()
 
     yield
 
