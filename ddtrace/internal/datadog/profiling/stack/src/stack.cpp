@@ -7,6 +7,9 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <string_view>
+#include <utility>
+
 using namespace Datadog;
 
 static PyObject*
@@ -296,18 +299,18 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto& sampler = Sampler::get();
-    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
-    if (!maybe_greenlet_name) {
-        // We failed to get this task but we keep going
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
+    Py_ssize_t name_size = 0;
+    const char* name_data = PyUnicode_AsUTF8AndSize(name, &name_size);
+    if (name_data == nullptr || name_size < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name");
         return NULL;
     }
 
-    auto greenlet_name = *maybe_greenlet_name;
+    auto greenlet_name = TaskName::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
 
+    auto& sampler = Sampler::get();
     Py_BEGIN_ALLOW_THREADS;
-    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, std::move(greenlet_name), frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -682,6 +685,39 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
+}
+
+static PyObject*
+stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Pause the sampling thread and wait for any in-flight sample to complete.
+    // Returns True  if the sampler was paused successfully.
+    // Returns False if the sampler was not running (nothing to pause).
+    // Returns None  if the sampler is running but timed out waiting for it to
+    //               reach a safe pause point; the caller must NOT swap signal
+    //               handlers in this case to avoid a race with safe_memcpy.
+    switch (Sampler::get().pause()) {
+        case PauseResult::Paused:
+            Py_RETURN_TRUE;
+        case PauseResult::NotRunning:
+            Py_RETURN_FALSE;
+        case PauseResult::Timeout:
+        default:
+            Py_RETURN_NONE;
+    }
+}
+
+static PyObject*
+stack_resume_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().resume();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 {
     int enabled = 1;
@@ -697,6 +733,33 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 
     set_fast_copy_enabled(static_cast<bool>(enabled));
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
+    // previous handlers. Call this before letting another component (e.g.,
+    // faulthandler) install its own handler so it doesn't record ours as its
+    // previous handler (which would create a signal-handler cycle).
+    // Follow with stack_reinstall_segv_handler to reinstall on top.
+    if (fast_copy_active) {
+        uninstall_segv_handler();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
+    // This is used to reclaim the handler after another component (e.g., Python's
+    // faulthandler module) overwrites it. Our handler chains to the previous one
+    // for non-recovery faults, so both systems coexist correctly.
+    if (fast_copy_active) {
+        init_segv_catcher();
+    }
     Py_RETURN_NONE;
 }
 
@@ -750,12 +813,30 @@ static PyMethodDef stack_methods[] = {
       stack_is_safe_copy_failed,
       METH_NOARGS,
       "Check if all safe copy methods failed to initialize" },
+    { "uninstall_segv_handler",
+      stack_uninstall_segv_handler,
+      METH_NOARGS,
+      "Remove SIGSEGV handler before another component installs its own" },
+    { "reinstall_segv_handler",
+      stack_reinstall_segv_handler,
+      METH_NOARGS,
+      "Reinstall SIGSEGV handler after another component overwrites it" },
+    // Sampling pause/resume for safe signal handler swapping
+    { "pause_sampling",
+      stack_pause_sampling,
+      METH_NOARGS,
+      "Pause sampling thread and wait for in-flight sample to complete" },
+    { "resume_sampling", stack_resume_sampling, METH_NOARGS, "Resume a paused sampling thread" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,
       METH_NOARGS,
       "Start sys.monitoring-based native call tracking" },
     { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
+    { "_native_call_registry_size",
+      stack_native_call_registry_size,
+      METH_NOARGS,
+      "Return the native call monitoring registry size" },
     { NULL, NULL, 0, NULL }
 };
 

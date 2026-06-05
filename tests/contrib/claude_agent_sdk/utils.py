@@ -87,18 +87,40 @@ def create_mock_assistant_message(text: str, model: str = MOCK_MODEL, usage: dic
 
 
 def create_mock_assistant_message_with_tool_use(
-    tool_name: str,
-    tool_input: dict,
-    tool_use_id: str = "tool_use_123",
+    tool_calls: list[tuple[str, dict, str]],
     model: str = MOCK_MODEL,
 ) -> AssistantMessage:
-    """Create a mock AssistantMessage with a tool use block.
+    """Create a mock AssistantMessage with one or more tool use blocks.
 
-    This simulates when Claude decides to use a tool.
+    Args:
+        tool_calls: list of (tool_name, tool_input, tool_use_id) tuples. A
+            single-element list produces a normal tool-use message; a
+            multi-element list produces a parallel tool-use message.
     """
     return AssistantMessage(
-        content=[ToolUseBlock(id=tool_use_id, name=tool_name, input=tool_input)],
+        content=[
+            ToolUseBlock(id=tool_use_id, name=tool_name, input=tool_input)
+            for tool_name, tool_input, tool_use_id in tool_calls
+        ],
         model=model,
+    )
+
+
+def create_mock_user_message_with_tool_result(
+    tool_results: list[tuple[str, str]],
+    is_error: bool = False,
+) -> UserMessage:
+    """Create a mock UserMessage containing one or more ToolResultBlocks.
+
+    Args:
+        tool_results: list of (tool_use_id, content) tuples.
+        is_error: if True, every result block is marked as an error.
+    """
+    return UserMessage(
+        content=[
+            ToolResultBlock(tool_use_id=tool_use_id, content=content, is_error=is_error)
+            for tool_use_id, content in tool_results
+        ],
     )
 
 
@@ -154,8 +176,17 @@ def create_mock_user_message(content: str) -> UserMessage:
 
 MOCK_SYSTEM_MESSAGE = create_mock_system_message()
 MOCK_ASSISTANT_RESPONSE = create_mock_assistant_message("4")
+MOCK_ASSISTANT_RESPONSE_TWO = create_mock_assistant_message("8")
 MOCK_ASSISTANT_RESPONSE_WITH_USAGE = create_mock_assistant_message("4", usage=MOCK_ASSISTANT_USAGE)
 MOCK_RESULT_MESSAGE = create_mock_result_message()
+
+
+MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_RESPONSE,
+    MOCK_ASSISTANT_RESPONSE_TWO,
+    MOCK_RESULT_MESSAGE,
+]
 
 
 MOCK_QUERY_RESPONSE_SEQUENCE = [
@@ -173,6 +204,26 @@ MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
+# Reproduces an API error surfaced in the assistant message content (e.g. an
+# overloaded_error). The SDK maps the uncategorized error to the "unknown" literal
+# while the descriptive payload lives in a TextBlock.
+MOCK_ASSISTANT_MESSAGE_ERROR_TYPE = "unknown"
+MOCK_ASSISTANT_MESSAGE_ERROR_TEXT = (
+    'API Error: {"type":"error","error":{"details":null,"type":"overloaded_error",'
+    '"message":"Overloaded"},"request_id":"req_011Cbd5D168oye3XGdgSjVog"}'
+)
+# NOTE: assign ``error`` after construction rather than as a constructor kwarg — older
+# claude-agent-sdk versions (e.g. 0.0.23) don't accept ``error`` in AssistantMessage.__init__.
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT = AssistantMessage(
+    content=[TextBlock(text=MOCK_ASSISTANT_MESSAGE_ERROR_TEXT)], model=MOCK_MODEL
+)
+MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT.error = MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
+MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_ASSISTANT_MESSAGE_WITH_ERROR_TEXT,
+    MOCK_RESULT_MESSAGE,
+]
+
 MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
     MOCK_SYSTEM_MESSAGE,
     MOCK_ASSISTANT_RESPONSE_WITH_USAGE,
@@ -182,9 +233,7 @@ MOCK_QUERY_RESPONSE_SEQUENCE_WITH_USAGE = [
 
 MOCK_READ_TOOL_ID = "toolu_01C4Thx957VoSn21zERxbeQX"
 MOCK_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_tool_use(
-    tool_name="Read",
-    tool_input={"file_path": "/etc/hostname"},
-    tool_use_id=MOCK_READ_TOOL_ID,
+    [("Read", {"file_path": "/etc/hostname"}, MOCK_READ_TOOL_ID)],
 )
 MOCK_TOOL_USE_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
@@ -198,9 +247,7 @@ MOCK_BASH_TOOL_INPUT = {
     "description": "Print 'hello' to standard output",
 }
 MOCK_BASH_TOOL_ASSISTANT = create_mock_assistant_message_with_tool_use(
-    tool_name="Bash",
-    tool_input=MOCK_BASH_TOOL_INPUT,
-    tool_use_id=MOCK_BASH_TOOL_ID,
+    [("Bash", MOCK_BASH_TOOL_INPUT, MOCK_BASH_TOOL_ID)],
 )
 MOCK_BASH_TOOL_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
@@ -216,9 +263,7 @@ MOCK_GREP_TOOL_INPUT = {
     "head_limit": 3,
 }
 MOCK_GREP_TOOL_ASSISTANT = create_mock_assistant_message_with_tool_use(
-    tool_name="Grep",
-    tool_input=MOCK_GREP_TOOL_INPUT,
-    tool_use_id=MOCK_GREP_TOOL_ID,
+    [("Grep", MOCK_GREP_TOOL_INPUT, MOCK_GREP_TOOL_ID)],
 )
 MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,
@@ -226,8 +271,8 @@ MOCK_GREP_TOOL_RESPONSE_SEQUENCE = [
     MOCK_RESULT_MESSAGE,
 ]
 
-MOCK_TOOL_RESULT_USER_READ = UserMessage(
-    content=[ToolResultBlock(tool_use_id=MOCK_READ_TOOL_ID, content="myhost.local")]
+MOCK_TOOL_RESULT_USER_READ = create_mock_user_message_with_tool_result(
+    [(MOCK_READ_TOOL_ID, "myhost.local")],
 )
 MOCK_FINAL_ASSISTANT_TEXT = "The hostname is myhost.local"
 MOCK_FINAL_ASSISTANT = create_mock_assistant_message(MOCK_FINAL_ASSISTANT_TEXT)
@@ -241,9 +286,38 @@ MOCK_TOOL_USE_WITH_FOLLOWUP_SEQUENCE = [
     MOCK_MULTI_TURN_RESULT_MESSAGE,
 ]
 
+MOCK_PARALLEL_BASH_TOOL_IDS = (
+    "toolu_parallel_01_aaaaaaaaaaaaaaaaaa",
+    "toolu_parallel_02_bbbbbbbbbbbbbbbbbb",
+    "toolu_parallel_03_cccccccccccccccccc",
+)
+MOCK_PARALLEL_BASH_TOOL_USE_ASSISTANT = create_mock_assistant_message_with_tool_use(
+    [
+        ("Bash", {"command": "echo first"}, MOCK_PARALLEL_BASH_TOOL_IDS[0]),
+        ("Bash", {"command": "echo second"}, MOCK_PARALLEL_BASH_TOOL_IDS[1]),
+        ("Bash", {"command": "echo third"}, MOCK_PARALLEL_BASH_TOOL_IDS[2]),
+    ],
+)
+MOCK_PARALLEL_TOOL_RESULT_USER = create_mock_user_message_with_tool_result(
+    [
+        (MOCK_PARALLEL_BASH_TOOL_IDS[0], "first"),
+        (MOCK_PARALLEL_BASH_TOOL_IDS[1], "second"),
+        (MOCK_PARALLEL_BASH_TOOL_IDS[2], "third"),
+    ],
+)
+MOCK_PARALLEL_TOOL_USE_SEQUENCE = [
+    MOCK_SYSTEM_MESSAGE,
+    MOCK_PARALLEL_BASH_TOOL_USE_ASSISTANT,
+    MOCK_PARALLEL_TOOL_RESULT_USER,
+    MOCK_FINAL_ASSISTANT,
+    MOCK_MULTI_TURN_RESULT_MESSAGE,
+]
+
+
 MOCK_TOOL_ERROR_MESSAGE = "Permission denied: /etc/hostname"
-MOCK_TOOL_ERROR_USER_READ = UserMessage(
-    content=[ToolResultBlock(tool_use_id=MOCK_READ_TOOL_ID, content=MOCK_TOOL_ERROR_MESSAGE, is_error=True)]
+MOCK_TOOL_ERROR_USER_READ = create_mock_user_message_with_tool_result(
+    [(MOCK_READ_TOOL_ID, MOCK_TOOL_ERROR_MESSAGE)],
+    is_error=True,
 )
 MOCK_TOOL_ERROR_RESPONSE_SEQUENCE = [
     MOCK_SYSTEM_MESSAGE,

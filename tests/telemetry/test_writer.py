@@ -162,7 +162,6 @@ import opentelemetry
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
@@ -217,6 +216,7 @@ import opentelemetry
         {"name": "DD_CRASHTRACKING_CREATE_ALT_STACK", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_DEBUG_URL", "origin": "default", "value": None},
         {"name": "DD_CRASHTRACKING_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_CRASHTRACKING_ERRORS_INTAKE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_CRASHTRACKING_MAX_THREADS", "origin": "default", "value": 128},
         {
             "name": "DD_CRASHTRACKING_STACKTRACE_RESOLVER",
@@ -382,7 +382,6 @@ import opentelemetry
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
         {"name": "DD_TRACE_CLIENT_IP_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_CLIENT_IP_HEADER", "origin": "default", "value": None},
-        {"name": "DD_TRACE_COMPUTE_STATS", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", "origin": "default", "value": ""},
@@ -432,6 +431,7 @@ import opentelemetry
         },
         {"name": "DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", "origin": "default", "value": 30},
         {"name": "DD_TRACE_STARTUP_LOGS", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_STATS_COMPUTATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS", "origin": "default", "value": False},
         {"name": "DD_TRACE_WRITER_BUFFER_SIZE_BYTES", "origin": "env_var", "value": 1000},
         {"name": "DD_TRACE_WRITER_INTERVAL_SECONDS", "origin": "env_var", "value": 30.0},
@@ -541,6 +541,11 @@ import opentelemetry
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
+        {
+            "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "llmobs_oneclick_supported", "origin": "code", "value": False},
