@@ -20,6 +20,7 @@ from .utils import PAYLOAD
 from .utils import consumer_ctx
 from .utils import create_topic
 from .utils import producer_ctx
+from .utils import resolve_cluster_id
 
 
 @pytest.fixture(autouse=True)
@@ -105,11 +106,16 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     topic = await create_topic("data_streams_offset_monitoring_auto_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
+        # Pre-warm the cluster_id cache with retries so traced_send uses the real
+        # cluster_id and not "" from a transient MetadataRequest failure.
+        cluster_id = await resolve_cluster_id(producer.client, topic)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
+        # Pre-warm consumer's cache too: traced_getone's auto-commit tracking uses
+        # consumer._client._dd_cluster_id, which is a separate AIOKafkaClient.
+        await resolve_cluster_id(consumer._client, topic)
         msg = await consumer.getone()
 
     assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
@@ -129,11 +135,16 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     topic = await create_topic("data_streams_offset_monitoring_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
+        # Pre-warm the cluster_id cache with retries so traced_send uses the real
+        # cluster_id and not "" from a transient MetadataRequest failure.
+        cluster_id = await resolve_cluster_id(producer.client, topic)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
 
     async with consumer_ctx([topic], enable_auto_commit=False) as consumer:
+        # Pre-warm consumer's cache too: traced_commit uses consumer._client._dd_cluster_id
+        # (a separate AIOKafkaClient from the producer's) for commit tracking.
+        await resolve_cluster_id(consumer._client, topic)
         await consumer.getone()
         msg = await consumer.getone()
         await consumer.commit(offsets)
