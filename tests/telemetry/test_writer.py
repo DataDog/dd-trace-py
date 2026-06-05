@@ -447,21 +447,13 @@ import opentelemetry
             "origin": "env_var",
             "value": "http://localhost:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
             "origin": "default",
             "value": f"http://{get_agent_hostname()}:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_LOGS_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
             "origin": "default",
@@ -477,11 +469,7 @@ import opentelemetry
             "origin": "default",
             "value": f"http://{get_agent_hostname()}:4317",
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_METRICS_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
             "origin": "default",
@@ -507,11 +495,7 @@ import opentelemetry
             "origin": "default",
             "value": 10000,
         },
-        {
-            "name": "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
-            "origin": "default",
-            "value": "",
-        },
+        # OTEL_EXPORTER_OTLP_TRACES_HEADERS is excluded from configuration telemetry.
         {
             "name": "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
             "origin": "default",
@@ -1043,6 +1027,95 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     env_invalid_metrics = test_agent_session.get_metrics("otel.env.invalid")
     tags = [m["tags"] for m in env_invalid_metrics]
     assert tags == [["config_opentelemetry:otel_logs_exporter"]]
+
+
+def test_otel_exporter_otlp_headers_telemetry_omitted(test_agent_session, run_python_code_in_subprocess):
+    """The OTEL_EXPORTER_OTLP_*_HEADERS family is excluded from configuration telemetry, while
+    non-sensitive OTLP exporter configurations are still reported.
+    """
+    code = """
+# most configurations are reported when ddtrace.auto is imported
+import ddtrace.auto
+# importing opentelemetry triggers reporting of the OTLP exporter configurations
+import opentelemetry
+    """
+
+    # Distinct, recognizable sentinels per OTLP header variant.
+    sentinels = [
+        "SENTINEL_OTLP_BASE",
+        "SENTINEL_OTLP_TRACES",
+        "SENTINEL_OTLP_METRICS",
+        "SENTINEL_OTLP_LOGS",
+    ]
+
+    env = os.environ.copy()
+    env["OTEL_EXPORTER_OTLP_HEADERS"] = "dd-api-key=SENTINEL_OTLP_BASE"
+    env["OTEL_EXPORTER_OTLP_TRACES_HEADERS"] = "dd-api-key=SENTINEL_OTLP_TRACES"
+    env["OTEL_EXPORTER_OTLP_METRICS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_METRICS"
+    env["OTEL_EXPORTER_OTLP_LOGS_HEADERS"] = "dd-api-key=SENTINEL_OTLP_LOGS"
+    # Non-sensitive OTLP exporter configurations that must still be reported.
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4318"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    assert configurations, "no configuration telemetry was reported"
+
+    # Invariant: no OTLP header sentinel appears in any reported configuration value.
+    for cfg in configurations.values():
+        for sentinel in sentinels:
+            assert sentinel not in str(cfg["value"]), cfg
+
+    # Python omits the OTLP header family entirely.
+    for name in (
+        "OTEL_EXPORTER_OTLP_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+        "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+    ):
+        assert name not in configurations, configurations.get(name)
+
+    # Non-sensitive OTLP exporter configurations are still reported.
+    assert configurations["OTEL_EXPORTER_OTLP_ENDPOINT"] == {
+        "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "origin": "env_var",
+        "value": "http://localhost:4318",
+    }
+    # Sibling non-sensitive exporter configs (collected at import) remain present.
+    assert "OTEL_EXPORTER_OTLP_PROTOCOL" in configurations
+    assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
+
+
+def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
+    """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
+
+    Uses the in-process telemetry writer (forced non-agentless) because setting DD_API_KEY would
+    otherwise switch a subprocess's telemetry client into agentless mode and divert it from the
+    test agent.
+    """
+    from ddtrace.internal.telemetry import get_config
+
+    with mock.patch.dict(
+        os.environ,
+        {"DD_API_KEY": "SENTINEL_DD_API_KEY", "DD_APP_KEY": "SENTINEL_DD_APP_KEY"},
+    ):
+        # Read each sensitive key the way settings do; the value must not be queued for telemetry.
+        assert get_config("DD_API_KEY") == "SENTINEL_DD_API_KEY"
+        assert get_config("DD_APP_KEY") == "SENTINEL_DD_APP_KEY"
+        # A non-sensitive control config is still reported, proving reporting is otherwise active.
+        get_config("DD_SITE", "datadoghq.com")
+
+    queued = list(telemetry_writer._queued_configs)
+    queued_names = {c["name"] for c in queued}
+    assert "DD_API_KEY" not in queued_names, queued
+    assert "DD_APP_KEY" not in queued_names, queued
+    for cfg in queued:
+        assert "SENTINEL_DD_API_KEY" not in str(cfg["value"]), cfg
+        assert "SENTINEL_DD_APP_KEY" not in str(cfg["value"]), cfg
+    # Sanity check: the non-sensitive control config was reported.
+    assert "DD_SITE" in queued_names, queued
 
 
 def test_add_error_log(mock_time, telemetry_writer, test_agent_session):
