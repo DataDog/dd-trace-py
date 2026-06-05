@@ -381,6 +381,9 @@ cdef class BufferedEncoder(object):
     def encode(self):
         raise NotImplementedError()
 
+    def clear(self):
+        raise NotImplementedError()
+
 
 cdef class ListBufferedEncoder(BufferedEncoder):
     cdef list _buffer
@@ -423,6 +426,12 @@ cdef class ListBufferedEncoder(BufferedEncoder):
             finally:
                 self._buffer[:] = []
                 self._size = 0
+
+    cpdef clear(self):
+        """Clear the buffer without returning encoded items."""
+        with self._lock:
+            self._buffer[:] = []
+            self._size = 0
 
     def encode_item(self, item):
         raise NotImplementedError()
@@ -469,6 +478,10 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
                 return []
 
             return self.flush()
+
+    cpdef clear(self):
+        with self._lock:
+            self._reset_buffer()
 
     cdef inline int _update_array_len(self):
         """Update traces array size prefix"""
@@ -1047,6 +1060,11 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                 return [(self._st.flush(), len(self))]
             finally:
                 self._reset_buffer()
+
+    cpdef clear(self):
+        with self._lock:
+            self._reset_buffer()
+            self._st.reset()
 
     @property
     def size(self):

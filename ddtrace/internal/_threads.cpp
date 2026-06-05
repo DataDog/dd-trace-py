@@ -443,6 +443,7 @@ typedef struct periodic_thread
 
     PyObject* _target;
     PyObject* _on_shutdown;
+    PyObject* _on_after_fork;
     bool _no_wait_at_start;
 
     PyObject* _ddtrace_profiling_ignore;
@@ -497,6 +498,7 @@ PeriodicThread_traverse(PeriodicThread* self, visitproc visit, void* arg)
     Py_VISIT(self->ident);
     Py_VISIT(self->_target);
     Py_VISIT(self->_on_shutdown);
+    Py_VISIT(self->_on_after_fork);
     Py_VISIT(self->_ddtrace_profiling_ignore);
     return 0;
 }
@@ -509,6 +511,7 @@ PeriodicThread_clear(PeriodicThread* self)
     Py_CLEAR(self->ident);
     Py_CLEAR(self->_target);
     Py_CLEAR(self->_on_shutdown);
+    Py_CLEAR(self->_on_after_fork);
     Py_CLEAR(self->_ddtrace_profiling_ignore);
     return 0;
 }
@@ -517,25 +520,29 @@ PeriodicThread_clear(PeriodicThread* self)
 static int
 PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
-    static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", "no_wait_at_start", NULL };
+    static const char* kwlist[] = { "interval",         "target",        "name", "on_shutdown",
+                                    "no_wait_at_start", "on_after_fork", NULL };
 
     self->name = Py_None;
     self->_on_shutdown = Py_None;
+    self->_on_after_fork = Py_None;
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "dO|OOp",
+                                     "dO|OOp$O",
                                      (char**)kwlist,
                                      &self->interval,
                                      &self->_target,
                                      &self->name,
                                      &self->_on_shutdown,
-                                     &self->_no_wait_at_start))
+                                     &self->_no_wait_at_start,
+                                     &self->_on_after_fork))
         return -1;
 
     Py_INCREF(self->_target);
     Py_INCREF(self->name);
     Py_INCREF(self->_on_shutdown);
+    Py_INCREF(self->_on_after_fork);
 
     Py_INCREF(Py_None);
     self->ident = Py_None;
@@ -590,6 +597,19 @@ static inline void
 PeriodicThread__on_shutdown(PeriodicThread* self)
 {
     PyObject* result = PyObject_CallObject(self->_on_shutdown, NULL);
+
+    if (result == NULL) {
+        PyErr_Print();
+    }
+
+    Py_XDECREF(result);
+}
+
+// ----------------------------------------------------------------------------
+static inline void
+PeriodicThread__on_after_fork(PeriodicThread* self)
+{
+    PyObject* result = PyObject_CallObject(self->_on_after_fork, NULL);
 
     if (result == NULL) {
         PyErr_Print();
@@ -973,6 +993,9 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     // the thread promptly. Clear it so it does not trigger a spurious
     // periodic() call after restart (or linger in the no-restart case).
     self->_request->clear(REQUEST_REASON_FORK_STOP);
+
+    if (!force && self->_on_after_fork != Py_None)
+        PeriodicThread__on_after_fork(self);
 
     // _before_fork() detaches every handle in the parent before the fork, so
     // joinable() is always false here. No OS call needed on the inherited handle.

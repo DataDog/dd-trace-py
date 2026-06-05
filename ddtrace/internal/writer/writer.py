@@ -102,6 +102,14 @@ class NoEncodableSpansError(Exception):
     pass
 
 
+def _clear_client_encoders_after_fork(clients: list[WriterClientBase]) -> None:
+    for client in clients:
+        try:
+            client.encoder.clear()
+        except Exception:
+            _safelog(log.error, "failed to clear trace encoder %r after fork", client.encoder, exc_info=True)
+
+
 # The window size should be chosen so that the look-back period is
 # greater-equal to the agent API's timeout. Although most tracers have a
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
@@ -523,6 +531,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.periodic()
         finally:
             self._reset_connection()
+
+    def on_after_fork(self):
+        _clear_client_encoders_after_fork(self._clients)
 
 
 class AgentWriterInterface(metaclass=abc.ABCMeta):
@@ -1061,6 +1072,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.periodic()
         finally:
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+
+    def on_after_fork(self):
+        _clear_client_encoders_after_fork(self._clients)
 
 
 def _use_log_writer() -> bool:

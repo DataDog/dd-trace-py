@@ -233,6 +233,10 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             self._reset()
         return [(payload, count)]
 
+    def clear(self) -> None:
+        with self._lock:
+            self._reset()
+
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
         if not item.parent_id:
             item._set_attribute("_trace_root", 1)

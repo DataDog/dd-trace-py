@@ -85,6 +85,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self._init_buffer()
             return payloads
 
+    def clear(self) -> None:
+        self._init_buffer()
+
     def _get_parent_session(self, traces: list[list["Span"]]) -> int:
         for trace in traces:
             for span in trace:
@@ -412,6 +415,10 @@ class CIVisibilityCoverageReportEncoder:
             Empty list - no buffered payloads to encode
         """
         return []
+
+    def clear(self) -> None:
+        """No-op: coverage reports are not buffered."""
+        pass
 
     def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
         """Encode coverage report as multipart form data.

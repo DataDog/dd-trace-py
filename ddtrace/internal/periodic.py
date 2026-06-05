@@ -45,6 +45,7 @@ class PeriodicService(service.Service):
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,
+            on_after_fork=self.on_after_fork,
             no_wait_at_start=self._no_wait_at_start,
         )
         self._worker.__autorestart__ = self._autorestart
@@ -67,6 +68,9 @@ class PeriodicService(service.Service):
 
     @staticmethod
     def on_shutdown():
+        pass
+
+    def on_after_fork(self):
         pass
 
     def periodic(self):

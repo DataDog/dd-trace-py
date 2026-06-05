@@ -407,6 +407,58 @@ def test_periodic_service_no_immediate_run_after_fork():
         service.join()
 
 
+def test_periodic_service_on_after_fork_runs_in_child_path():
+    after_fork_ran = Event()
+
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+        def on_after_fork(self):
+            after_fork_ran.set()
+
+    service = EveryMinute(60)
+    service.start()
+
+    try:
+        assert service._worker is not None
+
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork()
+
+        assert after_fork_ran.wait(timeout=1)
+    finally:
+        service.stop()
+        service.join()
+
+
+def test_periodic_service_on_after_fork_skips_parent_path():
+    after_fork_ran = Event()
+
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+        def on_after_fork(self):
+            after_fork_ran.set()
+
+    service = EveryMinute(60)
+    service.start()
+
+    try:
+        assert service._worker is not None
+
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork(force=True)
+
+        assert not after_fork_ran.is_set()
+    finally:
+        service.stop()
+        service.join()
+
+
 def test_periodic_thread_preserves_awake_during_restart_window():
     """Ensure awake() isn't lost while a periodic thread is paused for fork.
 
