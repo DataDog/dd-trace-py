@@ -3,7 +3,6 @@ import os
 
 import pytest
 
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.contrib.internal.asyncio.patch import patch as patch_asyncio
 from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
@@ -633,14 +632,10 @@ def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
     assert llmobs_events[0]["_dd"]["sample_rate"] == "0.5"
 
 
-def test_sampling_decision_consistent_with_propagated_rate_when_no_upstream_decision(llmobs, llmobs_events):
-    # trace_id=9 is dropped at rate=0.5 but kept at rate=1.0, so the two rates give different outcomes.
-    _TRACE_ID = 9
-    assert not RateSampler(0.5).sample_by_id(_TRACE_ID), "trace_id must be dropped at 0.5"
-    assert RateSampler(1.0).sample_by_id(_TRACE_ID), "trace_id must be kept at 1.0"
-
-    ctx = Context(trace_id=_TRACE_ID, span_id=987654321)
-    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(_TRACE_ID)
+def test_sampling_decision_defaults_to_sampled_when_no_upstream_decision(llmobs, llmobs_events):
+    # Upstream context present but no decision tag — downstream defaults to sampled (1).
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
     ctx._meta[PROPAGATED_PARENT_ID_KEY] = "987654321"
     ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
     # No PROPAGATED_SAMPLING_DECISION — simulates an older upstream SDK
@@ -653,7 +648,7 @@ def test_sampling_decision_consistent_with_propagated_rate_when_no_upstream_deci
     assert len(llmobs_events) == 1
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sample_rate"] == "0.5"
-    assert event_dd["sampling_decision"] == "0"  # computed from upstream rate 0.5, not local 1.0
+    assert event_dd["sampling_decision"] == "1"  # upstream context present → default to sampled
 
 
 def test_sampling_decision_uses_local_rate_when_no_propagated_rate(llmobs, llmobs_events):
@@ -661,6 +656,17 @@ def test_sampling_decision_uses_local_rate_when_no_propagated_rate(llmobs, llmob
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+
+
+def test_sampling_decision_defaults_to_sampled_when_no_upstream_context_tags(llmobs, llmobs_events):
+    # Upstream LLMObs context present but neither sampling tag set — defaults to rate "1", decision "1".
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == "1"
 
 
 def test_sampling_decision_computed_for_root_span(llmobs, llmobs_events):
@@ -698,7 +704,9 @@ def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("root"):
         with llmobs.workflow("child") as child:
-            assert _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+            assert (
+                _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+            )
 
 
 def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
