@@ -127,7 +127,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         "gpt-4.1": 1_047_576,
         "gpt-4": 8_192,
         "gpt-3.5-turbo": 16_385,
-        # Provisional — verify against OpenAI's published spec before relying on these.
         "gpt-5-mini": 400_000,
         "gpt-5": 400_000,
         "o1-preview": 128_000,
