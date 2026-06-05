@@ -898,17 +898,6 @@ class HTTPClient:
         body: Optional[bytes] = None,
         timeout_ms: Optional[int] = None,
     ) -> HttpResponse: ...
-    def shutdown(self) -> None:
-        """Release the connection pool and tokio handle immediately.
-
-        Subsequent requests raise :class:`ValueError`. Use this for a
-        deterministic teardown boundary (e.g. before fork, or at the end of
-        a request-handling scope). ``__exit__`` and ``__del__`` run the same
-        path; explicit ``shutdown()`` is only needed when timing matters.
-        """
-        ...
-    def __enter__(self) -> "HTTPClient": ...
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> bool: ...
 
 class HttpClientError(Exception):
     """Base class for all native HTTP client errors.

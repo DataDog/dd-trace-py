@@ -17,24 +17,23 @@
 
 use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, RetryConfig};
 use libdd_shared_runtime::SharedRuntime;
-use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+#[cfg(not(unix))]
+use pyo3::exceptions::PyValueError;
+use pyo3::{prelude::*, pybacked::PyBackedBytes};
 use std::{sync::Arc, time::Duration};
 use url::Url;
 
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
 
-const CLIENT_CLOSED_MSG: &str = "HTTPClient has already been shut down";
-
 /// A pooled, base-URL HTTP client over `libdd_http_client::HttpClient`.
 ///
+/// `frozen` so PyO3 skips the `RefCell` borrow-check on every method call.
 /// `subclass` so the Python `ddtrace.internal.http_client.HTTPClient` can extend
 /// it to inject the shared runtime.
-#[pyclass(name = "HTTPClient", subclass)]
+#[pyclass(name = "HTTPClient", subclass, frozen)]
 pub struct HttpClientPy {
-    // DEV: client + runtime collapsed into one Option so both are freed together
-    // on shutdown / Drop.
-    inner: Option<(HttpClient, Arc<SharedRuntime>)>,
+    inner: (HttpClient, Arc<SharedRuntime>),
     // Request origin that relative paths are joined onto (e.g.
     // "http://localhost:8126"; "http://localhost" for UDS). No trailing slash.
     base: String,
@@ -62,10 +61,7 @@ impl HttpClientPy {
         body: Option<PyBackedBytes>,
         timeout_ms: Option<u64>,
     ) -> PyResult<HttpResponsePy> {
-        let (client, runtime) = self
-            .inner
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err(CLIENT_CLOSED_MSG))?;
+        let (client, runtime) = &self.inner;
         let runtime = runtime.clone();
 
         let mut req = HttpRequest::new(method, self.full_url(path));
@@ -219,7 +215,7 @@ impl HttpClientPy {
         let inner = builder.build().map_err(|e| http_error_to_pyerr(py, e))?;
 
         Ok(Self {
-            inner: Some((inner, rt)),
+            inner: (inner, rt),
             base,
             default_headers: headers.unwrap_or_default(),
         })
@@ -300,37 +296,7 @@ impl HttpClientPy {
         self.request(py, HttpMethod::Patch, &path, headers, body, timeout_ms)
     }
 
-    /// Explicit shutdown — releases the connection pool and tokio handle
-    /// immediately rather than waiting for garbage collection.
-    ///
-    /// Calling this is optional: `__exit__` (context manager) and `__del__`
-    /// (GC / refcount-zero) both run the same path. Use `shutdown()` when you
-    /// want a deterministic teardown boundary (e.g. before fork, or at the end
-    /// of a request-handling scope where latency matters).
-    fn shutdown(&mut self) {
-        drop(self.inner.take());
-    }
-
-    fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
-        slf
-    }
-
-    fn __exit__(
-        &mut self,
-        _exc_type: &Bound<'_, PyAny>,
-        _exc_val: &Bound<'_, PyAny>,
-        _exc_tb: &Bound<'_, PyAny>,
-    ) -> bool {
-        self.shutdown();
-        false // do not suppress exceptions
-    }
-
     fn __repr__(&self) -> String {
-        let state = if self.inner.is_some() {
-            "open"
-        } else {
-            "closed"
-        };
-        format!("HTTPClient(base={:?}, <{}>)", self.base, state)
+        format!("HTTPClient(base={:?})", self.base)
     }
 }

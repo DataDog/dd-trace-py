@@ -2,7 +2,7 @@
 
 Covers the FFI boundary: base-URL joining, header merging, scheme dispatch,
 PyO3 type conversions (body as bytes, headers as list of tuples, exceptions),
-GIL release, fork safety, and lifecycle (shutdown, context manager).
+GIL release, fork safety, and lifecycle.
 
 The underlying HTTP transport (libdd-http-client / reqwest) is tested by its
 own test suite; these tests do not re-verify transport internals.
@@ -223,20 +223,14 @@ def serve():
 
 @pytest.fixture
 def make_client():
-    """Factory fixture: build an :class:`HTTPClient` and track it for shutdown at
-    teardown. All keyword arguments are forwarded to the constructor.
+    """Factory fixture: build an :class:`HTTPClient`. All keyword arguments are
+    forwarded to the constructor.
     """
-    clients = []
 
     def _make(base_url, **kwargs):
-        client = HTTPClient(base_url, **kwargs)
-        clients.append(client)
-        return client
+        return HTTPClient(base_url, **kwargs)
 
-    yield _make
-    for client in clients:
-        with contextlib.suppress(Exception):
-            client.shutdown()
+    return _make
 
 
 @pytest.fixture
@@ -283,7 +277,6 @@ def test_ipv6_base_url_constructs():
     # reconstructed base URL is valid (no actual I/O needed — construction is enough).
     client = HTTPClient("http://[::1]:8126")
     assert "[::1]:8126" in repr(client)
-    client.shutdown()
 
 
 def test_retry_zero_is_one_attempt_builds(serve, make_client):
@@ -706,29 +699,12 @@ def test_trailing_slash_distinct(serve, make_client):
 # --------------------------------------------------------------------------- #
 
 
-def test_shutdown_blocks_send(serve, make_client):
-    base = serve(EchoHandler)
-    client = make_client(base, timeout_ms=500)
-    client.shutdown()
-    with pytest.raises(ValueError):
-        client.get("/info")
-
-
 def test_http_client_error_is_subclassable():
     class MyError(HttpClientError):
         pass
 
     # Just verify subclass relationship works.
     assert issubclass(MyError, HttpClientError)
-
-
-def test_context_manager(serve):
-    base = serve(EchoHandler)
-    with HTTPClient(base) as client:
-        assert client.get("/").status_code == 200
-    # After __exit__, client is shut down
-    with pytest.raises(ValueError):
-        client.get("/")
 
 
 # --------------------------------------------------------------------------- #
