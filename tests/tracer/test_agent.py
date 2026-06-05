@@ -599,3 +599,10 @@ def test_trace_native_span_events_user_true_without_otlp():
     from ddtrace.internal.settings._agent import config
 
     assert config.trace_native_span_events is True
+
+
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp,zipkin", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
+def test_trace_native_span_events_not_enabled_with_multi_exporter():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.trace_native_span_events is False
