@@ -21,13 +21,8 @@ ENABLE_AUTO_COMMIT = True
 
 
 async def resolve_cluster_id(client, topic, retries=5, delay=0.2):
-    """Resolve the Kafka cluster ID with retries, bypassing the failure cache.
-
-    Pre-warms client._dd_cluster_id so that subsequent traced operations
-    (traced_send, traced_getone, traced_commit) use the correct cluster_id
-    rather than "" from a transient lookup failure.  If the cluster_id cannot
-    be resolved after all retries, the test is failed explicitly — an empty
-    cluster_id would silently break DSM commit/produce tracking.
+    """Resolve the Kafka cluster ID for a given tracer client.
+    Ephemeral issues in CI can result in only one of the consumer/producer getting a cluster id
     """
     for attempt in range(retries):
         # Clear the 5-minute failure cache so _get_cluster_id will retry the request.
