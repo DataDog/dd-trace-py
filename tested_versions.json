@@ -1094,15 +1094,15 @@
           "python_version": "3.10"
         },
         {
-          "version": "6.105.0",
+          "version": "8.125.0",
           "python_version": "3.11"
         },
         {
-          "version": "6.105.0",
+          "version": "8.125.0",
           "python_version": "3.12"
         },
         {
-          "version": "6.105.0",
+          "version": "8.125.0",
           "python_version": "3.13"
         }
       ]

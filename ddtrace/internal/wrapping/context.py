@@ -454,7 +454,16 @@ class LazyWrappingContext(WrappingContext):
                         except (AttributeError, ValueError):
                             log.warning("Inconsistent lazy wrapping context state")
 
-                        super(LazyWrappingContext, self).wrap()
+                        # The actual bytecode wrapping happens here, at call time.
+                        # A failure to rewrite the bytecode must not crash the
+                        # call that triggered the lazy wrapping: log it and fall
+                        # through to call the (now unwrapped) original function.
+                        try:
+                            super(LazyWrappingContext, self).wrap()
+                        except Exception:
+                            log.error(
+                                "Failed to lazily apply wrapping context to %r; calling it unwrapped", f, exc_info=True
+                            )
                 return f(*args, **kwargs)
 
             wrap(self.__wrapped__, trampoline)
@@ -661,6 +670,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
 
+            # Generate the new code object before mutating the function.
+            new_code = bc.to_code()
+
             # Mark the function as wrapped by a wrapping context
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
@@ -669,7 +681,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # it later if required.
             link_function_to_code(code, f)
 
-            set_function_code(f, bc.to_code())
+            set_function_code(f, new_code)
 
         def unwrap(self) -> None:
             f = self.__wrapped__
