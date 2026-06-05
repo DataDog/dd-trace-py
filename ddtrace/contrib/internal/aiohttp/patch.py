@@ -1,3 +1,4 @@
+from collections.abc import MutableMapping
 from typing import Optional
 
 import aiohttp
@@ -94,7 +95,11 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
     headers = kwargs.get("headers")
     if not headers:
         headers = {}
-        kwargs["headers"] = headers
+    elif not isinstance(headers, MutableMapping):
+        # aiohttp accepts LooseHeaders: dict, Mapping, or sequence of (key, value) pairs.
+        # HTTPPropagator.inject requires a MutableMapping; convert non-mapping types to dict.
+        headers = dict(headers)
+    kwargs["headers"] = headers
 
     service: Optional[str] = (
         url.host if config.aiohttp_client.split_by_domain else ext_service(None, config.aiohttp_client)

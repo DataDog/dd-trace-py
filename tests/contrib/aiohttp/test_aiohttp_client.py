@@ -238,6 +238,23 @@ async def test_trace_multiple(snapshot_context):
                 assert resp.status == 200
 
 
+@pytest.mark.asyncio
+async def test_request_with_tuple_headers():
+    """
+    When headers are passed as a sequence of (key, value) tuples (aiohttp LooseHeaders)
+        The request should succeed without TypeError and distributed tracing headers
+        should be injected.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get("%s/headers" % URL, headers=(("x-custom-header", "value"),)) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            assert "X-Datadog-Trace-Id" in data["headers"]
+            assert "X-Datadog-Parent-Id" in data["headers"]
+            assert "X-Datadog-Sampling-Priority" in data["headers"]
+            assert data["headers"].get("X-Custom-Header") == "value"
+
+
 @pytest.mark.skipif(
     tuple(int(x) for x in aiohttp.__version__.split(".")[:2]) < (3, 8),
     reason="base_url parameter added in aiohttp 3.8.0",
