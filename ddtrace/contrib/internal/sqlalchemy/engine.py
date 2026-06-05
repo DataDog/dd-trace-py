@@ -37,7 +37,7 @@ def trace_engine(engine, tracer=None, service=None):
             category=DDTraceDeprecationWarning,
             removal_version="5.0.0",
         )
-    EngineTracer(service, engine)
+    EngineTracer.attach(service, engine)
 
 
 def _wrap_create_engine(func, module, args, kwargs):
@@ -50,11 +50,28 @@ def _wrap_create_engine(func, module, args, kwargs):
     # name is used by default; users can update this setting
     # using the PIN object
     engine = func(*args, **kwargs)
-    EngineTracer(None, engine)
+    EngineTracer.attach(None, engine)
     return engine
 
 
 class EngineTracer(object):
+    __datadog_tracer_attr__ = "_datadog_sqlalchemy_engine_tracer"
+
+    @classmethod
+    def attach(cls, service, engine):
+        engine_tracer = getattr(engine, cls.__datadog_tracer_attr__, None)
+        if engine_tracer is None:
+            engine_tracer = cls(service, engine)
+            setattr(engine, cls.__datadog_tracer_attr__, engine_tracer)
+            return engine_tracer
+
+        if service is not None:
+            engine_tracer.service = schematize_service_name(service)
+            pin = Pin.get_from(engine)
+            if pin is not None:
+                pin.clone(service=engine_tracer.service).onto(engine)
+        return engine_tracer
+
     def __init__(self, service, engine):
         self.engine = engine
         self.vendor = sqlx.normalize_vendor(engine.name)
