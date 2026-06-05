@@ -694,11 +694,8 @@ class TestOpenAIAgentsContextState:
         assert state["last_agent"]["tools_chars"] == 500
 
     def test_handoff_locks_snapshots_to_first_agent(self):
-        # MLOB-7584 — multi-agent handoff scenario. The first agent (Researcher) makes 2 LLM
-        # calls + 2 turns, then hands off to a second agent (Summarizer). The emitted context
-        # delta should reflect the Researcher's loop only; the Summarizer's fresh-context
-        # turn must NOT overwrite last_llm / last_agent. This avoids the "context shrinks
-        # after handoff" regression visible in the bar otherwise.
+        # Researcher (2 turns) -> Summarizer. Emitted delta must reflect Researcher only;
+        # the Summarizer's fresh-context turn must not overwrite last_* snapshots.
         integration = _make_integration()
 
         # Researcher turn 1
@@ -739,11 +736,8 @@ class TestOpenAIAgentsContextState:
         assert delta["delta_tokens"] == 200
 
     def test_multi_handoff_chain_stays_locked_to_first_agent(self):
-        # MLOB-7584 — chain of TWO handoffs: A -> B -> C. After A's first turn locks
-        # first_agent_id="A", both B's and C's record_agent_side calls must be dropped
-        # so the emitted delta still reflects A's loop only. This is the case the
-        # single-handoff test doesn't cover: a buggy implementation that re-locked
-        # first_agent_id on each new agent would still pass the single-handoff test.
+        # A -> B -> C. Both B and C must be dropped; emitted delta reflects A only.
+        # Single-handoff test wouldn't catch a regression that re-locks on each new agent.
         integration = _make_integration()
 
         # Agent A — turn 1
@@ -956,13 +950,8 @@ class TestSplitMessageChars:
         assert split_message_chars(messages) == (1, 0)
 
     def test_responses_api_function_call_and_output_bucketed_into_assistant(self):
-        # AIDEV-NOTE: MLOB-7584 — Responses API surfaces tool-call activity as non-role
-        # items keyed by ``type``. ``split_message_chars`` originally only looked at
-        # ``role`` and silently dropped these items, so on multi-turn tool-using runs
-        # ``assistant_chars`` was always 0 and the context_delta bar rendered without
-        # the Assistant segment. The shape below mirrors what agents 0.17.x emits for
-        # function_call + function_call_output input items (verified empirically against
-        # the openai-agents library's ResponseInputItemParam shapes).
+        # Responses API non-role items (function_call / function_call_output) bucket
+        # into assistant_chars by ``type`` rather than ``role``.
         from ddtrace.llmobs._integrations.openai_agents import split_message_chars
 
         messages = [
@@ -1061,17 +1050,7 @@ class TestCountToolsChars:
 
 
 class TestOpenAIAgentsPatchCompat:
-    """Cover the agents-version compatibility shims in patch.py.
-
-    AIDEV-NOTE: MLOB-7584 — the module-level run_single_turn wrappers were
-    previously untested at the dd-trace-py unit level; logic-mirror tests lived
-    in an external eyeball directory. The class below covers:
-      - ``_has_module_level_run_loop`` detection
-      - ``_MODULE_RUN_LOOP_WRAP_TARGETS`` shape
-      - ``_patched_run_single_turn_module`` wrapper behavior (agent extraction
-        from ``bindings.execution_agent``, ``record_agent_side`` call with
-        ``agent_id``, ``tag_agent_manifest_from_agent`` invocation)
-    """
+    """Cover the agents-version compatibility shims in patch.py."""
 
     @pytest.fixture(autouse=True)
     def _enable_llmobs(self):

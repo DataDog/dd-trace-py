@@ -64,12 +64,6 @@ class LLMObsTraceProcessor(TracingProcessor):
             [],
             {"oai_trace": trace_adapter},
         )
-        # MLOB-7584: emit the assembled context_delta onto the agent-kind root span before
-        # finishing. Snapshots were populated by on_span_end (response-type spans, LLM side)
-        # and by patch.py's agent-side wrappers — ``_patched_run_single_turn`` for agents
-        # versions where the per-turn function is an instance method (Runner/AgentRunner)
-        # and ``_patched_run_single_turn_module`` for agents >= ~0.10 where it moved to a
-        # module-level free function in agents.run_internal.run_loop.
         self._integration.emit_context_delta(trace_root_span, trace_root_span.trace_id)
         self._integration.llmobs_traces.pop(format_trace_id(trace_root_span.trace_id), None)
         trace_root_span.finish()
@@ -89,10 +83,6 @@ class LLMObsTraceProcessor(TracingProcessor):
             return
         self._integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
 
-        # MLOB-7584: on response-type spans (LLM calls), capture per-call context categories
-        # for the context_delta payload. Tokens come from the model's reported usage;
-        # per-category chars are derived from the system instructions + role-split message
-        # history. split_message_chars lives in openai_agents.py alongside count_tools_chars.
         if span_adapter.span_type == "response":
             metrics = span_adapter.llmobs_metrics or {}
             input_tokens = metrics.get("input_tokens", 0)

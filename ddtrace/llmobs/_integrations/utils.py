@@ -1679,13 +1679,8 @@ def extract_instance_metadata_from_stack(
         return default_variable_name, default_module_name
 
 
-# AIDEV-NOTE: MLOB-7584 — section name constants for the context_delta payload.
-#
-# Contract shape is load-bearing and mirrors the existing emitter at
-# ddtrace/llmobs/_integrations/claude_agent_sdk.py:_parse_context_delta. The backend
-# rendering layer filters section names against a finite allowlist; the four keys below
-# are the cross-framework generic entries and are safe to use from any integration. Other
-# names may be silently dropped by the consumer.
+# AIDEV-NOTE: MLOB-7584 — section names below are the cross-framework allowlist accepted
+# by the backend renderer (DataDog/web-ui#288158). Other names are silently dropped.
 CONTEXT_SECTION_SYSTEM = "system"
 CONTEXT_SECTION_TOOLS = "tools"
 CONTEXT_SECTION_USER_MESSAGES = "user_messages"
@@ -1693,15 +1688,10 @@ CONTEXT_SECTION_ASSISTANT_MESSAGES = "assistant_messages"
 
 
 def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dict[str, int]:
-    """Distribute ``total_tokens`` across categories proportional to ``char_counts``.
+    """Distribute ``total_tokens`` proportional to ``char_counts``.
 
-    AIDEV-NOTE: approximation. The total is authoritative (model-reported), but the
-    per-category distribution drifts up to ~20% when categories have very different
-    token-per-character density (JSON-dense tool definitions vs natural-language prose).
-    Additionally, integer truncation (``int(...)`` floor) means the per-category sum may
-    be lower than ``total_tokens`` by up to ``len(char_counts) - 1`` tokens. Acceptable
-    for visualization; not for billing. A future upgrade to a per-provider tokenizer
-    (e.g. tiktoken for OpenAI models) would not change the contract shape.
+    Total is authoritative (model-reported); per-category split is approximate
+    (~5-15% drift on real workloads). Acceptable for visualization, not for billing.
     """
     if total_tokens <= 0 or not char_counts:
         return {name: 0 for name in char_counts}
@@ -1712,12 +1702,7 @@ def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dic
 
 
 def _sections_with_pct(token_counts: dict[str, int]) -> list[dict[str, Any]]:
-    """Build the ``sections`` list with rounded percent-of-used-tokens.
-
-    Matches the convention in claude_agent_sdk's _parse_snapshot: pct is share of
-    used tokens (sum of section tokens), not share of the full context window.
-    Zero-token categories are omitted so the UI doesn't render empty segments.
-    """
+    """Return ``sections`` list with pct as share of used tokens. Drops zero entries."""
     total = sum(token_counts.values())
     sections: list[dict[str, Any]] = []
     for name, tokens in token_counts.items():
@@ -1737,12 +1722,7 @@ def tag_context_delta(
     last_input_tokens: int,
     context_window_size: int,
 ) -> None:
-    """Emit ``meta.metadata._dd.context_delta`` on an agent-kind span.
-
-    Shape mirrors ``claude_agent_sdk._parse_context_delta`` so the LLMObs backend renders
-    the per-category growth identically across integrations. No-ops when both first and
-    last input_tokens are zero (matches the Claude integration's None-return guard).
-    """
+    """Emit ``meta.metadata._dd.context_delta``. Mirrors ``claude_agent_sdk._parse_context_delta``."""
     if first_input_tokens <= 0 and last_input_tokens <= 0:
         return
 
