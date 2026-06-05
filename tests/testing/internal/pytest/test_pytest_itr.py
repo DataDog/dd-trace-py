@@ -302,59 +302,17 @@ class TestITR:
                 assert ANSWER == 42
             """,
         )
-        # Capture state BEFORE inline_run for debugging CI failures
-        from ddtrace.internal.coverage.code import ModuleCodeCollector
-
-        pre_installed = ModuleCodeCollector.is_installed()
-        pre_seen_count = len(ModuleCodeCollector._instance.seen) if ModuleCodeCollector._instance else 0
-        pre_lines_keys = list(ModuleCodeCollector._instance.lines.keys()) if ModuleCodeCollector._instance else []
-        if sys.version_info >= (3, 12):
-            pre_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-        else:
-            pre_tool = "N/A (< 3.12)"
-
-        import os
-
-        os.environ["DD_TRACE_DEBUG"] = "1"
-        try:
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.APIClient",
-                    return_value=mock_api_client_settings(coverage_enabled=True),
-                ),
-                setup_standard_mocks(),
-            ):
-                with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
-                    result = pytester.inline_run("--ddtrace", "-v", "-s")
-        finally:
-            os.environ.pop("DD_TRACE_DEBUG", None)
-
-        # Capture state AFTER inline_run
-        post_installed = ModuleCodeCollector.is_installed()
-        post_seen_count = len(ModuleCodeCollector._instance.seen) if ModuleCodeCollector._instance else 0
-        post_lines_keys = list(ModuleCodeCollector._instance.lines.keys()) if ModuleCodeCollector._instance else []
-        if sys.version_info >= (3, 12):
-            post_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-        else:
-            post_tool = "N/A (< 3.12)"
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(coverage_enabled=True),
+            ),
+            setup_standard_mocks(),
+        ):
+            with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
+                pytester.inline_run("--ddtrace", "-v", "-s")
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
-
-        # Capture inner session stdout/stderr for debugging
-        inner_stdout = result.stdout.str() if hasattr(result, "stdout") else "N/A"
-        inner_stderr = result.stderr.str() if hasattr(result, "stderr") else "N/A"
-
-        assert coverage_events, (
-            f"No coverage events captured.\n"
-            f"  inline_run exit code: {result.ret}\n"
-            f"  pre: installed={pre_installed}, seen={pre_seen_count}, tool={pre_tool}, "
-            f"lines_files={pre_lines_keys[:5]}\n"
-            f"  post: installed={post_installed}, seen={post_seen_count}, tool={post_tool}, "
-            f"lines_files={post_lines_keys[:10]}\n"
-            f"  put_event calls: {put_event_mock.call_count}\n"
-            f"  inner stdout: {inner_stdout[:2000]}\n"
-            f"  inner stderr: {inner_stderr[:2000]}\n"
-        )
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
