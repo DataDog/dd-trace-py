@@ -4,7 +4,10 @@ import pytest
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(
+    err=lambda stderr: "COVERAGE_ID is already in use by 'something_else'" in stderr
+    and "ITR per-test coverage will not be collected" in stderr
+)
 def test_code_coverage_tool_clash():
     """If another tool is already registered as the `sys.monitoring` coverage tool, do not collect coverage."""
     import os

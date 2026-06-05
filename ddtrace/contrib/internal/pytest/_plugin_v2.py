@@ -66,7 +66,8 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
-from ddtrace.internal.coverage.instrumentation import deregister_monitoring
+from ddtrace.internal.coverage.instrumentation import register_coverage
+from ddtrace.internal.coverage.instrumentation import unregister_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -315,7 +316,13 @@ def pytest_load_initial_conftests(early_config, parser, args):
     properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
     """
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
+    # Release COVERAGE_ID before yield so that any coverage tool
+    # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
+    # After yield, reclaim if we held it.
+    was_registered = unregister_coverage()
     yield
+    if was_registered:
+        register_coverage()
 
 
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
@@ -508,13 +515,6 @@ def pytest_unconfigure(config: pytest_Config) -> None:
 def pytest_sessionstart(session: pytest.Session) -> None:
     # Reset stale coverage state from any previous in-process session (e.g. pytester.inline_run)
     reset_coverage_state()
-    # If pytest-cov is enabled for this session, release sys.monitoring.COVERAGE_ID now so that
-    # pytest-cov can claim it in pytest_load_initial_conftests (which runs after sessionstart).
-    # This only matters when a previous in-process session left us holding COVERAGE_ID; in a fresh
-    # process ddtrace registers lazily during test execution, so pytest-cov always wins the race.
-    # If we need COVERAGE_ID again later, instrument_all_lines() re-registers it lazily.
-    if _is_pytest_cov_enabled(session.config):
-        deregister_monitoring()
 
     if not is_test_visibility_enabled():
         return
