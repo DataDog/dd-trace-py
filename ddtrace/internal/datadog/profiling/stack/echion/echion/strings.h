@@ -10,11 +10,13 @@
 #include <unicodeobject.h>
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
 
-#include <echion/long.h>
+#include <echion/errors.h>
 #include <echion/vm.h>
 
 constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB
@@ -30,16 +32,14 @@ pyunicode_to_utf8(PyObject* str_addr);
 // ----------------------------------------------------------------------------
 // NOTE: StringTag is used to salt the upper bits of string table keys.
 // This prevents collisions when Python reuses memory addresses for different
-// types of strings (e.g., a Task name getting deallocated and the same address
+// types of strings (e.g., a filename getting deallocated and the same address
 // being reused for a code object's name). Without tags, we'd return stale
 // cached values for the wrong string type.
 enum class StringTag : uint8_t
 {
-    Unknown = 0,     // Default/untagged (for backwards compatibility)
-    FileName = 1,    // co_filename from code objects
-    FuncName = 2,    // co_name / co_qualname from code objects
-    TaskName = 3,    // asyncio Task names
-    GreenletName = 4 // greenlet names
+    Unknown = 0,  // Default/untagged (for backwards compatibility)
+    FileName = 1, // co_filename from code objects
+    FuncName = 2, // co_name / co_qualname from code objects
 };
 
 class StringTable
@@ -65,16 +65,6 @@ class StringTable
         return static_cast<StringTag>((key & TAG_MASK) >> TAG_SHIFT);
     }
 
-    static constexpr bool is_ephemeral(StringTag tag)
-    {
-        // NOTE: GreenletName is NOT ephemeral because greenlet names are cached in
-        // GreenletInfo::name as StringTable keys. If clear_ephemeral ran while a
-        // GreenletInfo still held the key, subsequent lookups would fail and
-        // sampling would be lost for that greenlet. Greenlet strings are
-        // explicitly removed via StringTable::erase in untrack_greenlet.
-        return tag == StringTag::TaskName;
-    }
-
     static constexpr Key INVALID = 1;
     static constexpr Key UNKNOWN = 2;
     static constexpr Key C_FRAME = 3;
@@ -87,63 +77,32 @@ class StringTable
     [[nodiscard]] inline size_t size() const
     {
         const std::lock_guard<std::mutex> lock(table_lock);
-        return stable_.size() + ephemeral_.size();
-    }
-
-    [[nodiscard]] inline size_t stable_size() const
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-        return stable_.size();
-    }
-
-    [[nodiscard]] inline size_t ephemeral_size() const
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-        return ephemeral_.size();
-    }
-
-    void clear_ephemeral()
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-        ephemeral_.clear();
-    }
-
-    void erase(Key key)
-    {
-        const std::lock_guard<std::mutex> lock(table_lock);
-        table_for(extract_tag(key)).erase(key);
+        return table_.size();
     }
 
     StringTable()
     {
-        stable_.emplace(0, "");
-        stable_.emplace(INVALID, "<invalid>");
-        stable_.emplace(UNKNOWN, "<unknown>");
+        table_.emplace(0, "");
+        table_.emplace(INVALID, "<invalid>");
+        table_.emplace(UNKNOWN, "<unknown>");
     }
 
     void postfork_child()
     {
         // NB placement-new to re-init and leak the mutex because doing anything else is UB
         new (&table_lock) std::mutex();
-        // stable_ and ephemeral_ may be in a mid-emplace state if fork raced with
-        // StringTable::key. Their inherited bucket/node pointers may be inconsistent,
+        // table_ may be in a mid-emplace state if fork raced with
+        // StringTable::key. Its inherited bucket/node pointers may be inconsistent,
         // so calling clear would traverse the same corrupted linked-list state.
-        // Use placement-new to reconstruct the maps without inspecting their contents.
-        new (&stable_) Map();
-        new (&ephemeral_) Map();
+        // Use placement-new to reconstruct the map without inspecting its contents.
+        new (&table_) Map();
         // Restore sentinel entries expected by the rest of the code.
-        stable_.emplace(0, "");
-        stable_.emplace(INVALID, "<invalid>");
-        stable_.emplace(UNKNOWN, "<unknown>");
+        table_.emplace(0, "");
+        table_.emplace(INVALID, "<invalid>");
+        table_.emplace(UNKNOWN, "<unknown>");
     }
 
   private:
-    Map& table_for(StringTag tag) { return is_ephemeral(tag) ? ephemeral_ : stable_; }
-    const Map& table_for(StringTag tag) const { return is_ephemeral(tag) ? ephemeral_ : stable_; }
-
-    const Map& table_for_key(Key k) const { return table_for(extract_tag(k)); }
-
-    Map stable_;
-    Map ephemeral_;
+    Map table_;
     mutable std::mutex table_lock;
 };

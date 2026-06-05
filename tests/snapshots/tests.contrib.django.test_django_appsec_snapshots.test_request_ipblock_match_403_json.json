@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.normalized_route": "/",
       "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",
@@ -43,7 +44,7 @@
       "http.useragent": "python-requests/2.32.3",
       "http.version": "1.1",
       "language": "python",
-      "network.client.ip": "8.8.4.4",
+      "network.client.ip": "127.0.0.1",
       "runtime-id": "e2f1123b8cbd4896a6e912e662f81985",
       "span.kind": "server"
     },

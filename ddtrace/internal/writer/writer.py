@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -120,10 +121,14 @@ def _human_size(nbytes: float) -> str:
 
 
 class TraceWriter(metaclass=abc.ABCMeta):
-    # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
-    #       Find an alternative way to do this without having to pass the parameter/recreating the writer
+    # TODO: appsec_enabled / llmobs_enabled dynamically force api_version=v0.4 in NativeWriter;
+    #       find a way to do this without recreating the writer.
     @abc.abstractmethod
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -147,7 +152,11 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -516,11 +525,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._reset_connection()
 
 
-class AgentResponse(object):
-    def __init__(self, rate_by_service: dict[str, float]) -> None:
-        self.rate_by_service = rate_by_service
-
-
 class AgentWriterInterface(metaclass=abc.ABCMeta):
     intake_url: str
     _api_version: str
@@ -584,7 +588,11 @@ class AgentlessTraceWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "AgentlessTraceWriter":
         try:
             self.stop()
         except ServiceStatusError:
@@ -612,9 +620,9 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
        ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
-    Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, the resolved version is
-    **unconditionally forced to ``v0.4``**, overriding even an explicit ``api_version``
-    argument — v0.5 does not support native span events.
+    Note: ``DD_TRACE_NATIVE_SPAN_EVENTS`` and LLM Observability both force ``v0.4`` even
+    over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
+    does not support native span events.
     """
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
@@ -625,11 +633,19 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or asm_config._asm_enabled
         or asm_config._iast_enabled
         or ai_guard_config._ai_guard_enabled
+        or config._llmobs_enabled
     ):
         default = "v0.4"
     resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
         log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        resolved = "v0.4"
+    if config._llmobs_enabled and resolved != "v0.4":
+        log.warning(
+            "Setting api version to v0.4; LLM Observability requires v0.4 to transmit meta_struct payloads. "
+            "Requested api version '%s' is unsupported when LLM Observability is enabled.",
+            resolved,
+        )
         resolved = "v0.4"
     return resolved
 
@@ -809,8 +825,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         self._exporter = self._create_exporter()
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
-        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "NativeWriter":
+        # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
+        # the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
@@ -819,7 +840,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        api_version = "v0.4" if appsec_enabled else self._api_version
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,

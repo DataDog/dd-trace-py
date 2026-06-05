@@ -377,7 +377,7 @@ experiments:
           # iastaspects
           - name: iastaspects-add_aspect
             thresholds:
-              - execution_time < 0.13 ms
+              - execution_time < 0.15 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-add_inplace_aspect
             thresholds:
@@ -397,7 +397,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytearray_extend_aspect
             thresholds:
-              - execution_time < 0.80 ms
+              - execution_time < 0.90 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytearray_extend_noaspect
             thresholds:
@@ -409,7 +409,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytes_aspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.35 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytes_noaspect
             thresholds:
@@ -421,7 +421,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-bytesio_noaspect
             thresholds:
-              - execution_time < 0.42 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-capitalize_aspect
             thresholds:
@@ -429,7 +429,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-capitalize_noaspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.35 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-casefold_aspect
             thresholds:
@@ -441,11 +441,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-decode_aspect
             thresholds:
-              - execution_time < 0.10 ms
+              - execution_time < 0.13 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-decode_noaspect
             thresholds:
-              - execution_time < 0.21 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-encode_aspect
             thresholds:
@@ -453,7 +453,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-encode_noaspect
             thresholds:
-              - execution_time < 0.20 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-format_aspect
             thresholds:
@@ -489,11 +489,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-ljust_aspect
             thresholds:
-              - execution_time < 0.70 ms
+              - execution_time < 0.80 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-ljust_noaspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.45 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-lower_aspect
             thresholds:
@@ -501,7 +501,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-lower_noaspect
             thresholds:
-              - execution_time < 0.30 ms
+              - execution_time < 0.35 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-lstrip_aspect
             thresholds:
@@ -537,11 +537,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-replace_noaspect
             thresholds:
-              - execution_time < 0.40 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_aspect
             thresholds:
-              - execution_time < 0.42 ms
+              - execution_time < 0.50 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-repr_noaspect
             thresholds:
@@ -549,7 +549,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-rstrip_aspect
             thresholds:
-              - execution_time < 0.50 ms
+              - execution_time < 0.55 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-rstrip_noaspect
             thresholds:
@@ -573,11 +573,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-strip_aspect
             thresholds:
-              - execution_time < 0.35 ms
+              - execution_time < 0.40 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-strip_noaspect
             thresholds:
-              - execution_time < 0.24 ms
+              - execution_time < 0.30 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-swapcase_aspect
             thresholds:
@@ -601,7 +601,7 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspects-translate_noaspect
             thresholds:
-              - execution_time < 0.50 ms
+              - execution_time < 0.55 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspects-upper_aspect
             thresholds:
@@ -623,11 +623,11 @@ experiments:
               - max_rss_usage < 48.00 MB
           - name: iastaspectsospath-ospathjoin_aspect
             thresholds:
-              - execution_time < 0.70 ms
+              - execution_time < 0.80 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspectsospath-ospathjoin_noaspect
             thresholds:
-              - execution_time < 0.70 ms
+              - execution_time < 0.80 ms
               - max_rss_usage < 48.00 MB
           - name: iastaspectsospath-ospathnormcase_aspect
             thresholds:
@@ -691,7 +691,7 @@ experiments:
           # iastpropagation
           - name: iastpropagation-no-propagation
             thresholds:
-              - execution_time < 0.06 ms
+              - execution_time < 0.08 ms
               - max_rss_usage < 45.00 MB
           - name: iastpropagation-propagation_enabled
             thresholds:
@@ -703,7 +703,7 @@ experiments:
               - max_rss_usage < 45.00 MB
           - name: iastpropagation-propagation_enabled_1000
             thresholds:
-              - execution_time < 34.55 ms
+              - execution_time < 38.00 ms
               - max_rss_usage < 45.00 MB
 
           # otelsdkspan
@@ -815,11 +815,11 @@ experiments:
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:

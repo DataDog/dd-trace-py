@@ -174,7 +174,7 @@
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Delete /dbs/db.azure_cosmos_error/colls/container.azure_cosmos_error/docs/item1/",
+    "resource": "Delete /dbs/db.azure_cosmos_error/colls/container.azure_cosmos_error/docs/?/",
     "trace_id": 5,
     "span_id": 1,
     "parent_id": 0,
