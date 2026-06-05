@@ -89,6 +89,26 @@ def update_eventbridge_detail(ctx: ExecutionContext) -> None:
         entry["Detail"] = detail_json
 
 
+def update_agentcore_traceparent(ctx: ExecutionContext) -> None:
+    """Inject the active trace context into Bedrock AgentCore InvokeAgentRuntime.
+
+    AgentCore exposes W3C trace-context as first-class request *parameters*
+    (``traceParent``/``traceState``/``baggage``) that it forwards to the agent
+    container as the corresponding headers. We map the injected W3C headers onto
+    those params so the agent runtime continues the caller's distributed trace.
+    User-provided values are preserved.
+    """
+    params = ctx["params"]
+    trace_headers: dict = {}
+    core.dispatch("botocore.agentcore.update_messages", (ctx, None, None, trace_headers, None))
+
+    header_to_param = {"traceparent": "traceParent", "tracestate": "traceState", "baggage": "baggage"}
+    for header_key, param_key in header_to_param.items():
+        value = trace_headers.get(header_key)
+        if value and param_key not in params:
+            params[param_key] = value
+
+
 def update_client_context(ctx: ExecutionContext) -> None:
     trace_headers = {}
     core.dispatch("botocore.client_context.update_messages", (ctx, None, None, trace_headers, None))

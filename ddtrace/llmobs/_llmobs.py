@@ -1981,7 +1981,9 @@ class LLMObs(Service):
             _INTEGRATIONS_W_PROPAGATION_SUPPORT.values()
         )
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
-            integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
+            integration: ["bedrock-runtime", "bedrock-agent-runtime", "bedrock-agentcore"]
+            if integration == "botocore"
+            else True
             for integration in llm_integrations
         }
         for module, _ in integrations_to_patch.items():
