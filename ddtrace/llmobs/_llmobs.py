@@ -109,6 +109,7 @@ from ddtrace.llmobs._experiment import DatasetRecordNew
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
+from ddtrace.llmobs._experiment import ExperimentSummary
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
@@ -1100,6 +1101,69 @@ class LLMObs(Service):
         return SyncExperiment(name=experiment_meta.name, _experiment=inner_exp, _result=result)
 
     @classmethod
+    def list_experiments(
+        cls,
+        experiment_name: Optional[str] = None,
+        metadata_filter: Optional[dict] = None,
+        parent_experiment_ids: Optional[list[str]] = None,
+        project_name: Optional[str] = None,
+        page_limit: int = 100,
+    ) -> "list[ExperimentSummary]":
+        """List experiments with optional filtering for CI/CD comparison flows.
+
+        Typical CI/CD usage::
+
+            # After each pipeline run, create an experiment tagged with git context:
+            exp = LLMObs.experiment(
+                "my-pipeline", task, dataset, evaluators,
+                experiment_metadata={"commit": commit_sha, "branch": branch},
+            )
+            exp.run()
+
+            # Later, compare results across branches:
+            main_runs = LLMObs.list_experiments(
+                experiment_name="my-pipeline",
+                metadata_filter={"branch": "main"},
+            )
+            pr_runs = LLMObs.list_experiments(
+                experiment_name="my-pipeline",
+                metadata_filter={"commit": pr_commit_sha},
+            )
+
+        :param experiment_name: Filter by logical experiment name (shared across all CI runs
+            of the same pipeline). Matches the ``name`` argument passed to
+            ``LLMObs.experiment()`` / ``LLMObs.async_experiment()``.
+        :param metadata_filter: Filter by metadata key-value containment, e.g.
+            ``{"commit": "abc123", "branch": "main"}``.  Only experiments whose
+            ``experiment_metadata`` is a superset of this dict are returned.
+        :param parent_experiment_ids: Filter to experiments whose parent/baseline experiment
+            UUID is one of the given IDs.  Useful for finding all re-runs or variants of a
+            baseline experiment.
+        :param project_name: Filter by project name.  When omitted, resolves the project UUID
+            from the configured project name; pass an explicit value to query a different project.
+        :param page_limit: Maximum experiments per page request (1–5000, default: 100).
+            All pages are fetched automatically; this controls the HTTP batch size.
+        :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
+        :raises ValueError: If LLMObs is not enabled or the backend request fails.
+        """
+        if cls._instance is None or not cls.enabled:
+            raise ValueError("LLMObs is not enabled. Enable LLMObs before calling list_experiments().")
+        project_id: Optional[str] = None
+        if project_name or cls._project_name:
+            try:
+                project = cls._instance._dne_client.project_create_or_get(project_name or cls._project_name)
+                project_id = project.get("_id")
+            except Exception:
+                log.debug("list_experiments: could not resolve project_id for %r", project_name, exc_info=True)
+        return cls._instance._dne_client.experiment_list(
+            experiment_name=experiment_name,
+            metadata_filter=metadata_filter,
+            parent_experiment_ids=parent_experiment_ids,
+            project_id=project_id,
+            page_limit=page_limit,
+        )
+
+    @classmethod
     def create_dataset(
         cls,
         dataset_name: str,
@@ -1418,6 +1482,7 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
+        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> SyncExperiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -1440,6 +1505,9 @@ class LLMObs(Service):
                                    the evaluate method which receives a SummaryEvaluatorContext.
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
+        :param experiment_metadata: Optional dict of arbitrary key-value metadata stored on the experiment.
+            Useful for CI/CD flows: pass ``{"commit": git_sha, "branch": branch_name}`` so that later calls to
+            ``LLMObs.list_experiments()`` can filter by those values across pipeline runs.
         """
         _validate_task_signature(task, is_async=False)
         if not isinstance(dataset, Dataset):
@@ -1495,6 +1563,7 @@ class LLMObs(Service):
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators_list,
             runs=runs,
+            experiment_metadata=experiment_metadata,
         )
 
     @classmethod
@@ -1510,6 +1579,7 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
+        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> Experiment:
         """Initializes an Experiment to run an async task on a Dataset with evaluators.
 
@@ -1537,6 +1607,9 @@ class LLMObs(Service):
                                    Class-based summary evaluators must inherit from BaseSummaryEvaluator or
                                    BaseAsyncSummaryEvaluator and implement the evaluate method.
         :param runs: The number of times to run the experiment.
+        :param experiment_metadata: Optional dict of arbitrary key-value metadata stored on the experiment.
+            Useful for CI/CD flows: pass ``{"commit": git_sha, "branch": branch_name}`` so that later calls to
+            ``LLMObs.list_experiments()`` can filter by those values across pipeline runs.
         """
         _validate_task_signature(task, is_async=True)
         if not isinstance(dataset, Dataset):
@@ -1593,6 +1666,7 @@ class LLMObs(Service):
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators_list,
             runs=runs,
+            experiment_metadata=experiment_metadata,
         )
 
     @classmethod

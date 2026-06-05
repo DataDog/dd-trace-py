@@ -40,6 +40,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentSummary
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
@@ -808,6 +809,81 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_obj._project_id = project_id
         return experiment_obj
 
+    def experiment_list(
+        self,
+        experiment_name: Optional[str] = None,
+        metadata_filter: Optional[dict] = None,
+        parent_experiment_ids: Optional[list[str]] = None,
+        project_id: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        is_deleted: bool = False,
+        page_limit: int = 100,
+    ) -> "list[ExperimentSummary]":
+        """List experiments with optional filtering for CI/CD comparison flows.
+
+        :param experiment_name: Filter by logical experiment name (shared across all CI runs).
+        :param metadata_filter: Filter by metadata key-value containment,
+            e.g. ``{"commit": "abc123", "branch": "main"}``.
+        :param parent_experiment_ids: Filter by one or more parent/baseline experiment UUIDs.
+        :param project_id: Filter by project UUID.
+        :param dataset_id: Filter by dataset UUID.
+        :param is_deleted: Include soft-deleted experiments (default: False).
+        :param page_limit: Maximum number of experiments per page request (1–5000, default: 100).
+            Results from all pages are returned; this controls the batch size per HTTP request.
+        :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
+        :raises ValueError: If the backend request fails.
+        """
+        limit = max(1, min(page_limit, 5000))
+        base_params: list[tuple[str, str]] = [("page[limit]", str(limit))]
+        if experiment_name:
+            base_params.append(("filter[experiment]", experiment_name))
+        if metadata_filter:
+            base_params.append(("filter[metadata]", json.dumps(metadata_filter, separators=(",", ":"))))
+        if parent_experiment_ids:
+            for pid in parent_experiment_ids:
+                base_params.append(("filter[parent_experiment_id]", pid))
+        if project_id:
+            base_params.append(("filter[project_id]", project_id))
+        if dataset_id:
+            base_params.append(("filter[dataset_id]", dataset_id))
+        if is_deleted:
+            base_params.append(("filter[is_deleted]", "true"))
+
+        results: list[ExperimentSummary] = []
+        cursor: Optional[str] = None
+
+        while True:
+            params = list(base_params)
+            if cursor:
+                params.append(("page[cursor]", cursor))
+            path = "/api/v2/llm-obs/v1/experiments?" + urllib.parse.urlencode(params)
+            resp = self.request("GET", path)
+            if resp.status != 200:
+                raise ValueError(f"Failed to list experiments: {resp.status} {resp.get_json()}")
+            body = resp.get_json() or {}
+            for item in body.get("data") or []:
+                attrs = item.get("attributes") or {}
+                meta = attrs.get("metadata") or {}
+                summary = ExperimentSummary(
+                    id=item.get("id") or "",
+                    name=attrs.get("name") or "",
+                    experiment=attrs.get("experiment") or "",
+                    project_id=attrs.get("project_id") or "",
+                    dataset_id=attrs.get("dataset_id") or "",
+                    dataset_version=attrs.get("dataset_version") or 0,
+                    description=attrs.get("description") or "",
+                    config=attrs.get("config") or {},
+                    run_count=attrs.get("run_count") or 0,
+                    tags=meta.get("tags") or [],
+                    parent_experiment_id=attrs.get("parent_experiment_id"),
+                    aggregate_data=attrs.get("aggregate_data"),
+                )
+                results.append(summary)
+            cursor = ((body.get("meta") or {}).get("page") or {}).get("after")
+            if not cursor:
+                break
+        return results
+
     def experiment_create(
         self,
         name: str,
@@ -820,8 +896,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
         parent_experiment_id: Optional[str] = None,
+        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
+        metadata: dict[str, JSONType] = {"tags": tags or []}
+        if experiment_metadata:
+            metadata.update(experiment_metadata)
         attributes: dict[str, JSONType] = {
             "name": name,
             "description": description or "",
@@ -829,7 +909,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "project_id": project_id,
             "dataset_version": dataset_version,
             "config": exp_config or {},
-            "metadata": {"tags": tags or []},
+            "metadata": metadata,
             "ensure_unique": ensure_unique,
             "run_count": runs,
         }
