@@ -304,6 +304,7 @@ class TestITR:
         )
         # Capture state BEFORE inline_run for debugging CI failures
         from ddtrace.internal.coverage.code import ModuleCodeCollector
+
         pre_installed = ModuleCodeCollector.is_installed()
         pre_seen_count = len(ModuleCodeCollector._instance.seen) if ModuleCodeCollector._instance else 0
         pre_lines_keys = list(ModuleCodeCollector._instance.lines.keys()) if ModuleCodeCollector._instance else []
