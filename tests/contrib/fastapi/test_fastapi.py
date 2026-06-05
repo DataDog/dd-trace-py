@@ -4,7 +4,6 @@ import time
 
 import fastapi
 from fastapi.testclient import TestClient
-import httpx2 as httpx
 import pytest
 import starlette
 
@@ -19,6 +18,12 @@ from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
+
+
+try:
+    import httpx2 as httpx
+except ImportError:
+    import httpx
 
 
 def assert_serialize_span(serialize_span):
@@ -263,7 +268,11 @@ def test_invalid_path_with_obfuscation_enabled():
     import asyncio
 
     from fastapi import FastAPI
-    import httpx2 as httpx
+
+    try:
+        import httpx2 as httpx
+    except ImportError:
+        import httpx
 
     from ddtrace.contrib.internal.fastapi.patch import patch
     from tests.utils import snapshot_context
