@@ -21,7 +21,6 @@ from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -75,8 +74,6 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LLMOBS_SAMPLE_RATE_DD_KEY
-from ddtrace.llmobs._constants import LLMOBS_SAMPLING_DECISION_DD_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
@@ -84,6 +81,7 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -218,6 +216,10 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
     "expected_outputs",
     "evaluators_results",
 )
+
+
+def _format_llmobs_sample_rate(rate: float) -> str:
+    return f"{rate:.6f}".rstrip("0").rstrip(".")
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -515,9 +517,6 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
-        # Computes a per-trace keep/drop decision recorded on each event (not a client-side
-        # drop); the backend uses it for token/cost stats. RateSampler keys off the trace id.
-        self._span_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
             # APMTracingEnabledFilter drops every trace, so ship events directly to LLMObs.
             self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
@@ -682,10 +681,6 @@ class LLMObs(Service):
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_depth(llmobs_meta)
-        dd_attrs = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
-        # ``_dd`` values are strings; rate capped to 6 decimals with trailing zeros stripped.
-        dd_attrs[LLMOBS_SAMPLE_RATE_DD_KEY] = f"{self._span_sampler.sample_rate:.6f}".rstrip("0").rstrip(".")
-        dd_attrs[LLMOBS_SAMPLING_DECISION_DD_KEY] = "1" if self._span_sampler.sample(span) else "0"
 
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
@@ -2048,6 +2043,9 @@ class LLMObs(Service):
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
+            span_rate = _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
+            if span_rate is not None:
+                context._meta[PROPAGATED_SAMPLE_RATE] = span_rate
             return context
         return None
 
@@ -2063,15 +2061,17 @@ class LLMObs(Service):
                 llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+                sample_rate = _get_llmobs_data_metastruct(llmobs_parent).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
                 llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = None
+                sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
         else:
             parent_id = ROOT_PARENT_ID
-            llmobs_trace_id, ml_app, session_id = None, None, None
+            llmobs_trace_id, ml_app, session_id, sample_rate = None, None, None, None
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
 
@@ -2128,6 +2128,12 @@ class LLMObs(Service):
             span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
+        # Store the effective sample rate in meta_struct so it propagates through child spans
+        # and is included in the span event's _dd block without re-computation at finish time.
+        effective_rate = sample_rate or _format_llmobs_sample_rate(config._llmobs_sample_rate)
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})[LLMOBS_STRUCT.SAMPLE_RATE] = effective_rate
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
 
     def _start_span(
         self,
@@ -3012,13 +3018,21 @@ class LLMObs(Service):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
+            sample_rate = (
+                _get_llmobs_data_metastruct(active_span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
+                or _format_llmobs_sample_rate(config._llmobs_sample_rate)
+            )
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
+            sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE) or _format_llmobs_sample_rate(
+                config._llmobs_sample_rate
+            )
         else:
             ml_app = resolve_ml_app()
             wire_trace_id = str(generate_128bit_trace_id())
+            sample_rate = _format_llmobs_sample_rate(config._llmobs_sample_rate)
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
         if wire_trace_id:
@@ -3026,6 +3040,7 @@ class LLMObs(Service):
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
+        span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
@@ -3087,6 +3102,7 @@ class LLMObs(Service):
                 log.warning("Failed to parse LLMObs parent ID from request headers.")
                 return
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
+            propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3098,11 +3114,15 @@ class LLMObs(Service):
                 )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
                 llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
+                if propagated_sample_rate is not None:
+                    llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
             llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
+            if propagated_sample_rate is not None:
+                llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)

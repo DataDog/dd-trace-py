@@ -11,7 +11,10 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -556,3 +559,88 @@ def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, test_
     assert len(spans) == 1
     assert get_llmobs_trace_id(spans[0]) == _AMBIGUOUS_HEX_TRACE_ID
     assert get_llmobs_trace_id(spans[0]) == stored
+
+
+# ── Sample-rate propagation ──────────────────────────────────────────────────
+
+
+def test_inject_includes_sample_rate(llmobs):
+    """_inject_llmobs_context must write the configured sample rate into span_context._meta."""
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "1"
+
+
+def test_inject_forwards_propagated_sample_rate_from_span(llmobs):
+    """When the active span carries a propagated rate in meta_struct, forward it unchanged."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
+
+
+def test_inject_forwards_propagated_sample_rate_from_context(llmobs):
+    """When the active llmobs context already carries a propagated rate, forward it unchanged."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.25"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs._instance.tracer.trace("non-llmobs") as apm_span:
+        llmobs._inject_llmobs_context(apm_span.context, {})
+    assert apm_span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "0.25"
+
+
+def test_activate_distributed_context_stores_propagated_sample_rate(llmobs):
+    """_activate_llmobs_distributed_context must store the propagated rate in the llmobs context."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active = llmobs._instance._llmobs_context_provider.active()
+    assert active._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
+
+
+def test_activate_distributed_context_without_sample_rate(llmobs):
+    """When upstream doesn't send a sample rate, the llmobs context has no propagated rate."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active = llmobs._instance._llmobs_context_provider.active()
+    assert PROPAGATED_SAMPLE_RATE not in active._meta
+
+
+def test_propagated_sample_rate_stored_in_meta_struct(llmobs):
+    """A propagated sample rate must be stored in the span's meta_struct _dd block."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE) == "0.5"
+
+
+def test_propagated_sample_rate_inherited_by_child_span(llmobs):
+    """Child spans must inherit the propagated rate from their LLMObs parent span via meta_struct."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("root"):
+        with llmobs.workflow("child") as child:
+            assert _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE) == "0.5"
+
+
+def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
+    """When a propagated rate is present, the span event must record that rate, not the local one."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "0.5"
+
+
+def test_sampling_decision_uses_local_rate_when_no_propagated_rate(llmobs, llmobs_events):
+    """When no rate is propagated, the span event records the locally configured rate."""
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"

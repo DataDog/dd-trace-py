@@ -1162,11 +1162,11 @@ def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events,
     assert llm_event["meta"]["model_name"] == "test-model"
 
 
-def test_llmobs_event_records_sampling_metadata(llmobs, llmobs_events):
-    """Every LLMObs span event carries the effective sample rate and keep/drop decision."""
+def test_llmobs_event_records_sample_rate(llmobs, llmobs_events):
+    """Every LLMObs span event carries the effective sample rate."""
     with llmobs.llm(model_name="test-model") as span:
         llmobs.annotate(span, input_data="in", output_data="out")
     assert len(llmobs_events) == 1
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sample_rate"] == "1"
-    assert event_dd["sampling_decision"] == "1"
+    assert "sampling_decision" not in event_dd

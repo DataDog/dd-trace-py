@@ -369,7 +369,6 @@ def _llmobs_base_span_event(
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
             "sample_rate": mock.ANY,
-            "sampling_decision": mock.ANY,
         },
     }
     if session_id:
