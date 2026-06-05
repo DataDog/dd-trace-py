@@ -4,7 +4,7 @@ import time
 
 import fastapi
 from fastapi.testclient import TestClient
-import httpx
+import httpx2 as httpx
 import pytest
 import starlette
 
@@ -263,7 +263,7 @@ def test_invalid_path_with_obfuscation_enabled():
     import asyncio
 
     from fastapi import FastAPI
-    import httpx
+    import httpx2 as httpx
 
     from ddtrace.contrib.internal.fastapi.patch import patch
     from tests.utils import snapshot_context
