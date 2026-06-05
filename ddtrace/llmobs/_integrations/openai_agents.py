@@ -465,7 +465,15 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         state.pop("_pending_llm", None)
 
     def emit_context_delta(self, trace_root_span: Span, trace_id: int) -> None:
-        """Emit context_delta on the agent root span at trace end."""
+        """Emit context_delta on the trace root span at trace end.
+
+        AIDEV-NOTE: MLOB-7584 — the OAI tracing trace root span is annotated as
+        ``kind="workflow"`` (see ``_set_trace_attributes`` above). The claude_agent_sdk
+        sibling integration emits its equivalent payload on a ``kind="agent"`` span.
+        The LLMObs backend renders ``meta.metadata._dd.context_delta`` regardless of
+        the host span's kind, so both consumers work today, but a future contract
+        alignment pass should pick one canonical kind across integrations.
+        """
         state = self._context_state.pop(trace_id, None)
         if not state:
             return

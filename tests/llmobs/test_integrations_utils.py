@@ -1069,6 +1069,11 @@ class TestOpenAIAgentsPatchCompat:
 
     @pytest.fixture(autouse=True)
     def _enable_llmobs(self):
+        # The patch.py module imports the ``agents`` library at module load. This
+        # test class can only run in venvs that have it installed (the
+        # openai_agents riot venv); the LLMObs core venv doesn't.
+        pytest.importorskip("agents")
+
         from ddtrace.llmobs import LLMObs
 
         prior = LLMObs.enabled

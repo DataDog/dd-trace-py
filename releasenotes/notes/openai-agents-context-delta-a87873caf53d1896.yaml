@@ -2,8 +2,8 @@
 features:
   - |
     LLM Observability: The ``openai_agents`` integration now emits a per-trace
-    ``context_delta`` payload on the agent-kind root span (under
-    ``meta.metadata._dd.context_delta``). The payload categorizes input tokens into
+    ``context_delta`` payload on the trace root span (kind ``workflow``) under
+    ``meta.metadata._dd.context_delta``. The payload categorizes input tokens into
     ``system`` (instructions), ``tools`` (function tools and handoffs), ``user_messages``,
     and ``assistant_messages``, with first/last snapshots captured across the agent's
     turns. Per-category token attribution uses a character-proportional split of the
