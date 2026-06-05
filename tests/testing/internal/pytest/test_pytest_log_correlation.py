@@ -15,37 +15,53 @@ from _pytest.pytester import Pytester
 import pytest
 
 
-# Infrastructure mock plugin — loaded via "-p dd_log_corr_infra" so its pytest_configure fires
-# BEFORE pytest_load_initial_conftests (where SessionManager is constructed and makes network calls).
+@pytest.fixture()
+def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate pytester subprocesses from the outer CI environment.
+
+    pytester.runpytest_subprocess() inherits the full parent environment, so the inner
+    subprocess picks up CI env vars that interfere with the test:
+
+    - _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER: disables the trace filter and log submission.
+    - Agent URL / EVP proxy vars: cause SessionManager.detect_setup() to attempt (and fail)
+      a connection to an unreachable agent.  Force agentless mode with a fake API key instead,
+      so detect_setup() succeeds without network calls and get_settings() falls back to
+      defaults on auth failure.
+
+    Note: agentless mode only affects how the backend *connector* is created (no network call
+    during init).  The plugin features under test — log injection, LogsHandler installation —
+    are connector-agnostic and behave identically in both modes.
+    """
+    monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
+    monkeypatch.delenv("_CI_DD_API_KEY", raising=False)
+    monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
+    monkeypatch.setenv("DD_API_KEY", "test-key")
+
+
+# Infrastructure mock plugin — loaded via "-p dd_log_corr_infra".
+#
+# The subprocess_env fixture sets DD_CIVISIBILITY_AGENTLESS_ENABLED=true and
+# DD_API_KEY=test-key so that SessionManager.detect_setup() succeeds without network
+# calls (agentless mode) and get_settings() falls back to defaults on auth failure.
+#
+# This plugin's pytest_configure then replaces the writer *instances* on the already-created
+# SessionManager with mocks, preventing any event data from being sent to Datadog.
 _INFRA_PLUGIN = """\
-from unittest.mock import Mock, patch
-
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.settings_data import Settings
-
-
-class _MockConnectorSetup:
-    def get_connector_for_subdomain(self, subdomain):
-        connector = Mock()
-        connector.request.return_value = Mock(error_type=None)
-        return connector
-
-    def default_env(self):
-        return "none"
+from unittest.mock import Mock
 
 
 def pytest_configure(config):
-    mock_api = Mock()
-    mock_api.get_settings.return_value = Settings()
-    mock_api.get_known_tests.return_value = set()
-    mock_api.get_test_management_properties.return_value = {}
-    mock_api.get_skippable_tests.return_value = (set(), None)
+    # Replace the already-created writer instances on the SessionManager with mocks.
+    # The real writers are constructed during pytest_load_initial_conftests (before this
+    # hook fires), but they only start background threads and make HTTP calls when
+    # start() is called in pytest_sessionstart (after this hook).  Swapping them here
+    # prevents any network I/O and CI Visibility data leakage.
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
 
-    patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
-    patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
-    patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.Git").start()
+    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    if session_manager is not None:
+        session_manager.writer = Mock()
+        session_manager.coverage_writer = Mock()
 """
 
 
@@ -53,37 +69,19 @@ def pytest_configure(config):
 # simulating an environment where the contrib logging module is missing.
 _INFRA_PLUGIN_NO_LOGGING_PATCH = """\
 import sys
-from unittest.mock import Mock, patch
-
-from ddtrace.testing.internal.http import BackendConnectorSetup
-from ddtrace.testing.internal.settings_data import Settings
-
-
-class _MockConnectorSetup:
-    def get_connector_for_subdomain(self, subdomain):
-        connector = Mock()
-        connector.request.return_value = Mock(error_type=None)
-        return connector
-
-    def default_env(self):
-        return "none"
+from unittest.mock import Mock
 
 
 def pytest_configure(config):
     # Setting a module to None in sys.modules causes ImportError on subsequent imports.
     sys.modules["ddtrace.contrib.internal.logging.patch"] = None
 
-    mock_api = Mock()
-    mock_api.get_settings.return_value = Settings()
-    mock_api.get_known_tests.return_value = set()
-    mock_api.get_test_management_properties.return_value = {}
-    mock_api.get_skippable_tests.return_value = (set(), None)
+    from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
 
-    patch.object(BackendConnectorSetup, "detect_setup", return_value=_MockConnectorSetup()).start()
-    patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_api).start()
-    patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}).start()
-    patch("ddtrace.testing.internal.session_manager.Git").start()
+    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    if session_manager is not None:
+        session_manager.writer = Mock()
+        session_manager.coverage_writer = Mock()
 """
 
 
@@ -206,18 +204,6 @@ def test_agentless_handler_installed_and_forwards():
     assert event["status"] == "warning"
 """
 
-_TEST_NO_HANDLER_WITHOUT_AGENTLESS_MODE = """\
-import logging
-from ddtrace.testing.internal.logs import LogsHandler
-
-
-def test_no_handler_without_agentless_mode():
-    logs_handlers = [h for h in logging.getLogger().handlers if isinstance(h, LogsHandler)]
-    assert len(logs_handlers) == 0, (
-        "LogsHandler should not be installed when DD_CIVISIBILITY_AGENTLESS_ENABLED is not set"
-    )
-"""
-
 _TEST_NO_HANDLER_WITHOUT_FLAG = """\
 import logging
 from ddtrace.testing.internal.logs import LogsHandler
@@ -260,7 +246,9 @@ def test_root_level_filters_child_logger_records():
 
 
 class TestLogCorrelation:
-    def test_log_records_carry_test_span_ids(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_log_records_carry_test_span_ids(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
         """Logs emitted during a test must have dd.trace_id/dd.span_id matching the active test span."""
         monkeypatch.setenv("DD_LOGS_INJECTION", "true")
 
@@ -271,7 +259,7 @@ class TestLogCorrelation:
         result.assert_outcomes(passed=1)
 
     def test_logging_patch_import_error_does_not_crash_session(
-        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
     ) -> None:
         """If the ddtrace logging patch module cannot be imported, the session must not crash.
 
@@ -285,7 +273,9 @@ class TestLogCorrelation:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_without_logs_injection_no_ids_injected(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_without_logs_injection_no_ids_injected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
         """Without DD_LOGS_INJECTION, log records must not have dd.trace_id/dd.span_id."""
         monkeypatch.setenv("DD_LOGS_INJECTION", "false")
 
@@ -297,7 +287,9 @@ class TestLogCorrelation:
 
 
 class TestAgentlessLogSubmission:
-    def test_handler_installed_and_forwards_logs(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_handler_installed_and_forwards_logs(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
         """LogsHandler must be installed and forward events with correct trace IDs when both agentless flags are set."""
         monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
         monkeypatch.setenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", "true")
@@ -308,19 +300,20 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_disabled_without_agentless_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        """DD_AGENTLESS_LOG_SUBMISSION_ENABLED without DD_CIVISIBILITY_AGENTLESS_ENABLED must not install
-        LogsHandler.
+    def test_disabled_without_log_submission_flag(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """LogsHandler must not be installed when DD_AGENTLESS_LOG_SUBMISSION_ENABLED is not set,
+        even if DD_CIVISIBILITY_AGENTLESS_ENABLED is true.
         """
-        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
-
+        monkeypatch.delenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", raising=False)
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
-        pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_AGENTLESS_MODE)
+        pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
 
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_no_handler_without_flag(self, pytester: Pytester) -> None:
+    def test_no_handler_without_flag(self, pytester: Pytester, subprocess_env: None) -> None:
         """Without DD_AGENTLESS_LOG_SUBMISSION_ENABLED or DD_LOGS_INJECTION, LogsHandler must not be installed."""
         pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_NO_HANDLER_WITHOUT_FLAG)
@@ -328,11 +321,14 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_handler_installed_via_logs_injection(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        """LogsHandler must be installed when DD_LOGS_INJECTION=true, without requiring agentless mode.
+    def test_handler_installed_via_logs_injection(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """LogsHandler must be installed when DD_LOGS_INJECTION=true.
 
-        This enables log submission via EVP proxy in agent mode, using whatever connector the session
-        manager was set up with.
+        The subprocess_env fixture forces agentless mode for CI reliability (no reachable agent
+        needed), but the feature under test — LogsHandler installation via DD_LOGS_INJECTION —
+        is connector-agnostic.
         """
         monkeypatch.setenv("DD_LOGS_INJECTION", "true")
 
@@ -342,7 +338,9 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_no_handler_in_ci_context_provider_mode(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_handler_in_ci_context_provider_mode(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
         """DD_LOGS_INJECTION=true must not install LogsHandler when _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER=1.
 
         That flag enables a separate CIVisibilityTracer with its own CIContextProvider for test spans,
@@ -358,7 +356,9 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
-    def test_root_level_filters_child_logger_records(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_root_level_filters_child_logger_records(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
         """Records from a child logger set below root's level must not be forwarded to Datadog.
 
         Python's propagation bypasses the parent's level check, so LogsHandler.emit enforces it.

@@ -63,15 +63,6 @@ def _extract_model_provider(instance: Any) -> str:
     return "-".join(provider_parts) if provider_parts else instance._llm_type
 
 
-def _raising_dispatch(event_id: str, args: tuple[Any, ...] = ()):
-    result = core.dispatch_with_results(event_id, args)  # ast-grep-ignore: core-dispatch-with-results
-    if len(result) > 0:
-        for event in result.values():
-            # we explicitly set the exception as a value to prevent caught exceptions from leaking
-            if isinstance(event.value, Exception):
-                raise event.value
-
-
 def traced_llm_generate(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     integration: LangChainIntegration = langchain_core._datadog_integration
@@ -91,13 +82,14 @@ def traced_llm_generate(func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        _raising_dispatch("langchain.llm.generate.before", (prompts,))
+        core.raising_dispatch("langchain.llm.generate.before", (prompts,))
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -123,13 +115,14 @@ async def traced_llm_agenerate(func, instance, args, kwargs):
 
     completions = None
     try:
-        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
+        core.raising_dispatch("langchain.llm.agenerate.before", (prompts,))
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.llm.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
@@ -154,13 +147,14 @@ def traced_chat_model_generate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        core.raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.generate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -185,13 +179,14 @@ async def traced_chat_model_agenerate(func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        core.raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        core.dispatch("langchain.chatmodel.agenerate.finally", ())
         kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
@@ -318,7 +313,7 @@ def traced_chat_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+    core.raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
@@ -352,7 +347,7 @@ def traced_llm_stream(func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
-    _raising_dispatch(
+    core.raising_dispatch(
         "langchain.llm.stream.before",
         (
             instance,
