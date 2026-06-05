@@ -10,6 +10,7 @@ mod ddtrace_utils;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
+mod http_client;
 mod library_config;
 mod log;
 mod py_string;
@@ -51,6 +52,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     shared_runtime::register_shared_runtime(m)?;
     data_pipeline::register_data_pipeline(m)?;
+    http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
     rand::register_rand(m)?;
