@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``LLMObs.list_experiments()`` to query experiments by logical
+    name, metadata containment, or parent experiment ID. Returns a list of ``ExperimentSummary``
+    objects that include pre-computed aggregate data (eval score distributions, token costs,
+    error rates). Supports automatic cursor-based pagination for large result sets.
