@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: When ``OTEL_TRACES_EXPORTER=otlp`` is set, ``DD_TRACE_NATIVE_SPAN_EVENTS`` is now
+    automatically enabled so that span events are emitted as native OTLP events instead of a
+    JSON string in the ``events`` span attribute. To preserve the previous behavior and keep
+    events as a JSON string attribute, set ``DD_TRACE_NATIVE_SPAN_EVENTS=false``.
