@@ -113,8 +113,8 @@ class ModuleCodeCollector(ModuleWatchdog):
                         stale_modules = [
                             name
                             for name, mod in sys.modules.items()
-                            if getattr(mod, "__file__", None) is not None
-                            and any(Path(mod.__file__).is_relative_to(p) for p in old_paths)
+                            if (mod_file := getattr(mod, "__file__", None)) is not None
+                            and any(Path(mod_file).is_relative_to(p) for p in old_paths)
                         ]
                         for name in stale_modules:
                             del sys.modules[name]
