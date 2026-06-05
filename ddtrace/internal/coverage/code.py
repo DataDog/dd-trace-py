@@ -414,10 +414,15 @@ class ModuleCodeCollector(ModuleWatchdog):
         # Avoid instrumenting the same code object multiple times
         if (code, code.co_filename) in self.seen:
             return code
-        self.seen.add((code, code.co_filename))
 
         new_code, lines = instrument_all_lines(code, self.hook, code.co_filename, package)
-        self.seen.add((new_code, code.co_filename))
+        if lines:
+            # Only mark as seen when instrumentation succeeded.  When COVERAGE_ID
+            # is temporarily released (e.g. during pytest hook yield), instrument_all_lines()
+            # returns empty lines.  Leaving the code out of ``seen`` allows it to be
+            # re-instrumented once the slot is reclaimed.
+            self.seen.add((code, code.co_filename))
+            self.seen.add((new_code, code.co_filename))
         # Keep note of all the lines that have been instrumented. These will be
         # the ones that can be covered.
         self.lines[code.co_filename].update(lines)

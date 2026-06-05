@@ -1095,6 +1095,9 @@ def pytest_load_initial_conftests(
     # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
     # After yield, reclaim if we held it — register_coverage() re-enables
     # set_local_events() for all previously-instrumented code objects.
+    # Modules imported during the gap get empty instrumentation but are NOT
+    # added to ModuleCodeCollector.seen, so they will be re-instrumented
+    # on the next transform() call (e.g. when pytest loads test files).
     was_registered = unregister_coverage()
     yield
     if was_registered:

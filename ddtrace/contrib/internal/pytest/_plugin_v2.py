@@ -319,6 +319,9 @@ def pytest_load_initial_conftests(early_config, parser, args):
     # Release COVERAGE_ID before yield so that any coverage tool
     # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
     # After yield, reclaim if we held it.
+    # Modules imported during the gap get empty instrumentation but are NOT
+    # added to ModuleCodeCollector.seen, so they will be re-instrumented
+    # on the next transform() call (e.g. when pytest loads test files).
     was_registered = unregister_coverage()
     yield
     if was_registered:
