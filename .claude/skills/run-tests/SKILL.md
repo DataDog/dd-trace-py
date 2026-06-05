@@ -348,6 +348,71 @@ docker compose down
 - Try running with just 1 venv
 - Use pytest `-k` to run subset of tests
 
+### Platform / arch mismatch on Apple Silicon
+
+The test-runner container defaults to the host architecture. On Apple Silicon (`arm64`/`aarch64`) that means some packages either:
+- Don't publish an `aarch64` wheel and fall back to a from-source build that fails on the toolchain (`Failed building wheel for <pkg>`, `lto-wrapper failed`, missing `aarch64` wheel).
+- Publish only an `x86_64` native extension that fails to import inside an `arm64` interpreter (`ImportError: ... wrong ELF class` or a `ModuleNotFoundError` pointing at a `_native*.so`).
+
+Both are the same root cause — the venv was built for the wrong arch. The fix is to pin the runner to `linux/amd64` (the platform CI uses):
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/run-tests --venv <hash>
+# or pass --platform linux/amd64 directly to docker compose
+```
+
+Slower than native (Rosetta translation), but it matches CI and reliably resolves wheel-availability and native-extension import errors.
+
+**If a venv was already built under the wrong arch**, prebuilt `.so` files in `ddtrace/**/_native*.so` and the riot venv itself need to be rebuilt under the new platform. Rename the venv aside so the runner rebuilds it cleanly:
+
+```bash
+mv .riot/venv_<hash> .riot/venv_<hash>.bak
+DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/run-tests --venv <hash>
+```
+
+Do not `rm -rf` the venv — the rename is reversible if the rebuild surfaces unrelated breakage.
+
+### Hardware-gated autouse fixtures (`require_gpu`, `require_docker`, etc.)
+
+Some test packages use a session-scoped `autouse=True` fixture that calls `pytest.skip(...)` when a resource is missing. Symptoms: the suite reports `N skipped, 0 passed` despite tests that don't actually need the gated resource (e.g. pure prompt-parsing tests in a GPU-gated suite).
+
+The fix is to let pure-Python tests bypass the gate without removing the gate for tests that genuinely need it.
+
+**Pattern:** marker-bypass via conftest. In the gating `conftest.py`:
+
+```python
+def pytest_configure(config):
+    config.addinivalue_line("markers", "no_gpu: skip require_gpu autouse fixture")
+
+@pytest.fixture(autouse=True)
+def require_gpu(request):
+    if request.node.get_closest_marker("no_gpu"):
+        return
+    if not (hasattr(torch, "cuda") and torch.cuda.is_available()):
+        pytest.skip("Skipping tests: GPU not available")
+```
+
+Then in test files that don't need the gated resource, opt out at module level:
+
+```python
+import pytest
+
+pytestmark = pytest.mark.no_gpu
+```
+
+Or per-test with `@pytest.mark.no_gpu` on individual functions.
+
+**Why this shape:**
+- Change the fixture from `scope="session"` to function-scope so the marker check runs per-test, not once for the whole session.
+- Keep the gate intact for tests that DO touch the resource — CI still skips them on a GPU-less runner, exactly as before.
+- The `pytestmark` module-level form is the lightest-weight way to unblock a batch of pure-Python tests (e.g. extractor/parser tests) without per-function annotations.
+
+**Alternatives, in order of preference:**
+
+1. **Marker-bypass (above)** — best when the suite mixes resource-bound and pure-Python tests.
+2. **Move pure-Python tests to a sibling dir** that doesn't inherit the gating conftest. Update `tests/suitespec.yml` to keep them in the suite. Use this when the gated conftest pulls in heavy imports you can't avoid otherwise.
+3. **Delete the autouse decorator and gate at the test level** with explicit `@pytest.fixture` requests. Last resort — only if you can confirm CI still respects the original gate via a different mechanism.
+
 ## Technical Details
 
 ### Architecture
