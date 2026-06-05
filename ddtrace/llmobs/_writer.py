@@ -896,12 +896,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
         parent_experiment_id: Optional[str] = None,
-        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
-        metadata: dict[str, JSONType] = {"tags": tags or []}
-        if experiment_metadata:
-            metadata.update(experiment_metadata)
         attributes: dict[str, JSONType] = {
             "name": name,
             "description": description or "",
@@ -909,7 +905,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "project_id": project_id,
             "dataset_version": dataset_version,
             "config": exp_config or {},
-            "metadata": metadata,
+            "metadata": {"tags": tags or []},
             "ensure_unique": ensure_unique,
             "run_count": runs,
         }

@@ -2023,7 +2023,6 @@ class Experiment:
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
         is_distributed: Optional[bool] = False,
-        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> None:
         self.name = name
         self._task = task
@@ -2075,7 +2074,6 @@ class Experiment:
         self._run_results: list["ExperimentRun"] = []
         self._interrupted: bool = False
         self._has_errors: bool = False
-        self._experiment_metadata: Optional[dict[str, JSONType]] = experiment_metadata or None
 
     @property
     def url(self) -> str:
@@ -2431,7 +2429,6 @@ class Experiment:
             self._description,
             self._runs,
             ensure_unique,
-            experiment_metadata=self._experiment_metadata,
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
@@ -3327,7 +3324,6 @@ class SyncExperiment:
         runs: Optional[int] = None,
         _experiment: Optional["Experiment"] = None,
         _result: Optional[ExperimentResult] = None,
-        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> None:
         if _experiment is not None:
             self._experiment = _experiment
@@ -3348,7 +3344,6 @@ class SyncExperiment:
             _llmobs_instance=_llmobs_instance,
             summary_evaluators=summary_evaluators,
             runs=runs,
-            experiment_metadata=experiment_metadata,
         )
 
     @classmethod

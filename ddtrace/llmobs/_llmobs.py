@@ -1482,7 +1482,6 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
-        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> SyncExperiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -1505,9 +1504,6 @@ class LLMObs(Service):
                                    the evaluate method which receives a SummaryEvaluatorContext.
         :param runs: The number of times to run the experiment, or, run the task for every dataset record the defined
                      number of times.
-        :param experiment_metadata: Optional dict of arbitrary key-value metadata stored on the experiment.
-            Useful for CI/CD flows: pass ``{"commit": git_sha, "branch": branch_name}`` so that later calls to
-            ``LLMObs.list_experiments()`` can filter by those values across pipeline runs.
         """
         _validate_task_signature(task, is_async=False)
         if not isinstance(dataset, Dataset):
@@ -1563,7 +1559,6 @@ class LLMObs(Service):
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators_list,
             runs=runs,
-            experiment_metadata=experiment_metadata,
         )
 
     @classmethod
@@ -1579,7 +1574,6 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
-        experiment_metadata: Optional[dict[str, JSONType]] = None,
     ) -> Experiment:
         """Initializes an Experiment to run an async task on a Dataset with evaluators.
 
@@ -1607,9 +1601,6 @@ class LLMObs(Service):
                                    Class-based summary evaluators must inherit from BaseSummaryEvaluator or
                                    BaseAsyncSummaryEvaluator and implement the evaluate method.
         :param runs: The number of times to run the experiment.
-        :param experiment_metadata: Optional dict of arbitrary key-value metadata stored on the experiment.
-            Useful for CI/CD flows: pass ``{"commit": git_sha, "branch": branch_name}`` so that later calls to
-            ``LLMObs.list_experiments()`` can filter by those values across pipeline runs.
         """
         _validate_task_signature(task, is_async=True)
         if not isinstance(dataset, Dataset):
@@ -1666,7 +1657,6 @@ class LLMObs(Service):
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators_list,
             runs=runs,
-            experiment_metadata=experiment_metadata,
         )
 
     @classmethod
