@@ -157,8 +157,10 @@ def patch():
         if hasattr(agents.run.AgentRunner, "_run_single_turn_streamed"):
             wrap(agents.run.AgentRunner, "_run_single_turn_streamed", patched_run_single_turn_streamed)
     else:
-        wrap(agents.run.Runner, "_run_single_turn", patched_run_single_turn)
-        wrap(agents.run.Runner, "_run_single_turn_streamed", patched_run_single_turn_streamed)
+        if hasattr(agents.run.Runner, "_run_single_turn"):
+            wrap(agents.run.Runner, "_run_single_turn", patched_run_single_turn)
+        if hasattr(agents.run.Runner, "_run_single_turn_streamed"):
+            wrap(agents.run.Runner, "_run_single_turn_streamed", patched_run_single_turn_streamed)
 
 
 def unpatch():
@@ -184,5 +186,7 @@ def unpatch():
         if hasattr(agents.run.AgentRunner, "_run_single_turn_streamed"):
             unwrap(agents.run.AgentRunner, "_run_single_turn_streamed")
     else:
-        unwrap(agents.run.Runner, "_run_single_turn")
-        unwrap(agents.run.Runner, "_run_single_turn_streamed")
+        if hasattr(agents.run.Runner, "_run_single_turn"):
+            unwrap(agents.run.Runner, "_run_single_turn")
+        if hasattr(agents.run.Runner, "_run_single_turn_streamed"):
+            unwrap(agents.run.Runner, "_run_single_turn_streamed")
