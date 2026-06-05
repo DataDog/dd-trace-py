@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
+from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_ml_app
@@ -644,3 +645,57 @@ def test_sampling_decision_uses_local_rate_when_no_propagated_rate(llmobs, llmob
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+
+
+def test_sampling_decision_computed_for_root_span(llmobs, llmobs_events):
+    """Root spans must compute a sampling decision and include it in the event."""
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sampling_decision"] in ("0", "1")
+
+
+def test_inject_includes_sampling_decision(llmobs):
+    """_inject_llmobs_context must write the sampling decision into span_context._meta."""
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) in ("0", "1")
+
+
+def test_activate_distributed_context_stores_propagated_sampling_decision(llmobs):
+    """_activate_llmobs_distributed_context must store the propagated decision in the llmobs context."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active = llmobs._instance._llmobs_context_provider.active()
+    assert active._meta.get(PROPAGATED_SAMPLING_DECISION) == "0"
+
+
+def test_propagated_sampling_decision_stored_in_meta_struct(llmobs):
+    """A propagated sampling decision must be stored in the span's meta_struct _dd block."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+
+
+def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
+    """Child spans must inherit the propagated decision from their LLMObs parent span."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("root"):
+        with llmobs.workflow("child") as child:
+            assert _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+
+
+def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
+    """The propagated decision must appear in the span event's _dd block."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == "0"

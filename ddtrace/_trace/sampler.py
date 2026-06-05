@@ -47,8 +47,11 @@ class RateSampler:
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
     def sample(self, span: Span) -> bool:
-        sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
-        return sampled
+        return self.sample_by_id(span.trace_id)
+
+    def sample_by_id(self, trace_id: int) -> bool:
+        trace_id_64 = trace_id & MAX_UINT_64BITS
+        return ((trace_id_64 * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
 
     def __repr__(self):
         return f"RateSampler(sample_rate={self.sample_rate})"
