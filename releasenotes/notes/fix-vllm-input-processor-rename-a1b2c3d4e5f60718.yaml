@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    vllm: Resolves a ``ModuleNotFoundError`` that disabled the integration on
+      vLLM versions that renamed ``vllm.v1.engine.processor.Processor`` to
+      ``vllm.v1.engine.input_processor.InputProcessor`` (vLLM >= 0.14.0). The
+      integration now hooks the new location when available and falls back to
+      the legacy module, preserving support for older vLLM versions.

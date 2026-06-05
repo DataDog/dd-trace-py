@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
@@ -22,7 +23,11 @@ from ._constants import ARG_POSITION_TRACE_HEADERS
 from ._constants import ATTR_DATADOG_INTEGRATION
 from ._constants import ATTR_DATADOG_PATCH
 from ._constants import ATTR_MODEL_NAME
+from ._constants import LEGACY_PROCESSOR_CLASS
+from ._constants import LEGACY_PROCESSOR_MODULE
 from ._constants import MIN_VERSION
+from ._constants import PROCESSOR_CLASS
+from ._constants import PROCESSOR_MODULE
 from .extractors import extract_latency_metrics
 from .extractors import extract_request_data
 from .extractors import get_model_name
@@ -157,6 +162,22 @@ def traced_output_processor_process_outputs(func, instance, args, kwargs):
     return result
 
 
+def _resolve_processor_target() -> tuple[str, str]:
+    """Resolve the (module, class) that owns ``process_inputs``.
+
+    vLLM >= 0.14.0 renamed ``vllm.v1.engine.processor.Processor`` to
+    ``vllm.v1.engine.input_processor.InputProcessor``. Prefer the new
+    location and fall back to the legacy one so both version ranges work.
+    """
+    try:
+        module = importlib.import_module(PROCESSOR_MODULE)
+        if hasattr(module, PROCESSOR_CLASS):
+            return PROCESSOR_MODULE, PROCESSOR_CLASS
+    except ImportError:
+        pass
+    return LEGACY_PROCESSOR_MODULE, LEGACY_PROCESSOR_CLASS
+
+
 def patch():
     """Patch vLLM V1 library for Datadog tracing."""
     if getattr(vllm, ATTR_DATADOG_PATCH, False):
@@ -195,9 +216,11 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     setattr(vllm, ATTR_DATADOG_INTEGRATION, integration)
 
+    processor_module, processor_class = _resolve_processor_target()
+
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+    wrap(processor_module, f"{processor_class}.process_inputs", traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -211,9 +234,11 @@ def unpatch():
 
     setattr(vllm, ATTR_DATADOG_PATCH, False)
 
+    processor_module, processor_class = _resolve_processor_target()
+
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+    unwrap(getattr(importlib.import_module(processor_module), processor_class), "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)

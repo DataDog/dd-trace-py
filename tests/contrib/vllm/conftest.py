@@ -28,9 +28,24 @@ def _per_test_llm_cleanup():
         torch.cuda.empty_cache()
 
 
-@pytest.fixture(autouse=True, scope="session")
-def require_gpu():
-    """Skip vLLM tests if GPU is not available."""
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "no_gpu: mark a vLLM test that does not load a model and can run without a GPU",
+    )
+
+
+@pytest.fixture(autouse=True)
+def require_gpu(request):
+    """Skip vLLM tests if GPU is not available.
+
+    Tests marked ``no_gpu`` (e.g. patch/unpatch resolution and shadow-tag
+    assertions) do not load a model and run regardless of GPU availability.
+    Function scope is required so the per-test ``no_gpu`` marker can be honored;
+    a session-scoped fixture cannot see individual test markers.
+    """
+    if request.node.get_closest_marker("no_gpu"):
+        return
     if not (hasattr(torch, "cuda") and torch.cuda.is_available()):
         pytest.skip("Skipping vLLM tests: GPU not available")
 
