@@ -1852,7 +1852,6 @@ venv = Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={
-                "httpx": "<=0.27.2",
                 "pytest-asyncio": "==0.21.1",
                 "python-multipart": latest,
                 "pytest-randomly": latest,
@@ -1863,16 +1862,16 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.10"),
-                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0", latest]},
+                    pkgs={"fastapi": ["~=0.64.0", "~=0.90.0"], "httpx": "<=0.27.2"},
                 ),
                 Venv(
                     # fastapi added support for Python 3.11 in 0.86.0
                     pys=select_pys(min_version="3.11", max_version="3.13"),
-                    pkgs={"fastapi": ["~=0.86.0", latest], "anyio": ">=3.4.0,<4.0"},
+                    pkgs={"fastapi": ["~=0.86.0"], "anyio": ">=3.4.0,<4.0", "httpx": "<=0.27.2"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.14"),
-                    pkgs={"fastapi": latest, "hypothesis": latest},
+                    pys=select_pys(),
+                    pkgs={"fastapi": latest, "hypothesis": latest, "httpx2": latest},
                 ),
             ],
         ),
