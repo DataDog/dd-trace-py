@@ -99,10 +99,28 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def install(cls, include_paths: t.Optional[list[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
-            # Already installed — update include_paths for the new session
-            # (e.g. pytester.inline_run creates a new temp dir on each call).
-            if include_paths is not None and cls._instance is not None:
-                cls._instance._include_paths = include_paths
+            # Already installed — reset state for the new session.
+            # This happens when pytester.inline_run is called multiple times
+            # in the same process (e.g. ATR retries), each with a new temp dir.
+            if cls._instance is not None:
+                if include_paths is not None:
+                    old_paths = cls._instance._include_paths
+                    # Remove modules from sys.modules that were imported from the old include_paths.
+                    # This ensures they are re-imported (and re-instrumented) in the new run so that
+                    # import-time coverage is correctly attributed to the new paths (e.g. ATR retries
+                    # with different temp directories).
+                    if old_paths:
+                        stale_modules = [
+                            name
+                            for name, mod in sys.modules.items()
+                            if getattr(mod, "__file__", None) is not None
+                            and any(Path(mod.__file__).is_relative_to(p) for p in old_paths)
+                        ]
+                        for name in stale_modules:
+                            del sys.modules[name]
+                    cls._instance._include_paths = include_paths
+                cls._instance.seen.clear()
+                cls._instance.lines.clear()
             return
 
         super().install()
