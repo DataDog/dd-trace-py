@@ -40,6 +40,7 @@ from .services.sqs import patched_sqs_api_call
 from .services.sqs import update_messages as inject_trace_to_sqs_or_sns_message
 from .services.stepfunctions import patched_stepfunction_api_call
 from .services.stepfunctions import update_stepfunction_input
+from .utils import update_agentcore_traceparent
 from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
@@ -241,6 +242,9 @@ def prep_context_injection(ctx, endpoint_name, operation, trace_operation, param
     if endpoint_name == "states" and (operation == "StartExecution" or operation == "StartSyncExecution"):
         injection_function = update_stepfunction_input
         cloud_service = "stepfunctions"
+    if endpoint_name == "bedrock-agentcore" and operation == "InvokeAgentRuntime":
+        injection_function = update_agentcore_traceparent
+        cloud_service = "bedrock-agentcore"
 
     core.dispatch(
         "botocore.prep_context_injection.post",

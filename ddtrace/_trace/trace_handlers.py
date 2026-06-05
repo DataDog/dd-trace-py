@@ -1733,6 +1733,7 @@ def listen():
     core.on("botocore.stepfunctions.update_input", _on_botocore_patched_stepfunctions_update_input)
     core.on("botocore.eventbridge.update_messages", _on_botocore_update_messages)
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
+    core.on("botocore.agentcore.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
