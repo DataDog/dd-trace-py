@@ -119,7 +119,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
     # Static map — OpenAI doesn't expose context_window in API responses. Resolver below
-    # picks the longest-prefix match so "o1-preview" wins over "o1". 0 fallback if unknown.
+    # picks the longest-prefix match so "o1-preview" wins over "o1" and "gpt-5.4-mini"
+    # wins over "gpt-5.4". 0 fallback if unknown. Values cross-checked against
+    # developers.openai.com/api/docs/models on the dates of model launches.
     _OPENAI_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
         "gpt-4o-mini": 128_000,
         "gpt-4o": 128_000,
@@ -127,6 +129,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         "gpt-4.1": 1_047_576,
         "gpt-4": 8_192,
         "gpt-3.5-turbo": 16_385,
+        "gpt-5.4-mini": 400_000,
+        "gpt-5.5": 1_050_000,
+        "gpt-5.4": 1_050_000,
         "gpt-5-mini": 400_000,
         "gpt-5": 400_000,
         "o1-preview": 128_000,

@@ -637,6 +637,21 @@ class TestOpenAIAgentsContextWindow:
         assert integration._context_window_for("gpt-4.1") == 1_047_576
         assert integration._context_window_for("gpt-4.1-2025-04-14") == 1_047_576
         assert integration._context_window_for("gpt-4.1-mini") == 1_047_576
+        assert integration._context_window_for("gpt-4.1-nano") == 1_047_576
+
+    def test_gpt_5_x_variants_resolve_via_longest_prefix(self):
+        # gpt-5.4 and gpt-5.5 have 1,050,000 context windows but gpt-5.4-mini has
+        # 400,000. Longest-prefix sort must pick "gpt-5.4-mini" over "gpt-5.4" so
+        # the mini variant's dated snapshots don't mis-resolve to 1,050,000.
+        integration = _make_integration()
+        assert integration._context_window_for("gpt-5") == 400_000
+        assert integration._context_window_for("gpt-5-mini") == 400_000
+        assert integration._context_window_for("gpt-5.4") == 1_050_000
+        assert integration._context_window_for("gpt-5.4-2026-03-05") == 1_050_000
+        assert integration._context_window_for("gpt-5.5") == 1_050_000
+        assert integration._context_window_for("gpt-5.5-2026-04-23") == 1_050_000
+        assert integration._context_window_for("gpt-5.4-mini") == 400_000
+        assert integration._context_window_for("gpt-5.4-mini-2026-03-17") == 400_000
 
 
 class TestOpenAIAgentsContextState:
