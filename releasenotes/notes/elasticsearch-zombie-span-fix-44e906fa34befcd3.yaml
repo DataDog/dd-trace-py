@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    elasticsearch: Fixes an issue where a ``TransportError`` (e.g. HTTP 400) raised during
+    ``perform_request`` caused the tracing span to remain open until Python garbage collection,
+    producing zombie spans with grossly inflated durations. The generator-based coroutine that
+    holds the ``with tracer.trace(...)`` context manager is now explicitly closed via
+    ``coro.close()`` when an exception escapes ``next(coro)`` in both the synchronous and
+    asynchronous ``perform_request`` wrappers, ensuring ``span.finish()`` is called
+    immediately on the error path. This affects Elasticsearch and OpenSearch integrations.
