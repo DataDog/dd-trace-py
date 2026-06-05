@@ -727,7 +727,7 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=_django_request_path_params(request),
-        peer_ip=core.get_item("http.request.remote_ip"),
+        peer_ip=request.META.get("REMOTE_ADDR"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
         # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
