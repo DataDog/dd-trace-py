@@ -566,14 +566,14 @@ def test_trace_native_span_events_default_false():
     assert config.trace_native_span_events is False
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_NATIVE_SPAN_EVENTS": None})
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "otlp", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
 def test_trace_native_span_events_auto_enabled_with_otlp_exporter():
     from ddtrace.internal.settings._agent import config
 
     assert config.trace_native_span_events is True
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "OTLP", "DD_TRACE_NATIVE_SPAN_EVENTS": None})
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": "OTLP", "DD_TRACE_NATIVE_SPAN_EVENTS": None}, err=None)
 def test_trace_native_span_events_auto_enabled_case_insensitive():
     from ddtrace.internal.settings._agent import config
 
@@ -594,7 +594,7 @@ def test_trace_native_span_events_user_false_overrides_auto_enable():
     assert config.trace_native_span_events is False
 
 
-@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": None, "DD_TRACE_NATIVE_SPAN_EVENTS": "true"})
+@pytest.mark.subprocess(env={"OTEL_TRACES_EXPORTER": None, "DD_TRACE_NATIVE_SPAN_EVENTS": "true"}, err=None)
 def test_trace_native_span_events_user_true_without_otlp():
     from ddtrace.internal.settings._agent import config
 

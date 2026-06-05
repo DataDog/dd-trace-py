@@ -6,6 +6,7 @@ from typing import Union
 from urllib.parse import urlparse
 
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._core import DDConfig
 
 
@@ -66,6 +67,12 @@ def _derive_stats_url(config: "AgentConfig") -> str:
         else:
             url = f"udp://{DEFAULT_HOSTNAME}:{DEFAULT_STATS_PORT}"
     return url
+
+
+def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
+    if config._trace_native_span_events is not None:
+        return config._trace_native_span_events
+    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
 
 
 class AgentConfig(DDConfig):
@@ -143,13 +150,14 @@ class AgentConfig(DDConfig):
         help="Stores the port of the agent",
     )
 
-    trace_native_span_events = DDConfig.v(
-        bool,
+    _trace_native_span_events = DDConfig.v(
+        Optional[bool],
         "trace_native_span_events",
-        default=False,
+        default=None,
         help_type="Boolean",
         help="Stores whether native span events are enabled",
     )
+    trace_native_span_events = DDConfig.d(bool, _derive_trace_native_span_events)
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
     # Effective DogStatsD URL (this is the one that will be used)
