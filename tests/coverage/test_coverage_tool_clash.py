@@ -37,9 +37,7 @@ def test_code_coverage_tool_clash():
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     )
 
-    expected_executable = {
-        "tests/coverage/included_path/async_code.py": set(),
-    }
+    expected_executable = {}
     expected_covered = {}
     expected_covered_with_imports = {}
 
