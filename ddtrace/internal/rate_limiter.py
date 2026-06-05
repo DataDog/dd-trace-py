@@ -244,11 +244,16 @@ class BudgetRateLimiterWithJitter:
         return limited_f
 
     def __getstate__(self) -> dict:
-        # _thread.lock is not picklable.
+        # _lock (a _thread.lock) is not picklable. on_exceed is also dropped
+        # because debugging/code-origin probes set it to a local lambda (see
+        # RateLimitMixin.__post_init__), which is not picklable either. Cloned
+        # limiters are never invoked, so losing the callback is harmless.
         state = self.__dict__.copy()
         state.pop("_lock", None)
+        state.pop("on_exceed", None)
         return state
 
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
+        self.on_exceed = None
         self._lock = threading.Lock()

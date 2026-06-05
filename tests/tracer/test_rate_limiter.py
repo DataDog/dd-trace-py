@@ -297,3 +297,22 @@ def test_budget_rate_limiter_with_jitter_is_picklable():
     restored = pickle.loads(pickle.dumps(limiter))
     assert restored.limit_rate == limiter.limit_rate
     restored.limit(lambda: None)
+
+
+def test_budget_rate_limiter_with_jitter_with_local_callback_is_copyable():
+    # Debugging/code-origin probes set on_exceed to a local lambda, which is not
+    # picklable. Cloning must drop it instead of failing (see issue #16443).
+    limiter = BudgetRateLimiterWithJitter(
+        limit_rate=5,
+        on_exceed=lambda: None,
+        call_once=True,
+        raise_on_exceed=False,
+    )
+
+    deep_clone = copy.deepcopy(limiter)
+    assert deep_clone.on_exceed is None
+    deep_clone.limit(lambda: None)
+
+    pickle_clone = pickle.loads(pickle.dumps(limiter))
+    assert pickle_clone.on_exceed is None
+    pickle_clone.limit(lambda: None)
