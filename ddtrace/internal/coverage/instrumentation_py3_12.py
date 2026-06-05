@@ -55,7 +55,6 @@ EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.moni
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
-_foreign_tool_warned: bool = False
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
@@ -72,17 +71,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
-    coverage_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-    if coverage_tool != "datadog":
-        if coverage_tool is not None:
-            global _foreign_tool_warned
-            if not _foreign_tool_warned:
-                _foreign_tool_warned = True
-                log.warning(
-                    "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
-                    "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
-                    coverage_tool,
-                )
+    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) != "datadog":
         return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
@@ -173,8 +162,6 @@ def unregister_coverage() -> bool:
 
     Returns True if the slot was released, False if we didn't hold it.
     """
-    global _foreign_tool_warned
-    _foreign_tool_warned = False
     if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
         sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
         sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
