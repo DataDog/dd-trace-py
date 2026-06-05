@@ -99,6 +99,10 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def install(cls, include_paths: t.Optional[list[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
+            # Already installed — update include_paths for the new session
+            # (e.g. pytester.inline_run creates a new temp dir on each call).
+            if include_paths is not None and cls._instance is not None:
+                cls._instance._include_paths = include_paths
             return
 
         super().install()
