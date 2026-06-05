@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: Fixes ``network.client.ip`` to contain the actual TCP peer IP address (i.e.
+    ``REMOTE_ADDR``) rather than the resolved HTTP client IP (which could originate from
+    forwarding headers such as ``X-Forwarded-For``). This affects the Flask, Django,
+    ASGI (FastAPI/Starlette), and Tornado integrations. The resolved HTTP client IP
+    continues to be reported under ``http.client_ip``, which is the value used by
+    App and API Protection (AAP) for IP-based threat detection and blocking.
