@@ -643,7 +643,11 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     def pop(self):
         return DummyWriterMixin.pop(self)
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:

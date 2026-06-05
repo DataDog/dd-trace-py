@@ -736,13 +736,11 @@ class Config(object):
         self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "APM Agentless enabled: health metrics and client-side stats are disabled. "
                 "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
                 "bypassing the agent.",
             )
-            self._trace_rate_limit = -1
             self._trace_compute_stats = False
-            setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
 
@@ -780,8 +778,8 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:
