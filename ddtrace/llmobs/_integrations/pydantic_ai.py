@@ -9,6 +9,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import get_llmobs_span_kind
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -181,7 +182,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if model_name:
                 manifest["model"] = model_name
         if hasattr(agent, "model_settings"):
-            manifest["model_settings"] = agent.model_settings
+            manifest["model_settings"] = self._get_model_settings(agent.model_settings)
         if hasattr(agent, "_instructions"):
             instructions = agent._instructions
             if isinstance(instructions, list):
@@ -194,6 +195,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
         manifest["tools"] = self._get_agent_tools(agent)
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
+
+    @staticmethod
+    def _get_model_settings(model_settings: Any) -> Any:
+        # AIDEV-NOTE: `agent.model_settings` can contain provider sentinels that are not
+        # JSON-serializable (e.g. OpenAI's `Omit`/`NOT_GIVEN` for unset parameters). The
+        # manifest is written to the span's meta_struct, so storing these raw crashes the
+        # agentless trace encoder at span finish ("Object of type Omit is not JSON
+        # serializable"). Coerce to JSON-safe structures, mirroring the openai_agents
+        # integration's handling of model_settings.
+        if model_settings is None:
+            return None
+        if not isinstance(model_settings, dict):
+            model_settings = getattr(model_settings, "__dict__", None)
+        return load_data_value(model_settings)
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """

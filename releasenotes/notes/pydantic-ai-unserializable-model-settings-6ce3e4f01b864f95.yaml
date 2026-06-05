@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolve an issue where the Pydantic AI integration could crash
+    trace submission with ``TypeError: Object of type Omit is not JSON serializable`` when
+    an agent's ``model_settings`` contained non-JSON-serializable provider sentinels (such
+    as OpenAI's ``Omit`` / ``NOT_GIVEN`` markers for unset parameters). These values are
+    now coerced to JSON-safe representations before being recorded on the agent manifest.
