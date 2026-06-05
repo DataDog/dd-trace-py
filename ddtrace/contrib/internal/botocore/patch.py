@@ -135,10 +135,7 @@ def _inject_trace_headers_handler(request, **kwargs):
         return
 
     # AIDEV-NOTE: Uses the global tracer's current_span() because the before-sign
-    # event hands us the AWSRequest, not the client/Pin. A user pointing botocore
-    # at a non-default tracer via Pin.override() would still get the global
-    # tracer's active span; to fix, capture Pin.get_from(client) in
-    # _ensure_before_sign_handler and bind it into the registered handler.
+    # event hands us the AWSRequest, not the client, so there's no Pin to read here.
     span = ddtrace.tracer.current_span()
     if span is None:
         return
