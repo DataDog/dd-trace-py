@@ -360,87 +360,150 @@ class TestPrompts:
 
         assert refresh_mock.call_count == 2
 
+    # --- get_prompt routing demux ---
 
-# --- get_prompt routing demux ---
+    def test_route_label_to_http(self):
+        manager = _make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                prompt = manager.get_prompt("greeting", label="production")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
 
+    def test_route_no_env_to_http(self):
+        manager = _make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = None
+                    prompt = manager.get_prompt("greeting")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
 
-def test_route_label_to_http():
-    manager = _make_manager(agentless=False)
-    with mock_api(200, TEXT_PROMPT_RESPONSE):
-        with patch.object(manager, "_fetch_from_ff") as ff_mock:
-            prompt = manager.get_prompt("greeting", label="production")
-    ff_mock.assert_not_called()
-    assert prompt.source == "registry"
-
-
-def test_route_no_env_to_http():
-    manager = _make_manager(agentless=False)
-    with mock_api(200, TEXT_PROMPT_RESPONSE):
-        with patch.object(manager, "_fetch_from_ff") as ff_mock:
+    def test_route_env_agent_to_ff(self):
+        manager = _make_manager(agentless=False)
+        ff_prompt = ManagedPrompt(
+            id="greeting",
+            version="ff-v1",
+            label="production",
+            source="ff",
+            template="FF Hello!",
+            _uuid="u1",
+            _version_uuid="v1",
+        )
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-                cfg.env = None
+                cfg.env = "staging"
                 prompt = manager.get_prompt("greeting")
-    ff_mock.assert_not_called()
-    assert prompt.source == "registry"
+        ff_mock.assert_called_once_with("greeting", None, {})
+        assert prompt.source == "ff"
 
+    def test_route_env_agentless_to_http_floor(self):
+        manager = _make_manager(agentless=True)
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="production", source="registry", template="Hi")
+        with patch.object(manager, "_fetch_from_ff") as ff_mock:
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "production"
+                    prompt = manager.get_prompt("greeting")
+        ff_mock.assert_not_called()
+        http_mock.assert_called_once_with("greeting", label="production", fallback=None)
+        assert prompt.source == "registry"
 
-def test_route_env_agent_to_ff():
-    manager = _make_manager(agentless=False)
-    ff_prompt = ManagedPrompt(
-        id="greeting",
-        version="ff-v1",
-        label="production",
-        source="ff",
-        template="FF Hello!",
-        _uuid="u1",
-        _version_uuid="v1",
-    )
-    with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
-        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-            cfg.env = "staging"
-            prompt = manager.get_prompt("greeting")
-    ff_mock.assert_called_once_with("greeting", None, {})
-    assert prompt.source == "ff"
-
-
-def test_route_env_agentless_to_http_floor():
-    manager = _make_manager(agentless=True)
-    sentinel = ManagedPrompt(id="greeting", version="v1", label="production", source="registry", template="Hi")
-    with patch.object(manager, "_fetch_from_ff") as ff_mock:
-        with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+    def test_route_targeting_key_to_ff(self):
+        manager = _make_manager(agentless=False)
+        ff_prompt = ManagedPrompt(
+            id="greeting",
+            version="ff-v1",
+            label=None,
+            source="ff",
+            template="Hello!",
+        )
+        with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-                cfg.env = "production"
+                cfg.env = "staging"
+                manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
+        ff_mock.assert_called_once_with("greeting", "user-123", {"tier": "premium"})
+
+    def test_route_label_targeting_conflict_warns(self):
+        manager = _make_manager()
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                manager.get_prompt("greeting", label="production", targeting_key="user-123")
+        conflict = [x for x in w if x.category is UserWarning and "targeting" in str(x.message).lower()]
+        assert conflict, [str(x.message) for x in w]
+        assert "label" in str(conflict[0].message)
+
+    # NOT_READY (and NO_FLAG) are not hard failures: both fall through to the HTTP floor with
+    # label=DD_ENV. Callers needing FFE resolved before evaluating use wait_for_ready().
+    def test_route_not_ready_to_http_floor(self):
+        manager = _make_manager()
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
+        with _ffe_enabled():
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
                 prompt = manager.get_prompt("greeting")
-    ff_mock.assert_not_called()
-    http_mock.assert_called_once_with("greeting", label="production", fallback=None)
-    assert prompt.source == "registry"
+        http_mock.assert_called_once_with("greeting", label="staging", fallback=None)
+        assert prompt.source == "registry"
 
+    # --- _fetch_from_ff: (prompt, not_ready) for real OpenFeature evaluation outcomes ---
 
-def test_route_targeting_key_to_ff():
-    manager = _make_manager(agentless=False)
-    ff_prompt = ManagedPrompt(
-        id="greeting",
-        version="ff-v1",
-        label=None,
-        source="ff",
-        template="Hello!",
+    def test_fetch_from_ff_disabled(self):
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = _make_manager()
+        with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
+
+    def test_fetch_from_ff_not_ready(self):
+        manager = _make_manager()
+        with _ffe_enabled():  # no config delivered -> provider stays NOT_READY
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, True)
+
+    def test_fetch_from_ff_flag_not_found(self):
+        manager = _make_manager()
+        with _ffe_enabled():
+            _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt"})
+            assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
+
+    def test_fetch_from_ff_valid_variant(self):
+        manager = _make_manager()
+        with _ffe_enabled():
+            _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "3", "template": "Hello!"})
+            prompt, not_ready = manager._fetch_from_ff("greeting", None, {})
+        assert not_ready is False
+        assert prompt.source == "ff"
+        assert prompt.version == "3"
+
+    # --- wait_for_ready ---
+
+    @pytest.mark.parametrize(
+        "agentless, env, enabled",
+        [
+            (True, "staging", True),  # agentless
+            (False, None, True),  # no DD_ENV
+            (False, "staging", False),  # opt-in disabled
+        ],
     )
-    with patch.object(manager, "_fetch_from_ff", return_value=(ff_prompt, False)) as ff_mock:
+    def test_wait_for_ready_false_when_preconditions_unmet(self, agentless, env, enabled):
+        import ddtrace.internal.settings.openfeature as ffe_settings
+
+        manager = _make_manager(agentless=agentless)
         with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-            cfg.env = "staging"
-            manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
-    ff_mock.assert_called_once_with("greeting", "user-123", {"tier": "premium"})
+            cfg.env = env
+            with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", enabled):
+                assert manager.wait_for_ready(0.1) is False
 
+    def test_wait_for_ready_true(self):
+        manager = _make_manager()
+        with _ffe_enabled():
+            _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "1", "template": "x"})
+            assert manager.wait_for_ready(5.0) is True
 
-def test_route_label_targeting_conflict_warns():
-    manager = _make_manager()
-    with mock_api(200, TEXT_PROMPT_RESPONSE):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            manager.get_prompt("greeting", label="production", targeting_key="user-123")
-    conflict = [x for x in w if x.category is UserWarning and "targeting" in str(x.message).lower()]
-    assert conflict, [str(x.message) for x in w]
-    assert "label" in str(conflict[0].message)
+    def test_wait_for_ready_timeout(self):
+        manager = _make_manager()
+        with _ffe_enabled():  # no config delivered -> never ready
+            assert manager.wait_for_ready(0.2) is False
 
 
 def _make_manager(agentless=False):
@@ -480,83 +543,3 @@ def _reset_ffe_global_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
-
-
-# NOT_READY (and NO_FLAG) are not hard failures: both fall through to the HTTP floor with
-# label=DD_ENV. Callers needing FFE resolved before evaluating use wait_for_ready().
-def test_route_not_ready_to_http_floor():
-    manager = _make_manager()
-    sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="registry", template="Hi")
-    with _ffe_enabled():
-        with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
-            prompt = manager.get_prompt("greeting")
-    http_mock.assert_called_once_with("greeting", label="staging", fallback=None)
-    assert prompt.source == "registry"
-
-
-# --- _fetch_from_ff: (prompt, not_ready) for real OpenFeature evaluation outcomes ---
-
-
-def test_fetch_from_ff_disabled():
-    import ddtrace.internal.settings.openfeature as ffe_settings
-
-    manager = _make_manager()
-    with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", False):
-        assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
-
-
-def test_fetch_from_ff_not_ready():
-    manager = _make_manager()
-    with _ffe_enabled():  # no config delivered -> provider stays NOT_READY
-        assert manager._fetch_from_ff("greeting", None, {}) == (None, True)
-
-
-def test_fetch_from_ff_flag_not_found():
-    manager = _make_manager()
-    with _ffe_enabled():
-        _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt"})
-        assert manager._fetch_from_ff("greeting", None, {}) == (None, False)
-
-
-def test_fetch_from_ff_valid_variant():
-    manager = _make_manager()
-    with _ffe_enabled():
-        _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "3", "template": "Hello!"})
-        prompt, not_ready = manager._fetch_from_ff("greeting", None, {})
-    assert not_ready is False
-    assert prompt.source == "ff"
-    assert prompt.version == "3"
-
-
-# --- wait_for_ready ---
-
-
-@pytest.mark.parametrize(
-    "agentless, env, enabled",
-    [
-        (True, "staging", True),  # agentless
-        (False, None, True),  # no DD_ENV
-        (False, "staging", False),  # opt-in disabled
-    ],
-)
-def test_wait_for_ready_false_when_preconditions_unmet(agentless, env, enabled):
-    import ddtrace.internal.settings.openfeature as ffe_settings
-
-    manager = _make_manager(agentless=agentless)
-    with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
-        cfg.env = env
-        with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", enabled):
-            assert manager.wait_for_ready(0.1) is False
-
-
-def test_wait_for_ready_true():
-    manager = _make_manager()
-    with _ffe_enabled():
-        _deliver_prompt_flag("greeting", {"prompt_id": "greeting", "version": "1", "template": "x"})
-        assert manager.wait_for_ready(5.0) is True
-
-
-def test_wait_for_ready_timeout():
-    manager = _make_manager()
-    with _ffe_enabled():  # no config delivered -> never ready
-        assert manager.wait_for_ready(0.2) is False
