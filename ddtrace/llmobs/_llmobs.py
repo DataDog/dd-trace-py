@@ -1109,40 +1109,13 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         page_limit: int = 100,
     ) -> "list[ExperimentSummary]":
-        """List experiments with optional filtering for CI/CD comparison flows.
+        """List experiments, optionally filtered by name, metadata, or parent experiment.
 
-        Typical CI/CD usage::
-
-            # After each pipeline run, create an experiment tagged with git context:
-            exp = LLMObs.experiment(
-                "my-pipeline", task, dataset, evaluators,
-                experiment_metadata={"commit": commit_sha, "branch": branch},
-            )
-            exp.run()
-
-            # Later, compare results across branches:
-            main_runs = LLMObs.list_experiments(
-                experiment_name="my-pipeline",
-                metadata_filter={"branch": "main"},
-            )
-            pr_runs = LLMObs.list_experiments(
-                experiment_name="my-pipeline",
-                metadata_filter={"commit": pr_commit_sha},
-            )
-
-        :param experiment_name: Filter by logical experiment name (shared across all CI runs
-            of the same pipeline). Matches the ``name`` argument passed to
-            ``LLMObs.experiment()`` / ``LLMObs.async_experiment()``.
-        :param metadata_filter: Filter by metadata key-value containment, e.g.
-            ``{"commit": "abc123", "branch": "main"}``.  Only experiments whose
-            ``experiment_metadata`` is a superset of this dict are returned.
-        :param parent_experiment_ids: Filter to experiments whose parent/baseline experiment
-            UUID is one of the given IDs.  Useful for finding all re-runs or variants of a
-            baseline experiment.
-        :param project_name: Filter by project name.  When omitted, resolves the project UUID
-            from the configured project name; pass an explicit value to query a different project.
-        :param page_limit: Maximum experiments per page request (1–5000, default: 100).
-            All pages are fetched automatically; this controls the HTTP batch size.
+        :param experiment_name: Filter by logical experiment name.
+        :param metadata_filter: Filter by metadata containment, e.g. ``{"tags": ["git.commit.sha:abc123"]}``.
+        :param parent_experiment_ids: Filter by parent experiment UUID(s).
+        :param project_name: Project to query (defaults to the configured project).
+        :param page_limit: Page size for backend requests (1–5000, default: 100). All pages are fetched.
         :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
         :raises ValueError: If LLMObs is not enabled or the backend request fails.
         """
