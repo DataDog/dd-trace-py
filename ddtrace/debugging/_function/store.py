@@ -13,6 +13,7 @@ from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping.context import ContextWrappedFunction
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import wrapping_context_for
 
 
 WrapperType = Callable[[FunctionType, Any, Any, Any], Any]
@@ -38,9 +39,7 @@ class FunctionStore(object):
     def __init__(self, extra_attrs: Optional[list[str]] = None) -> None:
         self._code_map: dict[FunctionType, CodeType] = {}
         self._wrapper_map: dict[FunctionType, WrappingContext] = {}
-        self._extra_attrs = ["__dd_context_wrapped__"]
-        if extra_attrs:
-            self._extra_attrs.extend(extra_attrs)
+        self._extra_attrs: list[str] = list(extra_attrs) if extra_attrs else []
 
     def __enter__(self) -> "FunctionStore":
         return self
@@ -57,11 +56,9 @@ class FunctionStore(object):
 
         Returns the set of probe IDs for those probes that failed to inject.
         """
-        try:
-            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
-            f = cast(FunctionType, wrapped_func.__dd_context_wrapped__.__wrapped__)  # type: ignore[union-attr]
-        except AttributeError:
-            f = cast(FunctionType, function)
+        ft = cast(FunctionType, function)
+        uwc = wrapping_context_for(ft)
+        f = uwc.__wrapped__ if uwc is not None else ft
         self._store(f)
         return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
@@ -70,14 +67,9 @@ class FunctionStore(object):
 
         Returns the set of probe IDs for those probes that failed to eject.
         """
-        try:
-            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
-            f = wrapped_func.__dd_context_wrapped__.__wrapped__  # type: ignore[union-attr]
-        except AttributeError:
-            # Not a wrapped function so we can actually eject from it
-            f = function
-
-        return {p.probe_id for _, _, p in eject_hooks(cast(FunctionType, f), hooks)}
+        uwc = wrapping_context_for(function)
+        f = uwc.__wrapped__ if uwc is not None else function
+        return {p.probe_id for _, _, p in eject_hooks(f, hooks)}
 
     def inject_hook(self, function: FullyNamedContextWrappedFunction, hook: HookType, line: int, arg: Any) -> bool:
         """Inject a hook into a function."""

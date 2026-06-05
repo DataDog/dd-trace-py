@@ -8,6 +8,7 @@ from types import FunctionType
 from types import TracebackType
 import typing as t
 from typing import Protocol  # noqa:F401
+import weakref
 
 import bytecode
 from bytecode import Bytecode
@@ -23,6 +24,13 @@ from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import set_function_code
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+
+
+# Registry mapping functions to their _UniversalWrappingContext. Using a
+# WeakKeyDictionary so we hold no strong references to functions, and a lock for
+# thread-safe mutation.
+_registry: weakref.WeakKeyDictionary[FunctionType, "_UniversalWrappingContext"] = weakref.WeakKeyDictionary()
+_registry_lock = Lock()
 
 
 log = get_logger(__name__)
@@ -298,18 +306,6 @@ class BaseWrappingContext(ABC):
             f"{type(self).__name__}__storage", default=None
         )
 
-    def __getstate__(self) -> dict[str, t.Any]:
-        state = self.__dict__.copy()
-        state.pop("_storage", None)  # remove unpicklable field
-        return state
-
-    def __setstate__(self, state: dict[str, t.Any]) -> None:
-        self.__dict__.update(state)
-        self._storage = ContextVar(
-            f"{type(self).__name__}__storage",
-            default=None,
-        )
-
     def __enter__(self) -> "BaseWrappingContext":
         prev = self._storage.get()
         self._storage.set({"__dd_wrapping_context_prev__": prev})
@@ -481,22 +477,9 @@ class LazyWrappingContext(WrappingContext):
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
                 self._trampoline = None
 
-    def __getstate__(self) -> dict[str, t.Any]:
-        state = super().__getstate__()
-        state.pop("_trampoline_lock", None)  # thread lock not picklable
-        state.pop("_trampoline", None)  # closure not picklable
-        return state
-
-    def __setstate__(self, state: dict[str, t.Any]) -> None:
-        super().__setstate__(state)
-        self._trampoline_lock = Lock()
-        self._trampoline = None
-
 
 class ContextWrappedFunction(Protocol):
     """A wrapped function."""
-
-    __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
 
     def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
@@ -573,13 +556,14 @@ class _UniversalWrappingContext(BaseWrappingContext):
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
         try:
-            # Check that we have actual bytecode wrapping. The presence of the
-            # __dd_context_wrapped__ attribute is not enough, as this could be
-            # copied over from an object state cloning.
+            uwc = _registry.get(f)
+            if uwc is None:
+                return False
+            # Verify the registry entry matches actual bytecode wrapping.
             if sys.version_info >= (3, 11):
-                return f.__dd_context_wrapped__.__enter__ in get_function_code(f).co_consts  # type: ignore
+                return uwc.__enter__ in get_function_code(f).co_consts
             else:
-                return f.__dd_context_wrapped__ in get_function_code(f).co_consts  # type: ignore
+                return uwc in get_function_code(f).co_consts
         except AttributeError:
             return False
 
@@ -587,7 +571,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
         if not cls.is_wrapped(f):
             raise ValueError("Function is not wrapped")
-        return t.cast(_UniversalWrappingContext, t.cast(ContextWrappedFunction, f).__dd_context_wrapped__)
+        return t.cast(_UniversalWrappingContext, _registry[f])
 
     if sys.version_info >= (3, 11):
 
@@ -661,8 +645,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
 
-            # Mark the function as wrapped by a wrapping context
-            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+            # Register the wrapping context for this function.
+            with _registry_lock:
+                _registry[f] = self
 
             # Replace the function code with the wrapped code. We also link
             # the function to its original code object so that we can retrieve
@@ -676,8 +661,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
             if not self.is_wrapped(f):
                 return
-
-            wrapped = t.cast(ContextWrappedFunction, f)
 
             bc = Bytecode.from_code(get_function_code(f))
 
@@ -700,7 +683,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                     i += 1
 
             # Remove the head of the try block
-            wc = wrapped.__dd_context_wrapped__
+            wc = _registry[f]
             for i, instr in enumerate(bc):
                 if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
                     break
@@ -741,8 +724,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Recreate the code object
             set_function_code(f, bc.to_code())
 
-            # Remove the wrapping context marker
-            del wrapped.__dd_context_wrapped__
+            # Remove the registry entry
+            with _registry_lock:
+                _registry.pop(f, None)
 
     else:
 
@@ -777,8 +761,9 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.append(except_label)
             bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
 
-            # Mark the function as wrapped by a wrapping context
-            t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
+            # Register the wrapping context for this function.
+            with _registry_lock:
+                _registry[f] = self
 
             # Replace the function code with the wrapped code. We also link
             # the function to its original code object so that we can retrieve
@@ -792,8 +777,6 @@ class _UniversalWrappingContext(BaseWrappingContext):
             if not self.is_wrapped(f):
                 return
 
-            wrapped = t.cast(ContextWrappedFunction, f)
-
             bc = Bytecode.from_code(get_function_code(f))
 
             # Remove the exception handling code
@@ -801,7 +784,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
             bc.pop()
 
             # Remove the head of the try block
-            wc = wrapped.__dd_context_wrapped__
+            wc = _registry[f]
             for i, instr in enumerate(bc):
                 if isinstance(instr, bytecode.Instr) and instr.name == "LOAD_CONST" and instr.arg is wc:
                     break
@@ -820,5 +803,11 @@ class _UniversalWrappingContext(BaseWrappingContext):
             # Recreate the code object
             set_function_code(f, bc.to_code())
 
-            # Remove the wrapping context marker
-            del wrapped.__dd_context_wrapped__
+            # Remove the registry entry
+            with _registry_lock:
+                _registry.pop(f, None)
+
+
+def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
+    """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""
+    return _registry.get(f)
