@@ -36,7 +36,12 @@ if(DO_VALGRIND)
 endif()
 
 function(dd_wrapper_add_test name)
-    add_executable(${name} ${ARGN})
+    # Optional keyword argument: INSTALL_SUBDIR <dir> Installs the test binary to test/<dir>/ instead of test/. Use for
+    # version-specific binaries (e.g. INSTALL_SUBDIR py315) to prevent CI artifact collisions when build_base_venvs runs
+    # in parallel across Python versions and GitLab merges all artifacts into a shared directory.
+    cmake_parse_arguments(_ARG "" "INSTALL_SUBDIR" "" ${ARGN})
+    set(_SOURCES ${_ARG_UNPARSED_ARGUMENTS})
+    add_executable(${name} ${_SOURCES})
     target_include_directories(${name} PRIVATE ../include)
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
@@ -72,7 +77,11 @@ function(dd_wrapper_add_test name)
     endif()
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        if(_ARG_INSTALL_SUBDIR)
+            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test/${_ARG_INSTALL_SUBDIR})
+        else()
+            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        endif()
     endif()
 endfunction()
 
