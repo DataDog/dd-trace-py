@@ -225,7 +225,6 @@ def _format_llmobs_sample_rate(rate: float) -> str:
 
 
 def _llmobs_sampling_decision(trace_id: int, sample_rate: float) -> str:
-    """Return '1' (keep) or '0' (drop) using RateSampler's deterministic hash."""
     return "1" if RateSampler(sample_rate=sample_rate).sample_by_id(trace_id) else "0"
 
 
@@ -2141,11 +2140,13 @@ class LLMObs(Service):
             span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
-        # Store sample rate and sampling decision in meta_struct so they propagate through child
-        # spans and appear in the span event's _dd block without re-computation at finish time.
         effective_rate = sample_rate or _format_llmobs_sample_rate(config._llmobs_sample_rate)
         if sampling_decision is None:
-            sampling_decision = _llmobs_sampling_decision(span.trace_id, config._llmobs_sample_rate)
+            try:
+                rate_for_decision = float(effective_rate)
+            except (ValueError, TypeError):
+                rate_for_decision = config._llmobs_sample_rate
+            sampling_decision = _llmobs_sampling_decision(span.trace_id, rate_for_decision)
         llmobs_data = _get_llmobs_data_metastruct(span)
         dd = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
         dd[LLMOBS_STRUCT.SAMPLE_RATE] = effective_rate
@@ -3059,11 +3060,13 @@ class LLMObs(Service):
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        # Always propagate a decision so downstream services never have to compute one.
-        # If no pre-computed decision is available (inject called outside a LLMObs span,
-        # or upstream did not send one), derive it now from the APM trace ID.
+        # Derive a decision if none was propagated from upstream or computed at span start.
         if sampling_decision is None:
-            sampling_decision = _llmobs_sampling_decision(span_context.trace_id, config._llmobs_sample_rate)
+            try:
+                rate_for_decision = float(sample_rate)
+            except (ValueError, TypeError):
+                rate_for_decision = config._llmobs_sample_rate
+            sampling_decision = _llmobs_sampling_decision(span_context.trace_id, rate_for_decision)
         span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision
 
     @classmethod
