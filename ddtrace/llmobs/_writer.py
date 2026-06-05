@@ -879,7 +879,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     aggregate_data=attrs.get("aggregate_data"),
                 )
                 results.append(summary)
-            cursor = ((body.get("meta") or {}).get("page") or {}).get("after")
+            cursor = (body.get("meta") or {}).get("after")
             if not cursor:
                 break
         return results
