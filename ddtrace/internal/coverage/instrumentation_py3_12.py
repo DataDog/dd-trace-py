@@ -68,6 +68,15 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     - Line-level (default): Uses LINE events for detailed line-by-line coverage
     - File-level: Uses PY_START events for faster file-level coverage
 
+    Args:
+        code: The code object to instrument
+        hook: The hook function to call
+        path: The file path
+        package: The package name
+
+    Returns:
+        Tuple of (code object, CoverageLines with instrumentable lines)
+
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
