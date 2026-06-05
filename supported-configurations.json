@@ -5710,14 +5710,6 @@
         "internal": true
       }
     ],
-    "_DD_LLMOBS_TEST_KEEP_META_STRUCT": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
     "_DD_LLMOBS_WRITER_INTERVAL": [
       {
         "implementation": "A",
