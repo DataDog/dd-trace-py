@@ -308,3 +308,29 @@ def test_otel_span_kind_not_set_with_otel_compatibility(oteltracer):
         ):
             with oteltracer.start_span("test-kind", kind=kind) as span:
                 assert span._ddspan.get_tag("span.kind") is None
+
+
+def test_otel_record_exception_suppresses_dd_tags_with_otel_compatibility(oteltracer):
+    """DD_TRACE_OTEL_COMPATIBILITY_ENABLED=true: record_exception does not set DD error tags on the span."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        with oteltracer.start_span("test-exc-compat") as span:
+            try:
+                raise ValueError("test error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            assert span._ddspan.get_tag("error.message") is None
+            assert span._ddspan.get_tag("error.type") is None
+            assert span._ddspan.get_tag("error.stack") is None
+
+
+def test_otel_record_exception_adds_stacktrace_to_event_with_otel_compatibility(oteltracer):
+    """DD_TRACE_OTEL_COMPATIBILITY_ENABLED=true: record_exception always adds exception.stacktrace to the span event."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        with oteltracer.start_span("test-exc-stacktrace-compat") as span:
+            try:
+                raise ValueError("test error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            assert len(events) == 1
+            assert "exception.stacktrace" in events[0].attributes
