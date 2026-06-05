@@ -14,9 +14,10 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-# AIDEV-NOTE: Cross-module coordination primitive. Set to True by a higher-level
-# integration that has already injected propagation headers and wants this
-# subscriber to skip its own injection.
+# AIDEV-NOTE: Cross-module coordination primitive. A higher-level integration sets
+# this True to tell this subscriber to skip its own injection — either because the
+# integration already injected upstream (e.g. botocore's before-sign handler) or
+# because distributed tracing is disabled and no headers should go out at any layer.
 #
 # Consumers today: ddtrace.contrib.internal.botocore.patch and
 # ddtrace.contrib.internal.aiobotocore.patch (the SigV4 fix — botocore's
