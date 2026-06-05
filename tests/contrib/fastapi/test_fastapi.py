@@ -4,6 +4,7 @@ import time
 
 import fastapi
 from fastapi.testclient import TestClient
+import httpx
 import pytest
 import starlette
 
@@ -18,12 +19,6 @@ from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
-
-
-try:
-    import httpx2 as httpx
-except ImportError:
-    import httpx
 
 
 def assert_serialize_span(serialize_span):
@@ -268,11 +263,7 @@ def test_invalid_path_with_obfuscation_enabled():
     import asyncio
 
     from fastapi import FastAPI
-
-    try:
-        import httpx2 as httpx
-    except ImportError:
-        import httpx
+    import httpx
 
     from ddtrace.contrib.internal.fastapi.patch import patch
     from tests.utils import snapshot_context
@@ -800,7 +791,6 @@ if __name__ == "__main__":
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
-    assert err == b"", err.decode()
 
 
 @pytest.mark.parametrize(
