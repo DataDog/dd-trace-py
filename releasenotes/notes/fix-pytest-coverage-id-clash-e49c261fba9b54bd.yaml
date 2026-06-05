@@ -3,7 +3,4 @@ fixes:
   - |
     CI Visibility: Fixes a ``ValueError: tool 1 is already in use`` crash when ddtrace's
     coverage instrumentation and coverage.py's ``SysMonitor`` backend (default on Python 3.14+)
-    both claim ``sys.monitoring.COVERAGE_ID``. The pytest plugin now temporarily releases the
-    slot before yielding in ``pytest_load_initial_conftests`` and reclaims it afterward, letting
-    any coverage tool (pytest-cov, standalone coverage.py, etc.) claim the slot during the hook
-    gap without requiring heuristic detection of which tool is active.
+    both claim ``sys.monitoring.COVERAGE_ID``.
