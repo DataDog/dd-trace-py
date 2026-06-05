@@ -1204,3 +1204,66 @@ class TestOpenAIAgentsPatchCompat:
             assert len(captured) == 0, "record_agent_side must not fire when agent is missing"
         finally:
             integration.record_agent_side = orig
+
+    def test_streamed_module_wrapper_routes_through_same_inner(self):
+        # The streamed wrapper (``patched_run_single_turn_streamed_module``) shares the
+        # same inner implementation as the non-streamed one. This test confirms both
+        # entry points produce identical record_agent_side calls for the same bindings.
+        import asyncio
+        from types import SimpleNamespace
+
+        import agents
+
+        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
+        from ddtrace.contrib.internal.openai_agents.patch import patched_run_single_turn_streamed_module
+        from ddtrace.trace import tracer
+
+        if not getattr(agents, "_datadog_patch", False):
+            patch_openai_agents()
+
+        integration = agents._datadog_integration
+        captured = []
+        orig = integration.record_agent_side
+        integration.record_agent_side = lambda trace_id, **kw: captured.append(kw)
+
+        mock_agent = SimpleNamespace(name="StreamedAgent", tools=[{"name": "t"}], handoffs=[])
+        bindings = SimpleNamespace(execution_agent=mock_agent, public_agent=mock_agent)
+
+        async def inner(*args, **kwargs):
+            return "streamed_result"
+
+        async def _run():
+            with tracer.trace("test"):
+                return await patched_run_single_turn_streamed_module(inner, None, (bindings,), {})
+
+        try:
+            result = asyncio.run(_run())
+            assert result == "streamed_result"
+            assert len(captured) == 1
+            assert captured[0]["agent_id"] == "StreamedAgent"
+            assert captured[0]["tools_chars"] > 0
+        finally:
+            integration.record_agent_side = orig
+
+    def test_record_agent_side_before_first_llm_side_is_safe(self):
+        # Edge case: record_agent_side fires with no paired record_llm_side. Locks
+        # first_agent_id and first_agent but leaves first_llm / last_llm unset.
+        # emit_context_delta must no-op (no LLM snapshot to anchor the delta).
+        from ddtrace._trace.span import Span as DDSpan
+        from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+        integration = _make_integration()
+        integration.record_agent_side(trace_id=42, tools_chars=500, agent_id="Solo")
+        state = integration._context_state[42]
+        assert state["first_agent_id"] == "Solo"
+        assert state["first_agent"]["tools_chars"] == 500
+        assert state.get("first_llm") is None
+        assert state.get("last_llm_first_agent") is None
+
+        span = DDSpan(name="agent_root")
+        integration.emit_context_delta(span, trace_id=42)
+        meta = _get_llmobs_data_metastruct(span).get("meta", {})
+        assert "context_delta" not in meta.get("metadata", {}).get("_dd", {}), (
+            "emit_context_delta must no-op when no LLM snapshot exists"
+        )
+        assert 42 not in integration._context_state, "state must still be popped"

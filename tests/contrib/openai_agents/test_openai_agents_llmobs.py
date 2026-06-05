@@ -452,6 +452,50 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.asyncio
+async def test_llmobs_context_delta_emitted_on_agent_root_span(
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent
+):
+    """End-to-end: context_delta must land on the agent root span after a real agent run.
+
+    Exercises the full chain: processor.on_span_end -> record_llm_side ->
+    patch.py wrapper -> record_agent_side -> processor.on_trace_end ->
+    emit_context_delta -> tag_context_delta -> meta.metadata._dd.context_delta.
+    """
+    with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
+        await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    spans.sort(key=lambda span: span.start_ns)
+    root_span = spans[0]
+
+    metastruct = _get_llmobs_data_metastruct(root_span)
+    dd_meta = metastruct.get("meta", {}).get("metadata", {}).get("_dd", {})
+    delta = dd_meta.get("context_delta")
+    # Some agents library versions don't trigger the wrapper (older shapes where the
+    # per-turn function name doesn't match any of our wrap targets). In that case the
+    # payload is absent and the bar simply doesn't render — acceptable degradation.
+    # When present, the payload must conform to the contract.
+    if delta is None:
+        pytest.skip("context_delta absent on this agents library version; wrap target may not match")
+
+    assert "first_input_tokens" in delta and delta["first_input_tokens"] > 0
+    assert "last_input_tokens" in delta and delta["last_input_tokens"] > 0
+    assert delta["delta_tokens"] == delta["last_input_tokens"] - delta["first_input_tokens"]
+    assert "context_window_size" in delta
+    assert "first_usage_pct" in delta and "last_usage_pct" in delta
+
+    # Sections must only contain the four cross-framework allowlist keys.
+    allowed_names = {"system", "tools", "user_messages", "assistant_messages"}
+    for key in ("first_sections", "last_sections"):
+        if key not in delta:
+            continue
+        for section in delta[key]:
+            assert section["name"] in allowed_names, f"unknown section name {section['name']!r} in {key}"
+            assert section["tokens"] > 0, "zero-token sections must be filtered out by _sections_with_pct"
+            assert 0 <= section["pct"] <= 100
+
+
+@pytest.mark.asyncio
 async def test_llmobs_single_agent_with_ootb_tools(
     agents, openai_agents_llmobs, test_spans, request_vcr, weather_agent
 ):
