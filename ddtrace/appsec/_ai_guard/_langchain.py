@@ -23,28 +23,39 @@ logger = ddlogger.get_logger(__name__)
 
 
 action_agents_classes = (
-    "agents.Agent",
-    "agents.xml.base.XMLAgent",
-    "agents.agent.RunnableAgent",
-    "agents.agent.RunnableMultiActionAgent",
-    "agents.agent.LLMSingleActionAgent",
-    "agents.openai_functions_agent.base.OpenAIFunctionsAgent",
-    "agents.openai_functions_multi_agent.base.OpenAIMultiFunctionsAgent",
+    "Agent",
+    "xml.base.XMLAgent",
+    "agent.RunnableAgent",
+    "agent.RunnableMultiActionAgent",
+    "agent.LLMSingleActionAgent",
+    "openai_functions_agent.base.OpenAIFunctionsAgent",
+    "openai_functions_multi_agent.base.OpenAIMultiFunctionsAgent",
 )
 
 
 def _langchain_patch(client: AIGuardClient):
-    try:
-        import langchain.agents  # noqa: F401
-    except ImportError:
-        logger.error("Failed to import langchain.agents, tool calls won't be instrumented")
-        return
-
     from functools import partial
 
+    # langchain < 1.0: agents subclass one of the action-agent classes and
+    # decide tool calls through ``plan`` / ``aplan``. Each is wrapped in its
+    # own try/except because the available classes vary across versions.
     for class_ in action_agents_classes:
-        wrap("langchain", class_ + ".plan", partial(_langchain_agent_plan, client))
-        wrap("langchain", class_ + ".aplan", partial(_langchain_agent_aplan, client))
+        try:
+            wrap("langchain.agents", class_ + ".plan", partial(_langchain_agent_plan, client))
+            wrap("langchain.agents", class_ + ".aplan", partial(_langchain_agent_aplan, client))
+        except Exception:
+            logger.debug("Failed to instrument %s", class_, exc_info=True)
+
+    # langchain >= 1.0: agents are built with ``create_agent`` and client-side
+    # tools are executed by langgraph's ``ToolNode``. Instrument the per-call
+    # execution methods so AI Guard can block a tool call before it runs,
+    # mirroring the legacy ``plan`` interception. ``langgraph`` is only present
+    # on langchain >= 1.0, so guard the wrap with try/except.
+    try:
+        wrap("langgraph.prebuilt.tool_node", "ToolNode._run_one", partial(_langchain_toolnode_run_one, client))
+        wrap("langgraph.prebuilt.tool_node", "ToolNode._arun_one", partial(_langchain_toolnode_arun_one, client))
+    except Exception:
+        logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
 
 
 def _langchain_unpatch():
@@ -52,14 +63,27 @@ def _langchain_unpatch():
         import langchain.agents  # noqa: F401
     except ImportError:
         logger.debug("Failed to unpatch langchain.agents")
-        return
+    else:
+        for class_ in action_agents_classes:
+            try:
+                if "." in class_:
+                    module_path, class_name = class_.rsplit(".", 1)
+                    module = __import__("langchain.agents." + module_path, fromlist=[class_name])
+                else:
+                    module, class_name = langchain.agents, class_
+                agent_class = getattr(module, class_name)
+                unwrap(agent_class, "plan")
+                unwrap(agent_class, "aplan")
+            except Exception:
+                logger.debug("Failed to unpatch %s", class_, exc_info=True)
 
-    for class_ in action_agents_classes:
-        module_path, class_name = class_.rsplit(".", 1)
-        module = __import__("langchain." + module_path, fromlist=[class_name])
-        agent_class = getattr(module, class_name)
-        unwrap(agent_class, "plan")
-        unwrap(agent_class, "aplan")
+    try:
+        from langgraph.prebuilt.tool_node import ToolNode
+
+        unwrap(ToolNode, "_run_one")
+        unwrap(ToolNode, "_arun_one")
+    except Exception:
+        logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
 
 def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
@@ -70,6 +94,22 @@ def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
 async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kwargs):
     action = await func(*args, **kwargs)
     return _handle_agent_action_result(client, action, args, kwargs)
+
+
+def _langchain_toolnode_run_one(client: AIGuardClient, func, instance, args, kwargs):
+    """``ToolNode._run_one`` wrapper for langchain >= 1.0 ``create_agent`` agents.
+
+    Evaluates the tool call *before* the tool executes so a blocking decision
+    raises ``AIGuardAbortError`` and prevents execution.
+    """
+    _evaluate_langchain_tool_call(client, args, kwargs)
+    return func(*args, **kwargs)
+
+
+async def _langchain_toolnode_arun_one(client: AIGuardClient, func, instance, args, kwargs):
+    """Async variant of :func:`_langchain_toolnode_run_one`."""
+    _evaluate_langchain_tool_call(client, args, kwargs)
+    return await func(*args, **kwargs)
 
 
 def _try_parse_json(value: dict, attribute: str) -> Any:
@@ -198,6 +238,62 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
     return result
 
 
+def _get_tool_runtime_messages(tool_runtime) -> list:
+    """Extract the conversation history from a langgraph ``ToolRuntime``.
+
+    The agent state's last message is the ``AIMessage`` carrying the tool
+    call(s) about to execute; it is dropped here because the specific call
+    under evaluation is re-appended by the caller as a single-tool-call
+    assistant message (mirroring the legacy agent-action conversion).
+    """
+    from langchain_core.messages import AIMessage
+
+    state = getattr(tool_runtime, "state", None)
+    if isinstance(state, dict):
+        messages = state.get("messages") or []
+    else:
+        messages = getattr(state, "messages", None) or []
+
+    if messages and isinstance(messages[-1], AIMessage) and getattr(messages[-1], "tool_calls", None):
+        return list(messages[:-1])
+    return list(messages)
+
+
+def _evaluate_langchain_tool_call(client: AIGuardClient, args, kwargs):
+    """Evaluate a single tool call decided by a langchain >= 1.0 agent.
+
+    ``langgraph``'s ``ToolNode._run_one`` / ``_arun_one`` execute one tool call
+    each (``call`` is the first positional argument, ``tool_runtime`` the
+    third). Re-raises ``AIGuardAbortError`` on a block so the contrib's
+    ``allow_raise`` dispatch propagates the abort out of the agent invocation.
+    """
+    try:
+        call = get_argument_value(args, kwargs, 0, "call")
+        if not isinstance(call, dict):
+            return
+        tool_name = call.get("name")
+        if not tool_name:
+            return
+        tool_runtime = get_argument_value(args, kwargs, 2, "tool_runtime")
+        messages = _convert_messages(_get_tool_runtime_messages(tool_runtime))
+        messages.append(
+            Message(
+                role="assistant",
+                tool_calls=[
+                    ToolCall(
+                        id=call.get("id", ""),
+                        function=Function(name=tool_name, arguments=try_format_json(call.get("args", {}))),
+                    )
+                ],
+            )
+        )
+        client.evaluate(messages, Options(block=ai_guard_config._ai_guard_block))
+    except AIGuardAbortError:
+        raise
+    except Exception:
+        logger.debug("Failed to evaluate tool call", exc_info=True)
+
+
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
     set_aiguard_context_active()
     for messages in message_lists:
@@ -261,17 +357,33 @@ def _langchain_stream_started(*args, **kwargs):
 
 
 def _evaluate_langchain_messages(client: AIGuardClient, messages):
-    """Evaluate the prompt and re-raise ``AIGuardAbortError`` on a block.
+    """Evaluate a model call and re-raise ``AIGuardAbortError`` on a block.
 
     Re-raises so the contrib's ``core.dispatch(..., allow_raise=True)``
     propagates the abort. The ``AIGuardClient`` already gates on
     ``ai_guard_config._ai_guard_block``, so a raised error always represents
     a blocking decision. Allow / skip paths return ``None``.
+
+    A model call is evaluated only when its trailing message represents a new
+    logical event worth gating at the "before model" step:
+
+    * ``HumanMessage`` — a new user prompt.
+    * ``ToolMessage`` — a tool result fed back to the model during an agent
+      loop (e.g. ``create_agent`` turns after a tool runs). AI Guard evaluates
+      tool results at the "next before model"; without this an agent's tool
+      outputs would never reach AI Guard. ``AIGuardClient`` tags the resulting
+      span ``target=tool`` by resolving the tool name from the matching tool
+      call.
+
+    Other trailing messages (e.g. the model's own prior assistant output) are
+    not new events and are skipped to avoid duplicate evaluations. The legacy
+    (langchain < 1.0) agent path uses ``FunctionMessage`` for tool results and
+    evaluates tool calls via ``Agent.plan``, so it is intentionally unaffected.
     """
     from langchain_core.messages import HumanMessage
+    from langchain_core.messages import ToolMessage
 
-    # only call evaluator when the last message is an actual user prompt
-    if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
+    if len(messages) > 0 and isinstance(messages[-1], (HumanMessage, ToolMessage)):
         try:
             client.evaluate(_convert_messages(messages), Options(block=ai_guard_config._ai_guard_block))
         except AIGuardAbortError:
