@@ -533,6 +533,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+ "bytes",
  "datadog-ffe",
  "datadog-remote-config",
  "libc",
@@ -541,6 +542,7 @@ dependencies = [
  "libdd-crashtracker",
  "libdd-data-pipeline",
  "libdd-ddsketch",
+ "libdd-http-client",
  "libdd-library-config",
  "libdd-log",
  "libdd-profiling-ffi",
@@ -555,6 +557,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1581,6 +1584,19 @@ dependencies = [
  "libdd-common",
  "serde",
  "tracing",
+]
+
+[[package]]
+name = "libdd-http-client"
+version = "35.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=45a451cd8fddfc479cb9357a0602e146016dc8db#45a451cd8fddfc479cb9357a0602e146016dc8db"
+dependencies = [
+ "bytes",
+ "fastrand",
+ "libdd-common",
+ "reqwest",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

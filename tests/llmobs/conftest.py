@@ -10,7 +10,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import LLMObsExportMode
+from tests.llmobs._processors import TestAlwaysEnqueueLLMObsProcessor
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -119,7 +119,7 @@ def mock_ragas_dependencies_not_present():
     import ragas
 
     previous = ragas.__version__
-    ## unsupported version
+    # unsupported version
     ragas.__version__ = "0.0.0"
     yield
     ragas.__version__ = previous
@@ -273,20 +273,18 @@ def llmobs(
 ):
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     global_config = default_global_config()
     global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
-        # Force direct-writer mode: the fixture injects a test span writer and asserts
-        # against its events, so data must go through LLMObsSpanWriter rather than
-        # riding the APM trace.
-        llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+        # Pin agentless_enabled=False: the default flips to agentless when the Agent is
+        # unreachable, swapping the ``tracer`` fixture's DummyWriter and breaking ``test_spans``.
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
+        tracer._span_aggregator.llmobs_processor = TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()
