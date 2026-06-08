@@ -276,16 +276,7 @@ async def test_data_streams_multiple_topics(dsm_processor):
     assert topic2 in checkpoint_topics, f"Topic {topic2} should be tracked"
 
 
-@pytest.mark.snapshot(
-    ignores=[
-        "metrics.kafka.message_offset",
-        "meta.kafka.cluster_id",
-        "meta.pathway.hash",
-        "meta._dd.p.tid",
-        "meta._dd.tags.process",
-        "meta.runtime-id",
-    ]
-)
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_data_streams_aiokafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to aiokafka messages."""
