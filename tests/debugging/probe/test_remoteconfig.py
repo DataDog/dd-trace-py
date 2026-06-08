@@ -584,6 +584,40 @@ def test_parse_log_probe_default_rates():
     assert probe.rate == DEFAULT_PROBE_RATE
 
 
+def test_parse_capture_expression_probe_uses_snapshot_rate():
+    # A probe with capture expressions collects variable data like a snapshot,
+    # so it is subject to the snapshot budget even without captureSnapshot.
+    probe = build_probe(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "captureSnapshot": False,
+            "captureExpressions": [{"name": "foo", "expr": {"dsl": "foo", "json": {"ref": "foo"}}}],
+        }
+    )
+
+    assert probe.rate == DEFAULT_SNAPSHOT_PROBE_RATE
+
+    # An explicit sampling rate still takes precedence.
+    probe = build_probe(
+        {
+            "id": "3d338829-21c4-4a8a-8a1a-71fbce995efa",
+            "version": 0,
+            "type": ProbeType.LOG_PROBE,
+            "tags": ["foo:bar"],
+            "where": {"sourceFile": "tests/submod/stuff.p", "lines": ["36"]},
+            "captureSnapshot": False,
+            "captureExpressions": [{"name": "foo", "expr": {"dsl": "foo", "json": {"ref": "foo"}}}],
+            "sampling": {"snapshotsPerSecond": 1337},
+        }
+    )
+
+    assert probe.rate == 1337
+
+
 def test_parse_metric_probe_with_probeid_tags():
     probeId = "3d338829-21c4-4a8a-8a1a-71fbce995efa"
     probe = build_probe(

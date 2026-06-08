@@ -115,7 +115,11 @@ class LogProbeFactory(ProbeFactory):
     def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         take_snapshot = attribs.get("captureSnapshot", False)
 
-        rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
+        # Capture expressions collect variable data like snapshots, so probes
+        # that use them are subject to the snapshot budget unless an explicit
+        # rate is configured.
+        snapshot_budgeted = take_snapshot or bool(attribs.get("captureExpressions"))
+        rate = DEFAULT_SNAPSHOT_PROBE_RATE if snapshot_budgeted else DEFAULT_PROBE_RATE
         sampling = attribs.get("sampling")
         if sampling is not None:
             rate = sampling.get("snapshotsPerSecond", rate)

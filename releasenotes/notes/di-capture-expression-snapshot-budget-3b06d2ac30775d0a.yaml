@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: This fix resolves an issue where probes that use
+    capture expressions were not rate limited by the snapshot budget. Capture
+    expressions collect variable data like snapshots, so probes that use them
+    are now limited to one snapshot per second by default, unless an explicit
+    sampling rate is configured.
