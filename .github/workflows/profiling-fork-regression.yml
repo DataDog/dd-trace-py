@@ -59,10 +59,13 @@ jobs:
           for i in $(seq 1 10); do
             cd /tmp
 
+            STATUS=0
+            DD_PROFILING_ENABLED=1 \
+            DD_PROFILING_OUTPUT_PPROF="/tmp/pprof_run${i}" \
+            _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED=0 \
             /tmp/ddvenv/bin/python "${REPO}/tests/profiling/preload_fork_gthread.py" \
               > /tmp/childpid_${i}.txt \
-              2>/tmp/stderr_${i}.txt
-            STATUS=$?
+              2>/tmp/stderr_${i}.txt || STATUS=$?
             CHILD_PID=$(cat /tmp/childpid_${i}.txt 2>/dev/null || true)
 
             if [ "$STATUS" != "0" ] || [ -z "$CHILD_PID" ]; then
@@ -72,10 +75,10 @@ jobs:
               continue
             fi
 
+            RC=0
             /tmp/ddvenv/bin/python "${REPO}/tests/profiling/check_fork_pprof.py" \
               "${REPO}" "/tmp/pprof_run${i}" "${CHILD_PID}" \
-              > /tmp/result_${i}.txt 2>&1
-            RC=$?
+              > /tmp/result_${i}.txt 2>&1 || RC=$?
             RESULT=$(cat /tmp/result_${i}.txt)
 
             if [ "${RC}" = "0" ]; then
