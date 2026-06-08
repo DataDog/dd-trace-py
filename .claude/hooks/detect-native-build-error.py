@@ -1,6 +1,6 @@
-"""PostToolUse hook: detect missing native extension and suggest rebuild.
+"""PostToolUse / PostToolUseFailure hook: detect missing native extension and suggest rebuild.
 
-When Bash output contains:
+When any Bash tool output contains:
     ModuleNotFoundError: No module named 'ddtrace.internal.native._native'
 
 it means the C/Rust extensions haven't been compiled. Surfaces the fix
@@ -26,6 +26,26 @@ FIX = (
 )
 
 
+def _extract_output(tool_response) -> str:
+    """Return all text from a tool_response regardless of field shape."""
+    if isinstance(tool_response, str):
+        return tool_response
+    if not isinstance(tool_response, dict):
+        return ""
+    # Claude Code Bash results use various field names across versions
+    parts = []
+    for key in ("output", "content", "stdout", "stderr"):
+        val = tool_response.get(key)
+        if isinstance(val, str) and val:
+            parts.append(val)
+        elif isinstance(val, list):
+            # content blocks list
+            for block in val:
+                if isinstance(block, dict):
+                    parts.append(block.get("text", ""))
+    return "\n".join(parts)
+
+
 def main() -> None:
     try:
         data = json.load(sys.stdin)
@@ -35,16 +55,7 @@ def main() -> None:
     if data.get("tool_name") != "Bash":
         return
 
-    output = ""
-    tool_response = data.get("tool_response") or {}
-    if isinstance(tool_response, dict):
-        output = (
-            tool_response.get("output", "")
-            or tool_response.get("content", "")
-            or ""
-        )
-    elif isinstance(tool_response, str):
-        output = tool_response
+    output = _extract_output(data.get("tool_response") or {})
 
     if TRIGGER in output:
         print(
