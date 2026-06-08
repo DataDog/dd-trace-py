@@ -85,3 +85,54 @@ def test_worker_threads_appear_in_fork_child_profiles(
         "Expected WorkerThread-N threads created after fork to be visible. "
         "This indicates a profiler fork ordering bug — see PRs #17183, #17042."
     )
+
+
+def test_ddup_atfork_handler_registered_before_stack_sampler(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ddup.start() must be called before stack.start() so that ddup's pthread_atfork
+    child handler is registered first.
+
+    POSIX guarantees FIFO ordering for post-fork child handlers, so ddup's handler
+    runs first — resetting the profile state — before the stack sampler clears and
+    rebuilds its thread map.  If the order is reversed, the stack sampler wipes the
+    thread map before ddup has rebuilt the profile, leaving only MainThread visible
+    in fork-child profiles.
+
+    Regression guard for PRs #17183, #17042, #18063.
+    """
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling import profiler as prof_module
+    from ddtrace.profiling.collector import stack as stack_collector_module
+
+    call_order: list[str] = []
+
+    original_ddup_start = ddup.start
+
+    def recording_ddup_start(*args, **kwargs):
+        call_order.append("ddup.start")
+        return original_ddup_start(*args, **kwargs)
+
+    monkeypatch.setattr(ddup, "start", recording_ddup_start)
+
+    # Stub _init to record when the stack sampler would register its pthread_atfork
+    # handler (via stack.start → Sampler::one_time_setup) without starting real threads.
+    def recording_stack_init(self) -> None:
+        call_order.append("stack._init")
+
+    monkeypatch.setattr(stack_collector_module.StackCollector, "_init", recording_stack_init)
+    monkeypatch.setattr(stack_collector_module.StackCollector, "_stop_service", lambda self: None)
+
+    p = prof_module.Profiler()
+    p.start()
+    p.stop(flush=False)
+
+    assert "ddup.start" in call_order, "ddup.start() was never called during profiler startup"
+    assert "stack._init" in call_order, "StackCollector._init() was never called during profiler startup"
+
+    ddup_idx = call_order.index("ddup.start")
+    stack_idx = call_order.index("stack._init")
+    assert ddup_idx < stack_idx, (
+        f"ddup.start() must come before StackCollector._init() so that ddup's "
+        f"pthread_atfork child handler is registered first (POSIX FIFO ordering). "
+        f"Got call order: {call_order}. "
+        "Regression of PRs #17183/#17042/#18063."
+    )

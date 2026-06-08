@@ -49,14 +49,21 @@ jobs:
             exit 1
           fi
 
-      - name: Run fork+gthread regression (10 iterations)
+      - name: Run fork+gthread regression (20 iterations under CPU stress)
         env:
           REPO: ${{ github.workspace }}
         run: |
+          # Saturate all CPUs to increase scheduler pressure and expose the
+          # pthread_atfork timing race (the same race that manifests in production
+          # under Gunicorn/gthread load).
+          stress-ng --cpu $(nproc) &
+          STRESS_PID=$!
+          trap "kill $STRESS_PID 2>/dev/null || true" EXIT
+
           BUGS=0
           PASSES=0
 
-          for i in $(seq 1 10); do
+          for i in $(seq 1 20); do
             cd /tmp
 
             STATUS=0
@@ -91,9 +98,9 @@ jobs:
           done
 
           echo ""
-          echo "Results for ddtrace==${{ matrix.ddtrace }}: ${PASSES}/10 passed, ${BUGS}/10 failed"
+          echo "Results for ddtrace==${{ matrix.ddtrace }}: ${PASSES}/20 passed, ${BUGS}/20 failed"
 
           if [ "${BUGS}" -gt 0 ]; then
-            echo "::error::${BUGS}/10 runs showed the fork+gthread profiler bug on v${{ matrix.ddtrace }}"
+            echo "::error::${BUGS}/20 runs showed the fork+gthread profiler bug on v${{ matrix.ddtrace }}"
             exit 1
           fi
