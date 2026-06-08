@@ -38,7 +38,7 @@ def _supported_versions() -> dict[str, str]:
     return {"aio_pika": ">=9.0.0"}
 
 
-def _extract_conn_tags(instance: object) -> tuple[dict[str, str], dict[str, float]]:
+def _extract_conn_tags(instance: Any) -> tuple[dict[str, str], dict[str, float]]:
     """Extract connection host/port from an aio-pika object.
 
     Chain: instance.channel (aio_pika.Channel) -> ._connection (aio_pika.Connection)
