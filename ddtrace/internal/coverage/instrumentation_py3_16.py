@@ -15,6 +15,11 @@ IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 RESUME = dis.opmap["RESUME"]
 
 
+def register_coverage() -> None:
+    # No-op: Python 3.16+ coverage instrumentation is not yet implemented
+    pass
+
+
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()
