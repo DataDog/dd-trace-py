@@ -513,7 +513,7 @@ class LLMObs(Service):
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
-            # APMTracingEnabledFilter drops every trace, so ship events directly via the writer.
+            # APMTracingEnabledFilter drops every trace.
             self._export_mode = (
                 LLMObsExportMode.LLMOBS_AGENTLESS if agentless_enabled else LLMObsExportMode.LLMOBS_AGENT_PROXY
             )
@@ -599,7 +599,7 @@ class LLMObs(Service):
             )
             or not self.tracer.enabled
         ):
-            # Rescue chain won't run (trace dropped, or tracer disabled): ship via the writer.
+            # Rescue chain won't run (trace dropped, or tracer disabled).
             # Tag + scrub before enqueue so an APM-side extract can't duplicate the payload.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
