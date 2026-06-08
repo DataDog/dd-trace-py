@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    LLM Observability: Fixes agentless export silently dropping data for customers on the ``us3``,
-    ``us5``, ``ap1``, and ``ap2`` Datadog sites. These sites were previously unsupported, causing
-    all exported spans and LLM traces to be dropped.
+    LLM Observability: Fixes agentless export dropping data on the ``us3``, ``us5``, ``ap1``,
+    and ``ap2`` Datadog sites. This affected customers on these sites when no Datadog Agent was
+    running or agentless export was explicitly enabled (``DD_LLMOBS_AGENTLESS_ENABLED=1``).
