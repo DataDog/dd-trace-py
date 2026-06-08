@@ -27,11 +27,13 @@ def clear_config():
 
 
 @pytest.fixture
-def setup_openfeature():
+def setup_openfeature(wait_for_provider_registration):
     """Set up OpenFeature API with DataDogProvider."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         # Set the provider
-        api.set_provider(DataDogProvider())
+        provider = DataDogProvider()
+        api.set_provider(provider)
+        wait_for_provider_registration(provider)
 
         # Get a client
         client = api.get_client()

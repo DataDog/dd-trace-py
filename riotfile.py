@@ -2810,12 +2810,14 @@ venv = Venv(
         Venv(
             name="openfeature",
             command="pytest {cmdargs} tests/openfeature",
-            pys=select_pys(),
+            # openfeature-sdk 0.10.0 requires Python 3.10+.
+            pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-randomly": latest,
                 "mock": latest,
-                # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
-                "openfeature-sdk": ["~=0.8.0", latest],
+                # Test against openfeature-sdk 0.10.0+ for non-blocking set_provider()
+                # and blocking set_provider_and_wait() initialization surfaces.
+                "openfeature-sdk": ["~=0.10.0", latest],
             },
         ),
         Venv(
