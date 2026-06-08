@@ -27,12 +27,16 @@ def inject_grpc_context(span_context: Context, headers: Optional["RayServegRPCCo
     # the integration tests to reconfigure() (used in the throttling tests)
     if headers is None:
         return
-    invocation_metadata = dict(headers.invocation_metadata())
-    HTTPPropagator.inject(span_context, invocation_metadata)
-    headers._invocation_metadata = list(invocation_metadata.items())
+
+    trace_headers: dict[str, str] = {}
+    HTTPPropagator.inject(span_context, trace_headers)
+
+    invocation_metadata = list(headers.invocation_metadata())
+    invocation_metadata.extend(trace_headers.items())
+    headers._invocation_metadata = invocation_metadata
 
 
-def _extract_proxy_request_http_context(proxy_request: ProxyRequest) -> Optional[Context]:
+def _extract_proxy_request_http_context(proxy_request: ProxyRequest) -> Context:
     try:
         headers = extract_headers(getattr(proxy_request, "scope", {}))
     except Exception:

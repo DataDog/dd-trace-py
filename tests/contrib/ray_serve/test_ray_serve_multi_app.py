@@ -174,8 +174,10 @@ def multi_app_serve_url(snapshot):
         subprocess.run(["ray", "stop", "--force"], env=env, check=False, capture_output=True)
 
 
-# Re-enable this test once Ray Serve multi-app stability is
-# understood well enough to make this scenario reliable in CI again.
+# Ray serve multi-app is supported locally but the tests are not working properly in CI.
+# The test should stay in the code as it should be tested as soon as possible but it is skipped
+# for now to not delay more the release of the ray serve integration.
+# TODO(dubloom): unskip this tests
 @pytest.mark.skip(reason="Temporarily disabled while Ray Serve multi-app coverage is unstable")
 @pytest.mark.snapshot(ignores=RAY_MULTI_APP_SNAPSHOT_IGNORES)
 def test_multi_app_deployment_routes(multi_app_serve_url):

@@ -1,4 +1,5 @@
 DD_RAY_TRACE_CTX = "_dd_ray_trace_ctx"
+DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR = "_dd_trace_context_headers"
 
 # Environment variables
 RAY_SUBMISSION_ID = "_RAY_SUBMISSION_ID"

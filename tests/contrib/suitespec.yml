@@ -175,6 +175,8 @@ components:
   ray:
     - ddtrace/contrib/internal/ray/*
     - ddtrace/contrib/ray.py
+  ray_serve:
+    - ddtrace/contrib/internal/ray_serve/*
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -1137,6 +1139,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray/*
       - tests/snapshots/tests.contrib.ray.*
     pattern: ^ray$

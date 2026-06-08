@@ -42,6 +42,7 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
+from ddtrace.contrib.internal.ray.constants import DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR
 from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
@@ -1458,9 +1459,12 @@ def _on_aiokafka_getmany_message(
 
 
 def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
-    invocation_metadata = dict(grpc_context.invocation_metadata())
-    HTTPPropagator.inject(span.context, invocation_metadata)
-    grpc_context._invocation_metadata = list(invocation_metadata.items())
+    trace_headers: dict[str, str] = {}
+    HTTPPropagator.inject(span.context, trace_headers)
+
+    invocation_metadata = list(grpc_context.invocation_metadata())
+    invocation_metadata.extend(trace_headers.items())
+    grpc_context._invocation_metadata = invocation_metadata
 
 
 def _on_ray_serve_request_metadata_inject(ctx: core.ExecutionContext, request_metadata: Any) -> None:
@@ -1474,7 +1478,7 @@ def _on_ray_serve_request_metadata_inject(ctx: core.ExecutionContext, request_me
     else:
         headers: dict[str, str] = {}
         HTTPPropagator.inject(span.context, headers)
-        setattr(request_metadata, "_dd_trace_context_headers", headers)
+        setattr(request_metadata, DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR, headers)
 
 
 def _on_ray_serve_grpc_context_inject(ctx: core.ExecutionContext, grpc_context: Any) -> None:
@@ -1846,10 +1850,10 @@ def _on_proxy_request_end(
 ) -> None:
     try:
         response_status = ctx.get_item("response_status")
-        if response_status is None:
+        span = ctx.span
+        if response_status is None or span is None:
             return
 
-        span = ctx.span
         proxy_request = ctx.get_item("proxy_request") or ctx.get_item("request_item")
         request_type = getattr(proxy_request, "request_type", None)
         request_method = getattr(proxy_request, "method", None)

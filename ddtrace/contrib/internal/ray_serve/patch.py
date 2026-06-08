@@ -10,6 +10,7 @@ from ray.serve._private.proxy_request_response import ResponseStatus
 from ray.serve._private.proxy_request_response import gRPCProxyRequest
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace.contrib.internal.ray.constants import DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR
 from ddtrace.contrib.internal.ray_serve.utils import _extract_proxy_request_http_context
 from ddtrace.contrib.internal.ray_serve.utils import _get_ingress_endpoint_method_name
 from ddtrace.contrib.internal.ray_serve.utils import _get_proxy_request_route_pattern
@@ -32,7 +33,6 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-_DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR = "_dd_trace_context_headers"
 _DD_RAY_SERVE_WRAPPED_ATTR = "__dd_ray_serve_wrapped__"
 
 
@@ -91,7 +91,7 @@ class ServeRequestContextPropagator:
         if request_meta.is_grpc_request:
             return extract_grpc_context(request_meta.grpc_context)
 
-        headers = getattr(request_meta, _DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR, None)
+        headers = getattr(request_meta, DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR, None)
         if isinstance(headers, dict):
             return HTTPPropagator.extract(headers)
         return None
@@ -192,7 +192,7 @@ async def traced_proxy_request(func, instance, args, kwargs):
         span_type=span_type,
         activate=True,
         call_trace=False,
-        distributed_context=tracer.current_trace_context() if distributed_context is None else distributed_context,
+        distributed_context=tracer.current_trace_context() if not distributed_context.span_id else distributed_context,
         proxy_request=proxy_request,
     ) as ctx:
         if grpc_context is not None:
@@ -252,9 +252,11 @@ def _trace_deployment_method(method, deployment_name, is_ingress_call: bool = Fa
                 span_type=SpanTypes.RAY,
             ) as ctx:
                 _set_deployment_method_span_metadata(ctx, deployment_name, resource_name)
-                _set_ingress_endpoint_resource(ctx, args, kwargs)
+
                 async for item in method(*args, **kwargs):
                     yield item
+
+                _set_ingress_endpoint_resource(ctx, args, kwargs)
 
         wrapped_method = _traced_async_generator
     elif inspect.isgeneratorfunction(method):
