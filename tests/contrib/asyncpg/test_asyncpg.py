@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
@@ -408,7 +409,7 @@ def test_patch_unpatch_patch_cycle():
             f"Protocol.{method} not wrapped after patch/unpatch/patch cycle"
         )
         wrapper = asyncpg.protocol.Protocol.__dict__[method]
-        wrapped = getattr(wrapper, "__wrapped__", getattr(wrapper, "__dd_wrapped__", None))
+        wrapped = getattr(wrapper, "__wrapped__", None) or _dd_get_wrapped(wrapper)
         assert wrapped is not None
         assert not iswrapped(wrapped), f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
 

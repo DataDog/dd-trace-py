@@ -2,7 +2,6 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._function.discovery import FullyNamed
@@ -36,10 +35,9 @@ class FunctionStore(object):
     removed when the functions are restored.
     """
 
-    def __init__(self, extra_attrs: Optional[list[str]] = None) -> None:
+    def __init__(self) -> None:
         self._code_map: dict[FunctionType, CodeType] = {}
         self._wrapper_map: dict[FunctionType, WrappingContext] = {}
-        self._extra_attrs: list[str] = list(extra_attrs) if extra_attrs else []
 
     def __enter__(self) -> "FunctionStore":
         return self
@@ -93,8 +91,3 @@ class FunctionStore(object):
         """Restore all the patched functions to their original form."""
         for function, code in self._code_map.items():
             function.__code__ = code
-            for attr in self._extra_attrs:
-                try:
-                    delattr(function, attr)
-                except AttributeError:
-                    pass

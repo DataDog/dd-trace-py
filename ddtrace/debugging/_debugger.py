@@ -276,7 +276,7 @@ class Debugger(Service):
 
         self._probe_registry = ProbeRegistry(status_logger=status_logger)
 
-        self._function_store = FunctionStore(extra_attrs=["__dd_wrappers__"])
+        self._function_store = FunctionStore()
 
         log_limiter = RateLimiter(limit_rate=1.0, raise_on_exceed=False)
         self._global_rate_limiter = RateLimiter(

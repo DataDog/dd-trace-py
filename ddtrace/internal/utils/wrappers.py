@@ -4,6 +4,7 @@ from typing import Optional  # noqa:F401
 from typing import TypeVar  # noqa:F401
 
 from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.wrapping import is_wrapped as _dd_is_wrapped
 
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -14,7 +15,7 @@ def iswrapped(obj, attr=None):
     """Returns whether an attribute is wrapped or not."""
     if attr is not None:
         obj = getattr(obj, attr, None)
-    return (hasattr(obj, "__wrapped__") and is_wrapted(obj)) or hasattr(obj, "__dd_wrapped__")
+    return (hasattr(obj, "__wrapped__") and is_wrapted(obj)) or _dd_is_wrapped(obj)
 
 
 def unwrap(obj, attr):
