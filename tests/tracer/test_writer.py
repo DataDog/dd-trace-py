@@ -571,8 +571,8 @@ def test_agentless_trace_writer_intake_url():
         "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
         "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
         "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
-        "ddog-gov.com": "https://public-trace-http-intake.logs.ddog-gov.com",
-        "us2.ddog-gov.com": "https://public-trace-http-intake.logs.us2.ddog-gov.com",
+        "ddog-gov.com": "https://browser-intake-ddog-gov.com",
+        "us2.ddog-gov.com": "https://browser-intake-us2-ddog-gov.com",
         "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
     }
 

@@ -1103,16 +1103,18 @@ def _use_sync_mode() -> bool:
 
 
 def _agentless_intake_url(site: str) -> str:
-    # us3/us5 use a different subdomain prefix than ap1/ap2; all other sites
-    # fall back to public-trace-http-intake.logs which accepts the site as-is.
-    if "us3" in site:
+    if site.startswith("us3."):
         return "https://trace.browser-intake-us3-datadoghq.com"
-    elif "us5" in site:
+    elif site.startswith("us5."):
         return "https://trace.browser-intake-us5-datadoghq.com"
-    elif "ap1" in site:
+    elif site.startswith("ap1."):
         return "https://browser-intake-ap1-datadoghq.com"
-    elif "ap2" in site:
+    elif site.startswith("ap2."):
         return "https://browser-intake-ap2-datadoghq.com"
+    elif site.startswith("ddog-gov."):
+        return "https://browser-intake-ddog-gov.com"
+    elif site.startswith("us2."):
+        return "https://browser-intake-us2-ddog-gov.com"
     else:
         return "https://public-trace-http-intake.logs.{}".format(site)
 
@@ -1125,7 +1127,7 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = _agentless_intake_url(config._dd_site)
+        intake_url = _agentless_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,
