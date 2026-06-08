@@ -35,6 +35,8 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
+_cluster_id_by_bootstrap: dict = {}
+
 
 config._add(
     "aiokafka",
@@ -75,16 +77,17 @@ def common_consume_aiokafka_tags(topic, bootstrap_servers, group_id):
 
 
 async def _get_cluster_id(client, topic):
-    """Fetch and cache the Kafka cluster ID from the broker.
-
-    Uses a 5 minute failure cache to avoid repeated slow calls when the broker
-    is unreachable.
-    """
     if client is None:
         return ""
     cached = getattr(client, "_dd_cluster_id", None)
     if cached:
         return cached
+
+    bootstrap = str(getattr(client, "_bootstrap_servers", ""))
+    if bootstrap and bootstrap in _cluster_id_by_bootstrap:
+        cluster_id = _cluster_id_by_bootstrap[bootstrap]
+        client._dd_cluster_id = cluster_id
+        return cluster_id
 
     last_failure = getattr(client, "_dd_cluster_id_failure_time", 0)
     if monotonic() - last_failure < 300:
@@ -103,6 +106,8 @@ async def _get_cluster_id(client, topic):
         cluster_id = getattr(response, "cluster_id", "") or ""
         if cluster_id:
             client._dd_cluster_id = cluster_id
+            if bootstrap:
+                _cluster_id_by_bootstrap[bootstrap] = cluster_id
         return cluster_id
     except Exception:
         client._dd_cluster_id_failure_time = monotonic()

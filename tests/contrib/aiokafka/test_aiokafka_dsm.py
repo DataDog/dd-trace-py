@@ -107,16 +107,12 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        # Read after sends: traced_send calls _get_cluster_id, so by now it's cached.
         producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
         msg = await consumer.getone()
-        # Read after getone: traced_getone calls _get_cluster_id on the consumer's
-        # separate AIOKafkaClient, so by now it's cached on that client.
         consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    # Both clients resolved the same cluster ID — verifies the feature actually works.
     assert producer_cluster_id == consumer_cluster_id != "", (
         f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
     )
@@ -139,18 +135,14 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        # Read after sends: traced_send calls _get_cluster_id, so by now it's cached.
         producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=False) as consumer:
         await consumer.getone()
         msg = await consumer.getone()
         await consumer.commit(offsets)
-        # Read after commit: traced_commit calls _get_cluster_id on the consumer's
-        # separate AIOKafkaClient, so by now it's cached on that client.
         consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    # Both clients resolved the same cluster ID — verifies the feature actually works.
     assert producer_cluster_id == consumer_cluster_id != "", (
         f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
     )
@@ -284,7 +276,16 @@ async def test_data_streams_multiple_topics(dsm_processor):
     assert topic2 in checkpoint_topics, f"Topic {topic2} should be tracked"
 
 
-@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.snapshot(
+    ignores=[
+        "metrics.kafka.message_offset",
+        "meta.kafka.cluster_id",
+        "meta.pathway.hash",
+        "meta._dd.p.tid",
+        "meta._dd.tags.process",
+        "meta.runtime-id",
+    ]
+)
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
 def test_data_streams_aiokafka_enabled():
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to aiokafka messages."""

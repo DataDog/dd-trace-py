@@ -15,7 +15,6 @@
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp7yumv_d2,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "aiokafka",
-      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.message_key": "None",
       "kafka.tombstone": "False",
       "kafka.topic": "test_data_streams_aiokafka_enabled",
@@ -23,7 +22,6 @@
       "messaging.destination.name": "test_data_streams_aiokafka_enabled",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "5920449047138131985",
       "runtime-id": "314f24f751d9495bb44a5978ed469431",
       "span.kind": "producer"
     },
@@ -56,7 +54,6 @@
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp7yumv_d2,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "aiokafka",
-      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
       "kafka.group_id": "test_group",
       "kafka.received_message": "True",
       "kafka.tombstone": "False",
@@ -65,7 +62,6 @@
       "messaging.destination.name": "test_data_streams_aiokafka_enabled",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "12242356098827355803",
       "runtime-id": "314f24f751d9495bb44a5978ed469431",
       "span.kind": "consumer"
     },
