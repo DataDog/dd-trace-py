@@ -408,17 +408,28 @@ def test_patch_unpatch_patch_cycle():
             f"Protocol.{method} not wrapped after patch/unpatch/patch cycle"
         )
         wrapper = asyncpg.protocol.Protocol.__dict__[method]
-        assert not iswrapped(wrapper.__wrapped__), (
-            f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
-        )
+        wrapped = getattr(wrapper, "__wrapped__", getattr(wrapper, "__dd_wrapped__", None))
+        assert wrapped is not None
+        assert not iswrapped(wrapped), f"Protocol.{method} is double-wrapped after patch/unpatch/patch cycle"
 
 
 @pytest.mark.asyncio
-async def test_execute_after_patch_unpatch_patch(patched_conn):
+async def test_execute_after_patch_unpatch_patch():
     # Regression: executing a query must succeed after patch/unpatch/patch.
     unpatch()
     patch()
-    await patched_conn.execute("SELECT 1")
+
+    conn = await asyncpg.connect(
+        host=POSTGRES_CONFIG["host"],
+        port=POSTGRES_CONFIG["port"],
+        user=POSTGRES_CONFIG["user"],
+        database=POSTGRES_CONFIG["dbname"],
+        password=POSTGRES_CONFIG["password"],
+    )
+    try:
+        await conn.execute("SELECT 1")
+    finally:
+        await conn.close()
 
 
 class AsyncPgTestCase(AsyncioTestCase):

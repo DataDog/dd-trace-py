@@ -484,7 +484,7 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_generator(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
+def wrap_generator(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
     if PY >= (3, 15):
         # AIDEV-TODO: No-op until #17849 populates the assemblies above.
         return

@@ -7,6 +7,9 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <string_view>
+#include <utility>
+
 using namespace Datadog;
 
 static PyObject*
@@ -296,18 +299,18 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto& sampler = Sampler::get();
-    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
-    if (!maybe_greenlet_name) {
-        // We failed to get this task but we keep going
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
+    Py_ssize_t name_size = 0;
+    const char* name_data = PyUnicode_AsUTF8AndSize(name, &name_size);
+    if (name_data == nullptr || name_size < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name");
         return NULL;
     }
 
-    auto greenlet_name = *maybe_greenlet_name;
+    auto greenlet_name = TaskName::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
 
+    auto& sampler = Sampler::get();
     Py_BEGIN_ALLOW_THREADS;
-    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, std::move(greenlet_name), frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -682,6 +685,12 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 }
 
 static PyObject*
+stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
+}
+
+static PyObject*
 stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     // Pause the sampling thread and wait for any in-flight sample to complete.
@@ -824,6 +833,10 @@ static PyMethodDef stack_methods[] = {
       METH_NOARGS,
       "Start sys.monitoring-based native call tracking" },
     { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
+    { "_native_call_registry_size",
+      stack_native_call_registry_size,
+      METH_NOARGS,
+      "Return the native call monitoring registry size" },
     { NULL, NULL, 0, NULL }
 };
 

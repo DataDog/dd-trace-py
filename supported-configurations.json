@@ -896,16 +896,9 @@
     ],
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_CODE_ORIGIN_MAX_USER_FRAMES": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "8"
       }
     ],
     "DD_COMPILE_ABSEIL": [
@@ -1569,7 +1562,7 @@
     ],
     "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "int",
         "default": "10000",
         "experimental": true
@@ -1957,13 +1950,6 @@
         "default": "true"
       }
     ],
-    "DD_IAST_DEBUG": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_IAST_DEDUPLICATE_ENABLED": [
       {
         "implementation": "A",
@@ -2006,20 +1992,6 @@
         "default": "30"
       }
     ],
-    "DD_IAST_PROPAGATION_DEBUG": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_IAST_PROPAGATION_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
     "DD_IAST_REDACTION_ENABLED": [
       {
         "implementation": "A",
@@ -2060,13 +2032,6 @@
         "implementation": "B",
         "type": "string",
         "default": null
-      }
-    ],
-    "DD_IAST_SINK_POINTS_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
       }
     ],
     "DD_IAST_STACK_TRACE_ENABLED": [
@@ -2158,13 +2123,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
       }
     ],
     "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": [
@@ -2493,6 +2451,13 @@
         ]
       }
     ],
+    "DD_ML_JOB_ENV": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null
+      }
+    ],
     "DD_METRICS_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -2645,27 +2610,6 @@
         "implementation": "A",
         "type": "string",
         "default": null
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "true"
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_MAX_INTERVAL_US": [
-      {
-        "implementation": "A",
-        "type": "int",
-        "default": "1_000_000"
-      }
-    ],
-    "DD_PROFILING_ADAPTIVE_SAMPLING_TARGET_OVERHEAD": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "1.0"
       }
     ],
     "DD_PROFILING_AGENTLESS": [
@@ -2841,6 +2785,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PROFILING_NAME_INSPECT_DIR": [
@@ -3465,13 +3416,6 @@
         ]
       }
     ],
-    "DD_SYMBOL_DATABASE_FORCE_UPLOAD": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_SYMBOL_DATABASE_INCLUDES": [
       {
         "implementation": "A",
@@ -3498,13 +3442,6 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
-      }
-    ],
-    "DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL": [
-      {
-        "implementation": "B",
-        "type": "decimal",
-        "default": "86400.0"
       }
     ],
     "DD_TELEMETRY_FORWARDER_PATH": [
@@ -3808,6 +3745,13 @@
       }
     ],
     "DD_TRACE_AWS_DURABLE_EXECUTION_SDK_PYTHON_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5542,6 +5486,14 @@
         "internal": true
       }
     ],
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30000",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
       {
         "implementation": "A",
@@ -5662,6 +5614,14 @@
         "internal": true
       }
     ],
+    "_DD_IAST_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_IAST_DENY_MODULES": [
       {
         "implementation": "A",
@@ -5694,6 +5654,30 @@
         "internal": true
       }
     ],
+    "_DD_IAST_PROPAGATION_DEBUG": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_PROPAGATION_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_IAST_SINK_POINTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "internal": true
+      }
+    ],
     "_DD_IAST_USE_ROOT_SPAN": [
       {
         "implementation": "A",
@@ -5723,14 +5707,6 @@
         "implementation": "A",
         "type": "string",
         "default": "llmobs",
-        "internal": true
-      }
-    ],
-    "_DD_LLMOBS_TEST_KEEP_META_STRUCT": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
         "internal": true
       }
     ],
@@ -5824,9 +5800,9 @@
     ],
     "_DD_PROFILING_STACK_FAST_COPY": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],
@@ -5972,6 +5948,14 @@
         "type": "boolean",
         "default": "false",
         "internal": true
+      }
+    ],
+    "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED": [
+      {
+        "version": "B",
+        "type": "boolean",
+        "default": "false",
+        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
       }
     ]
   }

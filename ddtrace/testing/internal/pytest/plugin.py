@@ -376,6 +376,9 @@ class TestOptPlugin:
         if not self.is_xdist_worker:
             # When running with xdist, only the main process writes the session event.
             self.manager.writer.put_item(self.session)
+            # All workers have finished by this point, so the upload sentinel and lock
+            # file are no longer needed. Clean them up to keep .git/ tidy.
+            self.manager.cleanup_upload_artifacts()
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)

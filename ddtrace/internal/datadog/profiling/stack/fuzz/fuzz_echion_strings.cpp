@@ -26,7 +26,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     // StringTable::key — reads PyUnicodeObject from remote memory; exercises
     // string interning, UTF-8 conversion, and size validation.
-    (void)echion_sampler.string_table().key(reinterpret_cast<PyObject*>(p0), StringTag::TaskName);
+    (void)echion_sampler.string_table().key(reinterpret_cast<PyObject*>(p0), StringTag::FuncName);
 
     // pybytes_to_bytes_and_size — reads PyBytesObject from remote memory;
     // exercises ob_size validation and copy_generic for variable-length data.

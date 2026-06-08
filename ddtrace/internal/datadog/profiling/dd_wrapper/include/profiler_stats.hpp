@@ -28,9 +28,6 @@ class ProfilerStats
     // Number of entries in the echion StringTable
     std::optional<size_t> string_table_count;
 
-    // Number of ephemeral entries in the echion StringTable
-    std::optional<size_t> string_table_ephemeral_count;
-
     // Whether fast_copy_memory (safe_memcpy) is enabled; unset until the sampler starts
     std::optional<bool> fast_copy_memory_enabled;
 
@@ -64,9 +61,6 @@ class ProfilerStats
 
     void set_string_table_count(size_t count);
     std::optional<size_t> get_string_table_count() const;
-
-    void set_string_table_ephemeral_count(size_t count);
-    std::optional<size_t> get_string_table_ephemeral_count() const;
 
     void set_fast_copy_memory_enabled(bool enabled);
     std::optional<bool> get_fast_copy_memory_enabled() const;

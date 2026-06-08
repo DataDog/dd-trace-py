@@ -10,7 +10,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.13.5",
+        "max_tracer_supported": "3.14.0",
         "auto-instrumented": true
     },
     {
@@ -320,7 +320,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.136.0",
+        "max_tracer_supported": "0.136.3",
         "auto-instrumented": true
     },
     {
@@ -348,7 +348,7 @@
         "dependency": "gevent",
         "integration": "gevent",
         "minimum_tracer_supported": "21.1.2",
-        "max_tracer_supported": "25.9.1",
+        "max_tracer_supported": "26.5.0",
         "auto-instrumented": true
     },
     {
@@ -616,7 +616,7 @@
         "dependency": "pymysql",
         "integration": "pymysql",
         "minimum_tracer_supported": "0.10.1",
-        "max_tracer_supported": "1.1.2",
+        "max_tracer_supported": "1.2.0",
         "auto-instrumented": true
     },
     {

@@ -711,7 +711,7 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_async(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
+def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
     if PY >= (3, 15):
         # AIDEV-TODO: Async wrapping not yet implemented for 3.15; no-op until
         # #17849 lands. Remove this guard once the assemblies above are populated.
