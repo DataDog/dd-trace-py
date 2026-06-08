@@ -2152,7 +2152,7 @@ class LLMObs(Service):
         dd = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
         dd[LLMOBS_STRUCT.SAMPLE_RATE] = effective_rate
         dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
-        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)  # type: ignore[arg-type]
 
     def _start_span(
         self,
@@ -3067,7 +3067,7 @@ class LLMObs(Service):
                 rate_for_decision = float(sample_rate)
             except (ValueError, TypeError):
                 rate_for_decision = config._llmobs_sample_rate
-            sampling_decision = _llmobs_sampling_decision(span_context.trace_id, rate_for_decision)
+            sampling_decision = _llmobs_sampling_decision(span_context.trace_id or 0, rate_for_decision)
         span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision
 
     @classmethod
