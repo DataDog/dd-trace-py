@@ -62,3 +62,31 @@ def test_event_handler_returns_disable_for_missing_code():
 
     # Should still return DISABLE (graceful handling)
     assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_register_coverage_uses_dd_tool_id():
+    """Test that register_coverage() claims _DD_TOOL_ID and not COVERAGE_ID."""
+    import sys
+
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_TOOL_ID
+    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+
+    # Free the slot if already taken by a previous test run
+    existing = sys.monitoring.get_tool(_DD_TOOL_ID)
+    if existing is not None:
+        sys.monitoring.free_tool_id(_DD_TOOL_ID)
+
+    register_coverage()
+
+    try:
+        assert sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog", (
+            f"Expected 'datadog' at tool_id={_DD_TOOL_ID}, got {sys.monitoring.get_tool(_DD_TOOL_ID)}"
+        )
+        # COVERAGE_ID must not be affected
+        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) != "datadog", (
+            "register_coverage() must not claim COVERAGE_ID"
+        )
+    finally:
+        if sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+            sys.monitoring.free_tool_id(_DD_TOOL_ID)
