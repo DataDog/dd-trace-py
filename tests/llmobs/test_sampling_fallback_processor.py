@@ -108,7 +108,7 @@ class TestExportModeKeepsMetaStruct:
             }
         ):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
-            llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+            llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_AGENT_PROXY
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer

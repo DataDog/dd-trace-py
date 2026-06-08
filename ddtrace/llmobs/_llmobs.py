@@ -513,8 +513,10 @@ class LLMObs(Service):
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
         if not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
-            # APMTracingEnabledFilter drops every trace, so ship events directly to LLMObs.
-            self._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+            # APMTracingEnabledFilter drops every trace, so ship events directly via the writer.
+            self._export_mode = (
+                LLMObsExportMode.LLMOBS_AGENTLESS if agentless_enabled else LLMObsExportMode.LLMOBS_AGENT_PROXY
+            )
         elif agentless_enabled:
             self._export_mode = LLMObsExportMode.APM_AGENTLESS
         else:
@@ -563,8 +565,8 @@ class LLMObs(Service):
         # Record telemetry once per LLM span here (the only LLM-guarded hook that runs for every
         # export mode), tagged with the mode's intake. The rescue processor must not record: it
         # runs on every APM trace chunk (would count non-LLM spans) and is skipped entirely in
-        # LLMOBS_DIRECT mode (trace dropped upstream).
-        telemetry.record_span_created(span, self._export_mode, self._llmobs_span_writer._agentless)
+        # LLMOBS_AGENT_PROXY/LLMOBS_AGENTLESS modes (trace dropped upstream).
+        telemetry.record_span_created(span, self._export_mode)
 
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":
@@ -589,7 +591,14 @@ class LLMObs(Service):
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
 
-        if self._export_mode == LLMObsExportMode.LLMOBS_DIRECT or not self.tracer.enabled:
+        if (
+            self._export_mode
+            in (
+                LLMObsExportMode.LLMOBS_AGENT_PROXY,
+                LLMObsExportMode.LLMOBS_AGENTLESS,
+            )
+            or not self.tracer.enabled
+        ):
             # Rescue chain won't run (trace dropped, or tracer disabled): ship via the writer.
             # Tag + scrub before enqueue so an APM-side extract can't duplicate the payload.
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")

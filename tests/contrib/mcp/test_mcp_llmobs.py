@@ -307,7 +307,7 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     env["DD_API_KEY"] = "test-api-key"
     env["DD_LLMOBS_ENABLED"] = "1"
     env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
-    env["DD_APM_TRACING_ENABLED"] = "0"  # LLMOBS_DIRECT: subprocess asserts writer HTTP, not meta_struct
+    env["DD_APM_TRACING_ENABLED"] = "0"  # LLMOBS_AGENT_PROXY: subprocess asserts writer HTTP, not meta_struct
     env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
     env["DD_MCP_DISTRIBUTED_TRACING"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(
