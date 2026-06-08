@@ -22,7 +22,7 @@ log = get_logger(__name__)
 
 _MESSAGING_SYSTEM = "rabbitmq"
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "aio_pika",
     dict(
         distributed_tracing_enabled=asbool(_get_config("DD_AIO_PIKA_DISTRIBUTED_TRACING", default=False)),
@@ -38,7 +38,7 @@ def _supported_versions() -> dict[str, str]:
     return {"aio_pika": ">=9.0.0"}
 
 
-def _extract_conn_tags(instance) -> tuple[dict[str, str], dict[str, float]]:
+def _extract_conn_tags(instance: object) -> tuple[dict[str, str], dict[str, float]]:
     """Extract connection host/port from an aio-pika object.
 
     Chain: instance.channel (aio_pika.Channel) -> ._connection (aio_pika.Connection)

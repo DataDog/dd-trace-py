@@ -4,20 +4,20 @@ from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
 
 
-def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:
+def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:  # type: ignore[type-arg]
     # AIDEV-NOTE: inline import avoids a circular import — this module is loaded
     # at import time via the `if config._data_streams_enabled` block below, which
     # can happen before the data_streams_processor is fully initialised.
     from . import data_streams_processor as get_processor
 
-    proc = get_processor()
+    proc = get_processor()  # type: ignore[no-untyped-call]
     if proc is None:
         return
 
     event = ctx.event
     headers = event.headers
     exchange_name = event.destination
-    payload_size = _calculate_byte_size(event.body) + _calculate_byte_size(headers)
+    payload_size = _calculate_byte_size(event.body) + _calculate_byte_size(headers)  # type: ignore[no-untyped-call]
 
     pathway_tags = [
         "direction:out",
@@ -33,21 +33,21 @@ def handle_aio_pika_produce(ctx: core.ExecutionContext) -> None:
     DsmPathwayCodec.encode(dsm_ctx, headers)
 
 
-def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:
+def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:  # type: ignore[type-arg]
     from . import data_streams_processor as get_processor
 
-    proc = get_processor()
+    proc = get_processor()  # type: ignore[no-untyped-call]
     if proc is None:
         return
 
     event = ctx.event
     headers = event.headers
     queue_name = event.destination
-    payload_size = _calculate_byte_size(event.body) + _calculate_byte_size(headers)
+    payload_size = _calculate_byte_size(event.body) + _calculate_byte_size(headers)  # type: ignore[no-untyped-call]
 
     dsm_ctx = DsmPathwayCodec.decode(headers, proc)
     # span is optional — DSM works when APM tracing is disabled
-    dsm_ctx.set_checkpoint(
+    dsm_ctx.set_checkpoint(  # type: ignore[no-untyped-call]
         ["direction:in", "topic:" + (queue_name or ""), "type:rabbitmq"],
         payload_size=payload_size,
         span=ctx._inner_span,

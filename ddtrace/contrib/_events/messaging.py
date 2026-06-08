@@ -45,7 +45,7 @@ class MessagingPublishEvent(TracingEvent):
     distributed_tracing_enabled: bool = event_field(default=False)
 
     def __post_init__(self) -> None:
-        self.operation_name = schematize_messaging_operation(
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
             f"{self.messaging_system}.publish",
             provider=self.messaging_system,
             direction=SpanDirection.OUTBOUND,
@@ -84,13 +84,13 @@ class MessagingConsumeEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         span_op = self.span_operation or self.operation
-        self.operation_name = schematize_messaging_operation(
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
             f"{self.messaging_system}.{span_op}",
             provider=self.messaging_system,
             direction=SpanDirection.PROCESSING,
         )
         if self.distributed_tracing_enabled and self.headers:
-            self.distributed_context = HTTPPropagator.extract(self.headers)
+            self.distributed_context = HTTPPropagator.extract(self.headers)  # type: ignore[no-untyped-call]
             self.use_active_context = False
 
 
@@ -107,7 +107,7 @@ class MessagingActionEvent(TracingEvent):
     operation: str = event_field()
 
     def __post_init__(self) -> None:
-        self.operation_name = schematize_messaging_operation(
+        self.operation_name = schematize_messaging_operation(  # type: ignore[operator]
             f"{self.messaging_system}.{self.operation}",
             provider=self.messaging_system,
             direction=SpanDirection.PROCESSING,

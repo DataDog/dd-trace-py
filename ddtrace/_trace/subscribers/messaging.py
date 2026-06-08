@@ -11,7 +11,7 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.propagation.http import HTTPPropagator
 
 
-class MessagingTracingSubscriber(TracingSubscriber):
+class MessagingTracingSubscriber(TracingSubscriber):  # type: ignore[type-arg, no-untyped-call]
     """Shared tracing logic for all messaging integrations.
 
     Sets standard messaging tags on spans and handles distributed tracing
@@ -30,7 +30,7 @@ class MessagingTracingSubscriber(TracingSubscriber):
     )
 
     @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
+    def on_started(cls, ctx: core.ExecutionContext) -> None:  # type: ignore[type-arg]
         event = ctx.event
         span = ctx.span
 
