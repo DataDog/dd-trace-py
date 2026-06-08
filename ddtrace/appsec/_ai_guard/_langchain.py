@@ -245,6 +245,11 @@ def _get_tool_runtime_messages(tool_runtime) -> list:
     call(s) about to execute; it is dropped here because the specific call
     under evaluation is re-appended by the caller as a single-tool-call
     assistant message (mirroring the legacy agent-action conversion).
+
+    AIDEV-NOTE: langchain >= 1.0 only. ``ToolRuntime`` and the langgraph
+    ``ToolNode`` execution path this serves do not exist on earlier
+    langchain releases; the legacy (< 1.0) agent path uses
+    :func:`_handle_agent_action_result` instead.
     """
     from langchain_core.messages import AIMessage
 
