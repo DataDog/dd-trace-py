@@ -51,13 +51,12 @@ _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
-# AIDEV-NOTE: We dynamically find a free tool slot starting from COVERAGE_ID (1), mirroring
-# coverage.py's own slot-finding loop. If coverage.py already holds slot 1, we fall back to
-# user slots 2-5. _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines()
-# is a no-op while it remains None. sys.monitoring slots: OPTIMIZER_ID=0, COVERAGE_ID=1, user=2-5.
+# AIDEV-NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
+# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since coverage.py also wants it.
+# _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines() is a no-op
+# while it remains None. sys.monitoring slots: OPTIMIZER_ID=0, COVERAGE_ID=1, user=2-5.
 _DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
-_DD_FIRST_SLOT = 1
-_DD_LAST_SLOT = 5
+_DD_CANDIDATE_SLOTS = (4, 3, 1)
 
 # Store: (hook, path, import_names_by_line)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
@@ -67,14 +66,14 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 
 def register_coverage() -> None:
     """
-    Eagerly register ddtrace's coverage tool in the first available user-level tool slot.
+    Eagerly register ddtrace's coverage tool in the first available slot from (4, 3, 1).
 
-    Iterates slots 2–5 (the user-available range) and claims the first free one, mirroring
-    coverage.py's own slot-finding strategy so both tools can coexist. Must be called before
-    any code is instrumented (called from installer.install()).
+    Tries slot 4 first, then 3, then 1 (COVERAGE_ID). Using 4 as the default avoids
+    colliding with coverage.py/pytest-cov, which typically claim slot 1. Must be called
+    before any code is instrumented (called from installer.install()).
 
-    Sets the module-level _DD_TOOL_ID to the acquired slot, or leaves it None if all slots
-    are taken (in which case coverage collection is silently skipped).
+    Sets the module-level _DD_TOOL_ID to the acquired slot, or leaves it None and logs a
+    warning if all candidate slots are taken.
     """
     global _DD_TOOL_ID
 
@@ -82,7 +81,7 @@ def register_coverage() -> None:
     if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
         return
 
-    for slot in range(_DD_FIRST_SLOT, _DD_LAST_SLOT + 1):
+    for slot in _DD_CANDIDATE_SLOTS:
         try:
             sys.monitoring.use_tool_id(slot, "datadog")
             _DD_TOOL_ID = slot
@@ -90,10 +89,9 @@ def register_coverage() -> None:
         except ValueError:
             continue
     else:
-        log.debug(
-            "No sys.monitoring tool slot available (slots %d-%d all taken), not gathering coverage",
-            _DD_FIRST_SLOT,
-            _DD_LAST_SLOT,
+        log.warning(
+            "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
+            _DD_CANDIDATE_SLOTS,
         )
         return
 

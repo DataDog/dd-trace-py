@@ -65,8 +65,8 @@ def test_event_handler_returns_disable_for_missing_code():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_register_coverage_claims_a_user_slot():
-    """Test that register_coverage() claims a user-level slot (2-5) and not COVERAGE_ID."""
+def test_register_coverage_claims_a_candidate_slot():
+    """Test that register_coverage() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
@@ -80,8 +80,8 @@ def test_register_coverage_claims_a_user_slot():
 
     try:
         assert m._DD_TOOL_ID is not None, "register_coverage() must acquire a slot"
-        assert m._DD_FIRST_SLOT <= m._DD_TOOL_ID <= m._DD_LAST_SLOT, (
-            f"Acquired slot {m._DD_TOOL_ID} is outside range {m._DD_FIRST_SLOT}-{m._DD_LAST_SLOT}"
+        assert m._DD_TOOL_ID in m._DD_CANDIDATE_SLOTS, (
+            f"Acquired slot {m._DD_TOOL_ID} is not in candidate slots {m._DD_CANDIDATE_SLOTS}"
         )
         assert sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog", (
             f"Expected 'datadog' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
