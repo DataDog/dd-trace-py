@@ -79,7 +79,9 @@ def _wrap_message(message_descriptor, message_class):
 def _traced_build(func, instance, args, kwargs):
     file_des = args[0]
 
-    pin = Pin.get_from(instance)
+    # BuildTopDescriptorsAndMessages is a module-level function; wrapt passes instance=None.
+    # Pin is set on the builder module in patch(), so look it up there directly.
+    pin = Pin.get_from(builder)
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
