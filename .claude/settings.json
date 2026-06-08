@@ -40,5 +40,18 @@
       "Skill(review-ci)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_SETTINGS_DIR}/hooks/detect-native-build-error.py"
+          }
+        ]
+      }
+    ]
   }
 }
