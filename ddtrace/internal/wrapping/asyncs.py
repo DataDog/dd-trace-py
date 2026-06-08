@@ -55,7 +55,10 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY: Assembly | None = None
 
-if PY >= (3, 15):
+if PY >= (3, 16):
+    raise NotImplementedError(f"This version of CPython is not supported yet: {PY}")
+
+elif PY >= (3, 15):
     _ensure_common_constant_none()
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(

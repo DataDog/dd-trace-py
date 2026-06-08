@@ -97,6 +97,21 @@ def _events_for(entries: "dict[int, _Entry]") -> int:
     return events
 
 
+def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
+    # TODO(py-315): Pre-release Python 3.15 builds may reject PY_UNWIND
+    # as a local event.  Fall back without it when the full set is invalid;
+    # PY_UNWIND is still registered as a global callback via _setup() so
+    # exception handling degrades gracefully rather than crashing.
+    try:
+        sys.monitoring.set_local_events(tool_id, code, events)
+    except ValueError:
+        fallback = events & ~_E.PY_UNWIND
+        if fallback != events:
+            sys.monitoring.set_local_events(tool_id, code, fallback)
+        else:
+            raise
+
+
 class _Entry(NamedTuple):
     handler: MonitoringEventHandler
     events: int  # pre-computed from _events_for_handler

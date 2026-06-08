@@ -9,7 +9,16 @@ from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
-from ddtrace.profiling.collector import _task
+
+
+try:
+    from ddtrace.profiling.collector import _task
+except ImportError:
+    # TODO(py-315): _task is a Cython extension not compiled for all Python versions.
+    # Provide a no-op stub so StackCollector can be imported on Python 3.15.
+    import types as _types
+
+    _task = _types.SimpleNamespace(initialize_gevent_support=lambda: None)  # type: ignore[assignment]
 from ddtrace.profiling.collector import threading
 from ddtrace.trace import Tracer
 
