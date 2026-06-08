@@ -9,6 +9,7 @@ aiopg
 aioredis
 algolia
 algoliasearch
+allocator
 analytics
 anthropic
 Anthropic
@@ -29,6 +30,7 @@ async
 asyncio
 asyncpg
 attrs
+auth
 autodetected
 autoinstrumentation
 Autoinstrumentation
@@ -118,6 +120,7 @@ enqueuer
 entrypoint
 entrypoints
 env
+envier
 eol
 eventbridge
 exec
@@ -287,6 +290,7 @@ respawn
 riotfile
 rlocation
 RLock
+rollout
 rowcount
 rq
 runnable
@@ -316,6 +320,7 @@ statsd
 stderr
 stdout
 setuptools
+Str
 stringable
 struct
 structlog

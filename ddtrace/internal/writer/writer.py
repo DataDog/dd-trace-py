@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
+from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -120,10 +121,14 @@ def _human_size(nbytes: float) -> str:
 
 
 class TraceWriter(metaclass=abc.ABCMeta):
-    # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
-    #       Find an alternative way to do this without having to pass the parameter/recreating the writer
+    # TODO: appsec_enabled / llmobs_enabled dynamically force api_version=v0.4 in NativeWriter;
+    #       find a way to do this without recreating the writer.
     @abc.abstractmethod
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -147,7 +152,11 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -516,11 +525,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._reset_connection()
 
 
-class AgentResponse(object):
-    def __init__(self, rate_by_service: dict[str, float]) -> None:
-        self.rate_by_service = rate_by_service
-
-
 class AgentWriterInterface(metaclass=abc.ABCMeta):
     intake_url: str
     _api_version: str
@@ -584,7 +588,11 @@ class AgentlessTraceWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "AgentlessTraceWriter":
         try:
             self.stop()
         except ServiceStatusError:
@@ -612,9 +620,9 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
     3. Platform / product default (``v0.4`` on Windows, GCP Functions, Azure Functions,
        ASM, IAST, or AI Guard; ``v0.5`` otherwise).
 
-    Note: when ``DD_TRACE_NATIVE_SPAN_EVENTS`` is enabled, the resolved version is
-    **unconditionally forced to ``v0.4``**, overriding even an explicit ``api_version``
-    argument — v0.5 does not support native span events.
+    Note: ``DD_TRACE_NATIVE_SPAN_EVENTS`` and LLM Observability both force ``v0.4`` even
+    over an explicit ``api_version``; the v0.5 msgpack encoder strips ``meta_struct`` and
+    does not support native span events.
     """
     is_windows = sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     default = "v0.5"
@@ -625,11 +633,19 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         or asm_config._asm_enabled
         or asm_config._iast_enabled
         or ai_guard_config._ai_guard_enabled
+        or config._llmobs_enabled
     ):
         default = "v0.4"
     resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
         log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        resolved = "v0.4"
+    if config._llmobs_enabled and resolved != "v0.4":
+        log.warning(
+            "Setting api version to v0.4; LLM Observability requires v0.4 to transmit meta_struct payloads. "
+            "Requested api version '%s' is unsupported when LLM Observability is enabled.",
+            resolved,
+        )
         resolved = "v0.4"
     return resolved
 
@@ -688,6 +704,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         intake_url: str,
         processing_interval: Optional[float] = None,
         compute_stats_enabled: bool = False,
+        client_side_stats_obfuscation: bool = False,
         # Match the payload size since there is no functionality
         # to flush dynamically.
         buffer_size: Optional[int] = None,
@@ -745,6 +762,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
         self._compute_stats_enabled = compute_stats_enabled
+        self._client_side_stats_obfuscation = client_side_stats_obfuscation
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
@@ -785,6 +803,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.set_connection_timeout(otel_config.exporter.TRACES_TIMEOUT)
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
+
+        if self._client_side_stats_obfuscation:
+            builder.enable_client_side_stats_obfuscation()
+
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
             heartbeat_ms = int(
@@ -803,8 +825,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         self._exporter = self._create_exporter()
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
-        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "NativeWriter":
+        # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
+        # the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
@@ -813,11 +840,12 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        api_version = "v0.4" if appsec_enabled else self._api_version
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             compute_stats_enabled=self._compute_stats_enabled,
+            client_side_stats_obfuscation=self._client_side_stats_obfuscation,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             dogstatsd=self.dogstatsd,
@@ -1076,22 +1104,23 @@ def _use_sync_mode() -> bool:
     )
 
 
-def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+def create_trace_writer(
+    response_callback: Optional[Callable[[AgentResponse], None]] = None,
+    agentless: bool = False,
+) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
 
-    if config._trace_agentless_enabled:
-        if config._dd_api_key:
-            intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
-            verify_url(intake_url)
-            return AgentlessTraceWriter(
-                intake_url=intake_url,
-                api_key=config._dd_api_key,
-                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-                sync_mode=_use_sync_mode(),
-                report_metrics=not asm_config._apm_opt_out,
-            )
-        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
+    if agentless:
+        intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+        verify_url(intake_url)
+        return AgentlessTraceWriter(
+            intake_url=intake_url,
+            api_key=config._dd_api_key,
+            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+            sync_mode=_use_sync_mode(),
+            report_metrics=not asm_config._apm_opt_out,
+        )
 
     verify_url(agent_config.trace_agent_url)
 
@@ -1104,6 +1133,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
         dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
         sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
+        client_side_stats_obfuscation=config._client_side_stats_obfuscation,
         report_metrics=not asm_config._apm_opt_out,
         response_callback=response_callback,
         stats_opt_out=asm_config._apm_opt_out,

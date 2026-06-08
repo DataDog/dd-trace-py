@@ -1,4 +1,25 @@
+from enum import Enum
 from typing import Final
+
+
+class LLMObsExportMode(str, Enum):
+    """The primary path LLMObs span data takes to Datadog.
+
+    Only the primary path is modeled here; the writer's wire transport (Agent EVP proxy vs
+    direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
+
+    APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
+    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; the rescue
+                    processor re-ships predicted drops through ``LLMObsSpanWriter``.
+    LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
+    """
+
+    LLMOBS_DIRECT = "llmobs_direct"
+    APM_AGENTLESS = "apm_agentless"
+    APM_AGENT = "apm_agent"
+
+
+CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -105,6 +126,8 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+REQUEST_BASE_URL = "llmobs.request_base_url"
+
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
@@ -156,7 +179,9 @@ class LLMOBS_STRUCT:
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
+    TOOL: Final = "tool"
     TOOL_DEFINITIONS: Final = "tool_definitions"
+    VERSION: Final = "version"
     INPUT: Final = "input"
     OUTPUT: Final = "output"
     EXPECTED_OUTPUT: Final = "expected_output"

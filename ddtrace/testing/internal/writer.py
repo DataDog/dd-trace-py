@@ -32,6 +32,38 @@ TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
 EventSerializer = t.Callable[[TSerializable], Event]
 
+_MAX_META_TAG_VALUE_LENGTH = 5000
+
+
+def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
+    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
+
+
+def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
+    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+
+
+def _truncate_event_meta(event: Event) -> Event:
+    content = event.get("content")
+    if not isinstance(content, dict):
+        return event
+
+    meta = content.get("meta")
+    if not isinstance(meta, dict):
+        return event
+
+    return {
+        **event,
+        "content": {
+            **content,
+            "meta": _truncate_meta_string_values(meta),
+        },
+    }
+
+
+def _truncate_events_meta(events: list[Event]) -> list[Event]:
+    return [_truncate_event_meta(event) for event in events]
+
 
 class BaseWriter(ABC):
     # After this many consecutive failed flushes (each already retried internally),
@@ -189,21 +221,27 @@ class BaseWriter(ABC):
 def _get_min_flush_events() -> t.Optional[int]:
     """Read the minimum number of buffered events before triggering an early flush.
 
-    Uses DD_TRACE_PARTIAL_FLUSH_MIN_SPANS for backwards compatibility with the
-    old CI Visibility plugin, which used the same env var (via the APM tracer's
-    SpanAggregator) to control how eagerly test events were sent.
+    Uses _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS (preferred) or DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
+    (fallback, for backwards compatibility with the old CI Visibility plugin, which used
+    the same env var via the APM tracer's SpanAggregator) to control how eagerly test
+    events were sent. The private prefixed var avoids collisions with the tracer's own
+    handling of DD_TRACE_PARTIAL_FLUSH_MIN_SPANS.
 
     Returns None (the default) to disable threshold-based flushing — events are
     only sent on the 60-second periodic timer or on shutdown.
     """
-    raw = env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    raw = env.get("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"))
     if raw is None:
         return None
     try:
         value = int(raw)
         return value if value > 0 else None
     except (ValueError, TypeError):
-        log.warning("Invalid value for DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r; threshold-based flushing disabled", raw)
+        log.warning(
+            "Invalid value for _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS / DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r;"
+            " threshold-based flushing disabled",
+            raw,
+        )
         return None
 
 
@@ -249,13 +287,15 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _encode_events(self, events: list[Event]) -> bytes:
-        payload = {
+    def _test_cycle_payload(self, events: list[Event]) -> Event:
+        return {
             "version": 1,
-            "metadata": self.metadata,
-            "events": events,
+            "metadata": _truncate_payload_metadata(self.metadata),
+            "events": _truncate_events_meta(events),
         }
-        return msgpack_packb(payload)
+
+    def _encode_events(self, events: list[Event]) -> bytes:
+        return msgpack_packb(self._test_cycle_payload(events))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
@@ -302,7 +342,7 @@ class PayloadFileTestOptWriter(TestOptWriter):
     def _send_events(self, events: list[Event]) -> bool:
         write_payload_file(
             output_dir=self._output_dir,
-            payload={"version": 1, "metadata": self.metadata, "events": events},
+            payload=self._test_cycle_payload(events),
             kind="tests",
         )
         return True

@@ -138,6 +138,14 @@ def get_app():
                 response_headers[vk[0]] = vk[1]
         return JSONResponse(body, status_code=status, headers=response_headers)
 
+    @app.get("/multi-param/{first}.{last}/", response_class=JSONResponse)
+    async def multi_param_segment(first: str, last: str):  # noqa: B008
+        return {"first": first, "last": last}
+
+    @app.get("/files/{file_path:path}", response_class=JSONResponse)
+    async def files_catch_all(file_path: str):  # noqa: B008
+        return {"file_path": file_path}
+
     @app.get("/new_service/{service_name:str}/")
     @app.post("/new_service/{service_name:str}/")
     @app.get("/new_service/{service_name:str}")

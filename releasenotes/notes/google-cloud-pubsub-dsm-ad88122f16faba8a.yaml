@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    google_cloud_pubsub: This introduces Data Streams Monitoring (DSM) context
+    propagation for the Google Cloud Pub/Sub integration. Producer publish
+    operations inject the DSM pathway context into message attributes, and
+    subscriber callbacks extract it and record a consume checkpoint. To enable,
+    set ``DD_DATA_STREAMS_ENABLED=true``.

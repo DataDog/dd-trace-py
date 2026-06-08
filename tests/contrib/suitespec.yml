@@ -109,6 +109,7 @@ components:
     - ddtrace/contrib/internal/gevent/*
   google_cloud_pubsub:
     - ddtrace/contrib/internal/google_cloud_pubsub/*
+    - ddtrace/internal/datastreams/google_cloud_pubsub.py
   graphql:
     - ddtrace/contrib/internal/graphql/*
   grpc:
@@ -344,6 +345,7 @@ suites:
     pattern: asgi$
     snapshot: true
   asyncpg:
+    retry: 2
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -520,6 +522,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
+    retry: 2
     parallelism: 11
     paths:
       - '@bootstrap'
@@ -693,9 +696,9 @@ suites:
       - rabbitmq
     snapshot: true
   elasticsearch:
+    pattern: ^elasticsearch(?!:opensearch)
     env:
       TEST_ELASTICSEARCH_HOST: elasticsearch
-      TEST_OPENSEARCH_HOST: opensearch
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -703,11 +706,32 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@elasticsearch'
-      - tests/contrib/elasticsearch/*
-      - tests/snapshots/tests.{suite}.*
+      - tests/contrib/elasticsearch/__init__.py
+      - tests/contrib/elasticsearch/test_elasticsearch.py
+      - tests/contrib/elasticsearch/test_elasticsearch_multi.py
+      - tests/contrib/elasticsearch/test_async.py
+      - tests/snapshots/tests.contrib.elasticsearch.test_elasticsearch_multi.*
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch.*
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_elasticsearch7.*
+    services:
+      - elasticsearch
+    snapshot: true
+  opensearch:
+    pattern: elasticsearch:opensearch
+    env:
+      TEST_OPENSEARCH_HOST: opensearch
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@elasticsearch'
+      - tests/contrib/elasticsearch/__init__.py
+      - tests/contrib/elasticsearch/test_opensearch.py
+      - tests/snapshots/tests.contrib.elasticsearch.test_async.test_opensearch.*
     services:
       - opensearch
-      - elasticsearch
     snapshot: true
   falcon:
     paths:
@@ -876,6 +900,7 @@ suites:
       - tests/contrib/jinja2/*
     snapshot: true
   kafka:
+    retry: 2
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -994,6 +1019,7 @@ suites:
       - tests/snapshots/tests.opentelemetry.*
     snapshot: true
   protobuf:
+    retry: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1207,6 +1233,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   sourcecode:
+    retry: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1241,6 +1268,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   stdlib:
+    retry: 2
     parallelism: 2
     paths:
       - '@tracing'

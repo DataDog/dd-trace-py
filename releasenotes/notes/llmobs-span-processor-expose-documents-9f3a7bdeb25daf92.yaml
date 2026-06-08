@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where document content on embedding and retrieval
+    spans bypassed the span processor. ``LLMObsSpan`` now exposes ``input_documents``
+    and ``output_documents`` for mutation or removal before export.

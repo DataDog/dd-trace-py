@@ -3,13 +3,14 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <random>
 #include <vector>
 
 #include "constants.hpp"
 
-#include "echion/strings.h"
+#include "echion/task_name.h"
 #include "echion/timing.h"
 
 #include <Python.h>
@@ -17,6 +18,13 @@
 class EchionSampler;
 
 namespace Datadog {
+
+enum class PauseResult : std::uint8_t
+{
+    Paused,     // sampler was running and is now paused
+    NotRunning, // sampler was not running (nothing to pause)
+    Timeout,    // sampler is running but did not pause within the timeout
+};
 
 class Sampler
 {
@@ -39,6 +47,14 @@ class Sampler
     std::atomic<bool> thread_running{ false };
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
+
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -76,6 +92,8 @@ class Sampler
 
     bool start();
     void stop();
+    PauseResult pause();
+    void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
@@ -83,7 +101,7 @@ class Sampler
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
-    void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
+    void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);

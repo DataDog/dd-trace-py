@@ -74,17 +74,19 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
-def test_enable_agentless(tracer, test_spans):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="<ml-app-name>")):
-        llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
-        llmobs_instance = llmobs_service._instance
-        assert llmobs_instance is not None
-        assert llmobs_service.enabled
-        assert llmobs_instance.tracer == tracer
-        assert llmobs_instance._llmobs_span_writer._agentless is True
-        assert run_llmobs_trace_filter(tracer, test_spans) is not None
+@pytest.mark.subprocess(
+    env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
+)
+def test_enable_agentless():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
 
-        llmobs_service.disable()
+    llmobs_service.enable(agentless_enabled=True)
+    assert llmobs_service.enabled
+    assert llmobs_service._instance._llmobs_span_writer._agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
 
 
 def test_enable_agent_proxy_when_agent_is_available(tracer, agent):
@@ -131,6 +133,104 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         llmobs_service.disable()
 
 
+@pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
+def test_configure_agentless_writer_swaps_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable(agentless_enabled=True)
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
+def test_enable_without_api_key_does_not_swap_apm_writer():
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    try:
+        llmobs_service.enable()
+    except ValueError:
+        pass
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_apm_agentless_when_agentless_enabled():
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENTLESS
+
+
+def test_annotate_tag_values_are_stringified(llmobs):
+    """Non-string tag values (bool/int/float/None) are coerced to strings, since the LLMObs
+    intakes decode tags as a string->string map.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(
+            span=span,
+            tags={"is_streaming": True, "retries": 3, "ratio": 0.5, "none_tag": None, "str_tag": "ok"},
+        )
+    tags = get_llmobs_tags(span)
+    assert all(isinstance(v, str) for v in tags.values()), tags
+    assert {
+        "is_streaming": "True",
+        "retries": "3",
+        "ratio": "0.5",
+        "none_tag": "None",
+        "str_tag": "ok",
+    }.items() <= tags.items()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_apm_agent_when_agentless_disabled():
+    """When agentless is explicitly disabled and APM tracing is on, data rides the APM trace via agent."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
+    """APM trace dropped: span events ship via the writer (transport inferred by the writer)."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable()
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_DIRECT
+
+
 def test_service_disable(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable(_tracer=tracer)
@@ -139,6 +239,48 @@ def test_service_disable(tracer):
         assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
         assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    }
+)
+def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
+    """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is True
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.disable()
+    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    }
+)
+def test_disable_does_not_revert_agentless_writer_when_already_agentless():
+    """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
+    import ddtrace
+    from ddtrace.internal.writer import AgentlessTraceWriter
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    llmobs_service.enable()
+    assert llmobs_service._instance._apm_writer_switched_to_agentless is False
+    llmobs_service.disable()
+    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
 
 
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
@@ -156,6 +298,9 @@ def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
 
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
+        # enable() raises before replacing _instance, so reset to a fresh real instance:
+        # a prior xdist-worker test may have left a mocked eval writer (status != "stopped").
+        llmobs_service._instance = llmobs_service()
         with pytest.raises(ValueError):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
@@ -500,7 +645,8 @@ def test_annotate_metadata_wrong_type_raises(llmobs):
 def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}.items() <= get_llmobs_tags(span).items()
+        # Non-string tag values are coerced to strings at annotation time.
+        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": "10"}.items() <= get_llmobs_tags(span).items()
 
 
 def test_annotate_tag_can_set_session_id(llmobs):
@@ -986,6 +1132,68 @@ def test_tags(ddtrace_global_config, llmobs, monkeypatch):
     )
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_tag_dot_keys_sanitized_on_agentless_apm_path():
+    """APM agentless path: dots in tag keys are replaced with underscores before encoding."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable()
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert all("." not in k for k in tags), f"Dot in tag key on agentless path: {tags}"
+    assert tags is not None and "ddtrace_version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_direct_llmobs_path():
+    """LLMOBS_DIRECT path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable()
+    with llmobs_service.task(name="test_task") as span:
+        tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
+    llmobs_service.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_tag_dot_keys_preserved_on_apm_agent_path():
+    """APM_AGENT path: dots in tag keys are not modified (agent handles encoding)."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._utils import get_llmobs_tags
+
+    llmobs_service.enable(agentless_enabled=False)
+    with llmobs_service.task(name="test_task") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags is not None and "ddtrace.version" in tags
+    llmobs_service.disable()
+
+
 def test_ml_app_override(llmobs):
     with llmobs.task(name="test_task", ml_app="test_app") as span:
         pass
@@ -1306,7 +1514,16 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        # Force LLMOBS_DIRECT so finish enqueues into the writer directly; APM_AGENT would
+        # cache for the rescue chain, leaving the buffer empty and defeating the assertions.
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_API_KEY": "<not-a-real-key>",
+    }
+)
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
