@@ -86,6 +86,21 @@ def _events_for(entries: dict) -> int:
     return events
 
 
+def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
+    # TODO(py-315): Pre-release Python 3.15 builds may reject PY_UNWIND
+    # as a local event.  Fall back without it when the full set is invalid;
+    # PY_UNWIND is still registered as a global callback via _setup() so
+    # exception handling degrades gracefully rather than crashing.
+    try:
+        sys.monitoring.set_local_events(tool_id, code, events)
+    except ValueError:
+        fallback = events & ~_E.PY_UNWIND
+        if fallback != events:
+            sys.monitoring.set_local_events(tool_id, code, fallback)
+        else:
+            raise
+
+
 class _Entry(NamedTuple):
     handler: MonitoringEventHandler
     events: int  # pre-computed from _events_for_handler
@@ -190,7 +205,7 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         if entries is None:
             _registry[code] = entries = {}
         entries[id(handler)] = entry
-        sys.monitoring.set_local_events(tool_id, code, _events_for(entries))
+        _set_local_events(tool_id, code, _events_for(entries))
 
 
 def refresh(code: CodeType) -> None:
@@ -202,7 +217,7 @@ def refresh(code: CodeType) -> None:
     with _registry_lock:
         entries = _registry.get(code)
         if entries and _tool_id is not None:
-            sys.monitoring.set_local_events(_tool_id, code, _events_for(entries))
+            _set_local_events(_tool_id, code, _events_for(entries))
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -220,4 +235,4 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
                 sys.monitoring.set_local_events(_tool_id, code, 0)
         else:
             assert _tool_id is not None  # nosec
-            sys.monitoring.set_local_events(_tool_id, code, _events_for(existing))
+            _set_local_events(_tool_id, code, _events_for(existing))
