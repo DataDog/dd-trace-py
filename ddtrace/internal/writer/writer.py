@@ -1111,10 +1111,10 @@ def _agentless_intake_url(site: str) -> str:
         return "https://browser-intake-ap1-datadoghq.com"
     elif "ap2." in site:
         return "https://browser-intake-ap2-datadoghq.com"
+    elif "us2.ddog-gov." in site:
+        return "https://browser-intake-us2-ddog-gov.com"
     elif "ddog-gov." in site:
         return "https://browser-intake-ddog-gov.com"
-    elif "us2." in site:
-        return "https://browser-intake-us2-ddog-gov.com"
     else:
         return "https://public-trace-http-intake.logs.{}".format(site)
 
