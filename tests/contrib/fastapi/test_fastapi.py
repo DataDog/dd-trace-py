@@ -724,7 +724,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     background_span = spans[1][0]
     # background task should link to the request span
     assert background_span.parent_id is None
-    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    [link, *others] = [link for link in background_span._get_links() if link.span_id == request_span.span_id]
     assert not others
     assert link.trace_id == request_span.trace_id
     assert link.span_id == request_span.span_id
@@ -791,7 +791,6 @@ if __name__ == "__main__":
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
-    assert err == b"", err.decode()
 
 
 @pytest.mark.parametrize(

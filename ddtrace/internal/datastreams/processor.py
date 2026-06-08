@@ -10,6 +10,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
@@ -133,6 +134,7 @@ class DataStreamsProcessor(PeriodicService):
         )(self._flush_stats)
 
         register_on_exit_signal(partial(_atexit, obj=self))
+        ddtrace_atexit.register(partial(_atexit, obj=self))
         self.start()
 
     def on_checkpoint_creation(
@@ -295,11 +297,14 @@ class DataStreamsProcessor(PeriodicService):
         compressed = gzip_compress(payload)
         try:
             self._flush_stats_with_backoff(compressed)
-        except Exception:
-            log.error(
-                "retry limit exceeded submitting pathway stats to the Datadog agent at %s",
+        except Exception as e:
+            log.warning(
+                "retry limit exceeded submitting pathway stats to %s (%s); "
+                "the last 10 seconds of DSM data is dropped, DSM continues "
+                "normally on the next flush. Frequent occurrences indicate "
+                "agent->backend round-trip latency above 1s.",
                 self._agent_endpoint,
-                exc_info=True,
+                e,
             )
 
     def shutdown(self, timeout: Optional[float]) -> None:

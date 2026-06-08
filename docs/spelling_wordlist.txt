@@ -10,6 +10,7 @@ aiopg
 aioredis
 algolia
 algoliasearch
+allocator
 analytics
 anthropic
 Anthropic
@@ -30,6 +31,7 @@ async
 asyncio
 asyncpg
 attrs
+auth
 autodetected
 autoinstrumentation
 Autoinstrumentation
@@ -46,6 +48,7 @@ backoff
 backport
 backported
 backporting
+Bazel
 bdd
 bikeshedding
 Blowfish
@@ -118,11 +121,13 @@ enqueuer
 entrypoint
 entrypoints
 env
+envier
 eol
 eventbridge
 exec
 Fargate
 fastapi
+frozenset
 Firehose
 flamegraph
 fnmatch
@@ -284,7 +289,9 @@ repo
 resolvers
 respawn
 riotfile
+rlocation
 RLock
+rollout
 rowcount
 rq
 runnable
@@ -314,6 +321,7 @@ statsd
 stderr
 stdout
 setuptools
+Str
 stringable
 struct
 structlog
@@ -385,3 +393,8 @@ denom
 mtime
 mtimes
 txt
+anyio
+ddsketch
+werkzeug
+wrapt
+uv

@@ -6,6 +6,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_VERBOSITY
 from ddtrace.appsec._constants import TELEMETRY_MANDATORY_VERBOSITY
 from ddtrace.appsec._iast._handlers import _on_django_patch
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._metrics import metric_verbosity
 from ddtrace.appsec._iast._overhead_control_engine import oce
@@ -19,6 +20,7 @@ from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_UNTRUSTED_SERIALIZATION
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.constants import VULN_XSS
+from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as untrusted_serialization_patch
@@ -86,17 +88,27 @@ def test_metric_executed_sink(
         weak_hash_patch()
 
         tracer.configure(iast_enabled=True)
+        # Clear any IAST context leaked from a previous test (e.g. tainted objects still in
+        # a slot). Without this, a reused context would make request.tainted > 0 and break
+        # the len == 1 assertion. After clearing, the span processor starts a fresh context
+        # so that is_iast_request_enabled() returns True and executed.sink is emitted.
+        # request.tainted is NOT emitted here because this test taints no objects.
+        _iast_finish_request()
+        AppSecIastSpanProcessor.enable()
 
         telemetry_writer._namespace.flush()
-        with asm_context(tracer=tracer) as span:
-            import hashlib
+        try:
+            with asm_context(tracer=tracer) as span:
+                import hashlib
 
-            m = hashlib.new("md5")
-            m.update(b"Nobody inspects")
-            m.update(b" the spammish repetition")
-            num_vulnerabilities = 10
-            for _ in range(0, num_vulnerabilities):
-                m.digest()
+                m = hashlib.new("md5")
+                m.update(b"Nobody inspects")
+                m.update(b" the spammish repetition")
+                num_vulnerabilities = 10
+                for _ in range(0, num_vulnerabilities):
+                    m.digest()
+        finally:
+            AppSecIastSpanProcessor.disable()
 
         metrics_result = telemetry_writer._namespace.flush()
         _testing_unpatch_iast()
@@ -155,14 +167,21 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, tracer):
     ):
         oce.reconfigure()
         tracer.configure(iast_enabled=True)
-
-        with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            taint_pyobject(
-                pyobject="bar",
-                source_name="test_string_operator_add_two",
-                source_value="bar",
-                source_origin=OriginType.PARAMETER,
-            )
+        # tracer.configure() sets _iast_enabled but does not register AppSecIastSpanProcessor
+        # in SpanProcessor.__processors__. Without this, on_span_start is never called and
+        # no IAST context is created, causing the test to fail non-deterministically depending
+        # on whether a previous test had already enabled the processor.
+        AppSecIastSpanProcessor.enable()
+        try:
+            with tracer.trace("test", span_type=SpanTypes.WEB) as span:
+                taint_pyobject(
+                    pyobject="bar",
+                    source_name="test_string_operator_add_two",
+                    source_value="bar",
+                    source_origin=OriginType.PARAMETER,
+                )
+        finally:
+            AppSecIastSpanProcessor.disable()
 
     metrics_result = telemetry_writer._namespace.flush()
 

@@ -55,7 +55,7 @@ def _derive_default_heap_sample_size(
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _check_for_ddup_available():
+def _check_for_ddup_available() -> tuple[str, bool]:
     # NB: importing ddup module results in importing _ddup.so file which could
     # raise an Exception within the ddup module, but we catch it there and
     # we don't propagate up to here. And regardless of whether ddup is available,
@@ -65,7 +65,7 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_available():
+def _check_for_stack_available() -> tuple[str, bool]:
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
 
@@ -90,7 +90,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
-def _update_git_metadata_tags(tags):
+def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Update profiler tags with git metadata
     """
@@ -106,7 +106,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -339,6 +339,15 @@ class ProfilingConfigStack(DDConfig):
         help="Whether to enable native function call tracking in stack profiling (Python 3.12+)",
     )
 
+    fast_copy = DDConfig.v(
+        bool,
+        "fast_copy",
+        default=True,
+        help_type="Boolean",
+        help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
+        private=True,
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -362,6 +371,43 @@ class ProfilingConfigLock(DDConfig):
         ),
     )
 
+    exclude_modules = DDConfig.v(
+        frozenset,
+        "exclude_modules",
+        parser=lambda raw: frozenset(p.strip() for p in raw.split(",") if p.strip()),
+        default=frozenset(
+            {
+                # Datadog internals (profiling our own profileris noise)
+                "ddtrace",
+                "ddsketch",
+                "datadog",
+                "envier",
+                "bytecode",
+                "wrapt",
+                # ── Server / ASGI plumbing
+                "uvicorn",
+                "gunicorn",
+                "werkzeug",
+                "h11",  # HTTP/1.1 protocol parser; no real contention
+                "anyio",  # async abstraction; locks are bookkeeping
+                # Stdlib internal lock allocations
+                "asyncio",
+                "threading",
+                "concurrent",  # also covers concurrent.futures.ThreadPoolExecutor's work queue
+                "logging",  # per-handler Handler.lock; almost never user-actionable
+                "http",  # http.client connection-handling internals
+            }
+        ),
+        help_type="String",
+        help=(
+            "Comma-separated list of module or package names to exclude from lock profiling. "
+            "Locks created from these modules are not profiled. Setting this environment variable "
+            "REPLACES the in-tree default rather than appending to it; users who only need to add "
+            "an entry should reproduce the full default list and append to it. "
+            "Examples: ``ddtrace`` (excludes profiler overhead), ``django.db,sqlalchemy.pool,urllib3``"
+        ),
+    )
+
 
 class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
@@ -381,6 +427,20 @@ class ProfilingConfigMemory(DDConfig):
         validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
+    )
+
+    mem_domain_enabled = DDConfig.v(
+        bool,
+        "mem_domain_enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
+            "Python allocations (list internal buffers, array.array data) in addition "
+            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Disabled "
+            "by default for incremental rollout; will be enabled by default once the "
+            "feature is GA."
+        ),
     )
 
 
@@ -511,7 +571,7 @@ if not stack_is_available:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config) -> str:
+def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
         # NOTE: This is intentionally left as stack_v2, to have an easy way

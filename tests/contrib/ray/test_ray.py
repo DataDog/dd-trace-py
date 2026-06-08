@@ -7,6 +7,7 @@ import pytest
 import ray
 from ray.util.tracing import tracing_helper
 
+from ddtrace.contrib.internal.ray.constants import DD_RAY_TRACE_CTX
 from tests.utils import TracerTestCase
 from tests.utils import override_config
 
@@ -20,6 +21,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.ray.task_id",
     "meta.ray.submission_id",
     "meta.ray.hostname",
+    "meta.ray.namespace",
+    "meta.ray.gcs_address",
+    "meta.ray.version",
     "meta.ray.pid",
     "meta.tracestate",
     "meta.traceparent",
@@ -36,7 +40,37 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.hostname",
     "metrics._dd.partial_version",
     "metrics._dd.was_long_running",
+    "meta.ray.version",
+    "meta.ray.namespace",
+    "meta.ray.gcs_address",
+    "meta.ray.dashboard_url",
+    # Task scheduling-hint tags are function-specific and vary across tests/environments
+    "meta.ray.task.function_module",
+    "meta.ray.task.function_qualname",
+    # Actor-method identity tags are class-specific and may not appear in older snapshots
+    "meta.ray.actor.class_name",
+    "meta.ray.actor.module_name",
+    "meta.ray.actor.method_name",
+    # Ray job-info close-time tags (added by span_manager enhancements)
+    "meta.ray.job.start_time_ms",
+    "meta.ray.job.end_time_ms",
+    "meta.ray.job.driver_node_id",
+    "meta.ray.job.driver_agent_http_address",
+    "meta.ray.job.has_runtime_env",
+    "metrics.ray.job.start_time_ms",
+    "metrics.ray.job.end_time_ms",
+    "metrics.ray.job.has_runtime_env",
 ]
+
+
+def test_parse_ignored_actors_returns_actor_method_mapping():
+    from ddtrace.contrib.internal.ray.patch import _parse_ignored_actors
+
+    assert _parse_ignored_actors("") == {}
+    assert _parse_ignored_actors('{"IgnoredCounter": ["increment"], "IgnoredActor": "*"}') == {
+        "IgnoredCounter": frozenset({"increment"}),
+        "IgnoredActor": frozenset({"*"}),
+    }
 
 
 class TestRayIntegration(TracerTestCase):
@@ -128,6 +162,46 @@ class TestRayIntegration(TracerTestCase):
         denied_actor = MockDeniedActor.remote()
         value = ray.get(denied_actor.get_value.remote())
         assert value == 42, f"Unexpected result: {value}"
+
+    def test_configurable_ignored_actor_methods(self):
+        with override_config(
+            "ray",
+            dict(
+                ignored_actors={"PartiallyIgnoredCounter": frozenset({"increment"}), "IgnoredCounter": frozenset({"*"})}
+            ),
+        ):
+
+            @ray.remote
+            class PartiallyIgnoredCounter:
+                def increment(self):
+                    return 1
+
+                def get_value(self):
+                    return 1
+
+            @ray.remote
+            class IgnoredCounter:
+                def increment(self):
+                    return 1
+
+            partially_ignored_actor = PartiallyIgnoredCounter.remote()
+            ignored_actor = IgnoredCounter.remote()
+
+            partially_ignored_result = ray.get(partially_ignored_actor.increment.remote())
+            traced_result = ray.get(partially_ignored_actor.get_value.remote())
+            ignored_result = ray.get(ignored_actor.increment.remote())
+
+            assert partially_ignored_result == 1
+            assert ignored_result == 1
+            assert traced_result == 1
+
+            partially_ignored_params = [p.name for p in partially_ignored_actor._ray_method_signatures["increment"]]
+            traced_params = [p.name for p in partially_ignored_actor._ray_method_signatures["get_value"]]
+            ignored_params = [p.name for p in ignored_actor._ray_method_signatures["increment"]]
+
+            assert DD_RAY_TRACE_CTX not in partially_ignored_params
+            assert DD_RAY_TRACE_CTX not in ignored_params
+            assert DD_RAY_TRACE_CTX in traced_params
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_ignored_tasks", ignores=RAY_SNAPSHOT_IGNORES)
     def test_ignored_tasks(self):

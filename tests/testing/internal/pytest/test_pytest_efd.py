@@ -265,35 +265,33 @@ class TestEFD:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "-v")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
         assert_stats(result, flaky=1)
 
-        # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
-        assert len(list(event_capture.events())) == 14
+        # There should be events for 1 new test + 1 retry, 1 suite, 1 module, 1 session
+        assert len(list(event_capture.events())) == 5
 
         efd_tests = list(event_capture.events_by_test_name("TestFlaky::test_new"))
-        assert len(efd_tests) == 11
+        assert len(efd_tests) == 2
 
         assert efd_tests[0]["content"]["meta"].get("test.status") == "pass"
         assert efd_tests[0]["content"]["meta"].get("test.is_new") == "true"
         assert efd_tests[0]["content"]["meta"].get("test.is_retry") is None
 
-        for i in range(1, len(efd_tests)):
-            assert efd_tests[i]["content"]["meta"].get("test.status") == "fail"
-            assert efd_tests[i]["content"]["meta"].get("test.is_new") == "true"
-            assert efd_tests[i]["content"]["meta"].get("test.is_retry") == "true"
-            assert efd_tests[i]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
-
-        assert efd_tests[i]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
+        assert efd_tests[1]["content"]["meta"].get("test.status") == "fail"
+        assert efd_tests[1]["content"]["meta"].get("test.is_new") == "true"
+        assert efd_tests[1]["content"]["meta"].get("test.is_retry") == "true"
+        assert efd_tests[1]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
 
         [session_event] = event_capture.events_by_type("test_session_end")
         assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
 
         output = capsys.readouterr()
+        # Initial pass + 1 retry fail. Both are marked as "RETRY" in terminal output.
         assert output.out.count("test_foo.py::TestFlaky::test_new RETRY PASSED (Early Flake Detection)") == 1
-        assert output.out.count("test_foo.py::TestFlaky::test_new RETRY FAILED (Early Flake Detection)") == 10
+        assert output.out.count("test_foo.py::TestFlaky::test_new RETRY FAILED (Early Flake Detection)") == 1
         assert output.out.count("test_foo.py::TestFlaky::test_new FLAKY") == 1
         # Test failure is reported.
         assert output.out.count("FAILED test_foo.py::TestFlaky::test_new - assert 2 <= 1") == 1
@@ -331,12 +329,13 @@ class TestEFD:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "-v")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 1
         assert_stats(result, failed=1)
 
-        # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
+        # No early exit: test never passes, so all retries run.
+        # There should be events for 1 new test + 10 retries, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 14
 
         efd_tests = list(event_capture.events_by_test_name("TestFlaky::test_new"))
@@ -399,16 +398,16 @@ class TestEFD:
             setup_standard_mocks(),
         ):
             with EventCapture.capture() as event_capture:
-                result = pytester.inline_run("--ddtrace", "-v")
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
         assert_stats(result, flaky=1)
 
-        # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
-        assert len(list(event_capture.events())) == 14
+        # Early exit after skip→fail→pass: 1 new test + 2 retries, 1 suite, 1 module, 1 session
+        assert len(list(event_capture.events())) == 6
 
         efd_tests = list(event_capture.events_by_test_name("TestFlaky::test_new"))
-        assert len(efd_tests) == 11
+        assert len(efd_tests) == 3
 
         assert efd_tests[0]["content"]["meta"].get("test.status") == "skip"
         assert efd_tests[0]["content"]["meta"].get("test.is_new") == "true"
@@ -419,13 +418,10 @@ class TestEFD:
         assert efd_tests[1]["content"]["meta"].get("test.is_retry") == "true"
         assert efd_tests[1]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
 
-        for i in range(2, len(efd_tests)):
-            assert efd_tests[i]["content"]["meta"].get("test.status") == "pass"
-            assert efd_tests[i]["content"]["meta"].get("test.is_new") == "true"
-            assert efd_tests[i]["content"]["meta"].get("test.is_retry") == "true"
-            assert efd_tests[i]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
-
-        assert efd_tests[i]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
+        assert efd_tests[2]["content"]["meta"].get("test.status") == "pass"
+        assert efd_tests[2]["content"]["meta"].get("test.is_new") == "true"
+        assert efd_tests[2]["content"]["meta"].get("test.is_retry") == "true"
+        assert efd_tests[2]["content"]["meta"].get("test.retry_reason") == "early_flake_detection"
 
         [session_event] = event_capture.events_by_type("test_session_end")
         assert session_event["content"]["meta"].get("test.early_flake.abort_reason") is None
@@ -433,7 +429,7 @@ class TestEFD:
         output = capsys.readouterr()
         assert output.out.count("test_foo.py::TestFlaky::test_new RETRY SKIPPED (Early Flake Detection)") == 1
         assert output.out.count("test_foo.py::TestFlaky::test_new RETRY FAILED (Early Flake Detection)") == 1
-        assert output.out.count("test_foo.py::TestFlaky::test_new RETRY PASSED (Early Flake Detection)") == 9
+        assert output.out.count("test_foo.py::TestFlaky::test_new RETRY PASSED (Early Flake Detection)") == 1
         assert output.out.count("test_foo.py::TestFlaky::test_new FLAKY") == 1
         # Test failure is reported.
         assert output.out.count("FAILED test_foo.py::TestFlaky::test_new - assert False") == 1

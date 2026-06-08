@@ -5,6 +5,9 @@ import httpx
 import pytest
 import sqlalchemy
 import starlette
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from ddtrace.constants import ERROR_MSG
@@ -89,6 +92,23 @@ def snapshot_app_with_tracer(tracer, engine):
 def snapshot_client_with_tracer(snapshot_app_with_tracer):
     with TestClient(snapshot_app_with_tracer) as test_client:
         yield test_client
+
+
+@pytest.mark.parametrize("middleware", [None, ()])
+def test_explicit_middleware_values(middleware, tracer, test_spans):
+    async def endpoint(request):
+        return PlainTextResponse("Success")
+
+    app = Starlette(routes=[Route("/", endpoint=endpoint)], middleware=middleware)
+
+    with TestClient(app) as client:
+        r = client.get("/")
+
+    assert r.status_code == 200
+    assert r.text == "Success"
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "GET /"
 
 
 def test_200(client, tracer, test_spans):
@@ -541,7 +561,7 @@ def test_background_task(snapshot_client_with_tracer, tracer, test_spans):
     # background task should link to the request span
     assert background_span
     assert background_span.parent_id is None
-    [link, *others] = [link for link in background_span._links if link.span_id == request_span.span_id]
+    [link, *others] = [link for link in background_span._get_links() if link.span_id == request_span.span_id]
     assert not others
     assert link.trace_id == request_span.trace_id
     assert link.span_id == request_span.span_id

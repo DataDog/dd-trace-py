@@ -27,6 +27,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
@@ -227,7 +228,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
     Extracts out a list of messages from a converse `content` field.
 
     `content` is a list of `ContentBlock` objects. Each `ContentBlock` object is a union type
-    of `text`, `toolUse`, amd more content types. We only support extracting out `text` and `toolUse`.
+    of `text`, `toolUse`, and more content types. We only support extracting out `text`,`toolUse`, and `toolResult`.
 
     For more info, see `ContentBlock` spec
     https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ContentBlock.html
@@ -273,6 +274,13 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
                         role="user",
                     )
                 )
+        elif (
+            content_block.get("guardContent")
+            and isinstance(content_block["guardContent"], dict)
+            and isinstance(content_block["guardContent"].get("text"), dict)
+            and isinstance(content_block["guardContent"]["text"].get("text"), str)
+        ):
+            content_blocks.append(content_block["guardContent"]["text"]["text"])
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
@@ -338,6 +346,8 @@ def openai_set_meta_tags_from_chat(
         raw_content = _get_attr(m, "content", "")
         if isinstance(raw_content, list):
             content = _extract_content_parts(raw_content)
+        elif raw_content is None:
+            content = ""
         else:
             content = str(raw_content)
         role = str(_get_attr(m, "role", ""))
@@ -347,13 +357,18 @@ def openai_set_meta_tags_from_chat(
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
+        pre_react_call_count = len(extracted_tool_calls)
         if role != "system":
             # ignore system messages as we may unintentionally parse instructions as tool calls
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span, is_input=True)
 
+        # True if a ReAct-style "Action:" call was parsed out of the content string above
+        react_appended = len(extracted_tool_calls) > pre_react_call_count
+
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
-            processed_message["content"] = ""  # reset content to empty string if tool calls present
+            if react_appended:
+                processed_message["content"] = ""  # only clear content if react tool calls present
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
             processed_message["content"] = ""  # reset content to empty string if tool results present
@@ -448,6 +463,7 @@ def _openai_extract_tool_calls_and_results_chat(
                         "trace_id": format_trace_id(llm_span.trace_id),
                         "span_id": str(llm_span.span_id),
                     },
+                    get_tool_version_from_llm_span(llm_span, tool_name),
                 ),
             )
         raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
@@ -540,6 +556,7 @@ def capture_plain_text_tool_usage(
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
                         },
+                        get_tool_version_from_llm_span(span, tool_name),
                     ),
                 )
     except Exception:
@@ -999,67 +1016,6 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
-# Maximum nesting depth allowed for a single tool schema
-MAX_TOOL_SCHEMA_DEPTH = 10
-
-
-def _tool_schema_depth(obj: Any) -> int:
-    """Return the maximum nesting depth of a tool schema object."""
-    max_depth = 0
-    stack = [(obj, 0)]
-    while stack:
-        node, depth = stack.pop()
-        if depth > max_depth:
-            max_depth = depth
-        if isinstance(node, dict):
-            for v in node.values():
-                stack.append((v, depth + 1))
-        elif isinstance(node, list):
-            for item in node:
-                stack.append((item, depth + 1))
-    return max_depth
-
-
-def _truncate_schema_to_depth(obj: Any, max_depth: int) -> Any:
-    """Return a copy of obj with any container fields beyond `max_depth` levels replaced with empty containers."""
-    if not isinstance(obj, (dict, list)):
-        return obj
-    root: Any = {} if isinstance(obj, dict) else []
-    stack = [(obj, root, max_depth)]
-    while stack:
-        source, dest, remaining = stack.pop()
-        items = source.items() if isinstance(source, dict) else enumerate(source)
-        for key, val in items:
-            if isinstance(val, (dict, list)):
-                child: Any = {} if isinstance(val, dict) else []
-                if isinstance(dest, list):
-                    dest.append(child)
-                else:
-                    dest[key] = child
-                if remaining > 1:
-                    stack.append((val, child, remaining - 1))
-            else:
-                if isinstance(dest, list):
-                    dest.append(val)
-                else:
-                    dest[key] = val
-    return root
-
-
-def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
-    """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
-    if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
-        logger.warning(
-            "LLMObs: truncating tool %r schema to %d levels of nesting because its depth exceeds "
-            "the maximum allowed. Deeply nested tool schemas are not yet supported. "
-            "LLMObs backend.",
-            name,
-            MAX_TOOL_SCHEMA_DEPTH,
-        )
-        return True
-    return False
-
-
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
@@ -1094,9 +1050,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
             tool_definition["schema"] = {}
-        schema = tool_definition.get("schema") or {}
-        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", schema):
-            tool_definition["schema"] = _truncate_schema_to_depth(schema, MAX_TOOL_SCHEMA_DEPTH)
         tool_definitions.append(tool_definition)
     return tool_definitions
 
@@ -1154,9 +1107,9 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
 def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
+    {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message: dict[str, Any] = {"content": "", "tool_calls": []}
+    message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -1168,6 +1121,9 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
             message["role"] = chunk.delta.role
         if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
+        chunk_reasoning = _get_attr(chunk.delta, "reasoning_content", "")
+        if chunk_reasoning:
+            message["reasoning_content"] += chunk_reasoning
         chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
@@ -1184,6 +1140,8 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
         message["tool_calls"].sort(key=lambda x: x.get("index", 0))
     else:
         message.pop("tool_calls", None)
+    if not message["reasoning_content"]:
+        message.pop("reasoning_content", None)
     message["content"] = message["content"].strip()
     return message
 

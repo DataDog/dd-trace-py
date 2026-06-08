@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import base64
 import logging
 import threading
 import typing as t
@@ -9,6 +10,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.http import Subdomain
+from ddtrace.testing.internal.offline_mode import write_payload_file
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import TestItem
 from ddtrace.testing.internal.test_data import TestModule
@@ -29,6 +31,38 @@ Event = dict[str, t.Any]
 TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
 EventSerializer = t.Callable[[TSerializable], Event]
+
+_MAX_META_TAG_VALUE_LENGTH = 5000
+
+
+def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
+    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
+
+
+def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
+    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+
+
+def _truncate_event_meta(event: Event) -> Event:
+    content = event.get("content")
+    if not isinstance(content, dict):
+        return event
+
+    meta = content.get("meta")
+    if not isinstance(meta, dict):
+        return event
+
+    return {
+        **event,
+        "content": {
+            **content,
+            "meta": _truncate_meta_string_values(meta),
+        },
+    }
+
+
+def _truncate_events_meta(events: list[Event]) -> list[Event]:
+    return [_truncate_event_meta(event) for event in events]
 
 
 class BaseWriter(ABC):
@@ -187,21 +221,27 @@ class BaseWriter(ABC):
 def _get_min_flush_events() -> t.Optional[int]:
     """Read the minimum number of buffered events before triggering an early flush.
 
-    Uses DD_TRACE_PARTIAL_FLUSH_MIN_SPANS for backwards compatibility with the
-    old CI Visibility plugin, which used the same env var (via the APM tracer's
-    SpanAggregator) to control how eagerly test events were sent.
+    Uses _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS (preferred) or DD_TRACE_PARTIAL_FLUSH_MIN_SPANS
+    (fallback, for backwards compatibility with the old CI Visibility plugin, which used
+    the same env var via the APM tracer's SpanAggregator) to control how eagerly test
+    events were sent. The private prefixed var avoids collisions with the tracer's own
+    handling of DD_TRACE_PARTIAL_FLUSH_MIN_SPANS.
 
     Returns None (the default) to disable threshold-based flushing — events are
     only sent on the 60-second periodic timer or on shutdown.
     """
-    raw = env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS")
+    raw = env.get("_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS", env.get("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS"))
     if raw is None:
         return None
     try:
         value = int(raw)
         return value if value > 0 else None
     except (ValueError, TypeError):
-        log.warning("Invalid value for DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r; threshold-based flushing disabled", raw)
+        log.warning(
+            "Invalid value for _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS / DD_TRACE_PARTIAL_FLUSH_MIN_SPANS: %r;"
+            " threshold-based flushing disabled",
+            raw,
+        )
         return None
 
 
@@ -247,13 +287,15 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _encode_events(self, events: list[Event]) -> bytes:
-        payload = {
+    def _test_cycle_payload(self, events: list[Event]) -> Event:
+        return {
             "version": 1,
-            "metadata": self.metadata,
-            "events": events,
+            "metadata": _truncate_payload_metadata(self.metadata),
+            "events": _truncate_events_meta(events),
         }
-        return msgpack_packb(payload)
+
+    def _encode_events(self, events: list[Event]) -> bytes:
+        return msgpack_packb(self._test_cycle_payload(events))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
@@ -281,6 +323,28 @@ class TestOptWriter(BaseWriter):
             if result.error_type:
                 return False
 
+        return True
+
+
+class PayloadFileTestOptWriter(TestOptWriter):
+    """TestOptWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Filenames match Go's DDTestRunner
+    naming pattern.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload=self._test_cycle_payload(events),
+            kind="tests",
+        )
         return True
 
 
@@ -346,6 +410,43 @@ class TestCoverageWriter(BaseWriter):
             if result.error_type:
                 return False
 
+        return True
+
+
+class PayloadFileCoverageWriter(TestCoverageWriter):
+    """TestCoverageWriter variant that writes JSON payload files instead of HTTP.
+
+    Used in payload-files mode (Bazel). Coverage bitmaps (bytes) are
+    base64-encoded so they survive JSON serialization.
+    """
+
+    __test__ = False
+
+    def __init__(self, connector_setup: BackendConnectorSetup, output_dir: str) -> None:
+        super().__init__(connector_setup)
+        self._output_dir = output_dir
+
+    def _send_events(self, events: list[Event]) -> bool:
+        encoded_events = []
+        for event in events:
+            event_copy = dict(event)
+            if "files" in event_copy:
+                event_copy["files"] = [
+                    {
+                        **f,
+                        "bitmap": base64.b64encode(f["bitmap"]).decode("ascii")
+                        if isinstance(f.get("bitmap"), bytes)
+                        else f.get("bitmap"),
+                    }
+                    for f in event_copy["files"]
+                ]
+            encoded_events.append(event_copy)
+
+        write_payload_file(
+            output_dir=self._output_dir,
+            payload={"version": 2, "coverages": encoded_events},
+            kind="coverage",
+        )
         return True
 
 

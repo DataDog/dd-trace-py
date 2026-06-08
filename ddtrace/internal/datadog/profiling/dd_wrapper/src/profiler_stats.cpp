@@ -45,11 +45,11 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
-    string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
+    sample_capture_cpu_time_us = 0;
     // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
 }
 
@@ -102,18 +102,6 @@ Datadog::ProfilerStats::get_string_table_count() const
 }
 
 void
-Datadog::ProfilerStats::set_string_table_ephemeral_count(size_t count)
-{
-    string_table_ephemeral_count = count;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_ephemeral_count() const
-{
-    return string_table_ephemeral_count;
-}
-
-void
 Datadog::ProfilerStats::set_heap_tracker_size(size_t count)
 {
     heap_tracker_size = count;
@@ -149,6 +137,18 @@ Datadog::ProfilerStats::get_greenlet_count() const
     return greenlet_count;
 }
 
+void
+Datadog::ProfilerStats::add_sample_capture_cpu_time_us(size_t cpu_time_us)
+{
+    sample_capture_cpu_time_us += cpu_time_us;
+}
+
+size_t
+Datadog::ProfilerStats::get_sample_capture_cpu_time_us() const
+{
+    return sample_capture_cpu_time_us;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -168,13 +168,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_string_table_count) {
         internal_metadata_json += R"("string_table_count": )";
         append_to_string(internal_metadata_json, *maybe_string_table_count);
-        internal_metadata_json += ",";
-    }
-
-    auto maybe_string_table_ephemeral_count = get_string_table_ephemeral_count();
-    if (maybe_string_table_ephemeral_count) {
-        internal_metadata_json += R"("string_table_ephemeral_count": )";
-        append_to_string(internal_metadata_json, *maybe_string_table_ephemeral_count);
         internal_metadata_json += ",";
     }
 
@@ -216,6 +209,10 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("copy_memory_error_count": )";
     append_to_string(internal_metadata_json, copy_memory_error_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("sample_capture_cpu_time_us": )";
+    append_to_string(internal_metadata_json, sample_capture_cpu_time_us);
 
     internal_metadata_json += "}";
 

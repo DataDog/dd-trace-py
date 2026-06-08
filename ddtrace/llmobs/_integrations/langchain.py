@@ -28,6 +28,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -195,6 +196,34 @@ class LangChainIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_tool(span, tool_inputs=kwargs, tool_output=response)
         elif operation == "runnable_lambda":
             self._llmobs_set_meta_tags_from_runnable_lambda(span, args, kwargs, response)
+
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        span_kind_map = {
+            "llm": "llm",
+            "chat": "llm",
+            "chain": "workflow",
+            "embedding": "embedding",
+            "retrieval": "retrieval",
+            "tool": "tool",
+            "runnable_lambda": "workflow",
+        }
+        span_kind = span_kind_map.get(operation, "workflow")
+        metrics = {}
+        if operation in ("llm", "chat") and response is not None and not span.error:
+            input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(response)
+            if total_tokens > 0:
+                metrics = {
+                    INPUT_TOKENS_METRIC_KEY: input_tokens,
+                    OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                    TOTAL_TOKENS_METRIC_KEY: total_tokens,
+                }
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=span.get_tag(MODEL),
+            model_provider=span.get_tag(PROVIDER),
+        )
 
     def _set_links(self, span: Span) -> None:
         """
@@ -546,6 +575,7 @@ class LangChainIntegration(BaseLLMIntegration):
                                     "trace_id": format_trace_id(span.trace_id),
                                     "span_id": str(span.span_id),
                                 },
+                                get_tool_version_from_llm_span(span, tool_call.get("name", "")),
                             ),
                         )
                     if tool_calls_info:

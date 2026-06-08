@@ -2,23 +2,29 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
+from strands.hooks import AfterInvocationEvent
 from strands.hooks import AfterModelCallEvent
 from strands.hooks import AfterToolCallEvent
+from strands.hooks import BeforeInvocationEvent
 from strands.hooks import BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent
 from strands.hooks import HookRegistry
 from strands.interrupt import _InterruptState
 
+from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard.integrations.strands import _INVOCATION_CTX_KEY
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsPlugin
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
+from tests.appsec.ai_guard.strands_hooks.conftest import after_invocation_event
 from tests.appsec.ai_guard.strands_hooks.conftest import after_model_event
 from tests.appsec.ai_guard.strands_hooks.conftest import after_tool_event
+from tests.appsec.ai_guard.strands_hooks.conftest import before_invocation_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_model_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_tool_event
 from tests.appsec.ai_guard.strands_hooks.conftest import make_hook
@@ -574,9 +580,70 @@ class TestAfterToolCall:
         ]
 
 
-# ---------------------------------------------------------------------------
-# HookProvider: register_hooks (legacy API)
-# ---------------------------------------------------------------------------
+class TestInvocationLifecycle:
+    """The contextvar that gates provider-level integrations (OpenAI) is owned
+    by the invocation-level hooks, not the per-model hooks. This guarantees
+    OpenAI consistently skips while Strands owns the agent invocation.
+    """
+
+    def test_before_invocation_marks_context_active(self, ai_guard_strands_hook):
+        invocation_state = {}
+        event = before_invocation_event(invocation_state=invocation_state)
+
+        assert is_aiguard_context_active() is False
+        ai_guard_strands_hook._on_before_invocation_base(event)
+        try:
+            assert is_aiguard_context_active() is True
+            assert _INVOCATION_CTX_KEY in invocation_state
+        finally:
+            ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
+
+    def test_after_invocation_resets_context(self, ai_guard_strands_hook):
+        invocation_state = {}
+        ai_guard_strands_hook._on_before_invocation_base(before_invocation_event(invocation_state=invocation_state))
+        assert is_aiguard_context_active() is True
+
+        ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
+
+        assert is_aiguard_context_active() is False
+        assert _INVOCATION_CTX_KEY not in invocation_state
+
+    def test_after_invocation_without_before_is_noop(self, ai_guard_strands_hook):
+        # Should not raise even if BeforeInvocation never ran.
+        ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state={}))
+        assert is_aiguard_context_active() is False
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_model_call_hooks_do_not_touch_context(self, mock_execute_request, ai_guard_strands_hook):
+        """The per-model hooks must not set or reset the AI Guard context."""
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+        before_event = before_model_event(messages=[{"role": "user", "content": [{"text": "Hi"}]}])
+        ai_guard_strands_hook._on_before_model_call_base(before_event)
+        assert is_aiguard_context_active() is False
+
+        after_event = after_model_event(response_message={"role": "assistant", "content": [{"text": "Hello"}]})
+        ai_guard_strands_hook._on_after_model_call_base(after_event)
+        assert is_aiguard_context_active() is False
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_context_stays_active_when_model_call_blocks(self, mock_execute_request, ai_guard_strands_hook):
+        """If BeforeModelCall raises an abort, the context remains active until
+        AfterInvocation resets it (Strands fires AfterInvocation in `finally`).
+        """
+        invocation_state = {}
+        ai_guard_strands_hook._on_before_invocation_base(before_invocation_event(invocation_state=invocation_state))
+
+        mock_execute_request.return_value = mock_evaluate_response("DENY")
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_strands_hook._on_before_model_call_base(
+                before_model_event(messages=[{"role": "user", "content": [{"text": "bad"}]}])
+            )
+
+        assert is_aiguard_context_active() is True
+
+        ai_guard_strands_hook._on_after_invocation_base(after_invocation_event(invocation_state=invocation_state))
+        assert is_aiguard_context_active() is False
 
 
 class TestRegisterHooks:
@@ -591,6 +658,8 @@ class TestRegisterHooks:
         tool_use = {"toolUseId": "x", "name": "x", "input": {}}
         tool_result = {"toolUseId": "x", "content": [], "status": "success"}
         # Verify each event type has a registered callback
+        assert list(registry.get_callbacks_for(BeforeInvocationEvent(agent=mock_agent, invocation_state={})))
+        assert list(registry.get_callbacks_for(AfterInvocationEvent(agent=mock_agent, invocation_state={})))
         assert list(registry.get_callbacks_for(BeforeModelCallEvent(agent=mock_agent, invocation_state={})))
         assert list(registry.get_callbacks_for(AfterModelCallEvent(agent=mock_agent)))
         assert list(
@@ -631,6 +700,8 @@ class TestPluginHookDiscovery:
         assert AIGuardStrandsPlugin.name == "ai-guard"
 
     def test_plugin_has_hook_methods(self):
+        assert hasattr(AIGuardStrandsPlugin, "on_before_invocation")
+        assert hasattr(AIGuardStrandsPlugin, "on_after_invocation")
         assert hasattr(AIGuardStrandsPlugin, "on_before_model_call")
         assert hasattr(AIGuardStrandsPlugin, "on_after_model_call")
         assert hasattr(AIGuardStrandsPlugin, "on_before_tool_call")
@@ -638,7 +709,14 @@ class TestPluginHookDiscovery:
 
     def test_plugin_hook_methods_are_decorated(self):
         """Each hook method should be marked by the @hook decorator."""
-        for method_name in ("on_before_model_call", "on_after_model_call", "on_before_tool_call", "on_after_tool_call"):
+        for method_name in (
+            "on_before_invocation",
+            "on_after_invocation",
+            "on_before_model_call",
+            "on_after_model_call",
+            "on_before_tool_call",
+            "on_after_tool_call",
+        ):
             method = getattr(AIGuardStrandsPlugin, method_name)
             assert getattr(method, "_hook_event_types", None) is not None, (
                 f"{method_name} should be decorated with @hook"
@@ -730,6 +808,87 @@ class TestPluginHookDiscovery:
 
 
 # ---------------------------------------------------------------------------
+# APMSP-3088 regression: end-to-end @hook dispatch
+# ---------------------------------------------------------------------------
+
+
+class TestPluginEndToEndDispatch:
+    """APMSP-3088 regression: drive ``HookRegistry.invoke_callbacks`` to catch class-identity drift."""
+
+    HOOKS_TO_EVENTS = (
+        ("on_before_invocation", BeforeInvocationEvent),
+        ("on_after_invocation", AfterInvocationEvent),
+        ("on_before_model_call", BeforeModelCallEvent),
+        ("on_after_model_call", AfterModelCallEvent),
+        ("on_before_tool_call", BeforeToolCallEvent),
+        ("on_after_tool_call", AfterToolCallEvent),
+    )
+
+    @staticmethod
+    def _register_plugin_hooks(plugin):
+        registry = HookRegistry()
+        for callback in plugin.hooks:
+            for event_type in callback._hook_event_types:
+                registry.add_callback(event_type, callback)
+        return registry
+
+    def test_hook_event_types_match_public_strands_classes(self, ai_guard_strands_plugin):
+        for method_name, public_event_cls in self.HOOKS_TO_EVENTS:
+            method = getattr(ai_guard_strands_plugin, method_name)
+            event_types = getattr(method, "_hook_event_types", None)
+            assert event_types, f"{method_name} missing _hook_event_types"
+            # Identity (`is`), not equality: Strands keys the registry by class identity, so a
+            # stale duplicate of the event dataclass silently bypasses AI Guard (APMSP-3088).
+            assert event_types[0] is public_event_cls, (
+                f"{method_name} bound to {event_types[0]!r}, agent dispatches {public_event_cls!r}"
+            )
+
+    def test_plugin_discovers_hook_for_every_event(self, ai_guard_strands_plugin):
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+        for _, public_event_cls in self.HOOKS_TO_EVENTS:
+            assert registry._registered_callbacks.get(public_event_cls), (
+                f"No callback registered for {public_event_cls.__name__}"
+            )
+
+    @pytest.mark.parametrize(
+        "event_factory",
+        [
+            lambda: before_model_event(messages=[{"role": "user", "content": [{"text": "Hi"}]}]),
+            lambda: after_model_event(
+                response_message={"role": "assistant", "content": [{"text": "Answer"}]},
+            ),
+            lambda: before_tool_event(
+                tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+                messages=[],
+            ),
+            lambda: after_tool_event(
+                tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+                tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
+                messages=[],
+            ),
+        ],
+        ids=["before_model", "after_model", "before_tool", "after_tool"],
+    )
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_hook_fires_via_registry_dispatch(self, mock_execute_request, ai_guard_strands_plugin, event_factory):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+
+        registry.invoke_callbacks(event_factory())
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_before_model_call_blocks_via_registry_dispatch(self, mock_execute_request, ai_guard_strands_plugin):
+        mock_execute_request.return_value = mock_evaluate_response("DENY")
+        registry = self._register_plugin_hooks(ai_guard_strands_plugin)
+        event = before_model_event(messages=[{"role": "user", "content": [{"text": "bad"}]}])
+
+        with pytest.raises(AIGuardAbortError):
+            registry.invoke_callbacks(event)
+
+
+# ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
 
@@ -802,3 +961,69 @@ class TestConstructorParameters:
         plugin = make_plugin(detailed_error=True, raise_error_on_tool_calls=True)
         assert plugin._detailed_error is True
         assert plugin._raise_error_on_tool_calls is True
+
+
+# ---------------------------------------------------------------------------
+# Lazy-import regression
+# ---------------------------------------------------------------------------
+
+
+class TestLazyImport:
+    """Regression test: importing siblings of ``AIGuardStrandsPlugin`` from
+    ``ddtrace.appsec.ai_guard`` must not eagerly load the strands integration.
+
+    Eager loading binds ``BeforeModelCallEvent`` (and friends) to whatever
+    class object exists at that moment. Under ``ddtrace.auto`` the user's
+    later ``import strands`` re-instantiates the event dataclasses with new
+    class identities, leaving the plugin's @hook callbacks registered against
+    the wrong (stale) classes — so they never fire when the agent dispatches.
+    The integration must be loaded lazily, after the user has imported
+    ``strands`` themselves.
+    """
+
+    def test_ai_guard_abort_error_import_does_not_load_strands_integration(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys;"
+                    "from ddtrace.appsec.ai_guard import AIGuardAbortError;"
+                    "loaded = 'ddtrace.appsec.ai_guard.integrations.strands' in sys.modules;"
+                    "print('LOADED' if loaded else 'NOT_LOADED')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert "NOT_LOADED" in result.stdout, (
+            "Importing AIGuardAbortError must not eagerly load the strands integration. "
+            f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+        )
+
+    def test_strands_plugin_access_loads_integration(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys;"
+                    "from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin;"
+                    "assert AIGuardStrandsPlugin is not None;"
+                    "loaded = 'ddtrace.appsec.ai_guard.integrations.strands' in sys.modules;"
+                    "print('LOADED' if loaded else 'NOT_LOADED')"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert "LOADED" in result.stdout, (
+            "Accessing AIGuardStrandsPlugin must trigger the lazy import. "
+            f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+        )

@@ -305,6 +305,7 @@ class API_SECURITY(metaclass=Constant_Class):
     """constants related to API Security"""
 
     ENABLED: Literal["_dd.appsec.api_security.enabled"] = "_dd.appsec.api_security.enabled"
+    NORMALIZED_ROUTE: Literal["_dd.appsec.normalized_route"] = "_dd.appsec.normalized_route"
     ENV_VAR_ENABLED: Literal["DD_API_SECURITY_ENABLED"] = "DD_API_SECURITY_ENABLED"
     PARSE_RESPONSE_BODY: Literal["DD_API_SECURITY_PARSE_RESPONSE_BODY"] = "DD_API_SECURITY_PARSE_RESPONSE_BODY"
     REQUEST_HEADERS_NO_COOKIES: Literal["_dd.appsec.s.req.headers"] = "_dd.appsec.s.req.headers"
@@ -456,6 +457,23 @@ class AI_GUARD(metaclass=Constant_Class):
     TARGET_TAG: str = TAG + ".target"
     BLOCKED_TAG: str = TAG + ".blocked"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
+    EVENT_TAG: str = TAG + ".event"
+
+    # core-context key used to stash the candidate client IP during an HTTP request, so it can be
+    # applied to the service-entry span only if an ai_guard span is actually created.
+    CLIENT_IP_CORE_KEY: Literal["ai_guard.http.client_ip"] = "ai_guard.http.client_ip"
+
+    # Tags copied from the local root (service-entry) span to every AI Guard span with the
+    # `ai_guard.` prefix, so anomaly detection at intake can correlate without waiting for
+    # the service-entry span to arrive in the same trace chunk.
+    # Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6596165672
+    ANOMALY_DETECTION_TAGS: tuple = (
+        "http.useragent",
+        "http.client_ip",
+        "network.client.ip",
+        "usr.id",
+        "usr.session_id",
+    )
 
     # meta struct
     STRUCT: Literal["ai_guard"] = "ai_guard"
@@ -471,3 +489,9 @@ class AI_GUARD(metaclass=Constant_Class):
     ENV_MAX_CONTENT_SIZE: Literal["DD_AI_GUARD_MAX_CONTENT_SIZE"] = "DD_AI_GUARD_MAX_CONTENT_SIZE"
     ENV_MAX_MESSAGES_LENGTH: Literal["DD_AI_GUARD_MAX_MESSAGES_LENGTH"] = "DD_AI_GUARD_MAX_MESSAGES_LENGTH"
     ENV_TIMEOUT: Literal["DD_AI_GUARD_TIMEOUT"] = "DD_AI_GUARD_TIMEOUT"
+
+
+class SCA(metaclass=Constant_Class):
+    """SCA (Software Composition Analysis) related constants."""
+
+    ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"

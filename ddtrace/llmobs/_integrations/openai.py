@@ -3,12 +3,12 @@ from typing import Optional
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -68,10 +68,10 @@ class OpenAIIntegration(BaseLLMIntegration):
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
         base_url = None
-        if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
+        if span is not None:
+            base_url = span._get_ctx_item(REQUEST_BASE_URL)
+        if not base_url:
             base_url = getattr(self._client, "_base_url", None)
-        else:
-            base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
@@ -102,10 +102,18 @@ class OpenAIIntegration(BaseLLMIntegration):
             model_provider = "openai"
         elif self._is_provider(span, "deepseek"):
             model_provider = "deepseek"
+
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        provider = span.get_tag("openai.request.provider") or "OpenAI"
+        span_name = "{}.{}".format(provider, span.resource) if span.resource else None
         # Set kind before helpers so that input/output messages are routed correctly
         _annotate_llmobs_span_data(
-            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
+            span,
+            name=span_name,
+            kind=span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            metrics=metrics,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
@@ -159,6 +167,31 @@ class OpenAIIntegration(BaseLLMIntegration):
             input_value=safe_json(tool_arguments) if tool_arguments is not None else "",
             output_value=safe_json(response) if response is not None else "",
             metadata={"tool_id": tool_id},
+        )
+
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        span_kind = (
+            "workflow"
+            if span._get_ctx_item(PROXY_REQUEST)
+            else "llm"
+            if operation in OPENAI_LLM_OPERATIONS
+            else operation
+        )
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        model_provider = UNKNOWN_MODEL_PROVIDER
+        if self._is_provider(span, "azure"):
+            model_provider = "azure_openai"
+        elif self._is_provider(span, "openai"):
+            model_provider = "openai"
+        elif self._is_provider(span, "deepseek"):
+            model_provider = "deepseek"
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
         )
 
     @staticmethod

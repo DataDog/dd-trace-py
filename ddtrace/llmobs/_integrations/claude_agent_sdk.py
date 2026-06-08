@@ -1,6 +1,8 @@
 from typing import Any
 from typing import Optional
 
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -26,6 +28,9 @@ _CONTEXT_EXCLUDED_SECTIONS = {"Free space", "Autocompact buffer"}
 
 class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     _integration_name = "claude_agent_sdk"
+    # span_link emission lives in ddtrace/contrib/internal/claude_agent_sdk/_streaming.py
+    # because links are driven by SDK stream events (AssistantMessage / UserMessage / etc.)
+    # processed in the per-invocation ClaudeAgentSdkAsyncStreamHandler.
 
     def _llmobs_set_tags(
         self,
@@ -37,8 +42,64 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     ) -> None:
         if operation == "tool":
             self._llmobs_set_tool_tags(span, kwargs)
+        elif operation in ("llm", "step"):
+            self._llmobs_set_llm_tags(span, response, kwargs, kind=operation)
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
+
+    _APM_SHADOW_SPAN_KIND_BY_OPERATION = {"tool": "tool", "step": "step", "llm": "llm"}
+
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        span_kind = self._APM_SHADOW_SPAN_KIND_BY_OPERATION.get(operation, "agent")
+        metrics: dict[str, int] = {}
+        model_name = None
+        model_provider = None
+        if span_kind == "llm":
+            model_provider = "anthropic"
+            if response is not None:
+                model_name = _get_attr(response, "model", None)
+                if _get_attr(response, "usage", None):
+                    metrics = self._extract_usage(response)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+        )
+
+    def extract_llm_input_messages(self, args: list, kwargs: dict, span: Span) -> list[Message]:
+        """Return the user prompt as input messages for the first LLM span."""
+        if not self.llmobs_enabled:
+            return []
+        return self._extract_input_messages(get_argument_value(args, kwargs, 0, "prompt", optional=True) or "", span)
+
+    def _llmobs_set_llm_tags(
+        self, span: Span, response: Optional[Any], kwargs: Optional[dict[str, Any]] = None, kind: str = "llm"
+    ) -> None:
+        model = (_get_attr(response, "model", "") or "") if response is not None else ""
+        output_messages: list[Message] = []
+        metrics: dict[str, int] = {}
+        if response is not None:
+            content = _get_attr(response, "content", []) or []
+            output_messages = self.parse_content_blocks("assistant", content)
+            if _get_attr(response, "usage", None):
+                metrics = self._extract_usage(response)
+            error_type, error_message = self._extract_assistant_error(response)
+            if error_type:
+                span.error = 1
+                span.set_tag(ERROR_TYPE, error_type)
+                span.set_tag(ERROR_MSG, error_message)
+        input_messages: list[Message] = (kwargs or {}).get("input_messages") or []
+        _annotate_llmobs_span_data(
+            span,
+            kind=kind,
+            model_name=model if kind == "llm" else None,
+            model_provider="anthropic" if kind == "llm" else None,
+            input_messages=input_messages or None,
+            output_messages=output_messages or [Message(content="")],
+            metrics=metrics or None,
+        )
 
     def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
         tool_input = kwargs.get("tool_input", {})
@@ -67,9 +128,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         if not span.error and response is not None:
-            output_messages, metrics, init_system_message, stop_reason = self._extract_output_data(response)
+            output_messages, metrics, init_system_message, stop_reason, assistant_error = self._extract_output_data(
+                response
+            )
             if stop_reason:
                 metadata["stop_reason"] = stop_reason
+            error_type, error_message = assistant_error
+            if error_type:
+                span.error = 1
+                span.set_tag(ERROR_TYPE, error_type)
+                span.set_tag(ERROR_MSG, error_message)
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
@@ -121,10 +189,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return [Message(content="", role="user")]
 
-    def _parse_content_blocks(self, content: Any, role: str) -> list[Message]:
+    def parse_content_blocks(self, role: str, content: Any) -> list[Message]:
         """Parses content which can be a string or a list of content blocks
         (TextBlock, ToolUseBlock, etc.) into a list of messages.
         """
+        if not self.llmobs_enabled:
+            return []
         messages: list[Message] = []
 
         if isinstance(content, str):
@@ -169,23 +239,28 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any], str]:
+    def _extract_output_data(
+        self, response: Any
+    ) -> tuple[list[Message], dict[str, int], dict[str, Any], str, tuple[str, str]]:
         """Extract output data from response, including output messages, usage metrics, init system message,
-        and stop reason.
+        stop reason, and assistant error as a (error_type, error_message) tuple.
         """
         output_messages: list[Message] = []
         metrics: dict[str, int] = {}
         init_system_message: dict[str, Any] = {}
         stop_reason: str = ""
+        assistant_error: tuple[str, str] = ("", "")
 
         if not response or not isinstance(response, list):
-            return [Message(content="")], metrics, init_system_message, stop_reason
+            return [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
 
         for msg in response:
             msg_type = type(msg).__name__
             if msg_type == "AssistantMessage":
                 content = _get_attr(msg, "content", []) or []
-                output_messages.extend(self._parse_content_blocks(content, "assistant"))
+                output_messages.extend(self.parse_content_blocks("assistant", content))
+                if not assistant_error[0]:
+                    assistant_error = self._extract_assistant_error(msg)
             elif msg_type == "SystemMessage":
                 data = _get_attr(msg, "data", {}) or {}
                 if data:
@@ -194,12 +269,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     output_messages.append(Message(content=content, role="system"))
             elif msg_type == "UserMessage":
                 content = _get_attr(msg, "content", "") or ""
-                output_messages.extend(self._parse_content_blocks(content, "user"))
+                output_messages.extend(self.parse_content_blocks("user", content))
             elif msg_type == "ResultMessage":
                 if not stop_reason:
                     stop_reason = _get_attr(msg, "stop_reason", "") or ""
                 if not metrics:
-                    metrics = self._extract_result_message(msg)
+                    metrics = self._extract_usage(msg)
                 result = _get_attr(msg, "result", "") or ""
                 if result:
                     output_messages.append(Message(content=str(result), role="assistant"))
@@ -209,9 +284,34 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                         Message(content=safe_json(structured_output) or str(structured_output), role="assistant")
                     )
 
-        return output_messages or [Message(content="")], metrics, init_system_message, stop_reason
+        return output_messages or [Message(content="")], metrics, init_system_message, stop_reason, assistant_error
 
-    def _extract_result_message(self, message: Any) -> dict[str, int]:
+    def _extract_assistant_error(self, msg: Any) -> tuple[str, str]:
+        """Return (error_type, error_message) for an AssistantMessage carrying an error.
+
+        The SDK's ``AssistantMessage.error`` is a coarse category literal (e.g. "unknown",
+        "invalid_request", "rate_limit") with no structured payload — the descriptive
+        message, such as the raw ``API Error: {...}`` text returned by the API, lives in
+        the message's ``TextBlock`` content instead. We keep the category as the error type
+        and surface that content text as the error message, falling back to the category
+        when no text content is present.
+        """
+        error = _get_attr(msg, "error", None)
+        if not error:
+            return "", ""
+        error_type = str(error)
+        content = _get_attr(msg, "content", []) or []
+        text_parts: list[str] = []
+        if isinstance(content, list):
+            for block in content:
+                if type(block).__name__ == "TextBlock":
+                    text = _get_attr(block, "text", "") or ""
+                    if text:
+                        text_parts.append(str(text))
+        error_message = "\n".join(text_parts) or error_type
+        return error_type, error_message
+
+    def _extract_usage(self, message: Any) -> dict[str, int]:
         metrics: dict[str, int] = {}
         usage = _get_attr(message, "usage", None) or {}
         if usage and isinstance(usage, dict):

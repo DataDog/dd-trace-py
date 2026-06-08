@@ -20,6 +20,15 @@ from ddtrace.internal.uwsgi import uWSGIMasterProcess
 
 log = get_logger(__name__)
 
+# The ddtrace.products entry-point group is currently internal-only. We reject
+# plugins from any distribution other than "ddtrace" to prevent supply-chain
+# attacks where a malicious third-party package registers a plugin that would be
+# automatically loaded into every instrumented process.
+# Distribution names are matched exactly (case-insensitively); module paths are
+# matched as prefixes so all ddtrace.* submodules are covered.
+_TRUSTED_PRODUCT_DISTRIBUTIONS = frozenset({"ddtrace"})
+_TRUSTED_PRODUCT_MODULE_PREFIXES = frozenset({"ddtrace."})
+
 
 if sys.version_info >= (3, 10):
 
@@ -57,6 +66,37 @@ class ProductManager:
         for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
+
+            # Check both the distribution name and the entry point module path. The
+            # distribution name check is a fast first filter, but it is self-declared
+            # and can be spoofed. The module path check is the stronger guard: a
+            # plugin whose code does not live under the ddtrace namespace cannot be
+            # part of the trusted ddtrace package.
+            module_path, _, _ = product_plugin.value.partition(":")
+            # dist may be absent on Python < 3.10 with the legacy entry_points() API;
+            # in that case skip the dist check and rely solely on the module path. A
+            # dist name that is explicitly None (malformed metadata) is treated as
+            # untrusted.
+            dist = getattr(product_plugin, "dist", None)
+            # Three cases:
+            #  - dist attribute absent (Python < 3.10): no dist info, skip dist check
+            #  - dist is None: no dist info available, skip dist check
+            #  - dist present and not None: check Name; None Name means malformed metadata → reject
+            dist_name: t.Optional[str] = None
+            if not hasattr(product_plugin, "dist") or dist is None:
+                trusted_dist = True
+            else:
+                dist_name = dist.metadata["Name"]
+                trusted_dist = dist_name is not None and dist_name.lower() in _TRUSTED_PRODUCT_DISTRIBUTIONS
+            trusted_module = any(module_path.startswith(p) for p in _TRUSTED_PRODUCT_MODULE_PREFIXES)
+            if not (trusted_dist and trusted_module):
+                log.warning(
+                    "Refusing to load product plugin '%s' from untrusted distribution '%s' (module: %s)",
+                    name,
+                    dist_name,
+                    module_path,
+                )
+                continue
 
             # Load the product protocol object
             try:
@@ -191,7 +231,10 @@ class ProductManager:
                 product.stop(join=join)
                 log.debug("Stopped product '%s' on exit", name)
             except Exception:
-                log.exception("Failed to stop product '%s' on exit", name)
+                try:
+                    log.exception("Failed to stop product '%s' on exit", name)
+                except Exception:  # nosec: B110
+                    pass
 
     def post_preload_products(self) -> None:
         for name, product in self.products:

@@ -1,47 +1,37 @@
 import importlib
 import os
+from unittest import mock
 
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_core_patch
 from ddtrace.contrib.internal.langchain.patch import unpatch as langchain_core_unpatch
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from ddtrace.llmobs import LLMObs
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def llmobs_env():
-    return {
-        "DD_API_KEY": "<default-not-a-real-key>",
-        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-    }
+def langchain_llmobs(tracer, monkeypatch):
+    """Enable LLMObs with langchain-specific config (instrumented proxy URLs).
 
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs(
-    tracer,
-    llmobs_span_writer,
-):
+    The langchain integration reads ``_llmobs_instrumented_proxy_urls`` to
+    decide whether a request goes through an instrumented proxy
+    (-> workflow span) or directly to the model (-> llm span).
+    """
+    LLMObs.disable()
     with override_global_config(
-        dict(_dd_api_key="<not-a-real-key>", _llmobs_instrumented_proxy_urls="http://localhost:4000")
+        {
+            "_dd_api_key": "<not-a-real-key>",
+            "_llmobs_instrumented_proxy_urls": "http://localhost:4000",
+        }
     ):
-        llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-        llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_events(llmobs, llmobs_span_writer):
-    yield llmobs_span_writer.events
+        LLMObs.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        yield LLMObs
+    LLMObs.disable()
 
 
 # scoping this fixture to "module" overcomes issues with patching ABC embeddings/vectorstore classes
@@ -56,6 +46,7 @@ def langchain_core():
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "<not-a-real-key>"),
         )
     ):
         langchain_core_patch()
@@ -107,6 +98,16 @@ def langchain_anthropic(langchain_core):
         import langchain_anthropic
 
         yield langchain_anthropic
+    except ImportError:
+        yield
+
+
+@pytest.fixture
+def langchain_google_genai(langchain_core):
+    try:
+        import langchain_google_genai
+
+        yield langchain_google_genai
     except ImportError:
         yield
 

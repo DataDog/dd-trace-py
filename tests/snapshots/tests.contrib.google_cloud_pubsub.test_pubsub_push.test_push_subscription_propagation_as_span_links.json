@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c26abe00000000",
+      "_dd.p.tid": "69f39b5f00000000",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "language": "python",
-      "runtime-id": "042e3fd34c5b47948df34186f82057f2"
+      "runtime-id": "a6de0570d7274e9fac5a4d12cd765c61"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 55366.0
     },
-    "duration": 784875,
-    "start": 1774348990980458967
+    "duration": 137541,
+    "start": 1777572703149001471
   }],
 [
   {
@@ -36,8 +36,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69c26abe00000000",
-      "_dd.span_links": "[{\"trace_id\": \"69c26abe0000000090976135946adddb\", \"span_id\": \"28cc28baaa2379c2\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69c26abe00000000\", \"flags\": 1}]",
+      "_dd.p.tid": "69f39b5f00000000",
+      "_dd.span_links": "[{\"trace_id\": \"69f39b5f000000001fab181a6a6bd1a6\", \"span_id\": \"8538fe555365d5ca\", \"tracestate\": \"dd=s:1;t.dm:-0;t.tid:69f39b5f00000000\", \"flags\": 1}]",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.google_cloud_pubsub",
       "component": "google_cloud_pubsub",
       "gcloud.project_id": "test-project",
@@ -47,7 +48,7 @@
       "messaging.message_id": "12345",
       "messaging.operation": "receive",
       "messaging.system": "pubsub",
-      "runtime-id": "042e3fd34c5b47948df34186f82057f2",
+      "runtime-id": "a6de0570d7274e9fac5a4d12cd765c61",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -56,10 +57,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 55366.0
     },
-    "duration": 1002333,
-    "start": 1774348990982825717
+    "duration": 383584,
+    "start": 1777572703149801762
   },
      {
        "name": "falcon.request",
@@ -72,6 +73,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.google_cloud_pubsub",
+         "_dd.svc_src": "m",
          "component": "falcon",
          "http.method": "POST",
          "http.route": "/push",
@@ -83,6 +85,6 @@
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0
        },
-       "duration": 690083,
-       "start": 1774348990983113092
+       "duration": 282042,
+       "start": 1777572703149883929
      }]]

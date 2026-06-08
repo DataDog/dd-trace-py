@@ -22,11 +22,13 @@ DI_PRODUCT_KEY = "dynamic-instrumentation"
 
 # We need to instrument the entrypoints on boot because this is the only
 # time the tracer will notify us of entrypoints being registered.
-@partial(core.on, "service_entrypoint.patch")
-def _(f: t.Union[FunctionType, MethodType]) -> None:
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+for core_event in ("service_entrypoint.patch", "tracer.wrap"):
 
-    SpanCodeOriginProcessorEntry.instrument_view(f)
+    @partial(core.on, core_event)
+    def _(f: t.Union[FunctionType, MethodType]) -> None:
+        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
+        SpanCodeOriginProcessorEntry.instrument_view(f)
 
 
 def post_preload() -> None:

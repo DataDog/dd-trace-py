@@ -461,6 +461,24 @@ def test_ddtrace_re_module():
     )
 
 
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_reprlib_get_ident_picklable():
+    import pickle
+    import reprlib
+
+    assert pickle.dumps(reprlib.get_ident)
+
+
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))
+def test_ddtrace_auto_reprlib_get_ident_picklable():
+    import ddtrace.auto  # noqa
+
+    import pickle
+    import reprlib
+
+    assert pickle.dumps(reprlib.get_ident)
+
+
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_ddtrace_run_sitecustomize():
     """When using ddtrace-run we ensure ddtrace.bootstrap.sitecustomize is in sys.module cache"""
@@ -548,3 +566,37 @@ def test_ddtrace_auto_atexit():
 
     assert registered_funcs, "No registered functions"
     assert unregistered_funcs, "No unregistered functions"
+
+
+# Python 3.14 re-raises SIGINT after an uncaught KeyboardInterrupt escapes __main__,
+# so the process exits with signal -2 instead of status 1 (see CPython gh-118260).
+@pytest.mark.subprocess(ddtrace_run=True, status=(1, -2), err=lambda s: "wrap_signals" not in s)
+def test_ddtrace_run_asyncio_sigint():
+    """ddtrace-run should not cause asyncio.run() to produce a traceback on keyboard interrupt."""
+    import asyncio
+    import os
+    import signal
+
+    async def main():
+        asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+        await asyncio.sleep(10)
+
+    asyncio.run(main())
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    status=(1, -2),
+    err=lambda s: "wrap_signals" not in s and "KeyboardInterrupt" in s,
+)
+def test_ddtrace_run_sync_sigint():
+    """ddtrace-run must not swallow SIGINT in plain synchronous code: KeyboardInterrupt should
+    surface normally without a ddtrace-internal `wrap_signals` traceback.
+    """
+    import os
+    import signal
+    import threading
+    import time
+
+    threading.Timer(0.1, lambda: os.kill(os.getpid(), signal.SIGINT)).start()
+    time.sleep(10)

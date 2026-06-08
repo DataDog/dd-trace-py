@@ -10,9 +10,9 @@ import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
-from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import SPAN_ENDPOINT as LLMOBS_SPAN_ENDPOINT
-from tests.llmobs._utils import TestLLMObsSpanWriter
+from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
 
@@ -51,25 +51,24 @@ def mcp_setup():
 
 
 @pytest.fixture
-def mcp_llmobs(tracer, llmobs_span_writer):
-    llmobs_service.disable()
+def ddtrace_global_config():
+    return {}
+
+
+@pytest.fixture
+def mcp_llmobs(tracer, monkeypatch):
+    LLMObs.disable()
     with override_global_config(
-        {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "mcptest"}
+        {
+            "_llmobs_ml_app": "<ml-app-name>",
+            "_dd_api_key": "<not-a-real-key>",
+            "service": "mcptest",
+        }
     ):
-        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
-        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
-        yield llmobs_service
-    llmobs_service.disable()
-
-
-@pytest.fixture
-def llmobs_span_writer():
-    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
-
-
-@pytest.fixture
-def llmobs_events(mcp_llmobs, llmobs_span_writer):
-    return llmobs_span_writer.events
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
+        install_mock_llmobs_writer(tracer)
+        yield LLMObs
+    LLMObs.disable()
 
 
 @pytest.fixture

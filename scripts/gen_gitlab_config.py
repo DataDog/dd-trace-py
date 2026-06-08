@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.21.0",
+#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -414,6 +414,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
 def _filter_benchmarks_slos_file(classnames: list) -> None:
     in_scenario_to_keep = True
     new_contents = []
+    kept_scenarios = 0
     contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
 
     for line in contents.split("\n")[1:]:
@@ -422,12 +423,16 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
             class_on_line = match.group(1)
             if class_on_line in classnames:
                 in_scenario_to_keep = True
+                kept_scenarios += 1
             else:
                 in_scenario_to_keep = False
         if line.strip().startswith("#"):
             in_scenario_to_keep = False
         if in_scenario_to_keep:
             new_contents.append(line)
+
+    if kept_scenarios == 0:
+        new_contents[-1] = "scenarios: []"
 
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
@@ -589,33 +594,33 @@ def gen_pre_checks() -> None:
 
     check(
         name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        command="scripts/lint style",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h", "scripts/lint"},
     )
     check(
         name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        command="scripts/lint typing",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini", "scripts/lint"},
     )
     check(
         name="Spelling",
-        command="hatch run lint:spelling",
+        command="scripts/lint spelling",
         paths={"*"},
     )
     check(
         name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
+        command="scripts/lint security",
+        paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
+        command="scripts/lint riot",
+        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
+        paths={"docker*", "tests/snapshots/*", "scripts/lint"},
     )
     check(
         name="Run scripts/*.py tests",
@@ -624,13 +629,13 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        command="scripts/lint suitespec-check",
         paths={"*"},
     )
     check(
         name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
-        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+        command="scripts/lint error-log-check",
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
         name="Check project dependencies",
@@ -649,8 +654,8 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Hook tests",
-        command="scripts/run-hook-tests",
-        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+        command="scripts/lint hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
     if not checks:
         return
@@ -696,7 +701,7 @@ def gen_cached_testrunner() -> None:
         f.write(
             template(
                 "cached-testrunner",
-                current_month=datetime.datetime.now().month,
+                current_week=datetime.datetime.now().isocalendar().week,
                 testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )

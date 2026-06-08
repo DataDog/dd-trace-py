@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import current_thread
 from time import monotonic_ns
-from types import FrameType
 from types import FunctionType
 from types import MethodType
 import typing as t
@@ -21,18 +20,11 @@ from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.threads import Lock
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
 log = get_logger(__name__)
-
-
-def frame_stack(frame: FrameType) -> t.Iterator[FrameType]:
-    _frame: t.Optional[FrameType] = frame
-    while _frame is not None:
-        yield _frame
-        _frame = _frame.f_back
 
 
 @dataclass
@@ -104,7 +96,11 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             root = ddtrace.tracer.current_root_span()
             span = ddtrace.tracer.current_span()
             location = self.location
-            if root is None or span is None or root.get_tag("_dd.entry_location.file") is not None:
+            if root is None or span is None or root.get_tag("_dd.code_origin.type") == "entry":
+                # If the root span already has entry location tags, it means
+                # another entry span wrapping context has already been entered
+                # upstream, so we skip adding code origin tags to avoid
+                # overwriting the original entry point information
                 return self
 
             # Add tags to the local root
@@ -178,8 +174,8 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: list = []
-    _lock = Lock()
+    _pending: list[t.Union[FunctionType, MethodType]] = []
+    _lock = RLock()
 
     @classmethod
     def instrument_view(cls, f: t.Union[FunctionType, MethodType]) -> None:

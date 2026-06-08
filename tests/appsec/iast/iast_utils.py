@@ -3,7 +3,6 @@ import json
 import re
 import types
 from typing import Any
-from typing import Optional
 from typing import Text
 from typing import Union
 import zlib
@@ -37,7 +36,7 @@ class IastTestException(Exception):
     pass
 
 
-def get_line(label: Text, filename: Optional[Text] = None):
+def get_line(label: Text, filename: Text):
     """get the line number after the label comment in source file `filename`"""
     with open(filename, "r") as file_in:
         for nb_line, line in enumerate(file_in):
@@ -46,7 +45,7 @@ def get_line(label: Text, filename: Optional[Text] = None):
     raise AssertionError("label %s not found" % label)
 
 
-def get_line_and_hash(label: Text, vuln_type: Text, filename=None, fixed_line=None):
+def get_line_and_hash(label: Text, vuln_type: Text, filename, fixed_line=None):
     """return the line number and the associated vulnerability hash for `label` and source file `filename`"""
 
     if fixed_line is not None:

@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import functools
 import inspect
 from inspect import iscoroutinefunction
+from inspect import unwrap
 from itertools import chain
 import logging
 import os
@@ -218,11 +219,14 @@ class Tracer(object):
 
     def _atexit(self) -> None:
         key = "ctrl-break" if os.name == "nt" else "ctrl-c"
-        log.debug(
-            "Waiting %d seconds for tracer to finish. Hit %s to quit.",
-            self.SHUTDOWN_TIMEOUT,
-            key,
-        )
+        try:
+            log.debug(
+                "Waiting %d seconds for tracer to finish. Hit %s to quit.",
+                self.SHUTDOWN_TIMEOUT,
+                key,
+            )
+        except Exception:  # nosec: B110
+            pass
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
@@ -395,6 +399,10 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+        # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
+        active = self.context_provider.active()
+        if active is not None:
+            core.dispatch("ddtrace.context_provider.activate", (active,))
 
     def _recreate(
         self,
@@ -402,6 +410,7 @@ class Tracer(object):
         compute_stats_enabled: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
@@ -412,6 +421,7 @@ class Tracer(object):
             compute_stats=compute_stats_enabled,
             apm_opt_out=apm_opt_out,
             appsec_enabled=appsec_enabled,
+            llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
         )
         self._span_processors = _default_span_processors_factory(
@@ -506,9 +516,12 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                service = service_source = config.service
+                service = config.service
         else:
-            service_source = "m"
+            if service in config._integration_default_services:
+                service_source = service
+            else:
+                service_source = "m"
 
         # Update the service name based on any mapping
         if service is not None:
@@ -898,6 +911,8 @@ class Tracer(object):
                     # otherwise fallback to a default tracing
                     with self.trace(span_name, service=service, resource=resource, span_type=span_type):
                         return f(*args, **kwargs)
+
+            core.dispatch("tracer.wrap", (unwrap(f),))
 
             return func_wrapper
 

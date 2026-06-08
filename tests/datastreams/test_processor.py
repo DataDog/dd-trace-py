@@ -1,4 +1,5 @@
 import gzip
+import logging
 import os
 import time
 
@@ -25,6 +26,18 @@ def _decode_datastreams_payload(payload):
     return decoded
 
 
+def _ignore_dsm_flush_err(stderr):
+    # DSM flushes on atexit; in CI the test agent may reject the payload, which
+    # logs an error to stderr. Tests that don't exercise the flush path should ignore it.
+    for line in stderr.splitlines():
+        if not line.strip():
+            continue
+        if "failed to send data stream stats payload" in line:
+            continue
+        return False
+    return True
+
+
 def test_periodic_payload_process_tags():
     processor = DataStreamsProcessor("http://localhost:8126")
     try:
@@ -47,6 +60,41 @@ def test_periodic_payload_process_tags():
         processor.join()
 
 
+def test_periodic_logs_warning_on_flush_failure(caplog):
+    # AIDEV-NOTE: DSMS-144 — when retry-budget is exhausted, the customer-facing log
+    # must (a) be WARNING (not ERROR) so it doesn't trip alerting on benign flush
+    # failures, (b) preserve the leading phrase for customers' existing log-based
+    # alerts, (c) explain impact, (d) include the exception cause inline for triage,
+    # and (e) NOT include a multi-line traceback (which is what made the original
+    # ERROR-level message look like a crash).
+    processor = DataStreamsProcessor("http://localhost:8126")
+    try:
+        with mock.patch.object(
+            processor,
+            "_flush_stats_with_backoff",
+            side_effect=TimeoutError("timed out"),
+        ):
+            processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], 1642544540, 1, 1)
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.datastreams.processor"):
+                processor.periodic()
+
+        warning_records = [
+            r
+            for r in caplog.records
+            if r.levelno == logging.WARNING and r.name == "ddtrace.internal.datastreams.processor"
+        ]
+
+        assert len(warning_records) == 1
+        msg = warning_records[0].getMessage()
+        assert "retry limit exceeded submitting pathway stats" in msg
+        assert "last 10 seconds of DSM data is dropped" in msg
+        assert "timed out" in msg
+        assert warning_records[0].exc_info is None
+    finally:
+        processor.stop()
+        processor.join()
+
+
 def test_data_streams_processor():
     now = time.time()
     processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:topicA", "type:kafka"], now, 1, 1)
@@ -61,7 +109,7 @@ def test_data_streams_processor():
     assert processor._buckets[bucket_time_ns].pathway_stats[aggr_key_2].full_pathway_latency.count == 1
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_container_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from ddtrace.internal.process_tags import compute_base_hash
@@ -81,7 +129,7 @@ def test_new_pathway_uses_container_tags_hash():
     assert hash_without_base != hash_with_base
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=_ignore_dsm_flush_err)
 def test_new_pathway_uses_process_tags_hash_without_compute_base_hash():
     from ddtrace.internal import process_tags
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
@@ -242,6 +290,65 @@ run_test()
     env["DD_DATA_STREAMS_ENABLED"] = "True"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
     assert out.decode().strip() == "Fake flush called"
+
+
+def test_processor_flushes_on_sigint(ddtrace_run_python_code_in_subprocess):
+    """DataStreamsProcessor must flush on SIGINT without producing a ddtrace traceback."""
+    code = """
+import os
+import signal
+import time
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called", flush=True)
+
+processor = DataStreamsProcessor("http://localhost:8126")
+processor._flush_stats_with_backoff = fake_flush
+now = time.time()
+processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:test", "type:kafka"], now, 1, 1)
+os.kill(os.getpid(), signal.SIGINT)
+"""
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode()
+    assert b"wrap_signals" not in err
+
+
+def test_processor_flushes_on_sigint_asyncio(ddtrace_run_python_code_in_subprocess):
+    """DataStreamsProcessor must flush via atexit when SIGINT interrupts asyncio.run().
+
+    Under asyncio.Runner, SIGINT is consumed by asyncio's own handler rather than
+    Python's default_int_handler, so the flush relies on the atexit.register hook
+    added alongside register_on_exit_signal.
+    """
+    code = """
+import asyncio
+import os
+import signal
+import time
+from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+
+def fake_flush(*args, **kwargs):
+    print("Fake flush called", flush=True)
+
+processor = DataStreamsProcessor("http://localhost:8126")
+processor._flush_stats_with_backoff = fake_flush
+now = time.time()
+processor.on_checkpoint_creation(1, 2, ["direction:out", "topic:test", "type:kafka"], now, 1, 1)
+
+async def main():
+    asyncio.get_event_loop().call_later(0.1, os.kill, os.getpid(), signal.SIGINT)
+    await asyncio.sleep(10)
+
+asyncio.run(main())
+"""
+    env = os.environ.copy()
+    env["DD_DATA_STREAMS_ENABLED"] = "True"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env, timeout=5)
+    assert "Fake flush called" in out.decode()
+    assert b"wrap_signals" not in err
 
 
 def test_threaded_import(ddtrace_run_python_code_in_subprocess):

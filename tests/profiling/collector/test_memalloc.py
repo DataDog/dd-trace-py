@@ -4,6 +4,7 @@ import gc
 import inspect
 import os
 from pathlib import Path
+import struct
 import sys
 import threading
 from tracemalloc import Statistic
@@ -18,9 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
-    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
-)
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -32,6 +31,7 @@ if TYPE_CHECKING:
 
 PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
 PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
+PY_312_OR_ABOVE = sys.version_info[:2] >= (3, 12)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
@@ -73,7 +73,7 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
 def test_heap_samples_collected() -> None:
     import os
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
 
@@ -146,7 +146,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]
         alloc_thread.start()
 
         mc.snapshot()
@@ -169,7 +169,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
 )
 def test_heap_profiler_large_heap_overhead() -> None:
     # NOTE: A regression test for integer arithmetic bugs.
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector.test_memalloc import one
 
     p = Profiler()
@@ -248,7 +248,7 @@ class HeapInfo:
 
 
 def has_function_in_profile_sample(
-    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable, str]
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable[..., object], str]
 ) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace.
 
@@ -276,7 +276,7 @@ def has_function_in_profile_sample(
 
 
 def get_tracemalloc_stats_per_func(
-    stats: Sequence[Statistic], funcs: Sequence[Callable]
+    stats: Sequence[Statistic], funcs: Sequence[Callable[..., object]]
 ) -> tuple[dict[str, int], dict[str, int]]:
     source_to_func: dict[str, str] = {}
 
@@ -288,8 +288,8 @@ def get_tracemalloc_stats_per_func(
     actual_sizes: dict[str, int] = {}
     actual_counts: dict[str, int] = {}
     for stat in stats:
-        f = stat.traceback[0]
-        key = f.filename + str(f.lineno)
+        frame = stat.traceback[0]
+        key = frame.filename + str(frame.lineno)
         if key in source_to_func:
             func_name = source_to_func[key]
             actual_sizes[func_name] = stat.size
@@ -312,7 +312,7 @@ def test_memalloc_data_race_regression() -> None:
     import threading
     import time
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
 
     gc.enable()
     # This threshold is controls when garbage collection is triggered. The
@@ -446,9 +446,11 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     actual_count_total = sum(actual_counts.values())
 
     def get_allocation_info_from_profile(
-        profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
+        profile: pprof_pb2.Profile,
+        samples: Sequence[pprof_pb2.Sample],
+        funcs: Sequence[Union[Callable[..., object], str]],
     ) -> dict[str, HeapInfo]:
-        got = {}
+        got: dict[str, HeapInfo] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue
@@ -781,7 +783,7 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
             assert profile is not None
             raise ValueError("Test exception")
 
-    with mc:
+    with mc:  # type: ignore[unreachable]
         _allocate_1k()
         profile = mc.snapshot_and_parse_pprof(output_filename)
         assert profile is not None
@@ -792,7 +794,7 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
-    _memalloc.start(64, 1)
+    _memalloc.start(64, 1, False)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
         # memalloc frame serialization. The test passes if the subprocess
@@ -810,7 +812,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512)
+    _memalloc.start(32, 512, False)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -932,9 +934,6 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
     mc = memalloc.MemoryCollector(heap_sample_size=8)
 
-    # Store reference to nested function for later qualname access
-    worker_func = None
-
     with mc:
         threads: list[threading.Thread] = []
 
@@ -949,9 +948,6 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
                 else:
                     data = [i] * 100
                 del data
-
-        # Capture reference before context manager exits
-        worker_func = worker
 
         for i in range(20):
             t = threading.Thread(target=worker)
@@ -969,7 +965,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         worker_samples = 0
         for sample in profile.sample:
-            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
+            if has_function_in_profile_sample(profile, sample, worker):
                 worker_samples += 1
 
         assert worker_samples > 0, (
@@ -980,41 +976,41 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512)
+    _memalloc.start(64, 512, False)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512)
+        _memalloc.start(64, 512, False)
     _memalloc.stop()
 
 
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)  # pyright: ignore[reportCallIssue]
+    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
+        _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1)
+        _memalloc.start(429496, 1, False)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1)
+        _memalloc.start(-1, 1, False)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1)
+        _memalloc.start(64, -1, False)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876)
+        _memalloc.start(64, 345678909876, False)
 
 
 def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1)
+    _memalloc.start(1, 1, False)
     _memalloc.stop()
 
 
@@ -1022,7 +1018,7 @@ def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024)
+    _memalloc.start(64, 1024, False)
     try:
         x: list[object] = []
 
@@ -1233,10 +1229,10 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
-    _memalloc.start(64, 1)
+    _memalloc.start(64, 1, False)
 
     stop = threading.Event()
-    shared: dict = {}
+    shared: dict[str, object] = {}
 
     def mutate(tid: int) -> None:
         i = 0
@@ -1269,3 +1265,173 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
         t.join(timeout=10)
 
     _memalloc.stop()
+
+
+# ---------------------------------------------------------------------------
+# PYMEM_DOMAIN_MEM tests
+# ---------------------------------------------------------------------------
+
+
+def _make_mem_domain_object(size_bytes: int) -> object:
+    """Return an object whose primary allocation goes through PYMEM_DOMAIN_MEM.
+
+    On Python 3.13+, ``bytearray`` moved its internal buffer to the MEM domain,
+    making it the canonical test vehicle.  On Python 3.12 we use list
+    multiplication: ``PyList_New`` calls ``PyMem_Calloc`` (PYMEM_DOMAIN_MEM)
+    for the ``ob_item`` pointer array, so ``[None] * N`` produces a dominant
+    MEM allocation of ``N * sizeof(void*)`` bytes (the list header itself goes
+    through PYMEM_DOMAIN_OBJ).
+    """
+    if PY_313_OR_ABOVE:
+        return bytearray(size_bytes)
+    # PyList_New calls PyMem_Calloc (PYMEM_DOMAIN_MEM) for the ob_item pointer
+    # array; N pointers × sizeof(void*) bytes → size_bytes total.  Using
+    # struct.calcsize("P") so this stays correct on 32-bit builds where pointers
+    # are 4 bytes.  The list header (PyListObject) goes through PYMEM_DOMAIN_OBJ
+    # and is negligible in size.
+    ptr_size: int = struct.calcsize("P")
+    n_ptrs: int = size_bytes // ptr_size
+    return [None] * n_ptrs
+
+
+def _count_heap_samples_with_function(
+    profile: "pprof_pb2.Profile", samples: Sequence["pprof_pb2.Sample"], function_name: str
+) -> int:
+    """Count heap-space samples whose stacktrace contains the given function name.
+
+    Used by MEM-domain tests to avoid false positives from unrelated heap-space
+    samples produced by ddup upload / pprof serialization paths.
+    """
+    matched: int = 0
+    for sample in samples:
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if not location.line:
+                continue
+            fn = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+            if profile.string_table[fn.name] == function_name:
+                matched += 1
+                break
+    return matched
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
+    """A large PYMEM_DOMAIN_MEM allocation must produce heap-space samples."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_heap_samples")
+
+    # 512 KB sampling interval; 16 MB allocation → expected ~32 samples.
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+    obj: object
+    with mc:
+        obj = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, (
+        f"Expected heap-space samples from a 16 MB PYMEM_DOMAIN_MEM allocation on Python {sys.version_info[:2]}"
+    )
+
+    del obj
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="bytearray uses PYMEM_DOMAIN_MEM only from Python 3.13+")
+def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
+    """bytearray allocates its internal buffer via PYMEM_DOMAIN_MEM on Python 3.13+.
+
+    Before adding MEM domain hooks it was invisible to the profiler (existing
+    tests work around this by using ``(None,) * N`` instead).  This test
+    confirms it is now captured.
+    """
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_bytearray_tracked_py313")
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+    ba: bytearray
+    with mc:
+        ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13+)
+        mc.snapshot()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, (
+        "bytearray(8 MB) should produce heap-space samples on Python 3.13+ now that PYMEM_DOMAIN_MEM is hooked"
+    )
+
+    del ba
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_free_untracks(tmp_path: Path) -> None:
+    """MEM free hook must untrack the allocation so heap-space drops after del.
+
+    Filters samples to only those whose stacktrace includes
+    ``_make_mem_domain_object`` so unrelated heap-space samples (e.g. from ddup
+    upload or pprof serialization paths) cannot influence the result.
+    """
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_free_untracks")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+
+    samples_after_alloc: int
+    samples_after_free: int
+
+    with mc:
+        obj: object = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_alloc = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+
+        del obj
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.parse_newest_profile(output_filename)
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_free = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+
+    assert samples_after_alloc > 0, "Expected heap-space samples attributed to _make_mem_domain_object after alloc"
+    assert samples_after_free < samples_after_alloc, (
+        f"Expected _make_mem_domain_object heap-space count to drop after del "
+        f"(alloc={samples_after_alloc}, free={samples_after_free})"
+    )
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
+    """Growing a list (reallocs ob_item via PyMem_Realloc) must not corrupt the heap tracker."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_mem_domain_realloc")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
+    lst: list[None]
+    with mc:
+        lst = []
+        for _ in range(200_000):  # repeated appends trigger ob_item reallocs
+            lst.append(None)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, "heap tracker must not be corrupted by repeated MEM reallocs"
+    del lst
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
+    """OBJ and MEM allocations in the same session must not corrupt heap tracker state."""
+    output_filename: str = _setup_profiling_prelude(tmp_path, "test_obj_mem_coexist")
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
+    d: dict[int, int]
+    lst: list[None]
+    with mc:
+        d = {i: i for i in range(50_000)}  # OBJ domain
+        lst = [None] * 200_000  # MEM domain (ob_item)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+    assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
+    del d, lst

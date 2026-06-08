@@ -6,6 +6,7 @@ import os
 import re
 import socket
 import sys
+import threading
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -27,14 +28,18 @@ from ddtrace.propagation.http import _TraceContext
 from ..constants import DD_RAY_TRACE_CTX
 from ..constants import DEFAULT_JOB_NAME
 from ..constants import RAY_ACTOR_ID
+from ..constants import RAY_DASHBOARD_URL
+from ..constants import RAY_GCS_ADDRESS
 from ..constants import RAY_HOSTNAME
 from ..constants import RAY_JOB_ID
 from ..constants import RAY_JOB_NAME
 from ..constants import RAY_METADATA_PREFIX
+from ..constants import RAY_NAMESPACE
 from ..constants import RAY_NODE_ID
 from ..constants import RAY_SUBMISSION_ID
 from ..constants import RAY_SUBMISSION_ID_TAG
 from ..constants import RAY_TASK_ID
+from ..constants import RAY_VERSION
 from ..constants import RAY_WORKER_ID
 from ..constants import REDACTED_PATH
 from ..constants import REDACTED_VALUE
@@ -47,6 +52,10 @@ JOB_NAME_REGEX = re.compile(r"^job\:([A-Za-z0-9_\.\-]+),run:([A-Za-z0-9_\.\-]+)$
 # for example, if the entrypoint is python3 woof.py --breed mutt
 # then the job name will be woof
 ENTRY_POINT_REGEX = re.compile(r"([^\s\/\\]+)\.py")
+
+# Per-thread cache. Thread locals are naturally fork-safe: after os.fork() only the
+# calling thread survives, so every other thread's cached values vanish automatically.
+_local = threading.local()
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -69,28 +78,35 @@ def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
 
 
 def _inject_context_in_env(context: Context) -> None:
-    headers = {}
+    headers: dict[str, str] = {}
     _TraceContext._inject(context, headers)
     # Environment variables are used as a process-boundary fallback channel for
     # context propagation when workers have no active in-process parent span.
+    # No dedup: env vars are process-global, so a per-thread "last written" key
+    # would be stale if another thread wrote a different context in between.
     env["traceparent"] = headers.get("traceparent", "")
     env["tracestate"] = headers.get("tracestate", "")
 
 
 def _extract_tracing_context_from_env() -> Optional[Context]:
-    # Best-effort extraction: missing either field means there is no usable
-    # distributed context to restore.
-    if env.get("traceparent") is not None and env.get("tracestate") is not None:
-        return _TraceContext._extract(
-            {
-                "traceparent": env.get("traceparent"),
-                "tracestate": env.get("tracestate"),
-            }
-        )
-    return None
+    # Keyed on (traceparent, tracestate) per thread. A fresh inject changes env so
+    # the next extract sees a key mismatch and re-parses — inject-then-extract is safe.
+    tp = env.get("traceparent")
+    ts = env.get("tracestate")
+    keys = (tp, ts)
+    if keys == getattr(_local, "tracing_context_keys", None):
+        return getattr(_local, "tracing_context", None)
+    _local.tracing_context_keys = keys
+    if tp is None or ts is None:
+        _local.tracing_context = None
+        return None
+    _local.tracing_context = _TraceContext._extract({"traceparent": tp, "tracestate": ts})
+    return _local.tracing_context
 
 
 def _get_ray_service_name() -> str:
+    # Not cached: env[RAY_JOB_NAME] is overwritten per job-submission in the driver
+    # process, so caching would return a stale service name for later jobs.
     return env.get(RAY_JOB_NAME) or DEFAULT_JOB_NAME
 
 
@@ -102,33 +118,94 @@ def _set_dist_ai_metrics(span: Span) -> None:
     span._set_attribute(_SAMPLING_PRIORITY_KEY, 2)
 
 
+def _get_cached_hostname() -> str:
+    hostname = getattr(_local, "hostname", None)
+    if hostname is None:
+        try:
+            hostname = socket.gethostname()
+        except Exception:
+            hostname = "unknown-host"
+        _local.hostname = hostname
+    return hostname
+
+
+def _get_runtime_invariants() -> dict:
+    # worker_id/node_id/job_id are process-invariant within a Ray session; task_id/actor_id are per-call.
+    # Guard on is_initialized(): if Ray is shut down and reinited the context changes,
+    # so we must re-fill the cache rather than returning the previous session's values.
+    cached = getattr(_local, "runtime_invariants", None)
+    if cached is not None and ray.is_initialized():
+        # Validate the cache is still for the current Ray session by comparing node_id.
+        # Without this check, a ray.shutdown() + ray.init() cycle that never called
+        # _get_runtime_invariants() during the shutdown window would return stale data.
+        try:
+            if get_runtime_context().get_node_id() == cached.get(RAY_NODE_ID):
+                return cached
+        except Exception:
+            return cached  # can't validate, assume still valid
+    # Clear stale snapshot (Ray may have been shut down and reinitialized).
+    _local.runtime_invariants = None
+    if not ray.is_initialized():
+        return {}  # do not cache; Ray may initialize before the next call
+    snap: dict[str, str] = {}
+    try:
+        rc = get_runtime_context()
+        snap[RAY_JOB_ID] = rc.get_job_id()
+        snap[RAY_NODE_ID] = rc.get_node_id()
+        wid = rc.get_worker_id()
+        if wid is not None:
+            snap[RAY_WORKER_ID] = wid
+        ns = getattr(rc, "namespace", None)
+        if ns:
+            snap[RAY_NAMESPACE] = str(ns)
+        gcs = getattr(rc, "gcs_address", None)
+        if gcs:
+            snap[RAY_GCS_ADDRESS] = str(gcs)
+        dash = getattr(rc, "dashboard_url", None)
+        if dash:
+            snap[RAY_DASHBOARD_URL] = str(dash)
+        try:
+            ver = getattr(ray, "__version__", None)
+            if ver:
+                snap[RAY_VERSION] = str(ver)
+        except Exception:  # nosec B110
+            pass
+    except Exception:
+        return {}  # do not cache; retry on next call
+    _local.runtime_invariants = snap
+    return snap
+
+
+def _reset_thread_local_state() -> None:
+    """Clear all thread-local cached values for the calling thread. Used in tests and fork hooks."""
+    _local.__dict__.clear()
+
+
 def _set_runtime_context_attributes(span: Span, submission_id: Optional[str] = None) -> None:
-    span._set_attribute(RAY_HOSTNAME, socket.gethostname())
+    span._set_attribute(RAY_HOSTNAME, _get_cached_hostname())
 
     if not submission_id:
         submission_id = env.get(RAY_SUBMISSION_ID)
-
     if submission_id:
         span._set_attribute(RAY_SUBMISSION_ID_TAG, submission_id)
 
-    if ray.is_initialized():
-        runtime_context = get_runtime_context()
+    invariants = _get_runtime_invariants()
+    for k, v in invariants.items():
+        span._set_attribute(k, v)
 
-        span._set_attribute(RAY_JOB_ID, runtime_context.get_job_id())
-        span._set_attribute(RAY_NODE_ID, runtime_context.get_node_id())
-
-        worker_id = runtime_context.get_worker_id()
-        if worker_id is not None:
-            span._set_attribute(RAY_WORKER_ID, worker_id)
-
-        if runtime_context.worker.mode == ray._private.worker.WORKER_MODE:
-            task_id = runtime_context.get_task_id()
-            if task_id is not None:
-                span._set_attribute(RAY_TASK_ID, task_id)
-
-        actor_id = runtime_context.get_actor_id()
-        if actor_id is not None:
-            span._set_attribute(RAY_ACTOR_ID, actor_id)
+    try:
+        if ray.is_initialized():
+            rc = get_runtime_context()
+            if rc.worker.mode == ray._private.worker.WORKER_MODE:
+                task_id = rc.get_task_id()
+                if task_id is not None:
+                    span._set_attribute(RAY_TASK_ID, task_id)
+            actor_id = rc.get_actor_id()
+            if actor_id is not None:
+                span._set_attribute(RAY_ACTOR_ID, actor_id)
+    except Exception:  # nosec B110
+        # Runtime context is best-effort; tag absence must never break workers.
+        pass
 
 
 def set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:

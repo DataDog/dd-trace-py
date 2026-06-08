@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+import json
 import logging
 from typing import Any
 from typing import Callable
@@ -76,6 +77,13 @@ class Profiler(object):
 
         atexit.register(self.stop)
 
+        # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
+        # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
+        # so without this the last partial profile window is silently lost.
+        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
+        # _active_lock is already held by the main thread (e.g. during start or stop).
+        atexit.register_on_exit_signal(self._stop_on_signal)
+
         # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
         # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
         # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
@@ -98,6 +106,40 @@ class Profiler(object):
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
 
+    def _stop_on_signal(self) -> None:
+        """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
+
+        Signal handlers run in the main thread between bytecodes. If the main thread already
+        holds _active_lock (e.g. SIGTERM races with start or stop), a blocking acquire
+        would deadlock. We use non-blocking acquire and bail out when the lock is unavailable:
+        in that case start/stop is already in progress and will handle cleanup itself.
+
+        This mirrors the pattern used by the tracer's shutdown method.
+        """
+        atexit.unregister(self.stop)
+
+        if not Profiler._active_lock.acquire(blocking=False):
+            # If the lock is unavailable, stop is already running on the main thread
+            # (signal handlers are delivered between bytecodes of the main thread, so the main
+            # thread itself holds the lock). A blocking acquire here would deadlock. We bail out
+            # and rely on the in-progress stop to complete the flush. The narrow race where
+            # _raise_default terminates the process before stop finishes is a known
+            # limitation: there is no safe way to wait for a lock held by the
+            # current thread from within a signal handler.
+            return
+
+        try:
+            self._profiler.stop(flush=True)
+        except service.ServiceStatusError:
+            pass
+        except Exception:
+            LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+        finally:
+            if Profiler._active_instance is self:
+                Profiler._active_instance = None
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+            Profiler._active_lock.release()
+
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
         with Profiler._active_lock:
@@ -116,7 +158,7 @@ class Profiler(object):
 
 
 class _ProfilerInstance(service.Service):
-    """A instance of the profiler.
+    """An instance of the profiler.
 
     Each process must manage its own instance.
 
@@ -200,6 +242,21 @@ class _ProfilerInstance(service.Service):
         )
         ddup.start()
 
+        # Surface the effective profiler configuration on each uploaded profile
+        # under the event's `info.profiler.settings` header. This is a one-shot
+        # snapshot at startup; runtime-mutable values (e.g. the adaptive
+        # sampling interval) are already exposed via ProfilerStats fields.
+        try:
+            settings = profiling_config.dump_settings()
+            # Drop `tags`: user/process tags already ride on the upload event's
+            # dedicated tag channel and would otherwise be duplicated into
+            # `info.profiler.settings.tags.*` for no extra signal.
+            settings.pop("tags", None)
+            info_payload = {"profiler": {"settings": settings}}
+            ddup.set_profiler_settings_json(json.dumps(info_payload))
+        except Exception:
+            LOG.debug("Failed to publish profiler settings to info channel", exc_info=True)
+
     def __post_init__(self) -> None:
         if self._exception_profiling_enabled:
             LOG.debug("Profiling collector (exception) enabled")
@@ -222,6 +279,8 @@ class _ProfilerInstance(service.Service):
             # if their import is detected at runtime.
             def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class(tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -257,6 +316,8 @@ class _ProfilerInstance(service.Service):
 
             def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class()
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -273,17 +334,16 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
+            if self._collectors_on_import is None:
+                self._collectors_on_import = []
+
             torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
                 ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
             ]
+            self._collectors_on_import.extend(torch_hooks)
 
             for module, hook in torch_hooks:
                 ModuleWatchdog.register_module_hook(module, hook)
-
-            if self._collectors_on_import is None:
-                self._collectors_on_import = torch_hooks
-            else:
-                self._collectors_on_import = self._collectors_on_import + torch_hooks
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
@@ -340,13 +400,12 @@ class _ProfilerInstance(service.Service):
         :param flush: Flush a last profile.
         """
         LOG.debug("Stopping profiler")
+
         # Prevent doing more initialisation now that we are shutting down.
         if self._collectors_on_import:
             for module, hook in self._collectors_on_import:
-                try:
-                    ModuleWatchdog.unregister_module_hook(module, hook)
-                except ValueError:
-                    pass
+                ModuleWatchdog.unregister_module_hook(module, hook)
+            self._collectors_on_import = None
 
         if self._scheduler is not None:
             self._scheduler.stop()

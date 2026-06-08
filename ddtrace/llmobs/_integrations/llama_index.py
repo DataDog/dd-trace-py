@@ -234,6 +234,28 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             metrics=metrics,
         )
 
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        span_kind_map = {
+            "": "llm",
+            "llm": "llm",
+            "query": "workflow",
+            "retrieval": "retrieval",
+            "embedding": "embedding",
+            "agent": "agent",
+            "tool": "tool",
+        }
+        span_kind = span_kind_map.get(operation, "workflow")
+        metrics = {}
+        if operation in ("", "llm") and not span.error and response is not None:
+            metrics = self._extract_usage(response)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=span.get_tag(MODEL),
+            model_provider=span.get_tag(PROVIDER),
+        )
+
     def _extract_input_messages(self, kwargs: dict[str, Any], is_chat: bool) -> list[Message]:
         """Extract input messages for LLM spans (chat or completion)."""
         if is_chat:

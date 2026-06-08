@@ -95,6 +95,13 @@ avro
 .. automodule:: ddtrace.contrib.internal.avro
 
 
+.. _aws_durable_execution_sdk_python:
+
+AWS Durable Execution SDK
+^^^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aws_durable_execution_sdk_python
+
+
 .. _azure_functions:
 
 Azure Functions
@@ -641,7 +648,7 @@ urllib3
 
 valkey
 ^^^^^^
-.. automodule:: ddtrace.contrib.valkey
+.. automodule:: ddtrace.contrib.internal.valkey
 
 
 .. _vertexai:

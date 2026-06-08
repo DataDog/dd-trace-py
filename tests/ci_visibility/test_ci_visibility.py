@@ -577,32 +577,46 @@ def test_get_client_do_request_agentless_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
+    mock_http_connection = mock.Mock()
+    mock_http_connection.request = mock.Mock()
+    mock_http_connection.getresponse.return_value = response
+    mock_http_connection.close = mock.Mock()
 
     with (
-        mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request,
-        mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.get_connection", return_value=mock_http_connection
+        ) as mock_get_connection,
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.AGENTLESS_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with("POST", "/repository/endpoint", "payload", {"dd-api-key": "foo"})
+    mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+    mock_http_connection.request.assert_called_once_with(
+        "POST", "/repository/endpoint", "payload", {"dd-api-key": "foo"}
+    )
 
 
 def test_get_client_do_request_evp_proxy_headers():
     serializer = CIVisibilityGitClientSerializerV1("foo")
     response = mock.MagicMock()
     response.status = 200
+    mock_http_connection = mock.Mock()
+    mock_http_connection.request = mock.Mock()
+    mock_http_connection.getresponse.return_value = response
+    mock_http_connection.close = mock.Mock()
 
     with (
-        mock.patch("ddtrace.internal.http.HTTPConnection.request") as _request,
-        mock.patch("ddtrace.internal.http.HTTPConnection.getresponse", return_value=response),
+        mock.patch(
+            "ddtrace.internal.ci_visibility.git_client.get_connection", return_value=mock_http_connection
+        ) as mock_get_connection,
     ):
         CIVisibilityGitClient._do_request(
             REQUESTS_MODE.EVP_PROXY_EVENTS, "http://base_url", "/endpoint", "payload", serializer, {}
         )
 
-    _request.assert_called_once_with(
+    mock_get_connection.assert_called_once_with("http://base_url/repository/endpoint", timeout=20)
+    mock_http_connection.request.assert_called_once_with(
         "POST",
         "/repository/endpoint",
         "payload",

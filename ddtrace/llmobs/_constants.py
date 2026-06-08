@@ -1,4 +1,25 @@
+from enum import Enum
 from typing import Final
+
+
+class LLMObsExportMode(str, Enum):
+    """The primary path LLMObs span data takes to Datadog.
+
+    Only the primary path is modeled here; the writer's wire transport (Agent EVP proxy vs
+    direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
+
+    APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
+    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; the rescue
+                    processor re-ships predicted drops through ``LLMObsSpanWriter``.
+    LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
+    """
+
+    LLMOBS_DIRECT = "llmobs_direct"
+    APM_AGENTLESS = "apm_agentless"
+    APM_AGENT = "apm_agent"
+
+
+CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 
 
 SESSION_ID = "_ml_obs.session_id"
@@ -11,6 +32,7 @@ PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
+UNKNOWN_MODEL_NAME = "unknown"
 
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
 
@@ -37,6 +59,16 @@ BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 REASONING_OUTPUT_TOKENS_METRIC_KEY = "reasoning_output_tokens"
 CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY = "ephemeral_1h_input_tokens"
 CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY = "ephemeral_5m_input_tokens"
+
+LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.input_tokens"
+LLMOBS_APM_SHADOW_OUTPUT_TOKENS_METRIC_KEY = "_dd.llmobs.output_tokens"
+LLMOBS_APM_SHADOW_TOTAL_TOKENS_METRIC_KEY = "_dd.llmobs.total_tokens"
+LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_read_input_tokens"
+LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "_dd.llmobs.cache_write_input_tokens"
+LLMOBS_APM_SHADOW_SPAN_KIND_TAG_KEY = "_dd.llmobs.span_kind"
+LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
+LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
+LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
@@ -94,6 +126,8 @@ LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
+REQUEST_BASE_URL = "llmobs.request_base_url"
+
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"
@@ -101,6 +135,7 @@ EXPERIMENT_RUN_ITERATION_KEY = "_ml_obs.experiment_run_iteration"
 EXPERIMENT_PROJECT_NAME_KEY = "_ml_obs.experiment_project_name"
 EXPERIMENT_PROJECT_ID_KEY = "_ml_obs.experiment_project_id"
 EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
+EXPERIMENT_DATASET_ID_KEY = "_ml_obs.experiment_dataset_id"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
@@ -133,15 +168,20 @@ class LLMOBS_STRUCT:
     ML_APP: Final = "ml_app"
     SESSION_ID: Final = "session_id"
     TAGS: Final = "tags"
+    COST_TAGS: Final = "cost_tags"
     INTEGRATION: Final = "integration"
     PROMPT: Final = "prompt"
     METRICS: Final = "metrics"
     METADATA: Final = "metadata"
     METADATA_DD: Final = "_dd"
+    DD: Final = "_dd"
+    SCOPE: Final = "scope"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
+    TOOL: Final = "tool"
     TOOL_DEFINITIONS: Final = "tool_definitions"
+    VERSION: Final = "version"
     INPUT: Final = "input"
     OUTPUT: Final = "output"
     EXPECTED_OUTPUT: Final = "expected_output"

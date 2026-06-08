@@ -11,6 +11,7 @@
 #include <echion/echion_sampler.h>
 #include <echion/greenlets.h>
 
+// NOLINTBEGIN(performance-no-int-to-ptr)
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
@@ -32,7 +33,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // pointers gracefully), resolves version-specific frame layouts, and
     // calls unwind_frame to walk the Python frame chain.
     {
-        GreenletInfo greenlet(/*id=*/42, reinterpret_cast<PyObject*>(p0), StringTable::UNKNOWN);
+        GreenletInfo greenlet(/*id=*/42, reinterpret_cast<PyObject*>(p0), TaskName::from_gevent_name("Greenlet-42"));
         PyThreadState tstate;
         std::memset(&tstate, 0, sizeof(tstate));
 
@@ -51,7 +52,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // Also test with Py_None as the frame (indicates on-CPU greenlet),
     // which takes a different code path through the tstate.
     {
-        GreenletInfo on_cpu_greenlet(/*id=*/43, Py_None, StringTable::UNKNOWN);
+        GreenletInfo on_cpu_greenlet(/*id=*/43, Py_None, TaskName::from_gevent_name("Greenlet-43"));
         PyThreadState tstate;
         std::memset(&tstate, 0, sizeof(tstate));
 
@@ -71,3 +72,4 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     g_size = 0;
     return 0;
 }
+// NOLINTEND(performance-no-int-to-ptr)

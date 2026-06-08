@@ -11,20 +11,22 @@
     "meta": {
       "_dd.base_service": "tests.contrib.graphene",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "69de9e5900000000",
+      "_dd.svc_src": "graphql",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.graphene",
       "component": "graphql",
       "language": "python",
-      "runtime-id": "bd29f6239b6740229c13f18d5b0d3f74"
+      "runtime-id": "86f05524281e4a99b7f47ccfbc51d763"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 47948
+      "_sampling_priority_v1": 1.0,
+      "process_id": 76592.0
     },
-    "duration": 1876334,
-    "start": 1692710307274338836
+    "duration": 3144167,
+    "start": 1776197209246874462
   },
      {
        "name": "graphql.parse",
@@ -37,12 +39,12 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphene",
-         "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 192333,
-       "start": 1692710307274744795
+       "duration": 180833,
+       "start": 1776197209247362504
      },
      {
        "name": "graphql.validate",
@@ -55,12 +57,12 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphene",
-         "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.source": "{ patron { id name age } }"
        },
-       "duration": 1064916,
-       "start": 1692710307274986545
+       "duration": 2092916,
+       "start": 1776197209247594754
      },
      {
        "name": "graphql.execute",
@@ -73,14 +75,14 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.graphene",
-         "_dd.p.tid": "654a694400000000",
+         "_dd.svc_src": "graphql",
          "component": "graphql",
          "graphql.operation.type": "query",
          "graphql.source": "{ patron { id name age } }"
        },
        "metrics": {
-         "_dd.measured": 1
+         "_dd.measured": 1.0
        },
-       "duration": 106709,
-       "start": 1692710307276089461
+       "duration": 181291,
+       "start": 1776197209249814504
      }]]

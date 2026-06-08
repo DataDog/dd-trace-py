@@ -3,6 +3,7 @@ from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
+from importlib.util import spec_from_loader
 from pathlib import Path
 import sys
 from types import CodeType
@@ -422,11 +423,26 @@ class BaseModuleWatchdog(abc.ABC):
         self._finding.add(fullname)
 
         try:
-            try:
-                # Best effort
-                spec = find_spec(fullname)
-            except Exception:
-                return None
+            # Iterate sys.meta_path directly to avoid re-entering the import machinery
+            # and acquiring per-module locks (A-B deadlock risk when a background thread
+            # calls importlib.files() during module __init__).
+            spec = None
+            for finder in sys.meta_path:
+                if finder is self:
+                    continue
+                _find_spec = getattr(finder, "find_spec", None)
+                if _find_spec is not None:
+                    spec = _find_spec(fullname, path, target)
+                else:
+                    # Fallback for legacy finders that only implement find_module()
+                    # (deprecated in 3.4, removed in 3.12) — mirrors CPython _find_spec().
+                    _find_module = getattr(finder, "find_module", None)
+                    if _find_module is None:
+                        continue
+                    loader = _find_module(fullname, path)
+                    spec = spec_from_loader(fullname, loader) if loader is not None else None
+                if spec is not None:
+                    break
 
             if spec is None:
                 return None
@@ -454,7 +470,7 @@ class BaseModuleWatchdog(abc.ABC):
         log.debug("%s installed", cls)
 
     @classmethod
-    def is_installed(cls):
+    def is_installed(cls) -> bool:
         """Check whether this module watchdog class is installed."""
         return cls._instance is not None and type(cls._instance) is cls
 

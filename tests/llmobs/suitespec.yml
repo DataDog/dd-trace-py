@@ -105,6 +105,7 @@ suites:
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
   langchain:
+    retry: 2
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -136,6 +137,14 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
+      - tests/cassettes/anthropic/*
+      - tests/cassettes/azure_openai/*
+      - tests/cassettes/bedrock/*
+      - tests/cassettes/datadog/*
+      - tests/cassettes/genai/*
+      - tests/cassettes/openai/*
+      - tests/cassettes/vertexai/*
+      - tests/cassettes/tests.llmobs.*
     snapshot: true
     venvs_per_job: 1
   mcp:
@@ -177,6 +186,7 @@ suites:
     snapshot: true
     venvs_per_job: 4
   crewai:
+    retry: 2
     parallelism: 3
     paths:
       - '@bootstrap'

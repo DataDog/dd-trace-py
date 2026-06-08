@@ -69,6 +69,8 @@ class LiteLLMIntegration(BaseLLMIntegration):
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
 
+        model_name = self._resolve_model_name(span, response, model_name, model_provider)
+
         span_kind = self._get_span_kind(span, kwargs, model_name, operation)
         metrics = self._extract_llmobs_metrics(response, span_kind)
         # Set kind before helpers so that input/output messages are routed correctly
@@ -163,6 +165,30 @@ class LiteLLMIntegration(BaseLLMIntegration):
         # best effort attempt to check if Open AI or Azure since model_provider is unknown until request completes
         is_openai_model = any(prefix in model_lower for prefix in ("gpt", "openai", "azure"))
         return is_openai_model and not stream and LLMObs._integration_is_enabled("openai")
+
+    def _resolve_model_name(self, span: Span, response: Optional[Any], model_name: str, model_provider: str) -> str:
+        # Azure requires an arbitrary deployment name as the request model; the canonical model
+        # comes from the response. azure_ai is excluded — LiteLLM rewrites its response model to
+        # "azure_ai/<deployment>", which would not match the cost catalog.
+        if model_provider in ("azure", "azure_text"):
+            response_model = span.get_tag("litellm.response.model") or _get_attr(response, "model", None)
+            if response_model:
+                return str(response_model)
+        return model_name
+
+    def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
+        model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
+        model_name, model_provider = self._model_map.get(model_name, (model_name, UNKNOWN_MODEL_PROVIDER))
+        model_name = self._resolve_model_name(span, response, model_name, model_provider)
+        span_kind = self._get_span_kind(span, kwargs, model_name, operation)
+        metrics = self._extract_llmobs_metrics(response, span_kind)
+        self._apply_shadow_metrics(
+            span,
+            metrics,
+            span_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+        )
 
     def _get_span_kind(
         self, span: Span, kwargs: dict[str, Any], model: Optional[str] = None, operation: Optional[str] = None

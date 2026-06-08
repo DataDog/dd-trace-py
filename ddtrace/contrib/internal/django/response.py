@@ -15,6 +15,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
+from ddtrace.contrib.internal.django.patch import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
@@ -140,16 +141,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 uri = utils.get_request_uri(request)
                 if uri is not None and query:
                     uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
 
+                # The listener pulls ``request_path_params`` itself via ``utils._request_path_params(request)``.
                 core.dispatch(
-                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri)
                 )
                 core.dispatch("django.start_response.post", ("Django",))
 
@@ -174,6 +169,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                         response = blocked_response(block_config)
 
         finally:
+            # Walk the resolver tree now that middleware has run and may have
+            # set request.urlconf (e.g. per-tenant routing). The WeakSet gate
+            # keeps repeated calls O(1) for already-seen resolvers.
+            _collect_routes_once(get_resolver(getattr(request, "urlconf", None)))
             core.dispatch("django.finalize_response.pre", (ctx, utils._after_request_tags, request, response))
             if not get_blocked():
                 core.dispatch("django.finalize_response", ("Django",))
@@ -206,6 +205,9 @@ async def traced_get_response_async(
     try:
         response = await func(*args, **kwargs)
     finally:
+        # Walk the resolver tree now that middleware has run and may have
+        # set request.urlconf (e.g. per-tenant routing). Mirrors sync path.
+        _collect_routes_once(get_resolver(getattr(request, "urlconf", None)))
         # DEV: Always set these tags, this is where `span.resource` is set
         _after_request_tags(pin, span, request, response)
     return response

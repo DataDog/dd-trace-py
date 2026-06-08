@@ -53,6 +53,23 @@ EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 
 
+def _line_ranges(lines: set[int]) -> list[dict[str, int]]:
+    """Convert a set of line numbers into a list of contiguous ranges."""
+    if not lines:
+        return []
+    it = iter(sorted(lines))
+    start = prev = next(it)
+    ranges = []
+    for ln in it:
+        if ln == prev + 1:
+            prev = ln
+        else:
+            ranges.append({"start": start, "end": prev})
+            start = prev = ln
+    ranges.append({"start": start, "end": prev})
+    return ranges
+
+
 @cached()
 def is_from_user_code(obj: t.Any) -> t.Optional[bool]:
     try:
@@ -162,10 +179,12 @@ class Scope:
     end_line: int
     symbols: list[Symbol]
     scopes: list["Scope"]
+    injectible_lines: list[dict[str, t.Any]] = field(default_factory=list)
+    has_injectible_lines: bool = False
 
-    language_specifics: dict = field(default_factory=dict)
+    language_specifics: dict[str, t.Any] = field(default_factory=dict)
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         return asdict(self)
 
     @singledispatchmethod
@@ -353,6 +372,8 @@ class Scope:
             scopes=[
                 _ for _ in (cls._get_from(_, data) for _ in code.co_consts if isinstance(_, CodeType)) if _ is not None
             ],
+            injectible_lines=_line_ranges(ls),
+            has_injectible_lines=True,
         )
 
     @_get_from.register(FunctionType)
@@ -405,7 +426,7 @@ class Scope:
 
     @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "classmethod[t.Any, t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -415,7 +436,7 @@ class Scope:
 
     @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData) -> t.Optional["Scope"]:
+    def _(cls, method: "staticmethod[t.Any, t.Any]", data: ScopeData) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -522,7 +543,7 @@ class ScopeContext:
             # Set the timer to upload after a short delay.
             self._set_timer()
 
-    def to_json(self) -> dict:
+    def to_json(self) -> dict[str, t.Any]:
         with self._scopes_lock:
             return {
                 "schema_version": 1,
@@ -534,6 +555,13 @@ class ScopeContext:
             }
 
     def upload(self) -> None:
+        with self._scopes_lock:
+            if not self._scopes:
+                return
+            payload = self.to_json()
+            n = len(self._scopes)
+            self._scopes.clear()
+
         body, headers = multipart(
             parts=[
                 FormData(
@@ -550,11 +578,6 @@ class ScopeContext:
                 ),
             ]
         )
-
-        with self._scopes_lock:
-            payload = self.to_json()
-            n = len(self._scopes)
-            self._scopes.clear()
 
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
@@ -671,7 +694,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
     @classmethod
     def update(cls) -> None:
-        instance = t.cast(SymbolDatabaseUploader, cls._instance)
+        instance = t.cast(t.Optional[SymbolDatabaseUploader], cls._instance)
         if instance is None:
             return
 

@@ -3,6 +3,7 @@ import csv
 import json
 import os
 import tempfile
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypedDict
@@ -35,7 +36,6 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
-from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
@@ -46,9 +46,14 @@ from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import ExperimentConfigType
 from ddtrace.llmobs.types import _Meta
-from ddtrace.llmobs.types import _SpanLink
 from ddtrace.version import __version__
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs.types import ExperimentConfigType
+    from ddtrace.llmobs.types import _SpanLink
 
 
 logger = get_logger(__name__)
@@ -58,16 +63,16 @@ class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
 
     name: str
-    parent_id: Optional[int]
-    trace_id: int
+    parent_id: str
+    trace_id: str
     ml_app: str
     session_id: str
     tags: dict[str, str]
     metrics: dict[str, Any]
-    span_links: list[_SpanLink]
-    config: ConfigType
-    is_evaluation_span: bool
+    span_links: list["_SpanLink"]
+    config: "ExperimentConfigType"
     meta: _Meta
+    _dd: dict[str, str]
 
 
 class _LLMObsSpanEventOptional(TypedDict, total=False):
@@ -75,8 +80,8 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     service: str
     status_message: str
     collection_errors: list[str]
-    span_links: list[_SpanLink]
-    config: ConfigType
+    span_links: list["_SpanLink"]
+    config: "ExperimentConfigType"
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -106,6 +111,8 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: list[str]
     assessment: str
     reasoning: str
+    eval_scope: str
+    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -138,10 +145,19 @@ class EvaluatorInferResponse(TypedDict, total=False):
     status: Optional[str]
 
 
+_SHOULD_USE_AGENTLESS: Optional[bool] = None
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
+
+    global _SHOULD_USE_AGENTLESS
+
+    if _SHOULD_USE_AGENTLESS is False:
+        # perf: Agent with EVP proxy confirmed present; skip the network call on repeat invocations.
+        return _SHOULD_USE_AGENTLESS
 
     agent_info: Optional[dict[str, Any]]
 
@@ -154,7 +170,8 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
         return True
 
     endpoints = agent_info.get("endpoints", [])
-    return not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    _SHOULD_USE_AGENTLESS = not any(EVP_PROXY_AGENT_BASE_PATH in endpoint for endpoint in endpoints)
+    return _SHOULD_USE_AGENTLESS
 
 
 class BaseLLMObsWriter(PeriodicService):
@@ -618,7 +635,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "canonical_id": attrs.get("canonical_id"),
                     "input_data": attrs["input"],
                     "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
+                    "metadata": attrs.get("metadata") or {},
                     "tags": attrs.get("tags", []),
                 }
                 class_records.append(dataset_record)
@@ -802,25 +819,29 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         description: Optional[str] = None,
         runs: Optional[int] = 1,
         ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
+        attributes: dict[str, JSONType] = {
+            "name": name,
+            "description": description or "",
+            "dataset_id": dataset_id,
+            "project_id": project_id,
+            "dataset_version": dataset_version,
+            "config": exp_config or {},
+            "metadata": {"tags": tags or []},
+            "ensure_unique": ensure_unique,
+            "run_count": runs,
+        }
+        if parent_experiment_id is not None:
+            attributes["parent_experiment_id"] = parent_experiment_id
         resp = self.request(
             "POST",
             path,
             body={
                 "data": {
                     "type": "experiments",
-                    "attributes": {
-                        "name": name,
-                        "description": description or "",
-                        "dataset_id": dataset_id,
-                        "project_id": project_id,
-                        "dataset_version": dataset_version,
-                        "config": exp_config or {},
-                        "metadata": {"tags": tags or []},
-                        "ensure_unique": ensure_unique,
-                        "run_count": runs,
-                    },
+                    "attributes": attributes,
                 }
             },
         )
@@ -859,29 +880,71 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
 
     def experiment_eval_post(
-        self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
-        resp = self.request(
-            "POST",
-            path,
-            body={
-                "data": {
-                    "type": "experiments",
-                    "attributes": {
-                        "scope": "experiments",
-                        "metrics": cast(list[JSONType], events),
-                        "tags": tags,
-                    },
-                }
-            },
-        )
+        attributes: dict[str, JSONType] = {
+            "scope": "experiments",
+            "metrics": cast(list[JSONType], events),
+            "tags": cast(list[JSONType], tags),
+        }
+        if spans:
+            attributes["spans"] = cast(list[JSONType], spans)
+        body: dict[str, JSONType] = {"data": {"type": "experiments", "attributes": attributes}}
+        logger.debug("experiment_eval_post payload: %s", body)
+        resp = self.request("POST", path, body=body)
         if resp.status not in (200, 202):
             raise ValueError(
                 f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def experiment_events_get(
+        self,
+        experiment_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+        include_eval_metrics: bool = True,
+    ) -> dict:
+        """Fetch span events for a prior experiment run.
+
+        Pass ``experiment_id`` for direct UUID lookup, or ``project_name`` +
+        ``experiment_name`` for name-based resolution (returns latest run).
+
+        Response shape (JSON:API):
+        ``{"data": {"id": "<uuid>", "type": "experiment_events",``
+        ``"attributes": {"spans": [...], "summary_metrics": []}}}``
+
+        Each span has ``span_id``, ``trace_id``, ``name``, ``start_ns`` (nanoseconds),
+        ``duration`` (nanoseconds), ``tags``, ``meta`` (with ``input``, ``output``,
+        ``expected_output``, ``metadata``, ``error`` sub-keys), and ``eval_metrics``
+        (populated when ``include_eval_metrics=True``).
+        """
+        if experiment_id:
+            path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+            if include_eval_metrics:
+                path += "?include[eval_metrics]=true"
+        elif project_name and experiment_name:
+            encoded_project = urllib.parse.quote(project_name, safe="")
+            encoded_name = urllib.parse.quote(experiment_name, safe="")
+            path = (
+                f"/api/unstable/llm-obs/v1/experiments/events"
+                f"?filter[project_name]={encoded_project}"
+                f"&filter[experiment_name]={encoded_name}"
+            )
+            if include_eval_metrics:
+                path += "&include[eval_metrics]=true"
+        else:
+            raise ValueError("Either experiment_id or (project_name and experiment_name) must be provided.")
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment events: {resp.status} {resp.get_json()}")
+        return resp.get_json()
 
     def evaluator_infer(
         self,
@@ -926,6 +989,55 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "reasoning": attributes.get("reasoning"),
             "status": attributes.get("status"),
         }
+
+
+class LLMObsAPIClient:
+    """Synchronous HTTP client for read operations against the LLMObs platform API."""
+
+    TIMEOUT = 30.0
+
+    def __init__(self, api_key: str = "", app_key: str = "", site: str = "", override_url: str = "") -> None:
+        self._api_key: str = api_key or config._dd_api_key
+        self._app_key: str = app_key
+        _site: str = site or config._dd_site
+        _override_url: str = override_url or env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
+        self._base_url: str = _override_url or "https://api.{}".format(_site)
+
+    def get_spans(self, base_params: dict) -> list[dict]:
+        if not self._api_key:
+            raise ValueError("API key not set")
+        if not self._app_key:
+            raise ValueError("App key not set")
+        headers = {
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+            "Accept": "application/vnd.api+json",
+        }
+        spans: list[dict] = []
+        cursor = None
+        while True:
+            params = dict(base_params)
+            if cursor:
+                params["page[cursor]"] = cursor
+            path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
+            logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
+            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+            try:
+                conn.request("GET", path, b"", headers)
+                resp = conn.getresponse()
+                response = Response.from_http_response(resp)
+            finally:
+                conn.close()
+            if response.status != 200:
+                raise ValueError(
+                    "LLMObs.get_spans() request failed with status {}: {}".format(response.status, response.body)
+                )
+            body = response.get_json() or {}
+            spans.extend(item.get("attributes", {}) for item in body.get("data", []))
+            cursor = ((body.get("meta") or {}).get("page") or {}).get("after")
+            if not cursor:
+                break
+        return spans
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

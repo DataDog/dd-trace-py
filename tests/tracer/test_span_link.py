@@ -23,14 +23,12 @@ def test_construction_all_args():
         tracestate="ts",
         flags=1,
         attributes={"k": "v"},
-        _dropped_attributes=3,
     )
     assert link.trace_id == 1
     assert link.span_id == 2
     assert link.tracestate == "ts"
     assert link.flags == 1
     assert link.attributes == {"k": "v"}
-    assert link._dropped_attributes == 3
 
 
 def test_construction_minimal():
@@ -40,7 +38,6 @@ def test_construction_minimal():
     assert link.tracestate is None
     assert link.flags is None
     assert link.attributes == {}
-    assert link._dropped_attributes == 0
 
 
 def test_none_attributes_defaults_to_empty():
@@ -130,28 +127,6 @@ def test_attributes_dict_mutable():
 
 
 # ---------------------------------------------------------------------------
-# Properties
-# ---------------------------------------------------------------------------
-
-
-def test_name_property():
-    link = SpanLink(trace_id=1, span_id=2, attributes={"link.name": "my_link"})
-    assert link.name == "my_link"
-
-    link_no_name = SpanLink(trace_id=1, span_id=2)
-    with pytest.raises(KeyError):
-        _ = link_no_name.name
-
-
-def test_kind_property():
-    link = SpanLink(trace_id=1, span_id=2, attributes={"link.kind": "causal"})
-    assert link.kind == "causal"
-
-    link_no_kind = SpanLink(trace_id=1, span_id=2)
-    assert link_no_kind.kind is None
-
-
-# ---------------------------------------------------------------------------
 # to_dict
 # ---------------------------------------------------------------------------
 
@@ -176,12 +151,6 @@ def test_to_dict_with_attributes():
     assert attrs["flag"] == "true"
 
 
-def test_to_dict_with_dropped_attributes():
-    link = SpanLink(trace_id=1, span_id=2, _dropped_attributes=5)
-    d = link.to_dict()
-    assert d["dropped_attributes_count"] == 5
-
-
 def test_to_dict_with_tracestate_and_flags():
     link = SpanLink(trace_id=1, span_id=2, tracestate="vendor=value", flags=1)
     d = link.to_dict()
@@ -195,14 +164,26 @@ def test_to_dict_empty_attributes_omitted():
     assert "attributes" not in d
 
 
+def test_to_dict_flags_none_omitted():
+    # flags=None must not appear in to_dict() output
+    link = SpanLink(trace_id=1, span_id=2)
+    assert "flags" not in link.to_dict()
+
+
+def test_to_dict_flags_zero_present():
+    # flags=0 is distinct from flags=None and must appear in to_dict() output
+    link = SpanLink(trace_id=1, span_id=2, flags=0)
+    assert link.to_dict()["flags"] == 0
+
+
 # ---------------------------------------------------------------------------
 # Equality
 # ---------------------------------------------------------------------------
 
 
 def test_eq_same():
-    a = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"}, _dropped_attributes=3)
-    b = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"}, _dropped_attributes=3)
+    a = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"})
+    b = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"})
     assert a == b
 
 
@@ -223,7 +204,7 @@ def test_eq_different_type():
 
 
 def test_repr():
-    link = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"}, _dropped_attributes=3)
+    link = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"})
     r = repr(link)
     assert r.startswith("SpanLink(")
     assert "trace_id=1" in r
@@ -231,7 +212,6 @@ def test_repr():
     assert "attributes={'k': 'v'}" in r
     assert "tracestate=ts" in r
     assert "flags=1" in r
-    assert "dropped_attributes=3" in r
 
 
 # ---------------------------------------------------------------------------
@@ -240,14 +220,13 @@ def test_repr():
 
 
 def test_pickle_roundtrip():
-    link = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"}, _dropped_attributes=3)
+    link = SpanLink(trace_id=1, span_id=2, tracestate="ts", flags=1, attributes={"k": "v"})
     restored = pickle.loads(pickle.dumps(link))
     assert restored.trace_id == link.trace_id
     assert restored.span_id == link.span_id
     assert restored.tracestate == link.tracestate
     assert restored.flags == link.flags
     assert restored.attributes == link.attributes
-    assert restored._dropped_attributes == link._dropped_attributes
 
 
 def test_pickle_roundtrip_defaults():
@@ -258,7 +237,6 @@ def test_pickle_roundtrip_defaults():
     assert restored.tracestate is None
     assert restored.flags is None
     assert restored.attributes == {}
-    assert restored._dropped_attributes == 0
 
 
 def test_pickle_roundtrip_skip_validation():
@@ -280,37 +258,28 @@ def test_import_path():
 
 
 # ---------------------------------------------------------------------------
-# _SpanPointer classmethod
+# Span pointer construction
 # ---------------------------------------------------------------------------
 
 
-def test_span_pointer_classmethod():
-    link = SpanLink._SpanPointer(
-        pointer_kind="pk",
-        pointer_direction=_SpanPointerDirection.UPSTREAM,
-        pointer_hash="abc123",
+def test_span_pointer_construction():
+    link = SpanLink(
+        trace_id=0,
+        span_id=0,
+        attributes={
+            "link.kind": "span-pointer",
+            "ptr.kind": "pk",
+            "ptr.dir": _SpanPointerDirection.UPSTREAM.value,
+            "ptr.hash": "abc123",
+        },
+        _skip_validation=True,
     )
     assert link.trace_id == 0
     assert link.span_id == 0
-    assert link.kind == "span-pointer"
+    assert link.attributes["link.kind"] == "span-pointer"
     assert link.attributes["ptr.kind"] == "pk"
     assert link.attributes["ptr.dir"] == _SpanPointerDirection.UPSTREAM.value
     assert link.attributes["ptr.hash"] == "abc123"
-
-
-def test_span_pointer_with_extra_attributes():
-    link = SpanLink._SpanPointer(
-        pointer_kind="pk",
-        pointer_direction=_SpanPointerDirection.DOWNSTREAM,
-        pointer_hash="def456",
-        extra_attributes={"extra_key": "extra_val"},
-    )
-    assert link.attributes["extra_key"] == "extra_val"
-    assert link.attributes["ptr.kind"] == "pk"
-
-
-def test_span_pointer_kind_constant():
-    assert SpanLink.SPAN_POINTER_KIND == "span-pointer"
 
 
 # ---------------------------------------------------------------------------

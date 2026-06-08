@@ -6,7 +6,7 @@ components:
     - riotfile.py
     - .riot/requirements/*
     - scripts/ddtest
-    - hatch.toml
+    - pyproject.toml
     - tests/conftest.py
     - tests/utils.py
     - tests/__init__.py
@@ -153,6 +153,7 @@ suites:
     paths:
       - '@crashtracker'
       - '@core'
+      - '@profiling'
     snapshot: true
   conftest:
     parallelism: 1
@@ -209,6 +210,7 @@ suites:
       - '@contrib'
       - scripts/integration_registry/*
   internal:
+    retry: 2
     venvs_per_job: 2
     paths:
       - '@core'

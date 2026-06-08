@@ -11,12 +11,14 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bb2ec00000000",
+      "_dd.p.tid": "69dd462200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxy0w75el,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "aws.agent": "botocore",
       "aws.operation": "CreateQueue",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "FbZ4FCFnuLwRbxoNnClu7NSAjyWONE7PLQLgyWEdpRpfbM57PAEm",
+      "aws.requestid": "W3RIbFpm6sFZqSIJ2KJy77vnYN8udk84z6EL5PEllZYUCnYYt8Gu",
       "aws.sqs.queue_name": "test_queue",
       "aws_service": "sqs",
       "component": "botocore",
@@ -24,7 +26,7 @@
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
-      "runtime-id": "24279b903c3741b2bae285fb315da33e",
+      "runtime-id": "beb87338b3764a788cfc811d4297de3c",
       "span.kind": "client"
     },
     "metrics": {
@@ -32,11 +34,11 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 58703.0,
+      "process_id": 12046.0,
       "retry_attempts": 0.0
     },
-    "duration": 73953000,
-    "start": 1769714412413274000
+    "duration": 111229750,
+    "start": 1776109090293024050
   }],
 [
   {
@@ -51,12 +53,14 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bb2ec00000000",
+      "_dd.p.tid": "69dd462200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxy0w75el,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "aws.agent": "botocore",
       "aws.operation": "SendMessage",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "UIyaCXT8hrjRvxEwKFafjGMSoSE9v7JKZFoJGuOTAqYePuOXSlcn",
+      "aws.requestid": "EhScMTNswcFsQEJoxYC2XNvgcz66N2TPi8eSU2UK15cSoExH8CVg",
       "aws.sqs.queue_name": "test_queue",
       "aws_account": "123456789012",
       "aws_service": "sqs",
@@ -65,7 +69,7 @@
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
-      "runtime-id": "24279b903c3741b2bae285fb315da33e",
+      "runtime-id": "beb87338b3764a788cfc811d4297de3c",
       "span.kind": "client"
     },
     "metrics": {
@@ -73,11 +77,11 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 58703.0,
+      "process_id": 12046.0,
       "retry_attempts": 0.0
     },
-    "duration": 1369000,
-    "start": 1769714412487479000
+    "duration": 3487417,
+    "start": 1776109090404615841
   }],
 [
   {
@@ -92,12 +96,14 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bb2ec00000000",
+      "_dd.p.tid": "69dd462200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxy0w75el,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "aws.agent": "botocore",
       "aws.operation": "ReceiveMessage",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "ZXuGgo5D7Ke7OuDIQHfbC477wgiq7RYZjOWKUNTy1JeLswVQnf5f",
+      "aws.requestid": "1s1b6vNxezwbkoBgBKNF98ROVA6JILjnRdPWGwDk5rMi3fa0w4Ld",
       "aws.sqs.queue_name": "test_queue",
       "aws_account": "123456789012",
       "aws_service": "sqs",
@@ -106,7 +112,7 @@
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
-      "runtime-id": "24279b903c3741b2bae285fb315da33e",
+      "runtime-id": "beb87338b3764a788cfc811d4297de3c",
       "span.kind": "client"
     },
     "metrics": {
@@ -114,11 +120,11 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 58703.0,
+      "process_id": 12046.0,
       "retry_attempts": 0.0
     },
-    "duration": 32000,
-    "start": 1769714412489969000
+    "duration": 43625,
+    "start": 1776109090414579466
   }],
 [
   {
@@ -133,12 +139,14 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bb2ec00000000",
+      "_dd.p.tid": "69dd462200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxy0w75el,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "aws.agent": "botocore",
       "aws.operation": "DeleteQueue",
       "aws.partition": "aws",
       "aws.region": "us-east-1",
-      "aws.requestid": "EQJoVHm5P5kvARosAEzSuLFCzNrG4HHZNb68xktVspHw8Tul4p4b",
+      "aws.requestid": "TN1IC0yx4Vy9n53qwAtaTPdBiwWMKKZ8RkKrKjW7YEuxfGm9NBgy",
       "aws.sqs.queue_name": "test_queue",
       "aws_account": "123456789012",
       "aws_service": "sqs",
@@ -147,7 +155,7 @@
       "language": "python",
       "queuename": "test_queue",
       "region": "us-east-1",
-      "runtime-id": "24279b903c3741b2bae285fb315da33e",
+      "runtime-id": "beb87338b3764a788cfc811d4297de3c",
       "span.kind": "client"
     },
     "metrics": {
@@ -155,9 +163,9 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 58703.0,
+      "process_id": 12046.0,
       "retry_attempts": 0.0
     },
-    "duration": 578000,
-    "start": 1769714412490062000
+    "duration": 789334,
+    "start": 1776109090414701841
   }]]

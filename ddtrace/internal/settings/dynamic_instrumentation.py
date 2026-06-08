@@ -5,6 +5,7 @@ import typing as t
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
@@ -15,7 +16,12 @@ DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
 def _derive_tags(c: DDConfig) -> str:
-    _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=__version__)
+    _tags = dict(
+        debugger_version=__version__,
+        env=ddconfig.env,
+        host=get_hostname(),
+        version=ddconfig.version,
+    )
     _tags.update(ddconfig.tags)
 
     # Add git metadata tags, if available
@@ -24,11 +30,11 @@ def _derive_tags(c: DDConfig) -> str:
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
-def normalize_ident(ident):
+def normalize_ident(ident: str) -> str:
     return ident.strip().lower().replace("_", "")
 
 
-def validate_type_patterns(types: set[str]):
+def validate_type_patterns(types: set[str]) -> None:
     for typ in types:
         for s in typ.strip().split("."):
             s = s.strip().replace("*", "a")
@@ -120,9 +126,11 @@ class DynamicInstrumentationConfig(DDConfig):
 
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
-        lambda c: re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
-        if c.redacted_types
-        else None,
+        lambda c: (
+            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+            if c.redacted_types
+            else None
+        ),
     )
 
     redaction_excluded_identifiers = DDConfig.v(

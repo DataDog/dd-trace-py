@@ -1,10 +1,14 @@
 from enum import Enum
 from typing import Any
+from typing import Iterable
 from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
 from typing import TypeVar
+from typing import Union
+
+from ddtrace._trace.types import _AttributeValueType
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
@@ -76,6 +80,8 @@ class CrashtrackerConfiguration:
         use_alt_stack: bool,
         timeout_ms: int,
         resolve_frames: StacktraceCollection,
+        collect_all_threads: bool,
+        max_threads: int,
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
@@ -155,6 +161,34 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+class SharedRuntime:
+    """
+    SharedRuntime manages a shared Tokio async runtime used by TraceExporter instances.
+    It provides fork-safety hooks to pause and resume the runtime around process forks.
+    """
+
+    def __init__(self) -> None: ...
+    def before_fork(self) -> None:
+        """Prepare the shared runtime for forking. Call this before os.fork()."""
+        ...
+    def after_fork_parent(self) -> None:
+        """Resume the shared runtime in the parent process after forking."""
+        ...
+    def after_fork_child(self) -> None:
+        """Re-initialize the shared runtime in the child process after forking."""
+        ...
+    def shutdown(self, timeout_ms: Optional[int] = None) -> None:
+        """Gracefully shut down the shared runtime.
+
+        Args:
+            timeout_ms: Maximum time in milliseconds to wait for shutdown.
+                If None, waits indefinitely.
+        """
+        ...
+    def debug(self) -> str:
+        """Returns a string representation of the runtime. Should only be used for debugging."""
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
@@ -181,22 +215,6 @@ class TraceExporter:
     def drop(self) -> None:
         """
         Drop the TraceExporter, releasing any resources without sending pending stats.
-        """
-        ...
-    def run_worker(self) -> None:
-        """
-        Start the rust worker threads.
-        This starts the runtime required to process rust async tasks including stats and telemetry sending.
-        The runtime will also be created when calling `send`,
-        this method can be used to start the runtime before sending any traces.
-        """
-        ...
-    def stop_worker(self) -> None:
-        """
-        Stop the rust worker threads.
-        This stops the async runtime and must be called before forking to avoid deadlocks after forking.
-        This should be called even if `run_worker` hasn't been called as the runtime will be started
-        when calling `send`.
         """
         ...
     def debug(self) -> str:
@@ -331,16 +349,23 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
+        """
+        Obfuscate client side stats buckets in the client instead of in the agent.
+        """
         ...
     def enable_telemetry(
         self,
         heartbeat_ms: int,
         runtime_id: str,
+        debug_enabled: bool,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
         :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
+        :param debug_enabled: Whether to enable debug logging for telemetry.
         """
         ...
     def enable_health_metrics(self) -> TraceExporterBuilder:
@@ -369,10 +394,11 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
+        :param shared_runtime: A SharedRuntime instance to share with this exporter.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -384,6 +410,13 @@ class TraceExporterBuilder:
         """
         ...
 
+class AgentResponse:
+    """Sampling-rate response from the Datadog agent after a successful trace export."""
+
+    rate_by_service: Mapping[str, float]
+
+    def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
+
 class AgentError(Exception):
     """
     Raised when there is an error in agent response processing.
@@ -394,6 +427,13 @@ class AgentError(Exception):
 class BuilderError(Exception):
     """
     Raised when there is an error in the TraceExporterBuilder configuration.
+    """
+
+    ...
+
+class SharedRuntimeError(Exception):
+    """
+    Raised when there is an error in the SharedRuntime lifecycle (fork hooks, shutdown, etc.).
     """
 
     ...
@@ -533,8 +573,6 @@ class ffe:
         def flag_metadata(self) -> dict[str, str]: ...
         @property
         def do_log(self) -> bool: ...
-        @property
-        def extra_logging(self) -> Optional[dict[str, str]]: ...
 
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
@@ -594,29 +632,67 @@ class SpanData:
         context: Optional[Any] = None,  # placeholder for Span.__init__
         on_finish: Optional[Any] = None,  # placeholder for Span.__init__
         span_api: Optional[str] = None,
+        links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+    def _has_meta_structs(self) -> bool: ...
+    def _get_meta_structs(self) -> dict[str, Any]: ...
+    def _set_link(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+    ) -> None: ...
+    def _add_event(
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
+    ) -> None: ...
+    def _get_links(self) -> list["SpanLink"]: ...
+    def _get_events(self) -> list["SpanEvent"]: ...
+    def _has_links(self) -> bool: ...
+    def _has_events(self) -> bool: ...
+
+    # Attribute API
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+    def _set_attributes(self, attrs: dict[str, Union[str, int, float]]) -> None: ...
+    def _has_attribute(self, key: str) -> bool: ...
+    def _remove_attribute(self, key: str) -> None: ...
+    def _get_attribute(self, key: str) -> Optional[Union[str, int, float]]: ...
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+    def _get_numeric_attribute(self, key: str) -> Optional[Union[int, float]]: ...
+    def _get_attributes(self) -> Mapping[str, Union[str, int, float]]: ...
+    def _get_str_attributes(self) -> Mapping[str, str]: ...
+    def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
+    def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
 
 class SpanEvent:
     name: str
-    time_unix_nano: int
+    time_unix_nano: int  # u64 in Rust; always non-negative
     attributes: dict[str, Any]
     def __init__(
-        self, name: str, attributes: Optional[Mapping[str, Any]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ): ...
     def __repr__(self) -> str: ...
     def __iter__(self) -> Iterator[tuple[str, Any]]: ...
     def __reduce__(self) -> tuple: ...
 
 class SpanLink:
-    SPAN_POINTER_KIND: str
     trace_id: int
     span_id: int
     tracestate: Optional[str]
     flags: Optional[int]
     attributes: dict[str, Any]
-    _dropped_attributes: int
 
     def __init__(
         self,
@@ -624,27 +700,47 @@ class SpanLink:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Mapping[str, Any]] = None,
-        _dropped_attributes: int = 0,
+        attributes: Optional[Mapping[str, _AttributeValueType]] = None,
         _skip_validation: bool = False,
     ) -> None: ...
-    @property
-    def name(self) -> Any: ...
-    @property
-    def kind(self) -> Optional[Any]: ...
     def to_dict(self) -> dict[str, Any]: ...
     def __eq__(self, other: object) -> bool: ...
     def __repr__(self) -> str: ...
     def __reduce__(self) -> tuple: ...
-    @classmethod
-    def _SpanPointer(
-        cls,
-        pointer_kind: str,
-        pointer_direction: Any,
-        pointer_hash: str,
-        extra_attributes: Optional[dict[str, Any]] = None,
-    ) -> "SpanLink": ...
 
+class ResultType:
+    value: int
+    name: str
+    RESULT_OK: "ResultType"
+    RESULT_EXCEPTION: "ResultType"
+    RESULT_UNDEFINED: "ResultType"
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+    def __int__(self) -> int: ...
+
+class EventResult:
+    response_type: Any
+    value: Any
+    exception: Any
+    def __init__(
+        self,
+        response_type: Any = None,
+        value: Any = None,
+        exception: Any = None,
+    ) -> None: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+
+class EventResultDict(dict):
+    def __missing__(self, key: Any) -> EventResult: ...
+    def __getattr__(self, name: str) -> EventResult: ...
+
+def has_listeners(event_id: str) -> bool: ...
+def on(event_id: str, callback: Any, name: Any = None) -> None: ...
+def reset(event_id: Optional[str] = None, callback: Optional[Any] = None) -> None: ...
+def dispatch(event_id: str, args: Optional[tuple] = None, allow_raise: bool = False) -> None: ...
+def dispatch_with_results(event_id: str, args: Optional[tuple] = None) -> EventResultDict: ...
 def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]: ...
 def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
@@ -662,3 +758,195 @@ class config:
     def set_128_bit_trace_id_enabled(val: bool) -> None:
         """Set whether 128-bit trace ID generation is enabled."""
         ...
+    @staticmethod
+    def get_raise() -> bool:
+        """Return whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+    @staticmethod
+    def set_raise(val: bool) -> None:
+        """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
+        ...
+
+# -----------------------------------------------------------------------------
+# HTTP client
+# -----------------------------------------------------------------------------
+
+class HttpResponse:
+    """An HTTP response. Immutable; safe to share across threads."""
+
+    @property
+    def status_code(self) -> int: ...
+    @property
+    def headers(self) -> list[tuple[str, str]]:
+        """Response headers as a list preserving insertion order and duplicates.
+
+        Multiple ``Set-Cookie`` headers, for example, are kept as distinct
+        list entries.
+        """
+        ...
+    def body(self) -> bytes:
+        """Return the response body as ``bytes``.
+
+        Responses are not decompressed regardless of ``Content-Encoding``.
+        Repeated calls return the same ``bytes`` object (memoized).
+        """
+        ...
+    def header(self, name: str) -> Optional[str]:
+        """Case-insensitive header lookup; returns the first matching value."""
+        ...
+
+_HTTPClientT = TypeVar("_HTTPClientT", bound="HTTPClient")
+
+class HTTPClient:
+    """A pooled, base-URL HTTP client.
+
+    Construct with a base URL; request methods take a relative path joined onto
+    it. ``headers`` are default headers merged into every request (per-request
+    headers override by name). The GIL is released for the duration of every
+    HTTP I/O call, and instances are safe to share across threads (connections
+    are pooled internally).
+
+    ``runtime`` is a :class:`SharedRuntime`. Application code should use
+    :class:`ddtrace.internal.http_client.HTTPClient`, a subclass that injects the
+    process-wide runtime automatically:
+
+        >>> from ddtrace.internal.http_client import HTTPClient
+        >>> client = HTTPClient("http://localhost:8126", headers=[("Datadog-Meta-Lang", "python")])
+        >>> info = client.get("/info").body()
+
+    ``base_url`` is ``scheme://host[:port][/prefix]`` (``http`` / ``https``) or
+    ``unix:///path/to.sock``. For UDS the request host is fixed to ``localhost``.
+
+    Behavioral notes:
+
+    - Redirects are followed automatically (up to 10).
+    - ``HTTP_PROXY`` / ``HTTPS_PROXY`` / ``NO_PROXY`` environment variables are
+      honored.
+    - Response bodies are not decompressed; ``Content-Encoding`` is preserved
+      verbatim.
+    """
+
+    def __new__(
+        cls: type[_HTTPClientT],
+        base_url: str,
+        *,
+        runtime: SharedRuntime,
+        timeout_ms: int = 2000,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        max_retries: int = 0,
+        retry_initial_delay_ms: int = 100,
+        retry_jitter: bool = True,
+        treat_http_errors_as_errors: bool = True,
+    ) -> _HTTPClientT:
+        """Build a client bound to ``runtime``.
+
+        :param max_retries: number of retries after the first attempt (``0`` =
+            no retry). libdd retries all non-``InvalidConfig`` errors including
+            4xx/5xx; combine with ``treat_http_errors_as_errors=False`` for
+            "no retry on 4xx".
+        :param retry_initial_delay_ms: backoff before the first retry (doubles
+            each subsequent retry). Only applies when ``max_retries > 0``.
+        :param retry_jitter: randomize the backoff delay. Only applies when
+            ``max_retries > 0``.
+        :param treat_http_errors_as_errors: when ``True`` (default), HTTP 4xx/5xx
+            raise :class:`RequestFailedError`; when ``False`` they are returned
+            as regular :class:`HttpResponse` objects.
+        """
+        ...
+    def get(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def head(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def delete(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def post(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def put(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+    def patch(
+        self,
+        path: str,
+        *,
+        headers: Optional[Iterable[tuple[str, str]]] = None,
+        body: Optional[bytes] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> HttpResponse: ...
+
+class HttpClientError(Exception):
+    """Base class for all native HTTP client errors.
+
+    Catch this to handle any failure from an :class:`HTTPClient` request. The
+    granular subclasses are :class:`ConnectionFailedError`,
+    :class:`TimedOutError`, :class:`RequestFailedError`,
+    :class:`InvalidConfigError`, and :class:`HttpIoError`.
+
+    Subclassable from Python:
+
+        >>> class MyError(HttpClientError): ...
+
+    Example exception handling:
+
+        >>> try:
+        ...     resp = client.send(req)
+        ... except TimedOutError:
+        ...     ...  # retry or surface
+        ... except ConnectionFailedError as e:
+        ...     ...  # cannot reach server
+        ... except RequestFailedError as e:
+        ...     status = e.status  # int
+        ...     body = e.body  # str (lossy-UTF-8 decoded by libdd)
+        ... except HttpClientError:
+        ...     ...  # fall-through
+    """
+
+class ConnectionFailedError(HttpClientError):
+    """TCP/socket connection to the server could not be established."""
+
+class TimedOutError(HttpClientError):
+    """The request exceeded its configured timeout."""
+
+class RequestFailedError(HttpClientError):
+    """The server returned an HTTP 4xx/5xx status code.
+
+    Only raised when ``treat_http_errors_as_errors=True`` (the default).
+    """
+
+    status: int
+    body: str  # NOTE: binary bodies are lossy-UTF-8 decoded; not byte-perfect.
+
+class InvalidConfigError(HttpClientError):
+    """The client/request configuration was invalid (e.g. zero timeout,
+    both body and multipart parts set on the same request).
+    """
+
+class HttpIoError(HttpClientError):
+    """An I/O error occurred during the request (truncated response,
+    connection reset, etc.).
+    """

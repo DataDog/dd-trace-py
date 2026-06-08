@@ -46,6 +46,12 @@ class StackCollector(collector.Collector):
     def _init(self) -> None:
         _task.initialize_gevent_support()
 
+        # Import _faulthandler BEFORE starting the sampler. This ensures that if
+        # faulthandler.enable was already called (e.g., by pytest), we reinstall
+        # our SIGSEGV handler before sampling begins. Our handler chains to
+        # faulthandler's for non-recovery faults.
+        from ddtrace.profiling import _faulthandler  # noqa: F401
+
         # Start the native stack sampler first. This ensures one_time_setup() runs
         # (which handles any fork that happened since library load) before we
         # register threads and asyncio loops - otherwise those registrations would
@@ -54,6 +60,10 @@ class StackCollector(collector.Collector):
         stack.set_target_overhead(config.stack.adaptive_sampling_target_overhead)
         stack.set_max_sampling_period(config.stack.adaptive_sampling_max_interval)
         stack.set_max_threads(config.stack.max_threads)
+        stack.set_fast_copy(config.stack.fast_copy)
+        if stack.is_safe_copy_failed():
+            LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")
+            raise collector.CollectorUnavailable
         if not stack.start():
             LOG.error("Failed to start the stack profiler sampling thread. CPU/wall-time profiles will be empty.")
             raise collector.CollectorUnavailable

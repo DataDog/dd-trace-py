@@ -15,10 +15,12 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <utility>
 
 using namespace Datadog;
 
@@ -52,7 +54,10 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
         return 0;
     }
     if (stack_size > 0) {
-        pthread_attr_setstacksize(&attr, stack_size);
+        if (pthread_attr_setstacksize(&attr, stack_size) != 0) {
+            std::cerr << "Failed to set sampling thread stack size (" << stack_size << " bytes): " << strerror(errno)
+                      << std::endl;
+        }
     }
 
     pthread_t thread_id{ 0 };
@@ -73,6 +78,42 @@ create_thread_with_stack(size_t stack_size, Sampler* sampler, uint64_t seq_num)
 #include <mach/mach.h>
 #endif
 
+namespace {
+
+// Returns the CPU time of the calling thread in microseconds, or 0 on error.
+uint64_t
+get_thread_cpu_time_us()
+{
+#if defined(__linux__)
+    struct timespec ts
+    {
+        0, 0
+    };
+
+    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
+#elif defined(__MACH__)
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    thread_basic_info_data_t info;
+    thread_port_t thread = mach_thread_self();
+    int kr = thread_info(thread, THREAD_BASIC_INFO, reinterpret_cast<thread_info_t>(&info), &count);
+    mach_port_deallocate(mach_task_self(), thread);
+    if (kr != KERN_SUCCESS) {
+        return 0;
+    }
+
+    return static_cast<uint64_t>(info.user_time.seconds + info.system_time.seconds) * 1'000'000ULL +
+           info.user_time.microseconds + info.system_time.microseconds;
+#else
+    return 0;
+#endif
+}
+
+} // namespace
+
 void
 Sampler::adapt_sampling_interval()
 {
@@ -83,10 +124,10 @@ Sampler::adapt_sampling_interval()
     };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
-    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 
     clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
-    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1000000ULL + ts.tv_nsec / 1000);
+    auto new_sampler_thread_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
 #elif defined(__MACH__)
     // Get the process CPU time
     task_thread_times_info_data_t task_info_data;
@@ -176,21 +217,26 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // Track upload sequence to clear ephemeral string table entries periodically.
-    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
-    // churning entries for long-lived tasks while still bounding growth.
-    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
-    constexpr uint64_t ephemeral_clear_interval = 25;
-
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
-        // Clear ephemeral string table entries (task names, greenlet names) periodically.
-        // Safe because strings are copied into StringArena during sample construction.
-        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
-        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
-            last_cleared_upload_seq = current_upload_seq;
-            echion->string_table().clear_ephemeral();
+        // Check if a pause has been requested (e.g., for signal handler swapping).
+        // Block until resumed or the thread is asked to stop.
+        if (pause_requested_.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lock(pause_mutex_);
+            paused_.store(true, std::memory_order_release);
+            pause_cv_.notify_all();
+            pause_cv_.wait(lock, [&] {
+                return !pause_requested_.load(std::memory_order_acquire) || seq_num != thread_seq_num.load();
+            });
+            paused_.store(false, std::memory_order_release);
+            if (seq_num != thread_seq_num.load()) {
+                break;
+            }
         }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time
+        // is not counted as sampling overhead.
+        auto sample_capture_cpu_before = get_thread_cpu_time_us();
 
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
@@ -290,27 +336,49 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
-        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
-        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
-        Sample::profile_borrow().stats().set_asyncio_task_count(echion->asyncio_task_count());
+        // Collect greenlet count before acquiring the profile lock to avoid
+        // holding two locks simultaneously (greenlet lock then profile lock).
+        size_t greenlet_count;
         {
             const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-            Sample::profile_borrow().stats().set_greenlet_count(echion->greenlet_info_map().size());
+            greenlet_count = echion->greenlet_info_map().size();
         }
 
-        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
+        // Drain copy_memory errors accumulated since the last sampling cycle.
         auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
-        if (copy_errors > 0) {
-            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
-        }
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
             if (sample_time_now - interval_adjust_time_prev > microseconds(g_adaptive_sampling_interval_us)) {
                 adapt_sampling_interval();
                 interval_adjust_time_prev = sample_time_now;
+            }
+        }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time is
+        // not counted as sampling overhead.
+        auto sample_capture_cpu_after = get_thread_cpu_time_us();
+
+        // Update all end-of-cycle stats under a single borrow so they always land in
+        // the same upload window as the samples they describe. Without this, the uploader
+        // could swap cur_profiler_stats between two separate borrow calls, silently
+        // shifting some counters (including sample_capture_cpu_time_us) into the next window.
+        {
+            auto borrow = Sample::profile_borrow();
+
+            borrow.stats().increment_sampling_event_count();
+            borrow.stats().set_string_table_count(echion->string_table().size());
+            borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
+            borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+            borrow.stats().set_greenlet_count(greenlet_count);
+
+            if (copy_errors > 0) {
+                borrow.stats().add_copy_memory_error_count(copy_errors);
+            }
+
+            size_t cpu_diff = sample_capture_cpu_after - sample_capture_cpu_before;
+            if (cpu_diff > 0) {
+                borrow.stats().add_sample_capture_cpu_time_us(cpu_diff);
             }
         }
 
@@ -366,6 +434,13 @@ Sampler::postfork_child()
     new (&thread_exit_mutex) std::mutex();
     new (&thread_exit_cv) std::condition_variable();
 
+    // Reset pause state - the parent's sampling thread (and any in-progress
+    // pause) doesn't exist in the child.
+    pause_requested_.store(false);
+    paused_.store(false);
+    new (&pause_mutex_) std::mutex();
+    new (&pause_cv_) std::condition_variable();
+
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
         echion->postfork_child();
@@ -403,13 +478,39 @@ Sampler::postfork_child()
 }
 
 void
+Sampler::prefork()
+{
+    was_running_at_fork_ = thread_seq_num.load() & 1;
+}
+
+void
+Sampler::postfork_parent()
+{
+    // The parent's sampling thread survives the fork unchanged; no restart needed.
+    // Calling start() here would launch a second thread, corrupt the thread_seq_num
+    // parity invariant used by prefork(), and cause a data race on EchionSampler state.
+}
+
+void
 Sampler::restart_after_fork()
 {
     // Restart the sampler if it was running before fork.
-    // Odd thread_seq_num means the sampler was started and not stopped.
-    if (thread_seq_num.load() & 1) {
+    // We use the saved flag because prefork changed the thread_seq_num parity.
+    if (was_running_at_fork_) {
         start();
     }
+}
+
+static void
+stack_atfork_prepare()
+{
+    Sampler::get().prefork();
+}
+
+static void
+stack_atfork_parent()
+{
+    Sampler::get().postfork_parent();
 }
 
 static void
@@ -438,8 +539,8 @@ stack_atfork_child()
 __attribute__((constructor)) void
 stack_init()
 {
-    // At just do start-of-process cleanup (e.g., set PID)
-    stack_postfork_cleanup();
+    _set_pid(getpid());
+    ThreadSpanLinks::postfork_child();
 }
 
 void
@@ -448,7 +549,14 @@ Sampler::one_time_setup()
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, stack_atfork_child);
+
+    // ProfilerState::start registers
+    // dd_wrapper's pthread_atfork handler before Sampler::start is called,
+    // so the POSIX FIFO child-handler ordering guarantees dd_wrapper's
+    // postfork_child runs first — rebuilding the Profiles Dictionary before the
+    // sampling thread restarts and calls intern_string.
+    // More details in https://github.com/DataDog/dd-trace-py/pull/17183
+    pthread_atfork(stack_atfork_prepare, stack_atfork_parent, stack_atfork_child);
 }
 
 void
@@ -533,6 +641,10 @@ Sampler::stop()
     // a sampling loop.
     ++thread_seq_num;
 
+    // Wake the sampling thread if it's paused, so it can observe the seq_num
+    // change and exit.
+    pause_cv_.notify_all();
+
     // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
     std::unique_lock<std::mutex> lock(thread_exit_mutex);
     constexpr auto timeout = std::chrono::seconds(3);
@@ -540,6 +652,40 @@ Sampler::stop()
     if (!exited) {
         std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
     }
+}
+
+PauseResult
+Sampler::pause()
+{
+    if (!thread_running.load()) {
+        return PauseResult::NotRunning;
+    }
+
+    pause_requested_.store(true, std::memory_order_release);
+
+    // Wait for the sampling thread to reach the pause point (i.e., finish any
+    // in-flight sample) so the caller can safely swap signal handlers.
+    std::unique_lock<std::mutex> lock(pause_mutex_);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool ok = pause_cv_.wait_for(
+      lock, timeout, [this]() { return paused_.load(std::memory_order_acquire) || !thread_running.load(); });
+
+    if (!ok) {
+        // Timed out -- clear the request so the sampling thread isn't stuck.
+        pause_requested_.store(false, std::memory_order_release);
+        return PauseResult::Timeout;
+    }
+    return PauseResult::Paused;
+}
+
+void
+Sampler::resume()
+{
+    {
+        std::lock_guard<std::mutex> lock(pause_mutex_);
+        pause_requested_.store(false, std::memory_order_release);
+    }
+    pause_cv_.notify_all();
 }
 
 void
@@ -573,7 +719,7 @@ Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
-Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
+Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
@@ -581,9 +727,9 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
-        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
+        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, std::move(name));
     } else {
-        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, std::move(name)));
     }
 
     // Update the thread map
@@ -599,13 +745,6 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
     auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
-        // Remove the greenlet's name string from the string table
-        // to prevent unbounded growth of the String Table.
-
-        // NOTE: This locks the String Table. If nested locks are required, always
-        // ensure that the greenlet_info_map is locked first before locking the
-        // String Table to avoid deadlocks.
-        echion->string_table().erase(entry->second->name);
         greenlet_info_map.erase(entry);
     }
 

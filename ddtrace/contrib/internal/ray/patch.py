@@ -1,3 +1,7 @@
+from collections.abc import Mapping
+import json
+from typing import Any
+
 import ray
 from wrapt import wrap_function_wrapper as _w
 
@@ -21,6 +25,7 @@ from ddtrace.internal.utils.formats import asbool
 
 from .constants import DEFAULT_JOB_NAME
 from .constants import RAY_JOB_NAME
+from .constants import RAY_SUBMISSION_ID
 from .core.utils import get_dd_job_name_from_entrypoint
 from .core.utils import redact_paths
 
@@ -31,14 +36,55 @@ _job_context_lock = Lock()
 _job_contexts = {}
 
 
+def _parse_ignored_actors(value: Any) -> dict[str, frozenset[str]]:
+    if not value:
+        return {}
+
+    if isinstance(value, str):
+        try:
+            parsed_value = json.loads(value)
+        except ValueError:
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS value. Expected a JSON object.")
+            return {}
+    else:
+        parsed_value = value
+
+    if not isinstance(parsed_value, Mapping):
+        log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS value. Expected a JSON object.")
+        return {}
+
+    ignored_actors = {}
+    for actor_name, ignored_methods in parsed_value.items():
+        if not isinstance(actor_name, str) or not actor_name.strip():
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS actor name. Expected a non-empty string.")
+            continue
+
+        actor_name = actor_name.strip()
+        if ignored_methods == "*":
+            ignored_actors[actor_name] = frozenset({"*"})
+            continue
+
+        if not isinstance(ignored_methods, (list, tuple, set, frozenset)):
+            log.warning("Invalid DD_TRACE_RAY_IGNORED_ACTORS methods for actor %s. Expected a list.", actor_name)
+            continue
+
+        methods = frozenset(method.strip() for method in ignored_methods if isinstance(method, str) and method.strip())
+        if methods:
+            ignored_actors[actor_name] = methods
+
+    return ignored_actors
+
+
 config._add(
     "ray",
     dict(
+        _default_service="ray",
         use_entrypoint_as_service_name=asbool(env.get("DD_TRACE_RAY_USE_ENTRYPOINT_AS_SERVICE_NAME", default=False)),
         redact_entrypoint_paths=asbool(env.get("DD_TRACE_RAY_REDACT_ENTRYPOINT_PATHS", default=True)),
         trace_core_api=_get_config("DD_TRACE_RAY_CORE_API", default=False, modifier=asbool),
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
         submission_spans=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED", default=False, modifier=asbool),
+        ignored_actors=_get_config("DD_TRACE_RAY_IGNORED_ACTORS", default={}, modifier=_parse_ignored_actors),
     ),
 )
 
@@ -49,6 +95,24 @@ def _supported_versions() -> dict[str, str]:
 
 def get_version() -> str:
     return str(getattr(ray, "__version__", ""))
+
+
+def _parse_ml_job_env(raw: str) -> dict[str, str]:
+    """Parse DD_ML_JOB_ENV into a {KEY: VALUE} dict.
+
+    Format: semicolon-separated ``KEY:VALUE`` pairs, e.g.
+    ``DD_SERVICE:my-svc;DD_AGENT_HOST:10.0.0.1``.
+    Keys are forwarded as-is into the Ray job environment.
+    """
+    result: dict[str, str] = {}
+    for pair in raw.split(";"):
+        pair = pair.strip()
+        if ":" in pair:
+            key, value = pair.split(":", 1)
+            key = key.strip()
+            if key:
+                result[key] = value.strip()
+    return result
 
 
 def traced_submit_job(wrapped, instance, args, kwargs):
@@ -94,6 +158,13 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     # This prevents inferred services (for example "ray.dashboard") from being
     # attached as _dd.base_service on worker spans.
     env_vars.setdefault("DD_SERVICE", job_name)
+    # Ray doesn't propagate submission_id / job_name as env vars; workers need them for span tags.
+    env_vars.setdefault(RAY_SUBMISSION_ID, submission_id)
+    env_vars.setdefault(RAY_JOB_NAME, job_name)
+    raw_ml_job_env = env.get("DD_ML_JOB_ENV")
+    if raw_ml_job_env:
+        for _k, _v in _parse_ml_job_env(raw_ml_job_env).items():
+            env_vars.setdefault(_k, _v)
 
     with core.context_with_event(
         RayJobEvent(
