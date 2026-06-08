@@ -2,7 +2,7 @@ import csv
 import os
 import re
 
-import toml
+import toml  # type: ignore[import-untyped]
 
 
 def requirements_to_csv():
@@ -52,7 +52,7 @@ def requirements_to_csv():
         if "lib-injection" in path:
             os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", newline="") as f:
-            writer = csv.writer(f)
+            writer = csv.writer(f, lineterminator="\n")
             writer.writerows(rows)
 
 

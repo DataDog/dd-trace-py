@@ -32,7 +32,7 @@ cmakeformat_check = [
     "bash scripts/cmake-format.sh"
 ]
 cmakeformat_fix = [
-    "bash scripts/cmake-format.sh --fix"
+    "bash scripts/cmake-format.sh --fix {args}"
 ]
 cformat_check = [
     "bash scripts/cformat.sh"
