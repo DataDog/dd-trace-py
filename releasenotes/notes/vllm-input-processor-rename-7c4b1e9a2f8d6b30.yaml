@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    vllm: Resolved an issue where the integration failed to instrument vLLM
+    ``>= 0.14.0`` with ``ModuleNotFoundError: No module named
+    'vllm.v1.engine.processor'``. vLLM ``0.14.0`` renamed
+    ``vllm.v1.engine.processor.Processor`` to
+    ``vllm.v1.engine.input_processor.InputProcessor``; the integration now
+    resolves the correct module at patch time while remaining compatible with
+    older supported vLLM versions.

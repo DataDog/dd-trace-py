@@ -3560,6 +3560,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "torch": latest,
                 "vllm": ">=0.10.2",
+                "envier": "~=0.6.1",
             },
             pys=select_pys(min_version="3.10", max_version="3.13"),
         ),

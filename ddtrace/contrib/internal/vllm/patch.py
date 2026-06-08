@@ -23,6 +23,11 @@ from ._constants import ATTR_DATADOG_INTEGRATION
 from ._constants import ATTR_DATADOG_PATCH
 from ._constants import ATTR_MODEL_NAME
 from ._constants import MIN_VERSION
+from ._constants import PROCESSOR_CLASS_NEW
+from ._constants import PROCESSOR_CLASS_OLD
+from ._constants import PROCESSOR_METHOD
+from ._constants import PROCESSOR_MODULE_NEW
+from ._constants import PROCESSOR_MODULE_OLD
 from .extractors import extract_latency_metrics
 from .extractors import extract_request_data
 from .extractors import get_model_name
@@ -34,6 +39,36 @@ from .utils import set_latency_metrics
 logger = get_logger(__name__)
 
 config._add("vllm", {})
+
+
+def _resolve_processor_target() -> tuple[str, str]:
+    """Resolve the input-processor wrap target across vLLM versions.
+
+    vLLM >= 0.14.0 renamed ``vllm.v1.engine.processor.Processor`` to
+    ``vllm.v1.engine.input_processor.InputProcessor``. Probe the new module
+    first and fall back to the legacy one so the integration keeps working on
+    vLLM 0.10.2-0.13.x as well.
+
+    Returns a ``(module_path, "Class.process_inputs")`` pair suitable for
+    :func:`wrap`.
+    """
+    import importlib.util
+
+    try:
+        if importlib.util.find_spec(PROCESSOR_MODULE_NEW) is not None:
+            return PROCESSOR_MODULE_NEW, f"{PROCESSOR_CLASS_NEW}.{PROCESSOR_METHOD}"
+    except (ImportError, ValueError):
+        pass
+
+    return PROCESSOR_MODULE_OLD, f"{PROCESSOR_CLASS_OLD}.{PROCESSOR_METHOD}"
+
+
+def _processor_class() -> type:
+    """Import and return the input-processor class for the installed vLLM version."""
+    import importlib
+
+    module_path, target = _resolve_processor_target()
+    return getattr(importlib.import_module(module_path), target.split(".")[0])
 
 
 def traced_engine_init(func, instance, args, kwargs):
@@ -197,7 +232,8 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+    processor_module, processor_target = _resolve_processor_target()
+    wrap(processor_module, processor_target, traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -213,7 +249,7 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+    unwrap(_processor_class(), PROCESSOR_METHOD)
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)
