@@ -545,8 +545,6 @@ class AgentlessTraceWriter(HTTPWriter):
     """
 
     HTTP_METHOD = "POST"
-    # Host prefix for the agentless span intake (browser-intake / api/v2/spans).
-    INTAKE_HOST = "browser-intake-"
     # Agentless payloads must be under 15 MB.
     MAX_BUFFER_SIZE = 15 << 20  # 15 MB
 
@@ -1104,6 +1102,24 @@ def _use_sync_mode() -> bool:
     )
 
 
+def _agentless_intake_url(site: str) -> str:
+    """Return the agentless span intake base URL for the given DD_SITE value.
+
+    Mirrors the backend intake routing logic. The path (api/v2/spans) is
+    appended separately via AgentlessWriterClient.ENDPOINT.
+    """
+    if "us3" in site:
+        return "https://trace.browser-intake-us3-datadoghq.com"
+    elif "us5" in site:
+        return "https://trace.browser-intake-us5-datadoghq.com"
+    elif "ap1" in site:
+        return "https://browser-intake-ap1-datadoghq.com"
+    elif "ap2" in site:
+        return "https://browser-intake-ap2-datadoghq.com"
+    else:
+        return "https://public-trace-http-intake.logs.{}".format(site)
+
+
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
@@ -1112,11 +1128,7 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        # browser-intake-* hostnames replace the first dot in _dd_site with a dash
-        # e.g. "datadoghq.com" -> "browser-intake-datadoghq.com"
-        #      "us3.datadoghq.com" -> "browser-intake-us3-datadoghq.com"
-        body, _, tld = config._dd_site.rpartition(".")
-        intake_url = "https://{}{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, body.replace(".", "-"), tld)
+        intake_url = _agentless_intake_url(config._dd_site)
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,

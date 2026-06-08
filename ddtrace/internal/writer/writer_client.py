@@ -40,7 +40,7 @@ class AgentWriterClientV4(WriterClientBase):
 
 
 class AgentlessWriterClient(WriterClientBase):
-    """Client for the agentless JSON span intake (browser-intake / api/v2/spans)."""
+    """Client for the agentless span intake (api/v2/spans)."""
 
     ENDPOINT = "api/v2/spans"
 
