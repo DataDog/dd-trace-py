@@ -65,8 +65,8 @@ def test_event_handler_returns_disable_for_missing_code():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_register_coverage_claims_a_candidate_slot():
-    """Test that register_coverage() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
+def test_ensure_registered_claims_a_candidate_slot():
+    """Test that _ensure_registered() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
     import sys
 
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
@@ -76,10 +76,11 @@ def test_register_coverage_claims_a_candidate_slot():
         sys.monitoring.free_tool_id(m._DD_TOOL_ID)
     m._DD_TOOL_ID = None
 
-    m.register_coverage()
+    result = m._ensure_registered()
 
     try:
-        assert m._DD_TOOL_ID is not None, "register_coverage() must acquire a slot"
+        assert result is True, "_ensure_registered() must return True on success"
+        assert m._DD_TOOL_ID is not None, "_ensure_registered() must set _DD_TOOL_ID"
         assert m._DD_TOOL_ID in m._DD_CANDIDATE_SLOTS, (
             f"Acquired slot {m._DD_TOOL_ID} is not in candidate slots {m._DD_CANDIDATE_SLOTS}"
         )

@@ -4,19 +4,11 @@ import sys
 # Import are noqa'd otherwise some formatters will helpfully remove them
 if sys.version_info >= (3, 16):
     from ddtrace.internal.coverage.instrumentation_py3_16 import instrument_all_lines  # noqa
-    from ddtrace.internal.coverage.instrumentation_py3_16 import register_coverage  # noqa
 elif sys.version_info >= (3, 12):
     from ddtrace.internal.coverage.instrumentation_py3_12 import instrument_all_lines  # noqa
-    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage  # noqa
+elif sys.version_info >= (3, 11):
+    from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
+elif sys.version_info >= (3, 10):
+    from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines  # noqa
 else:
-
-    def register_coverage() -> None:
-        # No-op: sys.monitoring coverage instrumentation requires Python 3.12+
-        pass
-
-    if sys.version_info >= (3, 11):
-        from ddtrace.internal.coverage.instrumentation_py3_11 import instrument_all_lines  # noqa
-    elif sys.version_info >= (3, 10):
-        from ddtrace.internal.coverage.instrumentation_py3_10 import instrument_all_lines  # noqa
-    else:
-        from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # noqa
+    from ddtrace.internal.coverage.instrumentation_py3_9 import instrument_all_lines  # noqa

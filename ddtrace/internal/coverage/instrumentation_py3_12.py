@@ -51,35 +51,27 @@ _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
-# AIDEV-NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
-# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since coverage.py also wants it.
+# NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
+# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since other coverage tools may use it.
 # _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines() is a no-op
-# while it remains None. sys.monitoring slots: OPTIMIZER_ID=0, COVERAGE_ID=1, user=2-5.
+# while it remains None.
 _DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
 _DD_CANDIDATE_SLOTS = (4, 3, 1)
 
 # Store: (hook, path, import_names_by_line)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
-_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
+_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = (
+    {}
+)  # noqa: UP006
 
 
-def register_coverage() -> None:
-    """
-    Eagerly register ddtrace's coverage tool in the first available slot from (4, 3, 1).
-
-    Tries slot 4 first, then 3, then 1 (COVERAGE_ID). Using 4 as the default avoids
-    colliding with coverage.py/pytest-cov, which typically claim slot 1. Must be called
-    before any code is instrumented (called from installer.install()).
-
-    Sets the module-level _DD_TOOL_ID to the acquired slot, or leaves it None and logs a
-    warning if all candidate slots are taken.
-    """
+def _ensure_registered() -> bool:
+    """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
     global _DD_TOOL_ID
 
-    # Already registered by us (e.g., re-entrant install call) — nothing to do.
     if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
-        return
+        return True
 
     for slot in _DD_CANDIDATE_SLOTS:
         try:
@@ -93,11 +85,12 @@ def register_coverage() -> None:
             "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
             _DD_CANDIDATE_SLOTS,
         )
-        return
+        return False
 
     mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
     log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
     sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
+    return True
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
@@ -120,9 +113,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
-    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
-        # register_coverage() was not called or all slots were taken — skip gracefully
-        log.debug("Datadog coverage tool not registered (tool_id=%s), skipping", _DD_TOOL_ID)
+    if not _ensure_registered():
         return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
