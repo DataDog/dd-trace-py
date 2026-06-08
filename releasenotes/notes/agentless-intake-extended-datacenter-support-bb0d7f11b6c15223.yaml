@@ -1,8 +1,6 @@
 ---
-features:
+fixes:
   - |
-    Tracing: Agentless APM now sends spans to the ``browser-intake-*/api/v2/spans`` endpoint,
-    extending support to additional Datadog data centers. Previously only ``us1`` (``datadoghq.com``)
-    and ``eu1`` (``datadoghq.eu``) were supported. The following data centers are now also supported
-    when ``DD_SITE`` is set accordingly: ``us3.datadoghq.com``, ``us5.datadoghq.com``,
-    ``ap1.datadoghq.com``, ``ap2.datadoghq.com``, ``ddog-gov.com``, and ``us2.ddog-gov.com``.
+    LLM Observability: Fixes agentless export silently dropping data for customers on the ``us3``,
+    ``us5``, ``ap1``, and ``ap2`` Datadog sites. These sites were previously unsupported, causing
+    all exported spans and LLM traces to be dropped.
