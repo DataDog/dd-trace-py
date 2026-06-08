@@ -35,7 +35,10 @@ def test_before_flush_failure(caplog):
         raise Exception("LOL")
 
     s = scheduler.Scheduler(before_flush=call_me)
-    s.flush()
+    # Patch ddup.upload so the test only checks scheduler logging behaviour and
+    # doesn't attempt a real upload (which would log a writer error and pollute caplog).
+    with mock.patch("ddtrace.profiling.scheduler.ddup.upload"):
+        s.flush()
     assert caplog.record_tuples == [
         (("ddtrace.profiling.scheduler", logging.ERROR, "Scheduler before_flush hook failed"))
     ]
