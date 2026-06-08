@@ -70,9 +70,11 @@ def _derive_stats_url(config: "AgentConfig") -> str:
 
 
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
+    if env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp":
+        return True
     if config._trace_native_span_events is not None:
         return config._trace_native_span_events
-    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
+    return False
 
 
 class AgentConfig(DDConfig):
