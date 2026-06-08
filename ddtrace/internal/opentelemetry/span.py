@@ -272,7 +272,7 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
         # Set exception attributes in a manner that is consistent with the opentelemetry sdk
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998https://github.com/open-telemetry/opentelemetry-python/blob/257e6fe3345d42203109128a6ccc9afbb4b777bc/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
+        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
         module = type(exception).__module__
         qualname = type(exception).__qualname__
         exception_type = (
