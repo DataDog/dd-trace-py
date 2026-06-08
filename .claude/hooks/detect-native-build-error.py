@@ -10,6 +10,7 @@ immediately so the agent doesn't waste turns diagnosing it.
 import json
 import sys
 
+
 TRIGGER = "No module named 'ddtrace.internal.native._native'"
 
 FIX = """
@@ -71,13 +72,15 @@ def main() -> None:
 
     if TRIGGER in output:
         print(
-            json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "PostToolUse",
-                    "suppressOutput": False,
-                    "additionalContext": FIX,
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PostToolUse",
+                        "suppressOutput": False,
+                        "additionalContext": FIX,
+                    }
                 }
-            })
+            )
         )
 
 
