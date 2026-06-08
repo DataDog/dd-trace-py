@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Tracing: Agentless APM now sends spans to the ``browser-intake-*/api/v2/spans`` endpoint,
+    extending support to additional Datadog data centers. Previously only ``us1`` (``datadoghq.com``)
+    and ``eu1`` (``datadoghq.eu``) were supported. The following data centers are now also supported
+    when ``DD_SITE`` is set accordingly: ``us3.datadoghq.com``, ``us5.datadoghq.com``,
+    ``ap1.datadoghq.com``, ``ap2.datadoghq.com``, ``ddog-gov.com``, and ``us2.ddog-gov.com``.

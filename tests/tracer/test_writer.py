@@ -541,32 +541,46 @@ def test_agentless_trace_writer_encode_traces():
     writer.flush_queue(raise_exc=True)
 
 
-@pytest.mark.parametrize(
-    "dd_site,expected_host",
-    [
-        ("datadoghq.com", "browser-intake-datadoghq.com"),
-        ("datadoghq.eu", "browser-intake-datadoghq.eu"),
-        ("us3.datadoghq.com", "browser-intake-us3-datadoghq.com"),
-        ("us5.datadoghq.com", "browser-intake-us5-datadoghq.com"),
-        ("ap1.datadoghq.com", "browser-intake-ap1-datadoghq.com"),
-        ("ap2.datadoghq.com", "browser-intake-ap2-datadoghq.com"),
-        ("ddog-gov.com", "browser-intake-ddog-gov.com"),
-        ("us2.ddog-gov.com", "browser-intake-us2-ddog-gov.com"),
-        ("datad0g.com", "browser-intake-datad0g.com"),
-    ],
+@pytest.mark.subprocess(
+    env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-key"},
+    parametrize={
+        "DD_SITE": [
+            "datadoghq.com",
+            "datadoghq.eu",
+            "us3.datadoghq.com",
+            "us5.datadoghq.com",
+            "ap1.datadoghq.com",
+            "ap2.datadoghq.com",
+            "ddog-gov.com",
+            "us2.ddog-gov.com",
+            "datad0g.com",
+        ]
+    },
 )
-def test_agentless_trace_writer_intake_url(dd_site, expected_host):
-    """create_trace_writer builds the correct browser-intake hostname for each DD_SITE."""
-    from unittest.mock import patch
+def test_agentless_trace_writer_intake_url():
+    """AgentlessTraceWriter sets the correct browser-intake URL for each DD_SITE."""
+    import os
 
-    from ddtrace.internal.writer.writer import create_trace_writer
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
 
-    with patch("ddtrace.config._dd_site", dd_site), patch("ddtrace.config._dd_api_key", "test-key"):
-        writer = create_trace_writer(agentless=True)
-    try:
-        assert writer.intake_url == "https://{}".format(expected_host)
-    finally:
-        writer.stop()
+    # Intake endpoint table (source: internal intake endpoint registry)
+    EXPECTED_INTAKE_URLS = {
+        "datadoghq.com": "https://browser-intake-datadoghq.com",
+        "datadoghq.eu": "https://browser-intake-datadoghq.eu",
+        "us3.datadoghq.com": "https://browser-intake-us3-datadoghq.com",
+        "us5.datadoghq.com": "https://browser-intake-us5-datadoghq.com",
+        "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
+        "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
+        "ddog-gov.com": "https://browser-intake-ddog-gov.com",
+        "us2.ddog-gov.com": "https://browser-intake-us2-ddog-gov.com",
+        "datad0g.com": "https://browser-intake-datad0g.com",
+    }
+
+    site = os.environ["DD_SITE"]
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+    assert writer.intake_url == EXPECTED_INTAKE_URLS[site]
 
 
 def test_humansize():
