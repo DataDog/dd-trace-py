@@ -420,7 +420,10 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // Use the weighted size (allocated_memory_val) so the heap profile accounts
     // for sampling, matching the tcmalloc/Go pprof approach: each sampled live
     // allocation represents ~R bytes of heap, not just its own raw size.
-    tb->sample.push_heap(allocated_memory_val);
+    size_t adjusted_size = size > 0 ? size : 1;
+    size_t heap_count =
+      static_cast<size_t>(static_cast<double>(allocated_memory_val) / static_cast<double>(adjusted_size));
+    tb->sample.push_heap(allocated_memory_val, heap_count);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {

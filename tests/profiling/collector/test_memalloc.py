@@ -90,13 +90,17 @@ def test_heap_samples_collected() -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
 
+    # Verify heap-live-samples is also present and populated alongside heap-space
+    heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
+    assert len(heap_live_samples) > 0
+
 
 def test_memory_collector(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
     with mc:
-        _allocate_1k()
+        live_objects = _allocate_1k()  # noqa: F841
         mc.snapshot()
 
     ddup.upload()
@@ -111,6 +115,10 @@ def test_memory_collector(tmp_path: Path) -> None:
     for sample in samples:
         # We also want to check 'alloc-samples' is > 0.
         assert sample.value[alloc_samples_idx] > 0
+
+    # Verify heap-live-samples are present for live heap objects
+    heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
+    assert len(heap_live_samples) > 0, "Expected heap-live-samples in profile"
 
     # We also want to assert that there's a sample that's coming from _allocate_1k()
     # And also assert that it's actually coming from _allocate_1k()
@@ -410,11 +418,13 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
     # Get sample type indices
     heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    heap_live_samples_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
     alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
     alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
 
     # Assert that required sample types exist
     assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+    assert heap_live_samples_idx >= 0, "heap-live-samples sample type not found in profile"
     assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
     assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
@@ -428,6 +438,12 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     print(f"Heap samples (heap-space>0): {len(heap_samples)}")
 
     assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
+
+    # Verify that live heap samples also have heap-live-samples > 0
+    for sample in heap_samples:
+        assert sample.value[heap_live_samples_idx] > 0, (
+            f"Live heap sample should have heap-live-samples > 0, got {sample.value[heap_live_samples_idx]}"
+        )
 
     total_allocation_count = 0
     for sample in allocation_samples:
