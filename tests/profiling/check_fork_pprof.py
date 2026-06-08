@@ -12,7 +12,7 @@ import glob
 import sys
 
 
-sys.path.insert(0, sys.argv[1])  # repo root so tests.profiling.collector is importable
+sys.path.append(sys.argv[1])  # repo root appended so venv's compiled ddtrace takes priority
 from tests.profiling.collector import pprof_utils  # noqa: E402
 
 

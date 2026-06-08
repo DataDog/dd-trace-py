@@ -74,7 +74,7 @@ jobs:
 
             /tmp/ddvenv/bin/python "${REPO}/tests/profiling/check_fork_pprof.py" \
               "${REPO}" "/tmp/pprof_run${i}" "${CHILD_PID}" \
-              > /tmp/result_${i}.txt 2>&1 || true
+              > /tmp/result_${i}.txt 2>&1
             RC=$?
             RESULT=$(cat /tmp/result_${i}.txt)
 
