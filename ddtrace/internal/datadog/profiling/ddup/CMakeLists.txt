@@ -60,7 +60,9 @@ add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 add_ddup_config(${EXTENSION_NAME})
 
 # Cython generates code that produces errors for the following, so relax compile options
-target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
+# -Wno-missing-field-initializers: Python 3.15 added tp_iteritem to PyTypeObject; Cython doesn't initialize it yet
+target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address
+                                                 -Wno-missing-field-initializers)
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
@@ -87,11 +89,10 @@ elseif(UNIX)
     endif()
 endif()
 
-target_include_directories(
-    ${EXTENSION_NAME}
-    PRIVATE ../dd_wrapper/include
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
-            ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
+include(NativeHeaders)
+
+target_include_directories(${EXTENSION_NAME} PRIVATE ../dd_wrapper/include "${NATIVE_HEADERS_DIR}"
+                                                     ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
 
