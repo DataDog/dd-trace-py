@@ -176,22 +176,16 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             is_succeeded = checkpoint.is_succeeded()
             event.replayed = is_succeeded
             event.id = operation_id
-            # AIDEV-NOTE: we report operation_attempt as a 0-indexed attempt
-            # index (0 = original attempt, 1 = first retry, ...) so a fresh
-            # execution and a later replay of the same operation agree.
-            # step_details.attempt is read at different lifecycle points:
-            #   - pending/retry checkpoint: it holds the number of prior failed
-            #     attempts, which already equals the 0-indexed index of the
-            #     attempt about to run (e.g. 1 after the first failure).
-            #   - succeeded checkpoint (read on a replay): it holds the
-            #     1-indexed number of the attempt that ultimately succeeded
-            #     (1 for a first-try success), so subtract 1 to normalize.
+            # AIDEV-NOTE: report operation_attempt 0-indexed (0 = original, 1 =
+            # first retry) so a fresh execution and its replay agree. The
+            # server-maintained step_details.attempt is read at two points: a
+            # pending checkpoint holds the prior-failure count (already the
+            # 0-indexed index of the attempt about to run), while a succeeded
+            # checkpoint (read on a replay) holds the 1-indexed attempt that
+            # succeeded -- observed, not SDK-enforced; pinned by the unit test.
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
-                    # On a succeeded checkpoint the stored attempt is the
-                    # 1-indexed number of the attempt that succeeded (always
-                    # >= 1), so subtract 1 to reach the 0-indexed convention.
                     attempt = operation.step_details.attempt
                     event.operation_attempt = attempt - 1 if is_succeeded else attempt
                 else:
