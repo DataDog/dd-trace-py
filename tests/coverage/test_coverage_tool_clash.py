@@ -84,7 +84,7 @@ def test_dd_tool_slot_clash_causes_graceful_degradation():
         cwd_path, ModuleCodeCollector._instance._get_covered_lines(include_imported=True)
     )
 
-    # When our slot is taken, no lines are instrumented
+    # When no slot is acquired successfully, no lines are instrumented
     expected_executable = {
         "tests/coverage/included_path/async_code.py": set(),
     }
