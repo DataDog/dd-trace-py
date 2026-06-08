@@ -16,6 +16,7 @@ on:
     paths:
       - "tests/profiling/preload_fork_gthread.py"
       - "tests/profiling/test_preload_fork_gthread.py"
+      - "tests/profiling/check_fork_pprof.py"
       - ".github/workflows/profiling-fork-regression.yml"
 
 jobs:
@@ -40,7 +41,6 @@ jobs:
         run: |
           python -m venv /tmp/ddvenv
           /tmp/ddvenv/bin/pip install -q "ddtrace==${{ matrix.ddtrace }}" protobuf zstandard  # ci-deps: allow-no-version
-          # Verify — run from /tmp so repo's ddtrace/ dir is not on sys.path
           cd /tmp
           ACTUAL=$(/tmp/ddvenv/bin/python -c "import ddtrace; print(ddtrace.__version__)")
           echo "Installed ddtrace: $ACTUAL"
@@ -48,36 +48,6 @@ jobs:
             echo "::error::Expected ${{ matrix.ddtrace }}, got $ACTUAL"
             exit 1
           fi
-
-      - name: Write pprof checker script
-        run: |
-          cat > /tmp/check_pprof.py << 'PYEOF'
-import sys, glob
-sys.path.insert(0, sys.argv[1])  # repo root for pprof_utils
-from tests.profiling.collector import pprof_utils
-
-prefix = sys.argv[2]
-child_pid = sys.argv[3]
-full_prefix = f"{prefix}.{child_pid}"
-files = glob.glob(f"{full_prefix}.*pprof")
-if not files:
-    print(f"NO_PPROF child={child_pid}")
-    sys.exit(2)
-
-profile = pprof_utils.parse_newest_profile(full_prefix, allow_penultimate=True)
-wt = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-names = set()
-for s in wt:
-    lbl = pprof_utils.get_label_with_key(profile.string_table, s, "thread name")
-    if lbl:
-        names.add(profile.string_table[lbl.str])
-workers = {n for n in names if n != "MainThread"}
-print(f"samples={len(wt)} threads={sorted(names)}")
-if not workers:
-    print("BUG_PRESENT")
-    sys.exit(1)
-print("OK")
-PYEOF
 
       - name: Run fork+gthread regression (10 iterations)
         env:
@@ -89,8 +59,6 @@ PYEOF
           for i in $(seq 1 10); do
             cd /tmp
 
-            # Write child PID to file to avoid set-e triggering on non-zero
-            # exit from command substitution (bash -e footgun).
             /tmp/ddvenv/bin/python "${REPO}/tests/profiling/preload_fork_gthread.py" \
               > /tmp/childpid_${i}.txt \
               2>/tmp/stderr_${i}.txt
@@ -104,15 +72,17 @@ PYEOF
               continue
             fi
 
-            RESULT=$(/tmp/ddvenv/bin/python /tmp/check_pprof.py \
-              "${REPO}" "/tmp/pprof_run${i}" "${CHILD_PID}" 2>&1) || true
+            /tmp/ddvenv/bin/python "${REPO}/tests/profiling/check_fork_pprof.py" \
+              "${REPO}" "/tmp/pprof_run${i}" "${CHILD_PID}" \
+              > /tmp/result_${i}.txt 2>&1 || true
             RC=$?
+            RESULT=$(cat /tmp/result_${i}.txt)
 
             if [ "${RC}" = "0" ]; then
               echo "Run ${i}: PASS — ${RESULT}"
               PASSES=$((PASSES+1))
             else
-              echo "Run ${i}: FAIL — ${RESULT}"
+              echo "Run ${i}: FAIL (rc=${RC}) — ${RESULT}"
               BUGS=$((BUGS+1))
             fi
           done
