@@ -40,9 +40,9 @@ class AgentWriterClientV4(WriterClientBase):
 
 
 class AgentlessWriterClient(WriterClientBase):
-    """Client for the agentless JSON span intake (EvP / public-trace-http-intake)."""
+    """Client for the agentless JSON span intake (browser-intake / api/v2/spans)."""
 
-    ENDPOINT = "v1/input"
+    ENDPOINT = "api/v2/spans"
 
     def __init__(self, buffer_size: int, max_payload_size: int) -> None:
         super(AgentlessWriterClient, self).__init__(

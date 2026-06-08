@@ -545,8 +545,8 @@ class AgentlessTraceWriter(HTTPWriter):
     """
 
     HTTP_METHOD = "POST"
-    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
-    INTAKE_HOST = "public-trace-http-intake.logs"
+    # Host prefix for the agentless span intake (browser-intake / api/v2/spans).
+    INTAKE_HOST = "browser-intake-"
     # Agentless payloads must be under 15 MB.
     MAX_BUFFER_SIZE = 15 << 20  # 15 MB
 
@@ -1112,7 +1112,11 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+        # browser-intake-* hostnames replace the first dot in _dd_site with a dash
+        # e.g. "datadoghq.com" -> "browser-intake-datadoghq.com"
+        #      "us3.datadoghq.com" -> "browser-intake-us3-datadoghq.com"
+        body, _, tld = config._dd_site.rpartition(".")
+        intake_url = "https://{}{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, body.replace(".", "-"), tld)
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,

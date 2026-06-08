@@ -493,13 +493,13 @@ class LogWriterTests(BaseTestCase):
 def test_agentless_trace_writer_uses_post():
     """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
     writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        intake_url="https://browser-intake-datadoghq.com",
         api_key="test-api-key",
     )
     assert writer.HTTP_METHOD == "POST"
-    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
+    assert writer.intake_url == "https://browser-intake-datadoghq.com"
     assert writer._headers.get("dd-api-key") == "test-api-key"
-    assert writer._clients[0].ENDPOINT == "v1/input"
+    assert writer._clients[0].ENDPOINT == "api/v2/spans"
     assert writer._encoder.content_type == "application/json"
 
 
@@ -509,7 +509,7 @@ def test_agentless_trace_writer_buffer_size_capped_at_max():
 
     # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
     writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        intake_url="https://browser-intake-datadoghq.com",
         api_key="test-api-key",
     )
     assert writer._encoder.max_size == max_size
@@ -517,7 +517,7 @@ def test_agentless_trace_writer_buffer_size_capped_at_max():
     # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
     small = max_size // 2
     writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        intake_url="https://browser-intake-datadoghq.com",
         api_key="test-api-key",
         buffer_size=small,
     )
@@ -525,7 +525,7 @@ def test_agentless_trace_writer_buffer_size_capped_at_max():
 
     # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
     writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        intake_url="https://browser-intake-datadoghq.com",
         api_key="test-api-key",
         buffer_size=max_size * 2,
     )
@@ -534,11 +534,39 @@ def test_agentless_trace_writer_buffer_size_capped_at_max():
 
 def test_agentless_trace_writer_encode_traces():
     writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        intake_url="https://browser-intake-datadoghq.com",
         api_key="test-api-key",
     )
     writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
     writer.flush_queue(raise_exc=True)
+
+
+@pytest.mark.parametrize(
+    "dd_site,expected_host",
+    [
+        ("datadoghq.com", "browser-intake-datadoghq.com"),
+        ("datadoghq.eu", "browser-intake-datadoghq.eu"),
+        ("us3.datadoghq.com", "browser-intake-us3-datadoghq.com"),
+        ("us5.datadoghq.com", "browser-intake-us5-datadoghq.com"),
+        ("ap1.datadoghq.com", "browser-intake-ap1-datadoghq.com"),
+        ("ap2.datadoghq.com", "browser-intake-ap2-datadoghq.com"),
+        ("ddog-gov.com", "browser-intake-ddog-gov.com"),
+        ("us2.ddog-gov.com", "browser-intake-us2-ddog-gov.com"),
+        ("datad0g.com", "browser-intake-datad0g.com"),
+    ],
+)
+def test_agentless_trace_writer_intake_url(dd_site, expected_host):
+    """create_trace_writer builds the correct browser-intake hostname for each DD_SITE."""
+    from unittest.mock import patch
+
+    from ddtrace.internal.writer.writer import create_trace_writer
+
+    with patch("ddtrace.config._dd_site", dd_site), patch("ddtrace.config._dd_api_key", "test-key"):
+        writer = create_trace_writer(agentless=True)
+    try:
+        assert writer.intake_url == "https://{}".format(expected_host)
+    finally:
+        writer.stop()
 
 
 def test_humansize():
