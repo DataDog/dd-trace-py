@@ -28,10 +28,8 @@ function(add_fuzz_target TARGET_NAME)
 
     # Include paths: ../.. is the profiling root (for "dd_wrapper/include/..." paths), ../include is for stack headers.
     target_include_directories(${TARGET_NAME} PRIVATE ../.. ../include)
-    target_include_directories(
-        ${TARGET_NAME} SYSTEM
-        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+    target_include_directories(${TARGET_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
+                                                             ../include/util "${NATIVE_HEADERS_DIR}")
 
     # Ensure echion headers take the fuzz hook in vm.h
     target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)
