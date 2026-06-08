@@ -1103,17 +1103,17 @@ def _use_sync_mode() -> bool:
 
 
 def _agentless_intake_url(site: str) -> str:
-    if site.startswith("us3."):
+    if "us3." in site:
         return "https://trace.browser-intake-us3-datadoghq.com"
-    elif site.startswith("us5."):
+    elif "us5." in site:
         return "https://trace.browser-intake-us5-datadoghq.com"
-    elif site.startswith("ap1."):
+    elif "ap1." in site:
         return "https://browser-intake-ap1-datadoghq.com"
-    elif site.startswith("ap2."):
+    elif "ap2." in site:
         return "https://browser-intake-ap2-datadoghq.com"
-    elif site.startswith("ddog-gov."):
+    elif "ddog-gov." in site:
         return "https://browser-intake-ddog-gov.com"
-    elif site.startswith("us2."):
+    elif "us2." in site:
         return "https://browser-intake-us2-ddog-gov.com"
     else:
         return "https://public-trace-http-intake.logs.{}".format(site)
