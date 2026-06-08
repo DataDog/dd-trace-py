@@ -39,7 +39,7 @@ jobs:
       - name: Install ddtrace ${{ matrix.ddtrace }} in isolated venv
         run: |
           python -m venv /tmp/ddvenv
-          /tmp/ddvenv/bin/pip install -q \
+          /tmp/ddvenv/bin/pip install -q \  # ci-deps: allow
             "ddtrace==${{ matrix.ddtrace }}" \
             protobuf \
             zstandard
