@@ -93,14 +93,16 @@ add_clangtidy_target(${EXTENSION_NAME})
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
+# Resolves NATIVE_HEADERS_DIR (libdatadog's generated C headers for the active Python minor). See
+# cmake/NativeHeaders.cmake for the resolution policy.
+include(NativeHeaders)
+
 # Includes; echion and python are marked "system" to suppress warnings
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
                               include)
-target_include_directories(
-    ${EXTENSION_NAME} SYSTEM
-    PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored include/util
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} echion include/vendored
+                                                            include/util "${NATIVE_HEADERS_DIR}")
 
 # Echion sources need to be given the current platform
 if(APPLE)

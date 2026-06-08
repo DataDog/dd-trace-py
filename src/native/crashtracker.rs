@@ -172,10 +172,14 @@ impl RustWrapper for CrashtrackerReceiverConfigPy {
     }
 }
 
+// TODO(py-315)(pyo3 0.28): `skip_from_py_object` opts out of the Clone-driven
+// automatic FromPyObject derive that pyo3 deprecated in 0.28. This type is
+// only consumed through `PyRefMut<CrashtrackerMetadataPy>`, never extracted
+// as an owned value, so skipping is safe.
 #[pyclass(
-    skip_from_py_object,
     name = "CrashtrackerMetadata",
-    module = "datadog.internal._native"
+    module = "datadog.internal._native",
+    skip_from_py_object
 )]
 #[derive(Clone)]
 pub struct CrashtrackerMetadataPy {
