@@ -43,7 +43,7 @@ jobs:
             "ddtrace==${{ matrix.ddtrace }}" \
             protobuf \
             zstandard
-          # Verify — run from /tmp so the repo's ddtrace/ dir is not on sys.path
+          # Verify — run from /tmp so repo's ddtrace/ dir is not on sys.path
           cd /tmp
           ACTUAL=$(/tmp/ddvenv/bin/python -c "import ddtrace; print(ddtrace.__version__)")
           echo "Installed ddtrace: $ACTUAL"
@@ -52,65 +52,66 @@ jobs:
             exit 1
           fi
 
+      - name: Write pprof checker script
+        run: |
+          cat > /tmp/check_pprof.py << 'PYEOF'
+import sys, glob
+sys.path.insert(0, sys.argv[1])  # repo root for pprof_utils
+from tests.profiling.collector import pprof_utils
+
+prefix = sys.argv[2]
+child_pid = sys.argv[3]
+full_prefix = f"{prefix}.{child_pid}"
+files = glob.glob(f"{full_prefix}.*pprof")
+if not files:
+    print(f"NO_PPROF child={child_pid}")
+    sys.exit(2)
+
+profile = pprof_utils.parse_newest_profile(full_prefix, allow_penultimate=True)
+wt = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+names = set()
+for s in wt:
+    lbl = pprof_utils.get_label_with_key(profile.string_table, s, "thread name")
+    if lbl:
+        names.add(profile.string_table[lbl.str])
+workers = {n for n in names if n != "MainThread"}
+print(f"samples={len(wt)} threads={sorted(names)}")
+if not workers:
+    print("BUG_PRESENT")
+    sys.exit(1)
+print("OK")
+PYEOF
+
       - name: Run fork+gthread regression (10 iterations)
         env:
           REPO: ${{ github.workspace }}
         run: |
-          cat > /tmp/check_pprof.py << 'PYEOF'
-          import sys, glob
-          sys.path.insert(0, sys.argv[1])  # repo root for pprof_utils
-          from tests.profiling.collector import pprof_utils
-
-          prefix = sys.argv[2]
-          child_pid = sys.argv[3]
-          full_prefix = f"{prefix}.{child_pid}"
-          files = glob.glob(f"{full_prefix}.*pprof")
-          if not files:
-              print(f"NO_PPROF child={child_pid}")
-              sys.exit(2)
-
-          profile = pprof_utils.parse_newest_profile(full_prefix, allow_penultimate=True)
-          wt = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-          names = set()
-          for s in wt:
-              lbl = pprof_utils.get_label_with_key(profile.string_table, s, "thread name")
-              if lbl:
-                  names.add(profile.string_table[lbl.str])
-          workers = {n for n in names if n != "MainThread"}
-          print(f"samples={len(wt)} threads={sorted(names)}")
-          if not workers:
-              print("BUG_PRESENT")
-              sys.exit(1)
-          print("OK")
-          PYEOF
-
           BUGS=0
           PASSES=0
 
           for i in $(seq 1 10); do
             cd /tmp
 
-            CHILD_PID=$(
-              DD_PROFILING_ENABLED=1 \
-              DD_PROFILING_OUTPUT_PPROF=/tmp/pprof_run${i} \
-              _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED=0 \
-              /tmp/ddvenv/bin/python "${REPO}/tests/profiling/preload_fork_gthread.py" \
-                2>/tmp/stderr_${i}.txt
-            )
+            # Write child PID to file to avoid set-e triggering on non-zero
+            # exit from command substitution (bash -e footgun).
+            /tmp/ddvenv/bin/python "${REPO}/tests/profiling/preload_fork_gthread.py" \
+              > /tmp/childpid_${i}.txt \
+              2>/tmp/stderr_${i}.txt
             STATUS=$?
+            CHILD_PID=$(cat /tmp/childpid_${i}.txt 2>/dev/null || true)
 
-            if [ "$STATUS" != "0" ]; then
-              echo "Run ${i}: CRASH (exit=${STATUS})"
+            if [ "$STATUS" != "0" ] || [ -z "$CHILD_PID" ]; then
+              echo "Run ${i}: CRASH (exit=${STATUS} pid='${CHILD_PID}')"
               cat /tmp/stderr_${i}.txt || true
               BUGS=$((BUGS+1))
               continue
             fi
 
             RESULT=$(/tmp/ddvenv/bin/python /tmp/check_pprof.py \
-              "${REPO}" "/tmp/pprof_run${i}" "$CHILD_PID" 2>&1)
+              "${REPO}" "/tmp/pprof_run${i}" "${CHILD_PID}" 2>&1) || true
             RC=$?
 
-            if [ "$RC" = "0" ]; then
+            if [ "${RC}" = "0" ]; then
               echo "Run ${i}: PASS — ${RESULT}"
               PASSES=$((PASSES+1))
             else
@@ -122,7 +123,7 @@ jobs:
           echo ""
           echo "Results for ddtrace==${{ matrix.ddtrace }}: ${PASSES}/10 passed, ${BUGS}/10 failed"
 
-          if [ "$BUGS" -gt 0 ]; then
+          if [ "${BUGS}" -gt 0 ]; then
             echo "::error::${BUGS}/10 runs showed the fork+gthread profiler bug on v${{ matrix.ddtrace }}"
             exit 1
           fi
