@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    protobuf: Fixes an issue where Data Streams Monitoring schema extraction
+    failed to set the ``schema.definition`` span tag. ``_traced_build`` wraps a
+    module-level function, so wrapt passes ``instance=None`` to the wrapper.
+    ``Pin.get_from(None)`` returned ``None``, causing an early return before
+    message classes were wrapped and schema tags could be applied.
