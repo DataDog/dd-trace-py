@@ -189,8 +189,11 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
             if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
+                    # On a succeeded checkpoint the stored attempt is the
+                    # 1-indexed number of the attempt that succeeded (always
+                    # >= 1), so subtract 1 to reach the 0-indexed convention.
                     attempt = operation.step_details.attempt
-                    event.operation_attempt = max(0, attempt - 1) if is_succeeded else attempt
+                    event.operation_attempt = attempt - 1 if is_succeeded else attempt
                 else:
                     event.operation_attempt = 0
     return wrapped(*args, **kwargs)
