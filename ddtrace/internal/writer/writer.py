@@ -1103,11 +1103,8 @@ def _use_sync_mode() -> bool:
 
 
 def _agentless_intake_url(site: str) -> str:
-    """Return the agentless span intake base URL for the given DD_SITE value.
-
-    Mirrors the backend intake routing logic. The path (api/v2/spans) is
-    appended separately via AgentlessWriterClient.ENDPOINT.
-    """
+    # us3/us5 use a different subdomain prefix than ap1/ap2; all other sites
+    # fall back to public-trace-http-intake.logs which accepts the site as-is.
     if "us3" in site:
         return "https://trace.browser-intake-us3-datadoghq.com"
     elif "us5" in site:

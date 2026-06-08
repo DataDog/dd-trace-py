@@ -558,16 +558,12 @@ def test_agentless_trace_writer_encode_traces():
     },
 )
 def test_agentless_trace_writer_intake_url():
-    """AgentlessTraceWriter sets the correct browser-intake URL for each DD_SITE."""
+    """AgentlessTraceWriter sets the correct intake URL for each DD_SITE."""
     import os
 
     from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
 
-    # Intake endpoint table — mirrors backend routing logic exactly.
-    # us3/us5: trace.browser-intake-* (with trace. prefix)
-    # ap1/ap2: browser-intake-* (no trace. prefix)
-    # all others: public-trace-http-intake.logs.{site} (original endpoint)
     EXPECTED_INTAKE_URLS = {
         "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
         "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
