@@ -43,20 +43,13 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
 - **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
 
+## Troubleshooting
 
-## Build & Native Extensions
-
-ddtrace includes C, Cython, and Rust extensions that must be compiled before the library can be imported. If you see:
-
-    ModuleNotFoundError: No module named 'ddtrace.internal.native._native'
-
-the extensions haven't been built. See **`docs/troubleshooting.rst`** for the full fix guide. Quick reference:
-
-| Context | Fix |
-|---------|-----|
-| Direct Python / `PYTHONPATH=.` | `pip install -e .` |
-| Riot (test runner) | Omit the `-s` flag — riot runs `pip install -e .` automatically |
-| Docker / `scripts/ddtest` | Run `scripts/clean` on the host, then remount |
+See `docs/troubleshooting.rst`. Covers common issues including:
+- Installation failures and missing native extensions
+- Traces not appearing in the Datadog app
+- Connection errors sending to the agent
+- Build failures and `ModuleNotFoundError` when running with riot
 
 ## Skills
 
