@@ -65,28 +65,28 @@ def test_event_handler_returns_disable_for_missing_code():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
-def test_register_coverage_uses_dd_tool_id():
-    """Test that register_coverage() claims _DD_TOOL_ID and not COVERAGE_ID."""
+def test_register_coverage_claims_a_user_slot():
+    """Test that register_coverage() claims a user-level slot (2-5) and not COVERAGE_ID."""
     import sys
 
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_TOOL_ID
-    from ddtrace.internal.coverage.instrumentation_py3_12 import register_coverage
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
 
-    # Free the slot if already taken by a previous test run
-    existing = sys.monitoring.get_tool(_DD_TOOL_ID)
-    if existing is not None:
-        sys.monitoring.free_tool_id(_DD_TOOL_ID)
+    # Free any slot we previously acquired
+    if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
+        sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+    m._DD_TOOL_ID = None
 
-    register_coverage()
+    m.register_coverage()
 
     try:
-        assert sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog", (
-            f"Expected 'datadog' at tool_id={_DD_TOOL_ID}, got {sys.monitoring.get_tool(_DD_TOOL_ID)}"
+        assert m._DD_TOOL_ID is not None, "register_coverage() must acquire a slot"
+        assert m._DD_FIRST_SLOT <= m._DD_TOOL_ID <= m._DD_LAST_SLOT, (
+            f"Acquired slot {m._DD_TOOL_ID} is outside range {m._DD_FIRST_SLOT}-{m._DD_LAST_SLOT}"
         )
-        # COVERAGE_ID must not be affected
-        assert sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) != "datadog", (
-            "register_coverage() must not claim COVERAGE_ID"
+        assert sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog", (
+            f"Expected 'datadog' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
         )
     finally:
-        if sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
-            sys.monitoring.free_tool_id(_DD_TOOL_ID)
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
+            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        m._DD_TOOL_ID = None

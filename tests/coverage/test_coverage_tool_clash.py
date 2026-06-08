@@ -8,7 +8,7 @@ import pytest
 def test_coverage_id_clash_does_not_affect_ddtrace():
     """Another tool holding COVERAGE_ID must not prevent ddtrace from collecting coverage.
 
-    ddtrace uses its own tool slot (_DD_TOOL_ID=4) and never touches COVERAGE_ID, so a
+    ddtrace tries COVERAGE_ID first but falls back to slots 2-5 when it's already taken, so a
     third-party tool (e.g., coverage.py) claiming COVERAGE_ID should be completely transparent.
     """
     import os
@@ -53,21 +53,23 @@ def test_coverage_id_clash_does_not_affect_ddtrace():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
 @pytest.mark.subprocess
 def test_dd_tool_slot_clash_causes_graceful_degradation():
-    """If _DD_TOOL_ID (slot 4) is already taken, ddtrace silently skips coverage collection."""
+    """If all tool slots (1-5) are taken, ddtrace silently skips coverage collection."""
     import os
     from pathlib import Path
     import sys
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_TOOL_ID
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_FIRST_SLOT
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_LAST_SLOT
     from tests.coverage.utils import _get_relpath_dict
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    # Claim ddtrace's tool slot before install — should cause graceful degradation
-    sys.monitoring.use_tool_id(_DD_TOOL_ID, "something_else")
+    # Claim ALL slots (1-5) before install — ddtrace must degrade gracefully
+    for slot in range(_DD_FIRST_SLOT, _DD_LAST_SLOT + 1):
+        sys.monitoring.use_tool_id(slot, "something_else")
 
     install(include_paths=[include_path], collect_import_time_coverage=True)
 

@@ -51,10 +51,13 @@ _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
-# AIDEV-NOTE: We use tool ID 4 (a user-available slot) instead of COVERAGE_ID (1) to avoid
-# colliding with coverage.py / pytest-cov, which also claim COVERAGE_ID. This lets both tools
-# coexist without a ValueError. sys.monitoring user tool IDs are 2-5 (OPTIMIZER_ID=0, COVERAGE_ID=1).
-_DD_TOOL_ID = 4
+# AIDEV-NOTE: We dynamically find a free tool slot starting from COVERAGE_ID (1), mirroring
+# coverage.py's own slot-finding loop. If coverage.py already holds slot 1, we fall back to
+# user slots 2-5. _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines()
+# is a no-op while it remains None. sys.monitoring slots: OPTIMIZER_ID=0, COVERAGE_ID=1, user=2-5.
+_DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
+_DD_FIRST_SLOT = 1
+_DD_LAST_SLOT = 5
 
 # Store: (hook, path, import_names_by_line)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
@@ -64,25 +67,38 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 
 def register_coverage() -> None:
     """
-    Eagerly register ddtrace's coverage tool using a user-level tool ID.
+    Eagerly register ddtrace's coverage tool in the first available user-level tool slot.
 
-    Must be called before any code is instrumented. Uses _DD_TOOL_ID (4) instead of
-    COVERAGE_ID (1) so coverage.py/pytest-cov can freely claim COVERAGE_ID without conflict.
+    Iterates slots 2–5 (the user-available range) and claims the first free one, mirroring
+    coverage.py's own slot-finding strategy so both tools can coexist. Must be called before
+    any code is instrumented (called from installer.install()).
 
-    If the tool slot is already taken (e.g., another library), logs a warning and skips.
+    Sets the module-level _DD_TOOL_ID to the acquired slot, or leaves it None if all slots
+    are taken (in which case coverage collection is silently skipped).
     """
-    try:
-        sys.monitoring.use_tool_id(_DD_TOOL_ID, "datadog")
-    except ValueError:
-        existing = sys.monitoring.get_tool(_DD_TOOL_ID)
-        if existing == "datadog":
-            # Already registered by us (e.g., re-entrant install call)
-            return
-        log.debug("Coverage tool slot %d already in use by '%s', not gathering coverage", _DD_TOOL_ID, existing)
+    global _DD_TOOL_ID
+
+    # Already registered by us (e.g., re-entrant install call) — nothing to do.
+    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+        return
+
+    for slot in range(_DD_FIRST_SLOT, _DD_LAST_SLOT + 1):
+        try:
+            sys.monitoring.use_tool_id(slot, "datadog")
+            _DD_TOOL_ID = slot
+            break
+        except ValueError:
+            continue
+    else:
+        log.debug(
+            "No sys.monitoring tool slot available (slots %d-%d all taken), not gathering coverage",
+            _DD_FIRST_SLOT,
+            _DD_LAST_SLOT,
+        )
         return
 
     mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
-    log.debug("Registering %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
+    log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
     sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
 
 
@@ -106,10 +122,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
-    tool = sys.monitoring.get_tool(_DD_TOOL_ID)
-    if tool != "datadog":
-        # Not registered (or taken by someone else) — skip instrumentation gracefully
-        log.debug("Datadog coverage tool not registered (tool_id=%d, current=%s), skipping", _DD_TOOL_ID, tool)
+    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
+        # register_coverage() was not called or all slots were taken — skip gracefully
+        log.debug("Datadog coverage tool not registered (tool_id=%s), skipping", _DD_TOOL_ID)
         return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
