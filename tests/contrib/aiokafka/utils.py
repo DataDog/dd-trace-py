@@ -1,13 +1,10 @@
-import asyncio
 from contextlib import asynccontextmanager
 import logging
 
 import aiokafka
 from aiokafka.admin import AIOKafkaAdminClient
 from aiokafka.admin import NewTopic
-import pytest
 
-from ddtrace.contrib.internal.aiokafka.patch import _get_cluster_id
 from tests.contrib.config import KAFKA_CONFIG
 
 
@@ -18,22 +15,6 @@ BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG['port']}"
 KEY = "test_key".encode("utf-8")
 PAYLOAD = "hueh hueh hueh".encode("utf-8")
 ENABLE_AUTO_COMMIT = True
-
-
-async def resolve_cluster_id(client, topic, retries=5, delay=0.2):
-    """Resolve the Kafka cluster ID for a given tracer client.
-    Ephemeral issues in CI can result in only one of the consumer/producer getting a cluster id
-    """
-    for attempt in range(retries):
-        # Clear the 5-minute failure cache so _get_cluster_id will retry the request.
-        if hasattr(client, "_dd_cluster_id_failure_time"):
-            del client._dd_cluster_id_failure_time
-        cluster_id = await _get_cluster_id(client, topic)
-        if cluster_id:
-            return cluster_id
-        if attempt < retries - 1:
-            await asyncio.sleep(delay)
-    pytest.fail(f"Kafka cluster_id not resolved after {retries} retries — broker unreachable?")
 
 
 def has_header(headers, header_name):

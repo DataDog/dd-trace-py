@@ -20,7 +20,6 @@ from .utils import PAYLOAD
 from .utils import consumer_ctx
 from .utils import create_topic
 from .utils import producer_ctx
-from .utils import resolve_cluster_id
 
 
 @pytest.fixture(autouse=True)
@@ -106,16 +105,23 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     topic = await create_topic("data_streams_offset_monitoring_auto_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
-        cluster_id = await resolve_cluster_id(producer.client, topic)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        # Read after sends: traced_send calls _get_cluster_id, so by now it's cached.
+        producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
-        await resolve_cluster_id(consumer._client, topic)
         msg = await consumer.getone()
+        # Read after getone: traced_getone calls _get_cluster_id on the consumer's
+        # separate AIOKafkaClient, so by now it's cached on that client.
+        consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
+    # Both clients resolved the same cluster ID — verifies the feature actually works.
+    assert producer_cluster_id == consumer_cluster_id != "", (
+        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
+    )
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id)) == msg.offset + 1
 
 
 @pytest.mark.asyncio
@@ -131,18 +137,25 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     topic = await create_topic("data_streams_offset_monitoring_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
-        cluster_id = await resolve_cluster_id(producer.client, topic)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
+        # Read after sends: traced_send calls _get_cluster_id, so by now it's cached.
+        producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=False) as consumer:
-        await resolve_cluster_id(consumer._client, topic)
         await consumer.getone()
         msg = await consumer.getone()
         await consumer.commit(offsets)
+        # Read after commit: traced_commit calls _get_cluster_id on the consumer's
+        # separate AIOKafkaClient, so by now it's cached on that client.
+        consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
+    # Both clients resolved the same cluster ID — verifies the feature actually works.
+    assert producer_cluster_id == consumer_cluster_id != "", (
+        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
+    )
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
+    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id)) == msg.offset + 1
 
 
 @pytest.mark.asyncio
