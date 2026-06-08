@@ -61,9 +61,7 @@ _DD_CANDIDATE_SLOTS = (4, 3, 1)
 # Store: (hook, path, import_names_by_line)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
-_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = (
-    {}
-)  # noqa: UP006
+_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
 
 
 def _ensure_registered() -> bool:
