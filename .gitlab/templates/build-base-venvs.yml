@@ -35,3 +35,4 @@ build_base_venvs:
       - ddtrace/_version.py
       - ddtrace/**/*.so*
       - ddtrace/internal/datadog/profiling/test/test_*
+      - ddtrace/internal/datadog/profiling/test/py315/test_*

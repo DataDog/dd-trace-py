@@ -15,7 +15,6 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
-    (3, 15),
 ]
 
 
@@ -73,9 +72,9 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
     >>> select_pys(min_version='3')
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
@@ -102,6 +101,12 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # TODO(py-315): pyo3 0.27.x (max Python 3.14) is used by several transitive deps
+    # (e.g. rpds-py) that ship only as source dists for Python 3.15. This flag tells
+    # pyo3-build-config to proceed using the stable ABI, allowing those packages to
+    # build until they ship pre-built 3.15 wheels or upgrade to pyo3 0.28+.
+    # Harmless on Python 3.9-3.14 (pyo3 natively supports those, so the flag is a no-op).
+    "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -578,7 +583,11 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    # TODO(py-315): 3.15 explicitly opted in (not yet in
+                    # SUPPORTED_PYTHON_VERSIONS). Crashtracker native code is
+                    # validated on 3.15 via the PyFrame_GetBack guard; see
+                    # releasenotes/notes/profiling-python315-support-*.yaml.
+                    pys=select_pys(min_version="3.12") + ["3.15"],
                     env={
                         "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
                     },
@@ -3750,9 +3759,9 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                # Python 3.14+ - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={"uwsgi": latest},
                     venvs=[
                         Venv(
@@ -3796,6 +3805,11 @@ venv = Venv(
                 Venv(
                     name="profile-memalloc",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
+                    # TODO(py-315): Python 3.15 is intentionally excluded — setup.py
+                    # skips _memalloc (and all profiling Cython extensions) for 3.15
+                    # until the manylinux build image carries a 3.15 pyenv version.
+                    # Re-add "3.15" here once both the build image and _memalloc
+                    # compilation are unblocked.
                     pys=select_pys(),
                     env={
                         "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
@@ -4372,7 +4386,6 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
-                "tornado": "~=6.5",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4382,7 +4395,14 @@ venv = Venv(
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
                 "DD_PATCH_MODULES": "unittest:false",
             },
-            pys=["3.10", "3.14"],
+            venvs=[
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "tornado": "~=6.5",
+                    },
+                ),
+            ],
         ),
         Venv(
             name="appsec_iast_native",
