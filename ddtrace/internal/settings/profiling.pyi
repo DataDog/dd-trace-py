@@ -30,6 +30,9 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling: bool
     adaptive_sampling_target_overhead: float
     adaptive_sampling_max_interval: int
+    adaptive_sampling_baseline: float
+    adaptive_sampling_p_stable_window_s: int
+    adaptive_sampling_p_stable_percentile: float
     max_threads: int
     native_frames: bool
     fast_copy: bool
