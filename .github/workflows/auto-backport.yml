@@ -1,0 +1,194 @@
+name: Auto-backport fix(*) PRs
+
+# On merge of any fix(...) PR, automatically open backport PRs for every supported
+# stable branch in .github/backport-targets.yml — no manual labeling required.
+#
+# If a cherry-pick fails (conflict), a GitHub issue is filed instead of failing silently.
+# Authors can suppress auto-backport by adding the "no-backport" label before merging.
+#
+# This workflow is the enforcement layer on top of the existing backport.yml:
+# backport.yml handles label-driven backports; this handles policy-driven backports.
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  collect-targets:
+    name: Collect auto-backport targets
+    runs-on: ubuntu-latest
+    outputs:
+      target_branches_json: ${{ steps.targets.outputs.json }}
+    if: |
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'fix(') &&
+      !contains(join(github.event.pull_request.labels.*.name, ','), 'no-backport')
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/backport-targets.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Parse supported branches
+        id: targets
+        run: |
+          # Extract stable branches only (not RC); skip branches that already have
+          # a backport label on this PR (backport.yml will handle those).
+          EXISTING_LABELS='${{ join(github.event.pull_request.labels.*.name, ',') }}'
+          python3 - <<'EOF'
+          import json, re, os
+
+          with open('.github/backport-targets.yml') as f:
+              content = f.read()
+
+          # Parse stable block only.
+          in_stable = False
+          branches = []
+          for line in content.splitlines():
+              if re.match(r'\s+stable:', line):
+                  in_stable = True
+              elif re.match(r'\s+\w+:', line):
+                  in_stable = False
+              elif in_stable and re.match(r'\s+-\s+"', line):
+                  branches.append(re.search(r'"([^"]+)"', line).group(1))
+
+          existing_labels = os.environ.get('EXISTING_LABELS', '').split(',')
+          already_labeled = {
+              lbl.replace('backport ', '').strip()
+              for lbl in existing_labels
+              if lbl.startswith('backport ')
+          }
+
+          # Only auto-backport to branches not already covered by a manual label.
+          targets = [b for b in branches if b not in already_labeled]
+
+          print(f"Stable branches: {branches}")
+          print(f"Already labeled: {already_labeled}")
+          print(f"Auto-backport targets: {targets}")
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f"json={json.dumps(targets)}\n")
+          EOF
+        env:
+          EXISTING_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+
+  backport:
+    name: Auto-backport to ${{ matrix.target_branch }}
+    needs: collect-targets
+    if: needs.collect-targets.outputs.target_branches_json != '[]' && needs.collect-targets.outputs.target_branches_json != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target_branch: ${{ fromJSON(needs.collect-targets.outputs.target_branches_json) }}
+    permissions:
+      contents: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        id: octo-sts
+        with:
+          scope: DataDog/dd-trace-py
+          policy: self.backport.create-pr
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Cherry-pick to ${{ matrix.target_branch }}
+        id: cherry-pick
+        env:
+          TARGET_BRANCH: ${{ matrix.target_branch }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          WORKTREE=".worktrees/auto-backport-${TARGET_BRANCH}"
+          BACKPORT_BRANCH="auto-backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
+
+          git worktree add "${WORKTREE}" "origin/${TARGET_BRANCH}"
+          cd "${WORKTREE}"
+          git branch -D "${BACKPORT_BRANCH}" 2>/dev/null || true
+          git switch --create "${BACKPORT_BRANCH}"
+
+          RC=0
+          CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 "${MERGE_COMMIT}" 2>&1) || RC=$?
+
+          if [ "${RC}" -ne 0 ]; then
+            git cherry-pick --abort 2>/dev/null || true
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            echo "error<<EOF" >> "$GITHUB_OUTPUT"
+            echo "${CHERRYPICK_OUT}" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=ok" >> "$GITHUB_OUTPUT"
+            echo "branch=${BACKPORT_BRANCH}" >> "$GITHUB_OUTPUT"
+            echo "branch-from=$(git rev-parse origin/${TARGET_BRANCH})" >> "$GITHUB_OUTPUT"
+            echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push backport branch
+        if: steps.cherry-pick.outputs.status == 'ok'
+        uses: DataDog/commit-headless@05d7b7ee023e2c7d01c47832d420c2503cd416f3 # action/v2.0.3
+        with:
+          branch: ${{ steps.cherry-pick.outputs.branch }}
+          head-sha: ${{ steps.cherry-pick.outputs.branch-from }}
+          target: "DataDog/dd-trace-py"
+          create-branch: true
+          command: push
+          commits: ${{ steps.cherry-pick.outputs.commit }}
+          force: true
+
+      - name: Open backport PR
+        if: steps.cherry-pick.outputs.status == 'ok'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TARGET_BRANCH: ${{ matrix.target_branch }}
+          BACKPORT_BRANCH: ${{ steps.cherry-pick.outputs.branch }}
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: |
+          EXISTING=$(gh pr list --state open --base "${TARGET_BRANCH}" --head "${BACKPORT_BRANCH}" --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -z "${EXISTING}" ]; then
+            gh pr create \
+              --title "${PR_TITLE} [backport ${TARGET_BRANCH}]" \
+              --body "Auto-backport of #${PR_NUMBER} to ${TARGET_BRANCH} (policy-driven, see \`.github/backport-targets.yml\`)." \
+              --base "${TARGET_BRANCH}" \
+              --head "${BACKPORT_BRANCH}"
+          else
+            echo "Backport PR already open: #${EXISTING}"
+          fi
+
+      - name: File issue on cherry-pick conflict
+        if: steps.cherry-pick.outputs.status == 'conflict'
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          TARGET_BRANCH: ${{ matrix.target_branch }}
+          CHERRY_PICK_ERROR: ${{ steps.cherry-pick.outputs.error }}
+        run: |
+          gh issue create \
+            --title "Manual backport needed: #${PR_NUMBER} → ${TARGET_BRANCH}" \
+            --label "Backporting" \
+            --body "$(cat <<EOF
+          The auto-backport workflow could not cherry-pick **#${PR_NUMBER}** (_${PR_TITLE}_) to \`${TARGET_BRANCH}\` due to a conflict.
+
+          **Action required:** manually backport this fix or close this issue with a justification.
+
+          Use \`scripts/backport ${PR_NUMBER} ${TARGET_BRANCH}\` to attempt a local resolution.
+
+          <details><summary>Cherry-pick error output</summary>
+
+          \`\`\`
+          ${CHERRY_PICK_ERROR}
+          \`\`\`
+
+          </details>
+          EOF
+          )"
