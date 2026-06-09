@@ -101,7 +101,7 @@ async def test_data_streams_pathway_stats(dsm_processor):
 
 
 @pytest.mark.asyncio
-async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
+async def test_data_streams_offset_monitoring_auto_commit(dsm_processor, kafka_ready):
     topic = await create_topic("data_streams_offset_monitoring_auto_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
@@ -132,7 +132,7 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
         {TopicPartition("data_streams_offset_monitoring_commit", 0): (2, "meta")},
     ],
 )
-async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
+async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets, kafka_ready):
     topic = await create_topic("data_streams_offset_monitoring_commit")
 
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
@@ -284,7 +284,7 @@ async def test_data_streams_multiple_topics(dsm_processor):
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
-def test_data_streams_aiokafka_enabled():
+def test_data_streams_aiokafka_enabled(kafka_ready):
     """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to aiokafka messages."""
     import asyncio
 

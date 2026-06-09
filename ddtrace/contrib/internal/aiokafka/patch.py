@@ -35,8 +35,6 @@ from ddtrace.propagation.http import HTTPPropagator
 
 log = get_logger(__name__)
 
-_cluster_id_by_bootstrap: dict = {}
-
 
 config._add(
     "aiokafka",
@@ -83,12 +81,6 @@ async def _get_cluster_id(client, topic):
     if cached:
         return cached
 
-    bootstrap = str(getattr(client, "_bootstrap_servers", ""))
-    if bootstrap and bootstrap in _cluster_id_by_bootstrap:
-        cluster_id = _cluster_id_by_bootstrap[bootstrap]
-        client._dd_cluster_id = cluster_id
-        return cluster_id
-
     last_failure = getattr(client, "_dd_cluster_id_failure_time", 0)
     if monotonic() - last_failure < 300:
         return ""
@@ -106,8 +98,6 @@ async def _get_cluster_id(client, topic):
         cluster_id = getattr(response, "cluster_id", "") or ""
         if cluster_id:
             client._dd_cluster_id = cluster_id
-            if bootstrap:
-                _cluster_id_by_bootstrap[bootstrap] = cluster_id
         return cluster_id
     except Exception:
         client._dd_cluster_id_failure_time = monotonic()
