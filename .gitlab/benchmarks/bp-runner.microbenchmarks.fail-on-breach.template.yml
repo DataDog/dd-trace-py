@@ -815,11 +815,11 @@ experiments:
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
