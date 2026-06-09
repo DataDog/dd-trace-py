@@ -236,8 +236,27 @@ class GILGuard
     }
     inline ~GILGuard()
     {
-        if (_acquired && !_mstate->is_finalizing() && PyGILState_Check())
+        if (!_acquired || _mstate->is_finalizing() || !PyGILState_Check()) {
+            return;
+        }
+
+        if (_gil_state == PyGILState_UNLOCKED) {
+            // PyGILState_Release(UNLOCKED) calls PyThreadState_DeleteCurrent, which
+            // sets the current tstate to null before calling PyThreadState_Clear.
+            // Any Python callback triggered during the clear (e.g. a Cython __dealloc__
+            // or a weakref finalizer) that calls PyErr_Restore will dereference the
+            // null tstate and crash.
+            //
+            // To avoid this, we call PyThreadState_Clear ourselves while tstate is
+            // still current, so any callbacks see a valid tstate. We then release the
+            // GIL via PyEval_ReleaseThread. The now-empty tstate becomes an orphan and
+            // is reclaimed by the interpreter during finalization.
+            PyThreadState* tstate = PyThreadState_Get();
+            PyThreadState_Clear(tstate);
+            PyEval_ReleaseThread(tstate);
+        } else {
             PyGILState_Release(_gil_state);
+        }
     }
 
     GILGuard(const GILGuard&) = delete;
