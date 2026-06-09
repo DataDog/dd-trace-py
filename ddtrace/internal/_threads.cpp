@@ -618,6 +618,66 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 }
 
 // ----------------------------------------------------------------------------
+/**
+ * Cooperatively tear down the gevent Hub bound to the *current* native thread,
+ * if any, while this thread still owns a valid PyThreadState and holds the GIL.
+ *
+ * A native PeriodicThread that touches a gevent-monkeypatched API lazily
+ * creates a gevent Hub (a greenlet owning a libev loop) bound to this thread
+ * and stored in the thread's tstate dict via _thread._local. If we let that
+ * Hub be torn down implicitly by PyThreadState_Clear when this thread exits,
+ * older greenlet versions switch into the now-defunct Hub greenlet to finalize
+ * it, running gevent teardown against a half-cleared tstate and crashing in
+ * PyErr_Restore (see crash28). gevent's own Hub.destroy() documents that hubs
+ * used from native threads must be destroyed explicitly, ideally from the
+ * owning thread — which is exactly what we do here.
+ *
+ * Best-effort and never raises: any failure is swallowed. We only act if gevent
+ * is already imported; we never import it ourselves.
+ */
+static void
+release_gevent_hub() noexcept
+{
+    // Start from a clean error state so we can safely call into Python; restore
+    // nothing on the way out (teardown must not surface errors).
+    PyErr_Clear();
+
+    PyObject* modname = PyUnicode_InternFromString("gevent._hub_local");
+    if (modname == nullptr) {
+        PyErr_Clear();
+        return;
+    }
+
+    // Borrowed-or-new ref to the module iff it is already in sys.modules;
+    // NULL (no exception) when gevent is not in use.
+    PyObject* mod = PyImport_GetModule(modname);
+    Py_DECREF(modname);
+    if (mod == nullptr) {
+        PyErr_Clear();
+        return;
+    }
+
+    // get_hub_if_exists() never creates a hub, so threads that never touched
+    // gevent pay nothing beyond the attribute lookup.
+    PyObject* hub = PyObject_CallMethod(mod, "get_hub_if_exists", nullptr);
+    Py_DECREF(mod);
+    if (hub == nullptr) {
+        PyErr_Clear();
+        return;
+    }
+
+    if (hub != Py_None) {
+        PyObject* res = PyObject_CallMethod(hub, "destroy", nullptr);
+        if (res == nullptr) {
+            PyErr_Clear();
+        } else {
+            Py_DECREF(res);
+        }
+    }
+    Py_DECREF(hub);
+}
+
+// ----------------------------------------------------------------------------
 // Internal helper: launches the thread after ensuring preconditions.
 // If reset_next_call_time is true (normal start), _next_call_time is initialised
 // to now + interval before starting; otherwise it is left untouched (important
@@ -764,6 +824,12 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
 
                         // Remove the thread from the mapping of active threads.
                         PyDict_DelItem(state->periodic_threads, self->ident);
+
+                        // Cooperatively destroy this thread's gevent Hub (if it
+                        // created one) while the tstate is still valid, instead
+                        // of letting GILGuard's PyThreadState_Clear tear it down
+                        // unsafely. See release_gevent_hub() and crash28.
+                        release_gevent_hub();
                     }
 
                     // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
