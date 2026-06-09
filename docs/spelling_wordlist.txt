@@ -265,6 +265,7 @@ pyenv
 PyFrameObject
 pylibmc
 pymemcache
+PYMEM
 pymongo
 pymysql
 pynamodb

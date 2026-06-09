@@ -366,7 +366,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Prior to Python 3.12, and particularly in Python 3.11, collecting
+    /* PR #14550 — realloc+GC use-after-free crash.
+       Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
        do allocations. These allocations can in turn trigger garbage collection,

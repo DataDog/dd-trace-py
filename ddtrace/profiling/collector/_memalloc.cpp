@@ -30,8 +30,16 @@ typedef struct
    object-oriented approach and allocate a context per object.
 */
 static memalloc_context_t global_memalloc_ctx;
+#ifdef _PY312_AND_LATER
+static memalloc_context_t global_memalloc_ctx_mem;
+#endif // _PY312_AND_LATER
 
 static bool memalloc_enabled = false;
+#ifdef _PY312_AND_LATER
+/* true only while MEM-domain hooks are installed (between start() with the
+ * caller's mem_domain_enabled=true and the next stop()). */
+static bool memalloc_mem_installed = false;
+#endif // _PY312_AND_LATER
 static std::once_flag memalloc_fork_handler_once_flag;
 
 static void
@@ -109,8 +117,80 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     return ptr2;
 }
 
+#ifdef _PY312_AND_LATER
+/* ---------------------------------------------------------------------------
+ * PYMEM_DOMAIN_MEM hooks — direct copies of the OBJ hooks above, using
+ * global_memalloc_ctx_mem. Kept as separate function definitions (rather than
+ * parameterizing hooks) so each function can be reverted independently of the
+ * other.
+ * --------------------------------------------------------------------------- */
+
+static void
+memalloc_free_mem(void* ctx, void* ptr)
+{
+    PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
+
+    if (ptr == NULL)
+        return;
+
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    if (_MEMALLOC_ON_THREAD) {
+        _memalloc_abort_free_reentry();
+    }
+#endif // MEMALLOC_ASSERT_ON_REENTRY
+
+    memalloc_heap_untrack_no_cpython(ptr);
+    alloc->free(alloc->ctx, ptr);
+}
+
+static void*
+memalloc_alloc_mem(int use_calloc, void* ctx, size_t nelem, size_t elsize)
+{
+    void* ptr;
+    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+
+    if (use_calloc)
+        ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
+    else
+        ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
+
+    if (ptr) {
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+    }
+
+    return ptr;
+}
+
+static void*
+memalloc_malloc_mem(void* ctx, size_t size)
+{
+    return memalloc_alloc_mem(0, ctx, 1, size);
+}
+
+static void*
+memalloc_calloc_mem(void* ctx, size_t nelem, size_t elsize)
+{
+    return memalloc_alloc_mem(1, ctx, nelem, elsize);
+}
+
+static void*
+memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
+{
+    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+    if (ptr2) {
+        memalloc_heap_untrack_no_cpython(ptr);
+        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+    } else if (new_size == 0 && ptr != NULL) {
+        memalloc_heap_untrack_no_cpython(ptr);
+    }
+
+    return ptr2;
+}
+#endif // _PY312_AND_LATER
+
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, heap_sample_interval)\n"
+             "start($module, max_nframe, heap_sample_interval, mem_domain_enabled)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
@@ -119,7 +199,15 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "trace to max_nframe.\n"
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
-             "If heap_sample_interval is set to 0, it is disabled entirely.\n");
+             "If heap_sample_interval is set to 0, it is disabled entirely.\n"
+             "If mem_domain_enabled is true and the Python version supports it\n"
+             "(>= 3.12), MEM-domain allocations (PyMem_Malloc/Calloc/Realloc)\n"
+             "are tracked in addition to OBJ-domain allocations. This is off\n"
+             "by default because MEM-domain interposition adds per-allocation\n"
+             "overhead on hot paths (list/dict resize, buffer growth) and can\n"
+             "extend the time threads hold Python locks that allocate inside\n"
+             "critical sections. Enable it when you need visibility into\n"
+             "PyMem_*-only allocations that the OBJ hook does not capture.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -155,9 +243,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     long max_nframe;
     long long int heap_sample_size;
+    int enable_mem_domain;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size)) {
+    if (!PyArg_ParseTuple(args, "lLp", &max_nframe, &heap_sample_size, &enable_mem_domain)) {
         // Don't set an error string, ParseTuple will set it to a TypeError already.
         return nullptr;
     }
@@ -193,6 +282,26 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
 
+#ifdef _PY312_AND_LATER
+    if (enable_mem_domain) {
+        PyMemAllocatorEx alloc_mem;
+        alloc_mem.malloc = memalloc_malloc_mem;
+        alloc_mem.calloc = memalloc_calloc_mem;
+        alloc_mem.realloc = memalloc_realloc_mem;
+        alloc_mem.free = memalloc_free_mem;
+        alloc_mem.ctx = &global_memalloc_ctx_mem;
+
+        global_memalloc_ctx_mem.max_nframe = (uint16_t)max_nframe;
+        global_memalloc_ctx_mem.domain = PYMEM_DOMAIN_MEM;
+
+        PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.pymem_allocator_obj);
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
+        memalloc_mem_installed = true;
+    }
+#else
+    (void)enable_mem_domain; // silence -Wunused-variable on Python < 3.12
+#endif // _PY312_AND_LATER
+
     memalloc_enabled = true;
 
     Py_RETURN_NONE;
@@ -218,6 +327,13 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * NB: We're assuming here that this is not called concurrently with iter_events
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+
+#ifdef _PY312_AND_LATER
+    if (memalloc_mem_installed) {
+        PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx_mem.pymem_allocator_obj);
+        memalloc_mem_installed = false;
+    }
+#endif // _PY312_AND_LATER
 
     memalloc_heap_tracker_deinit_no_cpython();
 
