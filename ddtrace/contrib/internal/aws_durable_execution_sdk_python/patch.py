@@ -187,7 +187,11 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
                 operation = checkpoint.operation
                 if operation is not None and operation.step_details is not None:
                     attempt = operation.step_details.attempt
-                    event.operation_attempt = attempt - 1 if is_succeeded else attempt
+                    # AIDEV-NOTE: the `attempt > 0` guard is purely defensive;
+                    # we have NOT observed attempt == 0 on success. It avoids
+                    # emitting operation_attempt = -1 if a succeeded StepDetails
+                    # ever lacks "Attempt" (from_dict defaults it to 0).
+                    event.operation_attempt = (attempt - 1 if attempt > 0 else 0) if is_succeeded else attempt
                 else:
                     event.operation_attempt = 0
     return wrapped(*args, **kwargs)
