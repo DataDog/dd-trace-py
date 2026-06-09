@@ -84,6 +84,11 @@ def common_consume_aiokafka_tags(topic, bootstrap_servers, group_id):
 
 
 async def _get_cluster_id(client, topic):
+    """Fetch and cache the Kafka cluster ID from the broker.
+
+    Uses a 5 minute failure cache to avoid repeated slow calls when the broker
+    is unreachable.
+    """
     if client is None:
         return ""
     cached = getattr(client, "_dd_cluster_id", None)
