@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the OpenAI integration would record ``openai.Omit``
+    and ``openai.NotGiven`` sentinel values (used by the OpenAI SDK as defaults for unset request
+    parameters) as noisy repr strings such as ``"<openai.Omit object at 0x...>"`` in LLM span
+    metadata. These sentinels are now filtered out so that only parameters with real values are
+    recorded. This most commonly affected applications using frameworks (e.g. PydanticAI) that
+    forward every request parameter explicitly.
