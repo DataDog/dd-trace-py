@@ -311,7 +311,7 @@ class BotocoreDSMTest(TracerTestCase):
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
             stats = pathway_stats_merged(processor)
-            out_tags = "direction:out,topic:%s:%s,type:eventbridge" % (
+            out_tags = "direction:out,exchange:%s,topic:%s,type:eventbridge" % (
                 event_bus_name,
                 entries[0]["DetailType"],
             )

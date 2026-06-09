@@ -1,6 +1,7 @@
 import base64
 import json
 from typing import Any  # noqa:F401
+from typing import List  # noqa:F401
 from urllib import parse
 
 from ddtrace import config
@@ -47,16 +48,47 @@ def get_stream(params):
     return stream
 
 
-def get_eventbridge_topic(event_entry):
+def get_eventbridge_bus_name(event_entry):
     # type: (dict) -> str
     """
     :event_entry: contains the EventBridge entry for the current botocore action
 
-    Return the DSM topic identifier for a PutEvents entry.
+    Return the EventBridge bus name for a PutEvents entry.
     """
-    event_bus_name = event_entry.get("EventBusName", "default")
-    detail_type = event_entry.get("DetailType", "")
-    return "{}:{}".format(event_bus_name, detail_type)
+    return event_entry.get("EventBusName", "default")
+
+
+def get_eventbridge_detail_type(event_entry):
+    # type: (dict) -> str
+    """
+    :event_entry: contains the EventBridge entry for the current botocore action
+
+    Return the EventBridge detail type for a PutEvents entry.
+    """
+    return event_entry.get("DetailType", "")
+
+
+def eventbridge_edge_tags(event_entry):
+    # type: (dict) -> List[str]
+    """
+    :event_entry: contains the EventBridge entry for the current botocore action
+
+    Return the DSM edge tags for a PutEvents entry.
+    """
+    return [
+        "direction:out",
+        "exchange:{}".format(get_eventbridge_bus_name(event_entry)),
+        "topic:{}".format(get_eventbridge_detail_type(event_entry)),
+        "type:eventbridge",
+    ]
+
+
+def set_produce_checkpoint(trace_data, pathway_tags, payload_size):
+    # type: (dict, List[str], int) -> None
+    from . import data_streams_processor as processor
+
+    ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size)
+    DsmPathwayCodec.encode(ctx, trace_data)
 
 
 def inject_context(trace_data, endpoint_service, dsm_identifier, message):
@@ -67,8 +99,6 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
 
     Set the data streams monitoring checkpoint and inject context to carrier
     """
-    from . import data_streams_processor as processor
-
     path_type = "type:{}".format(endpoint_service)
 
     payload_size = None
@@ -83,10 +113,11 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
 
     if not dsm_identifier:
         log.debug("pathway being generated with unrecognized service: %r", dsm_identifier)
-    ctx = processor().set_checkpoint(
-        ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
+    set_produce_checkpoint(
+        trace_data,
+        ["direction:out", "topic:{}".format(dsm_identifier), path_type],
+        payload_size,
     )
-    DsmPathwayCodec.encode(ctx, trace_data)
 
 
 def calculate_sqs_payload_size(message, trace_data=None):
@@ -144,7 +175,8 @@ def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, request_
     # passes a single message-like object.
     if not event_entry:
         event_entry = request_params
-    inject_context(trace_data, "eventbridge", get_eventbridge_topic(event_entry), event_entry)
+    payload_size = calculate_eventbridge_payload_size(event_entry, trace_data)
+    set_produce_checkpoint(trace_data, eventbridge_edge_tags(event_entry), payload_size)
 
 
 def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
