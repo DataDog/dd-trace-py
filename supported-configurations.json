@@ -6011,7 +6011,7 @@
     "_DD_RAY_RUN_METADATA": [
       {
         "implementation": "A",
-        "type": "string",
+        "type": "json",
         "default": null,
         "internal": true
       }
