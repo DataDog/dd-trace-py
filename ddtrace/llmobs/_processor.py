@@ -74,10 +74,6 @@ class LLMObsProcessor(TraceProcessor):
                 span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
 
-        already_submitted = span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
-        if already_submitted:
-            return
-
         if self._keep_meta_struct:
             # Test mode: always enqueue without scrubbing meta_struct.
             self._llmobs_span_writer.enqueue(event)
