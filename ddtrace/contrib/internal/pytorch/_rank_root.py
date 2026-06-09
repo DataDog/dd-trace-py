@@ -333,6 +333,10 @@ def set_framework(name: str) -> None:
 def close() -> None:
     """Finish the per-rank span. Safe to call when no span is open."""
     global _span, _atexit_registered, _rotation_timer
+    import os as _os, sys as _sys  # noqa: PLC0415
+    _verbose = bool(_os.environ.get("DD_CTRACER_BRIDGE_VERBOSE"))
+    if _verbose:
+        _sys.stderr.write(f"[rank-root] close() entered pid={_os.getpid()}\n"); _sys.stderr.flush()
     with _lock:
         span = _span
         _span = None
@@ -349,10 +353,14 @@ def close() -> None:
         timer.cancel()
 
     if span is None:
+        if _verbose:
+            _sys.stderr.write(f"[rank-root] close() pid={_os.getpid()} no span open\n"); _sys.stderr.flush()
         return
     try:
         _tag_ray_run_context(span)
         span.finish()
+        if _verbose:
+            _sys.stderr.write(f"[rank-root] close() pid={_os.getpid()} span.finish() done\n"); _sys.stderr.flush()
         flush_thread = threading.Thread(
             target=lambda: _safe_flush(tracer),
             name="dd-pytorch-rank-root-flush",
@@ -360,6 +368,9 @@ def close() -> None:
         )
         flush_thread.start()
         flush_thread.join(timeout=2.0)
+        if _verbose:
+            alive = flush_thread.is_alive()
+            _sys.stderr.write(f"[rank-root] close() pid={_os.getpid()} flush joined alive={alive}\n"); _sys.stderr.flush()
     except Exception:
         log.exception("pytorch: rank-root span close failed")
     finally:
