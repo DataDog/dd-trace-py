@@ -5,12 +5,14 @@ import aiokafka
 from aiokafka.protocol.metadata import MetadataRequest_v5
 
 
-# aiokafka >= ~0.12 introduced a new-style versioned Request class with a
-# prepare() method that is required by the newer conn.send() API. Older versions
-# (0.9.x) use MetadataRequest_v5 directly with the old-style send() API.
+# aiokafka >= 0.14 exposes MetadataRequest as a new-style Request class; in
+# 0.9–0.12 it's a list of versioned structs. Only the class works with the new
+# conn.send(); otherwise fall back to MetadataRequest_v5 below.
 try:
     from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
 except ImportError:
+    _MetadataRequest = None
+if not isinstance(_MetadataRequest, type):
     _MetadataRequest = None
 from wrapt import wrap_function_wrapper as _w
 
