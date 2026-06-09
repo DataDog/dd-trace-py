@@ -97,5 +97,5 @@ class LLMObsProcessor(TraceProcessor):
                 telemetry.record_span_created(span, mode)
         elif mode == LLMObsExportMode.APM_AGENTLESS:
             telemetry.record_span_created(span, mode)
-        elif mode is not None:
+        else:
             log.debug("Skipping LLMObs event for span %s. Unexpected mode: %s", span, mode)
