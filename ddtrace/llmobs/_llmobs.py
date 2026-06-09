@@ -21,7 +21,7 @@ from ddtrace import patch
 from ddtrace._trace.apm_filter import APMTracingEnabledFilter
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
-from ddtrace._trace.sampler import RateSampler
+
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -223,9 +223,6 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 def _format_llmobs_sample_rate(rate: float) -> str:
     return f"{rate:.6f}".rstrip("0").rstrip(".")
 
-
-def _llmobs_sampling_decision(trace_id: int, sample_rate: float) -> str:
-    return "1" if RateSampler(sample_rate=sample_rate).sample_by_id(trace_id) else "0"
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -2144,13 +2141,10 @@ class LLMObs(Service):
             span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
+        if sampling_decision is None and span.parent_id in (None, 0):
+            sampling_decision = "1"
+            sample_rate = "1"
         effective_rate = sample_rate or _format_llmobs_sample_rate(config._llmobs_sample_rate)
-        if sampling_decision is None:
-            try:
-                rate_for_decision = float(effective_rate)
-            except (ValueError, TypeError):
-                rate_for_decision = config._llmobs_sample_rate
-            sampling_decision = _llmobs_sampling_decision(span.trace_id, rate_for_decision)
         llmobs_data = _get_llmobs_data_metastruct(span)
         dd = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
         dd[LLMOBS_STRUCT.SAMPLE_RATE] = effective_rate
@@ -3064,14 +3058,7 @@ class LLMObs(Service):
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
         span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        # Derive a decision if none was propagated from upstream or computed at span start.
-        if sampling_decision is None:
-            try:
-                rate_for_decision = float(sample_rate)
-            except (ValueError, TypeError):
-                rate_for_decision = config._llmobs_sample_rate
-            sampling_decision = _llmobs_sampling_decision(span_context.trace_id or 0, rate_for_decision)
-        span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision
+        span_context._meta[PROPAGATED_SAMPLING_DECISION] = sampling_decision or "1"
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
