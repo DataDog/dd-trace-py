@@ -3,4 +3,4 @@ features:
   - |
     LLM Observability: Adds support for ``DD_LLMOBS_SAMPLE_RATE``, which controls how many
     LLM Observability spans are retained. This does not affect APM span retention
-    or the accuracy of LLM Observability metrics such as span duration, error, token usage, and cost.
+    or the accuracy of LLM Observability metrics such as token usage, and cost.
