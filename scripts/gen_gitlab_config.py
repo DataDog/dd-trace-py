@@ -128,12 +128,11 @@ class JobSpec:
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
-        lines.append("  cache:")
-        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-        lines.append("    paths:")
-        lines.append("      - .cache")
-        if self.skip_pip_cache:
-            lines.append("    policy: pull")
+        if not self.skip_pip_cache:
+            lines.append("  cache:")
+            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
