@@ -209,7 +209,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent_config.trace_agent_timeout_seconds
-        super(HTTPWriter, self).__init__(interval=processing_interval)
+        super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
@@ -746,7 +746,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        super(NativeWriter, self).__init__(interval=processing_interval)
+        super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
