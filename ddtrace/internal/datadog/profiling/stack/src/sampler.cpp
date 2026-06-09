@@ -165,22 +165,58 @@ Sampler::adapt_sampling_interval()
         process_delta = 1; // Avoid division by zero or negative values
     }
 
+    // Rolling window for p_stable: maintain a ring buffer of process_delta values and
+    // take the p-th percentile as a stable estimate of app CPU usage. This prevents the
+    // sampling rate from collapsing during brief idle periods.
+    {
+        size_t window_capacity =
+          static_cast<size_t>(static_cast<double>(p_stable_window_s) * 1e6 / g_adaptive_sampling_interval_us);
+        if (window_capacity < 1) {
+            window_capacity = 1;
+        }
+
+        // On window shrink, clear the buffer to avoid stale data skewing the percentile.
+        if (process_delta_window.size() > window_capacity) {
+            process_delta_window.clear();
+            process_delta_window_head = 0;
+        }
+
+        if (process_delta_window.size() < window_capacity) {
+            process_delta_window.push_back(process_delta);
+        } else {
+            process_delta_window[process_delta_window_head] = process_delta;
+            process_delta_window_head = (process_delta_window_head + 1) % window_capacity;
+        }
+    }
+
+    // Compute p_stable as the p-th percentile of the rolling window.
+    // The ring buffer is always non-empty here (we just pushed to it above).
+    double p_stable;
+    {
+        // copy; sort is O(n log n), cheap for ~2400 entries
+        auto sorted = process_delta_window;
+        std::sort(sorted.begin(), sorted.end());
+        size_t idx = static_cast<size_t>(p_stable_percentile_frac * static_cast<double>(sorted.size() - 1));
+        p_stable = sorted[idx];
+    }
+
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
-    // We assume that every sampling operation contributes a fixed amount of
-    // overhead, while the application consumes an average amount of CPU over
-    // time. With:
-    //    s - sampler time
-    //    p - process time
-    //    o - overhead threshold
-    //    I - interval
-    //    I'- interval after adjustment
-    // we use the following formula to adapt the sampling interval
-    //    I' = I * [(s / p) / o]
-    // As the value could be small when the process is idle, we use a lower
-    // bound of the sampling interval to avoid CPU spikes from the sampler.
-    auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
+    // Compute the CPU time budget for the sampler per adaptation window:
+    //   budget = baseline (absolute floor) + o * p_stable
+    // Where:
+    //   baseline = configurable absolute floor (prevents starvation on idle apps)
+    //   o        = target overhead fraction
+    //   p_stable = stable (p95) estimate of app CPU usage from rolling window
+    //
+    // The new interval is derived so that s (sampler CPU time) matches the budget:
+    //   I' = I * (s / budget)
+    auto budget = baseline_cpu_us_per_adapt_window + target_overhead * p_stable;
+    if (budget <= 0) {
+        budget = 1.0; // Avoid division by zero
+    }
+
+    auto new_interval = static_cast<microsecond_t>(current_interval * (sampler_thread_delta / budget));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
