@@ -154,14 +154,14 @@ _REJECT_PRIORITY_INDEX = 1
 
 
 AGENTLESS_TRACE_INTAKE_URLS: dict[str, str] = {
-    "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
-    "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
-    "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
-    "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
+    "datadoghq.com": "https://browser-intake-datadoghq.com",
+    "datadoghq.eu": "https://browser-intake-datadoghq.eu",
+    "us3.datadoghq.com": "https://browser-intake-us3-datadoghq.com",
+    "us5.datadoghq.com": "https://browser-intake-us5-datadoghq.com",
     "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
     "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
     "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
-    "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
+    "datad0g.com": "https://browser-intake-datad0g.com",
 }
 AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
 
