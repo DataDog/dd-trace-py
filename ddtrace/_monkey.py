@@ -109,6 +109,7 @@ PATCH_MODULES = {
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
+    "pytorch": False,
     "vllm": True,
     "mlflow": config._model_lab_enabled,
     "subprocess": True,
@@ -175,6 +176,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
+    "pytorch": ("torch",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

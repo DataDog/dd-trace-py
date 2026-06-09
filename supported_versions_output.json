@@ -657,6 +657,14 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "torch",
+        "integration": "pytorch",
+        "minimum_tracer_supported": "2.3.1",
+        "max_tracer_supported": "2.3.1",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "ray",
         "integration": "ray",
         "minimum_tracer_supported": "2.46.0",

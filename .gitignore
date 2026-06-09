@@ -227,6 +227,3 @@ src/native/target*
 
 # APM AI Toolkit Analysis Logs
 .analysis/
-
-# file created when running scripts/lint
-uv.lock

@@ -60,8 +60,6 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_venv_artifacts: bool = False
-    skip_pip_cache: bool = False
 
     python_versions: t.Optional[set[str]] = None
 
@@ -128,11 +126,10 @@ class JobSpec:
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
-        if not self.skip_pip_cache:
-            lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        lines.append("  cache:")
+        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+        lines.append("    paths:")
+        lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -154,16 +151,6 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
-
-        if self.skip_venv_artifacts:
-            lines.append("  artifacts:")
-            lines.append("    when: always")
-            lines.append("    paths:")
-            lines.append("      - core.*")
-            lines.append("      - ddtrace/**/*.so*")
-            lines.append("    reports:")
-            lines.append("      junit: test-results/junit*.xml")
-            lines.append("    expire_in: 1 week")
 
         return "\n".join(lines)
 

@@ -167,6 +167,8 @@ components:
     - ddtrace/ext/memcached.py
   pynamodb:
     - ddtrace/contrib/internal/pynamodb/*
+  pytorch:
+    - ddtrace/contrib/internal/pytorch/*
   pyodbc:
     - ddtrace/contrib/internal/pyodbc/*
   pyramid:
@@ -1106,6 +1108,16 @@ suites:
       - '@tracing'
       - '@pynamodb'
       - tests/contrib/pynamodb/*
+    snapshot: true
+  pytorch:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytorch'
+      - tests/contrib/pytorch/*
     snapshot: true
   pyodbc:
     parallelism: 1

@@ -3003,6 +3003,16 @@
         "default": "false"
       }
     ],
+    "DD_PYTORCH_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "aliases": [
+          "DD_PYTORCH_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_PYNAMODB_SERVICE": [
       {
         "implementation": "A",
@@ -4610,6 +4620,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_PYTORCH_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TRACE_RAY_ENABLED": [
       {
         "implementation": "A",
@@ -5979,7 +5996,24 @@
         "version": "B",
         "type": "boolean",
         "default": "false",
-        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
+        "propertyKeys": [
+          "trace_stats_computation_experimental_client_obfuscation_enabled"
+        ]
+      }
+    ],
+    "DD_PYTORCH_JOB_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "_DD_RAY_RUN_METADATA": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "internal": true
       }
     ]
   }
