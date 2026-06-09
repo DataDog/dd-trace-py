@@ -486,6 +486,7 @@ version = "1.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=zach.montoya%2Fotlp-compatibility-mode#2d0d23408fea28614b64c96712f0ba7f236114bd"
 dependencies = [
  "chrono",
+ "datadog-remote-config",
  "derive_more",
  "faststr",
  "libdd-common",
@@ -518,6 +519,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "sha2",
+ "thiserror 2.0.18",
  "time",
  "tokio",
  "tokio-util",
@@ -1675,6 +1677,7 @@ dependencies = [
  "libdd-common",
  "libdd-common-ffi",
  "libdd-profiling",
+ "libdd-shared-runtime-ffi",
  "serde_json",
  "thiserror 2.0.18",
  "tokio-util",
@@ -1703,6 +1706,16 @@ dependencies = [
  "tokio-util",
  "tracing",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "libdd-shared-runtime-ffi"
+version = "35.0.0"
+source = "git+https://github.com/DataDog/libdatadog?branch=zach.montoya%2Fotlp-compatibility-mode#2d0d23408fea28614b64c96712f0ba7f236114bd"
+dependencies = [
+ "build_common",
+ "libdd-shared-runtime",
+ "tracing",
 ]
 
 [[package]]
@@ -1802,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-trace-utils"
-version = "6.0.1"
+version = "7.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=zach.montoya%2Fotlp-compatibility-mode#2d0d23408fea28614b64c96712f0ba7f236114bd"
 dependencies = [
  "anyhow",
