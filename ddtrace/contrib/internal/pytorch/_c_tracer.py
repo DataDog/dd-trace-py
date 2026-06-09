@@ -67,7 +67,20 @@ def set_parent_context(span: Any, open_kwargs: dict[str, Any]) -> None:
         return
     try:
         trace_id = span.trace_id
-        span_id = ctypes.c_uint64(span.span_id)
+        span_id_val = int(span.span_id)
+        span_id = ctypes.c_uint64(span_id_val)
+        # Experiments-only verification: print once so we can confirm in Ray
+        # actor logs that the bridge actually fires under D config.
+        import os as _os, sys as _sys  # noqa: PLC0415
+        if _os.environ.get("DD_CTRACER_BRIDGE_VERBOSE"):
+            try:
+                _sys.stderr.write(
+                    f"[dd-trace-py->c] set_parent_context fired pid={_os.getpid()} "
+                    f"trace_id={trace_id:032x} span_id={span_id_val:016x}\n"
+                )
+                _sys.stderr.flush()
+            except Exception:  # nosec B110
+                pass
         trace_id_lo = ctypes.c_uint64(trace_id & 0xFFFFFFFFFFFFFFFF)
         trace_id_hi = ctypes.c_uint64((trace_id >> 64) & 0xFFFFFFFFFFFFFFFF)
 
