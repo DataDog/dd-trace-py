@@ -8,10 +8,19 @@ name: Auto-label backport targets
 #
 # Uses pull_request_target so that the GITHUB_TOKEN has write access even for
 # fork PRs. No PR code is checked out — only the base repo config file is read.
+#
+# workflow_dispatch allows manual testing before this workflow is on main:
+#   gh workflow run pr-auto-label-backport.yml -f pr_number=<N>
 
 on:
   pull_request_target:
     types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to apply backport labels to"
+        required: true
+        type: string
 
 jobs:
   auto-label:
@@ -19,12 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    if: startsWith(github.event.pull_request.title, 'fix(')
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Check out only the base branch (not the PR) — safe for pull_request_target.
-          ref: ${{ github.event.pull_request.base.sha }}
+          # Always check out the base/default branch — never the PR head. Safe for pull_request_target.
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
           persist-credentials: false
           sparse-checkout: .github/backport-targets.yml
           sparse-checkout-cone-mode: false
@@ -34,22 +42,35 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const yaml = require('js-yaml');  // available via @actions/github-script environment
 
-            // Parse supported branches from config.
-            const raw = fs.readFileSync('.github/backport-targets.yml', 'utf8');
-            // Simple line-based parse — avoids needing js-yaml in the runner.
-            const stableLines = raw.split('\n')
-              .filter(l => /^\s+-\s+"/.test(l))
-              .map(l => l.match(/"([^"]+)"/)[1]);
+            // Resolve PR number — from event payload or manual dispatch input.
+            const prNumber = context.payload.pull_request?.number
+              ?? parseInt(context.payload.inputs?.pr_number);
+            if (!prNumber) { core.setFailed('No PR number available'); return; }
 
-            const existingLabels = context.payload.pull_request.labels.map(l => l.name);
+            // Fetch current PR state (needed for workflow_dispatch path).
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
 
-            // Suppress entirely if author has opted out.
+            if (!pr.title.startsWith('fix(')) {
+              console.log(`PR title "${pr.title}" does not start with fix( — skipping`);
+              return;
+            }
+
+            const existingLabels = pr.labels.map(l => l.name);
             if (existingLabels.includes('no-backport')) {
               console.log('no-backport label present — skipping');
               return;
             }
+
+            // Parse supported stable branches from config.
+            const raw = fs.readFileSync('.github/backport-targets.yml', 'utf8');
+            const stableLines = raw.split('\n')
+              .filter(l => /^\s+-\s+"/.test(l))
+              .map(l => l.match(/"([^"]+)"/)[1]);
 
             const toAdd = stableLines
               .map(b => `backport ${b}`)
@@ -64,6 +85,6 @@ jobs:
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: prNumber,
               labels: toAdd,
             });
