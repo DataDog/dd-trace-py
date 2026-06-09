@@ -46,6 +46,19 @@ def get_stream(params):
     stream = params.get("StreamARN", params.get("StreamName", ""))
     return stream
 
+
+def get_eventbridge_topic(event_entry):
+    # type: (dict) -> str
+    """
+    :event_entry: contains the EventBridge entry for the current botocore action
+
+    Return the DSM topic identifier for a PutEvents entry.
+    """
+    event_bus_name = event_entry.get("EventBusName", "default")
+    detail_type = event_entry.get("DetailType", "")
+    return "{}:{}".format(event_bus_name, detail_type)
+
+
 def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     # type: (dict, str, str, Any) -> None
     """
@@ -131,8 +144,7 @@ def handle_eventbridge_produce(ctx, span, endpoint_service, trace_data, request_
     # passes a single message-like object.
     if not event_entry:
         event_entry = request_params
-    event_bus_name = event_entry.get("EventBusName", "default")
-    inject_context(trace_data, "eventbridge", event_bus_name, event_entry)
+    inject_context(trace_data, "eventbridge", get_eventbridge_topic(event_entry), event_entry)
 
 
 def handle_sqs_sns_produce(ctx, span, endpoint_service, trace_data, params, message=None):
