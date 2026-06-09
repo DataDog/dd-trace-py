@@ -1111,6 +1111,8 @@ suites:
     snapshot: true
   pytorch:
     venvs_per_job: 1
+    skip_venv_artifacts: true
+    skip_pip_cache: true
     paths:
       - '@bootstrap'
       - '@core'
