@@ -592,15 +592,15 @@ def test_activate_distributed_context_stores_propagated_sample_rate(llmobs):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
     ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
-    active = llmobs._instance._llmobs_context_provider.active()
-    assert active._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert active_ctx._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
 
 
 def test_activate_distributed_context_without_sample_rate(llmobs):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
-    active = llmobs._instance._llmobs_context_provider.active()
-    assert PROPAGATED_SAMPLE_RATE not in active._meta
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert PROPAGATED_SAMPLE_RATE not in active_ctx._meta
 
 
 def test_propagated_sample_rate_stored_in_meta_struct(llmobs):
@@ -687,8 +687,8 @@ def test_activate_distributed_context_stores_propagated_sampling_decision(llmobs
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
     ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
-    active = llmobs._instance._llmobs_context_provider.active()
-    assert active._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.NOT_SAMPLED
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert active_ctx._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.NOT_SAMPLED
 
 
 def test_propagated_sampling_decision_stored_in_meta_struct(llmobs):
