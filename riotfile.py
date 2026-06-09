@@ -97,6 +97,7 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "10000",  # 10-second timeout
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
