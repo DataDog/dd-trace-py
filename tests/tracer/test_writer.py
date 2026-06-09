@@ -17,6 +17,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
+from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
@@ -551,6 +552,7 @@ def test_agentless_trace_writer_encode_traces():
             "us5.datadoghq.com",
             "ap1.datadoghq.com",
             "ap2.datadoghq.com",
+            "uk1.datadoghq.com",
             "datad0g.com",
         ]
     },
@@ -559,23 +561,40 @@ def test_agentless_trace_writer_intake_url():
     """AgentlessTraceWriter sets the correct intake URL for each DD_SITE."""
     import os
 
+    from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
     from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
-
-    EXPECTED_INTAKE_URLS = {
-        "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
-        "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
-        "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
-        "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
-        "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
-        "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
-        "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
-    }
 
     site = os.environ["DD_SITE"]
     writer = tracer._span_aggregator.writer
     assert isinstance(writer, AgentlessTraceWriter)
-    assert writer.intake_url == EXPECTED_INTAKE_URLS[site]
+    assert writer.intake_url == AGENTLESS_TRACE_INTAKE_URLS[site]
+
+
+@pytest.mark.parametrize("site,expected", list(AGENTLESS_TRACE_INTAKE_URLS.items()))
+def test_agentless_intake_url_known_sites(site, expected):
+    from ddtrace.internal.writer.writer import _agentless_intake_url
+
+    assert _agentless_intake_url(site) == expected
+
+
+@pytest.mark.parametrize(
+    "site,expected",
+    [
+        ("ap3.datadoghq.com", "https://browser-intake-ap3-datadoghq.com"),
+        ("ddog-gov.com", "https://browser-intake-ddog-gov.com"),
+        ("us2.ddog-gov.com", "https://browser-intake-us2-ddog-gov.com"),
+    ],
+)
+def test_agentless_intake_url_unknown_site_uses_browser_intake_fallback(site, expected):
+    from ddtrace.internal.writer.writer import _agentless_intake_url
+
+    with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+        result = _agentless_intake_url(site)
+
+    assert result == expected
+    mock_log.warning.assert_called_once()
+    assert site in mock_log.warning.call_args[0][1]
 
 
 def test_humansize():

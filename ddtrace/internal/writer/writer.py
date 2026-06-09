@@ -11,6 +11,8 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
+from ddtrace.internal.constants import AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE
+from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -1103,16 +1105,22 @@ def _use_sync_mode() -> bool:
 
 
 def _agentless_intake_url(site: str) -> str:
-    if "us3." in site:
-        return "https://trace.browser-intake-us3-datadoghq.com"
-    elif "us5." in site:
-        return "https://trace.browser-intake-us5-datadoghq.com"
-    elif "ap1." in site:
-        return "https://browser-intake-ap1-datadoghq.com"
-    elif "ap2." in site:
-        return "https://browser-intake-ap2-datadoghq.com"
-    else:
-        return "https://public-trace-http-intake.logs.{}".format(site)
+    url = AGENTLESS_TRACE_INTAKE_URLS.get(site)
+    if url is not None:
+        return url
+    # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
+    # e.g. "ddog-gov.com"    -> "browser-intake-ddog-gov.com"
+    #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
+    prefix, _, tld = site.rpartition(".")
+    url = AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
+    log.warning(
+        "Datadog site %r is not explicitly supported for agentless tracing. "
+        "Attempting to use %r. To resolve this, upgrade to a newer version of "
+        "ddtrace that supports this site, or disable agentless trace export.",
+        site,
+        url,
+    )
+    return url
 
 
 def create_trace_writer(
