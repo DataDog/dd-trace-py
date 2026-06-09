@@ -576,7 +576,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     env={
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "zope-event": "==5.0",
@@ -621,7 +621,7 @@ venv = Venv(
                         # fork from a multi-threaded subprocess (ddtrace starts background
                         # threads on import), so suppress the warning to avoid spurious
                         # stderr output that causes @pytest.mark.subprocess() to fail.
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
@@ -649,6 +649,7 @@ venv = Venv(
                 "elasticsearch": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
+                "setuptools": "<80",
             },
             venvs=[
                 Venv(

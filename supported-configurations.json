@@ -2451,6 +2451,13 @@
         ]
       }
     ],
+    "DD_ML_JOB_ENV": [
+      {
+        "implementation": "A",
+        "type": "map",
+        "default": null
+      }
+    ],
     "DD_METRICS_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -5703,14 +5710,6 @@
         "internal": true
       }
     ],
-    "_DD_LLMOBS_TEST_KEEP_META_STRUCT": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
     "_DD_LLMOBS_WRITER_INTERVAL": [
       {
         "implementation": "A",
@@ -5799,11 +5798,35 @@
         "internal": true
       }
     ],
-    "_DD_PROFILING_STACK_FAST_COPY": [
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_BASELINE": [
       {
         "implementation": "A",
+        "type": "decimal",
+        "default": "0.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_P_STABLE_PERCENTILE": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "95.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_P_STABLE_WINDOW_S": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "600",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_FAST_COPY": [
+      {
+        "implementation": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "internal": true
       }
     ],

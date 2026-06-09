@@ -44,7 +44,7 @@
       "http.useragent": "python-requests/2.32.3",
       "http.version": "1.1",
       "language": "python",
-      "network.client.ip": "8.8.4.4",
+      "network.client.ip": "127.0.0.1",
       "runtime-id": "e2f1123b8cbd4896a6e912e662f81985",
       "span.kind": "server"
     },

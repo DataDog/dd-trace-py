@@ -3,9 +3,20 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+
+# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# aiohttp-layer subscriber to skip its own injection during AWS calls; _wrapped_api_call
+# is one of its two permitted setters. See the ownership contract on its
+# definition in ddtrace/_trace/subscribers/http_client.py.
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+
+# AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
+# wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
+from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
+from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -54,6 +65,15 @@ def _supported_versions() -> dict[str, str]:
     return {"aiobotocore": ">=1.0.0"}
 
 
+def _aiobotocore_before_sign_handler(request, **kwargs):
+    """Before-sign handler for aiobotocore clients; gates on aiobotocore's own
+    patch state (see ``_botocore_before_sign_handler`` for the rationale).
+    """
+    if not getattr(aiobotocore.client, "_datadog_patch", False):
+        return
+    _inject_trace_headers_handler(request, **kwargs)
+
+
 def patch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         return
@@ -67,6 +87,9 @@ def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
+        # The before-sign handler is registered per-client on its own emitter
+        # (see _ensure_before_sign_handler in botocore.patch); it self-gates on
+        # patch state, so any retained registration goes inert after unpatch.
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
@@ -164,7 +187,22 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         span.set_tags(meta)
 
-        result = await original_func(*args, **kwargs)
+        # Suppress the aiohttp-layer injection for this AWS call (aiobotocore
+        # sends through aiohttp, whose subscriber would otherwise re-inject AFTER
+        # SigV4 signing and break strict-signature endpoints). Same three cases as
+        # botocore.patched_api_call: distributed_tracing off -> suppress (opt-out,
+        # no headers anywhere); on + handler registered -> suppress; on +
+        # registration failed -> do NOT suppress, fall back to aiohttp injection.
+        token = None
+        if not config.botocore["distributed_tracing"]:
+            token = _http_propagation_suppressed.set(True)
+        elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
+            token = _http_propagation_suppressed.set(True)
+        try:
+            result = await original_func(*args, **kwargs)
+        finally:
+            if token is not None:
+                _http_propagation_suppressed.reset(token)
 
         body = result.get("Body")
 

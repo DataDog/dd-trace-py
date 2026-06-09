@@ -1,8 +1,8 @@
 [[
   {
-    "name": "test_agent",
+    "name": "pydantic_ai.agent",
     "service": "tests.contrib.pydantic_ai",
-    "resource": "Pydantic Agent",
+    "resource": "test_agent",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -28,9 +28,9 @@
     "start": 1776698460779545137
   },
      {
-       "name": "calculate_square_tool",
+       "name": "pydantic_ai.tool",
        "service": "tests.contrib.pydantic_ai",
-       "resource": "Pydantic Tool",
+       "resource": "calculate_square_tool",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,

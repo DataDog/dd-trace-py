@@ -133,49 +133,6 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
-def test_llmobs_apm_trace_agentless_enabled_no_api_key():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is False
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_explicitly_disabled():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is False
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_via_llmobs_flag():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is True
-
-
-@pytest.mark.subprocess(
-    env={
-        "DD_API_KEY": "<not-a-real-key>",
-        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-    }
-)
-def test_llmobs_apm_trace_agentless_enabled_via_trace_flag():
-    from ddtrace.llmobs._writer import llmobs_apm_trace_agentless_enabled
-
-    assert llmobs_apm_trace_agentless_enabled() is True
-
-
 @pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
@@ -221,11 +178,30 @@ def test_export_mode_apm_agentless_when_agentless_enabled():
     assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENTLESS
 
 
+def test_annotate_tag_values_are_stringified(llmobs):
+    """Non-string tag values (bool/int/float/None) are coerced to strings, since the LLMObs
+    intakes decode tags as a string->string map.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(
+            span=span,
+            tags={"is_streaming": True, "retries": 3, "ratio": 0.5, "none_tag": None, "str_tag": "ok"},
+        )
+    tags = get_llmobs_tags(span)
+    assert all(isinstance(v, str) for v in tags.values()), tags
+    assert {
+        "is_streaming": "True",
+        "retries": "3",
+        "ratio": "0.5",
+        "none_tag": "None",
+        "str_tag": "ok",
+    }.items() <= tags.items()
+
+
 @pytest.mark.subprocess(
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
@@ -242,10 +218,12 @@ def test_export_mode_apm_agent_when_agentless_disabled():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
 )
 def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
+    """APM trace dropped: span events ship via the writer (transport inferred by the writer)."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMObsExportMode
 
@@ -320,6 +298,9 @@ def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
 
 def test_service_enable_no_api_key(tracer):
     with override_global_config(dict(_dd_api_key="", _llmobs_ml_app="<ml-app-name>")):
+        # enable() raises before replacing _instance, so reset to a fresh real instance:
+        # a prior xdist-worker test may have left a mocked eval writer (status != "stopped").
+        llmobs_service._instance = llmobs_service()
         with pytest.raises(ValueError):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=True)
         assert llmobs_service.enabled is False
@@ -664,7 +645,8 @@ def test_annotate_metadata_wrong_type_raises(llmobs):
 def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}.items() <= get_llmobs_tags(span).items()
+        # Non-string tag values are coerced to strings at annotation time.
+        assert {"test_tag_name": "test_tag_value", "test_numeric_tag": "10"}.items() <= get_llmobs_tags(span).items()
 
 
 def test_annotate_tag_can_set_session_id(llmobs):
@@ -1176,7 +1158,7 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     env={
         "DD_APM_TRACING_ENABLED": "false",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
+        "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
 )
@@ -1187,8 +1169,7 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
 
     llmobs_service.enable()
     with llmobs_service.task(name="test_task") as span:
-        pass
-    tags = get_llmobs_tags(span)
+        tags = get_llmobs_tags(span)
     assert tags is not None and "ddtrace.version" in tags
     llmobs_service.disable()
 
@@ -1197,7 +1178,6 @@ def test_tag_dot_keys_preserved_on_direct_llmobs_path():
     env={
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
         "DD_LLMOBS_ML_APP": "test-ml-app",
-        "_DD_LLMOBS_TEST_KEEP_META_STRUCT": "1",
     },
     err=None,
 )
@@ -1534,7 +1514,16 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
         llmobs_service.disable()
 
 
-@pytest.mark.subprocess(env={"_DD_LLMOBS_WRITER_INTERVAL": "5.0", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        # Force LLMOBS_DIRECT so finish enqueues into the writer directly; APM_AGENT would
+        # cache for the rescue chain, leaving the buffer empty and defeating the assertions.
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_API_KEY": "<not-a-real-key>",
+    }
+)
 def test_llmobs_fork_create_span():
     """Test that forking a process correctly encodes new spans created in each process."""
     import os
