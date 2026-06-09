@@ -263,6 +263,9 @@ class Span(OtelSpan):
             self._ddspan.error = 1
             if message:
                 self.set_attribute(ERROR_MSG, message)
+            elif config._otel_trace_compatibility_enabled:
+                # When OTel compatibility mode is enabled, the error message should reflect the description of the latest span status
+                self._ddspan._remove_attribute(ERROR_MSG)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
