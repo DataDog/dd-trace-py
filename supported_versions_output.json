@@ -7,6 +7,13 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "botocore",
+        "integration": "aiobotocore",
+        "minimum_tracer_supported": "1.15.32",
+        "max_tracer_supported": "1.42.19",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
@@ -171,8 +178,8 @@
     {
         "dependency": "botocore",
         "integration": "botocore",
-        "minimum_tracer_supported": "1.34.49",
-        "max_tracer_supported": "1.38.26",
+        "minimum_tracer_supported": "1.15.32",
+        "max_tracer_supported": "1.42.19",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -566,7 +573,7 @@
         "dependency": "protobuf",
         "integration": "protobuf",
         "minimum_tracer_supported": "6.33.6",
-        "max_tracer_supported": "7.34.1",
+        "max_tracer_supported": "7.35.0",
         "auto-instrumented": false
     },
     {
