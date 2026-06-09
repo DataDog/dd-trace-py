@@ -106,9 +106,7 @@ class Span(OtelSpan):
         if set_status_on_exception is not None:
             self._set_status_on_exception = set_status_on_exception
 
-        if config._otel_trace_compatibility_enabled:
-            self._ddspan.span_type = kind.name.lower()
-        elif kind is not SpanKind.INTERNAL:
+        if kind is not SpanKind.INTERNAL:
             # Only set if it isn't "internal" to save on bytes
             self.set_attribute(SPAN_KIND, kind.name.lower())
 
