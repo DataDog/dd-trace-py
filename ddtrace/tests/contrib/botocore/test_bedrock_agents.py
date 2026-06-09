@@ -38,7 +38,14 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
 
 
 @pytest.mark.skipif(BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent step spans require boto3 > 1.36.0")
-@pytest.mark.snapshot(ignores=["meta.llmobs_trace_id", "meta.llmobs_parent_id", "meta._dd.p.tid"])
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.llmobs_trace_id",
+        "meta.llmobs_parent_id",
+        "meta._dd.p.tid",
+        "meta_struct",
+    ]
+)
 def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock_agents_llmobs):
     """Snapshot of the full trace including step + inner APM spans (only created when LLMObs is enabled)."""
     with request_vcr.use_cassette("agent_invoke.yaml"):
@@ -56,7 +63,12 @@ def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock
 @pytest.mark.skipif(BOTO_VERSION < (1, 38, 0), reason="LLMObs bedrock agent step spans require boto3 > 1.36.0")
 @pytest.mark.snapshot(
     token="tests.contrib.botocore.test_bedrock_agents.test_agent_invoke_with_step_spans",
-    ignores=["meta.llmobs_trace_id", "meta.llmobs_parent_id", "meta._dd.p.tid"],
+    ignores=[
+        "meta.llmobs_trace_id",
+        "meta.llmobs_parent_id",
+        "meta._dd.p.tid",
+        "meta_struct",
+    ],
 )
 def test_agent_invoke_stream_with_step_spans(bedrock_agent_client, request_vcr, bedrock_agents_llmobs):
     """Same trace as ``test_agent_invoke_with_step_spans`` but exercises the streaming code path."""

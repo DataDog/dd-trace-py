@@ -1349,8 +1349,7 @@ def test_agentless_writer_serialize_span_fields():
     assert span_json["meta"]["runtime-id"] == get_runtime_id()
     assert span_json["meta"]["tag1"] == "value1"
     assert span_json["meta"]["tag2"] == "value2"
-    # Sampling rules and rate limits are ignored. Default is used.
-    assert span_json["meta"]["_dd.p.dm"] == "-0"
+    assert span_json["meta"]["_dd.p.dm"] == "-3"
     assert span_json["meta"]["language"] == "python"
     assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
 
@@ -1358,7 +1357,8 @@ def test_agentless_writer_serialize_span_fields():
     assert span_json["metrics"]["metric1"] == 1.0
     assert span_json["metrics"]["metric2"] == 2.0
     assert span_json["metrics"]["_dd.top_level"] == 1
-    assert span_json["metrics"]["_sampling_priority_v1"] == 1
+    assert span_json["metrics"]["_dd.rule_psr"] == 0
+    assert span_json["metrics"]["_sampling_priority_v1"] == -1
 
 
 @pytest.mark.subprocess(
