@@ -28,6 +28,16 @@ ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_SAMPLE_RATE = "_dd.p.llmobs_sr"
 PROPAGATED_SAMPLING_DECISION = "_dd.p.llmobs_sd"
+
+
+DEFAULT_SAMPLE_RATE = "1"
+
+
+class LLMObsSamplingDecision(str, Enum):
+    SAMPLED = "1"
+    NOT_SAMPLED = "0"
+
+
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"

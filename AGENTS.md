@@ -24,33 +24,6 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-### Tracing pipeline
-
-`Tracer.trace()` / `start_span()` → `Span` (`ddtrace/_trace/span.py`) → on finish, `SpanAggregator` collects spans into traces → runs the `TraceProcessor` chain → dispatches to a `TraceWriter`.
-
-Writer implementations (all in `ddtrace/internal/writer/writer.py`):
-- `NativeWriter` — default, sends to the local Datadog Agent
-- `AgentlessTraceWriter` — used when `_DD_APM_TRACING_AGENTLESS_ENABLED=1`; intake URL is resolved via `AgentlessTraceWriter.compute_intake_url(site)` which looks up `AgentlessTraceWriter.INTAKE_URLS` then falls back to a `browser-intake-{site}` derivation algorithm
-- `LogWriter` — serverless environments; writes JSON to stdout
-
-### Event bus and product decoupling
-
-`ddtrace/internal/core.py` is the event bus. Integrations in `contrib/` emit named events (`core.dispatch()`); products (AppSec, LLMObs, CI Visibility) register handlers (`core.on()`). **Products never import directly from `contrib/`**. See `.cursor/rules/isolated-responsibility.mdc` for the full contract.
-
-### Configuration
-
-`ddtrace/internal/settings/_config.py` holds the global `config` object. `ddtrace/internal/settings/env.py` provides env-var reading helpers. Product-specific settings live in sibling modules (`settings/asm.py`, `settings/profiling.py`, etc.). All public knobs map to `DD_*` env vars.
-
-### LLMObs (`ddtrace/llmobs/`)
-
-`_llmobs.py` (~3 000 lines) is the monolithic core — span lifecycle, sampling, context propagation, and distributed tracing all live here.
-
-Key patterns:
-- **Sampling** — decided once at the root span (`span.parent_id is None`). Non-root spans inherit the parent's decision. If no upstream decision is propagated, defaults to `sampling_decision="1"`, `sample_rate="1"`. Propagated decisions are used as-is.
-- **Wire format** — sampling propagates via two span meta keys: `_dd.p.llmobs_sr` (rate) and `_dd.p.llmobs_sd` (decision).
-- **Evaluators** (`_evaluators/`) — separate subsystem for running automated evaluations; uses `EvaluatorRunnerSampler` which always requires a `Span` object.
-- **Writer** (`_writer.py`) — buffers LLMObs events and flushes to the LLMObs intake endpoint independently of the APM writer.
-
 ## AIDEV Anchor Comments
 
 Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.

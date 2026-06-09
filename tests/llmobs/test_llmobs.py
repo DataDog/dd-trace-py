@@ -1170,3 +1170,31 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sample_rate"] == "1"
     assert event_dd["sampling_decision"] in ("0", "1")
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0", "0.25", "0.5", "0.75", "1"]},
+)
+def test_sample_rate_inherited_by_child_span():
+    import os
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMOBS_STRUCT
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
+    LLMObs.enable()
+    with LLMObs.workflow("parent") as parent:
+        with LLMObs.workflow("child") as child:
+            pass
+
+    parent_dd = _get_llmobs_data_metastruct(parent).get(LLMOBS_STRUCT.DD, {})
+    child_dd = _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {})
+    assert parent_dd[LLMOBS_STRUCT.SAMPLE_RATE] == configured_rate
+    assert child_dd[LLMOBS_STRUCT.SAMPLE_RATE] == configured_rate
+    assert child_dd[LLMOBS_STRUCT.SAMPLING_DECISION] == parent_dd[LLMOBS_STRUCT.SAMPLING_DECISION]

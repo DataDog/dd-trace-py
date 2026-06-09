@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -563,9 +564,6 @@ def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, test_
     assert get_llmobs_trace_id(spans[0]) == stored
 
 
-# ── Sample-rate propagation ──────────────────────────────────────────────────
-
-
 def test_inject_includes_sample_rate(llmobs):
     with llmobs.workflow("w") as span:
         llmobs._inject_llmobs_context(span.context, {})
@@ -630,32 +628,24 @@ def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["_dd"]["sample_rate"] == "0.5"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
 
 
 def test_sampling_decision_defaults_to_sampled_when_no_upstream_decision(llmobs, llmobs_events):
-    # Upstream context present but no decision tag — downstream defaults to sampled (1).
+    # Upstream context present but no decision tag — downstream defaults to sampled.
     ctx = Context(trace_id=123456789, span_id=987654321)
     ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
     ctx._meta[PROPAGATED_PARENT_ID_KEY] = "987654321"
     ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
     # No PROPAGATED_SAMPLING_DECISION — simulates an older upstream SDK
-
     llmobs._instance.tracer.context_provider.activate(ctx)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w"):
         pass
-
     assert len(llmobs_events) == 1
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sample_rate"] == "0.5"
-    assert event_dd["sampling_decision"] == "1"  # upstream context present → default to sampled
-
-
-def test_sampling_decision_uses_local_rate_when_no_propagated_rate(llmobs, llmobs_events):
-    with llmobs.workflow("w"):
-        pass
-    assert len(llmobs_events) == 1
-    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+    assert event_dd["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
 
 
 def test_sampling_decision_defaults_to_sampled_when_no_upstream_context_tags(llmobs, llmobs_events):
@@ -666,54 +656,69 @@ def test_sampling_decision_defaults_to_sampled_when_no_upstream_context_tags(llm
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
-    assert llmobs_events[0]["_dd"]["sampling_decision"] == "1"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
 
 
-def test_sampling_decision_computed_for_root_span(llmobs, llmobs_events):
+def test_sampling_decision_defaults_to_sampled_for_root_span(llmobs, llmobs_events):
+    # Root span with no LLMObs parent and no propagated context always samples.
     with llmobs.workflow("w"):
         pass
     assert len(llmobs_events) == 1
-    assert llmobs_events[0]["_dd"]["sampling_decision"] in ("0", "1")
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
 
 
 def test_inject_includes_sampling_decision(llmobs):
     with llmobs.workflow("w") as span:
         llmobs._inject_llmobs_context(span.context, {})
-    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) in ("0", "1")
+    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.SAMPLED
+
+
+def test_inject_propagates_not_sampled_decision(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.NOT_SAMPLED
 
 
 def test_activate_distributed_context_stores_propagated_sampling_decision(llmobs):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
-    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     active = llmobs._instance._llmobs_context_provider.active()
-    assert active._meta.get(PROPAGATED_SAMPLING_DECISION) == "0"
+    assert active._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.NOT_SAMPLED
 
 
 def test_propagated_sampling_decision_stored_in_meta_struct(llmobs):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
-    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
-        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
+            == LLMObsSamplingDecision.NOT_SAMPLED
+        )
 
 
 def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
-    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("root"):
         with llmobs.workflow("child") as child:
             assert (
-                _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION) == "0"
+                _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
+                == LLMObsSamplingDecision.NOT_SAMPLED
             )
 
 
 def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
-    ctx._meta[PROPAGATED_SAMPLING_DECISION] = "0"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.NOT_SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w"):
         pass
     assert len(llmobs_events) == 1
-    assert llmobs_events[0]["_dd"]["sampling_decision"] == "0"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.NOT_SAMPLED
