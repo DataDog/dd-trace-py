@@ -40,10 +40,12 @@ def _build_span(kwargs: dict[str, Any]) -> Optional[Any]:
     framework = kwargs["framework"]
     training_job_id = kwargs["training_job_id"]
     try:
+        _parent = tracer.current_span()
+        _parent_ctx = _parent.context if _parent is not None else None
         span = tracer.start_span(
             "pytorch.rank",
             service=ext_service(None, config.pytorch),
-            child_of=tracer.current_span(),
+            child_of=_parent_ctx,
             activate=False,
         )
     except Exception:
