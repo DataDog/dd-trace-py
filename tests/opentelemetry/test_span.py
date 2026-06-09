@@ -162,6 +162,50 @@ def test_otel_span_status_with_status_code(oteltracer):
     assert span2._ddspan.get_tag("error.message") is None
 
 
+def test_set_status_error_with_description_overwrites_error_msg(oteltracer):
+    """Non-compat mode: set_status(ERROR) with a description updates ERROR_MSG."""
+    with oteltracer.start_span("otel-error-with-desc") as span:
+        span.set_status(OtelStatusCode.ERROR, "first message")
+        assert span._ddspan.get_tag("error.message") == "first message"
+        span.set_status(OtelStatusCode.ERROR, "second message")
+        assert span._ddspan.error == 1
+        assert span._ddspan.get_tag("error.message") == "second message"
+
+
+def test_set_status_error_without_description_does_not_overwrite_error_msg(oteltracer):
+    """Non-compat mode: set_status(ERROR) without description leaves existing ERROR_MSG unchanged."""
+    with oteltracer.start_span("otel-error-no-desc") as span:
+        span.set_status(OtelStatusCode.ERROR, "original message")
+        assert span._ddspan.get_tag("error.message") == "original message"
+        # Second set_status with no description should NOT overwrite the existing error.message
+        span.set_status(OtelStatusCode.ERROR)
+        assert span._ddspan.error == 1
+        assert span._ddspan.get_tag("error.message") == "original message"
+
+
+def test_set_status_error_with_description_in_compat_mode_overwrites_error_msg(oteltracer):
+    """Compat mode: set_status(ERROR) with description updates ERROR_MSG to that description."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        with oteltracer.start_span("otel-error-compat-desc") as span:
+            span.set_status(OtelStatusCode.ERROR, "first message")
+            assert span._ddspan.get_tag("error.message") == "first message"
+            span.set_status(OtelStatusCode.ERROR, "second message")
+            assert span._ddspan.error == 1
+            assert span._ddspan.get_tag("error.message") == "second message"
+
+
+def test_set_status_error_without_description_in_compat_mode_removes_error_msg(oteltracer):
+    """Compat mode: set_status(ERROR) without description removes ERROR_MSG even if previously set."""
+    with patch.object(config, "_otel_trace_compatibility_enabled", True):
+        with oteltracer.start_span("otel-error-compat-no-desc") as span:
+            span.set_status(OtelStatusCode.ERROR, "original message")
+            assert span._ddspan.get_tag("error.message") == "original message"
+            # Second set_status with no description should REMOVE error.message in compat mode
+            span.set_status(OtelStatusCode.ERROR)
+            assert span._ddspan.error == 1
+            assert span._ddspan.get_tag("error.message") is None
+
+
 def test_otel_add_event(oteltracer):
     with oteltracer.start_span("otel-client") as client:
         client.add_event("no op event", dict(), 1671826913)
