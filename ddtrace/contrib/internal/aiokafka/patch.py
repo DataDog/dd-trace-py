@@ -3,6 +3,15 @@ from time import time_ns
 
 import aiokafka
 from aiokafka.protocol.metadata import MetadataRequest_v5
+
+
+# aiokafka >= ~0.12 introduced a new-style versioned Request class with a
+# prepare() method that is required by the newer conn.send() API. Older versions
+# (0.9.x) use MetadataRequest_v5 directly with the old-style send() API.
+try:
+    from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
+except ImportError:
+    _MetadataRequest = None
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -93,7 +102,10 @@ async def _get_cluster_id(client, topic):
         if node_id is None:
             client._dd_cluster_id_failure_time = monotonic()
             return ""
-        request = MetadataRequest_v5([topic] if topic else [], False)
+        if _MetadataRequest is not None:
+            request = _MetadataRequest(topics=[topic] if topic else [], allow_auto_topic_creation=False)
+        else:
+            request = MetadataRequest_v5([topic] if topic else [], False)
         response = await client.send(node_id, request)
         cluster_id = getattr(response, "cluster_id", "") or ""
         if cluster_id:
