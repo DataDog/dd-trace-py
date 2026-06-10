@@ -28,6 +28,18 @@ SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+PROPAGATED_SAMPLE_RATE = "_dd.p.llmobs_sr"
+PROPAGATED_SAMPLING_DECISION = "_dd.p.llmobs_sd"
+
+
+DEFAULT_SAMPLE_RATE = "1"
+
+
+class LLMObsSamplingDecision(str, Enum):
+    SAMPLED = "1"
+    DROPPED = "0"
+
+
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
@@ -178,6 +190,8 @@ class LLMOBS_STRUCT:
     METADATA_DD: Final = "_dd"
     DD: Final = "_dd"
     SCOPE: Final = "scope"
+    SAMPLE_RATE: Final = "sample_rate"
+    SAMPLING_DECISION: Final = "sampling_decision"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"
