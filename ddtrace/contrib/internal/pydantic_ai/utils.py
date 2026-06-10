@@ -47,14 +47,12 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
         self._streamed_run_result = None
 
     def _infer_agent_name(self):
-        # pydantic-ai infers the agent name by scanning the user's call frame for the variable the
-        # agent is bound to. Our proxy __aenter__ adds a frame that breaks pydantic-ai's own walk,
-        # so we do it here, skipping our frame to land on the user's `async with` frame.
         instance = self._dd_instance
         # `infer_name=False` is the caller opting out of name inference; don't override it.
         if instance is None or getattr(instance, "name", None) is not None or not self._kwargs.get("infer_name", True):
             return
         frame = inspect.currentframe()
+        # climb past _infer_agent_name and our proxy __aenter__ to the user's `async with` frame
         caller = frame.f_back.f_back if frame and frame.f_back else None
         if caller is None:
             return
