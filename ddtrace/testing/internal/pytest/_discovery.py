@@ -18,7 +18,6 @@ log = logging.getLogger(__name__)
 _ENV_ENABLED = "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED"
 _ENV_OUTPUT_PATH = "DD_TEST_OPTIMIZATION_DISCOVERY_FILE"
 _DEFAULT_OUTPUT_PATH = ".testoptimization/tests-discovery/tests.json"
-_FRAMEWORK = "pytest"
 
 
 def is_discovery_mode_enabled() -> bool:
@@ -80,14 +79,14 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             if _is_item_skipped(item):
                 continue
 
-            _module, suite, name = nodeid_to_names(item.nodeid)
+            module, suite, name = nodeid_to_names(item.nodeid)
             parameters = _get_test_parameters_json(item)
             suite_source_file = _get_suite_source_file(item, workspace_path)
 
             test_info: dict[str, t.Any] = {
                 "name": name,
                 "suite": suite,
-                "module": _FRAMEWORK,
+                "module": module,
                 "parameters": parameters,
                 "suiteSourceFile": suite_source_file,
             }

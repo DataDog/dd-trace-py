@@ -66,22 +66,37 @@ class TestDiscoveryMode:
         assert result.ret == 0
 
     def test_json_fields_are_correct(self, pytester: Pytester, output_file: Path) -> None:
-        """Each JSON object has name, suite, module, parameters, suiteSourceFile."""
+        """Each JSON object has name, suite, module, parameters, suiteSourceFile.
+
+        module is the dotted directory path of the test file (matching what the
+        plugin reports at run time), not the framework name. A root-level file
+        has an empty module; a nested file carries the dotted path.
+        """
+        # Root-level test: module should be ""
         pytester.makepyfile(
             test_fields="""
             def test_something():
                 pass
             """
         )
+        # Nested test: module should reflect the subdirectory
+        pytester.mkdir("subpkg")
+        pytester.path.joinpath("subpkg", "test_nested.py").write_text("def test_inner(): pass")
 
         pytester.inline_run()
 
-        (entry,) = self._read_discovered(output_file)
-        assert entry["name"] == "test_something"
-        assert entry["suite"] == "test_fields.py"
-        assert entry["module"] == "pytest"
-        assert entry["parameters"] is None
-        assert entry["suiteSourceFile"].endswith("test_fields.py")
+        tests = {e["suite"]: e for e in self._read_discovered(output_file)}
+
+        root_entry = tests["test_fields.py"]
+        assert root_entry["name"] == "test_something"
+        assert root_entry["module"] == ""
+        assert root_entry["parameters"] is None
+        assert root_entry["suiteSourceFile"].endswith("test_fields.py")
+
+        nested_entry = tests["test_nested.py"]
+        assert nested_entry["name"] == "test_inner"
+        assert nested_entry["module"] == "subpkg"
+        assert nested_entry["suiteSourceFile"].endswith("test_nested.py")
 
     def test_exit_code_zero(self, pytester: Pytester, output_file: Path) -> None:
         """Discovery mode always exits with code 0."""
