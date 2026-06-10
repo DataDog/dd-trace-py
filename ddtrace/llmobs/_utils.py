@@ -572,6 +572,8 @@ def _annotate_llmobs_span_data(
     parent_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     dd_scope: Optional[str] = None,
+    sample_rate: Optional[str] = None,
+    sampling_decision: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -673,6 +675,10 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.INTENT] = intent
         if dd_scope is not None:
             llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
+        if sample_rate is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+        if sampling_decision is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:

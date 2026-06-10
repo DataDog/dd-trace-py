@@ -2140,6 +2140,8 @@ class LLMObs(Service):
             session_id=session_id,
             tags=initial_tags,
             dd_scope=dd_scope,
+            sample_rate=sample_rate,
+            sampling_decision=(sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision),
         )
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
@@ -2147,15 +2149,6 @@ class LLMObs(Service):
             span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
-        llmobs_data = _get_llmobs_data_metastruct(span)
-        dd = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
-        if sample_rate is not None:
-            dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
-        if sampling_decision is not None:
-            dd[LLMOBS_STRUCT.SAMPLING_DECISION] = (
-                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-            )
-        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)  # type: ignore[arg-type]
 
     def _start_span(
         self,
