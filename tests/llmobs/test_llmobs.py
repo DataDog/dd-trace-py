@@ -1175,6 +1175,7 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
 
 
 @pytest.mark.subprocess(
+    ddtrace_run=True,
     env={
         "DD_LLMOBS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-app",
@@ -1189,7 +1190,6 @@ def test_sample_rate_inherited_by_child_span():
     from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
-    LLMObs.enable()
     with LLMObs.workflow("parent") as parent:
         with LLMObs.workflow("child") as child:
             pass
@@ -1200,6 +1200,7 @@ def test_sample_rate_inherited_by_child_span():
 
 
 @pytest.mark.subprocess(
+    ddtrace_run=True,
     env={
         "DD_LLMOBS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-app",
@@ -1219,8 +1220,6 @@ def test_sampling_decisions_follow_configured_rate():
     from ddtrace.llmobs._constants import LLMObsSamplingDecision
 
     configured_rate = float(os.environ["DD_LLMOBS_SAMPLE_RATE"])
-    LLMObs.enable()
-
     n = 200
     spans = []
     for _ in range(n):
