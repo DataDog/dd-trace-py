@@ -18,11 +18,11 @@ class TestDiscoveryMode:
     """
 
     @pytest.fixture(autouse=True)
-    def output_file(self, pytester: Pytester, tmp_path: Path) -> Path:
+    def output_file(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> Path:
         """Use a stable output path inside the pytester tmpdir for each test."""
         output = pytester.path / "discovery_output.json"
-        pytester.monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED", "1")
-        pytester.monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_FILE", str(output))
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED", "1")
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_FILE", str(output))
         return output
 
     def _read_discovered(self, output_file: Path) -> list[dict]:
