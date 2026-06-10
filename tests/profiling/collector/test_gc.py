@@ -10,6 +10,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
+import ddtrace.profiling.collector.gc as _gc_module
 from ddtrace.profiling.collector.gc import GCCollector
 from tests.profiling.collector import pprof_utils
 
@@ -66,7 +67,7 @@ def test_explicit_count_resets_on_snapshot() -> None:
         gc.collect()
         gc.collect()
         assert col._explicit_count == 2
-        with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+        with mock.patch.object(_gc_module, "ddup") as mock_ddup:
             mock_handle = mock.MagicMock()
             mock_ddup.SampleHandle.return_value = mock_handle
             col.snapshot()
@@ -95,7 +96,7 @@ def test_on_gc_records_pause_walltime() -> None:
         handles.append(h)
         return h
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
         col._on_gc("start", {"generation": 0})
         col._on_gc("stop", {"generation": 0, "collected": 5, "uncollectable": 0})
@@ -120,7 +121,7 @@ def test_on_gc_emits_alloc_sample_for_collected_objects() -> None:
         handles.append(h)
         return h
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
         col._on_gc("start", {"generation": 1})
         col._on_gc("stop", {"generation": 1, "collected": 10, "uncollectable": 0})
@@ -142,7 +143,7 @@ def test_on_gc_no_alloc_sample_when_zero_collected() -> None:
         handles.append(h)
         return h
 
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
         col._on_gc("start", {"generation": 0})
         col._on_gc("stop", {"generation": 0, "collected": 0, "uncollectable": 0})
@@ -152,7 +153,7 @@ def test_on_gc_no_alloc_sample_when_zero_collected() -> None:
 
 def test_on_gc_stop_without_start_is_noop() -> None:
     col = _make_isolated_collector()
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
         col._on_gc("stop", {"generation": 2, "collected": 3, "uncollectable": 0})
         mock_ddup.SampleHandle.assert_not_called()
 
@@ -164,7 +165,7 @@ def test_snapshot_emits_config_sample() -> None:
         gc.collect()
         gc.collect()
 
-        with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+        with mock.patch.object(_gc_module, "ddup") as mock_ddup:
             mock_handle = mock.MagicMock()
             mock_ddup.SampleHandle.return_value = mock_handle
             col.snapshot()

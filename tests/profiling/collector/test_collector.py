@@ -67,3 +67,15 @@ def test_capture_sampler_pure_python_fallback() -> None:
             sys.modules[mod_name] = saved_module
         sys.modules.pop(collector_mod, None)
         importlib.import_module(collector_mod)
+        # Re-attach any already-imported direct submodules as attributes of the
+        # freshly-reimported package.  Python only does this automatically on a
+        # fresh import of the submodule itself; it does not update attributes on
+        # a parent package object that was replaced in sys.modules mid-flight.
+        _parent = sys.modules[collector_mod]
+        _prefix = collector_mod + "."
+        _depth = collector_mod.count(".") + 1
+        for _key in list(sys.modules):
+            if _key.startswith(_prefix) and _key.count(".") == _depth:
+                _attr = _key.rsplit(".", 1)[-1]
+                if not hasattr(_parent, _attr):
+                    setattr(_parent, _attr, sys.modules[_key])
