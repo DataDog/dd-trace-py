@@ -106,7 +106,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
     result = None
     try:
         result = func(*args, **kwargs)
-    except Exception as e:
+    except BaseException as e:
         if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
             LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
         ):
@@ -133,7 +133,7 @@ async def traced_runnable_seq_ainvoke(func, instance, args, kwargs):
     result = None
     try:
         result = await func(*args, **kwargs)
-    except Exception as e:
+    except BaseException as e:
         if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
             LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
         ):
@@ -194,7 +194,7 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
                 span.finish()
                 break
-            except Exception as e:
+            except BaseException as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
@@ -270,7 +270,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception as e:
+            except BaseException as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
@@ -323,7 +323,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception as e:
+            except BaseException as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
