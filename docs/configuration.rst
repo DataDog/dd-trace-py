@@ -419,7 +419,7 @@ Traces
          metrics are always computed from 100% of traffic regardless of the configured rate.
 
      version_added:
-        v4.12.0:
+        v4.11.0:
 
 Trace Context propagation
 -------------------------
