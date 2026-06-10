@@ -181,8 +181,16 @@ def _fake_responses_response() -> httpx.Response:
 
 def _fake_stream_chunks() -> bytes:
     chunks = [
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant"}}]},
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": "hi"}}]},
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"role": "assistant"}}],
+        },
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": "hi"}}],
+        },
         {
             "id": "chatcmpl-test",
             "object": "chat.completion.chunk",
