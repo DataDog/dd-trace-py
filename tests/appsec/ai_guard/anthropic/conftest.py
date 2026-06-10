@@ -63,6 +63,25 @@ def anthropic_sdk():
             unpatch()
 
 
+@pytest.fixture
+def anthropic_sdk_buffered():
+    """Like ``anthropic_sdk`` but with stream-response evaluation enabled.
+
+    Enables ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` *before* calling
+    ``patch()`` so ``_install_anthropic_wrappers`` sees the flag as True and
+    actually installs the ``BufferedAIGuardStream`` wrappers.
+    """
+    with override_env(dict(ANTHROPIC_API_KEY="<not-a-real-key>")):
+        with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+            patch()
+            import anthropic
+
+            try:
+                yield anthropic
+            finally:
+                unpatch()
+
+
 # ---------------------------------------------------------------------------
 # Non-streaming mock transport
 #
@@ -266,6 +285,22 @@ def anthropic_client_stream(anthropic_sdk):
 @pytest.fixture
 def async_anthropic_client_stream(anthropic_sdk):
     return anthropic_sdk.AsyncAnthropic(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def anthropic_client_stream_buffered(anthropic_sdk_buffered):
+    return anthropic_sdk_buffered.Anthropic(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_StreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_anthropic_client_stream_buffered(anthropic_sdk_buffered):
+    return anthropic_sdk_buffered.AsyncAnthropic(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
     )

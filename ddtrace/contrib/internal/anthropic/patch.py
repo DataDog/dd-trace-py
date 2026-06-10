@@ -131,12 +131,19 @@ def patch() -> None:
         )
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
+    # Notify AI Guard (and any other plugin) that wrapping is complete so they
+    # can install their own outermost wrappers on the same targets.
+    core.dispatch("anthropic.patch", tuple())
+
 
 def unpatch() -> None:
     if not getattr(anthropic, "_datadog_patch", False):
         return
 
     anthropic._datadog_patch = False
+    # Notify AI Guard first so it can peel its outermost wrappers before the
+    # contrib's own unwrap calls restore the layer below.
+    core.dispatch("anthropic.unpatch", tuple())
 
     unwrap(anthropic.resources.messages.Messages, "create")
     unwrap(anthropic.resources.messages.Messages, "stream")

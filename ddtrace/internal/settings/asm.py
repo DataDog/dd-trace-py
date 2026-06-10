@@ -343,6 +343,9 @@ class AIGuardConfig(DDConfig):
     _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
     _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
     _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
+    _ai_guard_analyze_stream_responses_enabled = DDConfig.var(
+        bool, AI_GUARD.ENV_ANALYZE_STREAM_RESPONSES_ENABLED, default=False
+    )
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -352,6 +355,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_max_content_size",
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",
+        "_ai_guard_analyze_stream_responses_enabled",
     ]
 
     def reset(self):

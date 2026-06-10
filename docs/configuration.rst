@@ -595,6 +595,20 @@ AI Guard
 
 .. ddtrace-configuration-options::
 
+   DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and OpenAI
+       are fully buffered before any chunk is returned to the caller. The complete response is
+       evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
+       and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
+       are evaluated and streamed chunks are forwarded live.
+
+       **Trade-offs**: enabling this flag increases time-to-first-token (all chunks must be
+       received before the first one is delivered) and increases peak memory usage proportional
+       to the response size.
+
    DD_AI_GUARD_BLOCK:
      type: Boolean
      default: True
