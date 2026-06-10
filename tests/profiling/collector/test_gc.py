@@ -180,8 +180,42 @@ def test_snapshot_emits_config_sample() -> None:
     mock_handle.flush_sample.assert_called_once()
 
 
+def test_snapshot_zero_explicit_count() -> None:
+    col = GCCollector()
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+        col.start()
+        try:
+            mock_handle = mock.MagicMock()
+            mock_ddup.SampleHandle.return_value = mock_handle
+            col.snapshot()
+        finally:
+            col.stop()
+    mock_handle.push_walltime.assert_called_once_with(0, 0)
+    mock_handle.flush_sample.assert_called_once()
+
+
+def test_on_gc_frame_names_per_generation() -> None:
+    col = _make_isolated_collector()
+    frames: list[tuple[str, ...]] = []
+
+    def make_handle() -> mock.MagicMock:
+        h = mock.MagicMock()
+        h.push_frame.side_effect = lambda *args: frames.append(args)
+        return h
+
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+        mock_ddup.SampleHandle.side_effect = make_handle
+        for gen in range(3):
+            col._on_gc("start", {"generation": gen})
+            col._on_gc("stop", {"generation": gen, "collected": 0, "uncollectable": 0})
+
+    expected = ["gc.collect[gen=0]", "gc.collect[gen=1]", "gc.collect[gen=2]"]
+    actual = [f[0] for f in frames]
+    assert actual == expected
+
+
 # ---------------------------------------------------------------------------
-# Integration test — emits real ddup samples and reads back pprof
+# Integration tests — emit real ddup samples and read back pprof
 # ---------------------------------------------------------------------------
 
 
@@ -191,7 +225,6 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
     col = GCCollector()
     col.start()
     try:
-        # Force a few collections to guarantee at least one gc.callbacks event
         gc.collect(0)
         gc.collect(1)
         gc.collect(2)
@@ -203,7 +236,6 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     wall_time_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
 
-    # At least one sample must have a gc.collect frame
     gc_samples = [
         s
         for s in wall_time_samples
@@ -214,9 +246,84 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
     assert len(gc_samples) > 0, "Expected at least one gc.collect wall-time sample"
 
 
+def test_gc_alloc_samples_appear_in_profile(tmp_path: Path) -> None:
+    output_filename = _setup_profiler(tmp_path, "test_gc_alloc")
+
+    col = GCCollector()
+    col.start()
+    try:
+        for _ in range(10):
+            a: dict[str, object] = {}
+            b: dict[str, object] = {}
+            a["b"] = b
+            b["a"] = a
+            del a, b
+            gc.collect(0)
+    finally:
+        col.stop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    alloc_samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    gc_alloc = [
+        s
+        for s in alloc_samples
+        if any(
+            "gc.collect" in pprof_utils.get_location_from_id(profile, loc_id).function_name for loc_id in s.location_id
+        )
+    ]
+    assert len(gc_alloc) > 0, "Expected at least one gc.collect alloc sample"
+
+
+def test_gc_snapshot_sample_appears_in_profile(tmp_path: Path) -> None:
+    output_filename = _setup_profiler(tmp_path, "test_gc_snapshot")
+
+    col = GCCollector()
+    col.start()
+    try:
+        gc.collect()
+        gc.collect()
+        col.snapshot()
+    finally:
+        col.stop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    config_samples = [
+        s
+        for s in profile.sample
+        if any(
+            "gc.config" in pprof_utils.get_location_from_id(profile, loc_id).function_name for loc_id in s.location_id
+        )
+    ]
+    assert len(config_samples) > 0, "Expected gc.config snapshot sample"
+
+
+# ---------------------------------------------------------------------------
+# Profiler wiring tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="true"))
+def test_gc_collector_in_profiler_when_enabled():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector.gc import GCCollector
+
+    assert any(isinstance(col, GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="false"))
+def test_gc_collector_not_in_profiler_when_disabled():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector.gc import GCCollector
+
+    assert all(not isinstance(col, GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
 def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-    # Re-import to pick up the env var
     import importlib
 
     import ddtrace.internal.settings.profiling as prof_settings
