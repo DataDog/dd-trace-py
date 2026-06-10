@@ -2048,10 +2048,12 @@ class LLMObs(Service):
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
-            if get_llmobs_sample_rate(active) is not None:
-                context._meta[PROPAGATED_SAMPLE_RATE] = get_llmobs_sample_rate(active)
-            if get_llmobs_sampling_decision(active) is not None:
-                context._meta[PROPAGATED_SAMPLING_DECISION] = get_llmobs_sampling_decision(active)
+            sr = get_llmobs_sample_rate(active)
+            sd = get_llmobs_sampling_decision(active)
+            if sr is not None:
+                context._meta[PROPAGATED_SAMPLE_RATE] = sr
+            if sd is not None:
+                context._meta[PROPAGATED_SAMPLING_DECISION] = sd
             return context
         return None
 
@@ -2137,7 +2139,11 @@ class LLMObs(Service):
             tags=initial_tags,
             dd_scope=dd_scope,
             sample_rate=sample_rate,
-            sampling_decision=(sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision),
+            sampling_decision=(
+                sampling_decision.value
+                if sampling_decision is not None and hasattr(sampling_decision, "value")
+                else sampling_decision
+            ),
         )
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
