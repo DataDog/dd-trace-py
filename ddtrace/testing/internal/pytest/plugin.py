@@ -1143,6 +1143,15 @@ def pytest_configure(config: pytest.Config) -> None:
     if _is_test_optimization_disabled_by_kill_switch():
         return
 
+    if is_discovery_mode_enabled():
+        # Register hook specs so item_to_test_ref can call the custom name hooks during
+        # discovery, giving the same module/suite/name resolution as a real test run.
+        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # fall back to nodeid-based names rather than feature-file names during discovery.
+        # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
+        config.pluginmanager.add_hookspecs(TestOptHooks)
+        return
+
     session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")

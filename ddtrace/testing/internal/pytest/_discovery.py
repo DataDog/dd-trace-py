@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
-from ddtrace.testing.internal.pytest.utils import nodeid_to_names
+from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.utils import asbool
 
 
@@ -79,7 +79,10 @@ def pytest_collection_finish(session: pytest.Session) -> None:
             if _is_item_skipped(item):
                 continue
 
-            module, suite, name = nodeid_to_names(item.nodeid)
+            test_ref = item_to_test_ref(item)
+            module = test_ref.suite.module.name
+            suite = test_ref.suite.name
+            name = test_ref.name
             parameters = _get_test_parameters_json(item)
             suite_source_file = _get_suite_source_file(item, workspace_path)
 
