@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    google_genai: Fixes two ``TypeError`` crashes in the LLMObs extraction layer when
+    Google GenAI returns partial response objects with optional fields set to ``None``
+    (as declared in google-genai>=2.6.0). First, token arithmetic in
+    ``extract_generation_metrics_google_genai`` no longer raises when all token count
+    fields are ``None``. Second, ``_extract_output_messages`` no longer raises when
+    ``response.candidates`` is explicitly ``None`` rather than an empty list.
