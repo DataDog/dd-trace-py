@@ -1184,8 +1184,8 @@ def test_sample_rate_inherited_by_child_span():
     import os
 
     from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._constants import LLMOBS_STRUCT
-    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
     LLMObs.enable()
@@ -1193,8 +1193,6 @@ def test_sample_rate_inherited_by_child_span():
         with LLMObs.workflow("child") as child:
             pass
 
-    parent_dd = _get_llmobs_data_metastruct(parent).get(LLMOBS_STRUCT.DD, {})
-    child_dd = _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {})
-    assert parent_dd[LLMOBS_STRUCT.SAMPLE_RATE] == configured_rate
-    assert child_dd[LLMOBS_STRUCT.SAMPLE_RATE] == configured_rate
-    assert child_dd[LLMOBS_STRUCT.SAMPLING_DECISION] == parent_dd[LLMOBS_STRUCT.SAMPLING_DECISION]
+    assert get_llmobs_sample_rate(parent) == configured_rate
+    assert get_llmobs_sample_rate(child) == configured_rate
+    assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)

@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
@@ -16,9 +15,10 @@ from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
-from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_sample_rate
+from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.trace import Context
@@ -470,7 +470,6 @@ _DECIMAL_TRACE_ID = str(int(_HEX_TRACE_ID, 16))
 
 
 def _make_upstream_llmobs_context(trace_id_value, parent_id="987654321"):
-
     ctx = Context(trace_id=123456789, span_id=int(parent_id))
     ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id_value
     ctx._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
@@ -611,7 +610,7 @@ def test_propagated_sample_rate_stored_in_meta_struct(llmobs):
     ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
-        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE) == "0.5"
+        assert get_llmobs_sample_rate(span) == "0.5"
 
 
 def test_propagated_sample_rate_inherited_by_child_span(llmobs):
@@ -621,7 +620,7 @@ def test_propagated_sample_rate_inherited_by_child_span(llmobs):
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("root"):
         with llmobs.workflow("child") as child:
-            assert _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE) == "0.5"
+            assert get_llmobs_sample_rate(child) == "0.5"
 
 
 def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
@@ -687,10 +686,7 @@ def test_propagated_sampling_decision_stored_in_meta_struct(llmobs):
     ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w") as span:
-        assert (
-            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
-            == LLMObsSamplingDecision.DROPPED
-        )
+        assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
 
 
 def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
@@ -700,10 +696,7 @@ def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("root"):
         with llmobs.workflow("child") as child:
-            assert (
-                _get_llmobs_data_metastruct(child).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
-                == LLMObsSamplingDecision.DROPPED
-            )
+            assert get_llmobs_sampling_decision(child) == LLMObsSamplingDecision.DROPPED
 
 
 def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
