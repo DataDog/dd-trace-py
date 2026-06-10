@@ -1186,7 +1186,6 @@ def test_sample_rate_inherited_by_child_span():
     import os
 
     from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
     LLMObs.enable()
@@ -1199,28 +1198,32 @@ def test_sample_rate_inherited_by_child_span():
     assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)
 
 
-@pytest.mark.parametrize(
-    "ddtrace_global_config,expected_rate",
-    [
-        ({"_llmobs_sample_rate": 0.0}, 0.0),
-        ({"_llmobs_sample_rate": 0.25}, 0.25),
-        ({"_llmobs_sample_rate": 0.5}, 0.5),
-        ({"_llmobs_sample_rate": 0.75}, 0.75),
-        ({"_llmobs_sample_rate": 1.0}, 1.0),
-    ],
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.1", "0.3", "0.5", "0.7", "0.9"]},
 )
-def test_sampling_decisions_follow_configured_rate(llmobs, expected_rate):
-    """Across 100 independent root spans the fraction sampled should be within 20% of the configured rate."""
+def test_sampling_decisions_follow_configured_rate():
+    """Across 100 independent root spans the fraction sampled should be within ±10 of the configured rate."""
+    import os
+
+    from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._constants import LLMObsSamplingDecision
+
+    configured_rate = float(os.environ["DD_LLMOBS_SAMPLE_RATE"])
+    LLMObs.enable()
 
     n = 100
     spans = []
     for _ in range(n):
-        with llmobs.workflow("w") as span:
+        with LLMObs.workflow("w") as span:
             spans.append(span)
 
     sampled = sum(1 for s in spans if get_llmobs_sampling_decision(s) == LLMObsSamplingDecision.SAMPLED)
-    tolerance = 20
-    assert abs(sampled - int(expected_rate * n)) <= tolerance, (
-        f"rate={expected_rate}: expected ~{int(expected_rate * n)} sampled out of {n}, got {sampled}"
+    expected = int(configured_rate * n)
+    assert abs(sampled - expected) <= 10, (
+        f"rate={configured_rate}: expected ~{expected} sampled out of {n}, got {sampled}"
     )
