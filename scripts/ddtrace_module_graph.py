@@ -152,10 +152,14 @@ def extract_ddtrace_imports(source: str, current_module: str, is_pkg_init: bool)
 
 
 def collect_edges(
-    ddtrace_root: Path, detailed_components: tuple[str, ...]
+    ddtrace_root: Path,
+    detailed_components: tuple[str, ...],
+    *,
+    min_contacts_per_node: int,
 ) -> tuple[set[tuple[str, str]], dict[str, int]]:
     """Return (directed edges between buckets, edge weights)."""
     edges: defaultdict[tuple[str, str], int] = defaultdict(int)
+    contacts: defaultdict[str, int] = defaultdict(int)
     skip = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
     for py in sorted(ddtrace_root.rglob("*.py")):
         rel_parts = py.relative_to(ddtrace_root).parts
@@ -175,7 +179,10 @@ def collect_edges(
             bucket_dst = import_target_bucket(imp, detailed_components)
             if None in (bucket_src, bucket_dst) or bucket_src == bucket_dst:
                 continue
-            edges[(bucket_src, bucket_dst)] += 1
+            contacts[bucket_src] += 1
+            contacts[bucket_dst] += 1
+            if all(contacts[a] > min_contacts_per_node for a in (bucket_src, bucket_dst)):
+                edges[(bucket_src, bucket_dst)] += 1
     return set(edges), dict(edges)
 
 
@@ -310,7 +317,7 @@ def render_html(
     const payload = JSON.parse(document.getElementById("graph-data").textContent);
     const nodes = new vis.DataSet(payload.nodes);
     const edgs = new vis.DataSet(
-      payload.edges.map((e) => ({{ ...e, arrows: "from,to,middle" }}))
+      payload.edges.map((e) => ({{ ...e, arrows: "to,middle" }}))
     );
     const container = document.getElementById("graph");
     const data = {{ nodes, edges: edgs }};
@@ -333,9 +340,9 @@ def render_html(
         enabled: true,
         stabilization: {{ iterations: 220, updateInterval: 5 }},
         barnesHut: {{
-          gravitationalConstant: {-50 * len(nodes_list)},
+          gravitationalConstant: {-300 * len(nodes_list)},
           centralGravity: 1,
-          springLength: {250 * math.sqrt(len(nodes_list))},
+          springLength: {250 * math.sqrt(len(nodes_list) / 4)},
           springConstant: 0.532,
         }},
       }},
@@ -374,6 +381,16 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--min-contacts-per-node",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Only count an edge after both endpoint buckets have accumulated more than N "
+            "import-contact events (default: 50)."
+        ),
+    )
+    parser.add_argument(
         "--png",
         action="store_true",
         help="Also write docs/images/ddtrace-module-dependencies.png (requires matplotlib, networkx).",
@@ -389,7 +406,11 @@ def main() -> int:
     if not ddtrace_root.is_dir():
         print("ddtrace package not found", file=sys.stderr)
         return 1
-    edges, weights = collect_edges(ddtrace_root, detailed_components)
+    edges, weights = collect_edges(
+        ddtrace_root,
+        detailed_components,
+        min_contacts_per_node=args.min_contacts_per_node,
+    )
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
     print(f"Wrote {out_html} ({len(edges)} edges)")
