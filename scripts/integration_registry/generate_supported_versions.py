@@ -172,6 +172,15 @@ def _python_sort_key(python_version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in python_version.split("."))
 
 
+def _is_python_version_in_tested_range(python_version: str, tested_python_versions: set[str]) -> bool:
+    sorted_tested_versions = sorted(tested_python_versions, key=_python_sort_key)
+    return (
+        _python_sort_key(sorted_tested_versions[0])
+        <= _python_sort_key(python_version)
+        <= _python_sort_key(sorted_tested_versions[-1])
+    )
+
+
 def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
     packages = get_dependency_names(suite_name) or [suite_name]
     venv_packages = {package.lower(): version for package, version in venv.pkgs.items()}
@@ -220,10 +229,17 @@ def build_python_versions(
         tested_by_python[tested_version.python_version].add(tested_version.version)
 
     for version in {tested_version.version for tested_version in tested_versions}:
+        version_tested_python_versions = {
+            tested_version.python_version for tested_version in tested_versions if tested_version.version == version
+        }
         if version == "":
-            compatible_versions = set(tested_by_python)
+            compatible_versions = set(version_tested_python_versions)
         else:
-            compatible_versions = set(compatible_python_versions(dependency_name, version, candidate_python_versions))
+            compatible_versions = {
+                python_version
+                for python_version in compatible_python_versions(dependency_name, version, candidate_python_versions)
+                if _is_python_version_in_tested_range(python_version, version_tested_python_versions)
+            }
             compatible_versions.update(
                 python_version for python_version, versions in tested_by_python.items() if version in versions
             )
