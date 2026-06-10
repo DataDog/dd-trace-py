@@ -1,4 +1,4 @@
-"""Integration tests for the test discovery mode (DD_CI_TEST_DISCOVERY_MODE_ENABLED)."""
+"""Integration tests for the test discovery mode (DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 class TestDiscoveryMode:
     """Tests for pytest_collection_finish in discovery mode.
 
-    Discovery mode: DD_CI_TEST_DISCOVERY_MODE_ENABLED=true causes pytest to write
+    Discovery mode: DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED=1 causes pytest to write
     collected tests as JSON Lines to a file and exit without running any tests.
     """
 
@@ -21,8 +21,8 @@ class TestDiscoveryMode:
     def output_file(self, pytester: Pytester, tmp_path: Path) -> Path:
         """Use a stable output path inside the pytester tmpdir for each test."""
         output = pytester.path / "discovery_output.json"
-        pytester.monkeypatch.setenv("DD_CI_TEST_DISCOVERY_MODE_ENABLED", "true")
-        pytester.monkeypatch.setenv("DD_CI_TEST_DISCOVERY_OUTPUT_PATH", str(output))
+        pytester.monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED", "1")
+        pytester.monkeypatch.setenv("DD_TEST_OPTIMIZATION_DISCOVERY_FILE", str(output))
         return output
 
     def _read_discovered(self, output_file: Path) -> list[dict]:

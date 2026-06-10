@@ -15,9 +15,9 @@ from ddtrace.testing.internal.utils import asbool
 
 log = logging.getLogger(__name__)
 
-_ENV_ENABLED = "DD_CI_TEST_DISCOVERY_MODE_ENABLED"
-_ENV_OUTPUT_PATH = "DD_CI_TEST_DISCOVERY_OUTPUT_PATH"
-_DEFAULT_OUTPUT_PATH = "ddtest/test_discovery/tests.json"
+_ENV_ENABLED = "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED"
+_ENV_OUTPUT_PATH = "DD_TEST_OPTIMIZATION_DISCOVERY_FILE"
+_DEFAULT_OUTPUT_PATH = ".testoptimization/tests-discovery/tests.json"
 _FRAMEWORK = "pytest"
 
 
