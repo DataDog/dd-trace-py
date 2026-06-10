@@ -1,0 +1,5727 @@
+[
+    {
+        "dependency": "aiobotocore",
+        "integration": "aiobotocore",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "1.0.7",
+                    "1.4.2",
+                    "2.0.1",
+                    "3.1.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "1.0.7",
+                    "1.4.2",
+                    "2.0.1",
+                    "3.1.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "1.0.7",
+                    "1.4.2",
+                    "2.0.1",
+                    "3.1.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "3.1.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "3.1.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.7",
+                "maximum_package_version": "3.1.0",
+                "tested_versions": [
+                    "3.1.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "botocore",
+        "integration": "aiobotocore",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.15.32",
+                    "1.20.106",
+                    "1.22.8",
+                    "1.42.19"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.15.32",
+                    "1.20.106",
+                    "1.22.8",
+                    "1.42.19"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.15.32",
+                    "1.20.106",
+                    "1.22.8",
+                    "1.42.19"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.42.19"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.42.19"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.15.32",
+                "maximum_package_version": "1.42.19",
+                "tested_versions": [
+                    "1.42.19"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aiohttp",
+        "integration": "aiohttp",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.13.5",
+                "tested_versions": [
+                    "3.7.4.post0",
+                    "3.13.5"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.14.0",
+                "tested_versions": [
+                    "3.14.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.14.0",
+                "tested_versions": [
+                    "3.14.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.14.0",
+                "tested_versions": [
+                    "3.14.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.14.0",
+                "tested_versions": [
+                    "3.14.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.7.4.post0",
+                "maximum_package_version": "3.14.0",
+                "tested_versions": [
+                    "3.14.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aiohttp-jinja2",
+        "integration": "aiohttp_jinja2",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.5.1",
+                "maximum_package_version": "1.6",
+                "tested_versions": [
+                    "1.5.1",
+                    "1.6"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aiokafka",
+        "integration": "aiokafka",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.12.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.12.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.9.0",
+                "maximum_package_version": "0.14.0",
+                "tested_versions": [
+                    "0.9.0",
+                    "0.14.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aiomysql",
+        "integration": "aiomysql",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.1.1",
+                "maximum_package_version": "0.3.2",
+                "tested_versions": [
+                    "0.1.1",
+                    "0.3.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aiopg",
+        "integration": "aiopg",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.16.0",
+                    "1.4.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.16.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "algoliasearch",
+        "integration": "algoliasearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.6.3",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.6.3"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "anthropic",
+        "integration": "anthropic",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.28.1",
+                    "0.74.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.28.1",
+                    "0.74.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.28.1",
+                    "0.74.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.28.1",
+                    "0.74.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.74.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.28.1",
+                "maximum_package_version": "0.74.1",
+                "tested_versions": [
+                    "0.74.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aredis",
+        "integration": "aredis",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": [
+                    "1.1.8"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "1.1.8",
+                "maximum_package_version": "1.1.8",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "stdlib.asyncio",
+        "integration": "asyncio",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "asyncpg",
+        "integration": "asyncpg",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.23.0",
+                    "0.31.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.24.0",
+                    "0.31.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.31.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.31.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.31.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.23.0",
+                "maximum_package_version": "0.31.0",
+                "tested_versions": [
+                    "0.31.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "avro",
+        "integration": "avro",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.12.1",
+                "maximum_package_version": "1.12.1",
+                "tested_versions": [
+                    "1.12.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "aws-durable-execution-sdk-python",
+        "integration": "aws_durable_execution_sdk_python",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.11": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.4.0",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "1.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "datadog-lambda",
+        "integration": "aws_lambda",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": [
+                    "6.105.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": [
+                    "6.105.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": [
+                    "6.105.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": [
+                    "6.105.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": [
+                    "6.105.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.105.0",
+                "maximum_package_version": "6.105.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "azure-cosmos",
+        "integration": "azure_cosmos",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "4.9.0",
+                "maximum_package_version": "4.15.0",
+                "tested_versions": [
+                    "4.9.0",
+                    "4.15.0"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "azure-functions",
+        "integration": "azure_durable_functions",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.24.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.24.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.24.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.24.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.24.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.24.0",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "azure-functions-durable",
+        "integration": "azure_durable_functions",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": [
+                    "1.2.1",
+                    "1.4.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": [
+                    "1.2.1",
+                    "1.4.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": [
+                    "1.2.1",
+                    "1.4.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": [
+                    "1.2.1",
+                    "1.5.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": [
+                    "1.2.1",
+                    "1.5.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.2.1",
+                "maximum_package_version": "1.5.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "azure-eventhub",
+        "integration": "azure_eventhubs",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": [
+                    "5.12.2",
+                    "5.15.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": [
+                    "5.12.2",
+                    "5.15.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": [
+                    "5.12.2",
+                    "5.15.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": [
+                    "5.12.2",
+                    "5.15.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": [
+                    "5.12.2",
+                    "5.15.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "5.12.2",
+                "maximum_package_version": "5.15.0",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "azure-functions",
+        "integration": "azure_functions",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.23.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.23.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.23.0",
+                    "1.24.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.24.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.24.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.24.0",
+                    "2.0.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "azure-servicebus",
+        "integration": "azure_servicebus",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "7.14.2",
+                "maximum_package_version": "7.14.2",
+                "tested_versions": [
+                    "7.14.2"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "boto3",
+        "integration": "botocore",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "botocore",
+        "integration": "botocore",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.34.49",
+                "maximum_package_version": "1.38.26",
+                "tested_versions": [
+                    "1.34.49",
+                    "1.38.26"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "bottle",
+        "integration": "bottle",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": [
+                    "0.12.25",
+                    "0.13.4"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "0.12.25",
+                "maximum_package_version": "0.13.4",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "celery",
+        "integration": "celery",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "5.5.3",
+                "maximum_package_version": "5.5.3",
+                "tested_versions": [
+                    "5.5.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "cherrypy",
+        "integration": "cherrypy",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "17.0.0",
+                    "17.4.2",
+                    "18.10.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "17.0.0",
+                    "17.4.2",
+                    "18.10.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "18.10.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "18.10.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "18.10.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "17.0.0",
+                "maximum_package_version": "18.10.0",
+                "tested_versions": [
+                    "18.10.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "claude-agent-sdk",
+        "integration": "claude_agent_sdk",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "0.0.23",
+                "maximum_package_version": "0.1.49",
+                "tested_versions": [
+                    "0.0.23",
+                    "0.1.21",
+                    "0.1.29",
+                    "0.1.49"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.0.23",
+                "maximum_package_version": "0.1.49",
+                "tested_versions": [
+                    "0.0.23",
+                    "0.1.21",
+                    "0.1.29",
+                    "0.1.49"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.0.23",
+                "maximum_package_version": "0.1.49",
+                "tested_versions": [
+                    "0.0.23",
+                    "0.1.21",
+                    "0.1.29",
+                    "0.1.49"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.0.23",
+                "maximum_package_version": "0.1.49",
+                "tested_versions": [
+                    "0.0.23",
+                    "0.1.21",
+                    "0.1.29",
+                    "0.1.49"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.0.23",
+                "maximum_package_version": "0.1.49",
+                "tested_versions": [
+                    "0.0.23",
+                    "0.1.21",
+                    "0.1.29",
+                    "0.1.49"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "python-consul",
+        "integration": "consul",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "1.1.0",
+                "tested_versions": [
+                    "1.1.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "crewai",
+        "integration": "crewai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "0.102.0",
+                "maximum_package_version": "0.157.0",
+                "tested_versions": [
+                    "0.102.0",
+                    "0.157.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.102.0",
+                "maximum_package_version": "0.157.0",
+                "tested_versions": [
+                    "0.102.0",
+                    "0.157.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.102.0",
+                "maximum_package_version": "0.157.0",
+                "tested_versions": [
+                    "0.102.0",
+                    "0.157.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.157.0",
+                "maximum_package_version": "0.157.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "django",
+        "integration": "django",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "4.2.30",
+                "tested_versions": [
+                    "2.2.28",
+                    "3.0.14",
+                    "3.2.25",
+                    "4.2.20",
+                    "4.2.21",
+                    "4.2.30"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "5.2.14",
+                "tested_versions": [
+                    "3.2.25",
+                    "4.2.20",
+                    "4.2.21",
+                    "4.2.30",
+                    "5.2.14"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "5.2.14",
+                "tested_versions": [
+                    "4.2.20",
+                    "4.2.21",
+                    "4.2.30",
+                    "5.2.14"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "5.2.14",
+                "tested_versions": [
+                    "4.2.20",
+                    "4.2.21",
+                    "4.2.30",
+                    "5.2",
+                    "5.2.14"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "5.2.14",
+                "tested_versions": [
+                    "4.2.20",
+                    "4.2.21",
+                    "4.2.30",
+                    "5.2.14"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.2.28",
+                "maximum_package_version": "5.2.14",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "dogpile-cache",
+        "integration": "dogpile_cache",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "0.9.2",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.6.8",
+                    "0.9.2",
+                    "1.3.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.6.8",
+                    "0.9.2",
+                    "1.3.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.9.2",
+                    "1.3.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.9.2",
+                    "1.3.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.9.2",
+                    "1.3.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.6.8",
+                "maximum_package_version": "1.4.0",
+                "tested_versions": [
+                    "0.9.2",
+                    "1.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "dramatiq",
+        "integration": "dramatiq",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": [
+                    "1.10.0",
+                    "1.17.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": [
+                    "1.17.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": [
+                    "1.17.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": [
+                    "1.17.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": [
+                    "1.17.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.17.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "elastic-transport",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.1.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.1.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.4.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.4.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.4.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.4.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "8.17.1",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.17.1",
+                    "9.1.0",
+                    "9.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.1.3",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.0.0",
+                    "9.1.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.0.0",
+                    "9.4.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.0.0",
+                    "9.4.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.0.0",
+                    "9.4.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.0.0",
+                    "9.4.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.13",
+                    "8.0.1",
+                    "9.1.0",
+                    "9.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch1",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.0",
+                "maximum_package_version": "1.10.0",
+                "tested_versions": [
+                    "1.10.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch2",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.5.1",
+                "maximum_package_version": "2.5.1",
+                "tested_versions": [
+                    "2.5.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch5",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "5.5.6",
+                "maximum_package_version": "5.5.6",
+                "tested_versions": [
+                    "5.5.6"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch6",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.8.2",
+                "maximum_package_version": "6.8.2",
+                "tested_versions": [
+                    "6.8.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "elasticsearch7",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "7.13.4",
+                "maximum_package_version": "7.17.13",
+                "tested_versions": [
+                    "7.13.4",
+                    "7.17.12",
+                    "7.17.13"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "opensearch-py",
+        "integration": "elasticsearch",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "2.8.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "2.8.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "2.8.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "2.8.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "2.8.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.1.0",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "1.1.0",
+                    "2.0.1",
+                    "3.0.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "falcon",
+        "integration": "falcon",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "3.0.1",
+                    "3.1.3",
+                    "4.2.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "3.0.1",
+                    "3.1.3",
+                    "4.2.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "3.0.1",
+                    "3.1.3",
+                    "4.2.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "3.0.1",
+                    "3.1.3",
+                    "4.2.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "4.2.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.0.1",
+                "maximum_package_version": "4.2.0",
+                "tested_versions": [
+                    "4.2.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "fastapi",
+        "integration": "fastapi",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.128.8",
+                "tested_versions": [
+                    "0.64.0",
+                    "0.90.1",
+                    "0.128.8"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.136.3",
+                "tested_versions": [
+                    "0.64.0",
+                    "0.90.1",
+                    "0.136.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.136.3",
+                "tested_versions": [
+                    "0.86.0",
+                    "0.136.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.136.3",
+                "tested_versions": [
+                    "0.86.0",
+                    "0.136.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.136.3",
+                "tested_versions": [
+                    "0.86.0",
+                    "0.136.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.64.0",
+                "maximum_package_version": "0.136.3",
+                "tested_versions": [
+                    "0.136.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "flask",
+        "integration": "flask",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "1.1.4",
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.1.4",
+                "maximum_package_version": "3.1.3",
+                "tested_versions": [
+                    "2.3.3",
+                    "3.0.3",
+                    "3.1.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "flask-cache",
+        "integration": "flask_cache",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": [
+                    "0.13.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "0.13.1",
+                "maximum_package_version": "0.13.1",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "flask-caching",
+        "integration": "flask_cache",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "2.1.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "2.1.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "2.1.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "2.3.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "2.3.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "gevent",
+        "integration": "gevent",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "21.1.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "21.12.0",
+                    "26.5.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "22.10.2",
+                    "26.5.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "26.5.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "26.5.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "21.1.2",
+                "maximum_package_version": "26.5.0",
+                "tested_versions": [
+                    "26.5.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "google-adk",
+        "integration": "google_adk",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.18.0",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.18.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.28.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.28.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.28.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.28.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.28.1",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.28.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "google-cloud-pubsub",
+        "integration": "google_cloud_pubsub",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.10.0",
+                    "2.37.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.10.0",
+                    "2.37.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.10.0",
+                    "2.37.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.14.0",
+                    "2.37.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.37.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.10.0",
+                "maximum_package_version": "2.37.0",
+                "tested_versions": [
+                    "2.37.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "google-genai",
+        "integration": "google_genai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.21.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.21.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.21.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.21.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.21.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.21.1",
+                "maximum_package_version": "1.41.0",
+                "tested_versions": [
+                    "1.41.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "graphql-core",
+        "integration": "graphql",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.1.7",
+                    "3.2.3",
+                    "3.2.6"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.1.7",
+                    "3.2.3",
+                    "3.2.6"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.1.7",
+                    "3.2.3",
+                    "3.2.6"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.1.7",
+                    "3.2.3",
+                    "3.2.6"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.1.7",
+                    "3.2.4",
+                    "3.2.6"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.1.7",
+                "maximum_package_version": "3.2.6",
+                "tested_versions": [
+                    "3.2.6"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "grpcio",
+        "integration": "grpc",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.34.1",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.34.1",
+                    "1.59.5",
+                    "1.66.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.42.0",
+                    "1.59.5",
+                    "1.66.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.49.1",
+                    "1.59.5",
+                    "1.66.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.59.5",
+                    "1.66.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.68.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.34.1",
+                "maximum_package_version": "1.75.1",
+                "tested_versions": [
+                    "1.75.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "gunicorn",
+        "integration": "gunicorn",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "20.0.4",
+                "maximum_package_version": "23.0.0",
+                "tested_versions": [
+                    "20.0.4",
+                    "23.0.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "httpx",
+        "integration": "httpx",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.26.0",
+                    "0.27.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.26.0",
+                    "0.27.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.26.0",
+                    "0.27.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.26.0",
+                    "0.27.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.27.2",
+                    "0.28.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.25.2",
+                "maximum_package_version": "0.28.1",
+                "tested_versions": [
+                    "0.25.2",
+                    "0.27.2",
+                    "0.28.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "jinja2",
+        "integration": "jinja2",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "2.10.3",
+                    "3.0.3",
+                    "3.1.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.4"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.10.3",
+                "maximum_package_version": "3.1.6",
+                "tested_versions": [
+                    "3.0.3",
+                    "3.1.6"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "confluent-kafka",
+        "integration": "kafka",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": [
+                    "1.9.2",
+                    "2.14.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": [
+                    "1.9.2",
+                    "2.14.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": [
+                    "2.14.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": [
+                    "2.14.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": [
+                    "2.14.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.9.2",
+                "maximum_package_version": "2.14.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "kombu",
+        "integration": "kombu",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "4.6.11",
+                    "5.0.2",
+                    "5.6.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.2.4",
+                    "5.6.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.2.4",
+                    "5.6.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.6.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.6.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "4.6.11",
+                "maximum_package_version": "5.6.2",
+                "tested_versions": [
+                    "5.6.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "langchain-core",
+        "integration": "langchain",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "0.3.84",
+                "tested_versions": [
+                    "0.1.53",
+                    "0.3.84"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "1.2.31",
+                "tested_versions": [
+                    "0.1.53",
+                    "0.3.84",
+                    "1.2.31"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "1.2.31",
+                "tested_versions": [
+                    "0.1.53",
+                    "0.3.84",
+                    "1.2.31"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "1.2.31",
+                "tested_versions": [
+                    "0.1.53",
+                    "0.3.84",
+                    "1.2.31"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "1.2.31",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "0.1.53",
+                "maximum_package_version": "1.2.31",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "langgraph",
+        "integration": "langgraph",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "0.6.11",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "0.6.11"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "1.1.10",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "1.1.10"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "1.1.10",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "1.1.10"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "1.1.10",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "1.1.10"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "1.1.10",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "1.1.10"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.2.23",
+                "maximum_package_version": "1.1.10",
+                "tested_versions": [
+                    "0.2.23",
+                    "0.3.21",
+                    "0.3.22",
+                    "1.1.10"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "langgraph-checkpoint",
+        "integration": "langgraph",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "2.1.2",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "4.0.3",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2",
+                    "4.0.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "4.0.3",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2",
+                    "4.0.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "4.0.3",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2",
+                    "4.0.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "4.0.3",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2",
+                    "4.0.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.12",
+                "maximum_package_version": "4.0.3",
+                "tested_versions": [
+                    "1.0.12",
+                    "2.1.2",
+                    "4.0.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "langgraph-prebuilt",
+        "integration": "langgraph",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "0.6.5",
+                "tested_versions": [
+                    "0.1.8",
+                    "0.6.5"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "1.0.13",
+                "tested_versions": [
+                    "0.1.8",
+                    "1.0.13"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "1.0.13",
+                "tested_versions": [
+                    "0.1.8",
+                    "1.0.13"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "1.0.13",
+                "tested_versions": [
+                    "0.1.8",
+                    "1.0.13"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "1.0.13",
+                "tested_versions": [
+                    "0.1.8",
+                    "1.0.13"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.1.8",
+                "maximum_package_version": "1.0.13",
+                "tested_versions": [
+                    "0.1.8",
+                    "1.0.13"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "litellm",
+        "integration": "litellm",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": [
+                    "1.65.4",
+                    "1.80.16"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": [
+                    "1.65.4",
+                    "1.80.16"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": [
+                    "1.65.4",
+                    "1.80.16"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": [
+                    "1.65.4",
+                    "1.80.16"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": [
+                    "1.65.4",
+                    "1.80.16"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.65.4",
+                "maximum_package_version": "1.80.16",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "llama-index-core",
+        "integration": "llama_index",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.11.23",
+                "tested_versions": []
+            },
+            "3.10": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.14.18",
+                "tested_versions": [
+                    "0.11.23",
+                    "0.14.18"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.14.18",
+                "tested_versions": [
+                    "0.11.23",
+                    "0.14.18"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.14.18",
+                "tested_versions": [
+                    "0.11.23",
+                    "0.14.18"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.14.18",
+                "tested_versions": [
+                    "0.11.23",
+                    "0.14.18"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.11.23",
+                "maximum_package_version": "0.14.18",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "logbook",
+        "integration": "logbook",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "1.9.2",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.9.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "stdlib.logging",
+        "integration": "logging",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "loguru",
+        "integration": "loguru",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.4.1",
+                "maximum_package_version": "0.7.3",
+                "tested_versions": [
+                    "0.4.1",
+                    "0.7.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mako",
+        "integration": "mako",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.0.14",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.8"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.8"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.8"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.8"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.8"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.14",
+                "maximum_package_version": "1.3.10",
+                "tested_versions": [
+                    "1.0.14",
+                    "1.3.10"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mariadb",
+        "integration": "mariadb",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.0.11",
+                    "1.1.14"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.0.11",
+                    "1.1.14"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.1.14"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.1.14"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.1.14"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.11",
+                "maximum_package_version": "1.1.14",
+                "tested_versions": [
+                    "1.1.14"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mcp",
+        "integration": "mcp",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.27.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.27.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.27.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.27.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.27.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.27.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.27.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.27.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.1",
+                "maximum_package_version": "1.27.0",
+                "tested_versions": [
+                    "1.10.1",
+                    "1.27.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mlflow",
+        "integration": "mlflow",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "2.11.4",
+                "tested_versions": []
+            },
+            "3.10": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "2.11.4"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "2.11.4"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.11.4",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "mlflow-skinny",
+        "integration": "mlflow",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "mlflow-tracing",
+        "integration": "mlflow",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": [
+                    "3.12.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.12.0",
+                "maximum_package_version": "3.12.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "molten",
+        "integration": "molten",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.2",
+                "maximum_package_version": "1.0.2",
+                "tested_versions": [
+                    "1.0.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mysql-connector-python",
+        "integration": "mysql",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "8.0.5",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.0.5",
+                    "8.2.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.0.33",
+                    "8.2.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "8.0.33",
+                    "8.2.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "9.0.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "9.0.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "8.0.5",
+                "maximum_package_version": "9.4.0",
+                "tested_versions": [
+                    "9.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mysqlclient",
+        "integration": "mysqldb",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.6"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.2.1",
+                "maximum_package_version": "2.2.6",
+                "tested_versions": [
+                    "2.2.6"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "openai",
+        "integration": "openai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.30.1",
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "2.3.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.30.1",
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "2.3.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.0.0",
+                    "1.30.1",
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "2.2.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "2.3.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": [
+                    "1.66.0",
+                    "1.76.2",
+                    "1.109.1",
+                    "2.3.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.0.0",
+                "maximum_package_version": "2.3.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "openai-agents",
+        "integration": "openai_agents",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": [
+                    "0.0.8",
+                    "0.0.16"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": [
+                    "0.0.8",
+                    "0.0.16"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": [
+                    "0.0.8",
+                    "0.0.16"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": [
+                    "0.0.8",
+                    "0.0.16"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": [
+                    "0.0.8",
+                    "0.0.16"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.0.8",
+                "maximum_package_version": "0.0.16",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "protobuf",
+        "integration": "protobuf",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "6.33.6",
+                "tested_versions": [
+                    "6.33.6"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "7.34.1",
+                "tested_versions": [
+                    "7.34.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "7.34.1",
+                "tested_versions": [
+                    "7.34.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "7.34.1",
+                "tested_versions": [
+                    "7.34.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "7.34.1",
+                "tested_versions": [
+                    "7.34.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.33.6",
+                "maximum_package_version": "7.34.1",
+                "tested_versions": [
+                    "7.34.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "psycopg",
+        "integration": "psycopg",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.2.13",
+                "tested_versions": [
+                    "3.0.18",
+                    "3.2.13"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.3.4",
+                "tested_versions": [
+                    "3.3.4"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.3.4",
+                "tested_versions": [
+                    "3.3.4"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.3.4",
+                "tested_versions": [
+                    "3.3.4"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.3.4",
+                "tested_versions": [
+                    "3.3.4"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.0.18",
+                "maximum_package_version": "3.3.4",
+                "tested_versions": [
+                    "3.3.4"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "psycopg2-binary",
+        "integration": "psycopg",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.9.10",
+                "maximum_package_version": "2.9.10",
+                "tested_versions": [
+                    "2.9.10"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pydantic-ai-slim",
+        "integration": "pydantic_ai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "0.8.1",
+                "tested_versions": [
+                    "0.8.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "1.63.0",
+                "tested_versions": [
+                    "0.8.1",
+                    "1.0.0",
+                    "1.63.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "1.63.0",
+                "tested_versions": [
+                    "0.8.1",
+                    "1.0.0",
+                    "1.63.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "1.63.0",
+                "tested_versions": [
+                    "0.8.1",
+                    "1.0.0",
+                    "1.63.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "1.63.0",
+                "tested_versions": [
+                    "0.8.1",
+                    "1.0.0",
+                    "1.63.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.8.1",
+                "maximum_package_version": "1.63.0",
+                "tested_versions": [
+                    "0.8.1",
+                    "1.0.0",
+                    "1.63.0"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "pylibmc",
+        "integration": "pylibmc",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.6.3",
+                "maximum_package_version": "1.6.3",
+                "tested_versions": [
+                    "1.6.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pymemcache",
+        "integration": "pymemcache",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.4.4",
+                "maximum_package_version": "4.0.0",
+                "tested_versions": [
+                    "3.4.4",
+                    "3.5.2",
+                    "4.0.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pymongo",
+        "integration": "pymongo",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "3.13.0",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.8.0",
+                    "3.9.0",
+                    "3.13.0",
+                    "4.17.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "3.8.0",
+                "maximum_package_version": "4.17.0",
+                "tested_versions": [
+                    "3.12.3",
+                    "4.17.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pymysql",
+        "integration": "pymysql",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "0.10.1",
+                    "1.2.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.10.1",
+                "maximum_package_version": "1.2.0",
+                "tested_versions": [
+                    "1.2.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pynamodb",
+        "integration": "pynamodb",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": [
+                    "5.5.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": [
+                    "5.5.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": [
+                    "5.5.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "5.5.1",
+                "maximum_package_version": "5.5.1",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "pyodbc",
+        "integration": "pyodbc",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "4.0.39",
+                    "5.3.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "4.0.39",
+                    "5.3.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "5.3.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "5.3.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "5.3.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "4.0.39",
+                "maximum_package_version": "5.3.0",
+                "tested_versions": [
+                    "5.3.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pyramid",
+        "integration": "pyramid",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "1.10.8",
+                    "2.0.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "2.0.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "2.0.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "2.0.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "2.0.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.10.8",
+                "maximum_package_version": "2.0.2",
+                "tested_versions": [
+                    "2.0.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pytest",
+        "integration": "pytest",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "8.4.2",
+                "tested_versions": [
+                    "6.2.5",
+                    "7.4.4",
+                    "8.4.1",
+                    "8.4.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "9.0.3",
+                "tested_versions": [
+                    "6.2.5",
+                    "7.4.4",
+                    "8.4.1",
+                    "8.4.2",
+                    "9.0.2",
+                    "9.0.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "9.0.3",
+                "tested_versions": [
+                    "6.2.5",
+                    "7.4.4",
+                    "8.4.1",
+                    "8.4.2",
+                    "9.0.2",
+                    "9.0.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "9.0.3",
+                "tested_versions": [
+                    "6.2.5",
+                    "7.4.4",
+                    "8.4.1",
+                    "8.4.2",
+                    "9.0.2",
+                    "9.0.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "9.0.3",
+                "tested_versions": [
+                    "6.2.5",
+                    "7.4.4",
+                    "8.4.2",
+                    "9.0.2",
+                    "9.0.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.2.5",
+                "maximum_package_version": "9.0.3",
+                "tested_versions": [
+                    "8.4.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "pytest-bdd",
+        "integration": "pytest_bdd",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "4.1.0",
+                    "6.0.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "4.1.0",
+                "maximum_package_version": "6.0.1",
+                "tested_versions": [
+                    "6.0.1"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "ray",
+        "integration": "ray",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": []
+            },
+            "3.10": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": [
+                    "2.46.0",
+                    "2.49.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": [
+                    "2.46.0",
+                    "2.49.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": [
+                    "2.46.0",
+                    "2.49.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.46.0",
+                "maximum_package_version": "2.49.2",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "redis",
+        "integration": "redis",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "4.6.0",
+                    "5.0.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "4.6.0",
+                    "5.0.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "4.6.0",
+                    "5.0.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "5.2.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "5.1.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "4.6.0",
+                "maximum_package_version": "6.4.0",
+                "tested_versions": [
+                    "6.4.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "redis-py-cluster",
+        "integration": "rediscluster",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.1.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.1.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.1.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "2.0.0",
+                "maximum_package_version": "2.1.3",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "requests",
+        "integration": "requests",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.32.5",
+                "tested_versions": [
+                    "2.25.1",
+                    "2.32.5"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.34.1",
+                "tested_versions": [
+                    "2.34.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.34.1",
+                "tested_versions": [
+                    "2.28.2",
+                    "2.34.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.34.1",
+                "tested_versions": [
+                    "2.34.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.34.1",
+                "tested_versions": [
+                    "2.34.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.25.1",
+                "maximum_package_version": "2.34.1",
+                "tested_versions": [
+                    "2.34.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "rq",
+        "integration": "rq",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.8.1",
+                    "1.10.1",
+                    "1.15.1",
+                    "2.0.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.15.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.15.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.15.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": [
+                    "1.16.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.8.1",
+                "maximum_package_version": "2.0.0",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "sanic",
+        "integration": "sanic",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": [
+                    "20.12.7",
+                    "21.12.2",
+                    "22.12.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": [
+                    "21.12.2",
+                    "22.12.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": [
+                    "22.12.0",
+                    "23.12.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": [
+                    "23.12.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "20.12.7",
+                "maximum_package_version": "23.12.2",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "snowflake-connector-python",
+        "integration": "snowflake",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "2.4.6",
+                    "2.9.0",
+                    "3.6.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "2.7.12",
+                    "2.9.0",
+                    "3.6.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "3.6.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "3.11.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "3.12.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.4.6",
+                "maximum_package_version": "3.17.2",
+                "tested_versions": [
+                    "3.17.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "sqlalchemy",
+        "integration": "sqlalchemy",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "1.3.24",
+                    "2.0.40"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "1.3.24",
+                    "2.0.40"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "1.3.24",
+                    "2.0.40"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "1.3.24",
+                    "2.0.40"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "2.0.40"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.3.24",
+                "maximum_package_version": "2.0.43",
+                "tested_versions": [
+                    "2.0.43"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "stdlib.sqlite3",
+        "integration": "sqlite3",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "starlette",
+        "integration": "starlette",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "0.49.3",
+                "tested_versions": [
+                    "0.14.2",
+                    "0.20.4",
+                    "0.33.0",
+                    "0.49.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": [
+                    "0.15.0",
+                    "0.20.4",
+                    "0.33.0",
+                    "1.0.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": [
+                    "0.21.0",
+                    "0.33.0",
+                    "1.0.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": [
+                    "1.0.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": [
+                    "1.0.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "0.14.2",
+                "maximum_package_version": "1.0.0",
+                "tested_versions": [
+                    "1.0.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "structlog",
+        "integration": "structlog",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "20.2.0",
+                "maximum_package_version": "25.5.0",
+                "tested_versions": [
+                    "20.2.0",
+                    "25.5.0"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "stdlib.subprocess",
+        "integration": "subprocess",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "tornado",
+        "integration": "tornado",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.1",
+                    "6.5.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.2",
+                    "6.3.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.2",
+                    "6.3.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.2",
+                    "6.3.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.4.1"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.1",
+                "maximum_package_version": "6.5.1",
+                "tested_versions": [
+                    "6.4.1"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "stdlib.unittest",
+        "integration": "unittest",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "",
+                "maximum_package_version": "",
+                "tested_versions": [
+                    ""
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "urllib3",
+        "integration": "urllib3",
+        "auto-instrumented": false,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "1.25.8",
+                    "2.6.3"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "1.26.6",
+                    "2.6.3"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "1.26.8",
+                    "2.6.3"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.6.3"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.6.3"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "1.25.8",
+                "maximum_package_version": "2.6.3",
+                "tested_versions": [
+                    "2.0.0",
+                    "2.6.3"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "valkey",
+        "integration": "valkey",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.0.2"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.0.2"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.0.2"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.0.2"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.0.2"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "6.0.2",
+                "maximum_package_version": "6.1.1",
+                "tested_versions": [
+                    "6.1.1"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "google-cloud-aiplatform",
+        "integration": "vertexai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "vertexai",
+        "integration": "vertexai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": [
+                    "1.71.1"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "1.71.1",
+                "maximum_package_version": "1.71.1",
+                "tested_versions": []
+            }
+        }
+    },
+    {
+        "dependency": "vertica-python",
+        "integration": "vertica",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.6.14",
+                "tested_versions": []
+            },
+            "3.9": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": [
+                    "0.6.14",
+                    "0.7.4"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": []
+            },
+            "3.11": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "0.6.14",
+                "maximum_package_version": "0.7.4",
+                "tested_versions": []
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "vllm",
+        "integration": "vllm",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "0.13.0",
+                "maximum_package_version": "0.13.0",
+                "tested_versions": [
+                    "0.13.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "0.13.0",
+                "maximum_package_version": "0.13.0",
+                "tested_versions": [
+                    "0.13.0"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "0.13.0",
+                "maximum_package_version": "0.13.0",
+                "tested_versions": [
+                    "0.13.0"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "0.13.0",
+                "maximum_package_version": "0.13.0",
+                "tested_versions": [
+                    "0.13.0"
+                ]
+            }
+        },
+        "pinned": "true"
+    },
+    {
+        "dependency": "yaaredis",
+        "integration": "yaaredis",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.9": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "2.0.4",
+                    "3.0.0"
+                ]
+            },
+            "3.10": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": [
+                    "3.0.0"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": []
+            },
+            "3.12": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": []
+            },
+            "3.13": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": []
+            },
+            "3.14": {
+                "minimum_package_version": "2.0.4",
+                "maximum_package_version": "3.0.0",
+                "tested_versions": []
+            }
+        }
+    }
+]

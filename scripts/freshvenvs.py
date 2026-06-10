@@ -5,7 +5,6 @@ from functools import lru_cache
 from http.client import HTTPSConnection
 from io import StringIO
 import json
-from operator import itemgetter
 import pathlib
 import sys
 from typing import Any
@@ -27,7 +26,6 @@ import riotfile  # noqa: I001,E402
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
 
-supported_versions = []
 pinned_packages = set()
 
 
@@ -48,10 +46,10 @@ class Capturing(list):
 
 def parse_args():
     """
-    usage: python scripts/freshvenvs.py <output> OR <generate>
+    usage: python scripts/freshvenvs.py <output>
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["output", "generate"], help="mode: output or generate")
+    parser.add_argument("mode", choices=["output"], help="mode: output")
     return parser.parse_args()
 
 
@@ -348,59 +346,15 @@ def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_
     print(" ".join(outdated_packages))
 
 
-def generate_supported_versions(contrib_modules, all_used_versions):
-    """
-    Generate supported versions JSON
-    """
-    patched = {}
-    for contrib_module in contrib_modules:
-        for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module])):
-            versions = []
-            if dependency not in all_used_versions:
-                # special case, some dependencies such as dogpile_cache can be installed
-                # e.g. dogpile.cache or dogpile-cache or dogpile_cache, just use the one with versions
-                for dep in INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module]):
-                    if dep in all_used_versions:
-                        versions = all_used_versions[dep]
-                        break
-            else:
-                versions = all_used_versions[dependency]
-            ordered = sorted([Version(v) for v in versions], reverse=True)
-            if not ordered:
-                continue
-            json_format = {
-                "dependency": dependency or contrib_module,
-                "integration": contrib_module,
-                "minimum_tracer_supported": str(ordered[-1]),
-                "max_tracer_supported": str(ordered[0]),
-            }
-
-            if contrib_module in pinned_packages:
-                json_format["pinned"] = "true"
-
-            if contrib_module not in patched:
-                patched[contrib_module] = _is_module_autoinstrumented(contrib_module)
-            json_format["auto-instrumented"] = patched[contrib_module]
-            supported_versions.append(json_format)
-
-    supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
-    with open("supported_versions_output.json", "w") as file:
-        json.dump(supported_versions_output, file, indent=4)
-
-
 def main():
-    args = parse_args()
+    parse_args()
     contribs = _get_contrib_modules()
     all_updatable_contribs = _get_updatable_packages_implementing(contribs)  # MODULE names
     riot_hash_to_venv_name = _get_riot_hash_to_venv_name()
     envs = _get_riot_envs_including_any(contribs)
 
-    if args.mode == "output":
-        bounds = _get_version_bounds(contribs)
-        output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
-    elif args.mode == "generate":
-        all_used_versions = _get_all_used_versions(envs, contribs, riot_hash_to_venv_name)
-        generate_supported_versions(contribs, all_used_versions)
+    bounds = _get_version_bounds(contribs)
+    output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
 
 
 if __name__ == "__main__":
