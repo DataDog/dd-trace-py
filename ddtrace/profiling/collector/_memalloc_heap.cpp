@@ -104,8 +104,9 @@ class heap_tracker_t
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
-     * to the current allocated_memory value. */
-    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
+     * to the current allocated_memory value and allocated_count_val to the number
+     * of allocations since the last sample. */
+    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val, uint64_t* allocated_count_val);
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
@@ -150,6 +151,8 @@ class heap_tracker_t
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
+    /* Number of allocations since the last sample was collected */
+    uint64_t allocated_count;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -218,6 +221,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
+  , allocated_count(0)
 {
     // Pre-allocate pool capacity to avoid reallocations
     pool.reserve(POOL_CAPACITY);
@@ -237,11 +241,13 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 }
 
 bool
-heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
+heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val, uint64_t* allocated_count_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
     allocated_memory += size;
+    allocated_count++;
     *allocated_memory_val = allocated_memory;
+    *allocated_count_val = allocated_count;
 
     /* Check if we have enough sample or not */
     if (allocated_memory < current_sample_size) {
@@ -293,6 +299,7 @@ void
 heap_tracker_t::reset_sampling_state_no_cpython()
 {
     allocated_memory = 0;
+    allocated_count = 0;
     current_sample_size = next_sample_size_no_cpython(sample_size);
 }
 
@@ -361,7 +368,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
     uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+    uint64_t allocated_count_val = 0;
+    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val, &allocated_count_val)) {
         return;
     }
 
@@ -420,10 +428,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // Use the weighted size (allocated_memory_val) so the heap profile accounts
     // for sampling, matching the tcmalloc/Go pprof approach: each sampled live
     // allocation represents ~R bytes of heap, not just its own raw size.
-    size_t adjusted_size = size > 0 ? size : 1;
-    size_t heap_count =
-      static_cast<size_t>(static_cast<double>(allocated_memory_val) / static_cast<double>(adjusted_size));
-    tb->sample.push_heap(allocated_memory_val, heap_count);
+    // Use the actual allocation count rather than estimating from size division.
+    tb->sample.push_heap(allocated_memory_val, allocated_count_val);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
