@@ -396,6 +396,34 @@ async def test_base_exception_in_node_still_emits_root_span_async(langgraph, tes
     assert any("LangGraph" in r for r in resources), f"root graph span not found in: {resources}"
 
 
+def test_stream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Closing a stream early is normal teardown, not a span error.
+
+    The pregel stream generators wrap ``yield`` in a try/except. Catching bare
+    ``BaseException`` would treat the ``GeneratorExit`` raised by ``close()`` (or by
+    a ``break`` followed by GC) as a runtime error. The catch is narrowed to
+    ``(DDBlockException, Exception)`` so normal teardown is left alone.
+    """
+    stream = simple_graph.stream({"a_list": [], "which": "a"})
+    next(stream)  # suspend the generator at a ``yield``
+    stream.close()  # raises GeneratorExit at the suspended ``yield``
+
+    for trace in test_spans.pop_traces():
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on stream teardown"
+
+
+async def test_astream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Async variant: ``aclose()`` raises GeneratorExit in the astream generator."""
+    stream = simple_graph.astream({"a_list": [], "which": "a"})
+    await stream.__anext__()  # suspend the generator at a ``yield``
+    await stream.aclose()  # raises GeneratorExit at the suspended ``yield``
+
+    for trace in test_spans.pop_traces():
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on astream teardown"
+
+
 def test_regular_exception_still_marked_as_error(langgraph, test_spans):
     """Regular exceptions should still be marked as errors (regression test)."""
 

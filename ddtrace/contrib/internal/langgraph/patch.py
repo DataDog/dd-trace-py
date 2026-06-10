@@ -5,6 +5,7 @@ import langgraph
 from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
@@ -106,7 +107,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
     result = None
     try:
         result = func(*args, **kwargs)
-    except BaseException as e:
+    except (DDBlockException, Exception) as e:
         if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
             LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
         ):
@@ -133,7 +134,7 @@ async def traced_runnable_seq_ainvoke(func, instance, args, kwargs):
     result = None
     try:
         result = await func(*args, **kwargs)
-    except BaseException as e:
+    except (DDBlockException, Exception) as e:
         if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
             LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
         ):
@@ -194,7 +195,12 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
                 span.finish()
                 break
-            except BaseException as e:
+            # AIDEV-NOTE: catch ``DDBlockException`` explicitly (parent of ``AIGuardAbortError``) since it inherits
+            # from ``BaseException`` — otherwise an AI Guard abort would slip past ``except Exception:`` and the span
+            # would never get ``set_exc_info`` / ``finish``. We must NOT catch bare ``BaseException`` here: this wraps
+            # a ``yield``, so normal stream teardown (``break`` / ``close()`` / ``aclose()`` -> ``GeneratorExit``) and
+            # async cancellation (``CancelledError``) would otherwise be mis-reported as span errors.
+            except (DDBlockException, Exception) as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
@@ -270,7 +276,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except BaseException as e:
+            except (DDBlockException, Exception) as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
@@ -323,7 +329,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except BaseException as e:
+            except (DDBlockException, Exception) as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
                 ):
