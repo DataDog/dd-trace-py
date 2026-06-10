@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from io import StringIO
-import json
 import logging
 from pathlib import Path
-import re
 import traceback
 import typing as t
 
@@ -53,6 +51,10 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
+from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._discovery import pytest_collection_finish as pytest_collection_finish  # noqa: F401
+from ddtrace.testing.internal.pytest.utils import _encode_test_parameter  # noqa: F401
+from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
@@ -1074,6 +1076,9 @@ def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_test_optimization_disabled_by_kill_switch():
         return False
 
+    if is_discovery_mode_enabled():
+        return False
+
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
@@ -1243,36 +1248,8 @@ def _get_user_property(report: pytest.TestReport, user_property: str) -> t.Optio
     return None
 
 
-def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
-    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
-
-    if callspec is None:
-        return None
-
-    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
-    for param_name, param_val in item.callspec.params.items():
-        try:
-            parameters["arguments"][param_name] = _encode_test_parameter(param_val)
-        except Exception:
-            parameters["arguments"][param_name] = "Could not encode"
-            log.warning("Failed to encode %r", param_name, exc_info=True)
-
-    try:
-        return json.dumps(parameters, sort_keys=True)
-    except TypeError:
-        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
-        return None
-
-
 def _get_test_original_name(item: pytest.Item) -> t.Optional[str]:
     return getattr(item, "originalname", None)
-
-
-def _encode_test_parameter(parameter: t.Any) -> str:
-    param_repr = repr(parameter)
-    # if the representation includes an id() we'll remove it
-    # because it isn't constant across executions
-    return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
 def _get_skipif_condition(marker: pytest.Mark) -> t.Any:
