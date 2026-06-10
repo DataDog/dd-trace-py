@@ -1,9 +1,0 @@
----
-other:
-  - |
-    instrumentation telemetry: The ``OTEL_EXPORTER_OTLP_HEADERS``,
-    ``OTEL_EXPORTER_OTLP_TRACES_HEADERS``, ``OTEL_EXPORTER_OTLP_METRICS_HEADERS``, and
-    ``OTEL_EXPORTER_OTLP_LOGS_HEADERS`` configurations are now excluded from configuration
-    telemetry. ``DD_API_KEY`` and ``DD_APP_KEY`` continue to be excluded from configuration
-    telemetry. Other OpenTelemetry exporter configurations (protocol, endpoint, timeout, and
-    so on) are still reported.
