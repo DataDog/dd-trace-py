@@ -538,3 +538,44 @@ def test_native_trace_buffer_compat_multiple_traces():
 
     tracer.flush()
     writer.stop(5.0)
+
+
+@pytest.mark.subprocess(err=None, env={"DD_TRACE_WRITER_INTERVAL_SECONDS": "30"})
+@pytest.mark.snapshot()
+def test_buffered_trace_not_duplicated_across_fork():
+    """A trace buffered in the parent before fork() must be sent exactly once."""
+    import os
+
+    from ddtrace.trace import tracer
+
+    with tracer.trace("buffered-before-fork", service="fork-test"):
+        pass
+
+    pid = os.fork()
+    if pid == 0:
+        os._exit(0)
+
+    os.waitpid(pid, 0)
+    tracer.flush()
+
+
+@pytest.mark.subprocess(err=None, env={"DD_TRACE_WRITER_INTERVAL_SECONDS": "30"})
+@pytest.mark.snapshot()
+def test_writer_restarts_in_child_and_flushes_traces_after_fork():
+    """After fork the child can create and flush its own traces while the parent trace is sent exactly once."""
+    import os
+
+    from ddtrace.trace import tracer
+
+    with tracer.trace("parent-span", service="fork-test"):
+        pass
+
+    pid = os.fork()
+    if pid == 0:
+        with tracer.trace("child-span", service="fork-test"):
+            pass
+        tracer.flush()
+        os._exit(0)
+
+    os.waitpid(pid, 0)
+    tracer.flush()

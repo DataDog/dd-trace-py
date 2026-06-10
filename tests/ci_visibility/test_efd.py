@@ -65,11 +65,17 @@ class TestCIVisibilityTestEFD:
 
         mock_session = mock.Mock()
         mock_session.efd_is_faulty_session.return_value = False
-        with mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session):
+        # Pin time so the measured duration equals efd_test_duration_s exactly. Otherwise the
+        # real wall-clock gap between start() and finish_test() leaks in and can push borderline
+        # durations (e.g. 9.951125s) over a bucket boundary on a slow runner.
+        fake_now_ns = 1_700_000_000_000_000_000
+        with (
+            mock.patch.object(TestVisibilityTest, "get_session", lambda *args: mock_session),
+            mock.patch("ddtrace.internal.ci_visibility.api._test.time_ns", return_value=fake_now_ns),
+        ):
             efd_test.start()
-            # Overwrite the test duration
-            efd_test._span.start_ns -= efd_test_duration_s * 1e9
-            efd_test.finish_test(TestStatus.PASS)
+            efd_test._span.start_ns = fake_now_ns - int(efd_test_duration_s * 1e9)
+            efd_test.finish_test(TestStatus.PASS, override_finish_time=fake_now_ns / 1e9)
 
             retry_count = 0
             while efd_test.efd_should_retry():
