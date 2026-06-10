@@ -623,6 +623,18 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
+class ProfilingConfigGC(DDConfig):
+    __item__ = __prefix__ = "gc"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the GC collector (pause durations, collection counts, freeze status).",
+    )
+
+
 class ProfilingConfigException(DDConfig):
     __item__ = __prefix__ = "exception"
 
@@ -662,6 +674,7 @@ ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
+ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -756,6 +769,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("heap")
     if config.native_heap.enabled:
         configured_features.append("nativeheap")
+    if config.gc.enabled:
+        configured_features.append("gc")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:
