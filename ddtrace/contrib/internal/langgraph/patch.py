@@ -195,11 +195,8 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
                 span.finish()
                 break
-            # AIDEV-NOTE: catch ``DDBlockException`` explicitly (parent of ``AIGuardAbortError``) since it inherits
-            # from ``BaseException`` — otherwise an AI Guard abort would slip past ``except Exception:`` and the span
-            # would never get ``set_exc_info`` / ``finish``. We must NOT catch bare ``BaseException`` here: this wraps
-            # a ``yield``, so normal stream teardown (``break`` / ``close()`` / ``aclose()`` -> ``GeneratorExit``) and
-            # async cancellation (``CancelledError``) would otherwise be mis-reported as span errors.
+            # AIDEV-NOTE: do not widen to bare ``BaseException`` here — this wraps a ``yield``, so ``GeneratorExit``
+            # / ``CancelledError`` from normal stream teardown would be mis-reported as span errors.
             except (DDBlockException, Exception) as e:
                 if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                     LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
