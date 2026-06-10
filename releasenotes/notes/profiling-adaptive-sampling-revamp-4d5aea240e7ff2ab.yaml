@@ -1,0 +1,3 @@
+features:
+  - |
+    profiling: The adaptive sampling mechanism has been revamped to better match the needs of real-life workloads.
