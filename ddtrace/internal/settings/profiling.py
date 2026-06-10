@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -496,6 +496,18 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
+class ProfilingConfigGC(DDConfig):
+    __item__ = __prefix__ = "gc"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the GC collector (pause durations, collection counts, freeze status).",
+    )
+
+
 class ProfilingConfigException(DDConfig):
     __item__ = __prefix__ = "exception"
 
@@ -534,6 +546,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -584,6 +597,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("mem")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
+    if config.gc.enabled:
+        configured_features.append("gc")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:
