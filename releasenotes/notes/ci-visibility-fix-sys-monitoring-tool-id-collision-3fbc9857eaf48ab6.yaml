@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes a ``ValueError: tool 1 is already in use`` error that occurred on
+    Python 3.12+ when running pytest with ``coverage.py`` or ``pytest-cov`` alongside ddtrace.
+    Both tools previously competed for ``sys.monitoring.COVERAGE_ID`` (slot 1). ddtrace now
+    tries tool slots in priority order (4, 3, 1), falling back gracefully if all candidate
+    slots are occupied.
