@@ -32,48 +32,51 @@ def _setup_profiler(tmp_path: Path, test_name: str) -> str:
 def test_gc_callbacks_registered() -> None:
     col = GCCollector()
     assert col._on_gc not in gc.callbacks
-    col.start()
-    assert col._on_gc in gc.callbacks
-    col.stop()
+    with mock.patch.object(_gc_module, "ddup"):
+        col.start()
+        assert col._on_gc in gc.callbacks
+        col.stop()
     assert col._on_gc not in gc.callbacks
 
 
 def test_gc_collect_not_patched_after_stop() -> None:
     orig = gc.collect
     col = GCCollector()
-    col.start()
-    assert gc.collect is not orig
-    col.stop()
+    with mock.patch.object(_gc_module, "ddup"):
+        col.start()
+        assert gc.collect is not orig
+        col.stop()
     assert gc.collect is orig
 
 
 def test_explicit_count_increments() -> None:
     col = GCCollector()
-    col.start()
-    try:
-        assert col._explicit_count == 0
-        gc.collect()
-        assert col._explicit_count == 1
-        gc.collect(0)
-        assert col._explicit_count == 2
-    finally:
-        col.stop()
+    with mock.patch.object(_gc_module, "ddup"):
+        col.start()
+        try:
+            assert col._explicit_count == 0
+            gc.collect()
+            assert col._explicit_count == 1
+            gc.collect(0)
+            assert col._explicit_count == 2
+        finally:
+            col.stop()
 
 
 def test_explicit_count_resets_on_snapshot() -> None:
     col = GCCollector()
-    col.start()
-    try:
-        gc.collect()
-        gc.collect()
-        assert col._explicit_count == 2
-        with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+        col.start()
+        try:
+            gc.collect()
+            gc.collect()
+            assert col._explicit_count == 2
             mock_handle = mock.MagicMock()
             mock_ddup.SampleHandle.return_value = mock_handle
             col.snapshot()
-        assert col._explicit_count == 0
-    finally:
-        col.stop()
+            assert col._explicit_count == 0
+        finally:
+            col.stop()
 
 
 def _make_isolated_collector() -> GCCollector:
@@ -84,6 +87,7 @@ def _make_isolated_collector() -> GCCollector:
     col = GCCollector()
     col._start_ns = {}
     col._explicit_count = 0
+    col._count_lock = __import__("threading").Lock()
     return col
 
 
@@ -160,21 +164,20 @@ def test_on_gc_stop_without_start_is_noop() -> None:
 
 def test_snapshot_emits_config_sample() -> None:
     col = GCCollector()
-    col.start()
-    try:
-        gc.collect()
-        gc.collect()
-
-        with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+    with mock.patch.object(_gc_module, "ddup") as mock_ddup:
+        col.start()
+        try:
+            gc.collect()
+            gc.collect()
+            mock_ddup.reset_mock()
             mock_handle = mock.MagicMock()
             mock_ddup.SampleHandle.return_value = mock_handle
             col.snapshot()
-
-        mock_handle.push_walltime.assert_called_once_with(0, 2)
-        mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
-        mock_handle.flush_sample.assert_called_once()
-    finally:
-        col.stop()
+        finally:
+            col.stop()
+    mock_handle.push_walltime.assert_called_once_with(0, 2)
+    mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
+    mock_handle.flush_sample.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
