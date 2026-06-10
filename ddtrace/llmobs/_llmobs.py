@@ -2138,8 +2138,8 @@ class LLMObs(Service):
             session_id=session_id,
             tags=initial_tags,
             dd_scope=dd_scope,
-            sample_rate=sample_rate,
-            sampling_decision=(
+            dd_sample_rate=sample_rate,
+            dd_sampling_decision=(
                 sampling_decision.value
                 if sampling_decision is not None and hasattr(sampling_decision, "value")
                 else sampling_decision
