@@ -685,7 +685,6 @@ class LLMObs(Service):
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_depth(llmobs_meta)
-
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.
