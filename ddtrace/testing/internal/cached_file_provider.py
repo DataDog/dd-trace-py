@@ -94,10 +94,12 @@ class CachedFileDataProvider:
         test_optimization_dir: str,
         itr_skipping_level: ITRSkippingLevel,
         telemetry_api: TelemetryAPI,
+        apply_cached_skipping: bool = False,
     ) -> None:
         self._dir = test_optimization_dir
         self._itr_skipping_level = itr_skipping_level
         self._telemetry_api = telemetry_api
+        self._apply_cached_skipping = apply_cached_skipping
         self.configuration_errors: dict[str, str] = {}
 
     def _cache_path(self, relative: str) -> str:
@@ -158,6 +160,8 @@ class CachedFileDataProvider:
             return {}
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+        if not self._apply_cached_skipping:
+            return set(), None
         cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
         if cached is None:
             return set(), None

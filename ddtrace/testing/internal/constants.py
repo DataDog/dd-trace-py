@@ -25,5 +25,8 @@ DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES = "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 DD_TEST_OPTIMIZATION_ENV_DATA_FILE = "DD_TEST_OPTIMIZATION_ENV_DATA_FILE"
 TEST_UNDECLARED_OUTPUTS_DIR = "TEST_UNDECLARED_OUTPUTS_DIR"
 
-# The only supported .testoptimization manifest version
-SUPPORTED_MANIFEST_VERSION = 1
+# Supported .testoptimization manifest versions.
+# Version 1: Bazel offline mode — no HTTP, test skipping disabled (Bazel handles selection).
+# Version 2: ddtest orchestration — no HTTP, test skipping applied from cached skippable_tests.json.
+SUPPORTED_MANIFEST_VERSIONS = frozenset({1, 2})
+MANIFEST_VERSION_DDTEST = 2

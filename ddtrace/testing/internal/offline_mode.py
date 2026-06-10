@@ -24,7 +24,8 @@ import typing as t
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
-from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSION
+from ddtrace.testing.internal.constants import MANIFEST_VERSION_DDTEST
+from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSIONS
 from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
 from ddtrace.testing.internal.utils import asbool
 
@@ -88,13 +89,12 @@ def _parse_manifest_version(raw_line: str) -> str:
     return line
 
 
-def _validate_manifest(manifest_path: str) -> bool:
+def _read_manifest_version(manifest_path: str) -> t.Optional[int]:
     """
-    Read manifest.txt and verify it declares a supported version.
+    Read manifest.txt and return the version integer, or None on failure.
 
-    Returns True if compatible, False otherwise. On incompatible or missing
-    manifest, manifest mode is disabled (no HTTP fallback — Bazel hermeticity
-    requires a hard failure, not silent degradation).
+    Manifest mode is disabled when None is returned — no HTTP fallback is
+    attempted (Bazel hermeticity requires a hard boundary).
 
     The parser skips blank lines and supports both plain version numbers
     (``"1"``) and assignment syntax (``"version=1"``), matching the Go
@@ -113,23 +113,22 @@ def _validate_manifest(manifest_path: str) -> bool:
                     log.warning(
                         "Could not parse manifest version %r in %s — disabling manifest mode", stripped, manifest_path
                     )
-                    return False
+                    return None
 
-                if version != SUPPORTED_MANIFEST_VERSION:
+                if version not in SUPPORTED_MANIFEST_VERSIONS:
                     log.warning(
-                        "Unsupported .testoptimization manifest version %d (expected %d) — disabling manifest mode",
+                        "Unsupported .testoptimization manifest version %d — disabling manifest mode",
                         version,
-                        SUPPORTED_MANIFEST_VERSION,
                     )
-                    return False
-                return True
+                    return None
+                return version
 
         # File was empty or only blank lines
         log.warning("Empty manifest file %s — disabling manifest mode", manifest_path)
-        return False
+        return None
     except OSError as e:
         log.warning("Could not read manifest file %s: %s — disabling manifest mode", manifest_path, e)
-        return False
+        return None
 
 
 class OfflineMode:
@@ -141,6 +140,7 @@ class OfflineMode:
 
     def __init__(self) -> None:
         self.manifest_enabled: bool = False
+        self.apply_cached_skipping: bool = False
         self.payload_files_enabled: bool = False
         self.test_optimization_dir: t.Optional[str] = None
         self.output_dir: t.Optional[str] = None
@@ -149,10 +149,16 @@ class OfflineMode:
         manifest_env = env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
         if manifest_env:
             resolved = resolve_rlocation(manifest_env)
-            if _validate_manifest(resolved):
+            version = _read_manifest_version(resolved)
+            if version is not None:
                 self.manifest_enabled = True
+                self.apply_cached_skipping = version >= MANIFEST_VERSION_DDTEST
                 self.test_optimization_dir = os.path.dirname(resolved)
-                log.debug("Manifest mode enabled: .testoptimization dir = %s", self.test_optimization_dir)
+                log.debug(
+                    "Manifest mode enabled: .testoptimization dir = %s, apply_cached_skipping = %s",
+                    self.test_optimization_dir,
+                    self.apply_cached_skipping,
+                )
 
         # --- payload-files mode (output side) ---
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
