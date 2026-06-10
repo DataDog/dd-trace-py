@@ -1,3 +1,4 @@
+import inspect
 import sys
 
 import wrapt
@@ -16,7 +17,13 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
         self._agent_run = None
 
     async def __aenter__(self):
-        result = await self.__wrapped__.__aenter__()
+        try:
+            result = await self.__wrapped__.__aenter__()
+        except Exception:
+            # __aexit__ won't run if entry fails, so finish the span here to avoid leaking it.
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
         self._agent_run = result
         return result
 
@@ -36,16 +43,43 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
 
 
 class TracedPydanticRunStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs):
+    def __init__(self, wrapped, span, integration, instance, args, kwargs):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_integration = integration
+        self._dd_instance = instance
         self._args = args
         self._kwargs = kwargs
         self._streamed_run_result = None
 
+    def _infer_agent_name(self):
+        # pydantic-ai infers the agent name by scanning the user's call frame for the variable the
+        # agent is bound to. Our proxy __aenter__ adds a frame that breaks pydantic-ai's own walk,
+        # so we do it here, skipping our frame to land on the user's `async with` frame.
+        instance = self._dd_instance
+        # `infer_name=False` is the caller opting out of name inference; don't override it.
+        if instance is None or getattr(instance, "name", None) is not None or not self._kwargs.get("infer_name", True):
+            return
+        frame = inspect.currentframe()
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        if caller is None:
+            return
+        for namespace in (caller.f_locals, caller.f_globals):
+            for name, candidate in namespace.items():
+                if candidate is instance:
+                    instance.name = name
+                    return
+
     async def __aenter__(self):
-        result = await self.__wrapped__.__aenter__()
+        self._infer_agent_name()
+        try:
+            result = await self.__wrapped__.__aenter__()
+        except Exception:
+            # __aexit__ won't run if entry fails, so finish the span here to avoid leaking it.
+            self._dd_integration._run_stream_active = False
+            self._dd_span.set_exc_info(*sys.exc_info())
+            self._dd_span.finish()
+            raise
         self._streamed_run_result = TracedPydanticStreamedRunResult(
             result, self._dd_span, self._dd_integration, self._args, self._kwargs
         )

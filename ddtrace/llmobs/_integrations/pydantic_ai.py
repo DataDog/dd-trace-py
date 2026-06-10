@@ -19,20 +19,32 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-vertex": "google",
 }
 
+_OBSERVED_TOOLS_CTX_KEY = "_dd.pydantic_ai.observed_tools_handle"
+
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: dict[int, list[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
-    _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
     def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Any) -> Span:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
-            self._register_span(span, kind)
+            if kind == "agent":
+                # Observed tools accumulate on the agent span itself; tool spans find it by walking up.
+                span._set_ctx_item(_OBSERVED_TOOLS_CTX_KEY, {})
             _annotate_llmobs_span_data(span, kind=kind)
         return span
+
+    def _observed_tools_for(self, span: Span) -> Optional[dict[str, dict[str, Any]]]:
+        # Walk the span parent chain to the nearest agent span that seeded an observed-tools dict.
+        cur: Optional[Span] = span
+        while cur is not None:
+            observed: Optional[dict[str, dict[str, Any]]] = cur._get_ctx_item(_OBSERVED_TOOLS_CTX_KEY)
+            if observed is not None:
+                return observed
+            cur = cur._parent
+        return None
 
     def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
         if model:
@@ -144,6 +156,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
 
+        observed = self._observed_tools_for(span)
+        if tool_call and observed is not None:
+            toolset = self._unwrap_toolset(_get_attr(tool_instance, "toolset", None))
+            mcp_server_id = _get_attr(toolset, "id", None) if self._is_mcp_toolset(toolset) else None
+            observed.setdefault(tool_name, {"description": tool_description, "mcp_server_id": mcp_server_id})
+
         output_val = None
         if not span.error:
             # depending on the version, the output may be a ToolReturnPart or the raw response
@@ -191,9 +209,29 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        manifest["tools"] = self._get_agent_tools(agent)
+        manifest["tools"] = self._merge_observed_tools(self._get_agent_tools(agent), self._observed_tools_for(span))
+        mcp_servers = self._get_mcp_servers(agent, kwargs.get("toolsets"))
+        if mcp_servers:
+            manifest["mcp_servers"] = mcp_servers
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
+
+    @staticmethod
+    def _merge_observed_tools(
+        tools: list[dict[str, Any]], observed: Optional[dict[str, dict[str, Any]]]
+    ) -> list[dict[str, Any]]:
+        """Append tools observed during the run (e.g. MCP tools) that aren't already declared statically."""
+        existing_names = {tool.get("name") for tool in tools}
+        for tool_name, info in (observed or {}).items():
+            if tool_name in existing_names:
+                continue
+            entry: dict[str, Any] = {"name": tool_name}
+            if info.get("description"):
+                entry["description"] = info["description"]
+            if info.get("mcp_server_id"):
+                entry["mcp_server_id"] = info["mcp_server_id"]
+            tools.append(entry)
+        return tools
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """
@@ -204,6 +242,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _user_toolsets (user-defined toolsets) attributes.
         """
         tools: dict[str, Any] = {}
+        external_tool_defs: list[Any] = []
         if hasattr(agent, "_function_tools"):
             tools = getattr(agent, "_function_tools", {}) or {}
         elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
@@ -211,9 +250,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
             function_toolset = getattr(agent, "_function_toolset", None)
             combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
             for toolset in combined_toolsets:
-                tools.update(getattr(toolset, "tools", {}) or {})
+                toolset_tools = getattr(toolset, "tools", None)
+                if toolset_tools:
+                    tools.update(toolset_tools)
+                elif hasattr(toolset, "tool_defs"):
+                    external_tool_defs.extend(getattr(toolset, "tool_defs", []) or [])
 
-        if not tools:
+        if not tools and not external_tool_defs:
             return []
 
         formatted_tools = []
@@ -224,29 +267,97 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 tool_dict["description"] = tool_instance.description
             function_schema = getattr(tool_instance, "function_schema", {})
             json_schema = getattr(function_schema, "json_schema", {})
-            required_params = {param: True for param in json_schema.get("required", [])}
-            parameters: dict[str, dict[str, Any]] = {}
-            for param, schema in json_schema.get("properties", {}).items():
-                param_dict: dict[str, Any] = {}
-                if "type" in schema:
-                    param_dict["type"] = schema["type"]
-                if param in required_params:
-                    param_dict["required"] = True
-                parameters[param] = param_dict
-            tool_dict["parameters"] = parameters
+            tool_dict["parameters"] = self._format_tool_parameters(json_schema)
+            formatted_tools.append(tool_dict)
+        for tool_def in external_tool_defs:
+            tool_dict = {}
+            tool_dict["name"] = getattr(tool_def, "name", "")
+            if hasattr(tool_def, "description"):
+                tool_dict["description"] = tool_def.description
+            tool_dict["parameters"] = self._format_tool_parameters(getattr(tool_def, "parameters_json_schema", {}))
             formatted_tools.append(tool_dict)
         return formatted_tools
 
-    def _register_span(self, span: Span, kind: Any) -> None:
-        if kind == "agent":
-            self._register_agent(span)
-        elif kind == "tool":
-            self._register_tool(span)
+    @staticmethod
+    def _unwrap_toolset(toolset: Any) -> Any:
+        # WrapperToolsets (e.g. PrefixedToolset from `.prefixed()` / `load_mcp_toolsets()`) hold the
+        # real toolset under `wrapped`; follow the chain so the underlying MCP metadata isn't missed.
+        seen = set()
+        while toolset is not None and hasattr(toolset, "wrapped") and id(toolset) not in seen:
+            seen.add(id(toolset))
+            toolset = getattr(toolset, "wrapped", None)
+        return toolset
 
-    def _register_agent(self, span: Span) -> None:
-        self._latest_agent = span.span_id
-        self._running_agents[span.span_id] = []
+    @staticmethod
+    def _is_mcp_toolset(toolset: Any) -> bool:
+        # Deprecated MCPServer* expose url/command directly; the newer MCPToolset wraps a FastMCP
+        # client and exposes the transport (and thus url/command) under `client`.
+        return toolset is not None and (
+            hasattr(toolset, "url") or hasattr(toolset, "command") or hasattr(toolset, "client")
+        )
 
-    def _register_tool(self, span: Span) -> None:
-        if self._latest_agent is not None:
-            self._running_agents[self._latest_agent].append(span.span_id)
+    @staticmethod
+    def _mcp_connection_source(toolset: Any) -> Any:
+        if hasattr(toolset, "url") or hasattr(toolset, "command"):
+            return toolset
+        return getattr(getattr(toolset, "client", None), "transport", None)
+
+    @staticmethod
+    def _get_mcp_servers(agent: Any, run_toolsets: Optional[Sequence[Any]] = None) -> list[dict[str, Any]]:
+        servers: list[dict[str, Any]] = []
+        # `agent.toolsets` honors an active `override(toolsets=)`; per-run toolsets aren't on the agent.
+        toolsets = list(getattr(agent, "toolsets", None) or getattr(agent, "_user_toolsets", []) or [])
+        toolsets += list(run_toolsets or [])
+        seen: set[int] = set()
+        for toolset in toolsets:
+            if id(toolset) in seen:
+                continue
+            seen.add(id(toolset))
+            mcp = PydanticAIIntegration._unwrap_toolset(toolset)
+            if not PydanticAIIntegration._is_mcp_toolset(mcp):
+                continue
+            servers.append(PydanticAIIntegration._format_mcp_server(toolset, mcp))
+        return servers
+
+    @staticmethod
+    def _format_mcp_server(toolset: Any, mcp: Any) -> dict[str, Any]:
+        server: dict[str, Any] = {}
+        server_id = getattr(mcp, "id", None)
+        if server_id:
+            server["id"] = server_id
+        source = PydanticAIIntegration._mcp_connection_source(mcp)
+        url = getattr(source, "url", None)
+        if url:
+            from ddtrace.contrib.internal.trace_utils import _sanitized_url
+            from ddtrace.internal.utils.http import strip_query_string
+
+            # An MCP URL can embed credentials (userinfo or a `?token=` query param); drop both.
+            server["url"] = strip_query_string(_sanitized_url(url))
+        command = getattr(source, "command", None)
+        if command:
+            server["command"] = command
+            args = getattr(source, "args", None)
+            if args:
+                # MCP launch args can carry CLI credentials; mask secret-looking values before shipping.
+                from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
+
+                server["args"] = SubprocessCmdLine([command, *args], shell=False).arguments
+        # `.prefixed()` carries the applied prefix on the wrapper; fall back to the MCP toolset's own.
+        tool_prefix = getattr(toolset, "prefix", None) or getattr(mcp, "tool_prefix", None)
+        if tool_prefix:
+            server["tool_prefix"] = tool_prefix
+        return server
+
+    @staticmethod
+    def _format_tool_parameters(json_schema: Optional[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        json_schema = json_schema or {}
+        required_params = set(json_schema.get("required", []))
+        parameters: dict[str, dict[str, Any]] = {}
+        for param, schema in json_schema.get("properties", {}).items():
+            param_dict: dict[str, Any] = {}
+            if "type" in schema:
+                param_dict["type"] = schema["type"]
+            if param in required_params:
+                param_dict["required"] = True
+            parameters[param] = param_dict
+        return parameters
