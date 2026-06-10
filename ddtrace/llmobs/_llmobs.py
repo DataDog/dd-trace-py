@@ -152,6 +152,8 @@ from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_sample_rate
+from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
@@ -2046,11 +2048,10 @@ class LLMObs(Service):
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
-            span_dd = _get_llmobs_data_metastruct(active).get(LLMOBS_STRUCT.DD, {})
-            if span_dd.get(LLMOBS_STRUCT.SAMPLE_RATE) is not None:
-                context._meta[PROPAGATED_SAMPLE_RATE] = span_dd[LLMOBS_STRUCT.SAMPLE_RATE]
-            if span_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION) is not None:
-                context._meta[PROPAGATED_SAMPLING_DECISION] = span_dd[LLMOBS_STRUCT.SAMPLING_DECISION]
+            if get_llmobs_sample_rate(active) is not None:
+                context._meta[PROPAGATED_SAMPLE_RATE] = get_llmobs_sample_rate(active)
+            if get_llmobs_sampling_decision(active) is not None:
+                context._meta[PROPAGATED_SAMPLING_DECISION] = get_llmobs_sampling_decision(active)
             return context
         return None
 
@@ -2071,9 +2072,8 @@ class LLMObs(Service):
                 llmobs_trace_id = get_llmobs_trace_id(llmobs_parent)
                 ml_app = llmobs_parent._get_ctx_item(ML_APP)
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
-                parent_dd = _get_llmobs_data_metastruct(llmobs_parent).get(LLMOBS_STRUCT.DD, {})
-                sample_rate = parent_dd.get(LLMOBS_STRUCT.SAMPLE_RATE)
-                sampling_decision = parent_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION)
+                sample_rate = get_llmobs_sample_rate(llmobs_parent)
+                sampling_decision = get_llmobs_sampling_decision(llmobs_parent)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
@@ -3040,9 +3040,8 @@ class LLMObs(Service):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
-            span_dd = _get_llmobs_data_metastruct(active_span).get(LLMOBS_STRUCT.DD, {})
-            sample_rate = span_dd.get(LLMOBS_STRUCT.SAMPLE_RATE)
-            sampling_decision = span_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION)
+            sample_rate = get_llmobs_sample_rate(active_span)
+            sampling_decision = get_llmobs_sampling_decision(active_span)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))

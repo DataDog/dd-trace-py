@@ -400,6 +400,16 @@ def get_llmobs_trace_id(span: Span) -> Optional[str]:
     return trace_id
 
 
+def get_llmobs_sample_rate(span: Span) -> Optional[str]:
+    """Return the LLMObs sample rate stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
+
+
+def get_llmobs_sampling_decision(span: Span) -> Optional[str]:
+    """Return the LLMObs sampling decision stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
+
+
 _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
