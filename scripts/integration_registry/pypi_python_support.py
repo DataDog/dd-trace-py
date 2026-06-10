@@ -1,3 +1,21 @@
+"""Determine which Python versions a PyPI package release supports.
+
+Given a package, a specific release version, and a set of candidate Python
+versions (e.g. ``("3.8", "3.9", "3.10")``), this module figures out which of
+those candidates the release actually supports by inspecting its PyPI metadata.
+
+The compatibility is resolved in order of preference:
+
+1. The release's ``requires_python`` specifier (e.g. ``>=3.8``), when present.
+2. Otherwise, the minimum Python version inferred from the package's
+   ``Programming Language :: Python :: X.Y`` trove classifiers and the CPython
+   wheel tags (e.g. ``cp311``) published for the release.
+3. If neither source yields information, all candidates are assumed compatible.
+
+Results are cached so repeated lookups for the same package/version do not
+re-fetch metadata from PyPI.
+"""
+
 from functools import lru_cache
 import json
 import re

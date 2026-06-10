@@ -23,6 +23,7 @@ SUPPORTED_VERSIONS_PATH = PROJECT_ROOT / "supported_versions.json"
 
 REQUIREMENTS_DIR = PROJECT_ROOT / ".riot" / "requirements"
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
+PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
 LATEST = ""
 
 
@@ -111,6 +112,11 @@ def parse_locked_versions(requirements_path: Path) -> dict[str, str]:
     return locked_versions
 
 
+def is_concrete_python_version(python_version: str) -> bool:
+    """Return whether a riot Python hint identifies one concrete major.minor runtime."""
+    return PYTHON_VERSION_RE.match(python_version) is not None
+
+
 def collect_tested_versions() -> tuple[dict[str, dict[str, set[TestedVersion]]], set[str]]:
     """Collect tested dependency versions by integration and Python version."""
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
@@ -122,6 +128,9 @@ def collect_tested_versions() -> tuple[dict[str, dict[str, set[TestedVersion]]],
         riot_venv = riot_hash_to_venvs.get(riot_hash, None)
 
         if not riot_venv:
+            continue
+
+        if not is_concrete_python_version(riot_venv.python_version):
             continue
 
         python_versions.add(riot_venv.python_version)
