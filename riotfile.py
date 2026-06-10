@@ -3219,7 +3219,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pydantic-ai-slim[openai,mcp]": ["==1.106.0"],
                         "mcp": latest,
