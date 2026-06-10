@@ -5,9 +5,10 @@ import aiokafka
 from aiokafka.protocol.metadata import MetadataRequest_v5
 
 
-# aiokafka >= 0.14 exposes MetadataRequest as a new-style Request class; in
-# 0.9–0.12 it's a list of versioned structs. Only the class works with the new
-# conn.send(); otherwise fall back to MetadataRequest_v5 below.
+# In aiokafka 0.13+, MetadataRequest is the request class we want. In 0.9–0.12
+# the same name is a list of versioned structs, so the import succeeds but the
+# value isn't usable. Keep it only if it's actually a class; otherwise fall back
+# to MetadataRequest_v5.
 try:
     from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
 except ImportError:
