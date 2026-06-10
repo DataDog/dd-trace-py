@@ -2,19 +2,8 @@ from time import monotonic
 from time import time_ns
 
 import aiokafka
+from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
 from aiokafka.protocol.metadata import MetadataRequest_v5
-
-
-# In aiokafka 0.13+, MetadataRequest is the request class we want. In 0.9–0.12
-# the same name is a list of versioned structs, so the import succeeds but the
-# value isn't usable. Keep it only if it's actually a class; otherwise fall back
-# to MetadataRequest_v5.
-try:
-    from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
-except ImportError:
-    _MetadataRequest = None
-if not isinstance(_MetadataRequest, type):
-    _MetadataRequest = None
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -41,8 +30,13 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+
+
+if parse_version(aiokafka.__version__) < (0, 13, 0):
+    _MetadataRequest = None
 
 
 log = get_logger(__name__)
