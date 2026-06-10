@@ -59,6 +59,9 @@ class StackCollector(collector.Collector):
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.set_target_overhead(config.stack.adaptive_sampling_target_overhead)
         stack.set_max_sampling_period(config.stack.adaptive_sampling_max_interval)
+        stack.set_adaptive_sampling_baseline(config.stack.adaptive_sampling_baseline)
+        stack.set_p_stable_window_s(config.stack.adaptive_sampling_p_stable_window_s)
+        stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():

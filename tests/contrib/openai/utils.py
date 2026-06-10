@@ -256,14 +256,35 @@ def mock_response_mcp_tool_call():
 # NOTE: that different cassettes have to be used between sync and async
 #       due to this issue: https://github.com/kevin1024/vcrpy/issues/463
 #       between cassettes generated for requests and aiohttp.
+# Agent requests must never be matched against a cassette. VCR patches http.client
+# process-wide, so an active (or leaked) cassette can intercept the snapshot checks and
+# CI Visibility uploads and raise CannotOverwriteExistingCassetteException. ignore_localhost
+# misses this in CI, where the agent is `testagent`/a container IP. Match by path instead.
+_AGENT_PATH_PREFIXES = (
+    "/test/session",  # snapshot fixture
+    "/evp_proxy",  # CI Visibility + LLMObs intake
+    "/telemetry",  # telemetry
+    "/v0.",  # traces, stats, remote config
+    "/info",  # agent info
+)
+
+
+def _ignore_agent_requests(request):
+    # Returning None makes VCR pass the request through to the real agent (same as ignore_hosts).
+    if request.path.startswith(_AGENT_PATH_PREFIXES):
+        return None
+    return request
+
+
 def get_openai_vcr(subdirectory_name=""):
     return vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "cassettes/%s" % subdirectory_name),
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "OpenAI-Organization", "api-key"],
-        # Ignore requests to the agent
+        # Ignore requests to the agent (see _ignore_agent_requests above).
         ignore_localhost=True,
+        before_record_request=_ignore_agent_requests,
     )
 
 
