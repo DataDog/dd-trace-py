@@ -1,3 +1,5 @@
+import asyncio
+
 import mock
 import pydantic_ai
 import pytest
@@ -10,7 +12,9 @@ from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_agent_metadata
 from tests.contrib.pydantic_ai.utils import expected_calculate_square_tool
+from tests.contrib.pydantic_ai.utils import expected_external_tool
 from tests.contrib.pydantic_ai.utils import expected_foo_tool
+from tests.contrib.pydantic_ai.utils import expected_mcp_tool
 from tests.contrib.pydantic_ai.utils import foo_tool
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -90,6 +94,30 @@ class TestLLMObsPydanticAI:
             metadata=expected_agent_metadata(),
             tags=PYDANTIC_AI_TAGS,
         )
+
+    async def test_agent_run_stream_infers_name(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            inferred_stream_agent = pydantic_ai.Agent(model="gpt-4o")
+            async with inferred_stream_agent.run_stream("Hello, world!") as result:
+                async for _ in result.stream(debounce_by=None):
+                    pass
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["name"] == "inferred_stream_agent"
+
+    async def test_agent_run_stream_respects_infer_name_false(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    ):
+        """`infer_name=False` is the caller opting out of name inference; we must not override it."""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            unnamed_agent = pydantic_ai.Agent(model="gpt-4o")
+            async with unnamed_agent.run_stream("Hello, world!", infer_name=False) as result:
+                async for _ in result.stream(debounce_by=None):
+                    pass
+        assert unnamed_agent.name is None
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert _get_llmobs_data_metastruct(spans[0])["name"] == "PydanticAI Agent"
 
     @pytest.mark.parametrize("delta", [False, True])
     async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, delta):
@@ -320,6 +348,30 @@ class TestLLMObsPydanticAI:
         assert agent_span_data["meta"]["error"]["message"] == "test error"
         assert spans[0].error == 1
 
+    async def test_agent_entry_failure_finishes_span(self, pydantic_ai, pydantic_ai_llmobs):
+        """If the underlying context manager's __aenter__ raises, __aexit__ never runs; the span must
+        still be finished and marked as errored so it isn't leaked.
+        """
+        from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
+
+        integration = pydantic_ai._datadog_integration
+
+        class _FailingEnter:
+            async def __aenter__(self):
+                raise RuntimeError("connection failed")
+
+            async def __aexit__(self, *exc):
+                return False
+
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+        span = integration.trace("test_agent", span_name="pydantic_ai.agent", submit_to_llmobs=True, kind="agent")
+        cm = TracedPydanticAsyncContextManager(_FailingEnter(), span, agent, integration, (), {})
+        with pytest.raises(RuntimeError, match="connection failed"):
+            async with cm:
+                pass
+        assert span.finished
+        assert span.error == 1
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
     async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         """Test that the agent manifest includes tools from both the function toolset and the user-defined toolsets"""
@@ -344,6 +396,210 @@ class TestLLMObsPydanticAI:
             metadata=expected_agent_metadata(tools=expected_calculate_square_tool() + expected_foo_tool()),
             tags=PYDANTIC_AI_TAGS,
         )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support ExternalToolset")
+    async def test_agent_run_with_external_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        """Test that the agent manifest includes external tools exposed via ExternalToolset.tool_defs"""
+        from pydantic_ai.tools import ToolDefinition
+        from pydantic_ai.toolsets import ExternalToolset
+
+        external_toolset = ExternalToolset(
+            [
+                ToolDefinition(
+                    name="external_tool",
+                    description="An external tool",
+                    parameters_json_schema={
+                        "type": "object",
+                        "properties": {"q": {"type": "string"}},
+                        "required": ["q"],
+                    },
+                )
+            ]
+        )
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[external_toolset])
+            result = await agent.run("Hello, world!")
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            input_value="Hello, world!",
+            output_value=result.output,
+            metadata=expected_agent_metadata(tools=expected_external_tool()),
+            tags=PYDANTIC_AI_TAGS,
+        )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
+    async def test_agent_run_with_mcp_server(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        """Test that the manifest records MCP server metadata and the MCP tool actually called"""
+        import os
+        import sys
+
+        from pydantic_ai.mcp import MCPServerStdio
+
+        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+        mcp_server = MCPServerStdio(command=sys.executable, args=[server_path], id="square-mcp", env=os.environ.copy())
+        with request_vcr.use_cassette("agent_with_tools.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[mcp_server])
+            async with agent:
+                result = await agent.run("What is the square of 2?")
+        trace = test_spans.pop_traces()[0]
+        agent_span_data = _get_llmobs_data_metastruct(trace[0])
+        tool_span_data = _get_llmobs_data_metastruct(trace[1])
+        assert_llmobs_span_data(
+            agent_span_data,
+            span_kind="agent",
+            name="test_agent",
+            input_value="What is the square of 2?",
+            output_value=result.output,
+            metadata=expected_agent_metadata(
+                tools=expected_mcp_tool("square-mcp"),
+                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
+            ),
+            tags=PYDANTIC_AI_TAGS,
+        )
+        assert_llmobs_span_data(
+            tool_span_data,
+            span_kind="tool",
+            name="calculate_square_tool",
+        )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
+    async def test_agent_run_with_mcp_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        """Test that MCP metadata and the called MCP tool are captured for the newer MCPToolset class,
+        whose transport (and thus command/url) is exposed via its FastMCP client rather than directly.
+        """
+        import os
+        import sys
+
+        from fastmcp.client.transports import PythonStdioTransport
+        from pydantic_ai.mcp import MCPToolset
+
+        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+        transport = PythonStdioTransport(server_path, env=os.environ.copy())
+        toolset = MCPToolset(transport, id="square-mcp")
+        with request_vcr.use_cassette("agent_with_tools.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
+            async with agent:
+                result = await agent.run("What is the square of 2?")
+        trace = test_spans.pop_traces()[0]
+        agent_span_data = _get_llmobs_data_metastruct(trace[0])
+        tool_span_data = _get_llmobs_data_metastruct(trace[1])
+        assert_llmobs_span_data(
+            agent_span_data,
+            span_kind="agent",
+            name="test_agent",
+            input_value="What is the square of 2?",
+            output_value=result.output,
+            metadata=expected_agent_metadata(
+                tools=expected_mcp_tool("square-mcp"),
+                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
+            ),
+            tags=PYDANTIC_AI_TAGS,
+        )
+        assert_llmobs_span_data(
+            tool_span_data,
+            span_kind="tool",
+            name="calculate_square_tool",
+        )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
+    def test_mcp_metadata_through_wrapper_toolset(self, pydantic_ai, pydantic_ai_llmobs):
+        """A WrapperToolset (e.g. PrefixedToolset from `.prefixed()` / `load_mcp_toolsets()`) hides the
+        MCPToolset under `wrapped`. The manifest must still capture the underlying MCP server metadata.
+        """
+        import os
+        import sys
+
+        from fastmcp.client.transports import PythonStdioTransport
+        from pydantic_ai.mcp import MCPToolset
+
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+        toolset = MCPToolset(PythonStdioTransport(server_path, env=os.environ.copy()), id="square-mcp").prefixed("sq")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
+
+        assert PydanticAIIntegration._get_mcp_servers(agent) == [
+            {"id": "square-mcp", "command": sys.executable, "args": [server_path], "tool_prefix": "sq"}
+        ]
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
+    def test_mcp_args_credentials_scrubbed(self, pydantic_ai, pydantic_ai_llmobs):
+        """MCP launch args can carry CLI credentials; secret-looking values must be masked in the
+        manifest before the span ships, not recorded verbatim.
+        """
+        import sys
+
+        from pydantic_ai.mcp import MCPServerStdio
+
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        server = MCPServerStdio(
+            command=sys.executable, args=["-m", "srv", "--api-key", "sk-supersecret"], id="cred-mcp"
+        )
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[server])
+
+        assert PydanticAIIntegration._get_mcp_servers(agent) == [
+            {"id": "cred-mcp", "command": sys.executable, "args": ["-m", "srv", "--api-key", "?"]}
+        ]
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
+    def test_mcp_url_credentials_scrubbed(self, pydantic_ai, pydantic_ai_llmobs):
+        """An MCP URL can embed credentials (userinfo or a `?token=` query param); both must be
+        dropped from the manifest before the span ships.
+        """
+        from pydantic_ai.mcp import MCPServerSSE
+
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        server = MCPServerSSE(url="https://user:pass@mcp.example.com/sse?token=sk-secret", id="url-mcp")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[server])
+
+        assert PydanticAIIntegration._get_mcp_servers(agent) == [
+            {"id": "url-mcp", "url": "https://mcp.example.com/sse"}
+        ]
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
+    def test_mcp_metadata_from_per_run_toolset(self, pydantic_ai, pydantic_ai_llmobs):
+        """MCP toolsets passed per-run (run/run_stream/iter `toolsets=`) aren't stored on the agent;
+        their server metadata must still land in the manifest so the recorded MCP tool has a match.
+        """
+        import sys
+
+        from pydantic_ai.mcp import MCPServerStdio
+
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        server = MCPServerStdio(command=sys.executable, args=["-m", "srv"], id="run-mcp")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+
+        assert PydanticAIIntegration._get_mcp_servers(agent) == []
+        assert PydanticAIIntegration._get_mcp_servers(agent, [server]) == [
+            {"id": "run-mcp", "command": sys.executable, "args": ["-m", "srv"]}
+        ]
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
+    def test_mcp_metadata_from_override_toolset(self, pydantic_ai, pydantic_ai_llmobs):
+        """`agent.override(toolsets=[...])` replaces the agent's toolsets for the run; the manifest's
+        MCP servers must come from the effective (overridden) toolsets, not the stale constructor list.
+        """
+        import sys
+
+        from pydantic_ai.mcp import MCPServerStdio
+
+        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+        original = MCPServerStdio(command=sys.executable, args=["-m", "orig"], id="orig-mcp")
+        override = MCPServerStdio(command=sys.executable, args=["-m", "override"], id="override-mcp")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[original])
+
+        with agent.override(toolsets=[override]):
+            assert PydanticAIIntegration._get_mcp_servers(agent) == [
+                {"id": "override-mcp", "command": sys.executable, "args": ["-m", "override"]}
+            ]
 
     async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
@@ -438,6 +694,72 @@ class TestLLMObsPydanticAI:
             metadata=expected_agent_metadata(),
             tags=PYDANTIC_AI_TAGS,
         )
+
+    async def test_concurrent_agents_no_tool_cross_contamination(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """Two agents run concurrently, each with its own tool. A tool from one agent must not be
+        attributed to the other agent's manifest; each tool span resolves its own agent ancestor.
+        """
+        from pydantic_ai.models.test import TestModel
+
+        a_ready = asyncio.Event()
+        b_ready = asyncio.Event()
+
+        async def tool_a() -> str:
+            """Tool A"""
+            a_ready.set()
+            await asyncio.wait_for(b_ready.wait(), timeout=5)
+            return "a"
+
+        async def tool_b() -> str:
+            """Tool B"""
+            b_ready.set()
+            await asyncio.wait_for(a_ready.wait(), timeout=5)
+            return "b"
+
+        agent_a = pydantic_ai.Agent(model=TestModel(), name="agent_a", tools=[tool_a])
+        agent_b = pydantic_ai.Agent(model=TestModel(), name="agent_b", tools=[tool_b])
+
+        await asyncio.gather(agent_a.run("go a"), agent_b.run("go b"))
+
+        manifests = {}
+        for trace in test_spans.pop_traces():
+            data = _get_llmobs_data_metastruct(trace[0])
+            manifest = data["meta"]["metadata"]["_dd"]["agent_manifest"]
+            manifests[manifest["name"]] = {tool["name"] for tool in manifest["tools"]}
+
+        assert manifests["agent_a"] == {"tool_a"}, manifests
+        assert manifests["agent_b"] == {"tool_b"}, manifests
+
+    async def test_nested_agent_delegation_tool_attribution(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
+        """An outer agent's tool delegates to an inner agent. Each tool span must attribute to its
+        nearest agent ancestor, so the inner tool lands on the inner agent and the outer tool on the
+        outer agent.
+        """
+        from pydantic_ai.models.test import TestModel
+
+        async def inner_tool() -> str:
+            """Inner tool"""
+            return "inner"
+
+        inner_agent = pydantic_ai.Agent(model=TestModel(), name="inner_agent", tools=[inner_tool])
+
+        async def delegate() -> str:
+            """Delegate to the inner agent"""
+            result = await inner_agent.run("inner go")
+            return result.output
+
+        outer_agent = pydantic_ai.Agent(model=TestModel(), name="outer_agent", tools=[delegate])
+        await outer_agent.run("outer go")
+
+        manifests = {}
+        for trace in test_spans.pop_traces():
+            for span in trace:
+                manifest = _get_llmobs_data_metastruct(span)["meta"]["metadata"].get("_dd", {}).get("agent_manifest")
+                if manifest:
+                    manifests[manifest["name"]] = {tool["name"] for tool in manifest["tools"]}
+
+        assert manifests["outer_agent"] == {"delegate"}, manifests
+        assert manifests["inner_agent"] == {"inner_tool"}, manifests
 
 
 class TestLLMObsPydanticAISpanLinks:

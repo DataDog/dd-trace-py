@@ -25,20 +25,41 @@ def expected_foo_tool():
     ]
 
 
-def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> dict:
-    return {
-        "_dd": {
-            "agent_manifest": {
-                "framework": "PydanticAI",
-                "name": "test_agent",
-                "model": "gpt-4o",
-                "model_settings": model_settings,
-                "instructions": instructions,
-                "system_prompts": (system_prompt,) if system_prompt else (),
-                "tools": tools if tools is not None else [],
-            }
+def expected_external_tool():
+    return [
+        {
+            "name": "external_tool",
+            "description": "An external tool",
+            "parameters": {"q": {"type": "string", "required": True}},
         }
+    ]
+
+
+def expected_mcp_tool(mcp_server_id):
+    return [
+        {
+            "name": "calculate_square_tool",
+            "description": "Calculates the square of a number",
+            "mcp_server_id": mcp_server_id,
+        }
+    ]
+
+
+def expected_agent_metadata(
+    instructions=None, system_prompt=None, model_settings=None, tools=None, mcp_servers=None
+) -> dict:
+    manifest = {
+        "framework": "PydanticAI",
+        "name": "test_agent",
+        "model": "gpt-4o",
+        "model_settings": model_settings,
+        "instructions": instructions,
+        "system_prompts": (system_prompt,) if system_prompt else (),
+        "tools": tools if tools is not None else [],
     }
+    if mcp_servers is not None:
+        manifest["mcp_servers"] = mcp_servers
+    return {"_dd": {"agent_manifest": manifest}}
 
 
 def calculate_square_tool(x: int) -> int:
