@@ -9,12 +9,6 @@ from tests.contrib.config import KAFKA_CONFIG
 
 @pytest.fixture(scope="session", autouse=True)
 def kafka_ready():
-    """Wait for the broker to be fully up before any DSM test runs.
-
-    In CI the broker starts alongside the test job, so a client can connect
-    before cluster metadata (cluster_id) exists, intermittently flaking the
-    DSM assertions. Real deployments start the broker first and don't hit this.
-    """
     bootstrap = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
 
     async def _wait():
