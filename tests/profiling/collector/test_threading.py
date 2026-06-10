@@ -2000,7 +2000,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"profiled: {profiled_time_zero:.6f}s)"
         )
 
-    def test_release_dropped_when_acquire_dropped(self) -> None:
+    def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
         """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
         # Use capture_pct=0 to ensure acquire is NEVER sampled
         with self.collector_class(capture_pct=0):
