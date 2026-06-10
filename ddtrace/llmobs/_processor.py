@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from typing import Optional
+from typing import cast
 
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
@@ -73,7 +74,7 @@ class LLMObsProcessor(TraceProcessor):
             self._scrub(span)
             return
 
-        mode = span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY)
+        mode = cast(LLMObsExportMode, span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY))
 
         # The event rides the APM trace only when that trace is actually being sent
         # AND the mode keeps it on the trace (agentless = 100%, agent = kept priority).
