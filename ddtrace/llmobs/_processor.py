@@ -45,28 +45,28 @@ class LLMObsProcessor(TraceProcessor):
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
-        direct_mode = (
-            LLMObsExportMode.LLMOBS_AGENTLESS
-            if self._llmobs_span_writer._agentless
-            else LLMObsExportMode.LLMOBS_AGENT_PROXY
-        )
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
             try:
-                self._route_span(span, drop_apm_trace, direct_mode)
+                self._route_span(span, drop_apm_trace)
             except Exception:
                 log.debug("Failed to route LLMObs event for span %s.", span, exc_info=True)
         if drop_apm_trace:
             return None
         return trace
 
-    def _route_span(self, span: Span, drop_apm_trace: bool, direct_mode: LLMObsExportMode) -> None:
+    def _route_span(self, span: Span, drop_apm_trace: bool) -> None:
         mode = span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY)
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
+        non_apm_mode = (
+            LLMObsExportMode.LLMOBS_AGENTLESS
+            if self._llmobs_span_writer._agentless
+            else LLMObsExportMode.LLMOBS_AGENT_PROXY
+        )
         # APM modes can't ride a dropped trace; rewrite to the writer's transport.
         if drop_apm_trace and mode in (LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS):
-            mode = direct_mode
+            mode = non_apm_mode
 
         if event is None:
             # Half-built payload (build failed mid-annotation): scrub so it never rides the APM trace.
@@ -75,27 +75,28 @@ class LLMObsProcessor(TraceProcessor):
             return
 
         if self._keep_meta_struct:
-            # Test mode: always enqueue without scrubbing meta_struct.
-            self._llmobs_span_writer.enqueue(event)
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            return
-
-        if mode in (LLMObsExportMode.LLMOBS_AGENT_PROXY, LLMObsExportMode.LLMOBS_AGENTLESS):
-            telemetry.record_span_created(span, mode)
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
-            self._llmobs_span_writer.enqueue(event)
+            send_via_llmobs = True
+            mode = non_apm_mode
+        elif mode in (LLMObsExportMode.LLMOBS_AGENT_PROXY, LLMObsExportMode.LLMOBS_AGENTLESS):
+            send_via_llmobs = True
         elif mode == LLMObsExportMode.APM_AGENT:
             root = span._local_root or span
             priority = root.context.sampling_priority
             if priority is not None and priority <= 0:
-                telemetry.record_span_created(span, direct_mode)
-                span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
-                self._llmobs_span_writer.enqueue(event)
+                send_via_llmobs = True
+                mode = non_apm_mode
             else:
-                telemetry.record_span_created(span, mode)
+                send_via_llmobs = False
         elif mode == LLMObsExportMode.APM_AGENTLESS:
-            telemetry.record_span_created(span, mode)
+            send_via_llmobs = False
         else:
             log.debug("Skipping LLMObs event for span %s. Unexpected mode: %s", span, mode)
+            return
+
+        if send_via_llmobs:
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            if not self._keep_meta_struct:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            self._llmobs_span_writer.enqueue(event)
+
+        telemetry.record_span_created(span, mode)
