@@ -115,6 +115,11 @@ def patch() -> None:
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
 
+    # AIDEV-NOTE: AI Guard mirrors this wrap-target list in
+    # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
+    # install its outermost streaming buffer. If you add/rename a target or
+    # change the >= (0, 37) beta gate below, update that list too or the new
+    # surface goes unbuffered for stream-response evaluation.
     wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.Messages.stream", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.AsyncMessages.create", traced_async_chat_model_generate)

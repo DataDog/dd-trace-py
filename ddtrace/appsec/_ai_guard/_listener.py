@@ -145,6 +145,12 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
     # Mark before try so _uninstall_anthropic_wrappers can clean up partial installs on failure.
     _anthropic_wrappers_installed = True
+    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch() (and
+    # the unwrap list in _uninstall_anthropic_wrappers below). If the contrib
+    # adds/renames a streaming target or changes the >= (0, 37) beta gate, that
+    # surface silently goes unbuffered here -- a security gap with no failing
+    # test. Keep all three lists aligned.
     try:
         wrap("anthropic", "resources.messages.Messages.create", sync_wrapper)
         wrap("anthropic", "resources.messages.Messages.stream", sync_wrapper)

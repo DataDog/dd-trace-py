@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 
-def reconstruct_anthropic(chunks: list) -> dict[str, Any]:
+def reconstruct_anthropic(chunks: list[Any]) -> dict[str, Any]:
     """Return a response-shaped dict from buffered RawMessageStreamEvents.
 
     Output format matches what ``_convert_anthropic_response`` expects::

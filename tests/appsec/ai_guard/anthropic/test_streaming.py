@@ -211,6 +211,57 @@ async def test_stream_async_response_block(mock_execute_request, async_anthropic
     assert mock_execute_request.call_count == 2
 
 
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_create_stream_true_async_buffered_allow(mock_execute_request, async_anthropic_client_stream_buffered):
+    """``AsyncMessages.create(stream=True)`` (async_wrapper path) ALLOW delivers text after 2 evals."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = await async_anthropic_client_stream_buffered.messages.create(
+        messages=_user_messages(), stream=True, **CHAT_PARAMS
+    )
+    chunks = [chunk async for chunk in stream]
+    assert chunks
+    assert mock_execute_request.call_count == 2
+
+
+@pytest.mark.asyncio
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_create_stream_true_async_buffered_block(mock_execute_request, async_anthropic_client_stream_buffered):
+    """``AsyncMessages.create(stream=True)`` (async_wrapper path) DENY raises before any chunk."""
+    mock_execute_request.side_effect = [
+        mock_evaluate_response("ALLOW"),  # before-hook: allow
+        mock_evaluate_response("DENY"),  # response evaluation: block
+    ]
+
+    stream = await async_anthropic_client_stream_buffered.messages.create(
+        messages=_user_messages(), stream=True, **CHAT_PARAMS
+    )
+    with pytest.raises(AIGuardAbortError):
+        async for _ in stream:
+            pass
+
+    assert mock_execute_request.call_count == 2
+
+
+@patch("ddtrace.appsec._ai_guard._listener.reconstruct_anthropic", side_effect=RuntimeError("boom"))
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_stream_reconstruction_failure_fails_open(
+    mock_execute_request, _mock_reconstruct, anthropic_client_stream_buffered
+):
+    """A reconstruction error must NOT break the stream: chunks are replayed and the
+    response evaluation is skipped (only the before-hook eval fires).
+    """
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    with anthropic_client_stream_buffered.messages.stream(messages=_user_messages(), **CHAT_PARAMS) as stream:
+        chunks = list(stream.text_stream)
+
+    assert "".join(chunks) == "ok"
+    # Reconstruction blew up before evaluate(); only the before-hook evaluation ran.
+    assert mock_execute_request.call_count == 1
+
+
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_wrappers_not_installed_when_flag_off(mock_execute_request, anthropic_client_stream):
     """Default (flag=False): stream is NOT wrapped in a BufferedAIGuardStream."""
