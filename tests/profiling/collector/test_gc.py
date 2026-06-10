@@ -130,7 +130,7 @@ def test_on_gc_emits_alloc_sample_for_collected_objects() -> None:
     assert len(handles) == 2
     alloc_handle = handles[1]
     alloc_handle.push_alloc.assert_called_once_with(10, 1)
-    alloc_handle.push_frame.assert_called_once_with("gc.collect[gen=1]", "gc", 0, 1)
+    alloc_handle.push_frame.assert_called_once_with("gc.collect[gen=1]", "gc", 0, 0)
     alloc_handle.flush_sample.assert_called_once()
 
 

@@ -69,7 +69,7 @@ class GCCollector(collector.Collector):
 
             handle = ddup.SampleHandle()
             handle.push_walltime(pause_ns, 1)
-            handle.push_frame(frame_name, "gc", 0, gen)
+            handle.push_frame(frame_name, "gc", 0, 0)
             handle.push_monotonic_ns(time.monotonic_ns())
             handle.flush_sample()
 
@@ -77,7 +77,7 @@ class GCCollector(collector.Collector):
             if collected > 0:
                 handle2 = ddup.SampleHandle()
                 handle2.push_alloc(collected, 1)
-                handle2.push_frame(frame_name, "gc", 0, gen)
+                handle2.push_frame(frame_name, "gc", 0, 0)
                 handle2.push_monotonic_ns(time.monotonic_ns())
                 handle2.flush_sample()
 
