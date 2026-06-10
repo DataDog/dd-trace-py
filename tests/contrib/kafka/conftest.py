@@ -1,3 +1,5 @@
+import time
+
 import confluent_kafka
 from confluent_kafka import KafkaException
 from confluent_kafka import TopicPartition
@@ -5,6 +7,7 @@ from confluent_kafka import admin as kafka_admin
 import pytest
 
 from ddtrace._trace.filters import TraceFilter
+from ddtrace.contrib.internal.kafka.patch import _cluster_id_by_bootstrap
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from tests.conftest import get_original_test_name
@@ -13,6 +16,28 @@ from tests.contrib.config import KAFKA_CONFIG
 
 GROUP_ID = "test_group"
 BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
+
+
+@pytest.fixture(scope="session", autouse=True)
+def kafka_ready():
+    deadline = time.monotonic() + 30
+    last_err = None
+    while time.monotonic() < deadline:
+        try:
+            client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+            metadata = client.list_topics(timeout=2)
+            if metadata.brokers:
+                # Pre-populate the cluster_id cache so consumer commits that happen before
+                # any traced producer has run (e.g. fixture setup) still get a cluster_id.
+                if metadata.cluster_id:
+                    _cluster_id_by_bootstrap[BOOTSTRAP_SERVERS] = metadata.cluster_id
+                return
+        except Exception as e:
+            last_err = e
+        time.sleep(0.5)
+    raise RuntimeError("Kafka at {} not ready after 30s: {}".format(BOOTSTRAP_SERVERS, last_err))
+
+
 KEY = "test_key"
 
 
@@ -70,6 +95,23 @@ def empty_kafka_topic(request):
 def group_id(kafka_topic):
     """Unique consumer group ID per test to avoid cross-test rebalancing under xdist."""
     return kafka_topic
+
+
+@pytest.fixture
+def fresh_consumer(kafka_tracer, empty_kafka_topic, group_id):
+    """Consumer for a freshly created (empty) topic — no initial offset commit, so only
+    messages produced during this test are ever visible to the consumer."""
+    _consumer = confluent_kafka.Consumer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "group.id": group_id,
+            "auto.offset.reset": "earliest",
+            "auto.commit.interval.ms": 500,
+        }
+    )
+    _consumer.subscribe([empty_kafka_topic])
+    yield _consumer
+    _consumer.close()
 
 
 @pytest.fixture

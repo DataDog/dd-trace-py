@@ -32,7 +32,9 @@ def dsm_processor():
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
 @pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
-def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topic, payload_and_length, key_and_length):
+def test_data_streams_payload_size(
+    dsm_processor, fresh_consumer, producer, empty_kafka_topic, payload_and_length, key_and_length
+):
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     test_headers = {"1234": "5678"}
@@ -44,9 +46,16 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
-    producer.produce(kafka_topic, payload, key=key, headers=test_headers)
+    producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
     producer.flush()
-    consumer.poll()
+
+    # Poll until the produced message arrives; the topic is empty so any message
+    # received is the one we just produced.
+    message = None
+    deadline = time.monotonic() + 10
+    while message is None and time.monotonic() < deadline:
+        message = fresh_consumer.poll(timeout=1.0)
+    assert message is not None, "Consumer did not receive the produced message within 10s"
 
     # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
     # can land in different buckets when the test straddles a boundary. Iterate
