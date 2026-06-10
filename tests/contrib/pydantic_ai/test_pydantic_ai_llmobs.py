@@ -348,30 +348,6 @@ class TestLLMObsPydanticAI:
         assert agent_span_data["meta"]["error"]["message"] == "test error"
         assert spans[0].error == 1
 
-    async def test_agent_entry_failure_finishes_span(self, pydantic_ai, pydantic_ai_llmobs):
-        """If the underlying context manager's __aenter__ raises, __aexit__ never runs; the span must
-        still be finished and marked as errored so it isn't leaked.
-        """
-        from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
-
-        integration = pydantic_ai._datadog_integration
-
-        class _FailingEnter:
-            async def __aenter__(self):
-                raise RuntimeError("connection failed")
-
-            async def __aexit__(self, *exc):
-                return False
-
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-        span = integration.trace("test_agent", span_name="pydantic_ai.agent", submit_to_llmobs=True, kind="agent")
-        cm = TracedPydanticAsyncContextManager(_FailingEnter(), span, agent, integration, (), {})
-        with pytest.raises(RuntimeError, match="connection failed"):
-            async with cm:
-                pass
-        assert span.finished
-        assert span.error == 1
-
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
     async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         """Test that the agent manifest includes tools from both the function toolset and the user-defined toolsets"""

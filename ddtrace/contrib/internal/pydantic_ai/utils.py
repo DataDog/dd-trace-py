@@ -17,13 +17,7 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
         self._agent_run = None
 
     async def __aenter__(self):
-        try:
-            result = await self.__wrapped__.__aenter__()
-        except Exception:
-            # __aexit__ won't run if entry fails, so finish the span here to avoid leaking it.
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
+        result = await self.__wrapped__.__aenter__()
         self._agent_run = result
         return result
 
@@ -72,14 +66,7 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
 
     async def __aenter__(self):
         self._infer_agent_name()
-        try:
-            result = await self.__wrapped__.__aenter__()
-        except Exception:
-            # __aexit__ won't run if entry fails, so finish the span here to avoid leaking it.
-            self._dd_integration._run_stream_active = False
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
+        result = await self.__wrapped__.__aenter__()
         self._streamed_run_result = TracedPydanticStreamedRunResult(
             result, self._dd_span, self._dd_integration, self._args, self._kwargs
         )
