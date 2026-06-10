@@ -25,11 +25,14 @@ from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
+from ddtrace.testing.internal.pytest.utils import _encode_test_parameter  # noqa: F401
+from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -51,10 +54,6 @@ from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
-from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
-from ddtrace.testing.internal.pytest._discovery import pytest_collection_finish as pytest_collection_finish  # noqa: F401
-from ddtrace.testing.internal.pytest.utils import _encode_test_parameter  # noqa: F401
-from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import asbool
 
@@ -1149,7 +1148,10 @@ def pytest_configure(config: pytest.Config) -> None:
         # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
         # fall back to nodeid-based names rather than feature-file names during discovery.
         # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
+        import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery
+
         config.pluginmanager.add_hookspecs(TestOptHooks)
+        config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
     session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)

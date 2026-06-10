@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
+import sys
 
 from _pytest.pytester import Pytester
 import pytest
@@ -184,7 +184,7 @@ class TestDiscoveryMode:
         always_false = sys.version_info >= (99, 0)
 
         pytester.makepyfile(
-            test_version=f"""
+            test_version="""
             import sys
             import pytest
 
