@@ -56,47 +56,42 @@ class LLMObsProcessor(TraceProcessor):
             return None
         return trace
 
+    def _scrub(self, span: Span) -> None:
+        if not self._keep_meta_struct and span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None:
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+
+    def _predicted_drop(self, span: Span) -> bool:
+        # APM_AGENT only: the local agent drops traces whose root priority <= 0.
+        root = span._local_root or span
+        priority = root.context.sampling_priority
+        return priority is not None and priority <= 0
+
     def _route_span(self, span: Span, drop_apm_trace: bool) -> None:
-        mode = span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY)
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
-        non_apm_mode = (
-            LLMObsExportMode.LLMOBS_AGENTLESS
-            if self._llmobs_span_writer._agentless
-            else LLMObsExportMode.LLMOBS_AGENT_PROXY
-        )
-        # APM modes can't ride a dropped trace; rewrite to the writer's transport.
-        if drop_apm_trace and mode in (LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS):
-            mode = non_apm_mode
-
         if event is None:
-            # Half-built payload (build failed mid-annotation): scrub so it never rides the APM trace.
-            if not self._keep_meta_struct and span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None:
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            # Half-built payload: scrub so a partial never rides the APM trace.
+            self._scrub(span)
             return
 
-        if self._keep_meta_struct:
-            send_via_llmobs = True
-            mode = non_apm_mode
-        elif mode in (LLMObsExportMode.LLMOBS_AGENT_PROXY, LLMObsExportMode.LLMOBS_AGENTLESS):
-            send_via_llmobs = True
-        elif mode == LLMObsExportMode.APM_AGENT:
-            root = span._local_root or span
-            priority = root.context.sampling_priority
-            if priority is not None and priority <= 0:
-                send_via_llmobs = True
-                mode = non_apm_mode
-            else:
-                send_via_llmobs = False
-        elif mode == LLMObsExportMode.APM_AGENTLESS:
-            send_via_llmobs = False
-        else:
-            log.debug("Skipping LLMObs event for span %s. Unexpected mode: %s", span, mode)
-            return
+        mode = span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY)
 
-        if send_via_llmobs:
+        # The event rides the APM trace only when that trace is actually being sent
+        # AND the mode keeps it on the trace (agentless = 100%, agent = kept priority).
+        rides_trace = (
+            not self._keep_meta_struct
+            and not drop_apm_trace
+            and (
+                mode == LLMObsExportMode.APM_AGENTLESS
+                or (mode == LLMObsExportMode.APM_AGENT and not self._predicted_drop(span))
+            )
+        )
+        if not rides_trace:
+            mode = (
+                LLMObsExportMode.LLMOBS_AGENTLESS
+                if self._llmobs_span_writer._agentless
+                else LLMObsExportMode.LLMOBS_AGENT_PROXY
+            )
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            if not self._keep_meta_struct:
-                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            self._scrub(span)
             self._llmobs_span_writer.enqueue(event)
-
         telemetry.record_span_created(span, mode)
