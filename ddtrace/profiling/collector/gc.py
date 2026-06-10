@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import threading
 import time
 from typing import Callable
 
@@ -36,6 +37,7 @@ class GCCollector(collector.Collector):
     def _start_service(self) -> None:
         self._start_ns: dict[int, int] = {}
         self._explicit_count: int = 0
+        self._count_lock = threading.Lock()
         self._orig_collect: Callable[..., int] = gc.collect
         gc.collect = self._patched_collect
         gc.callbacks.append(self._on_gc)
@@ -50,7 +52,8 @@ class GCCollector(collector.Collector):
         LOG.debug("GCCollector stopped")
 
     def _patched_collect(self, generation: int = 2) -> int:
-        self._explicit_count += 1
+        with self._count_lock:
+            self._explicit_count += 1
         return self._orig_collect(generation)
 
     def _on_gc(self, phase: str, info: dict[str, int]) -> None:
@@ -79,8 +82,9 @@ class GCCollector(collector.Collector):
                 handle2.flush_sample()
 
     def snapshot(self) -> None:  # type: ignore[override]
-        explicit = self._explicit_count
-        self._explicit_count = 0
+        with self._count_lock:
+            explicit = self._explicit_count
+            self._explicit_count = 0
 
         thresholds = gc.get_threshold()
         enabled = gc.isenabled()
