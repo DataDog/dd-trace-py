@@ -635,15 +635,16 @@ def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
     assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
 
 
-def test_sampling_decision_defaults_to_sampled_when_no_upstream_context_tags(llmobs, llmobs_events):
-    # Upstream LLMObs context present but neither sampling tag set — defaults to rate "1", decision "1".
+def test_no_sampling_decision_when_upstream_context_has_no_tags(llmobs, llmobs_events):
+    # Upstream LLMObs context present but no sampling tags — the root service did not make
+    # a decision, so we do not fabricate one. The span event carries no sampling fields.
     ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     with llmobs.workflow("w"):
         pass
     assert len(llmobs_events) == 1
-    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
-    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
+    assert "sample_rate" not in llmobs_events[0]["_dd"]
+    assert "sampling_decision" not in llmobs_events[0]["_dd"]
 
 
 def test_sampling_decision_defaults_to_sampled_for_root_span(llmobs, llmobs_events):

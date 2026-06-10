@@ -2082,10 +2082,6 @@ class LLMObs(Service):
                 session_id = None
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
-                # Partial propagation is invalid — treat as no propagation and compute both.
-                if sample_rate is None or sampling_decision is None:
-                    sample_rate = format_rate(self._sampler.sample_rate)
-                    sampling_decision = self._sample_span(span)
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
@@ -3043,13 +3039,13 @@ class LLMObs(Service):
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
             ml_app = resolve_ml_app()
-            wire_trace_id = generate_128bit_trace_id()
+            wire_trace_id = str(generate_128bit_trace_id())
             sample_rate = None
             sampling_decision = None
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
         if wire_trace_id:
-            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(wire_trace_id)
+            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
