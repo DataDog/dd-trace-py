@@ -1,6 +1,14 @@
-#!/usr/bin/env python3
-"""
-Build a coarse inter-subsystem dependency graph for the ddtrace package.
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "matplotlib",
+#   "networkx",
+# ]
+# ///
+
+"""Build a coarse inter-subsystem dependency graph for the ddtrace package.
 
 Each **source** node is determined by the file path: the first directory under
 ``ddtrace/`` (for example ``internal/``, ``_trace/``), or ``ddtrace (root)`` for
@@ -9,7 +17,8 @@ imports of top-level modules like ``ddtrace.constants`` map to ``(root)``, while
 ``ddtrace.internal.x`` maps to ``ddtrace.internal``. Files under ``ddtrace/vendor/``
 and other dot-prefixed paths are skipped.
 
-Requires Python 3.11
+Run with ``uv run --script scripts/ddtrace_module_graph.py`` (or execute this file
+if ``scripts/uv-run-script`` is on ``PATH``).
 """
 
 from __future__ import annotations
@@ -21,6 +30,7 @@ import html
 import json
 from pathlib import Path
 import sys
+from typing import Optional
 
 
 COMPONENT_LAYERS = [
@@ -47,7 +57,6 @@ COMPONENT_LAYERS = [
         "ddtrace.runtime",
         "ddtrace.sourcecode",
     ],
-    ["ddtrace (root)"],
 ]
 COMPONENT_TO_LAYER = {s: i for i, layer in enumerate(COMPONENT_LAYERS) for s in layer}
 
@@ -62,32 +71,41 @@ def path_to_module(root: Path, py_file: Path) -> tuple[str, bool]:
     return ".".join(("ddtrace",) + parts), is_pkg_init
 
 
-def path_bucket(py_file: Path, ddtrace_root: Path) -> str:
+def path_bucket(py_file: Path, ddtrace_root: Path, detailed_components: tuple[str, ...]) -> Optional[str]:
     """Subsystem for the file path (first directory under ``ddtrace/``, else the root package)."""
     rel = py_file.relative_to(ddtrace_root)
     parts = rel.parts
     if len(parts) == 1:
-        return "ddtrace (root)"
+        return
     top = parts[0]
-    if not top or top.startswith("."):
-        return "ddtrace (root)"
+    if not top or top in detailed_components or top.startswith("."):
+        return
+    for component in detailed_components:
+        component_parts = component.split(".")
+        comparison = list(zip(component_parts, parts))
+        if all(c == p for c, p in comparison):
+            return f"ddtrace.{component}.{parts[len(component_parts)]}"
     return f"ddtrace.{top}"
 
 
-def import_target_bucket(mod: str) -> str:
+def import_target_bucket(mod: str, detailed_components: tuple[str, ...]) -> Optional[str]:
     """Bucket import targets the same way as ``path_bucket`` (root modules collapse to ``(root)``)."""
     if mod == "ddtrace":
-        return "ddtrace (root)"
+        return
     if not mod.startswith("ddtrace."):
         return mod
     rest = mod[len("ddtrace.") :]
     if not rest:
-        return "ddtrace (root)"
+        return
     first, _, tail = rest.partition(".")
-    if not first or first.startswith("."):
-        return "ddtrace (root)"
-    if not tail:
-        return "ddtrace (root)"
+    parts = rest.split(".")
+    for component in detailed_components:
+        component_parts = component.split(".")
+        comparison = list(zip(component_parts, parts))
+        if all(c == p for c, p in comparison):
+            return f"ddtrace.{component}.{'.'.join(parts[len(component_parts) :])}"
+    if not first or first.startswith(".") or any(a.startswith(first) for a in detailed_components) or not tail:
+        return
     return f"ddtrace.{first}"
 
 
@@ -132,7 +150,9 @@ def extract_ddtrace_imports(source: str, current_module: str, is_pkg_init: bool)
     return out
 
 
-def collect_edges(ddtrace_root: Path) -> tuple[set[tuple[str, str]], dict[str, int]]:
+def collect_edges(
+    ddtrace_root: Path, detailed_components: tuple[str, ...]
+) -> tuple[set[tuple[str, str]], dict[str, int]]:
     """Return (directed edges between buckets, edge weights)."""
     edges: defaultdict[tuple[str, str], int] = defaultdict(int)
     skip = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
@@ -145,14 +165,14 @@ def collect_edges(ddtrace_root: Path) -> tuple[set[tuple[str, str]], dict[str, i
         if any(p.startswith(".") for p in rel_parts):
             continue
         mod, is_pkg_init = path_to_module(ddtrace_root, py)
-        bucket_src = path_bucket(py, ddtrace_root)
+        bucket_src = path_bucket(py, ddtrace_root, detailed_components)
         try:
             text = py.read_text(encoding="utf-8")
         except OSError:
             continue
         for imp in extract_ddtrace_imports(text, mod, is_pkg_init):
-            bucket_dst = import_target_bucket(imp)
-            if bucket_src == bucket_dst:
+            bucket_dst = import_target_bucket(imp, detailed_components)
+            if None in (bucket_src, bucket_dst) or bucket_src == bucket_dst:
                 continue
             edges[(bucket_src, bucket_dst)] += 1
     return set(edges), dict(edges)
@@ -172,18 +192,35 @@ def render_graph(edges: set[tuple[str, str]], weights: dict[tuple[str, str], int
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import networkx as nx
+    import numpy as np
 
     g = nx.DiGraph()
     for a, b in edges:
         g.add_edge(a, b, weight=weights.get((a, b), 1))
 
     for node in g.nodes:
-        g.nodes[node]["subset"] = COMPONENT_TO_LAYER[node]
+        for layer, components in enumerate(COMPONENT_LAYERS):
+            for component in components:
+                if node.startswith(component):
+                    g.nodes[node]["subset"] = layer
+                    break
+            if "subset" in g.nodes[node] and g.nodes[node]["subset"] == layer:
+                break
 
-    pos = nx.multipartite_layout(g, align="horizontal")
+    pos = nx.multipartite_layout(g, align="vertical", scale=2)
+    # Widen horizontal gaps between subset layers (x is the layer axis for align="vertical").
+    LAYER_GAP_SCALE = 8.0
+    if pos:
+        axis = 0
+        center_axis = float(np.mean([pos[n][axis] for n in pos]))
+        for n in pos:
+            p = np.asarray(pos[n], dtype=float)
+            p[axis] = center_axis + LAYER_GAP_SCALE * (p[axis] - center_axis)
+            pos[n] = p
+
     labels = {n: _short_label(n) for n in g.nodes}
 
-    plt.figure(figsize=(24, 18), dpi=130)
+    plt.figure(figsize=(200, 200), dpi=130)
     nx.draw_networkx_nodes(g, pos, node_color="#1f77b4", node_size=4200, alpha=0.92)
     nx.draw_networkx_labels(g, pos, labels, font_size=21, font_color="black", font_weight="bold")
     nx.draw_networkx_edges(
@@ -207,7 +244,6 @@ def render_graph(edges: set[tuple[str, str]], weights: dict[tuple[str, str], int
         fontsize=13,
         pad=18,
     )
-    plt.tight_layout()
     out_png.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_png, bbox_inches="tight", facecolor="white")
     plt.close()
@@ -263,7 +299,7 @@ def render_html(
       Nodes group files by first directory under <code>ddtrace/</code> (or <code>(root)</code> for
       top-level modules). Arrows aggregate static <code>import</code> / <code>from</code> references.
       <strong>Drag</strong> nodes to rearrange; drag background to pan; scroll to zoom.
-      Regenerate with <code>python scripts/ddtrace_module_graph.py</code>.
+      Regenerate with <code>uv run --script scripts/ddtrace_module_graph.py</code>.
     </p>
   </div>
   <div id="graph"></div>
@@ -281,7 +317,7 @@ def render_html(
       nodes: {{
         shape: "box",
         margin: 12,
-        font: {{ size: 35, color: "#ffffff", face: "system-ui, sans-serif" }},
+        font: {{ size: 45, color: "#ffffff", face: "system-ui, sans-serif" }},
         color: {{ background: "#1f77b4", border: "#145a8a", highlight: {{ background: "#42a5f5", border: "#0d47a1" }} }},
         borderWidth: 2,
         shadow: true,
@@ -295,11 +331,10 @@ def render_html(
         enabled: true,
         stabilization: {{ iterations: 220, updateInterval: 5 }},
         barnesHut: {{
-          gravitationalConstant: -3500,
-          centralGravity: 0.001,
-          springLength: 1580,
-          springConstant: 0.032,
-          damping: 1.5,
+          gravitationalConstant: -50500,
+          centralGravity: 1,
+          springLength: 5000,
+          springConstant: 0.532,
         }},
       }},
       interaction: {{
@@ -325,18 +360,34 @@ def render_html(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--detailed-component",
+        dest="detailed_components",
+        action="append",
+        metavar="PREFIX",
+        help=(
+            "Path prefix under ddtrace/ (no leading ``ddtrace/``), e.g. ``internal`` or "
+            "``contrib.internal``, for finer-grained buckets. Repeat for multiple. "
+            "If this option is never passed, defaults to ``internal`` and ``contrib.internal``. "
+            "If passed at least once, only the given prefixes are used."
+        ),
+    )
+    parser.add_argument(
         "--png",
         action="store_true",
         help="Also write docs/images/ddtrace-module-dependencies.png (requires matplotlib, networkx).",
     )
     args = parser.parse_args()
 
+    detailed_components: tuple[str, ...] = (
+        tuple(args.detailed_components) if args.detailed_components is not None else tuple()
+    )
+
     repo = Path(__file__).resolve().parents[1]
     ddtrace_root = repo / "ddtrace"
     if not ddtrace_root.is_dir():
         print("ddtrace package not found", file=sys.stderr)
         return 1
-    edges, weights = collect_edges(ddtrace_root)
+    edges, weights = collect_edges(ddtrace_root, detailed_components)
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
     print(f"Wrote {out_html} ({len(edges)} edges)")
