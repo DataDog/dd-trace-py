@@ -1096,6 +1096,53 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert req_span.resource == "GET /helloworld"
         assert req_span.get_tag("http.status_code") == "500"
 
+    def test_request_resource_set_before_start_response(self):
+        """Regression test for issue #17281.
+
+        The outer ``flask.request`` (WSGI) span's resource must be populated from
+        ``request.url_rule`` during ``preprocess_request``, *before* ``start_response``
+        is invoked. This guarantees that if the worker is killed mid-request (e.g.
+        gunicorn ``--timeout`` SIGABRT), the span still carries the low-cardinality
+        route pattern instead of the raw URL path.
+        """
+        from ddtrace.trace import tracer
+
+        captured = {}
+
+        @self.app.route("/users/<int:user_id>")
+        def show_user(user_id):
+            return jsonify({"user_id": user_id})
+
+        @self.app.before_request
+        def _capture_root_resource():
+            root = tracer.current_root_span()
+            captured["resource"] = root.resource if root is not None else None
+            captured["url_rule_tag"] = root.get_tag("flask.url_rule") if root is not None else None
+            captured["endpoint_tag"] = root.get_tag("flask.endpoint") if root is not None else None
+            captured["span_name"] = root.name if root is not None else None
+
+        res = self.client.get("/users/12345")
+        self.assertEqual(res.status_code, 200)
+
+        # Captured at preprocess time — BEFORE start_response fires. Without the fix,
+        # the resource is the raw URL ("GET /users/12345") since the WSGI middleware
+        # only sets it from the URL in `_on_request_prepared`.
+        assert captured["span_name"] == "flask.request"
+        assert captured["resource"] == "GET /users/<int:user_id>", (
+            "outer flask.request span resource was not updated from url_rule "
+            "during preprocess_request (captured: %r)" % captured.get("resource")
+        )
+        assert captured["url_rule_tag"] == "/users/<int:user_id>"
+        assert captured["endpoint_tag"] == "show_user"
+
+        # Final post-response state also remains correct (no regression).
+        spans = self.get_spans()
+        req_span = self.find_span_by_name(spans, "flask.request")
+        assert req_span.resource == "GET /users/<int:user_id>"
+        assert req_span.get_tag("flask.url_rule") == "/users/<int:user_id>"
+        assert req_span.get_tag("flask.endpoint") == "show_user"
+        assert req_span.get_tag(http.STATUS_CODE) == "200"
+
     def test_http_response_header_tracing(self):
         @self.app.route("/response_headers")
         def response_headers():
