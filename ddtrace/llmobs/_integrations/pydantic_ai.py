@@ -19,7 +19,7 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-vertex": "google",
 }
 
-_OBSERVED_TOOLS_CTX_KEY = "_dd.pydantic_ai.observed_tools_handle"
+_OBSERVED_CTX_KEY = "_dd.pydantic_ai.observed"
 
 
 class PydanticAIIntegration(BaseLLMIntegration):
@@ -31,16 +31,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
         kind = kwargs.get("kind", None)
         if kind:
             if kind == "agent":
-                # Observed tools accumulate on the agent span itself; tool spans find it by walking up.
-                span._set_ctx_item(_OBSERVED_TOOLS_CTX_KEY, {})
+                # Tools and MCP servers observed at run time accumulate on the agent span itself;
+                # tool spans find this container by walking up the parent chain.
+                span._set_ctx_item(_OBSERVED_CTX_KEY, {"tools": {}, "servers": {}})
             _annotate_llmobs_span_data(span, kind=kind)
         return span
 
-    def _observed_tools_for(self, span: Span) -> Optional[dict[str, dict[str, Any]]]:
-        # Walk the span parent chain to the nearest agent span that seeded an observed-tools dict.
+    def _observed_for(self, span: Span) -> Optional[dict[str, Any]]:
+        # Walk the span parent chain to the nearest agent span's observed tools/servers container.
         cur: Optional[Span] = span
         while cur is not None:
-            observed: Optional[dict[str, dict[str, Any]]] = cur._get_ctx_item(_OBSERVED_TOOLS_CTX_KEY)
+            observed: Optional[dict[str, Any]] = cur._get_ctx_item(_OBSERVED_CTX_KEY)
             if observed is not None:
                 return observed
             cur = cur._parent
@@ -156,11 +157,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
 
-        observed = self._observed_tools_for(span)
+        observed = self._observed_for(span)
         if tool_call and observed is not None:
-            toolset = self._unwrap_toolset(_get_attr(tool_instance, "toolset", None))
-            mcp_server_id = _get_attr(toolset, "id", None) if self._is_mcp_toolset(toolset) else None
-            observed.setdefault(tool_name, {"description": tool_description, "mcp_server_id": mcp_server_id})
+            raw_toolset = _get_attr(tool_instance, "toolset", None)
+            mcp = self._unwrap_toolset(raw_toolset)
+            mcp_server_id = None
+            if self._is_mcp_toolset(mcp):
+                # Stash the toolset object only; it gets scrubbed/formatted once at manifest time, not
+                # per tool call. Captures dynamic/combined/capability toolsets the static list can't see.
+                mcp_server_id = _get_attr(mcp, "id", None)
+                observed["servers"].setdefault(mcp_server_id or id(raw_toolset), raw_toolset)
+            observed["tools"].setdefault(tool_name, {"description": tool_description, "mcp_server_id": mcp_server_id})
 
         output_val = None
         if not span.error:
@@ -209,20 +216,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        manifest["tools"] = self._merge_observed_tools(self._get_agent_tools(agent), self._observed_tools_for(span))
-        mcp_servers = self._get_mcp_servers(agent, kwargs.get("toolsets"))
+        observed = self._observed_for(span)
+        manifest["tools"] = self._merge_observed_tools(self._get_agent_tools(agent), observed)
+        mcp_servers = self._merge_observed_servers(self._get_mcp_servers(agent, kwargs.get("toolsets")), observed)
         if mcp_servers:
             manifest["mcp_servers"] = mcp_servers
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     @staticmethod
-    def _merge_observed_tools(
-        tools: list[dict[str, Any]], observed: Optional[dict[str, dict[str, Any]]]
-    ) -> list[dict[str, Any]]:
+    def _merge_observed_tools(tools: list[dict[str, Any]], observed: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
         """Append tools observed during the run (e.g. MCP tools) that aren't already declared statically."""
         existing_names = {tool.get("name") for tool in tools}
-        for tool_name, info in (observed or {}).items():
+        for tool_name, info in (observed or {}).get("tools", {}).items():
             if tool_name in existing_names:
                 continue
             entry: dict[str, Any] = {"name": tool_name}
@@ -232,6 +238,30 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 entry["mcp_server_id"] = info["mcp_server_id"]
             tools.append(entry)
         return tools
+
+    @staticmethod
+    def _merge_observed_servers(
+        servers: list[dict[str, Any]], observed: Optional[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Append MCP servers seen at tool-call time (dynamic/combined/capability toolsets the static
+        toolset list can't reach). Scrubbing/formatting happens here, once per run, not per tool call.
+        """
+        observed_servers = (observed or {}).get("servers", {})
+        if not observed_servers:
+            return servers
+        existing = {PydanticAIIntegration._server_key(server) for server in servers}
+        for raw_toolset in observed_servers.values():
+            mcp = PydanticAIIntegration._unwrap_toolset(raw_toolset)
+            server = PydanticAIIntegration._format_mcp_server(raw_toolset, mcp)
+            key = PydanticAIIntegration._server_key(server)
+            if key not in existing:
+                servers.append(server)
+                existing.add(key)
+        return servers
+
+    @staticmethod
+    def _server_key(server: dict[str, Any]) -> str:
+        return str(server.get("id") or server.get("url") or server.get("command") or id(server))
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """

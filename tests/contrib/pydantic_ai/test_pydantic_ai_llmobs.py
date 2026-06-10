@@ -506,6 +506,47 @@ class TestLLMObsPydanticAI:
         )
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
+    async def test_agent_run_with_dynamic_mcp_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
+        """A dynamic toolset (a callable returning an MCP toolset at run time) isn't reachable from the
+        static toolset list, so its server metadata is captured from the observed tool call instead.
+        """
+        import os
+        import sys
+
+        from pydantic_ai.mcp import MCPServerStdio
+
+        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
+        mcp_server = MCPServerStdio(command=sys.executable, args=[server_path], id="square-mcp", env=os.environ.copy())
+
+        def build_toolset(ctx):
+            return mcp_server
+
+        with request_vcr.use_cassette("agent_with_tools.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[build_toolset])
+            async with agent:
+                result = await agent.run("What is the square of 2?")
+        trace = test_spans.pop_traces()[0]
+        agent_span_data = _get_llmobs_data_metastruct(trace[0])
+        tool_span_data = _get_llmobs_data_metastruct(trace[1])
+        assert_llmobs_span_data(
+            agent_span_data,
+            span_kind="agent",
+            name="test_agent",
+            input_value="What is the square of 2?",
+            output_value=result.output,
+            metadata=expected_agent_metadata(
+                tools=expected_mcp_tool("square-mcp"),
+                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
+            ),
+            tags=PYDANTIC_AI_TAGS,
+        )
+        assert_llmobs_span_data(
+            tool_span_data,
+            span_kind="tool",
+            name="calculate_square_tool",
+        )
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
     def test_mcp_metadata_through_wrapper_toolset(self, pydantic_ai, pydantic_ai_llmobs):
         """A WrapperToolset (e.g. PrefixedToolset from `.prefixed()` / `load_mcp_toolsets()`) hides the
         MCPToolset under `wrapped`. The manifest must still capture the underlying MCP server metadata.
