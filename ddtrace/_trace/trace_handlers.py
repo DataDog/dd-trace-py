@@ -1496,9 +1496,6 @@ def _on_ray_serve_deployment_resource_set(
         return
 
     span = ctx.span
-    if span is None:
-        return
-
     span.resource = f"ServeDeployment:{deployment_name}.{endpoint_name}"
 
 
@@ -1825,8 +1822,6 @@ def _on_ray_handle_request_with_rejection_end(
 ) -> None:
     try:
         span = ctx.span
-        if span is None:
-            return
 
         request_meta = ctx.get_item("request_meta")
         if request_meta is not None:
