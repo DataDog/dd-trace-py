@@ -86,12 +86,6 @@ class GCCollector(collector.Collector):
             explicit = self._explicit_count
             self._explicit_count = 0
 
-        thresholds = gc.get_threshold()
-        enabled = gc.isenabled()
-        freeze_count = gc.get_freeze_count() if hasattr(gc, "get_freeze_count") else 0
-        stats = gc.get_stats()
-        total_collections = sum(s.get("collections", 0) for s in stats)
-
         handle = ddup.SampleHandle()
         # Use count field to carry explicit gc.collect() tally for this interval.
         # A zero walltime with count > 0 is the established pattern for pure-count
@@ -101,11 +95,17 @@ class GCCollector(collector.Collector):
         handle.push_monotonic_ns(time.monotonic_ns())
         handle.flush_sample()
 
-        LOG.debug(
-            "GCCollector snapshot: enabled=%s thresholds=%s freeze=%d total_collections=%d explicit_collect=%d",
-            enabled,
-            thresholds,
-            freeze_count,
-            total_collections,
-            explicit,
-        )
+        if LOG.isEnabledFor(logging.DEBUG):
+            thresholds = gc.get_threshold()
+            enabled = gc.isenabled()
+            freeze_count = gc.get_freeze_count() if hasattr(gc, "get_freeze_count") else 0
+            stats = gc.get_stats()
+            total_collections = sum(s.get("collections", 0) for s in stats)
+            LOG.debug(
+                "GCCollector snapshot: enabled=%s thresholds=%s freeze=%d total_collections=%d explicit_collect=%d",
+                enabled,
+                thresholds,
+                freeze_count,
+                total_collections,
+                explicit,
+            )
