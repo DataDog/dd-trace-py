@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 import typing as t
 
 import pytest
 
+from ddtrace.internal.settings import env
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.utils import asbool
@@ -22,11 +22,11 @@ _FRAMEWORK = "pytest"
 
 
 def is_discovery_mode_enabled() -> bool:
-    return asbool(os.environ.get(_ENV_ENABLED))
+    return asbool(env.get(_ENV_ENABLED))
 
 
 def _get_output_path() -> Path:
-    return Path(os.environ.get(_ENV_OUTPUT_PATH, _DEFAULT_OUTPUT_PATH))
+    return Path(env.get(_ENV_OUTPUT_PATH, _DEFAULT_OUTPUT_PATH))
 
 
 def _is_item_skipped(item: pytest.Item) -> bool:
