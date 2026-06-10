@@ -334,3 +334,44 @@ def test_google_genai_chat_send_message(mock_generate_content, genai_client, sna
     with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")
         chat.send_message("tell me a story")
+
+
+def test_extract_generation_metrics_google_genai_all_none_fields():
+    """Regression test: all token usage fields None should not crash with TypeError.
+
+    google-genai 2.6.0 declares prompt_token_count, candidates_token_count,
+    thoughts_token_count and total_token_count as Optional[int]. When they are
+    all explicitly None the fallback arithmetic `input_tokens + output_tokens`
+    raised TypeError: unsupported operand type(s) for +: 'NoneType' and 'NoneType'.
+    """
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
+
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=None,
+            candidates_token_count=None,
+            thoughts_token_count=None,
+            total_token_count=None,
+        )
+    )
+    result = extract_generation_metrics_google_genai(response)
+    assert result == {}
+
+
+def test_extract_output_messages_with_none_candidates():
+    """Regression test: response.candidates=None should not crash with TypeError.
+
+    google-genai 2.6.0 declares candidates as Optional[list[Candidate]].
+    When response.candidates is explicitly None, _get_attr returns None rather
+    than the [] default, so iterating over it raised:
+    TypeError: 'NoneType' object is not iterable.
+    """
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_genai import GoogleGenAIIntegration
+
+    integration = object.__new__(GoogleGenAIIntegration)
+    result = integration._extract_output_messages(SimpleNamespace(candidates=None))
+    assert result == []
