@@ -58,7 +58,7 @@ def _get_suite_source_file(item: pytest.Item, workspace_path: t.Optional[Path]) 
     return str(item_path)
 
 
-@pytest.hookimpl(tryfirst=True)
+@pytest.hookimpl(tryfirst=True)  # type: ignore[misc]
 def pytest_collection_finish(session: pytest.Session) -> None:
     if not is_discovery_mode_enabled():
         return
