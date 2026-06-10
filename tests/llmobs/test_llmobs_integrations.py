@@ -31,22 +31,6 @@ def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
     assert integration.llmobs_enabled is False
 
 
-@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_llmobs_set_tags_captured_regardless_of_sample_rate(mock_llmobs, mock_integration_config):
-    """I/O is always captured when LLMObs is enabled; sampling no longer drops it client-side."""
-    mock_llmobs.enabled = True
-    integration = BaseLLMIntegration(mock_integration_config)
-    integration._llmobs_set_tags = mock.Mock()
-    span = mock.Mock()
-    integration.llmobs_set_tags(span, args=[], kwargs={}, response="response", operation="operation")
-    integration._llmobs_set_tags.assert_called_once()
-
-    mock_llmobs.enabled = False
-    integration._llmobs_set_tags = mock.Mock()
-    integration.llmobs_set_tags(span, args=[], kwargs={}, response="response", operation="operation")
-    integration._llmobs_set_tags.assert_not_called()
-
-
 def test_integration_trace(mock_integration_config, test_spans):
     integration = BaseLLMIntegration(mock_integration_config)
     mock_set_base_span_tags = mock.Mock()

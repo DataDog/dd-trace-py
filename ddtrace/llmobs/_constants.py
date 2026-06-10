@@ -35,7 +35,7 @@ DEFAULT_SAMPLE_RATE = "1"
 
 class LLMObsSamplingDecision(str, Enum):
     SAMPLED = "1"
-    NOT_SAMPLED = "0"
+    DROPPED = "0"
 
 
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"

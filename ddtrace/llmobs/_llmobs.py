@@ -37,6 +37,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
@@ -56,7 +57,6 @@ from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
-from ddtrace.llmobs._constants import DEFAULT_SAMPLE_RATE
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -220,10 +220,6 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
     "expected_outputs",
     "evaluators_results",
 )
-
-
-def _format_llmobs_sample_rate(rate: float) -> str:
-    return f"{rate:.6f}".rstrip("0").rstrip(".")
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -559,6 +555,7 @@ class LLMObs(Service):
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
+        self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -2057,6 +2054,11 @@ class LLMObs(Service):
             return context
         return None
 
+    def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
+        if self._sampler.sample(span):
+            return LLMObsSamplingDecision.SAMPLED
+        return LLMObsSamplingDecision.DROPPED
+
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
         ml_app precedence: parent span._store > distributed context > global config > service.
@@ -2071,26 +2073,25 @@ class LLMObs(Service):
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
                 parent_dd = _get_llmobs_data_metastruct(llmobs_parent).get(LLMOBS_STRUCT.DD, {})
                 sample_rate = parent_dd.get(LLMOBS_STRUCT.SAMPLE_RATE)
-                sampling_decision = parent_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION) or LLMObsSamplingDecision.SAMPLED
+                sampling_decision = parent_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
                 llmobs_trace_id = _normalize_wire_trace_id_to_hex(parent_ctx._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY))
                 ml_app = parent_ctx._meta.get(PROPAGATED_ML_APP_KEY)
                 session_id = None
-                # If upstream sent an LLMObs context but no sampling tags, the upstream service
-                # was sampling at 100%. Inherit that to avoid rate drift when upstream is upgraded.
-                sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE) or DEFAULT_SAMPLE_RATE
-                sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION) or LLMObsSamplingDecision.SAMPLED
+                sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
+                sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
+                # No decision propagated from upstream (old SDK): this span is the effective
+                # head of the LLMObs trace, so compute the decision now on the real span.
+                if sampling_decision is None:
+                    sample_rate = format_rate(self._sampler.sample_rate)
+                    sampling_decision = self._sample_span(span)
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            sample_rate = _format_llmobs_sample_rate(config._llmobs_sample_rate)
-            sampling_decision = (
-                LLMObsSamplingDecision.SAMPLED
-                if RateSampler(sample_rate=config._llmobs_sample_rate).sample(span)
-                else LLMObsSamplingDecision.NOT_SAMPLED
-            )
+            sample_rate = format_rate(self._sampler.sample_rate)
+            sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
 
@@ -2147,15 +2148,14 @@ class LLMObs(Service):
             span._local_root.set_tag("llmobs_trace_id", llmobs_trace_id)
             span._local_root.set_tag("llmobs_parent_id", str(span.span_id))
         self._llmobs_context_provider.activate(span)
-        effective_rate = sample_rate or _format_llmobs_sample_rate(config._llmobs_sample_rate)
         llmobs_data = _get_llmobs_data_metastruct(span)
         dd = llmobs_data.setdefault(LLMOBS_STRUCT.DD, {})
-        dd[LLMOBS_STRUCT.SAMPLE_RATE] = effective_rate
-        # Use .value to store a plain str — Cython tagset encoder uses PyUnicode_CheckExact
-        # which rejects str subclasses (including str Enums).
-        dd[LLMOBS_STRUCT.SAMPLING_DECISION] = (
-            sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-        )
+        if sample_rate is not None:
+            dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+        if sampling_decision is not None:
+            dd[LLMOBS_STRUCT.SAMPLING_DECISION] = (
+                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
+            )
         span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)  # type: ignore[arg-type]
 
     def _start_span(
@@ -3042,32 +3042,32 @@ class LLMObs(Service):
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
             span_dd = _get_llmobs_data_metastruct(active_span).get(LLMOBS_STRUCT.DD, {})
-            sample_rate = span_dd.get(LLMOBS_STRUCT.SAMPLE_RATE) or _format_llmobs_sample_rate(
-                config._llmobs_sample_rate
-            )
-            sampling_decision = span_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION) or LLMObsSamplingDecision.SAMPLED
+            sample_rate = span_dd.get(LLMOBS_STRUCT.SAMPLE_RATE)
+            sampling_decision = span_dd.get(LLMOBS_STRUCT.SAMPLING_DECISION)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
-            sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE) or DEFAULT_SAMPLE_RATE
-            sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION) or LLMObsSamplingDecision.SAMPLED
+            sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
+            sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
         else:
             ml_app = resolve_ml_app()
-            wire_trace_id = str(generate_128bit_trace_id())
-            sample_rate = _format_llmobs_sample_rate(config._llmobs_sample_rate)
-            sampling_decision = LLMObsSamplingDecision.SAMPLED
+            wire_trace_id = generate_128bit_trace_id()
+            sample_rate = None
+            sampling_decision = None
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
         if wire_trace_id:
-            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
+            span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(wire_trace_id)
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
-        span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
-        span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
-            sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
-        )
+        if sample_rate is not None:
+            span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
+        if sampling_decision is not None:
+            span_context._meta[PROPAGATED_SAMPLING_DECISION] = (
+                sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
+            )
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
