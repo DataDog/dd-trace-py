@@ -36,6 +36,8 @@ from ddtrace.llmobs._utils import get_llmobs_output
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_sample_rate
+from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -1184,7 +1186,6 @@ def test_sample_rate_inherited_by_child_span():
     import os
 
     from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._utils import get_llmobs_sample_rate
     from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
@@ -1196,3 +1197,30 @@ def test_sample_rate_inherited_by_child_span():
     assert get_llmobs_sample_rate(parent) == configured_rate
     assert get_llmobs_sample_rate(child) == configured_rate
     assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config,expected_rate",
+    [
+        ({"_llmobs_sample_rate": 0.0}, 0.0),
+        ({"_llmobs_sample_rate": 0.25}, 0.25),
+        ({"_llmobs_sample_rate": 0.5}, 0.5),
+        ({"_llmobs_sample_rate": 0.75}, 0.75),
+        ({"_llmobs_sample_rate": 1.0}, 1.0),
+    ],
+)
+def test_sampling_decisions_follow_configured_rate(llmobs, expected_rate):
+    """Across 100 independent root spans the fraction sampled should be within 20% of the configured rate."""
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+
+    n = 100
+    spans = []
+    for _ in range(n):
+        with llmobs.workflow("w") as span:
+            spans.append(span)
+
+    sampled = sum(1 for s in spans if get_llmobs_sampling_decision(s) == LLMObsSamplingDecision.SAMPLED)
+    tolerance = 20
+    assert abs(sampled - int(expected_rate * n)) <= tolerance, (
+        f"rate={expected_rate}: expected ~{int(expected_rate * n)} sampled out of {n}, got {sampled}"
+    )
