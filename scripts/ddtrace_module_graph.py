@@ -155,11 +155,11 @@ def collect_edges(
     ddtrace_root: Path,
     detailed_components: tuple[str, ...],
     *,
-    min_contacts_per_node: int,
+    min_dependents_per_node: int,
 ) -> tuple[set[tuple[str, str]], dict[str, int]]:
     """Return (directed edges between buckets, edge weights)."""
     edges: defaultdict[tuple[str, str], int] = defaultdict(int)
-    contacts: defaultdict[str, int] = defaultdict(int)
+    dependents: defaultdict[str, int] = defaultdict(int)
     skip = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
     for py in sorted(ddtrace_root.rglob("*.py")):
         rel_parts = py.relative_to(ddtrace_root).parts
@@ -179,9 +179,8 @@ def collect_edges(
             bucket_dst = import_target_bucket(imp, detailed_components)
             if None in (bucket_src, bucket_dst) or bucket_src == bucket_dst:
                 continue
-            contacts[bucket_src] += 1
-            contacts[bucket_dst] += 1
-            if all(contacts[a] > min_contacts_per_node for a in (bucket_src, bucket_dst)):
+            dependents[bucket_dst] += 1
+            if dependents[bucket_dst] > min_dependents_per_node:
                 edges[(bucket_src, bucket_dst)] += 1
     return set(edges), dict(edges)
 
@@ -381,14 +380,11 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--min-contacts-per-node",
+        "--min-dependents-per-node",
         type=int,
         default=0,
         metavar="N",
-        help=(
-            "Only count an edge after both endpoint buckets have accumulated more than N "
-            "import-contact events (default: 50)."
-        ),
+        help=("Only count an edge after its destination bucket has accumulated more than N events (default: 0)."),
     )
     parser.add_argument(
         "--png",
@@ -409,7 +405,7 @@ def main() -> int:
     edges, weights = collect_edges(
         ddtrace_root,
         detailed_components,
-        min_contacts_per_node=args.min_contacts_per_node,
+        min_dependents_per_node=args.min_dependents_per_node,
     )
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
