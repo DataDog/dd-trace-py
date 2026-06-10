@@ -36,8 +36,6 @@ from ddtrace.llmobs._utils import get_llmobs_output
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.llmobs._utils import get_llmobs_output_value
 from ddtrace.llmobs._utils import get_llmobs_parent_id
-from ddtrace.llmobs._utils import get_llmobs_sample_rate
-from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -1187,6 +1185,7 @@ def test_sample_rate_inherited_by_child_span():
     import os
 
     from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
     from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
@@ -1218,6 +1217,7 @@ def test_sampling_decisions_follow_configured_rate():
 
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = float(os.environ["DD_LLMOBS_SAMPLE_RATE"])
     n = 200
