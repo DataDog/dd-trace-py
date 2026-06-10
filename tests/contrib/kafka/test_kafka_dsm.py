@@ -49,8 +49,7 @@ def test_data_streams_payload_size(
     producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
     producer.flush()
 
-    # Poll until the produced message arrives; the topic is empty so any message
-    # received is the one we just produced.
+    # Poll until the produced message arrives (topic is empty, so first message = ours).
     message = None
     deadline = time.monotonic() + 10
     while message is None and time.monotonic() < deadline:
@@ -283,8 +282,10 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
     produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
     assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
     assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
-    for cb in commit_backlogs:
-        assert "kafka_cluster_id:" + cluster_id in cb["Tags"]
+    # Fixture setup commits offset=0 before the producer runs, so that entry lacks cluster_id.
+    assert any("kafka_cluster_id:" + cluster_id in cb["Tags"] for cb in commit_backlogs), (
+        "No kafka_commit backlog entry has kafka_cluster_id:{}".format(cluster_id)
+    )
     for pb in produce_backlogs:
         assert "kafka_cluster_id:" + cluster_id in pb["Tags"]
 

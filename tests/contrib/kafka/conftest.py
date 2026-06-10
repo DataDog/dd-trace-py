@@ -7,7 +7,6 @@ from confluent_kafka import admin as kafka_admin
 import pytest
 
 from ddtrace._trace.filters import TraceFilter
-from ddtrace.contrib.internal.kafka.patch import _cluster_id_by_bootstrap
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from tests.conftest import get_original_test_name
@@ -27,10 +26,6 @@ def kafka_ready():
             client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
             metadata = client.list_topics(timeout=2)
             if metadata.brokers:
-                # Pre-populate the cluster_id cache so consumer commits that happen before
-                # any traced producer has run (e.g. fixture setup) still get a cluster_id.
-                if metadata.cluster_id:
-                    _cluster_id_by_bootstrap[BOOTSTRAP_SERVERS] = metadata.cluster_id
                 return
         except Exception as e:
             last_err = e
@@ -99,8 +94,7 @@ def group_id(kafka_topic):
 
 @pytest.fixture
 def fresh_consumer(kafka_tracer, empty_kafka_topic, group_id):
-    """Consumer for a freshly created (empty) topic — no initial offset commit, so only
-    messages produced during this test are ever visible to the consumer."""
+    """Consumer subscribed to a freshly created (empty) topic."""
     _consumer = confluent_kafka.Consumer(
         {
             "bootstrap.servers": BOOTSTRAP_SERVERS,
