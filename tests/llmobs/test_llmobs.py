@@ -1186,6 +1186,7 @@ def test_sample_rate_inherited_by_child_span():
     import os
 
     from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 
     configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
     LLMObs.enable()
