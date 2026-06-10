@@ -2082,12 +2082,9 @@ class LLMObs(Service):
                 session_id = None
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
-                # No decision propagated from upstream (old SDK): this span is the effective
-                # head of the LLMObs trace, so compute the decision now on the real span.
-                # Preserve the upstream sample_rate if present; fall back to local rate.
-                if sampling_decision is None:
-                    if sample_rate is None:
-                        sample_rate = format_rate(self._sampler.sample_rate)
+                # Partial propagation is invalid — treat as no propagation and compute both.
+                if sample_rate is None or sampling_decision is None:
+                    sample_rate = format_rate(self._sampler.sample_rate)
                     sampling_decision = self._sample_span(span)
         else:
             parent_id = ROOT_PARENT_ID
