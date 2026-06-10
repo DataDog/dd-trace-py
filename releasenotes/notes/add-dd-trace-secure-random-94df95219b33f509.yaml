@@ -1,10 +1,10 @@
 ---
 features:
   - |
-    tracing: Adds the ``DD_TRACE_SECURE_RANDOM`` environment variable. When set to ``true``,
-    trace and span ID generation uses the operating system's cryptographic random number
-    generator (``getrandom(2)``) instead of the default fast pseudo-random number generator.
-    This guarantees ID uniqueness in environments where process memory may be duplicated after
-    seeding, such as VM snapshots or cloned containers, where the existing fork-safety reseed
-    hook cannot detect the duplication. Set ``DD_TRACE_SECURE_RANDOM=true`` to enable this
-    behavior at the cost of a small per-ID system call overhead.
+    tracing: Trace and span ID generation now automatically uses the operating system's
+    cryptographic random number generator (``getrandom(2)``) when running inside an AWS Lambda
+    MicroVM environment (detected via the ``AWS_LAMBDA_MICROVM_IMAGE_ARN`` environment variable).
+    This guarantees ID uniqueness in Firecracker-based environments where process memory is
+    cloned from a snapshot, and the existing fork-safety reseed hook cannot detect the
+    duplication. No configuration is required; the behavior activates automatically when
+    ``AWS_LAMBDA_MICROVM_IMAGE_ARN`` is set and non-empty. #18017

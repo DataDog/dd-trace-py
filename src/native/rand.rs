@@ -6,13 +6,16 @@ use rand::{
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-// Set once at module init (Release) from DD_TRACE_SECURE_RANDOM; every read is an Acquire
-// load so the store is visible to threads that did not participate in module import.
+// Set once at module init (Release) when a MicroVM environment is detected; every read is an
+// Acquire load so the store is visible to threads that did not participate in module import.
 static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
 
-// Matches ddtrace's asbool() convention: "true", "True", "TRUE", and "1" are all truthy.
-fn parse_bool_env(val: Option<String>) -> bool {
-    val.map(|v| matches!(v.to_lowercase().as_str(), "true" | "1"))
+// Returns true when running inside a Firecracker/Lambda MicroVM where process memory can be
+// cloned from a snapshot, making SmallRng state deterministic across resumed instances.
+// AWS Lambda sets AWS_LAMBDA_MICROVM_IMAGE_ARN in all MicroVM-based invocations.
+fn is_microvm_environment() -> bool {
+    std::env::var("AWS_LAMBDA_MICROVM_IMAGE_ARN")
+        .map(|v| !v.is_empty())
         .unwrap_or(false)
 }
 
@@ -100,29 +103,45 @@ mod tests {
         result.unwrap();
     }
 
-    // ── parse_bool_env() ─────────────────────────────────────────────────────
+    // Serialize tests that mutate env vars to avoid races between parallel test threads.
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    // ── is_microvm_environment() ──────────────────────────────────────────────
 
     #[test]
-    fn test_parse_bool_env_truthy_values() {
-        for val in &["true", "True", "TRUE", "1"] {
-            assert!(
-                parse_bool_env(Some(val.to_string())),
-                "expected parse_bool_env({val:?}) == true"
-            );
-        }
+    fn test_is_microvm_environment_when_set() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var(
+            "AWS_LAMBDA_MICROVM_IMAGE_ARN",
+            "arn:aws:lambda:us-east-1::runtime:python3.12",
+        );
+        let result = is_microvm_environment();
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
+        assert!(
+            result,
+            "expected is_microvm_environment() == true when ARN is set"
+        );
     }
 
     #[test]
-    fn test_parse_bool_env_falsy_values() {
-        for val in &["false", "False", "FALSE", "0", "yes", ""] {
-            assert!(
-                !parse_bool_env(Some(val.to_string())),
-                "expected parse_bool_env({val:?}) == false"
-            );
-        }
+    fn test_is_microvm_environment_when_empty() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_LAMBDA_MICROVM_IMAGE_ARN", "");
+        let result = is_microvm_environment();
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
         assert!(
-            !parse_bool_env(None),
-            "expected parse_bool_env(None) == false"
+            !result,
+            "expected is_microvm_environment() == false when ARN is empty"
+        );
+    }
+
+    #[test]
+    fn test_is_microvm_environment_when_unset() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
+        assert!(
+            !is_microvm_environment(),
+            "expected is_microvm_environment() == false when ARN is unset"
         );
     }
 
@@ -280,10 +299,7 @@ mod tests {
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Release store: any thread that subsequently does an Acquire load will see this value,
     // even if it was created before module import.
-    SECURE_RANDOM.store(
-        parse_bool_env(std::env::var("DD_TRACE_SECURE_RANDOM").ok()),
-        Ordering::Release,
-    );
+    SECURE_RANDOM.store(is_microvm_environment(), Ordering::Release);
 
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;

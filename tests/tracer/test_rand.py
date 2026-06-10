@@ -248,27 +248,21 @@ def _get_ids():
     return s.span_id, s.trace_id
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true"})
-def test_secure_random_true_produces_unique_ids():
-    """DD_TRACE_SECURE_RANDOM=true switches rand64bits to OsRng."""
+_MICROVM_ENV = {"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}
+
+
+@pytest.mark.subprocess(env=_MICROVM_ENV)
+def test_microvm_produces_unique_ids():
+    """AWS_LAMBDA_MICROVM_IMAGE_ARN set → OsRng activated → IDs must be unique."""
     from ddtrace.internal.native import rand64bits
 
     ids = {rand64bits() for _ in range(1000)}
     assert len(ids) == 1000, f"Expected 1000 unique IDs under OsRng, got {len(ids)}"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "1"})
-def test_secure_random_one_produces_unique_ids():
-    """DD_TRACE_SECURE_RANDOM=1 must also activate OsRng (asbool convention)."""
-    from ddtrace.internal.native import rand64bits
-
-    ids = {rand64bits() for _ in range(1000)}
-    assert len(ids) == 1000, f"Expected 1000 unique IDs under OsRng (=1), got {len(ids)}"
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true"})
-def test_secure_random_thread_safe():
-    """With DD_TRACE_SECURE_RANDOM=true, concurrent rand64bits() calls must not collide."""
+@pytest.mark.subprocess(env=_MICROVM_ENV)
+def test_microvm_thread_safe():
+    """With MicroVM detection active, concurrent rand64bits() calls must not collide."""
     from queue import Queue
     import threading
 
@@ -294,9 +288,9 @@ def test_secure_random_thread_safe():
     )
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_SECURE_RANDOM": "true", "PYTHONWARNINGS": "ignore::DeprecationWarning"})
-def test_secure_random_fork_no_collisions():
-    """With DD_TRACE_SECURE_RANDOM=true, parent and child must not share IDs after fork."""
+@pytest.mark.subprocess(env={**_MICROVM_ENV, "PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_microvm_fork_no_collisions():
+    """With MicroVM detection active, parent and child must not share IDs after fork."""
     import os
 
     from ddtrace.internal.native import rand64bits
