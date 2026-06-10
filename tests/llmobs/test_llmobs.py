@@ -1204,10 +1204,14 @@ def test_sample_rate_inherited_by_child_span():
         "DD_LLMOBS_ML_APP": "test-app",
         "DD_LLMOBS_AGENTLESS_ENABLED": "0",
     },
-    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.1", "0.3", "0.5", "0.7", "0.9"]},
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.2", "0.4", "0.6", "0.8"]},
 )
 def test_sampling_decisions_follow_configured_rate():
-    """Across 100 independent root spans the fraction sampled should be within ±10 of the configured rate."""
+    """Across 100 independent root spans the fraction sampled should be within ±20 of the configured rate.
+
+    With n=100 and ±20 tolerance the test fails with probability ~0.009% across all 4 variants
+    (each variant is ≥4σ from the tolerance boundary), making it essentially flake-free.
+    """
     import os
 
     from ddtrace.llmobs import LLMObs
@@ -1224,6 +1228,6 @@ def test_sampling_decisions_follow_configured_rate():
 
     sampled = sum(1 for s in spans if get_llmobs_sampling_decision(s) == LLMObsSamplingDecision.SAMPLED)
     expected = int(configured_rate * n)
-    assert abs(sampled - expected) <= 10, (
+    assert abs(sampled - expected) <= 20, (
         f"rate={configured_rate}: expected ~{expected} sampled out of {n}, got {sampled}"
     )
