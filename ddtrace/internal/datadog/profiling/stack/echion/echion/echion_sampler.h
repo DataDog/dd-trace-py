@@ -4,9 +4,11 @@
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include <echion/cache.h>
 #include <echion/frame.h>
+#include <echion/greenlets.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 
@@ -40,6 +42,13 @@ class EchionSampler
     std::optional<Frame::Key> asyncio_frame_cache_key_;
     std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
+
+    // Sampling-thread scratch buffers used by unwind_greenlets. Only the
+    // single sampling thread touches these. Each unwind_greenlets call
+    // clears/resets them between uses to amortize allocator churn.
+    std::vector<GreenletSnapshot> greenlet_snapshots_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_parents_scratch_;
+    std::unordered_set<GreenletInfo::ID> greenlet_visited_scratch_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
     // (Sampler::sampling_thread) touches this. unwind_frame clears it on
@@ -94,6 +103,9 @@ class EchionSampler
     std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    std::vector<GreenletSnapshot>& greenlet_snapshots_scratch() { return greenlet_snapshots_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_parents_scratch() { return greenlet_parents_scratch_; }
+    std::unordered_set<GreenletInfo::ID>& greenlet_visited_scratch() { return greenlet_visited_scratch_; }
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
 
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
@@ -129,6 +141,10 @@ class EchionSampler
         greenlet_info_map_.clear();
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
+
+        greenlet_snapshots_scratch_.clear();
+        greenlet_parents_scratch_.clear();
+        greenlet_visited_scratch_.clear();
 
         // Reset the scratch set via placement new instead of clear() for the
         // same fork-safety reason as frame_cache_: the Sampling Thread may have

@@ -586,7 +586,8 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 void
 ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    std::vector<GreenletSnapshot> snapshots;
+    auto& snapshots = echion.greenlet_snapshots_scratch();
+    size_t snap_count = 0;
 
     // Phase 1: Snapshot greenlet data under the lock.
     // This minimises the time we hold greenlet_info_map_lock, which is also
@@ -600,10 +601,13 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         auto& greenlet_parent_map = echion.greenlet_parent_map();
         auto& greenlet_thread_map = echion.greenlet_thread_map();
 
-        if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
+        if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end()) {
+            greenlet_count_ = 0;
             return;
+        }
 
-        std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        auto& parent_greenlets = echion.greenlet_parents_scratch();
+        parent_greenlets.clear();
 
         // Collect all parent greenlets
         std::transform(greenlet_parent_map.cbegin(),
@@ -611,7 +615,13 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
                        std::inserter(parent_greenlets, parent_greenlets.begin()),
                        [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
 
-        // Snapshot the leaf greenlets and precompute their parent chains
+        auto& visited = echion.greenlet_visited_scratch();
+
+        // Snapshot the leaf greenlets and precompute their parent chains.
+        // snap_count tracks the active range of the reusable snapshots scratch;
+        // beyond that range we emplace_back to grow on demand. Keeping the
+        // snapshots vector alive between samples preserves the inner
+        // parent_chain capacities.
         for (auto& [gid, greenlet] : greenlet_info_map) {
             if (parent_greenlets.contains(gid))
                 continue;
@@ -622,11 +632,25 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
                 continue;
             }
 
-            GreenletSnapshot snap{ gid, greenlet->name, frame, {} };
+            GreenletSnapshot* snap_ptr;
+            if (snap_count < snapshots.size()) {
+                // Reuse the slot, keeping its parent_chain capacity.
+                snap_ptr = &snapshots[snap_count];
+                snap_ptr->greenlet_id = gid;
+                snap_ptr->name = greenlet->name;
+                snap_ptr->frame = frame;
+                snap_ptr->parent_chain.clear();
+            } else {
+                // TaskName is not default-constructible, so grow the scratch
+                // buffer by constructing the slot directly with its values.
+                snapshots.emplace_back(GreenletSnapshot{ gid, greenlet->name, frame, {} });
+                snap_ptr = &snapshots.back();
+            }
+            auto& snap = *snap_ptr;
 
             // Precompute parent chain while we still hold the lock
             auto current_id = gid;
-            std::unordered_set<GreenletInfo::ID> visited;
+            visited.clear();
             // The limit here is arbitrary, but it should be more than enough for
             // most use cases.
             const size_t MAX_GREENLET_DEPTH = 512;
@@ -656,19 +680,31 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
                 current_id = parent_id;
             }
 
-            snapshots.push_back(std::move(snap));
+            ++snap_count;
         }
     } // Lock released here
 
-    // Phase 2: Unwind outside the lock.
+    // Phase 2: Unwind outside the lock, reusing current_greenlets entries.
     // The expensive process_vm_readv / copy_type calls happen here, without
     // blocking greenlet switches.  Snapshotted frame pointers may have become
     // stale, but unwind_frame() handles invalid pointers gracefully via
     // copy_type() which returns non-zero on failure.
-    for (auto& snap : snapshots) {
+    greenlet_count_ = 0;
+    for (size_t s = 0; s < snap_count; ++s) {
+        auto& snap = snapshots[s];
         bool on_cpu = snap.frame == Py_None;
-        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
-        auto& stack = stack_info->stack;
+
+        // Reuse an existing StackInfo slot if available, otherwise grow.
+        if (greenlet_count_ < current_greenlets.size()) {
+            auto& slot = current_greenlets[greenlet_count_];
+            slot.task_name = snap.name;
+            slot.on_cpu = on_cpu;
+            slot.stack.clear();
+        } else {
+            current_greenlets.emplace_back(snap.name, on_cpu);
+        }
+        auto& stack_info = current_greenlets[greenlet_count_];
+        auto& stack = stack_info.stack;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
         temp.unwind(echion, snap.frame, tstate, stack);
@@ -678,7 +714,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
             parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
-        current_greenlets.push_back(std::move(stack_info));
+        ++greenlet_count_;
     }
 
     // Make sure the on-CPU greenlet is first. render_task_begin reuses the
@@ -697,10 +733,10 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     // If no greenlet is on CPU (e.g. all workers are sleeping while the Hub
     // is running, which is filtered out as a parent), no entry triggers
     // render_task_begin's push_cputime branch, so order does not matter and
-    // this loop falls through harmlessly. Empty current_greenlets is also
-    // safe (loop body never executes).
-    for (size_t i = 1; i < current_greenlets.size(); i++) {
-        if (current_greenlets[i]->on_cpu) {
+    // this loop falls through harmlessly. greenlet_count_ == 0 is also safe
+    // (loop body never executes).
+    for (size_t i = 1; i < greenlet_count_; i++) {
+        if (current_greenlets[i].on_cpu) {
             std::swap(current_greenlets[i], current_greenlets[0]);
             break;
         }
@@ -739,18 +775,18 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         }
 
         current_tasks.clear();
-    } else if (!current_greenlets.empty()) {
-        for (auto& greenlet_stack : current_greenlets) {
-            greenlet_stack->task_name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
+    } else if (greenlet_count_ > 0) {
+        for (size_t i = 0; i < greenlet_count_; i++) {
+            auto& greenlet_stack = current_greenlets[i];
+            greenlet_stack.task_name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack.on_cpu); });
 
-            auto& stack = greenlet_stack->stack;
-            stack.render(echion);
+            greenlet_stack.stack.render(echion);
 
             renderer.render_stack_end();
         }
 
-        current_greenlets.clear();
+        greenlet_count_ = 0;
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
