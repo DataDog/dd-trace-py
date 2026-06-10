@@ -28,6 +28,7 @@ import ast
 from collections import defaultdict
 import html
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Optional
@@ -317,7 +318,7 @@ def render_html(
       nodes: {{
         shape: "box",
         margin: 12,
-        font: {{ size: 45, color: "#ffffff", face: "system-ui, sans-serif" }},
+        font: {{ size: {70 if len(nodes_list) > 300 else 50}, color: "#ffffff", face: "system-ui, sans-serif" }},
         color: {{ background: "#1f77b4", border: "#145a8a", highlight: {{ background: "#42a5f5", border: "#0d47a1" }} }},
         borderWidth: 2,
         shadow: true,
@@ -331,9 +332,9 @@ def render_html(
         enabled: true,
         stabilization: {{ iterations: 220, updateInterval: 5 }},
         barnesHut: {{
-          gravitationalConstant: -50500,
+          gravitationalConstant: {-50 * len(nodes_list)},
           centralGravity: 1,
-          springLength: 5000,
+          springLength: {250 * math.sqrt(len(nodes_list))},
           springConstant: 0.532,
         }},
       }},
