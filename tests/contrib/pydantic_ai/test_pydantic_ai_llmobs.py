@@ -1,4 +1,6 @@
 import asyncio
+import os
+import sys
 
 import mock
 import pydantic_ai
@@ -6,6 +8,7 @@ import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
@@ -22,6 +25,8 @@ from tests.llmobs._utils import assert_llmobs_span_data
 PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
 
 TOOL_DESCRIPTION_METADATA = {"description": "Calculates the square of a number"}
+
+_MCP_SERVER_PATH = os.path.join(os.path.dirname(__file__), "mcp_server.py")
 
 
 @pytest.mark.parametrize(
@@ -407,216 +412,109 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
-    async def test_agent_run_with_mcp_server(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """Test that the manifest records MCP server metadata and the MCP tool actually called"""
-        import os
-        import sys
-
+    @pytest.mark.parametrize(
+        "toolset_kind",
+        [
+            pytest.param(
+                "static",
+                marks=pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="needs MCPServer.id"),
+                id="static_server",
+            ),
+            pytest.param(
+                "dynamic",
+                marks=pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="needs dynamic toolsets"),
+                id="dynamic_toolset",
+            ),
+        ],
+    )
+    async def test_agent_run_captures_mcp_server_and_tool(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, toolset_kind
+    ):
+        """A live MCP run records the server metadata and the called MCP tool on the manifest, whether the
+        toolset is on the agent statically or supplied dynamically (a callable, captured from the observed
+        tool call since it isn't on the static toolset list).
+        """
         from pydantic_ai.mcp import MCPServerStdio
 
-        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
-        mcp_server = MCPServerStdio(command=sys.executable, args=[server_path], id="square-mcp", env=os.environ.copy())
-        with request_vcr.use_cassette("agent_with_tools.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[mcp_server])
-            async with agent:
-                result = await agent.run("What is the square of 2?")
-        trace = test_spans.pop_traces()[0]
-        agent_span_data = _get_llmobs_data_metastruct(trace[0])
-        tool_span_data = _get_llmobs_data_metastruct(trace[1])
-        assert_llmobs_span_data(
-            agent_span_data,
-            span_kind="agent",
-            name="test_agent",
-            input_value="What is the square of 2?",
-            output_value=result.output,
-            metadata=expected_agent_metadata(
-                tools=expected_mcp_tool("square-mcp"),
-                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
-            ),
-            tags=PYDANTIC_AI_TAGS,
-        )
-        assert_llmobs_span_data(
-            tool_span_data,
-            span_kind="tool",
-            name="calculate_square_tool",
-        )
-
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
-    async def test_agent_run_with_mcp_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """Test that MCP metadata and the called MCP tool are captured for the newer MCPToolset class,
-        whose transport (and thus command/url) is exposed via its FastMCP client rather than directly.
-        """
-        import os
-        import sys
-
-        from fastmcp.client.transports import PythonStdioTransport
-        from pydantic_ai.mcp import MCPToolset
-
-        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
-        transport = PythonStdioTransport(server_path, env=os.environ.copy())
-        toolset = MCPToolset(transport, id="square-mcp")
+        server = MCPServerStdio(command=sys.executable, args=[_MCP_SERVER_PATH], id="square-mcp", env=os.environ.copy())
+        toolset = server if toolset_kind == "static" else (lambda ctx: server)
         with request_vcr.use_cassette("agent_with_tools.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
             async with agent:
                 result = await agent.run("What is the square of 2?")
         trace = test_spans.pop_traces()[0]
-        agent_span_data = _get_llmobs_data_metastruct(trace[0])
-        tool_span_data = _get_llmobs_data_metastruct(trace[1])
         assert_llmobs_span_data(
-            agent_span_data,
+            _get_llmobs_data_metastruct(trace[0]),
             span_kind="agent",
             name="test_agent",
             input_value="What is the square of 2?",
             output_value=result.output,
             metadata=expected_agent_metadata(
                 tools=expected_mcp_tool("square-mcp"),
-                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
+                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [_MCP_SERVER_PATH]}],
             ),
             tags=PYDANTIC_AI_TAGS,
         )
-        assert_llmobs_span_data(
-            tool_span_data,
-            span_kind="tool",
-            name="calculate_square_tool",
-        )
-
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
-    async def test_agent_run_with_dynamic_mcp_toolset(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
-        """A dynamic toolset (a callable returning an MCP toolset at run time) isn't reachable from the
-        static toolset list, so its server metadata is captured from the observed tool call instead.
-        """
-        import os
-        import sys
-
-        from pydantic_ai.mcp import MCPServerStdio
-
-        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
-        mcp_server = MCPServerStdio(command=sys.executable, args=[server_path], id="square-mcp", env=os.environ.copy())
-
-        def build_toolset(ctx):
-            return mcp_server
-
-        with request_vcr.use_cassette("agent_with_tools.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[build_toolset])
-            async with agent:
-                result = await agent.run("What is the square of 2?")
-        trace = test_spans.pop_traces()[0]
-        agent_span_data = _get_llmobs_data_metastruct(trace[0])
-        tool_span_data = _get_llmobs_data_metastruct(trace[1])
-        assert_llmobs_span_data(
-            agent_span_data,
-            span_kind="agent",
-            name="test_agent",
-            input_value="What is the square of 2?",
-            output_value=result.output,
-            metadata=expected_agent_metadata(
-                tools=expected_mcp_tool("square-mcp"),
-                mcp_servers=[{"id": "square-mcp", "command": sys.executable, "args": [server_path]}],
-            ),
-            tags=PYDANTIC_AI_TAGS,
-        )
-        assert_llmobs_span_data(
-            tool_span_data,
-            span_kind="tool",
-            name="calculate_square_tool",
-        )
-
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
-    def test_mcp_metadata_through_wrapper_toolset(self, pydantic_ai, pydantic_ai_llmobs):
-        """A WrapperToolset (e.g. PrefixedToolset from `.prefixed()` / `load_mcp_toolsets()`) hides the
-        MCPToolset under `wrapped`. The manifest must still capture the underlying MCP server metadata.
-        """
-        import os
-        import sys
-
-        from fastmcp.client.transports import PythonStdioTransport
-        from pydantic_ai.mcp import MCPToolset
-
-        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-        server_path = os.path.join(os.path.dirname(__file__), "mcp_server.py")
-        toolset = MCPToolset(PythonStdioTransport(server_path, env=os.environ.copy()), id="square-mcp").prefixed("sq")
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
-
-        assert PydanticAIIntegration._get_mcp_servers(agent) == [
-            {"id": "square-mcp", "command": sys.executable, "args": [server_path], "tool_prefix": "sq"}
-        ]
+        assert_llmobs_span_data(_get_llmobs_data_metastruct(trace[1]), span_kind="tool", name="calculate_square_tool")
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
-    def test_mcp_args_credentials_scrubbed(self, pydantic_ai, pydantic_ai_llmobs):
-        """MCP launch args can carry CLI credentials; secret-looking values must be masked in the
-        manifest before the span ships, not recorded verbatim.
-        """
-        import sys
-
-        from pydantic_ai.mcp import MCPServerStdio
-
-        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-        server = MCPServerStdio(
-            command=sys.executable, args=["-m", "srv", "--api-key", "sk-supersecret"], id="cred-mcp"
-        )
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[server])
-
-        assert PydanticAIIntegration._get_mcp_servers(agent) == [
-            {"id": "cred-mcp", "command": sys.executable, "args": ["-m", "srv", "--api-key", "?"]}
-        ]
-
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
-    def test_mcp_url_credentials_scrubbed(self, pydantic_ai, pydantic_ai_llmobs):
-        """An MCP URL can embed credentials (userinfo or a `?token=` query param); both must be
-        dropped from the manifest before the span ships.
+    def test_get_mcp_servers_scrubs_credentials(self, pydantic_ai, pydantic_ai_llmobs):
+        """Server metadata is extracted (command/args for stdio, url for http), and credentials in launch
+        args (`--api-key sk-secret`) and URLs (userinfo, `?token=`) are scrubbed before the span ships.
         """
         from pydantic_ai.mcp import MCPServerSSE
+        from pydantic_ai.mcp import MCPServerStdio
 
-        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-        server = MCPServerSSE(url="https://user:pass@mcp.example.com/sse?token=sk-secret", id="url-mcp")
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[server])
+        stdio = MCPServerStdio(command=sys.executable, args=["-m", "srv", "--api-key", "sk-secret"], id="cred-mcp")
+        sse = MCPServerSSE(url="https://user:pass@mcp.example.com/sse?token=sk-secret", id="url-mcp")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[stdio, sse])
 
         assert PydanticAIIntegration._get_mcp_servers(agent) == [
-            {"id": "url-mcp", "url": "https://mcp.example.com/sse"}
+            {"id": "cred-mcp", "command": sys.executable, "args": ["-m", "srv", "--api-key", "?"]},
+            {"id": "url-mcp", "url": "https://mcp.example.com/sse"},
         ]
 
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
-    def test_mcp_metadata_from_per_run_toolset(self, pydantic_ai, pydantic_ai_llmobs):
-        """MCP toolsets passed per-run (run/run_stream/iter `toolsets=`) aren't stored on the agent;
-        their server metadata must still land in the manifest so the recorded MCP tool has a match.
+    def test_get_mcp_servers_resolves_source(self, pydantic_ai, pydantic_ai_llmobs):
+        """Servers are resolved from the agent's constructor toolsets, from per-run toolsets (which aren't
+        stored on the agent), and from an active `override(toolsets=)` (which wins over the constructor).
         """
-        import sys
-
         from pydantic_ai.mcp import MCPServerStdio
 
-        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-        server = MCPServerStdio(command=sys.executable, args=["-m", "srv"], id="run-mcp")
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-
-        assert PydanticAIIntegration._get_mcp_servers(agent) == []
-        assert PydanticAIIntegration._get_mcp_servers(agent, [server]) == [
-            {"id": "run-mcp", "command": sys.executable, "args": ["-m", "srv"]}
+        constructor = MCPServerStdio(command=sys.executable, args=["-m", "orig"], id="orig-mcp")
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[constructor])
+        assert PydanticAIIntegration._get_mcp_servers(agent) == [
+            {"id": "orig-mcp", "command": sys.executable, "args": ["-m", "orig"]}
         ]
 
-    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 0, 0), reason="pydantic-ai < 1.0.0 does not support MCPServer.id")
-    def test_mcp_metadata_from_override_toolset(self, pydantic_ai, pydantic_ai_llmobs):
-        """`agent.override(toolsets=[...])` replaces the agent's toolsets for the run; the manifest's
-        MCP servers must come from the effective (overridden) toolsets, not the stale constructor list.
-        """
-        import sys
+        run_server = MCPServerStdio(command=sys.executable, args=["-m", "run"], id="run-mcp")
+        assert PydanticAIIntegration._get_mcp_servers(agent, [run_server]) == [
+            {"id": "orig-mcp", "command": sys.executable, "args": ["-m", "orig"]},
+            {"id": "run-mcp", "command": sys.executable, "args": ["-m", "run"]},
+        ]
 
-        from pydantic_ai.mcp import MCPServerStdio
-
-        from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-        original = MCPServerStdio(command=sys.executable, args=["-m", "orig"], id="orig-mcp")
         override = MCPServerStdio(command=sys.executable, args=["-m", "override"], id="override-mcp")
-        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[original])
-
         with agent.override(toolsets=[override]):
             assert PydanticAIIntegration._get_mcp_servers(agent) == [
                 {"id": "override-mcp", "command": sys.executable, "args": ["-m", "override"]}
             ]
+
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (1, 97, 0), reason="pydantic-ai < 1.97.0 does not support MCPToolset")
+    def test_get_mcp_servers_unwraps_wrapper_toolset(self, pydantic_ai, pydantic_ai_llmobs):
+        """A WrapperToolset (e.g. `.prefixed()` / `load_mcp_toolsets()`) hides the MCPToolset under `wrapped`,
+        and the MCPToolset exposes command/url via its FastMCP client; both must still be resolved.
+        """
+        from fastmcp.client.transports import PythonStdioTransport
+        from pydantic_ai.mcp import MCPToolset
+
+        toolset = MCPToolset(PythonStdioTransport(_MCP_SERVER_PATH, env=os.environ.copy()), id="square-mcp").prefixed(
+            "sq"
+        )
+        agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
+
+        assert PydanticAIIntegration._get_mcp_servers(agent) == [
+            {"id": "square-mcp", "command": sys.executable, "args": [_MCP_SERVER_PATH], "tool_prefix": "sq"}
+        ]
 
     async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
