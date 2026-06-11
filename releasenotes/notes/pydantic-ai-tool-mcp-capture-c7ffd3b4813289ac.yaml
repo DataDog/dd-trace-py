@@ -4,3 +4,5 @@ features:
 fixes:
   - |
     LLM Observability: This fix resolves an issue where the Pydantic AI integration did not infer the agent name for agents run via ``run_stream``.
+  - |
+    LLM Observability: This fix resolves an issue where the Pydantic AI integration recorded an agent's system prompts as an unserializable placeholder instead of the actual prompt text.

@@ -54,7 +54,7 @@ def expected_agent_metadata(
         "model": "gpt-4o",
         "model_settings": model_settings,
         "instructions": instructions,
-        "system_prompts": (system_prompt,) if system_prompt else (),
+        "system_prompts": [system_prompt] if system_prompt else [],
         "tools": tools if tools is not None else [],
     }
     if mcp_servers is not None:

@@ -208,7 +208,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 )
             manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
-            manifest["system_prompts"] = agent._system_prompts
+            manifest["system_prompts"] = list(agent._system_prompts)
         observed = self._find_nearest_agent_observations(span)
         manifest["tools"] = self._merge_observed_tools(self._get_agent_tools(agent), observed)
         mcp_servers = self._merge_observed_servers(self._get_mcp_servers(agent, kwargs.get("toolsets")), observed)
