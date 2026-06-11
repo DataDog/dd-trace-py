@@ -40,9 +40,11 @@ def _is_item_skipped(item: pytest.Item) -> bool:
         return True
     for marker in item.iter_markers("skipif"):
         condition = marker.args[0] if marker.args else marker.kwargs.get("condition")
-        if condition is None or isinstance(condition, str):
+        if isinstance(condition, str):
             continue
-        if condition:
+        # No condition arg at all (e.g. @pytest.mark.skipif(reason="...")) is
+        # treated as unconditional skip, matching plugin.py's _get_skipif_condition.
+        if condition is None or condition:
             return True
     return False
 
