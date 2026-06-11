@@ -233,7 +233,6 @@ pub struct TraceExporterPy {
     runtime: Arc<SharedRuntime>,
 }
 
-
 #[pymethods]
 impl TraceExporterPy {
     /// Send a msgpack encoded trace payload.

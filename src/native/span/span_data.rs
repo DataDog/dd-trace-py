@@ -151,11 +151,14 @@ impl SpanData {
                 let Ok(key_backed) = k.extract::<PyBackedString>() else {
                     continue;
                 };
-                let Ok(result) = packb.call1((&v,)) else { continue };
+                let Ok(result) = packb.call1((&v,)) else {
+                    continue;
+                };
                 let Ok(packed_bytes): Result<Vec<u8>, _> = result.extract() else {
                     continue;
                 };
-                out.meta_struct.insert(key_backed, Bytes::from_vec(packed_bytes));
+                out.meta_struct
+                    .insert(key_backed, Bytes::from_vec(packed_bytes));
             }
         }
 

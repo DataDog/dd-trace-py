@@ -244,7 +244,8 @@ impl NativeTraceBufferPy {
         });
         let buffer_config = TraceBufferConfig::default();
 
-        let (buffer, worker) = TraceBuffer::new(buffer_config, response_handler, Box::new(py_export));
+        let (buffer, worker) =
+            TraceBuffer::new(buffer_config, response_handler, Box::new(py_export));
 
         let worker_handle = runtime.spawn_worker(worker, true).map_err(|e| {
             PyValueError::new_err(format!("Failed to spawn trace buffer worker: {e}"))
