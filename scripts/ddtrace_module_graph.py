@@ -186,7 +186,7 @@ def collect_edges(
     min_edge_weight: int,
     collect_aliases: bool,
     extra_components: tuple[str, ...] = (),
-) -> tuple[set[tuple[str, str]], dict[str, int]]:
+) -> tuple[set[tuple[str, str]], dict[tuple[str, str], int]]:
     """Return (directed edges between buckets, edge weights).
 
     Edge weights are static import reference counts. After aggregation, edges with
@@ -219,6 +219,18 @@ def collect_edges(
                 edges[(bucket_src, bucket_dst)] += 1
     edges = {k: v for k, v in edges.items() if v >= min_edge_weight}
     return set(edges), dict(edges)
+
+
+def filter_excluded_graph_nodes(
+    edges: set[tuple[str, str]],
+    weights: dict[tuple[str, str], int],
+    excluded: frozenset[str],
+) -> tuple[set[tuple[str, str]], dict[tuple[str, str], int]]:
+    """Remove nodes by exact name; drop every edge whose source or target is excluded."""
+    if not excluded:
+        return edges, weights
+    new_edges = {(a, b) for a, b in edges if a not in excluded and b not in excluded}
+    return new_edges, {e: weights[e] for e in new_edges}
 
 
 def _short_label(node: str) -> str:
@@ -443,6 +455,16 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--exclude-component",
+        dest="exclude_components",
+        action="append",
+        metavar="NODE",
+        help=(
+            "Exact graph node id to remove (e.g. ``ddtrace.contrib`` or ``ddtrace (root)``). "
+            "Drops all edges whose source or target is one of these names. Repeat for multiple."
+        ),
+    )
+    parser.add_argument(
         "--collect-import-aliases",
         dest="collect_aliases",
         action="store_true",
@@ -464,6 +486,7 @@ def main() -> int:
         else tuple()
     )
     extra_components: tuple[str, ...] = tuple(args.extra_components or ())
+    exclude_nodes = frozenset(s.strip() for s in (args.exclude_components or ()) if s.strip())
 
     repo = Path(__file__).resolve().parents[1]
     ddtrace_root = repo / "ddtrace"
@@ -478,6 +501,7 @@ def main() -> int:
         collect_aliases=args.collect_aliases,
         extra_components=extra_components,
     )
+    edges, weights = filter_excluded_graph_nodes(edges, weights, exclude_nodes)
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
     print(f"Wrote {out_html} ({len(edges)} edges)")
