@@ -18,6 +18,7 @@ from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import TelemetryAPI
@@ -162,7 +163,7 @@ class CachedFileDataProvider:
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         # In Bazel payload-files mode the build system handles test selection;
         # applying cached skippable decisions here would skip tests Bazel expects to run.
-        if env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES):
+        if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
             return set(), None
         cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
         if cached is None:

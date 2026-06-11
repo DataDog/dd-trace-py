@@ -282,13 +282,22 @@ class TestGetSkippableTests:
         assert correlation_id == "abc-123"
 
     def test_bazel_payload_files_guard_returns_empty(self, monkeypatch, tmp_path):
-        """DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES suppresses skippable tests even with cache present."""
+        """DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=true suppresses skippable tests even with cache present."""
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
         skippable, correlation_id = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
+
+    def test_payload_files_false_string_reads_cache(self, monkeypatch, tmp_path):
+        """DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES=false must not trigger the Bazel guard."""
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "false")
+        write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
+        provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
+        skippable, correlation_id = provider.get_skippable_tests()
+        assert len(skippable) == 2
+        assert correlation_id == "abc-123"
 
     def test_returns_empty_without_cache_file(self, monkeypatch, tmp_path):
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
