@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    LLM Observability: Resolves an issue where the writer ignored its configured request
+    LLM Observability: Fixes an issue where the writer ignored its configured request
     timeout (``_DD_LLMOBS_WRITER_TIMEOUT``, default 5 seconds) and instead used the 2 second
     connection default, causing intermittent ``TimeoutError`` and dropped span and evaluation
     metric events on high-latency connections to the agent or intake.
