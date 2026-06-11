@@ -204,7 +204,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE": [
@@ -407,7 +408,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_AREDIS_CMD_MAX_LENGTH": [
@@ -5152,7 +5154,8 @@
       {
         "implementation": "C",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_CLIENT_CERTIFICATE": [
@@ -5187,7 +5190,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_INSECURE": [
@@ -5250,7 +5254,8 @@
       {
         "implementation": "B",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_INSECURE": [
@@ -5334,7 +5339,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE": [

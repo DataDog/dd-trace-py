@@ -936,3 +936,14 @@ DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(
         "DD_COMPILE_DEBUG",
     }
 )
+
+SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(
+    {
+        "DD_API_KEY",
+        "DD_APP_KEY",
+        "OTEL_EXPORTER_OTLP_HEADERS",
+        "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+    }
+)
