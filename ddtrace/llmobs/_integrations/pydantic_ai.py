@@ -289,16 +289,49 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _get_mcp_servers(agent: Any, run_toolsets: Optional[Sequence[Any]] = None) -> list[dict[str, Any]]:
-        servers: list[dict[str, Any]] = []
-        seen_names: set[str] = set()
         # `agent.toolsets` honors an active `override(toolsets=)`; per-run toolsets aren't on the agent.
         toolsets = list(getattr(agent, "toolsets", None) or getattr(agent, "_user_toolsets", []) or [])
         toolsets += list(run_toolsets or [])
-        for toolset in toolsets:
-            server = PydanticAIIntegration._format_mcp_server(toolset)
+        candidates = [PydanticAIIntegration._format_mcp_server(t) for t in toolsets]
+        candidates += PydanticAIIntegration._get_capability_mcp_servers(agent)
+        servers: list[dict[str, Any]] = []
+        seen_names: set[str] = set()
+        for server in candidates:
             if server and server["name"] not in seen_names:
                 seen_names.add(server["name"])
                 servers.append(server)
+        return servers
+
+    @staticmethod
+    def _get_capability_mcp_servers(agent: Any) -> list[dict[str, Any]]:
+        # `capabilities=[MCP(...)]` (pydantic-ai >= 1.71) is a separate attachment path from toolsets.
+        root = getattr(agent, "root_capability", None)
+        if root is None:
+            return []
+        try:
+            from pydantic_ai.capabilities import MCP
+        except ImportError:
+            return []
+        leaves: list[Any] = []
+        root.apply(leaves.append)
+        servers: list[dict[str, Any]] = []
+        for cap in leaves:
+            # Native MCP runs provider-side, so it never connects locally and has no server_info; the
+            # capability id is its identity. Local-only capabilities (native falsy) ride agent.toolsets.
+            if not (isinstance(cap, MCP) and cap.native and getattr(cap, "id", None)):
+                continue
+            server: dict[str, Any] = {"name": cap.id}
+            url = getattr(cap, "url", None)
+            if url:
+                from ddtrace.contrib.internal.trace_utils import _sanitized_url
+                from ddtrace.internal.utils.http import strip_query_string
+
+                # A capability URL can embed credentials (userinfo or a `?token=` query param); drop both.
+                server["url"] = strip_query_string(_sanitized_url(url))
+            description = getattr(cap, "description", None)
+            if description:
+                server["description"] = description
+            servers.append(server)
         return servers
 
     @staticmethod

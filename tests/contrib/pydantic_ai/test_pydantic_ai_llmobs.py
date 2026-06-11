@@ -35,6 +35,13 @@ try:
 except Exception:
     _HAS_MCP_SERVER_INFO = False
 
+try:
+    from pydantic_ai.capabilities import MCP as _MCPCapability  # noqa: F401
+
+    _HAS_CAPABILITIES = True
+except Exception:
+    _HAS_CAPABILITIES = False
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -504,6 +511,35 @@ class TestLLMObsPydanticAI:
 
         unconnected = pydantic_ai.Agent(model="gpt-4o", toolsets=[MCPServerStdio(id="never", **stdio)])
         assert PydanticAIIntegration._get_mcp_servers(unconnected) == []
+
+    @pytest.mark.skipif(not _HAS_CAPABILITIES, reason="pydantic-ai version does not support capabilities=[MCP(...)]")
+    def test_get_mcp_servers_captures_native_capability(self, pydantic_ai, pydantic_ai_llmobs):
+        """Native MCP servers attached via `capabilities=[MCP(...)]` are captured by id (provider-side, so no
+        handshake and no name/version); URL credentials are scrubbed. A local-only capability (`native=False`)
+        rides `agent.toolsets` instead and is not double-counted here.
+        """
+        from pydantic_ai.capabilities import MCP
+
+        explicit = pydantic_ai.Agent(
+            model="gpt-4o",
+            capabilities=[MCP(url="https://mcp.example.com/analytics", native=True, id="analytics-mcp")],
+        )
+        assert PydanticAIIntegration._get_mcp_servers(explicit) == [
+            {"name": "analytics-mcp", "url": "https://mcp.example.com/analytics"}
+        ]
+
+        derived = pydantic_ai.Agent(
+            model="gpt-4o",
+            capabilities=[MCP(url="https://user:pass@mcp.example.com/analytics?token=sk", native=True)],
+        )
+        assert PydanticAIIntegration._get_mcp_servers(derived) == [
+            {"name": "mcp.example.com-analytics", "url": "https://mcp.example.com/analytics"}
+        ]
+
+        local_only = pydantic_ai.Agent(
+            model="gpt-4o", capabilities=[MCP(url="https://mcp.example.com/x", native=False)]
+        )
+        assert PydanticAIIntegration._get_mcp_servers(local_only) == []
 
     async def test_agent_run_with_message_history(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans):
         """Test that INPUT_VALUE is set from message_history when user_prompt is not provided."""
