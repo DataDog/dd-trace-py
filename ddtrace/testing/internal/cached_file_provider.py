@@ -161,6 +161,12 @@ class CachedFileDataProvider:
             return {}
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+        # WARNING: this guard assumes Bazel ALWAYS sets DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+        # together with DD_TEST_OPTIMIZATION_MANIFEST_FILE. If a Bazel workflow ever sets only
+        # the manifest file without the payload-files flag, cached skippable decisions would be
+        # applied inside the Bazel sandbox, potentially skipping tests the build system expects
+        # to run. Revisit this guard if that invariant changes.
+        #
         # In Bazel payload-files mode the build system handles test selection;
         # applying cached skippable decisions here would skip tests Bazel expects to run.
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
