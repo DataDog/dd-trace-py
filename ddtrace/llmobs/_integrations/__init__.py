@@ -10,6 +10,7 @@ from .llama_index import LlamaIndexIntegration
 from .openai import OpenAIIntegration
 from .pydantic_ai import PydanticAIIntegration
 from .vertexai import VertexAIIntegration
+from .mistralai import MistralAIIntegration
 
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "LangChainIntegration",
     "LiteLLMIntegration",
     "LlamaIndexIntegration",
+    "MistralAIIntegration",
     "OpenAIIntegration",
     "PydanticAIIntegration",
     "VertexAIIntegration",

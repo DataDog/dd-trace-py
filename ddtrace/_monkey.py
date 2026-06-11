@@ -44,6 +44,7 @@ PATCH_MODULES = {
     "google_adk": True,
     "google_cloud_pubsub": True,
     "google_genai": True,
+    "mistralai": True,
     "gevent": True,
     "graphql": True,
     "grpc": True,
