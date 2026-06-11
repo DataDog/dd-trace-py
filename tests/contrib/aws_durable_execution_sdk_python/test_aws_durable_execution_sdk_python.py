@@ -83,6 +83,36 @@ def test_replayed():
         runner.run()
 
 
+def test_step_attempt_consistent_across_replay(test_spans):
+    """A step that succeeds on its first attempt must report the same 0-indexed
+    operation_attempt (0) whether the span is the fresh execution or a replay
+    that reads the succeeded checkpoint.
+
+    The succeeded checkpoint stores the 1-indexed number of the attempt that
+    succeeded (1 for a first-try success), so without normalization the replay
+    span would report 1 while the fresh execution reports 0.
+    """
+
+    def quick(step_context):
+        return "ok"
+
+    @ades.durable_execution
+    def workflow(event, context):
+        context.step(quick, name="quick", config=_fast_retry(max_attempts=1))
+        # Suspends the workflow so it is re-invoked, replaying the already
+        # succeeded step from its checkpoint.
+        context.wait(Duration.from_seconds(1), name="pause")
+
+    with DurableFunctionTestRunner(workflow) as runner:
+        runner.run()
+
+    step_spans = list(test_spans.filter_spans(name=aws_durable.SPAN_STEP))
+    assert len(step_spans) == 2, "expected a fresh-execution and a replay span for the step"
+    for span in step_spans:
+        assert span.get_metrics().get(aws_durable.TAG_OPERATION_ATTEMPT) == 0
+    assert sorted(span.get_tag(aws_durable.TAG_REPLAYED) for span in step_spans) == ["false", "true"]
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_parallel_propagates_trace_context():
     """context.parallel uses TracedThreadPoolExecutor so child step spans inherit the
