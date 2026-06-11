@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    aiohttp: Fixes a ``TypeError: 'tuple' object does not support item assignment``
+    raised when passing headers as a sequence of ``(key, value)`` tuples (aiohttp's
+    ``LooseHeaders`` type) to request methods such as ``get`` or ``post``. The
+    distributed tracing propagation code now converts any non-``MutableMapping``
+    headers to a ``dict`` before injecting trace context, matching the full range
+    of header types that aiohttp accepts.
