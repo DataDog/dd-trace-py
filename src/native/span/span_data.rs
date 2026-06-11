@@ -93,12 +93,12 @@ impl SpanData {
     /// Must be called with the GIL held — `AttrKey::as_bound` and
     /// `AttributeValue::Str` dereference Python objects.
     pub(crate) fn build_v04_span(
-        &mut self,
+        &self,
         py: Python<'_>,
         packb: Option<&Bound<'_, PyAny>>,
     ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
         // duration is Option<i64>; the libdatadog Span uses i64 with -1 as "unset".
-        // span_links/span_events are moved — not accessed after span finish.
+        // span_links/span_events are cloned — PyBackedString::clone() increments refcounts (GIL held).
         let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData> {
             trace_id: self.trace_id,
             span_id: self.span_id,
@@ -110,8 +110,8 @@ impl SpanData {
             service: self.service.clone_ref(py),
             resource: self.resource.clone_ref(py),
             r#type: self.span_type.clone_ref(py),
-            span_links: std::mem::take(&mut self.span_links),
-            span_events: std::mem::take(&mut self.span_events),
+            span_links: self.span_links.clone(),
+            span_events: self.span_events.clone(),
             ..Default::default()
         };
 

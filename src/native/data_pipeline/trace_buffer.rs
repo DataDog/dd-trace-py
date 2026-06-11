@@ -271,7 +271,7 @@ impl NativeTraceBufferPy {
             .ok();
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
-            let mut span_ref = span.bind(py).borrow_mut();
+            let span_ref = span.bind(py).borrow();
             chunk.push(span_ref.build_v04_span(py, packb.as_ref()));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
@@ -320,6 +320,11 @@ impl NativeTraceBufferPy {
     ///
     /// Tracking: https://datadoghq.atlassian.net/browse/APMLP-941
     fn shutdown(&mut self, py: Python<'_>, timeout_ns: u64) -> PyResult<()> {
+        // No-op if already shut down.
+        if self.worker_handle.is_none() {
+            return Ok(());
+        }
+
         let timeout = Duration::from_nanos(timeout_ns);
 
         // Snapshot the pending flag and generation *before* triggering the flush so that a

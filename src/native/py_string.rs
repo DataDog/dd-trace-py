@@ -212,6 +212,15 @@ impl PartialEq for PyBackedString {
 
 impl Eq for PyBackedString {}
 
+impl Clone for PyBackedString {
+    fn clone(&self) -> Self {
+        // `clone_ref` needs Python<'_> to increment the refcount. We acquire the GIL here
+        // rather than enabling the `py-clone` pyo3 feature (which also panics without GIL,
+        // but hides the requirement in the standard Clone trait).
+        Python::attach(|py| self.clone_ref(py))
+    }
+}
+
 impl Default for PyBackedString {
     fn default() -> Self {
         Self::from_static_str("")
