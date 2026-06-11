@@ -2,6 +2,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 mcp = FastMCP("test-mcp")
+mcp._mcp_server.version = "1.0.0"
 
 
 @mcp.tool()

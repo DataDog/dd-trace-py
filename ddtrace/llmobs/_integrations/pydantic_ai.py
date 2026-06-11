@@ -35,7 +35,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _annotate_llmobs_span_data(span, kind=kind)
         return span
 
-    def _observed_for(self, span: Span) -> Optional[dict[str, Any]]:
+    def _find_nearest_agent_observations(self, span: Span) -> Optional[dict[str, Any]]:
         cur: Optional[Span] = span
         while cur is not None:
             observed: Optional[dict[str, Any]] = cur._get_ctx_item(_OBSERVED_CTX_KEY)
@@ -154,15 +154,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
 
-        observed = self._observed_for(span)
+        observed = self._find_nearest_agent_observations(span)
         if tool_call and observed is not None:
-            raw_toolset = _get_attr(tool_instance, "toolset", None)
-            mcp = self._unwrap_toolset(raw_toolset)
-            mcp_server_id = None
-            if self._is_mcp_toolset(mcp):
-                mcp_server_id = _get_attr(mcp, "id", None)
-                observed["servers"].setdefault(mcp_server_id or id(raw_toolset), raw_toolset)
-            observed["tools"].setdefault(tool_name, {"description": tool_description, "mcp_server_id": mcp_server_id})
+            server = self._format_mcp_server(_get_attr(tool_instance, "toolset", None))
+            server_name = server["name"] if server else None
+            if server:
+                observed["servers"].setdefault(server_name, server)
+            observed["tools"].setdefault(tool_name, {"description": tool_description, "mcp_server_name": server_name})
 
         output_val = None
         if not span.error:
@@ -211,11 +209,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        observed = self._observed_for(span)
+        observed = self._find_nearest_agent_observations(span)
         manifest["tools"] = self._merge_observed_tools(self._get_agent_tools(agent), observed)
         mcp_servers = self._merge_observed_servers(self._get_mcp_servers(agent, kwargs.get("toolsets")), observed)
         if mcp_servers:
-            manifest["mcp_servers"] = mcp_servers
+            manifest["dependencies"] = {"mcp_servers": mcp_servers}
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
@@ -228,8 +226,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             entry: dict[str, Any] = {"name": tool_name}
             if info.get("description"):
                 entry["description"] = info["description"]
-            if info.get("mcp_server_id"):
-                entry["mcp_server_id"] = info["mcp_server_id"]
+            if info.get("mcp_server_name"):
+                entry["mcp_server_name"] = info["mcp_server_name"]
             tools.append(entry)
         return tools
 
@@ -237,22 +235,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _merge_observed_servers(
         servers: list[dict[str, Any]], observed: Optional[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        observed_servers = (observed or {}).get("servers", {})
-        if not observed_servers:
-            return servers
-        existing = {PydanticAIIntegration._server_key(server) for server in servers}
-        for raw_toolset in observed_servers.values():
-            mcp = PydanticAIIntegration._unwrap_toolset(raw_toolset)
-            server = PydanticAIIntegration._format_mcp_server(raw_toolset, mcp)
-            key = PydanticAIIntegration._server_key(server)
-            if key not in existing:
+        existing = {server["name"] for server in servers}
+        for server in (observed or {}).get("servers", {}).values():
+            if server["name"] not in existing:
                 servers.append(server)
-                existing.add(key)
+                existing.add(server["name"])
         return servers
-
-    @staticmethod
-    def _server_key(server: dict[str, Any]) -> str:
-        return str(server.get("id") or server.get("url") or server.get("command") or id(server))
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """
@@ -300,73 +288,36 @@ class PydanticAIIntegration(BaseLLMIntegration):
         return formatted_tools
 
     @staticmethod
-    def _unwrap_toolset(toolset: Any) -> Any:
-        # WrapperToolsets (e.g. PrefixedToolset from `.prefixed()` / `load_mcp_toolsets()`) hold the
-        # real toolset under `wrapped`; follow the chain so the underlying MCP metadata isn't missed.
-        seen = set()
-        while toolset is not None and hasattr(toolset, "wrapped") and id(toolset) not in seen:
-            seen.add(id(toolset))
-            toolset = getattr(toolset, "wrapped", None)
-        return toolset
-
-    @staticmethod
-    def _is_mcp_toolset(toolset: Any) -> bool:
-        # Deprecated MCPServer* expose url/command directly; the newer MCPToolset wraps a FastMCP
-        # client and exposes the transport (and thus url/command) under `client`.
-        return toolset is not None and (
-            hasattr(toolset, "url") or hasattr(toolset, "command") or hasattr(toolset, "client")
-        )
-
-    @staticmethod
-    def _mcp_connection_source(toolset: Any) -> Any:
-        if hasattr(toolset, "url") or hasattr(toolset, "command"):
-            return toolset
-        return getattr(getattr(toolset, "client", None), "transport", None)
-
-    @staticmethod
     def _get_mcp_servers(agent: Any, run_toolsets: Optional[Sequence[Any]] = None) -> list[dict[str, Any]]:
         servers: list[dict[str, Any]] = []
+        seen_names: set[str] = set()
         # `agent.toolsets` honors an active `override(toolsets=)`; per-run toolsets aren't on the agent.
         toolsets = list(getattr(agent, "toolsets", None) or getattr(agent, "_user_toolsets", []) or [])
         toolsets += list(run_toolsets or [])
-        seen: set[int] = set()
         for toolset in toolsets:
-            if id(toolset) in seen:
-                continue
-            seen.add(id(toolset))
-            mcp = PydanticAIIntegration._unwrap_toolset(toolset)
-            if not PydanticAIIntegration._is_mcp_toolset(mcp):
-                continue
-            servers.append(PydanticAIIntegration._format_mcp_server(toolset, mcp))
+            server = PydanticAIIntegration._format_mcp_server(toolset)
+            if server and server["name"] not in seen_names:
+                seen_names.add(server["name"])
+                servers.append(server)
         return servers
 
     @staticmethod
-    def _format_mcp_server(toolset: Any, mcp: Any) -> dict[str, Any]:
-        server: dict[str, Any] = {}
-        server_id = getattr(mcp, "id", None)
-        if server_id:
-            server["id"] = server_id
-        source = PydanticAIIntegration._mcp_connection_source(mcp)
-        url = getattr(source, "url", None)
-        if url:
-            from ddtrace.contrib.internal.trace_utils import _sanitized_url
-            from ddtrace.internal.utils.http import strip_query_string
-
-            # An MCP URL can embed credentials (userinfo or a `?token=` query param); drop both.
-            server["url"] = strip_query_string(_sanitized_url(url))
-        command = getattr(source, "command", None)
-        if command:
-            server["command"] = command
-            args = getattr(source, "args", None)
-            if args:
-                # MCP launch args can carry CLI credentials; mask secret-looking values before shipping.
-                from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
-
-                server["args"] = SubprocessCmdLine([command, *args], shell=False).arguments
-        # `.prefixed()` carries the applied prefix on the wrapper; fall back to the MCP toolset's own.
-        tool_prefix = getattr(toolset, "prefix", None) or getattr(mcp, "tool_prefix", None)
-        if tool_prefix:
-            server["tool_prefix"] = tool_prefix
+    def _format_mcp_server(toolset: Any) -> Optional[dict[str, Any]]:
+        # Unwrap wrapper toolsets (e.g. `.prefixed()`) to the underlying MCP server.
+        seen: set[int] = set()
+        while toolset is not None and hasattr(toolset, "wrapped") and id(toolset) not in seen:
+            seen.add(id(toolset))
+            toolset = getattr(toolset, "wrapped", None)
+        # server_info (name + version) is populated only after the server connects and kept after it
+        # disconnects, so a server used in the run stays identifiable here; one never connected is skipped.
+        server_info = getattr(toolset, "server_info", None)
+        name = getattr(server_info, "name", None)
+        if not name:
+            return None
+        server: dict[str, Any] = {"name": name}
+        version = getattr(server_info, "version", None)
+        if version:
+            server["version"] = version
         return server
 
     @staticmethod

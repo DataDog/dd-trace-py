@@ -35,12 +35,12 @@ def expected_external_tool():
     ]
 
 
-def expected_mcp_tool(mcp_server_id):
+def expected_mcp_tool(mcp_server_name):
     return [
         {
             "name": "calculate_square_tool",
             "description": "Calculates the square of a number",
-            "mcp_server_id": mcp_server_id,
+            "mcp_server_name": mcp_server_name,
         }
     ]
 
@@ -58,7 +58,7 @@ def expected_agent_metadata(
         "tools": tools if tools is not None else [],
     }
     if mcp_servers is not None:
-        manifest["mcp_servers"] = mcp_servers
+        manifest["dependencies"] = {"mcp_servers": mcp_servers}
     return {"_dd": {"agent_manifest": manifest}}
 
 
