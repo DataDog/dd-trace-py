@@ -15,6 +15,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._integrations import AnthropicIntegration
 
 
@@ -64,7 +65,14 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except (DDBlockException, Exception):
+        except (DDBlockException, Exception) as e:
+            # An AI Guard block after the model call still has a valid response;
+            # attach it and flag the span so LLMObs records the model output
+            # even though the span is errored by the block (APPSEC-68147).
+            if isinstance(e, DDBlockException):
+                event.response = resp
+                if ctx.span is not None:
+                    ctx.span._set_ctx_item(AI_GUARD_BLOCKED, True)
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         event.response = resp
@@ -98,7 +106,14 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except (DDBlockException, Exception):
+        except (DDBlockException, Exception) as e:
+            # An AI Guard block after the model call still has a valid response;
+            # attach it and flag the span so LLMObs records the model output
+            # even though the span is errored by the block (APPSEC-68147).
+            if isinstance(e, DDBlockException):
+                event.response = resp
+                if ctx.span is not None:
+                    ctx.span._set_ctx_item(AI_GUARD_BLOCKED, True)
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         event.response = resp

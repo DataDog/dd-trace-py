@@ -3,6 +3,7 @@
 import asyncio
 import gc
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 import warnings
 
@@ -16,6 +17,12 @@ from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_messages
 from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_response
 from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.trace import tracer
 from tests.appsec.ai_guard.openai._span_helpers import assert_block_emits_both_spans
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
@@ -1504,3 +1511,88 @@ def test_chat_sync_before_block_records_request_model_on_llm_span(
     assert llm_span.get_tag("openai.request.model") == CHAT_MODEL
     assert llm_span.get_tag("openai.request.endpoint") == "/v1/chat/completions"
     assert llm_span.get_tag("openai.request.method") == "POST"
+
+
+# ---------------------------------------------------------------------------
+# APPSEC-68147: model output must still be recorded in LLMObs when AI Guard
+# blocks AFTER the model call (the response exists; the block errors the span).
+# ---------------------------------------------------------------------------
+
+
+def _fake_chat_response(content="ok"):
+    """Minimal non-streamed ChatCompletion-shaped object for the chat extractor."""
+    message = SimpleNamespace(role="assistant", content=content, tool_calls=None, reasoning_content=None)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)], model=CHAT_MODEL)
+
+
+def _fake_response_api_response(text="ok"):
+    """Minimal Responses-API-shaped object for the response extractor."""
+    content = SimpleNamespace(type="output_text", text=text, refusal=None)
+    item = SimpleNamespace(type="message", role="assistant", content=[content])
+    return SimpleNamespace(output=[item], model=CHAT_MODEL)
+
+
+def _output_contents(span):
+    return [m.get("content") for m in (get_llmobs_output_messages(span) or [])]
+
+
+def _llm_span():
+    """An LLM-kind span (kind is normally set by the integration at span start)."""
+    span = tracer.trace("openai.request", span_type="llm")
+    _annotate_llmobs_span_data(span, kind="llm")
+    return span
+
+
+def test_chat_output_recorded_when_ai_guard_blocked():
+    """A blocked span (error=1) WITH the AI Guard marker still records output."""
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        span._set_ctx_item(AI_GUARD_BLOCKED, True)
+        openai_set_meta_tags_from_chat(span, kwargs, _fake_chat_response("blocked body"))
+        assert _output_contents(span) == ["blocked body"]
+
+
+def test_chat_output_suppressed_on_plain_error():
+    """Without the marker, an errored span still blanks output (unchanged)."""
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_chat(span, kwargs, _fake_chat_response("should not appear"))
+        assert _output_contents(span) == [""]
+
+
+def test_response_output_recorded_when_ai_guard_blocked():
+    """Responses API: blocked span with the marker still records output."""
+    kwargs = {"input": "hi", "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        span._set_ctx_item(AI_GUARD_BLOCKED, True)
+        openai_set_meta_tags_from_response(span, kwargs, _fake_response_api_response("blocked body"), None)
+        assert _output_contents(span) == ["blocked body"]
+
+
+def test_response_output_suppressed_on_plain_error():
+    kwargs = {"input": "hi", "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_response(span, kwargs, _fake_response_api_response("nope"), None)
+        assert _output_contents(span) == [""]
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_after_block_flags_span_for_output(mock_execute_request, openai_client_mock, test_spans):
+    """End-to-end: an after-model block (ALLOW then DENY) flags the openai span
+    with AI_GUARD_BLOCKED so LLMObs records the model output (APPSEC-68147).
+    """
+    import openai
+
+    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
+
+    with pytest.raises(openai.UnprocessableEntityError):
+        openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
+
+    assert mock_execute_request.call_count == 2
+    llm_span = _find_openai_llm_span(test_spans)
+    assert llm_span.error == 1
+    assert llm_span._get_ctx_item(AI_GUARD_BLOCKED) is True

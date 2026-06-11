@@ -10,6 +10,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
@@ -384,7 +385,9 @@ def openai_set_meta_tags_from_chat(
         span, input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
     )
 
-    if span.error or not messages:
+    # ``span.error`` normally suppresses output, but an AI Guard block after the
+    # model call errors the span while a valid response exists (APPSEC-68147).
+    if (span.error and not span._get_ctx_item(AI_GUARD_BLOCKED)) or not messages:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
@@ -1006,7 +1009,9 @@ def openai_set_meta_tags_from_response(
         prompt=validated_prompt,
     )
 
-    if span.error or not response:
+    # ``span.error`` normally suppresses output, but an AI Guard block after the
+    # model call errors the span while a valid response exists (APPSEC-68147).
+    if (span.error and not span._get_ctx_item(AI_GUARD_BLOCKED)) or not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 

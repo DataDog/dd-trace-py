@@ -4,6 +4,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
@@ -68,7 +69,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        # Record output when a response exists. ``span.error`` normally
+        # suppresses output, but an AI Guard block after the model call errors
+        # the span while still having a valid response (APPSEC-68147).
+        if response is not None and (not span.error or span._get_ctx_item(AI_GUARD_BLOCKED)):
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 

@@ -140,6 +140,11 @@ PROXY_REQUEST = "llmobs.proxy_request"
 
 REQUEST_BASE_URL = "llmobs.request_base_url"
 
+# Span ctx-item flag set when AI Guard blocks *after* a model call: the model
+# already produced a response, so LLMObs must still record the output even
+# though the span is errored by the block (APPSEC-68147).
+AI_GUARD_BLOCKED = "_ml_obs.ai_guard_blocked"
+
 # experiment span baggage keys to be propagated across boundaries
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_RUN_ID_KEY = "_ml_obs.experiment_run_id"

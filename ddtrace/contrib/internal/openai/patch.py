@@ -14,6 +14,7 @@ from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._integrations import OpenAIIntegration
 from ddtrace.trace import tracer
 
@@ -223,6 +224,11 @@ def _traced_endpoint(endpoint_hook, integration, instance, args, kwargs):
         # Record any error information
         if err is not None:
             span.set_exc_info(*sys.exc_info())
+            # An AI Guard block fires after a successful model call, so the
+            # response is valid; flag the span so LLMObs still records the
+            # model output despite the span being errored (APPSEC-68147).
+            if isinstance(err, DDBlockException) and resp is not None:
+                span._set_ctx_item(AI_GUARD_BLOCKED, True)
 
         # Pass the response and the error to the hook
         try:
