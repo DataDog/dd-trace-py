@@ -349,6 +349,81 @@ def test_parentcommand_still_not_marked_as_error(langgraph, test_spans):
         assert span.error == 0
 
 
+def test_base_exception_in_node_still_emits_root_span(langgraph, test_spans):
+    """DDBlockException (parent of AIGuardAbortError) is a BaseException, not an Exception.
+    The pregel stream generators previously used ``except Exception`` which silently skipped
+    ``span.finish()`` on a block, so the entire trace was dropped. This test pins that fix.
+    """
+    from ddtrace.internal._exceptions import DDBlockException
+
+    def blocking_node(state):
+        raise DDBlockException("block")
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", blocking_node)
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", END)
+    graph = graph_builder.compile()
+
+    with pytest.raises(DDBlockException):
+        graph.invoke({"a_list": [], "which": "a"})
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1, "trace must be emitted even when DDBlockException propagates"
+    resources = [s.resource for s in traces[0]]
+    assert any("LangGraph" in r for r in resources), f"root graph span not found in: {resources}"
+
+
+async def test_base_exception_in_node_still_emits_root_span_async(langgraph, test_spans):
+    """Async variant: ainvoke path uses the astream generator which had the same bug."""
+    from ddtrace.internal._exceptions import DDBlockException
+
+    async def blocking_node_async(state):
+        raise DDBlockException("block")
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", blocking_node_async)
+    graph_builder.add_edge(START, "a")
+    graph_builder.add_edge("a", END)
+    graph = graph_builder.compile()
+
+    with pytest.raises(DDBlockException):
+        await graph.ainvoke({"a_list": [], "which": "a"})
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1, "trace must be emitted even when DDBlockException propagates (async)"
+    resources = [s.resource for s in traces[0]]
+    assert any("LangGraph" in r for r in resources), f"root graph span not found in: {resources}"
+
+
+def test_stream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Closing a stream early is normal teardown, not a span error.
+
+    The pregel stream generators wrap ``yield`` in a try/except. Catching bare
+    ``BaseException`` would treat the ``GeneratorExit`` raised by ``close()`` (or by
+    a ``break`` followed by GC) as a runtime error. The catch is narrowed to
+    ``(DDBlockException, Exception)`` so normal teardown is left alone.
+    """
+    stream = simple_graph.stream({"a_list": [], "which": "a"})
+    next(stream)  # suspend the generator at a ``yield``
+    stream.close()  # raises GeneratorExit at the suspended ``yield``
+
+    for trace in test_spans.pop_traces():
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on stream teardown"
+
+
+async def test_astream_teardown_not_marked_as_error(simple_graph, test_spans):
+    """Async variant: ``aclose()`` raises GeneratorExit in the astream generator."""
+    stream = simple_graph.astream({"a_list": [], "which": "a"})
+    await stream.__anext__()  # suspend the generator at a ``yield``
+    await stream.aclose()  # raises GeneratorExit at the suspended ``yield``
+
+    for trace in test_spans.pop_traces():
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on astream teardown"
+
+
 def test_regular_exception_still_marked_as_error(langgraph, test_spans):
     """Regular exceptions should still be marked as errors (regression test)."""
 
