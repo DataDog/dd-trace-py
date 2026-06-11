@@ -8,6 +8,9 @@ import typing as t
 import pytest
 
 from ddtrace.internal.settings import env
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_FILE
+from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.utils import asbool
@@ -15,17 +18,15 @@ from ddtrace.testing.internal.utils import asbool
 
 log = logging.getLogger(__name__)
 
-_ENV_ENABLED = "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED"
-_ENV_OUTPUT_PATH = "DD_TEST_OPTIMIZATION_DISCOVERY_FILE"
 _DEFAULT_OUTPUT_PATH = ".testoptimization/tests-discovery/tests.json"
 
 
 def is_discovery_mode_enabled() -> bool:
-    return asbool(env.get(_ENV_ENABLED))
+    return asbool(env.get(DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED))
 
 
 def _get_output_path() -> Path:
-    return Path(env.get(_ENV_OUTPUT_PATH, _DEFAULT_OUTPUT_PATH))
+    return Path(env.get(DD_TEST_OPTIMIZATION_DISCOVERY_FILE, _DEFAULT_OUTPUT_PATH))
 
 
 def _is_item_skipped(item: pytest.Item) -> bool:
@@ -57,8 +58,7 @@ def _get_suite_source_file(item: pytest.Item, workspace_path: t.Optional[Path]) 
     item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "")).absolute()
     if workspace_path is not None:
         try:
-            # TODO: use item_path.relative_to(workspace_path).as_posix() on Windows
-            return str(item_path.relative_to(workspace_path))
+            return item_path.relative_to(workspace_path).as_posix()
         except ValueError:
             pass
     return str(item_path)
@@ -71,8 +71,6 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 
     workspace_path: t.Optional[Path] = None
     try:
-        from ddtrace.testing.internal.git import get_workspace_path
-
         workspace_path = get_workspace_path()
     except Exception:
         log.debug("Could not determine workspace path for test discovery", exc_info=True)
@@ -80,7 +78,7 @@ def pytest_collection_finish(session: pytest.Session) -> None:
     output_path = _get_output_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         for item in session.items:
             if _is_item_skipped(item):
                 continue

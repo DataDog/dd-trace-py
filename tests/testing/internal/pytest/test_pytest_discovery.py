@@ -52,6 +52,16 @@ class TestDiscoveryMode:
         names = {t["name"] for t in tests}
         assert names == {"test_alpha", "test_beta"}
 
+    def test_no_items_collected_writes_empty_file(self, pytester: Pytester, output_file: Path) -> None:
+        """When no tests are collected the output file is created but empty."""
+        pytester.makepyfile(test_empty="")
+
+        result = pytester.inline_run()
+
+        assert result.ret == 0
+        assert output_file.exists()
+        assert output_file.read_text(encoding="utf-8") == ""
+
     def test_does_not_run_tests(self, pytester: Pytester, output_file: Path) -> None:
         """Discovery mode exits after collection — test bodies are never executed."""
         pytester.makepyfile(

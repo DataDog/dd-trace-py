@@ -16,7 +16,7 @@ from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_R
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import XdistTestOptPlugin
-from ddtrace.testing.internal.pytest.plugin import _encode_test_parameter
+from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
