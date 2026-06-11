@@ -61,10 +61,20 @@ FILE_PATH = Path(__file__).resolve().parent
 # derived from response payloads and vary by cassette / SDK version, so we
 # ignore them globally in snapshot comparisons. Their wiring is covered by
 # dedicated unit tests under tests/llmobs and tests/contrib/<integration>/.
+#
+# The `_dd.p.llmobs_*` propagation tags are written to span.context._meta by
+# LLMObs's `_inject_llmobs_context` hook whenever HTTPPropagator.inject fires
+# while the span is still active. Their values are random per-trace identifiers
+# (trace id, parent id) plus the ML app name — meaningless to verify in a
+# snapshot. Ignored globally for the same reason as the `_dd.llmobs.*` shadow
+# tags above.
 _LLMOBS_SHADOW_IGNORES = [
     "meta._dd.llmobs.span_kind",
     "meta._dd.llmobs.model_name",
     "meta._dd.llmobs.model_provider",
+    "meta._dd.p.llmobs_trace_id",
+    "meta._dd.p.llmobs_parent_id",
+    "meta._dd.p.llmobs_ml_app",
     "metrics._dd.llmobs.enabled",
     "metrics._dd.llmobs.input_tokens",
     "metrics._dd.llmobs.output_tokens",
@@ -643,7 +653,11 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     def pop(self):
         return DummyWriterMixin.pop(self)
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "DummyWriter":
         return DummyWriter(trace_flush_enabled=self.trace_flush_enabled)
 
     def flush_queue(self, raise_exc: bool = False) -> None:

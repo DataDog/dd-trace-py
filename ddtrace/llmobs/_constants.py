@@ -3,12 +3,15 @@ from typing import Final
 
 
 class LLMObsExportMode(str, Enum):
-    """How LLMObs span data is submitted to Datadog.
+    """The primary path LLMObs span data takes to Datadog.
 
-    LLMOBS_DIRECT  — span events go through LLMObsSpanWriter directly.
-                     Used when DD_APM_TRACING_ENABLED=false.
-    APM_AGENTLESS  — span data rides the APM trace; APM writer switches to agentless.
-    APM_AGENT      — span data rides the APM trace; APM writer stays agent-based.
+    Only the primary path is modeled here; the writer's wire transport (Agent EVP proxy vs
+    direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
+
+    APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
+    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; LLMObs
+                    processor re-ships predicted drops through ``LLMObsSpanWriter`` agent proxy.
+    LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
     """
 
     LLMOBS_DIRECT = "llmobs_direct"
@@ -16,10 +19,25 @@ class LLMObsExportMode(str, Enum):
     APM_AGENT = "apm_agent"
 
 
+CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
+
+
 SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"
 ML_APP_DEFAULT = "unnamed-ml-app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+PROPAGATED_SAMPLE_RATE = "_dd.p.llmobs_sr"
+PROPAGATED_SAMPLING_DECISION = "_dd.p.llmobs_sd"
+
+
+DEFAULT_SAMPLE_RATE = "1"
+
+
+class LLMObsSamplingDecision(str, Enum):
+    SAMPLED = "1"
+    DROPPED = "0"
+
+
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
@@ -170,6 +188,8 @@ class LLMOBS_STRUCT:
     METADATA_DD: Final = "_dd"
     DD: Final = "_dd"
     SCOPE: Final = "scope"
+    SAMPLE_RATE: Final = "sample_rate"
+    SAMPLING_DECISION: Final = "sampling_decision"
     SPAN_LINKS: Final = "span_links"
     META: Final = "meta"
     ERROR: Final = "error"

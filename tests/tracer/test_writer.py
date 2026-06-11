@@ -499,7 +499,7 @@ def test_agentless_trace_writer_uses_post():
     assert writer.HTTP_METHOD == "POST"
     assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
     assert writer._headers.get("dd-api-key") == "test-api-key"
-    assert writer._clients[0].ENDPOINT == "v1/input"
+    assert writer._clients[0].ENDPOINT == "api/v2/spans"
     assert writer._encoder.content_type == "application/json"
 
 
@@ -539,6 +539,56 @@ def test_agentless_trace_writer_encode_traces():
     )
     writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
     writer.flush_queue(raise_exc=True)
+
+
+@pytest.mark.subprocess(
+    env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-key"},
+    parametrize={
+        "DD_SITE": [
+            "datadoghq.com",
+            "datadoghq.eu",
+            "us3.datadoghq.com",
+            "us5.datadoghq.com",
+            "ap1.datadoghq.com",
+            "ap2.datadoghq.com",
+            "uk1.datadoghq.com",
+            "datad0g.com",
+        ]
+    },
+)
+def test_agentless_trace_writer_intake_url():
+    """AgentlessTraceWriter sets the correct intake URL for each DD_SITE."""
+    import os
+
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    site = os.environ["DD_SITE"]
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+    assert writer.intake_url == AgentlessTraceWriter.INTAKE_URLS[site]
+
+
+@pytest.mark.parametrize("site,expected", list(AgentlessTraceWriter.INTAKE_URLS.items()))
+def test_compute_intake_url_known_sites(site, expected):
+    assert AgentlessTraceWriter.compute_intake_url(site) == expected
+
+
+@pytest.mark.parametrize(
+    "site,expected",
+    [
+        ("ap3.datadoghq.com", "https://browser-intake-ap3-datadoghq.com"),
+        ("ddog-gov.com", "https://browser-intake-ddog-gov.com"),
+        ("us2.ddog-gov.com", "https://browser-intake-us2-ddog-gov.com"),
+    ],
+)
+def test_compute_intake_url_unknown_site_uses_browser_intake_fallback(site, expected):
+    with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+        result = AgentlessTraceWriter.compute_intake_url(site)
+
+    assert result == expected
+    mock_log.warning.assert_called_once()
+    assert site in mock_log.warning.call_args[0][1]
 
 
 def test_humansize():
@@ -1349,8 +1399,7 @@ def test_agentless_writer_serialize_span_fields():
     assert span_json["meta"]["runtime-id"] == get_runtime_id()
     assert span_json["meta"]["tag1"] == "value1"
     assert span_json["meta"]["tag2"] == "value2"
-    # Sampling rules and rate limits are ignored. Default is used.
-    assert span_json["meta"]["_dd.p.dm"] == "-0"
+    assert span_json["meta"]["_dd.p.dm"] == "-3"
     assert span_json["meta"]["language"] == "python"
     assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
 
@@ -1358,7 +1407,8 @@ def test_agentless_writer_serialize_span_fields():
     assert span_json["metrics"]["metric1"] == 1.0
     assert span_json["metrics"]["metric2"] == 2.0
     assert span_json["metrics"]["_dd.top_level"] == 1
-    assert span_json["metrics"]["_sampling_priority_v1"] == 1
+    assert span_json["metrics"]["_dd.rule_psr"] == 0
+    assert span_json["metrics"]["_sampling_priority_v1"] == -1
 
 
 @pytest.mark.subprocess(

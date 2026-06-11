@@ -7,6 +7,9 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <string_view>
+#include <utility>
+
 using namespace Datadog;
 
 static PyObject*
@@ -258,6 +261,48 @@ stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_adaptive_sampling_baseline(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double baseline_core_pct;
+
+    if (!PyArg_ParseTuple(args, "d", &baseline_core_pct)) {
+        return NULL;
+    }
+
+    Sampler::get().set_baseline_core_pct(baseline_core_pct);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_window_s(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int window_s;
+
+    if (!PyArg_ParseTuple(args, "I", &window_s)) {
+        return NULL;
+    }
+
+    Sampler::get().set_p_stable_window_s(window_s);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_percentile(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double percentile;
+
+    if (!PyArg_ParseTuple(args, "d", &percentile)) {
+        return NULL;
+    }
+
+    Sampler::get().set_p_stable_percentile(percentile);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 {
     unsigned int max_threads;
@@ -296,18 +341,18 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto& sampler = Sampler::get();
-    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
-    if (!maybe_greenlet_name) {
-        // We failed to get this task but we keep going
-        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
+    Py_ssize_t name_size = 0;
+    const char* name_data = PyUnicode_AsUTF8AndSize(name, &name_size);
+    if (name_data == nullptr || name_size < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name");
         return NULL;
     }
 
-    auto greenlet_name = *maybe_greenlet_name;
+    auto greenlet_name = TaskName::from_gevent_name(std::string_view(name_data, static_cast<size_t>(name_size)));
 
+    auto& sampler = Sampler::get();
     Py_BEGIN_ALLOW_THREADS;
-    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, std::move(greenlet_name), frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -802,6 +847,18 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_sampling_period,
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
+    { "set_adaptive_sampling_baseline",
+      stack_set_adaptive_sampling_baseline,
+      METH_VARARGS,
+      "Set absolute overhead floor for adaptive sampling in core-percent units (1 = 0.01 core = 10 mcores)" },
+    { "set_p_stable_window_s",
+      stack_set_p_stable_window_s,
+      METH_VARARGS,
+      "Set rolling window duration in seconds for p_stable percentile computation" },
+    { "set_p_stable_percentile",
+      stack_set_p_stable_percentile,
+      METH_VARARGS,
+      "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
