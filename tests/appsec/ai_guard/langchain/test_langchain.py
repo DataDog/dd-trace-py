@@ -540,6 +540,69 @@ def test_create_agent_blocks_on_tool_result(
     assert mock_execute_request.call_count == 3
 
 
+@requires_create_agent
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_create_agent_prompt_block(mock_execute_request, langchain_openai, openai_url, decision):
+    """AI Guard blocks at the prompt (before-model) step of a create_agent graph.
+
+    The first evaluation returns DENY/ABORT so the LLM is never called. Pins
+    regression: the pregel stream generator previously used ``except Exception``
+    which silently swallowed ``span.finish()`` for BaseException subclasses
+    (AIGuardAbortError), causing the entire trace to be dropped.
+    """
+    from langchain.agents import create_agent
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    @langchain_core.tools.tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    agent = create_agent(model=llm, tools=[add])
+
+    with pytest.raises(AIGuardAbortError):
+        agent.invoke({"messages": [HumanMessage(content="1 + 1")]})
+
+    assert mock_execute_request.call_count == 1  # blocked at prompt, LLM never called
+
+
+@requires_create_agent
+@pytest.mark.asyncio
+@pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+async def test_create_agent_prompt_block_async(mock_execute_request, langchain_openai, openai_url, decision):
+    """Async variant of test_create_agent_prompt_block."""
+    from langchain.agents import create_agent
+
+    mock_execute_request.return_value = mock_evaluate_response(decision)
+
+    @langchain_core.tools.tool
+    def add(a: int, b: int) -> int:
+        """Adds a and b.
+
+        Args:
+            a: first int
+            b: second int
+        """
+        return a + b
+
+    llm = langchain_openai.ChatOpenAI(temperature=0, n=1, base_url=openai_url)
+    agent = create_agent(model=llm, tools=[add])
+
+    with pytest.raises(AIGuardAbortError):
+        await agent.ainvoke({"messages": [HumanMessage(content="1 + 1")]})
+
+    assert mock_execute_request.call_count == 1  # blocked at prompt, LLM never called
+
+
 def test_message_conversion():
     messages = [
         SystemMessage(content="You are a beautiful assistant"),
