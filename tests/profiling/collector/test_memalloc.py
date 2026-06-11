@@ -891,15 +891,16 @@ def test_heap_live_samples_aggregate_accuracy(tmp_path: Path) -> None:
         print(f"Reported heap-live-samples: {total_heap_live_count}")
         print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
 
-        # The aggregate should be in the right ballpark.
-        # With Poisson sampling, we expect some variance but the estimate
-        # should be within 2.5x of the true count for 500 objects at interval=64.
-        # There is also variation from other allocations that happen other than the
-        # 500 that we allocate.
+        # The aggregate should be close to the actual count.
+        # With the Horvitz-Thompson estimator w = 1/(1-exp(-S/R)), the weight
+        # is deterministic for a given allocation size. For our allocations
+        # (size much greater than R), w ~= 1, so the sum should be very close to num_objects.
+        # We allow some slack (not all 500 may be sampled if
+        # an allocation lands exactly on a boundary)
         assert total_heap_live_count > 0, "heap-live-samples aggregate should be > 0"
         ratio = total_heap_live_count / num_objects
-        assert 1.0 <= ratio <= 2.5, (
-            f"heap-live-samples aggregate ({total_heap_live_count}) should be within 2.5x of "
+        assert 0.8 <= ratio <= 1.2, (
+            f"heap-live-samples aggregate ({total_heap_live_count}) should be within 20% of "
             f"actual count ({num_objects}), got ratio={ratio:.2f}"
         )
 
