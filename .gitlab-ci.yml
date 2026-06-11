@@ -66,6 +66,15 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - project: 'DataDog/system-tests'
+    ref: nccatoni/gitlab
+    file: 'utils/ci/gitlab/main.yml'
+    inputs:
+      stage: "tests"
+      excluded_scenarios: "DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E"
+      ref: nccatoni/gitlab
+      push_to_test_optimization: true
+
 
 "pipeline variables":
   stage: .pre
