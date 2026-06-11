@@ -86,6 +86,59 @@ class UnvalidatedRedirect(VulnerabilityBase):
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
 
 
+def _iast_diag_unvalidated_redirect(headers):
+    """THROWAWAY DIAGNOSTIC. Dumps native taint-context slot state at the moment an
+    UNVALIDATED_REDIRECT is about to be reported, so we can tell whether the matched
+    taint entry lives in the current request's slot (same-slot reuse) or leaked from
+    another slot, and whether the key (PyObject address) is shared across slots.
+    Grep CI logs for the 'IAST-URDIAG' marker.
+    """
+    try:
+        from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+        from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
+        from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
+        from ddtrace.appsec._iast._taint_tracking._context import debug_num_tainted_objects
+        from ddtrace.appsec._iast._taint_tracking._context import debug_taint_map
+        from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
+
+        ctx_id = _get_iast_context_id()
+        obj_id = id(headers)
+        size = debug_context_array_size()
+        free = debug_context_array_free_slots_number()
+        log.error(
+            "IAST-URDIAG report value=%r obj_id=%#x ctx_id=%s slots_size=%s free_slots=%s "
+            "in_current_slot=%s in_any_slot=%s",
+            headers,
+            obj_id,
+            ctx_id,
+            size,
+            free,
+            is_in_taint_map(headers, ctx_id) if ctx_id is not None else None,
+            is_in_taint_map(headers, None),
+        )
+        for slot in range(size):
+            try:
+                n = debug_num_tainted_objects(slot)
+            except Exception:
+                n = "ERR"
+            dump = ""
+            try:
+                dump = debug_taint_map(slot)
+            except Exception as e:  # pragma: no cover
+                dump = f"ERR({e})"
+            key_present = (f"{obj_id}" in dump) or (f"{obj_id:#x}" in dump)
+            log.error(
+                "IAST-URDIAG   slot=%s is_current=%s num_tainted=%s key_present=%s map=%s",
+                slot,
+                slot == ctx_id,
+                n,
+                key_present,
+                dump,
+            )
+    except Exception as e:  # pragma: no cover
+        log.error("IAST-URDIAG failed: %r", e)
+
+
 def _iast_report_unvalidated_redirect(headers):
     if headers and isinstance(headers, IAST.TEXT_TYPES):
         try:
@@ -93,6 +146,8 @@ def _iast_report_unvalidated_redirect(headers):
                 headers, origins_to_exclude=UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS
             )
 
+            if is_tainted:
+                _iast_diag_unvalidated_redirect(headers)
             if is_tainted:
                 if UnvalidatedRedirect.has_quota():
                     UnvalidatedRedirect.report(evidence_value=headers)
