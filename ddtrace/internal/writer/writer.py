@@ -11,8 +11,6 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
-from ddtrace.internal.constants import AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE
-from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native

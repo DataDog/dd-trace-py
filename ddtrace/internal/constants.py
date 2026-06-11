@@ -153,19 +153,6 @@ _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
 
 
-AGENTLESS_TRACE_INTAKE_URLS: dict[str, str] = {
-    "datadoghq.com": "https://browser-intake-datadoghq.com",
-    "datadoghq.eu": "https://browser-intake-datadoghq.eu",
-    "us3.datadoghq.com": "https://browser-intake-us3-datadoghq.com",
-    "us5.datadoghq.com": "https://browser-intake-us5-datadoghq.com",
-    "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
-    "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
-    "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
-    "datad0g.com": "https://browser-intake-datad0g.com",
-}
-AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
-
-
 # List of support values in DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)

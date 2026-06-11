@@ -17,7 +17,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
