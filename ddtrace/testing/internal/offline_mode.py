@@ -24,8 +24,7 @@ import typing as t
 from ddtrace.internal.settings import env
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
-from ddtrace.testing.internal.constants import MANIFEST_VERSION_DDTEST
-from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSIONS
+from ddtrace.testing.internal.constants import SUPPORTED_MANIFEST_VERSION
 from ddtrace.testing.internal.constants import TEST_UNDECLARED_OUTPUTS_DIR
 from ddtrace.testing.internal.utils import asbool
 
@@ -89,12 +88,13 @@ def _parse_manifest_version(raw_line: str) -> str:
     return line
 
 
-def _read_manifest_version(manifest_path: str) -> t.Optional[int]:
+def _validate_manifest(manifest_path: str) -> bool:
     """
-    Read manifest.txt and return the version integer, or None on failure.
+    Read manifest.txt and verify it declares a supported version.
 
-    Manifest mode is disabled when None is returned — no HTTP fallback is
-    attempted (Bazel hermeticity requires a hard boundary).
+    Returns True if compatible, False otherwise. On incompatible or missing
+    manifest, manifest mode is disabled (no HTTP fallback — Bazel hermeticity
+    requires a hard failure, not silent degradation).
 
     The parser skips blank lines and supports both plain version numbers
     (``"1"``) and assignment syntax (``"version=1"``), matching the Go
@@ -113,22 +113,23 @@ def _read_manifest_version(manifest_path: str) -> t.Optional[int]:
                     log.warning(
                         "Could not parse manifest version %r in %s — disabling manifest mode", stripped, manifest_path
                     )
-                    return None
+                    return False
 
-                if version not in SUPPORTED_MANIFEST_VERSIONS:
+                if version != SUPPORTED_MANIFEST_VERSION:
                     log.warning(
-                        "Unsupported .testoptimization manifest version %d — disabling manifest mode",
+                        "Unsupported .testoptimization manifest version %d (expected %d) — disabling manifest mode",
                         version,
+                        SUPPORTED_MANIFEST_VERSION,
                     )
-                    return None
-                return version
+                    return False
+                return True
 
         # File was empty or only blank lines
         log.warning("Empty manifest file %s — disabling manifest mode", manifest_path)
-        return None
+        return False
     except OSError as e:
         log.warning("Could not read manifest file %s: %s — disabling manifest mode", manifest_path, e)
-        return None
+        return False
 
 
 class OfflineMode:
@@ -140,7 +141,6 @@ class OfflineMode:
 
     def __init__(self) -> None:
         self.manifest_enabled: bool = False
-        self.apply_cached_skipping: bool = False
         self.payload_files_enabled: bool = False
         self.test_optimization_dir: t.Optional[str] = None
         self.output_dir: t.Optional[str] = None
@@ -149,16 +149,10 @@ class OfflineMode:
         manifest_env = env.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
         if manifest_env:
             resolved = resolve_rlocation(manifest_env)
-            version = _read_manifest_version(resolved)
-            if version is not None:
+            if _validate_manifest(resolved):
                 self.manifest_enabled = True
-                self.apply_cached_skipping = version >= MANIFEST_VERSION_DDTEST
                 self.test_optimization_dir = os.path.dirname(resolved)
-                log.debug(
-                    "Manifest mode enabled: .testoptimization dir = %s, apply_cached_skipping = %s",
-                    self.test_optimization_dir,
-                    self.apply_cached_skipping,
-                )
+                log.debug("Manifest mode enabled: .testoptimization dir = %s", self.test_optimization_dir)
 
         # --- payload-files mode (output side) ---
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):

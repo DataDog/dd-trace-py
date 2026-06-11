@@ -129,7 +129,6 @@ class SessionManager:
                 test_optimization_dir=offline.test_optimization_dir,
                 itr_skipping_level=self.itr_skipping_level,
                 telemetry_api=self.telemetry_api,
-                apply_cached_skipping=offline.apply_cached_skipping,
             )
         else:
             self.api_client = APIClient(
@@ -143,15 +142,6 @@ class SessionManager:
             )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
-
-        # In Bazel manifest mode (version 1) the build system handles test
-        # selection, so ddtrace skipping is disabled. In ddtest manifest mode
-        # (version 2+) skipping is applied from the cached skippable_tests.json.
-        if offline.manifest_enabled and not offline.apply_cached_skipping:
-            if self.settings.skipping_enabled:
-                log.debug("Test skipping disabled in manifest mode (Bazel)")
-            self.settings.skipping_enabled = False
-            self.settings.itr_enabled = False
 
         self.show_settings()
 
