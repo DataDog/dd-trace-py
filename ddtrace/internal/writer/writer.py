@@ -1094,19 +1094,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
     """TraceWriter backed by the native Rust trace buffer.
 
-    Converts :class:`~ddtrace.internal.native._native.SpanData` objects to native Rust
-    span types inside ``send_chunk``; each span is consumed (left in an empty/default
-    state) after the call.
-
-    Implements :class:`AgentWriterInterface` so that tracer code that checks
-    ``isinstance(writer, AgentWriterInterface)`` (e.g., to read ``intake_url``) works
-    correctly when :class:`NativeTraceBuffer` is used as a drop-in replacement for
-    :class:`NativeWriter`.
-
-    Config is passed directly to the Rust constructor; this class has no dependency on
-    :class:`~ddtrace.internal.native.TraceExporterBuilder` or
-    :class:`~ddtrace.internal.native.TraceExporter`.
-
     The following exporter features are intentionally not configured:
 
     * **Process tags** (``set_process_tags``) — not set.
@@ -1172,11 +1159,16 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         self.stop()
         self._native_buffer = self._create_native_buffer()
 
-    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeTraceBuffer":
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "NativeTraceBuffer":
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         self.stop()
         return self.__class__(
             intake_url=self.intake_url,
-            api_version=self._api_version,
+            api_version=api_version,
             compute_stats_enabled=self._compute_stats_enabled,
             response_callback=self._response_cb,
             stats_opt_out=self._stats_opt_out,
