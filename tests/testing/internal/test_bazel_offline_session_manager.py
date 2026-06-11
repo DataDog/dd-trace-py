@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -85,8 +86,8 @@ class TestSessionManagerProviderSelection:
         mock_api_client_cls.assert_not_called()
         assert isinstance(sm.api_client, CachedFileDataProvider)
 
-    def test_connector_is_noop_in_manifest_mode(self, monkeypatch, tmp_path):
-        """In manifest mode the connector setup must be NoOpBackendConnectorSetup."""
+    def test_connector_is_real_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode the network is available; connector must NOT be NoOp."""
         opt_dir = _make_manifest_dir(tmp_path)
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
@@ -98,6 +99,28 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
+            sm = SessionManager(session=_make_session())
+
+        assert not isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
+        assert isinstance(sm.connector_setup, BackendConnectorAgentlessSetup)
+
+    def test_connector_is_noop_in_payload_files_mode(self, monkeypatch, tmp_path):
+        """In Bazel payload-files mode there is no network; connector must be NoOp."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+        monkeypatch.setenv("TEST_UNDECLARED_OUTPUTS_DIR", str(output_dir))
+
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            mock_api_client_cls.return_value = mock_api_client_settings()
             sm = SessionManager(session=_make_session())
 
         assert isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
