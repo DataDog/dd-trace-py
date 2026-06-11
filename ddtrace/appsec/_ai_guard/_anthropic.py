@@ -173,11 +173,7 @@ def _tool_call_from_block(block: Any) -> ToolCall:
 
 
 def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:
-    """Build ContentParts from a list of Anthropic ``text`` / ``image`` blocks.
-
-    Shared by ``tool_result.content`` and ``document`` ``content`` sources, which
-    nest the same block shapes.
-    """
+    """Build ContentParts from nested Anthropic content blocks."""
     parts: list[ContentPart] = []
     for inner in blocks:
         inner_type = _get(inner, "type", "") or ""
@@ -189,18 +185,13 @@ def _parts_from_content_blocks(blocks: Sequence[Any]) -> list[ContentPart]:
             img = _format_image_block(inner)
             if img:
                 parts.append(img)
+        elif inner_type == "document":
+            parts.extend(_format_document_block(inner))
     return parts
 
 
 def _format_tool_result_block(block: Any) -> list[Message]:
-    """Convert a user-side ``tool_result`` block to AI Guard tool message(s).
-
-    Anthropic ``tool_result.content`` is either a string or a list of
-    ``text`` / ``image`` blocks. When images are present, the message uses
-    a ``list[ContentPart]`` content; otherwise the parts collapse to a plain
-    string for compactness. ``is_error`` is intentionally not mapped --
-    AI Guard scans content regardless of error status.
-    """
+    """Convert a user-side ``tool_result`` block to AI Guard tool message(s)."""
     tool_use_id = _get(block, "tool_use_id", "") or ""
     content = _get(block, "content", "")
     msg = Message(role="tool", tool_call_id=tool_use_id)

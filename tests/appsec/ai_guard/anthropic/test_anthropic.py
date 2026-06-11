@@ -634,6 +634,87 @@ class TestConvertAnthropicMessages:
         assert result[0]["tool_call_id"] == "toolu_err"
         assert result[0]["content"] == "Command failed with exit code 1"
 
+    def test_tool_result_with_text_document_content_scanned(self):
+        """A ``document`` returned inside ``tool_result.content`` is model-visible
+        and must be expanded, not dropped (APMSP-3286).
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_doc",
+                        "content": [
+                            {"type": "text", "text": "Report: "},
+                            {
+                                "type": "document",
+                                "source": {"type": "text", "media_type": "text/plain", "data": "secret findings"},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == "toolu_doc"
+        assert result[0]["content"] == "Report: secret findings"
+
+    def test_tool_result_with_binary_document_content_yields_marker(self):
+        """A binary (base64/PDF) ``document`` in ``tool_result.content`` is not
+        text-readable but still leaves a marker so the tool turn is evaluated.
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_pdf",
+                        "content": [
+                            {
+                                "type": "document",
+                                "source": {"type": "base64", "media_type": "application/pdf", "data": "JVBE"},
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == "toolu_pdf"
+        assert result[0]["content"] == "[non-text document]"
+
+    def test_tool_result_with_search_result_and_tool_reference_dropped(self):
+        """``search_result`` / ``tool_reference`` are valid in ``tool_result.content``
+        but intentionally non-scannable; only ``text`` survives here.
+        """
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_mix",
+                        "content": [
+                            {"type": "text", "text": "result"},
+                            {"type": "search_result", "title": "t", "content": []},
+                            {"type": "tool_reference", "name": "ref"},
+                        ],
+                    }
+                ],
+            }
+        ]
+        result = _convert_anthropic_messages(None, messages)
+        assert len(result) == 1
+        assert result[0]["role"] == "tool"
+        assert result[0]["tool_call_id"] == "toolu_mix"
+        assert result[0]["content"] == "result"
+
     # ---------------------------------------------------------------------------
     # Role mapping matrix
     # ---------------------------------------------------------------------------
