@@ -77,8 +77,17 @@ def _iast_start_request(span=None) -> Optional[int]:
         # (a safe, hardcoded value that happens to equal a tainted value from an earlier request
         # is reported as tainted because the taint map keys on the reused PyObject address).
         # Tear the stale context down here so the request always starts from a clean slot.
-        if span is not None and span._local_root is span and is_iast_request_enabled():
+        if span is not None and is_iast_request_enabled():
             stale_context_id = _get_iast_context_id()
+            # DIAGNOSTIC (throwaway): confirm this path fires and capture why the web span
+            # is/ isn't the local root (the v1 `_local_root is span` guard never matched).
+            log.error(
+                "IAST-STARTDIAG reset stale ctx=%s local_root_is_self=%s parent_id=%s resource=%r",
+                stale_context_id,
+                span._local_root is span,
+                getattr(span, "parent_id", None),
+                getattr(span, "resource", None),
+            )
             if stale_context_id is not None:
                 finish_request_context(stale_context_id)
             core.discard_item(IAST.REQUEST_CONTEXT_KEY)
