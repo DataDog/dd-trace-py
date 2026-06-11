@@ -561,21 +561,18 @@ def test_agentless_trace_writer_intake_url():
     """AgentlessTraceWriter sets the correct intake URL for each DD_SITE."""
     import os
 
-    from ddtrace.internal.constants import AGENTLESS_TRACE_INTAKE_URLS
     from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
 
     site = os.environ["DD_SITE"]
     writer = tracer._span_aggregator.writer
     assert isinstance(writer, AgentlessTraceWriter)
-    assert writer.intake_url == AGENTLESS_TRACE_INTAKE_URLS[site]
+    assert writer.intake_url == AgentlessTraceWriter.INTAKE_URLS[site]
 
 
-@pytest.mark.parametrize("site,expected", list(AGENTLESS_TRACE_INTAKE_URLS.items()))
-def test_agentless_intake_url_known_sites(site, expected):
-    from ddtrace.internal.writer.writer import _agentless_intake_url
-
-    assert _agentless_intake_url(site) == expected
+@pytest.mark.parametrize("site,expected", list(AgentlessTraceWriter.INTAKE_URLS.items()))
+def test_compute_intake_url_known_sites(site, expected):
+    assert AgentlessTraceWriter.compute_intake_url(site) == expected
 
 
 @pytest.mark.parametrize(
@@ -586,11 +583,9 @@ def test_agentless_intake_url_known_sites(site, expected):
         ("us2.ddog-gov.com", "https://browser-intake-us2-ddog-gov.com"),
     ],
 )
-def test_agentless_intake_url_unknown_site_uses_browser_intake_fallback(site, expected):
-    from ddtrace.internal.writer.writer import _agentless_intake_url
-
+def test_compute_intake_url_unknown_site_uses_browser_intake_fallback(site, expected):
     with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
-        result = _agentless_intake_url(site)
+        result = AgentlessTraceWriter.compute_intake_url(site)
 
     assert result == expected
     mock_log.warning.assert_called_once()

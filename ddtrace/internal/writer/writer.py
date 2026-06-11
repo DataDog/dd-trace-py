@@ -549,6 +549,36 @@ class AgentlessTraceWriter(HTTPWriter):
     HTTP_METHOD = "POST"
     # Agentless payloads must be under 15 MB.
     MAX_BUFFER_SIZE = 15 << 20  # 15 MB
+    INTAKE_URLS: dict[str, str] = {
+        "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
+        "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
+        "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
+        "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
+        "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
+        "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
+        "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
+        "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
+    }
+    FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
+
+    @staticmethod
+    def compute_intake_url(site: str) -> str:
+        url = AgentlessTraceWriter.INTAKE_URLS.get(site)
+        if url is not None:
+            return url
+        # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
+        # e.g. "ddog-gov.com"    -> "browser-intake-ddog-gov.com"
+        #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
+        prefix, _, tld = site.rpartition(".")
+        url = AgentlessTraceWriter.FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
+        log.warning(
+            "Datadog site %r is not explicitly supported for agentless tracing. "
+            "Attempting to use %r. To resolve this, upgrade to a newer version of "
+            "ddtrace that supports this site, or disable agentless trace export.",
+            site,
+            url,
+        )
+        return url
 
     def __init__(
         self,
@@ -1104,25 +1134,6 @@ def _use_sync_mode() -> bool:
     )
 
 
-def _agentless_intake_url(site: str) -> str:
-    url = AGENTLESS_TRACE_INTAKE_URLS.get(site)
-    if url is not None:
-        return url
-    # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
-    # e.g. "ddog-gov.com"    -> "browser-intake-ddog-gov.com"
-    #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
-    prefix, _, tld = site.rpartition(".")
-    url = AGENTLESS_FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
-    log.warning(
-        "Datadog site %r is not explicitly supported for agentless tracing. "
-        "Attempting to use %r. To resolve this, upgrade to a newer version of "
-        "ddtrace that supports this site, or disable agentless trace export.",
-        site,
-        url,
-    )
-    return url
-
-
 def create_trace_writer(
     response_callback: Optional[Callable[[AgentResponse], None]] = None,
     agentless: bool = False,
@@ -1131,7 +1142,7 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = _agentless_intake_url(config._dd_site.lower())
+        intake_url = AgentlessTraceWriter.compute_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,

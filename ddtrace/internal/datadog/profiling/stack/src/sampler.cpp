@@ -203,15 +203,19 @@ Sampler::adapt_sampling_interval()
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
     // Compute the CPU time budget for the sampler per adaptation window:
-    //   budget = baseline (absolute floor) + o * p_stable
+    //   budget = baseline (absolute floor) + o * max(process_delta, p_stable)
     // Where:
-    //   baseline = configurable absolute floor (prevents starvation on idle apps)
-    //   o        = target overhead fraction
-    //   p_stable = stable (p95) estimate of app CPU usage from rolling window
+    //   baseline      = configurable absolute floor (prevents starvation on idle apps)
+    //   o             = target overhead fraction
+    //   process_delta = current app CPU usage (reacts immediately to spikes)
+    //   p_stable      = slow-decaying p95 estimate (prevents premature backoff after brief idle)
+    //
+    // Taking max(process_delta, p_stable) makes the budget expand instantly when CPU spikes
+    // (quick capture of 0→100 scenarios) while decaying very slowly when CPU drops.
     //
     // The new interval is derived so that s (sampler CPU time) matches the budget:
     //   I' = I * (s / budget)
-    auto budget = baseline_cpu_us_per_adapt_window + target_overhead * p_stable;
+    auto budget = baseline_cpu_us_per_adapt_window + target_overhead * std::max(process_delta, p_stable);
     if (budget <= 0) {
         budget = 1.0; // Avoid division by zero
     }

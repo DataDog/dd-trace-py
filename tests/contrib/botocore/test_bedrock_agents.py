@@ -43,6 +43,10 @@ def test_agent_invoke_stream(bedrock_agent_client, request_vcr):
         "meta.llmobs_trace_id",
         "meta.llmobs_parent_id",
         "meta._dd.p.tid",
+        "meta._dd.p.llmobs_ml_app",
+        "meta._dd.p.llmobs_parent_id",
+        "meta._dd.p.llmobs_sd",
+        "meta._dd.p.llmobs_sr",
         "meta_struct",
     ]
 )
@@ -67,6 +71,10 @@ def test_agent_invoke_with_step_spans(bedrock_agent_client, request_vcr, bedrock
         "meta.llmobs_trace_id",
         "meta.llmobs_parent_id",
         "meta._dd.p.tid",
+        "meta._dd.p.llmobs_ml_app",
+        "meta._dd.p.llmobs_parent_id",
+        "meta._dd.p.llmobs_sd",
+        "meta._dd.p.llmobs_sr",
         "meta_struct",
     ],
 )
