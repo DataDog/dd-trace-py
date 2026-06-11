@@ -264,15 +264,19 @@ def _format_server_tool_result_block(block: Any) -> Message:
 
 
 # AIDEV-NOTE: Anthropic block types that are intentionally NOT mapped to AI
-# Guard content -- ``redacted_thinking`` is an encrypted blob, ``document``
-# carries binary/PDF data, ``container_upload`` / ``tool_reference`` are bare
-# identifiers, and the remaining ``*_tool_result`` variants are server-managed
-# wrappers around content AI Guard cannot inspect. Skipping is correct; we
-# only log unknown types at debug-level so support can spot integration drift.
+# Guard content -- ``redacted_thinking`` is an encrypted blob,
+# ``container_upload`` / ``tool_reference`` are bare identifiers, and the
+# remaining ``*_tool_result`` variants are server-managed wrappers around
+# content AI Guard cannot inspect. Skipping is correct; we only log unknown
+# types at debug-level so support can spot integration drift.
+# NOTE: ``document`` is NOT dropped (APMSP-3286). Document blocks carry
+# model-visible content (``source.type`` ``"text"`` / ``"content"`` hold
+# readable text, plus ``title`` / ``context``); dropping them let a
+# document-only prompt skip AI Guard evaluation entirely. See
+# :func:`_format_document_block`.
 _DROPPED_BLOCK_TYPES = frozenset(
     [
         "redacted_thinking",
-        "document",
         "container_upload",
         "tool_reference",
         "search_result",
@@ -281,6 +285,67 @@ _DROPPED_BLOCK_TYPES = frozenset(
         "tool_search_tool_result",
     ]
 )
+
+# Marker emitted for document content AI Guard cannot read as text (binary
+# ``base64`` / remote ``url`` sources). Keeps a document-only message from
+# producing an empty payload that would bypass evaluation (APMSP-3286).
+_NON_TEXT_DOCUMENT_MARKER = "[non-text document]"
+
+
+def _format_document_block(block: Any) -> list[ContentPart]:
+    """Convert an Anthropic ``document`` block to scannable ContentPart(s).
+
+    Document blocks carry model-visible content that AI Guard must scan:
+
+    - ``source.type == "text"`` holds plain text in ``source.data``.
+    - ``source.type == "content"`` nests ``text`` / ``image`` blocks.
+    - ``title`` / ``context`` are model-visible strings and are included.
+    - Binary (``base64``) and remote (``url``) sources cannot be read as text,
+      so a placeholder marker is emitted instead.
+
+    A document block always yields at least one part, so a message whose only
+    content is a document never converts to an empty payload (which would skip
+    evaluation entirely -- APMSP-3286).
+    """
+    parts: list[ContentPart] = []
+
+    for field in ("title", "context"):
+        value = _get(block, field, "") or ""
+        if value:
+            parts.append(ContentPart(type="text", text=value))
+
+    source = _get(block, "source") or {}
+    source_type = _get(source, "type", "") or ""
+    if source_type == "text":
+        data = _get(source, "data", "") or ""
+        if data:
+            parts.append(ContentPart(type="text", text=data))
+    elif source_type == "content":
+        inner = _get(source, "content", "")
+        if isinstance(inner, str):
+            if inner:
+                parts.append(ContentPart(type="text", text=inner))
+        else:
+            if not isinstance(inner, (list, tuple)):
+                try:
+                    inner = list(inner)
+                except TypeError:
+                    inner = []
+            for sub in inner or []:
+                sub_type = _get(sub, "type", "") or ""
+                if sub_type == "text":
+                    text = _get(sub, "text", "") or ""
+                    if text:
+                        parts.append(ContentPart(type="text", text=text))
+                elif sub_type == "image":
+                    img = _format_image_block(sub)
+                    if img is not None:
+                        parts.append(img)
+    # base64 / url / missing / unrecognised source: not text-readable.
+
+    if not parts:
+        parts.append(ContentPart(type="text", text=_NON_TEXT_DOCUMENT_MARKER))
+    return parts
 
 
 def _format_content_blocks(blocks: Sequence[Any]) -> _ParsedBlocks:
@@ -309,6 +374,11 @@ def _format_content_blocks(blocks: Sequence[Any]) -> _ParsedBlocks:
             img_part = _format_image_block(block)
             if img_part is not None:
                 (post_tool_parts if seen_server_tool else pre_tool_parts).append(img_part)
+        elif block_type == "document":
+            # Document blocks carry model-visible content that must be scanned;
+            # see _format_document_block (APMSP-3286).
+            target = post_tool_parts if seen_server_tool else pre_tool_parts
+            target.extend(_format_document_block(block))
         elif block_type in ("tool_use", "server_tool_use"):
             tool_calls.append(_tool_call_from_block(block))
             if block_type == "server_tool_use":
