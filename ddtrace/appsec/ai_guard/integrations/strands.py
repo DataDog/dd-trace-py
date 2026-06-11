@@ -79,34 +79,25 @@ _BLOCKED_TOOL_MSG = "[DATADOG AI GUARD] '{}' has been canceled for security reas
 _INVOCATION_CTX_KEY = "_dd_ai_guard_ctx"
 
 
-# Bedrock Converse ``ContentBlock``/``ToolResultContent`` entries that are
-# either handled explicitly elsewhere (tool plumbing) or carry no
-# model-visible payload (caching/reasoning control blocks). Everything else is
-# a model-visible modality (image, document, video, guardContent, ...).
+# Keys handled elsewhere (tool plumbing) or control-only (caching/reasoning);
+# everything else is a model-visible modality (image, document, video, ...).
 _HANDLED_CONTENT_KEYS = frozenset({"text", "toolUse", "toolResult", "json"})
 _CONTROL_CONTENT_KEYS = frozenset({"cachePoint", "reasoningContent"})
 
 # AIDEV-NOTE: APMSP-3089 — non-text content must NOT be silently dropped.
-# Bedrock/Strands content is a union (text, image, document, video,
-# guardContent, ...). Previously only text/toolUse/text+json tool results were
-# extracted; any other block vanished. A document/image-only prompt then
-# produced zero AI Guard messages, so ``_on_before_model_call_base`` skipped
-# evaluation entirely (``if ai_guard_messages``) while the model still received
-# the uninspected content — an AI Guard bypass. We now emit a placeholder
-# marker for every model-visible non-text block so evaluation always triggers
-# and the presence of the modality is signalled to the service.
+# Dropping every non-text block made a document/image-only prompt produce zero
+# AI Guard messages, so evaluation was skipped while the model saw uninspected
+# content (a bypass). We emit a placeholder marker for each model-visible
+# non-text block so evaluation always triggers.
 _NON_TEXT_CONTENT_MARKER = "[non-text content: {kind}]"
 
 
 def _block_to_text(block: Any) -> str | None:
-    """Return the text representation of a single Bedrock Converse content block.
+    """Return the text for a Bedrock Converse content block.
 
-    - ``text`` blocks return their text.
-    - ``guardContent`` blocks unwrap their inner text when present.
-    - Other model-visible modalities (image, document, video, ...) return a
-      placeholder marker so the block is represented rather than dropped.
-    - Blocks handled elsewhere (``toolUse``/``toolResult``) or control-only
-      blocks (``cachePoint``/``reasoningContent``) return ``None``.
+    ``text`` returns its text; ``guardContent`` unwraps inner text; other
+    model-visible modalities return a placeholder marker; handled
+    (``toolUse``/``toolResult``) or control-only blocks return ``None``.
     """
     if not isinstance(block, dict):
         return None
@@ -129,10 +120,8 @@ def _block_to_text(block: Any) -> str | None:
 def _tool_result_text(tool_result: dict) -> str:
     """Extract text from a Bedrock Converse ToolResult.
 
-    ``ToolResultContent`` entries may contain ``text`` or ``json`` keys. Other
-    modalities (image, document, video, ...) are represented by a placeholder
-    marker so non-text tool results are never converted to an empty string and
-    silently excluded from evaluation (APMSP-3089).
+    ``text``/``json`` entries are extracted; other modalities return a
+    placeholder marker rather than an empty string (APMSP-3089).
     """
     texts = []
     for entry in tool_result.get("content", []):
@@ -183,11 +172,9 @@ def _convert_strands_messages(
             if not isinstance(content, list):
                 continue
 
-            # Collect text from all content blocks in this message. Non-text
-            # model-visible modalities (image, document, video, ...) are
-            # represented by a placeholder marker rather than dropped, so a
-            # content-only message still produces a Message and evaluation is
-            # not skipped entirely (APMSP-3089).
+            # Non-text blocks become placeholder markers (see _block_to_text)
+            # so a content-only message still produces a Message and evaluation
+            # is not skipped (APMSP-3089).
             texts = [text for block in content if (text := _block_to_text(block)) is not None]
 
             if role == "user":
