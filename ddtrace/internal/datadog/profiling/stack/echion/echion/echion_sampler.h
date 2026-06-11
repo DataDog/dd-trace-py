@@ -109,14 +109,12 @@ class EchionSampler
         // Reset string_table mutex
         string_table_.postfork_child();
 
-        // Clear frame cache after fork (prevent stale pointers)
-        frame_cache_.clear();
-
         // Also use placement new for all containers touched by the sampling thread.
         // Using placement new means the existing containers are abandoned and
         // their memory leaked in the child and we may lose some data (e.g. relationships
         // between asyncio Tasks).
         // However, this is the only way to safely continue working after fork.
+        new (&frame_cache_) LRUCache<uintptr_t, Frame>(frame_cache_.get_capacity());
         new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
         new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
         new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
