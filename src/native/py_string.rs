@@ -258,7 +258,7 @@ pub struct Bytes {
 
 impl Bytes {
     /// Zero-copy constructor from a Python bytes object.
-    #[allow(dead_code)] // used by build_native_span in trace_buffer.rs (separate PR)
+    #[allow(dead_code)] // used by build_v04_span in trace_buffer.rs (separate PR)
     pub(crate) fn from_py_bytes(py_bytes: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> Self {
         let bytes = py_bytes.as_bytes();
         let data = ptr::NonNull::from(bytes);

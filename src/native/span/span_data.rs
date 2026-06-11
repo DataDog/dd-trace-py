@@ -94,7 +94,7 @@ impl SpanData {
     /// `AttributeValue::Str` dereference Python objects.
     // `&mut self` is required because span_links/span_events are moved out via `std::mem::take`.
     #[allow(dead_code)] // called from trace_buffer.rs (separate PR)
-    pub(crate) fn build_native_span(
+    pub(crate) fn build_v04_span(
         &mut self,
         py: Python<'_>,
         packb: Option<&Bound<'_, PyAny>>,
