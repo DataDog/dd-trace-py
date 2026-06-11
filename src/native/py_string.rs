@@ -193,6 +193,12 @@ impl serde::Serialize for PyBackedString {
     }
 }
 
+impl AsRef<str> for PyBackedString {
+    fn as_ref(&self) -> &str {
+        self
+    }
+}
+
 impl std::borrow::Borrow<str> for PyBackedString {
     fn borrow(&self) -> &str {
         self.deref()
@@ -241,6 +247,18 @@ pub struct Bytes(Vec<u8>);
 impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
         Self(value.to_vec())
+    }
+}
+
+impl Bytes {
+    pub(crate) fn from_vec(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
+impl AsRef<[u8]> for Bytes {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 
