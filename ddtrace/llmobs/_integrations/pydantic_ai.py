@@ -292,7 +292,15 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # `agent.toolsets` honors an active `override(toolsets=)`; per-run toolsets aren't on the agent.
         toolsets = list(getattr(agent, "toolsets", None) or getattr(agent, "_user_toolsets", []) or [])
         toolsets += list(run_toolsets or [])
-        candidates = [PydanticAIIntegration._format_mcp_server(t) for t in toolsets]
+        # `apply` walks each toolset down to its leaves, descending through wrappers and CombinedToolsets.
+        leaves: list[Any] = []
+        for toolset in toolsets:
+            apply = getattr(toolset, "apply", None)
+            if callable(apply):
+                apply(leaves.append)
+            else:
+                leaves.append(toolset)
+        candidates = [PydanticAIIntegration._format_mcp_server(leaf) for leaf in leaves]
         candidates += PydanticAIIntegration._get_capability_mcp_servers(agent)
         servers: list[dict[str, Any]] = []
         seen_names: set[str] = set()

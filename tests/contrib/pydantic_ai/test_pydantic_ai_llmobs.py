@@ -495,10 +495,11 @@ class TestLLMObsPydanticAI:
     async def test_get_mcp_servers_reads_connected_identity(self, pydantic_ai, pydantic_ai_llmobs):
         """A connected server's identity (name + version from server_info) is resolved from the agent's
         constructor toolsets, from per-run toolsets (not stored on the agent), from an active
-        `override(toolsets=)`, and through a wrapper (`.prefixed()`); a server that never connected has no
-        identity and is skipped.
+        `override(toolsets=)`, through a wrapper (`.prefixed()`), and nested in a `CombinedToolset`; a server
+        that never connected has no identity and is skipped.
         """
         from pydantic_ai.mcp import MCPServerStdio
+        from pydantic_ai.toolsets import CombinedToolset
 
         identity = [{"name": "test-mcp", "version": "1.0.0"}]
         stdio = dict(command=sys.executable, args=[_MCP_SERVER_PATH], env=os.environ.copy())
@@ -508,6 +509,8 @@ class TestLLMObsPydanticAI:
             assert PydanticAIIntegration._get_mcp_servers(pydantic_ai.Agent(model="gpt-4o"), [server]) == identity
             with agent.override(toolsets=[server.prefixed("sq")]):
                 assert PydanticAIIntegration._get_mcp_servers(agent) == identity
+            nested = pydantic_ai.Agent(model="gpt-4o", toolsets=[CombinedToolset([server])])
+            assert PydanticAIIntegration._get_mcp_servers(nested) == identity
 
         unconnected = pydantic_ai.Agent(model="gpt-4o", toolsets=[MCPServerStdio(id="never", **stdio)])
         assert PydanticAIIntegration._get_mcp_servers(unconnected) == []
