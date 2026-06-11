@@ -62,6 +62,14 @@ COMPONENT_LAYERS = [
 COMPONENT_TO_LAYER = {s: i for i, layer in enumerate(COMPONENT_LAYERS) for s in layer}
 
 
+def _normalize_detailed_component_prefix(prefix: str) -> str:
+    """Map CLI ``--detailed-component`` to the path-under-``ddtrace/`` form used internally."""
+    p = prefix.strip()
+    if p.startswith("ddtrace."):
+        return p[len("ddtrace.") :]
+    return p
+
+
 def path_to_module(root: Path, py_file: Path) -> tuple[str, bool]:
     """Return (fully qualified module name, True if this file is a package __init__)."""
     rel = py_file.relative_to(root).with_suffix("")
@@ -89,10 +97,14 @@ def path_bucket(py_file: Path, ddtrace_root: Path, detailed_components: tuple[st
     return f"ddtrace.{top}"
 
 
-def import_target_bucket(mod: str, detailed_components: tuple[str, ...]) -> Optional[str]:
+def import_target_bucket(
+    mod: str, detailed_components: tuple[str, ...], extra_components: tuple[str, ...]
+) -> Optional[str]:
     """Bucket import targets the same way as ``path_bucket`` (root modules collapse to ``(root)``)."""
     if mod == "ddtrace":
         return
+    if mod in extra_components:
+        return mod
     if not mod.startswith("ddtrace."):
         return mod
     rest = mod[len("ddtrace.") :]
@@ -129,7 +141,9 @@ def resolve_relative(current_module: str, node: ast.ImportFrom, is_pkg_init: boo
     return [".".join(base_parts)] if base_parts else []
 
 
-def extract_ddtrace_imports(source: str, current_module: str, is_pkg_init: bool) -> set[str]:
+def extract_ddtrace_imports(
+    source: str, current_module: str, is_pkg_init: bool, collect_aliases: bool, extra_components: frozenset[str]
+) -> set[str]:
     out: set[str] = set()
     try:
         tree = ast.parse(source)
@@ -144,10 +158,19 @@ def extract_ddtrace_imports(source: str, current_module: str, is_pkg_init: bool)
             if node.level == 0 and node.module:
                 if node.module == "ddtrace" or node.module.startswith("ddtrace."):
                     out.add(node.module)
+                    for alias in node.names:
+                        path = f"{node.module}.{alias.name}"
+                        if path in extra_components or collect_aliases:
+                            out.add(path)
             elif node.level > 0:
                 for base in resolve_relative(current_module, node, is_pkg_init):
                     if base == "ddtrace" or base.startswith("ddtrace."):
                         out.add(base)
+                        for alias in node.names:
+                            path = f"{base}.{alias.name}"
+                            if path in extra_components or collect_aliases:
+                                out.add(path)
+
     return out
 
 
@@ -156,10 +179,13 @@ def collect_edges(
     detailed_components: tuple[str, ...],
     *,
     min_dependents_per_node: int,
+    collect_aliases: bool,
+    extra_components: tuple[str, ...] = (),
 ) -> tuple[set[tuple[str, str]], dict[str, int]]:
     """Return (directed edges between buckets, edge weights)."""
     edges: defaultdict[tuple[str, str], int] = defaultdict(int)
     dependents: defaultdict[str, int] = defaultdict(int)
+    extra_set = frozenset(extra_components)
     skip = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
     for py in sorted(ddtrace_root.rglob("*.py")):
         rel_parts = py.relative_to(ddtrace_root).parts
@@ -175,8 +201,8 @@ def collect_edges(
             text = py.read_text(encoding="utf-8")
         except OSError:
             continue
-        for imp in extract_ddtrace_imports(text, mod, is_pkg_init):
-            bucket_dst = import_target_bucket(imp, detailed_components)
+        for imp in extract_ddtrace_imports(text, mod, is_pkg_init, collect_aliases, extra_set):
+            bucket_dst = import_target_bucket(imp, detailed_components, extra_components)
             if None in (bucket_src, bucket_dst) or bucket_src == bucket_dst:
                 continue
             dependents[bucket_dst] += 1
@@ -373,10 +399,10 @@ def main() -> int:
         action="append",
         metavar="PREFIX",
         help=(
-            "Path prefix under ddtrace/ (no leading ``ddtrace/``), e.g. ``internal`` or "
-            "``contrib.internal``, for finer-grained buckets. Repeat for multiple. "
-            "If this option is never passed, defaults to ``internal`` and ``contrib.internal``. "
-            "If passed at least once, only the given prefixes are used."
+            "Path prefix under ``ddtrace/`` (e.g. ``internal`` or ``contrib.internal``), or the same "
+            "path with a ``ddtrace.`` module prefix (e.g. ``ddtrace.internal``), for finer-grained buckets. "
+            "Repeat for multiple. If this option is never passed, defaults to ``internal`` and "
+            "``contrib.internal``. If passed at least once, only the given prefixes are used."
         ),
     )
     parser.add_argument(
@@ -387,6 +413,25 @@ def main() -> int:
         help=("Only count an edge after its destination bucket has accumulated more than N events (default: 0)."),
     )
     parser.add_argument(
+        "--extra-component",
+        dest="extra_components",
+        action="append",
+        metavar="MODULE",
+        help=(
+            "Full ``ddtrace...`` module path to treat as its own graph bucket and to expand in "
+            "``from ddtrace... import ...`` (e.g. ``ddtrace.internal.span``). Repeat for multiple."
+        ),
+    )
+    parser.add_argument(
+        "--collect-import-aliases",
+        dest="collect_aliases",
+        action="store_true",
+        help=(
+            "For ``from ddtrace... import ...``, record each imported symbol as its full submodule path "
+            "(e.g. ``ddtrace.internal.span.Span``) instead of only the package prefix (e.g. ``ddtrace.internal``)."
+        ),
+    )
+    parser.add_argument(
         "--png",
         action="store_true",
         help="Also write docs/images/ddtrace-module-dependencies.png (requires matplotlib, networkx).",
@@ -394,8 +439,11 @@ def main() -> int:
     args = parser.parse_args()
 
     detailed_components: tuple[str, ...] = (
-        tuple(args.detailed_components) if args.detailed_components is not None else tuple()
+        tuple(_normalize_detailed_component_prefix(p) for p in args.detailed_components)
+        if args.detailed_components is not None
+        else tuple()
     )
+    extra_components: tuple[str, ...] = tuple(args.extra_components or ())
 
     repo = Path(__file__).resolve().parents[1]
     ddtrace_root = repo / "ddtrace"
@@ -406,6 +454,8 @@ def main() -> int:
         ddtrace_root,
         detailed_components,
         min_dependents_per_node=args.min_dependents_per_node,
+        collect_aliases=args.collect_aliases,
+        extra_components=extra_components,
     )
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
