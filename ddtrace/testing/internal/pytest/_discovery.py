@@ -41,6 +41,10 @@ def _is_item_skipped(item: pytest.Item) -> bool:
     for marker in item.iter_markers("skipif"):
         condition = marker.args[0] if marker.args else marker.kwargs.get("condition")
         if condition is None or isinstance(condition, str):
+            # String conditions require eval in the test module's namespace, which
+            # we can't do safely at collection time. None conditions can't arise
+            # in practice (pytest >= 7 rejects bare skipif with no condition arg).
+            # Conservatively include in both cases rather than risk hiding a test.
             continue
         if condition:
             return True
