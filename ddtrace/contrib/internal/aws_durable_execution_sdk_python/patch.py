@@ -59,9 +59,6 @@ _RETRYABLE_OPERATIONS = frozenset({aws_durable_ext.SPAN_STEP, aws_durable_ext.SP
 # Operations that use the SDK's retry mechanism (StepDetails.attempt).
 _RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
 
-# Operations that use the SDK's retry mechanism (StepDetails.attempt).
-_RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
-
 
 def get_version() -> str:
     return getattr(aws_durable_execution_sdk_python, "__version__", "")
