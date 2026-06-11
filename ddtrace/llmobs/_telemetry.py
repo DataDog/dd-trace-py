@@ -2,7 +2,6 @@ import time
 from typing import Any
 from typing import Optional
 
-from ddtrace import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
@@ -113,12 +112,7 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode):
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
-    if export_mode == LLMObsExportMode.APM_AGENTLESS:
-        intake = "apm_agentless"
-    elif config._llmobs_agentless_enabled:
-        intake = "llmobs_agentless"
-    else:
-        intake = "llmobs_agent_proxy"
+    intake = export_mode.value
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),

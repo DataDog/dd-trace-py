@@ -56,6 +56,25 @@ class TestToolResultText:
     def test_missing_content(self):
         assert _tool_result_text({}) == ""
 
+    def test_non_text_content_uses_placeholder(self):
+        """APMSP-3089: non-text tool result content is represented, not dropped."""
+        tr = {"content": [{"image": {"format": "png", "source": {"bytes": b"..."}}}]}
+        assert _tool_result_text(tr) == "[non-text content: image]"
+
+    def test_mixed_text_and_non_text_content(self):
+        """APMSP-3089: text is kept and non-text content is flagged."""
+        tr = {"content": [{"text": "see attached"}, {"document": {"name": "secret.pdf"}}]}
+        assert _tool_result_text(tr) == "see attached [non-text content: document]"
+
+    def test_control_content_skipped(self):
+        """cachePoint is a caching control block with no model-visible payload."""
+        tr = {"content": [{"cachePoint": {"type": "default"}}]}
+        assert _tool_result_text(tr) == ""
+
+    def test_non_dict_entry_skipped(self):
+        tr = {"content": ["not a dict", {"text": "ok"}]}
+        assert _tool_result_text(tr) == "ok"
+
 
 # ---------------------------------------------------------------------------
 # _convert_strands_messages
@@ -228,6 +247,51 @@ class TestConvertStrandsMessages:
         result = _convert_strands_messages(messages)
         assert result == []
 
+    def test_document_only_user_message(self):
+        """APMSP-3089: a document-only prompt still yields a user Message."""
+        messages = [{"role": "user", "content": [{"document": {"name": "data.pdf"}}]}]
+        result = _convert_strands_messages(messages)
+        assert result == [Message(role="user", content="[non-text content: document]")]
+
+    def test_image_only_user_message(self):
+        """APMSP-3089: an image-only prompt still yields a user Message."""
+        messages = [{"role": "user", "content": [{"image": {"format": "png", "source": {"bytes": b"x"}}}]}]
+        result = _convert_strands_messages(messages)
+        assert result == [Message(role="user", content="[non-text content: image]")]
+
+    def test_mixed_text_and_document_user_message(self):
+        """APMSP-3089: benign text and non-text content are both represented."""
+        messages = [
+            {
+                "role": "user",
+                "content": [{"text": "Please summarize"}, {"document": {"name": "data.pdf"}}],
+            }
+        ]
+        result = _convert_strands_messages(messages)
+        assert result == [Message(role="user", content="Please summarize [non-text content: document]")]
+
+    def test_guard_content_text_unwrapped(self):
+        """guardContent wrapping text is unwrapped to its inner text."""
+        messages = [{"role": "user", "content": [{"guardContent": {"text": {"text": "guarded"}}}]}]
+        result = _convert_strands_messages(messages)
+        assert result == [Message(role="user", content="guarded")]
+
+    def test_cache_point_block_ignored(self):
+        """cachePoint is a control block and produces no Message on its own."""
+        messages = [{"role": "user", "content": [{"cachePoint": {"type": "default"}}]}]
+        result = _convert_strands_messages(messages)
+        assert result == []
+
+    def test_non_text_tool_result_uses_placeholder(self):
+        messages = [
+            {
+                "role": "user",
+                "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"image": {"format": "png"}}]}}],
+            }
+        ]
+        result = _convert_strands_messages(messages)
+        assert result == [Message(role="tool", tool_call_id="tc1", content="[non-text content: image]")]
+
 
 # ---------------------------------------------------------------------------
 # _on_before_model_call_base (via BeforeModelCallEvent)
@@ -320,6 +384,33 @@ class TestBeforeModelCall:
         # Tool results should be excluded
         tool_msgs = [m for m in sent_messages if m.get("role") == "tool"]
         assert len(tool_msgs) == 0
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_document_only_prompt_is_evaluated(self, mock_execute_request, ai_guard_strands_hook):
+        """APMSP-3089 regression: a document-only prompt must not skip evaluation."""
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = before_model_event(
+            messages=[{"role": "user", "content": [{"document": {"name": "malicious.pdf"}}]}],
+        )
+
+        ai_guard_strands_hook._on_before_model_call_base(event)
+
+        mock_execute_request.assert_called_once()
+        payload = mock_execute_request.call_args[0][1]
+        sent_messages = payload["data"]["attributes"]["messages"]
+        assert sent_messages == [{"role": "user", "content": "[non-text content: document]"}]
+
+    @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_document_only_prompt_can_be_blocked(self, mock_execute_request, ai_guard_strands_hook, decision):
+        """APMSP-3089 regression: a document-only prompt can be blocked, not bypassed."""
+        mock_execute_request.return_value = mock_evaluate_response(decision)
+        event = before_model_event(
+            messages=[{"role": "user", "content": [{"document": {"name": "malicious.pdf"}}]}],
+        )
+
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_strands_hook._on_before_model_call_base(event)
 
 
 # ---------------------------------------------------------------------------
@@ -543,6 +634,28 @@ class TestAfterToolCall:
         assert sent_messages[2]["role"] == "tool"
         assert sent_messages[2]["tool_call_id"] == "tc1"
         assert sent_messages[2]["content"] == "result data"
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_non_text_tool_result_included_in_payload(self, mock_execute_request, ai_guard_strands_hook):
+        """APMSP-3089 regression: non-text tool results are flagged, not sent as empty."""
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "fetch_file", "input": {}},
+            tool_result={
+                "toolUseId": "tc1",
+                "content": [{"document": {"name": "exfil.pdf"}}],
+                "status": "success",
+            },
+            messages=[{"role": "user", "content": [{"text": "Get the file"}]}],
+        )
+
+        ai_guard_strands_hook._on_after_tool_call_base(event)
+
+        payload = mock_execute_request.call_args[0][1]
+        sent_messages = payload["data"]["attributes"]["messages"]
+        tool_msgs = [m for m in sent_messages if m.get("role") == "tool"]
+        assert len(tool_msgs) == 1
+        assert tool_msgs[0]["content"] == "[non-text content: document]"
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_error_status_result(self, mock_execute_request, ai_guard_strands_hook):

@@ -189,7 +189,28 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             log.error("Failed to start crashtracker: failed to construct crashtracker configuration")
             return False
 
+        # If the stack profiler's SIGSEGV/SIGBUS recovery handler is already
+        # installed (i.e. the profiler started before crashtracking), momentarily
+        # uninstall it so the crashtracker records the real underlying handler as
+        # its "previous" rather than the profiler's handler. We reinstall the
+        # profiler's handler on top afterwards, yielding a linear handler chain
+        # (profiler -> crashtracker -> default) with no cycle. We only touch the
+        # stack module if it is already imported: importing it here would load the
+        # native extension and install signal handlers even when profiling is off.
+        stack_mod = sys.modules.get("ddtrace.internal.datadog.profiling.stack")
+        if stack_mod is not None:
+            try:
+                stack_mod.uninstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
+
         crashtracker_init(config, receiver_config, metadata)
+
+        if stack_mod is not None:
+            try:
+                stack_mod.reinstall_segv_handler()
+            except Exception:  # nosec: B110
+                pass
 
         def crashtracker_fork_handler():
             # We recreate the args here mainly to pass updated runtime_id after

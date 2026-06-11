@@ -3,7 +3,6 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -41,18 +40,11 @@ class BaseLLMIntegration:
 
     def __init__(self, integration_config: IntegrationConfig) -> None:
         self.integration_config = integration_config
-        self._llmobs_pc_sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
 
     @property
     def llmobs_enabled(self) -> bool:
         """Return whether submitting llmobs payloads is enabled."""
         return LLMObs.enabled
-
-    def is_pc_sampled_llmobs(self, span: Span) -> bool:
-        # Sampling of llmobs payloads is independent of spans, but we're using a RateSampler for consistency.
-        if not self.llmobs_enabled:
-            return False
-        return self._llmobs_pc_sampler.sample(span)
 
     @abc.abstractmethod
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
@@ -111,7 +103,7 @@ class BaseLLMIntegration:
             self._set_apm_shadow_tags(span, args, kwargs, response, operation)
         except Exception:
             log.debug("Error setting APM shadow tags for span %s", span, exc_info=True)
-        if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
+        if not self.llmobs_enabled:
             return
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)

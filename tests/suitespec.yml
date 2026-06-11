@@ -153,6 +153,7 @@ suites:
     paths:
       - '@crashtracker'
       - '@core'
+      - '@profiling'
     snapshot: true
   conftest:
     parallelism: 1

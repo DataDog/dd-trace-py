@@ -540,12 +540,12 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
 }
 
 bool
-Datadog::Sample::push_heap(int64_t size)
+Datadog::Sample::push_heap(int64_t size, int64_t count)
 {
     static bool already_warned_params = false;
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
 
-    if (size < 0) {
+    if (size < 0 || count < 0) {
         if (!already_warned_params) {
             already_warned_params = true;
             std::cerr << "bad push heap (params)" << std::endl;
@@ -555,6 +555,7 @@ Datadog::Sample::push_heap(int64_t size)
 
     if (0U != (type_mask & SampleType::Heap)) {
         values[ProfilerState::get().profile_state.val().heap_space] += size;
+        values[ProfilerState::get().profile_state.val().heap_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -582,8 +583,12 @@ Datadog::Sample::reset_heap()
 {
     if (0U != (type_mask & SampleType::Heap)) {
         const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
+        const size_t heap_count_idx = ProfilerState::get().profile_state.val().heap_count;
         if (heap_space_idx < values.size()) {
             values[heap_space_idx] = 0;
+        }
+        if (heap_count_idx < values.size()) {
+            values[heap_count_idx] = 0;
         }
     }
 }
