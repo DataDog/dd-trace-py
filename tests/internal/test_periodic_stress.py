@@ -70,6 +70,7 @@ def test_periodic_thread_lifecycle_stress():
 
     from ddtrace.internal import periodic
     from ddtrace.internal import service
+    from ddtrace.internal import threads
 
     def _env_int(name, default):
         raw = os.environ.get(name)
@@ -325,6 +326,16 @@ def test_periodic_thread_lifecycle_stress():
         except Exception:
             pass
         pool[i] = None
+
+    for thread in list(threads.periodic_threads.values()):
+        try:
+            thread.stop()
+        except Exception:
+            pass
+        try:
+            thread.join(timeout=2.0)
+        except Exception:
+            pass
 
     gc.collect()
 
