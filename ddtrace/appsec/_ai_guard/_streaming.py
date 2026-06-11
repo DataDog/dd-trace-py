@@ -59,6 +59,24 @@ def _is_async_traced_stream(result: Any) -> bool:
         return False
 
 
+def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, chunks: list[Any]) -> None:
+    """Reconstruct a provider response from buffered *chunks* and run the AI Guard verdict.
+
+    AIDEV-NOTE: reconstruction must fail OPEN -- a converter bug must not break
+    the user's legitimate stream. Only ``evaluate`` (a block decision) is allowed
+    to raise; reconstruction errors are swallowed and the buffer is replayed
+    unevaluated. ``evaluate`` itself (``_anthropic_messages_create_after``) already
+    swallows non-block exceptions and only re-raises AIGuardAbortError. Shared by
+    the sync and async ``_drained`` paths so this invariant lives in one place.
+    """
+    try:
+        response = reconstruct(chunks)
+    except Exception:
+        logger.debug("AI Guard: stream reconstruction failed; failing open", exc_info=True)
+    else:
+        evaluate(response)  # raises AIGuardAbortError on block
+
+
 class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt ships no stubs
     """Sync buffer-then-evaluate proxy for a contrib TracedStream.
 
@@ -88,18 +106,7 @@ class BufferedAIGuardStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wrapt s
                 self._self_passthrough = True
                 return None
             chunks = list(self.__wrapped__)  # drives contrib tracing + finalize_stream
-            # AIDEV-NOTE: reconstruction must fail OPEN -- a converter bug must not
-            # break the user's legitimate stream. Only ``evaluate`` (a block
-            # decision) is allowed to raise; reconstruction errors are swallowed
-            # and the buffer is replayed unevaluated. ``evaluate`` itself
-            # (``_anthropic_messages_create_after``) already swallows non-block
-            # exceptions and only re-raises AIGuardAbortError.
-            try:
-                response = self._self_reconstruct(chunks)
-            except Exception:
-                logger.debug("AI Guard: stream reconstruction failed; failing open", exc_info=True)
-            else:
-                self._self_evaluate(response)  # raises AIGuardAbortError on block
+            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, chunks)
             self._self_chunks = chunks
         return self._self_chunks
 
@@ -212,14 +219,7 @@ class BufferedAIGuardAsyncStream(wrapt.ObjectProxy):  # type: ignore[misc]  # wr
             chunks: list[Any] = []
             async for chunk in self.__wrapped__:
                 chunks.append(chunk)
-            # AIDEV-NOTE: reconstruction must fail OPEN -- see the sync
-            # BufferedAIGuardStream._drained note. Only a block decision raises.
-            try:
-                response = self._self_reconstruct(chunks)
-            except Exception:
-                logger.debug("AI Guard: stream reconstruction failed; failing open", exc_info=True)
-            else:
-                self._self_evaluate(response)  # raises AIGuardAbortError on block
+            _reconstruct_and_evaluate(self._self_reconstruct, self._self_evaluate, chunks)
             self._self_chunks = chunks
         return self._self_chunks
 

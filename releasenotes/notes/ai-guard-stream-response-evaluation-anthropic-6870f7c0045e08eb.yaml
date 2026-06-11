@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    appsec: Add opt-in buffered stream response evaluation for AI Guard on Anthropic streaming
+    ai_guard: Add opt-in buffered stream response evaluation for AI Guard on Anthropic streaming
     calls. When ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` (default ``false``), all
     streamed chunks are buffered, the full assistant response is evaluated by AI Guard, and
     chunks are replayed to the caller only after an ALLOW verdict. On DENY/ABORT,
