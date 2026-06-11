@@ -107,15 +107,15 @@ def import_target_bucket(
     rest = mod[len("ddtrace.") :]
     if not rest:
         return
-    first, _, tail = rest.partition(".")
+    first, _, _ = rest.partition(".")
     parts = rest.split(".")
-    if not first or first.startswith(".") or any(a.startswith(first) for a in detailed_components) or not tail:
+    if not first or first.startswith("."):
         return
     for component in detailed_components:
         component_parts = component.split(".")
         comparison = list(zip(component_parts, parts))
         if all(c == p for c, p in comparison):
-            choices.append(f"ddtrace.{component}.{'.'.join(parts[len(component_parts) :])}")
+            choices.append("ddtrace." + ".".join(parts[: len(component_parts) + 1]))
     for component in extra_components:
         if mod.startswith(component):
             choices.append(component)
