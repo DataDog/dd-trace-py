@@ -435,19 +435,36 @@ class TestLLMObsPydanticAI:
                 ),
                 id="dynamic_toolset",
             ),
+            pytest.param(
+                "mcptoolset",
+                marks=pytest.mark.skipif(
+                    not _HAS_MCP_SERVER_INFO or PYDANTIC_AI_VERSION < (1, 97, 0),
+                    reason="needs MCPServer.server_info and MCPToolset",
+                ),
+                id="mcptoolset",
+            ),
         ],
     )
     async def test_agent_run_captures_mcp_server_and_tool(
         self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans, toolset_kind
     ):
-        """A live MCP run records the server metadata and the called MCP tool on the manifest, whether the
-        toolset is on the agent statically or supplied dynamically (a callable, captured from the observed
-        tool call since it isn't on the static toolset list).
+        """A live MCP run records the server identity (name + version) and the called MCP tool on the
+        manifest. Covers the deprecated MCPServerStdio on the static toolset list, the same supplied
+        dynamically (a callable, captured from the observed tool call), and the newer MCPToolset (whose
+        server_info is reset on disconnect, so it too relies on the observed-call capture).
         """
-        from pydantic_ai.mcp import MCPServerStdio
+        if toolset_kind == "mcptoolset":
+            from fastmcp.client.transports import PythonStdioTransport
+            from pydantic_ai.mcp import MCPToolset
 
-        server = MCPServerStdio(command=sys.executable, args=[_MCP_SERVER_PATH], id="square-mcp", env=os.environ.copy())
-        toolset = server if toolset_kind == "static" else (lambda ctx: server)
+            toolset = MCPToolset(PythonStdioTransport(_MCP_SERVER_PATH, env=os.environ.copy()), id="square-mcp")
+        else:
+            from pydantic_ai.mcp import MCPServerStdio
+
+            server = MCPServerStdio(
+                command=sys.executable, args=[_MCP_SERVER_PATH], id="square-mcp", env=os.environ.copy()
+            )
+            toolset = server if toolset_kind == "static" else (lambda ctx: server)
         with request_vcr.use_cassette("agent_with_tools.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[toolset])
             async with agent:
