@@ -92,38 +92,32 @@ impl SpanData {
     /// # GIL requirement
     /// Must be called with the GIL held — `AttrKey::as_bound` and
     /// `AttributeValue::Str` dereference Python objects.
-    pub(crate) fn to_native_span(
+    pub(crate) fn build_v04_span(
         &mut self,
         py: Python<'_>,
         packb: Option<&Bound<'_, PyAny>>,
     ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
-        let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData>::default();
-
-        // Copy primitive fields.
-        out.trace_id = self.trace_id;
-        out.span_id = self.span_id;
-        out.parent_id = self.parent_id;
-        out.start = self.start;
         // duration is Option<i64>; the libdatadog Span uses i64 with -1 as "unset".
-        out.duration = self.duration.unwrap_or(-1);
-        out.error = self.error;
-
-        // Clone PyBackedString fields — O(1) refcount increment, no heap allocation.
-        out.name = self.name.clone_ref(py);
-        out.service = self.service.clone_ref(py);
-        out.resource = self.resource.clone_ref(py);
-        out.r#type = self.span_type.clone_ref(py);
-
-        // Move span_links / span_events — not accessed after span finish.
-        out.span_links = std::mem::take(&mut self.span_links);
-        out.span_events = std::mem::take(&mut self.span_events);
+        // span_links/span_events are moved — not accessed after span finish.
+        let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData> {
+            trace_id: self.trace_id,
+            span_id: self.span_id,
+            parent_id: self.parent_id,
+            start: self.start,
+            duration: self.duration.unwrap_or(-1),
+            error: self.error,
+            name: self.name.clone_ref(py),
+            service: self.service.clone_ref(py),
+            resource: self.resource.clone_ref(py),
+            r#type: self.span_type.clone_ref(py),
+            span_links: std::mem::take(&mut self.span_links),
+            span_events: std::mem::take(&mut self.span_events),
+            ..Default::default()
+        };
 
         // Materialise attributes into out.meta (Str) and out.metrics (Int/Float).
         // Iterate rather than drain so self.attributes stays intact for post-finish
         // get_tag / get_metric calls.
-        // Reserve capacity upfront to avoid incremental rehash allocations.
-        out.meta.reserve(self.attributes.len());
-        out.metrics.reserve(self.attributes.len());
         for (key, value) in &self.attributes {
             let Ok(key_backed) = PyBackedString::try_from(key.as_bound(py).clone()) else {
                 continue;

@@ -261,7 +261,7 @@ impl NativeTraceBufferPy {
 
     /// Send a trace chunk (list of spans) to the buffer.
     ///
-    /// Calls `SpanData::to_native_span` on each span to snapshot its state into a
+    /// Calls `SpanData::build_v04_span` on each span to snapshot its state into a
     /// libdatadog `Span<PyTraceData>` for encoding.  The `SpanData` fields are left
     /// intact so callers can still read span attributes after the chunk is sent.
     fn send_chunk(&self, py: Python<'_>, spans: Vec<Py<SpanData>>) -> PyResult<()> {
@@ -272,7 +272,7 @@ impl NativeTraceBufferPy {
         let mut chunk: Vec<Span<PyTraceData>> = Vec::with_capacity(spans.len());
         for span in &spans {
             let mut span_ref = span.bind(py).borrow_mut();
-            chunk.push(span_ref.to_native_span(py, packb.as_ref()));
+            chunk.push(span_ref.build_v04_span(py, packb.as_ref()));
         }
         // Set has_pending BEFORE handing the chunk to the buffer. If we set it after,
         // the tokio worker can pick up the chunk, export it, and fire on_export_complete
