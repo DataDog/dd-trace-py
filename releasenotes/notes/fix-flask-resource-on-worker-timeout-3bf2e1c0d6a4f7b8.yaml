@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    flask: resolves an issue where the outer ``flask.request`` (WSGI) span's
+    ``resource`` would remain set to the raw URL path (e.g. ``GET /api/items/12345``)
+    instead of the matched route pattern (e.g. ``GET /api/items/<int:item_id>``)
+    when the worker was killed before ``start_response`` could run (for example,
+    when gunicorn aborts a worker via ``--timeout``). The outer span resource is
+    now populated from ``request.url_rule`` during ``preprocess_request``, so
+    timed-out requests still carry the low-cardinality route resource. This
+    mirrors the equivalent fix for the Django integration.
