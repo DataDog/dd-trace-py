@@ -250,7 +250,31 @@ def _patched_endpoint(patch_hook):
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         is_response = patch_hook in _RESPONSE_HOOKS
         is_completion = patch_hook in _COMPLETION_HOOKS
-        is_raw_streaming = kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False)
+        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            # Raw-response streaming: dispatch .before for AppSec listeners but
+            # do NOT create an LLMObs span — existing tests assert 0 spans for
+            # this path, and there is no response to trace anyway.
+            # If dispatch raises (e.g. a future block), open+close a span so the
+            # error is recorded before re-raising.
+            event = ""
+            if is_chat:
+                event = "openai.chat.completions.create"
+            elif is_response:
+                event = "openai.responses.create"
+            elif is_completion:
+                event = "openai.completions.create"
+            if event:
+                try:
+                    core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                except BaseException as dispatch_err:
+                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g.send(None)
+                    try:
+                        g.send((None, dispatch_err))
+                    except StopIteration:
+                        pass
+                    raise
+            return func(*args, **kwargs)
 
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
@@ -268,25 +292,19 @@ def _patched_endpoint(patch_hook):
             if event:
                 core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
-            if event and not is_raw_streaming and not kwargs.get("stream") and resp is not None:
+            if event and not kwargs.get("stream") and resp is not None:
                 core.dispatch(f"{event}.after", (kwargs, resp), allow_raise=True)
         except BaseException as e:
             err = e
             raise
         finally:
-            # For raw streaming, pass resp=None so _traced_endpoint always calls
-            # span.finish() instead of trying to wrap a streaming response it
-            # cannot consume.  The real SDK response is returned directly below.
-            send_resp = None if is_raw_streaming else resp
             try:
-                g.send((send_resp, err))
+                g.send((resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over the implicit None return
                     override_return = e.value
 
-        if is_raw_streaming:
-            return resp
         if override_return is not None:
             return override_return
 
@@ -416,6 +434,9 @@ def _patched_endpoint_async(patch_hook):
         is_response = patch_hook in _RESPONSE_HOOKS
         is_completion = patch_hook in _COMPLETION_HOOKS
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            # Raw-response streaming: dispatch .before for AppSec but no LLMObs span
+            # on the success path (same rationale as sync path above).
+            # Dispatch is synchronous; span is created only if it raises.
             event = ""
             if is_chat:
                 event = "openai.chat.completions.create"
@@ -423,32 +444,17 @@ def _patched_endpoint_async(patch_hook):
                 event = "openai.responses.create"
             elif is_completion:
                 event = "openai.completions.create"
-
-            async def async_wrapper_raw():
-                integration = openai._datadog_integration
-                g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
-                g.send(None)
-                resp, err = None, None
+            if event:
                 try:
-                    if event:
-                        # No coroutine to close on DDBlockException here: func has not
-                        # been called yet, unlike the normal async path where result is
-                        # created before async_wrapper runs.
-                        core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
-                    resp = await func(*args, **kwargs)
-                except BaseException as e:
-                    err = e
-                    raise
-                finally:
-                    # Pass resp=None so _traced_endpoint calls span.finish() immediately
-                    # rather than wrapping the raw streaming response it cannot consume.
+                    core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                except BaseException as dispatch_err:
+                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g.send(None)
                     try:
-                        g.send((None, err))
+                        g.send((None, dispatch_err))
                     except StopIteration:
                         pass
-                return resp
-
-            return async_wrapper_raw()
+                    raise
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
