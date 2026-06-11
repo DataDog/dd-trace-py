@@ -2,6 +2,7 @@
 
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -1621,8 +1622,6 @@ def test_response_text_and_image():
 
 def _fake_anthropic_response(text="ok"):
     """Minimal Anthropic Message-shaped object for the output extractor."""
-    from types import SimpleNamespace
-
     block = SimpleNamespace(type="text", text=text)
     return SimpleNamespace(role="assistant", content=[block], usage=SimpleNamespace(input_tokens=1, output_tokens=1))
 
