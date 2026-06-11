@@ -276,8 +276,12 @@ Datadog::StackRenderer::StackRenderer()
 void
 Datadog::StackRenderer::postfork_child()
 {
-    // Clear the caches to avoid using stale interned string/function IDs
-    // from the parent process's dictionary
-    string_id_cache.clear();
-    function_id_cache.clear();
+    // Use placement new instead of clear because the sampling thread may
+    // have been mid-rehash on either cache when fork was called.
+    // Traversing the buckets to free nodes would crash if they were left
+    // in an inconsistent state.
+    new (&string_id_cache) std::unordered_map<StringTable::Key, string_id>();
+    new (&function_id_cache)
+      std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq>();
+    sample = nullptr;
 }
