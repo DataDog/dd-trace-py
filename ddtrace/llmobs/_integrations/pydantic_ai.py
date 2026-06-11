@@ -218,29 +218,31 @@ class PydanticAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     @staticmethod
-    def _merge_observed_tools(tools: list[dict[str, Any]], observed: Optional[dict[str, Any]]) -> list[dict[str, Any]]:
-        existing_names = {tool.get("name") for tool in tools}
+    def _merge_observed_tools(
+        agent_tools: list[dict[str, Any]], observed: Optional[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        seen_names = {tool.get("name") for tool in agent_tools}
         for tool_name, info in (observed or {}).get("tools", {}).items():
-            if tool_name in existing_names:
+            if tool_name in seen_names:
                 continue
             entry: dict[str, Any] = {"name": tool_name}
             if info.get("description"):
                 entry["description"] = info["description"]
             if info.get("mcp_server_name"):
                 entry["mcp_server_name"] = info["mcp_server_name"]
-            tools.append(entry)
-        return tools
+            agent_tools.append(entry)
+        return agent_tools
 
     @staticmethod
     def _merge_observed_servers(
-        servers: list[dict[str, Any]], observed: Optional[dict[str, Any]]
+        agent_servers: list[dict[str, Any]], observed: Optional[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        existing = {server["name"] for server in servers}
+        seen_names = {server["name"] for server in agent_servers}
         for server in (observed or {}).get("servers", {}).values():
-            if server["name"] not in existing:
-                servers.append(server)
-                existing.add(server["name"])
-        return servers
+            if server["name"] not in seen_names:
+                agent_servers.append(server)
+                seen_names.add(server["name"])
+        return agent_servers
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """
