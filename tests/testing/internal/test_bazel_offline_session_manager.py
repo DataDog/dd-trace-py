@@ -298,22 +298,18 @@ class TestEnvTagsStripping:
 # ---------------------------------------------------------------------------
 
 
-class TestSkippingForcedOffInManifestMode:
-    def test_skipping_disabled_in_manifest_mode(self, monkeypatch, tmp_path):
-        """Even if the cached settings file enables skipping, manifest mode forces it off."""
+class TestSkippingInManifestMode:
+    def _write_settings(self, cache_dir: Path, tests_skipping: bool, itr_enabled: bool) -> None:
         import json
 
-        opt_dir = _make_manifest_dir(tmp_path)
-        # Write settings with skipping_enabled=True
-        cache_dir = opt_dir / "cache" / "http"
-        cache_dir.mkdir(parents=True)
+        cache_dir.mkdir(parents=True, exist_ok=True)
         (cache_dir / "settings.json").write_text(
             json.dumps(
                 {
                     "data": {
                         "attributes": {
-                            "tests_skipping": True,
-                            "itr_enabled": True,
+                            "tests_skipping": tests_skipping,
+                            "itr_enabled": itr_enabled,
                             "require_git": False,
                             "code_coverage": False,
                             "known_tests_enabled": False,
@@ -330,6 +326,30 @@ class TestSkippingForcedOffInManifestMode:
                 }
             )
         )
+
+    def test_skipping_enabled_from_cache_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode, skipping_enabled comes from the cached settings file."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=True, itr_enabled=True)
+
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            sm = SessionManager(session=_make_session())
+
+        assert sm.settings.skipping_enabled is True
+        assert sm.settings.itr_enabled is True
+
+    def test_skipping_disabled_when_cache_says_disabled(self, monkeypatch, tmp_path):
+        """When cached settings has skipping disabled it stays disabled in manifest mode."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=False, itr_enabled=False)
 
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
