@@ -112,13 +112,22 @@ class EchionSampler
         // Clear frame cache after fork (prevent stale pointers)
         frame_cache_.clear();
 
-        // Clear stale entries from parent process.
-        // No lock needed: only one thread exists in child immediately after fork.
-        task_link_map_.clear();
-        weak_task_link_map_.clear();
-        greenlet_info_map_.clear();
-        greenlet_parent_map_.clear();
-        greenlet_thread_map_.clear();
+        // Also use placement new for all containers touched by the sampling thread.
+        // Using placement new means the existing containers are abandoned and
+        // their memory leaked in the child and we may lose some data (e.g. relationships
+        // between asyncio Tasks).
+        // However, this is the only way to safely continue working after fork.
+        new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
+        new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
+        new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
+        new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
+        new (&previous_task_objects_) std::unordered_set<PyObject*>();
+
+        asyncio_frame_cache_key_.reset();
+        uvloop_frame_cache_key_.reset();
+        asyncio_task_count_ = 0;
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary
