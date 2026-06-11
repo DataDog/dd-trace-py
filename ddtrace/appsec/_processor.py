@@ -300,7 +300,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 if key in custom_data:
                     ephemeral_data[waf_name] = _serialize_address_values(waf_name, custom_data.get(key))
 
-            elif self._is_needed(waf_name) or force_keys:
+            elif self._is_needed(waf_name) or force_keys or (custom_data and key in custom_data):
                 value = None
                 if custom_data is not None and custom_data.get(key) is not None:
                     value = custom_data.get(key)
