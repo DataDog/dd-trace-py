@@ -10,7 +10,6 @@ use pyo3::{
 };
 
 use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
-use serde::Serialize;
 use std::borrow::Borrow;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
@@ -241,30 +240,99 @@ impl SpanText for PyBackedString {
     }
 }
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct Bytes(Vec<u8>);
-
-impl SpanBytes for Bytes {
-    fn from_static_bytes(value: &'static [u8]) -> Self {
-        Self(value.to_vec())
-    }
+/// A Python bytes object we can read without the GIL.
+///
+/// Mirrors the storage semantics of [`PyBackedString`]: `data` is a raw pointer into
+/// the Python bytes buffer; `storage` keeps the owning `PyBytes` alive.  When built
+/// from a `&'static [u8]` (via [`SpanBytes::from_static_bytes`]) `storage` is `None`
+/// and `data` points directly at the static data.
+///
+/// `PyBytes` is immutable after creation, so reading `data` without the GIL is safe
+/// for the same reasons as `PyBackedString`.
+pub struct Bytes {
+    data: ptr::NonNull<[u8]>,
+    /// Keeps the owning `PyBytes` alive. Never read — the keepalive is the purpose.
+    #[allow(dead_code)]
+    storage: Option<Py<PyAny>>,
 }
 
 impl Bytes {
-    pub(crate) fn from_vec(v: Vec<u8>) -> Self {
-        Self(v)
+    /// Zero-copy constructor from a Python bytes object.
+    pub(crate) fn from_py_bytes(py_bytes: &pyo3::Bound<'_, pyo3::types::PyBytes>) -> Self {
+        let bytes = py_bytes.as_bytes();
+        let data = ptr::NonNull::from(bytes);
+        Self {
+            storage: Some(py_bytes.clone().unbind().into_any()),
+            data,
+        }
+    }
+}
+
+// SAFETY: PyBytes is immutable after creation; the raw pointer is stable for its lifetime.
+unsafe impl Send for Bytes {}
+unsafe impl Sync for Bytes {}
+
+impl SpanBytes for Bytes {
+    fn from_static_bytes(value: &'static [u8]) -> Self {
+        Self {
+            // SAFETY: value is a 'static [u8] reference, guaranteed to be non-null.
+            data: unsafe { ptr::NonNull::new_unchecked(value as *const [u8] as *mut _) },
+            storage: None,
+        }
+    }
+}
+
+impl Default for Bytes {
+    fn default() -> Self {
+        Self::from_static_bytes(b"")
+    }
+}
+
+impl std::ops::Deref for Bytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        unsafe { self.data.as_ref() }
     }
 }
 
 impl AsRef<[u8]> for Bytes {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self
     }
 }
 
 impl Borrow<[u8]> for Bytes {
     fn borrow(&self) -> &[u8] {
-        &self.0
+        self
+    }
+}
+
+impl PartialEq for Bytes {
+    fn eq(&self, other: &Self) -> bool {
+        self.deref() == other.deref()
+    }
+}
+
+impl Eq for Bytes {}
+
+impl std::hash::Hash for Bytes {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.deref().hash(state);
+    }
+}
+
+impl std::fmt::Debug for Bytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl serde::Serialize for Bytes {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(self.deref())
     }
 }
 

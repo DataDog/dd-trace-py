@@ -148,11 +148,11 @@ impl SpanData {
                 let Ok(result) = packb.call1((&v,)) else {
                     continue;
                 };
-                let Ok(packed_bytes): Result<Vec<u8>, _> = result.extract() else {
+                let Ok(py_bytes) = result.cast::<pyo3::types::PyBytes>() else {
                     continue;
                 };
                 out.meta_struct
-                    .insert(key_backed, Bytes::from_vec(packed_bytes));
+                    .insert(key_backed, Bytes::from_py_bytes(py_bytes));
             }
         }
 
