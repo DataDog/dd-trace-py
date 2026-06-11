@@ -90,8 +90,6 @@ _RESPONSE_HOOKS = (
     _endpoint_hooks._ResponseParseHook,
 )
 
-# _CompletionWithRawResponseHook is intentionally excluded: it takes the early-return path
-# at the top of _patched_endpoint/_patched_endpoint_async and never reaches this tuple.
 _COMPLETION_HOOKS = (_endpoint_hooks._CompletionHook,)
 
 
@@ -252,15 +250,7 @@ def _patched_endpoint(patch_hook):
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         is_response = patch_hook in _RESPONSE_HOOKS
         is_completion = patch_hook in _COMPLETION_HOOKS
-        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
-            # Raw-response streaming skips the normal trace path; still dispatch so AppSec listeners fire.
-            if is_chat:
-                core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
-            elif is_response:
-                core.dispatch("openai.responses.create.before", (kwargs,), allow_raise=True)
-            elif is_completion:
-                core.dispatch("openai.completions.create.before", (kwargs,), allow_raise=True)
-            return func(*args, **kwargs)
+        is_raw_streaming = kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False)
 
         integration = openai._datadog_integration
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
@@ -278,7 +268,7 @@ def _patched_endpoint(patch_hook):
             if event:
                 core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
-            if event and not kwargs.get("stream") and resp is not None:
+            if event and not is_raw_streaming and not kwargs.get("stream") and resp is not None:
                 core.dispatch(f"{event}.after", (kwargs, resp), allow_raise=True)
         except BaseException as e:
             err = e
@@ -420,16 +410,38 @@ def _patched_endpoint_async(patch_hook):
         is_response = patch_hook in _RESPONSE_HOOKS
         is_completion = patch_hook in _COMPLETION_HOOKS
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
-            # Raw-response streaming must still fire .before events (same logic as sync path).
-            # DDBlockException propagates naturally here; unlike the normal async path below
-            # there is no unawaited coroutine to clean up since result is not yet created.
+            event = ""
             if is_chat:
-                core.dispatch("openai.chat.completions.create.before", (kwargs,), allow_raise=True)
+                event = "openai.chat.completions.create"
             elif is_response:
-                core.dispatch("openai.responses.create.before", (kwargs,), allow_raise=True)
+                event = "openai.responses.create"
             elif is_completion:
-                core.dispatch("openai.completions.create.before", (kwargs,), allow_raise=True)
-            return func(*args, **kwargs)
+                event = "openai.completions.create"
+
+            async def async_wrapper_raw():
+                integration = openai._datadog_integration
+                g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
+                g.send(None)
+                resp, err = None, None
+                override_return = None
+                try:
+                    if event:
+                        core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                    resp = await func(*args, **kwargs)
+                except BaseException as e:
+                    err = e
+                    raise
+                finally:
+                    send_resp = await _maybe_preparse_async_response(resp, err)
+                    try:
+                        g.send((send_resp, err))
+                    except StopIteration as e:
+                        if err is None:
+                            override_return = e.value
+                if override_return is not None:
+                    return override_return
+
+            return async_wrapper_raw()
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
