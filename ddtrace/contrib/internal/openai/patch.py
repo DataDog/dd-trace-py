@@ -274,13 +274,19 @@ def _patched_endpoint(patch_hook):
             err = e
             raise
         finally:
+            # For raw streaming, pass resp=None so _traced_endpoint always calls
+            # span.finish() instead of trying to wrap a streaming response it
+            # cannot consume.  The real SDK response is returned directly below.
+            send_resp = None if is_raw_streaming else resp
             try:
-                g.send((resp, err))
+                g.send((send_resp, err))
             except StopIteration as e:
                 if err is None:
                     # This return takes priority over the implicit None return
                     override_return = e.value
 
+        if is_raw_streaming:
+            return resp
         if override_return is not None:
             return override_return
 
@@ -423,23 +429,24 @@ def _patched_endpoint_async(patch_hook):
                 g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
                 g.send(None)
                 resp, err = None, None
-                override_return = None
                 try:
                     if event:
+                        # No coroutine to close on DDBlockException here: func has not
+                        # been called yet, unlike the normal async path where result is
+                        # created before async_wrapper runs.
                         core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
                     resp = await func(*args, **kwargs)
                 except BaseException as e:
                     err = e
                     raise
                 finally:
-                    send_resp = await _maybe_preparse_async_response(resp, err)
+                    # Pass resp=None so _traced_endpoint calls span.finish() immediately
+                    # rather than wrapping the raw streaming response it cannot consume.
                     try:
-                        g.send((send_resp, err))
-                    except StopIteration as e:
-                        if err is None:
-                            override_return = e.value
-                if override_return is not None:
-                    return override_return
+                        g.send((None, err))
+                    except StopIteration:
+                        pass
+                return resp
 
             return async_wrapper_raw()
         result = func(*args, **kwargs)
