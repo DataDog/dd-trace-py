@@ -68,6 +68,21 @@ def _iast_start_request(span=None) -> Optional[int]:
     context_id = None
 
     if asm_config._iast_enabled:
+        # A new root web request starting while an IAST context is still marked active means
+        # the previous request's teardown did not reset the context on this worker. This is
+        # observed under uWSGI, where the finish hook can run in a different contextvars context
+        # than the one that holds IAST_CONTEXT, so finish_request_context() is never reached.
+        # Left unchecked, every subsequent request on the worker reuses and keeps appending to
+        # the same taint slot, which both leaks memory and produces cross-request false positives
+        # (a safe, hardcoded value that happens to equal a tainted value from an earlier request
+        # is reported as tainted because the taint map keys on the reused PyObject address).
+        # Tear the stale context down here so the request always starts from a clean slot.
+        if span is not None and span._local_root is span and is_iast_request_enabled():
+            stale_context_id = _get_iast_context_id()
+            if stale_context_id is not None:
+                finish_request_context(stale_context_id)
+            core.discard_item(IAST.REQUEST_CONTEXT_KEY)
+            IAST_CONTEXT.set(None)
         if oce.acquire_request(span):
             if not is_iast_request_enabled():
                 context_id = start_request_context()
