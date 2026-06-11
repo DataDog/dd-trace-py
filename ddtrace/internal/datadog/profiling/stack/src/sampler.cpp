@@ -436,6 +436,7 @@ Sampler::postfork_child()
         echion->postfork_child();
     }
 
+    // Note: the Thread Info Map has been reset in EchionSampler::postfork_child.
     auto& thread_info_map = echion->thread_info_map();
 
     // Refresh the ThreadInfo for the current (only) Thread.
@@ -447,23 +448,17 @@ Sampler::postfork_child()
     auto current_thread_id = reinterpret_cast<uintptr_t>(pthread_self());
 #endif
 
-    // Extract the current ThreadInfo name if possible. All the other information needs to be updated.
-    auto it = thread_info_map.find(current_thread_id);
-    std::string name = it != thread_info_map.end() ? it->second->name : "MainThread";
-
-    // Clear all entries, we have extracted everything we care about.
-    thread_info_map.clear();
-
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
     auto native_id = static_cast<unsigned long>(getpid());
+    const std::string thread_name = "MainThread";
 
-    auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, name.c_str());
+    auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, thread_name.c_str());
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
-                  << ") " << name << std::endl;
+                  << ") " << thread_name << std::endl;
     }
 }
 
