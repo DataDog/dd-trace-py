@@ -204,6 +204,8 @@ def traced_produce(func, instance, args, kwargs):
         if cluster_id:
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
+        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
+
         span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
         span._set_attribute(COMPONENT, config.kafka.integration_name)
         span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
@@ -231,8 +233,6 @@ def traced_produce(func, instance, args, kwargs):
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
-
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
         return func(*args, **kwargs)
 
 

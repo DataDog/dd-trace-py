@@ -8,10 +8,14 @@ from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
+from ddtrace.internal.native import DDSketch
 from tests.datastreams.utils import all_pathway_stat_keys
 from tests.datastreams.utils import max_commit_offset
 from tests.datastreams.utils import max_produce_offset
+from tests.utils import override_config
 
+
+DSM_TEST_PATH_HEADER_SIZE = 28
 
 
 class CustomError(Exception):
@@ -35,29 +39,42 @@ def test_data_streams_payload_size(
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     test_headers = {"1234": "5678"}
+    test_header_size = 0
+    for k, v in test_headers.items():
+        test_header_size += len(k) + len(v)
+    expected_payload_size = float(payload_length + key_length)
+    expected_payload_size += test_header_size  # to account for headers we add here
+    expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
+    expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
-    producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
-    producer.flush()
+    # Disable APM header injection so it doesn't affect the payload size measurement.
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
+        producer.flush()
 
-    # Poll until the produced message arrives (topic is empty, so first message = ours).
-    message = None
-    deadline = time.monotonic() + 10
-    while message is None and time.monotonic() < deadline:
-        message = fresh_consumer.poll(timeout=1.0)
+        # Poll until the produced message arrives (topic is empty, so first message = ours).
+        message = None
+        deadline = time.monotonic() + 10
+        while message is None and time.monotonic() < deadline:
+            message = fresh_consumer.poll(timeout=1.0)
     assert message is not None, "Consumer did not receive the produced message within 10s"
 
     # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
-    # can land in different buckets when the test straddles a boundary.
-    # DSM dispatch now fires after APM header injection so both sides count the same
-    # headers — verify all pathway stats agree on payload_size.
-    all_protos = []
+    # can land in different buckets when the test straddles a boundary. Iterate
+    # all buckets and assert each recorded sketch matches expected_payload_size.
+    # Hold _lock so the periodic flusher can't mutate _buckets mid-iteration.
+    expected_sketch = DDSketch()
+    expected_sketch.add(expected_payload_size)
+    expected_proto = expected_sketch.to_proto()
+
+    pathway_stats_count = 0
     with dsm_processor._lock:
         for bucket in dsm_processor._buckets.values():
             for stats in bucket.pathway_stats.values():
+                pathway_stats_count += 1
                 assert stats.payload_size.count >= 1
-                all_protos.append(stats.payload_size.to_proto())
-    assert len(all_protos) >= 1, "no DSM pathway stats recorded for produce/consume"
-    assert all(p == all_protos[0] for p in all_protos), "produce and consume payload_size sketches disagree"
+                assert stats.payload_size.to_proto() == expected_proto
+    assert pathway_stats_count >= 1, "no DSM pathway stats recorded for produce/consume"
 
 
 def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, serializing_producer, kafka_topic):
