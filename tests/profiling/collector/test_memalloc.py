@@ -787,6 +787,123 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         del second_batch
 
 
+def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
+    """Verify heap-live-samples disappear from a stack after its objects are freed."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_live_samples_drops_after_free")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
+
+    with mc:
+        # Allocate objects via 'one' and 'two', keep them alive
+        batch_one: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_one.append(one(256))
+
+        batch_two: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_two.append(two(512))
+
+        profile_before = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_before, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_before, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
+
+        # Both 'one' and 'two' should have live samples
+        live_before = [s for s in profile_before.sample if s.value[heap_space_idx] > 0]
+        one_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, one)]
+        two_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, two)]
+
+        assert len(one_live_before) > 0, "Expected live samples from 'one' before free"
+        assert len(two_live_before) > 0, "Expected live samples from 'two' before free"
+
+        # Verify heap-live-samples > 0 for all live entries
+        for s in live_before:
+            assert s.value[heap_live_idx] > 0, "Live sample should have heap-live-samples > 0"
+
+        # Free batch_one, keep batch_two
+        del batch_one
+        gc.collect()
+
+        profile_after = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_after, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_after, "heap-live-samples")
+
+        live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
+
+        # 'one' should have no significant live samples (freed)
+        min_alloc_size = 256
+        one_live_after = [
+            s
+            for s in live_after
+            if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
+        ]
+        assert len(one_live_after) == 0, (
+            f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
+        )
+
+        # 'two' should still have live samples with heap-live-samples > 0
+        two_live_after = [s for s in live_after if has_function_in_profile_sample(profile_after, s, two)]
+        assert len(two_live_after) > 0, "Expected live samples from 'two' to persist after freeing 'one'"
+        for s in two_live_after:
+            assert s.value[heap_live_idx] > 0, "Surviving live sample should have heap-live-samples > 0"
+
+        del batch_two
+
+
+def test_heap_live_samples_aggregate_accuracy(tmp_path: Path) -> None:
+    """Verify the sum of heap-live-samples is a reasonable estimate of actual live object count.
+
+    With a small sampling interval and many allocations, the aggregate heap-live-samples
+    should approximate the real number of live objects within a tolerance.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_live_samples_aggregate_accuracy")
+
+    sample_interval = 64
+    num_objects = 500
+    object_size = 256
+    mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
+
+    with mc:
+        # Allocate a known number of objects, all kept alive
+        live_objects: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(num_objects):
+            live_objects.append(one(object_size))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
+
+        # Sum heap-live-samples across all live entries attributed to 'one'
+        live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+        one_live_samples = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
+
+        assert len(one_live_samples) > 0, "Expected live samples from 'one'"
+
+        total_heap_live_count = sum(s.value[heap_live_idx] for s in one_live_samples)
+
+        print(f"Actual live objects: {num_objects}")
+        print(f"Reported heap-live-samples: {total_heap_live_count}")
+        print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
+
+        # The aggregate should be in the right ballpark.
+        # With Poisson sampling, we expect some variance but the estimate
+        # should be within 10% of the true count for 500 objects at interval=64.
+        assert total_heap_live_count > 0, "heap-live-samples aggregate should be > 0"
+        ratio = total_heap_live_count / num_objects
+        assert 0.9 <= ratio <= 1.1, (
+            f"heap-live-samples aggregate ({total_heap_live_count}) should be within 10% of "
+            f"actual count ({num_objects}), got ratio={ratio:.2f}"
+        )
+
+        del live_objects
+
+
 def test_memory_collector_exception_handling(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_exception_handling")
 
