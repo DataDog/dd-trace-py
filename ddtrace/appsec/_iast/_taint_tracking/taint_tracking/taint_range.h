@@ -20,13 +20,49 @@ class TaintedObject;
 // Alias
 using TaintedObjectPtr = shared_ptr<TaintedObject>;
 
+// RAII strong reference to the source PyObject of a taint-map entry.
+//
+// The taint map keys entries by the source object's memory address (get_unique_id).
+// Without keeping that object alive, it can be freed and its address reused — within
+// the same request — by a *different* string. When the new string has the same value
+// (e.g. a hardcoded "safe" redirect target equal to a tainted request parameter), the
+// stale entry's hash guard cannot tell them apart and the new, untainted string is
+// wrongly reported as tainted. Holding a strong reference for the lifetime of the
+// entry keeps the address uniquely owned, so reuse cannot happen until the entry is
+// cleared at end-of-request. All taint-map mutations run under the GIL, so the
+// Py_DECREF in the deleter is safe.
+using PyObjectKeepalive = std::shared_ptr<PyObject>;
+
+inline PyObjectKeepalive
+make_pyobject_keepalive(PyObject* obj)
+{
+    if (obj == nullptr) {
+        return {};
+    }
+    Py_INCREF(obj);
+    return { obj, [](PyObject* p) {
+                if (p != nullptr) {
+                    Py_DECREF(p);
+                }
+            } };
+}
+
+// Value stored in the taint map for each tracked object.
+struct TaintEntry
+{
+    Py_hash_t hash{ 0 };
+    TaintedObjectPtr tainted{ nullptr };
+    // Keeps the source object alive while this entry exists (prevents address reuse).
+    PyObjectKeepalive keepalive{};
+};
+
 // Use Abseil only if NDEBUG is set and DONT_COMPILE_ABSEIL is not set
 #if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 #include "absl/container/node_hash_map.h"
-using TaintedObjectMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
+using TaintedObjectMapType = absl::node_hash_map<uintptr_t, TaintEntry>;
 #else
 #include <unordered_map>
-using TaintedObjectMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
+using TaintedObjectMapType = std::unordered_map<uintptr_t, TaintEntry>;
 #endif
 
 /**

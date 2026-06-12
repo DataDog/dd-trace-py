@@ -250,7 +250,7 @@ TaintEngineContext::get_tainted_object_map_from_ranges(const TaintRangeRefs& ran
 
         // Iterate over all tainted objects in this context map
         for (const auto& kv : *context_map) {
-            const auto& tainted_obj = kv.second.second;
+            const auto& tainted_obj = kv.second.tainted;
             if (!tainted_obj) {
                 continue;
             }
@@ -303,7 +303,7 @@ TaintEngineContext::debug_taint_map(size_t ctx_id)
     output << "[";
     for (const auto& [fst, snd] : *ctx_map) {
         output << "{ 'Id-Key': " << fst << ",";
-        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString() << "'}},";
+        output << "'Value': { 'Hash': " << snd.hash << ", 'TaintedObject': '" << snd.tainted->toString() << "'}},";
     }
     output << "]";
     return output.str();

@@ -206,12 +206,12 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
         return std::make_pair(result, false);
     }
 
-    if (get_internal_hash(string_input) != it->second.first) {
+    if (get_internal_hash(string_input) != it->second.hash) {
         tx_map->erase(it);
         return std::make_pair(result, false);
     }
 
-    return std::make_pair(it->second.second->get_ranges(), false);
+    return std::make_pair(it->second.tainted->get_ranges(), false);
 }
 
 bool
@@ -234,12 +234,12 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
 
     set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_map->end()) {
-        it->second.second.reset();
-        it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
+        it->second.tainted.reset();
+        it->second = TaintEntry{ get_internal_hash(str), new_tainted_object, make_pyobject_keepalive(str) };
         return true;
     }
 
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+    tx_map->insert({ obj_id, TaintEntry{ get_internal_hash(str), new_tainted_object, make_pyobject_keepalive(str) } });
 
     return true;
 }
@@ -356,11 +356,11 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
         return nullptr;
     }
 
-    if (get_internal_hash(str) != it->second.first) {
+    if (get_internal_hash(str) != it->second.hash) {
         tx_map->erase(it);
         return nullptr;
     }
-    return it == tx_map->end() ? nullptr : it->second.second;
+    return it == tx_map->end() ? nullptr : it->second.tainted;
 }
 
 Py_hash_t
@@ -408,18 +408,18 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
     if (const auto it = tx_map->find(obj_id); it != tx_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
         // we need to overwrite it.
-        if (it->second.second != tainted_object) {
+        if (it->second.tainted != tainted_object) {
             // If the tainted object is different, we need to decref the previous one
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
-            it->second.second.reset();
-            it->second = std::make_pair(get_internal_hash(str), tainted_object);
+            it->second.tainted.reset();
+            it->second = TaintEntry{ get_internal_hash(str), tainted_object, make_pyobject_keepalive(str) };
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
-        it->second.first = get_internal_hash(str);
+        it->second.hash = get_internal_hash(str);
         return;
     }
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
+    tx_map->insert({ obj_id, TaintEntry{ get_internal_hash(str), tainted_object, make_pyobject_keepalive(str) } });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*
