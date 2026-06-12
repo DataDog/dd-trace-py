@@ -540,6 +540,15 @@ class ProfilingConfigPytorch(DDConfig):
         help="How many events the PyTorch profiler records each collection",
     )
 
+    max_frames = DDConfig.v(
+        int,
+        "max_frames",
+        default=128,
+        validator=validators.range(1, t.cast(int, float("inf"))),
+        help_type="Integer",
+        help="Maximum number of frames to capture",
+    )
+
 
 class ProfilingConfigException(DDConfig):
     __item__ = __prefix__ = "exception"
