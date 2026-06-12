@@ -75,6 +75,7 @@ include:
       ref: nccatoni/gitlab
       push_to_test_optimization: true
       libraries: python
+      scenarios_groups: tracer_release
 
 
 "pipeline variables":
