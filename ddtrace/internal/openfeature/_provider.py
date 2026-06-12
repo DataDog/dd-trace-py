@@ -178,7 +178,10 @@ class DataDogProvider(AbstractProvider):
         Initialize the provider.
 
         Blocks until Remote Config delivers the first FFE configuration or
-        the initialization timeout expires.
+        the initialization timeout expires.  On timeout, the provider still
+        transitions to READY so that evaluation can proceed with defaults; when
+        RC does eventually deliver config, on_configuration_received() picks it
+        up and config becomes available for future evaluations.
 
         The timeout is configurable via:
         - Constructor: DataDogProvider(initialization_timeout=10.0)  # seconds
@@ -186,7 +189,8 @@ class DataDogProvider(AbstractProvider):
 
         Provider lifecycle:
             NOT_READY -> initialize() blocks -> config arrives -> READY
-            NOT_READY -> initialize() blocks -> timeout -> raises ProviderNotReadyError
+            NOT_READY -> initialize() blocks -> timeout -> READY (no config yet;
+                evaluations return default values until RC delivers config)
         """
         if not self._enabled:
             return
@@ -222,13 +226,24 @@ class DataDogProvider(AbstractProvider):
             "Waiting up to %.1fs for initial FFE configuration from Remote Config", self._initialization_timeout
         )
         if not self._config_received.wait(timeout=self._initialization_timeout):
-            # Timeout expired without receiving config
-            from openfeature.exception import ProviderNotReadyError
-
-            raise ProviderNotReadyError(
-                f"Provider timed out after {self._initialization_timeout:.1f}s waiting for "
-                "initial configuration from Remote Config"
+            # Timeout expired without receiving config.
+            # AIDEV-NOTE: We do NOT raise ProviderNotReadyError here.  Raising
+            # would cause the OpenFeature SDK to dispatch PROVIDER_ERROR and mark
+            # the provider as ERROR, preventing all evaluations.  Instead, we log
+            # a warning and return normally so the provider transitions to READY.
+            # Evaluations will return (default_value, ERROR, PROVIDER_NOT_READY)
+            # via _resolve_details() until RC eventually delivers the config, at
+            # which point on_configuration_received() makes config available for
+            # future calls.  This is the correct degraded-mode behavior: the
+            # provider is usable (returns defaults) rather than completely broken.
+            logger.warning(
+                "openfeature: timed out after %.1fs waiting for initial FFE configuration from "
+                "Remote Config; provider is READY but will return default values until config arrives. "
+                "Check that the Datadog Agent is running and FFE flags are configured in your org.",
+                self._initialization_timeout,
             )
+            self._status = ProviderStatus.READY
+            return  # SDK will dispatch PROVIDER_READY; evaluations degrade to defaults
 
         # Config received during wait -- on_configuration_received() already set status
 
