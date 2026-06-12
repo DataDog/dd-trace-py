@@ -154,9 +154,22 @@ class SessionManager:
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
-        self.test_properties = (
-            self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-        )
+
+        if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            all_flaky = self.api_client.get_all_flaky_tests()
+            self.atf_all_flaky_tests: t.Optional[set[TestRef]] = all_flaky
+            self.test_properties: dict[TestRef, TestProperties] = {
+                ref: TestProperties(attempt_to_fix=True) for ref in all_flaky
+            }
+            log.info(
+                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be skipped",
+                len(all_flaky),
+            )
+        else:
+            self.atf_all_flaky_tests = None
+            self.test_properties = (
+                self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
+            )
 
         self.upload_git_data()
         if self.settings.itr_enabled:
@@ -760,6 +773,10 @@ class SessionManager:
         if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
             log.debug("Test Management is disabled by environment variable")
             self.settings.test_management.enabled = False
+
+        if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            log.debug("ATF-all-flaky mode enabled: forcing Test Management on")
+            self.settings.test_management.enabled = True
 
         _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
         if _coverage_upload_env.lower() in ("false", "0"):

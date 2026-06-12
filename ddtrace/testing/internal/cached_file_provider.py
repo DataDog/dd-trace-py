@@ -42,6 +42,8 @@ class TestOptDataProvider(t.Protocol):
 
     def get_test_management_properties(self) -> dict[TestRef, TestProperties]: ...
 
+    def get_all_flaky_tests(self) -> set[TestRef]: ...
+
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]: ...
 
     def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]: ...
@@ -155,6 +157,10 @@ class CachedFileDataProvider:
         except Exception as e:
             log.warning("Error parsing cached test management file: %s", e)
             return {}
+
+    def get_all_flaky_tests(self) -> set[TestRef]:
+        # Not supported in offline/manifest mode — network access is unavailable.
+        return set()
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         # Hard no-op in manifest mode: skippable tests are not applied in hermetic
