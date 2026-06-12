@@ -524,7 +524,8 @@ import opentelemetry
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
-        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": None},
+        {"name": "_DD_NATIVE_LOGGING_BACKEND", "origin": "default", "value": "stderr"},
+        {"name": "_DD_NATIVE_LOGGING_LOG_LEVEL", "origin": "default", "value": "debug"},
         {
             "name": "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED",
             "origin": "default",
