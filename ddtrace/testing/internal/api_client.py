@@ -351,8 +351,8 @@ class APIClient:
                             test_ref = TestRef(suite_ref, test_name)
                             test_properties[test_ref] = TestProperties(attempt_to_fix=True)
 
-                pagination = attributes.get("pagination")
-                page_state = pagination.get("next_cursor") if isinstance(pagination, dict) else None
+                page_info_response = attributes.get("page_info", {})
+                page_state = page_info_response.get("cursor") if page_info_response.get("has_next") else None
                 if not page_state:
                     break
             except Exception as e:
