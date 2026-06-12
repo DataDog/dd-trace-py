@@ -23,8 +23,8 @@ import wrapt
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
-from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
 
 
 logger = ddlogger.get_logger(__name__)
