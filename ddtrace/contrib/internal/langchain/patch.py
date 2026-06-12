@@ -248,7 +248,7 @@ def traced_lcel_runnable_sequence(func, instance, args, kwargs):
         if not isinstance(inputs, list):
             inputs = [inputs]
         final_output = func(*args, **kwargs)
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -281,7 +281,7 @@ async def traced_lcel_runnable_sequence_async(func, instance, args, kwargs):
         if not isinstance(inputs, list):
             inputs = [inputs]
         final_output = await func(*args, **kwargs)
-    except Exception:
+    except (DDBlockException, Exception):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:

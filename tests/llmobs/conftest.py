@@ -10,7 +10,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from tests.llmobs._processors import TestAlwaysEnqueueLLMObsProcessor
+from ddtrace.llmobs._processor import LLMObsProcessor
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.llmobs._utils import logs_vcr
 from tests.utils import override_env
@@ -284,7 +284,7 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_processor = TestAlwaysEnqueueLLMObsProcessor(llmobs_span_writer)
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_span_writer, tracer, keep_meta_struct=True)
         yield llmobs_service
     tracer.shutdown()
     llmobs_service.disable()

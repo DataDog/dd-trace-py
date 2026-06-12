@@ -35,6 +35,7 @@ struct ValueIndex
     unsigned short alloc_space;
     unsigned short alloc_count;
     unsigned short heap_space;
+    unsigned short heap_count;
     unsigned short gpu_time;
     unsigned short gpu_count;
     unsigned short gpu_alloc_space;
