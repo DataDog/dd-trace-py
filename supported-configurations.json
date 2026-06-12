@@ -3516,6 +3516,20 @@
         "default": null
       }
     ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_TEST_OPTIMIZATION_ENV_DATA_FILE": [
       {
         "implementation": "A",
