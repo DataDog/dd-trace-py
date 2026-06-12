@@ -599,7 +599,7 @@ AI Guard
      type: Boolean
      default: False
      description: |
-       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and OpenAI
+       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic
        are fully buffered before any chunk is returned to the caller. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs

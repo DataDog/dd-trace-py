@@ -23,6 +23,8 @@ import wrapt
 from ddtrace.appsec._ai_guard._context import is_aiguard_context_active
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.llmobs._integrations.base_stream_handler import BaseStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 
 
 logger = ddlogger.get_logger(__name__)
@@ -34,8 +36,17 @@ EvaluateFn = Callable[[Any], Any]
 
 
 def _is_traced_stream(result: Any) -> bool:
-    """Return True if *result* is a TracedStream or TracedAsyncStream from LLMObs."""
-    return hasattr(result, "_self_handler") and hasattr(result, "__wrapped__")
+    """Return True if *result* is a TracedStream or TracedAsyncStream from LLMObs.
+
+    Both are identified by their ``_self_handler`` being a ``BaseStreamHandler``;
+    :func:`_is_async_traced_stream` narrows that to the async subclass.
+    """
+    return isinstance(getattr(result, "_self_handler", None), BaseStreamHandler)
+
+
+def _is_async_traced_stream(result: Any) -> bool:
+    """Return True if *result*'s handler is an AsyncStreamHandler (TracedAsyncStream)."""
+    return isinstance(getattr(result, "_self_handler", None), AsyncStreamHandler)
 
 
 def _text_delta_from_chunk(chunk: Any) -> Optional[str]:
@@ -46,17 +57,6 @@ def _text_delta_from_chunk(chunk: Any) -> Optional[str]:
             text: str = getattr(delta, "text", "")
             return text
     return None
-
-
-def _is_async_traced_stream(result: Any) -> bool:
-    """Return True if *result*'s handler is an AsyncStreamHandler (TracedAsyncStream)."""
-    try:
-        from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
-
-        handler = getattr(result, "_self_handler", None)
-        return isinstance(handler, AsyncStreamHandler)
-    except ImportError:
-        return False
 
 
 def _reconstruct_and_evaluate(reconstruct: ReconstructFn, evaluate: EvaluateFn, chunks: list[Any]) -> None:

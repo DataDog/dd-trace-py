@@ -140,10 +140,6 @@ def patch():
                 wrap(openai, async_method, _patched_endpoint_async(endpoint_hook))
 
     openai.__datadog_patch = True
-    # Notify plugins that wrapping is complete so they can install outermost wrappers.
-    # AI Guard listens here when DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED is set
-    # (PR2/PR3 scope — no listener registered yet for the OpenAI streaming path).
-    core.dispatch("openai.patch", tuple())
 
 
 def unpatch():
@@ -155,8 +151,6 @@ def unpatch():
         return
 
     openai.__datadog_patch = False
-    # Mirror of openai.patch — no-op until PR2/PR3 registers a listener.
-    core.dispatch("openai.unpatch", tuple())
 
     if OPENAI_VERSION >= (1, 8, 0):
         unwrap(openai._base_client.SyncAPIClient, "_process_response")

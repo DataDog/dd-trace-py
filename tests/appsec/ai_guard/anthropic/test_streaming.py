@@ -244,7 +244,10 @@ async def test_create_stream_true_async_buffered_block(mock_execute_request, asy
     assert mock_execute_request.call_count == 2
 
 
-@patch("ddtrace.appsec._ai_guard._listener.reconstruct_anthropic", side_effect=RuntimeError("boom"))
+# Patched at the source ``_construct_message`` (resolved at call time inside
+# ``reconstruct_anthropic``) rather than the wrapper-captured ``reconstruct_anthropic``,
+# since the wrappers are installed during fixture setup before this patch applies.
+@patch("ddtrace.appsec._ai_guard._anthropic_streaming._construct_message", side_effect=RuntimeError("boom"))
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_stream_reconstruction_failure_fails_open(
     mock_execute_request, _mock_reconstruct, anthropic_client_stream_buffered

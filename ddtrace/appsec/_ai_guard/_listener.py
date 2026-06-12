@@ -8,7 +8,6 @@ from typing import Union
 from ddtrace._trace.span import Span
 from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
 from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
-from ddtrace.appsec._ai_guard._anthropic_streaming import reconstruct_anthropic
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
@@ -118,6 +117,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
     import anthropic
 
+    from ddtrace.appsec._ai_guard._anthropic_streaming import reconstruct_anthropic
     from ddtrace.contrib.internal.trace_utils import wrap
     from ddtrace.internal.utils.version import parse_version
 
