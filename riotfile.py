@@ -3321,6 +3321,23 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aio_pika",
+            command="pytest {cmdargs} tests/contrib/aio_pika",
+            pkgs={
+                "pytest-asyncio": [latest],
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pkgs={"aio-pika": "~=9.0.0"},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"aio-pika": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="aiokafka",
             env={
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",

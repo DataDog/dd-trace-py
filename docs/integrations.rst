@@ -3,6 +3,13 @@
 Integrations
 ------------
 
+.. _aio_pika:
+
+aio-pika
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.aio_pika
+
+
 .. _aiobotocore:
 
 aiobotocore

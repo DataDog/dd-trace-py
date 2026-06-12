@@ -1,0 +1,26 @@
+[[
+  {
+    "name": "amqp.send",
+    "service": "aio_pika",
+    "resource": "amqp.send",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.aio_pika",
+      "_dd.svc_src": "aio_pika",
+      "component": "aio_pika",
+      "language": "python",
+      "messaging.destination.name": "test_exchange_aio_pika",
+      "messaging.system": "rabbitmq",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0
+    }
+  }
+]]

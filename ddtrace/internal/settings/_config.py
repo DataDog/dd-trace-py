@@ -139,6 +139,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pymysql",
         "psycopg",
         "graphql",
+        "aio_pika",
         "aiomysql",
         "pyramid",
         "dbapi2",

@@ -1,4 +1,6 @@
 components:
+  aio_pika:
+    - ddtrace/contrib/internal/aio_pika/*
   aiohttp:
     - ddtrace/contrib/aiohttp.py
     - ddtrace/contrib/internal/aiohttp/*
@@ -217,6 +219,19 @@ components:
     - ddtrace/contrib/wsgi.py
     - ddtrace/contrib/internal/wsgi/*
 suites:
+  aio_pika:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aio_pika'
+      - tests/contrib/aio_pika/*
+      - tests/snapshots/tests.contrib.aio_pika.*
+    services:
+      - rabbitmq
+    snapshot: true
+    venvs_per_job: 2
   aiobotocore:
     paths:
       - '@bootstrap'

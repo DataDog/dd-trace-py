@@ -1,5 +1,12 @@
 [
     {
+        "dependency": "aio-pika",
+        "integration": "aio_pika",
+        "minimum_tracer_supported": "9.0.7",
+        "max_tracer_supported": "9.6.2",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "aiobotocore",
         "integration": "aiobotocore",
         "minimum_tracer_supported": "1.0.7",
