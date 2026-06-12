@@ -2836,6 +2836,13 @@
         "default": "1000000"
       }
     ],
+    "DD_PROFILING_PYTORCH_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "128"
+      }
+    ],
     "DD_PROFILING_SAMPLE_POOL_CAPACITY": [
       {
         "implementation": "A",
