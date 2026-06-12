@@ -22,6 +22,7 @@ jobs:
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         id: backport_validation
         run: |
