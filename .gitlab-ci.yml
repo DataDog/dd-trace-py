@@ -74,6 +74,7 @@ include:
       excluded_scenarios: "DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E"
       ref: nccatoni/gitlab
       push_to_test_optimization: true
+      libraries: python
 
 
 "pipeline variables":
