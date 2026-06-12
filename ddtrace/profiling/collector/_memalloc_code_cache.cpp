@@ -65,7 +65,6 @@ CodeFunctionCache::lookup(PyCodeObject* code)
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
         if (s.codes[i] == code) {
-            s.recently_used_mask = set_way_used(s.recently_used_mask, i);
             ++hits_;
             return s.functions[i];
         }
@@ -79,38 +78,20 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
 {
     Set& s = sets_[set_index(code)];
 
-    /* Pass 1: empty or duplicate slot. */
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
-        if (s.codes[i] == nullptr) {
+        if (s.codes[i] == nullptr || s.codes[i] == code) {
             s.codes[i] = code;
             s.functions[i] = id;
-            s.recently_used_mask = set_way_used(s.recently_used_mask, i);
-            return;
-        }
-        if (s.codes[i] == code) {
-            s.functions[i] = id;
-            s.recently_used_mask = set_way_used(s.recently_used_mask, i);
             return;
         }
     }
 
-    /* Pass 2: CLOCK / Second-Chance. Sweep ways starting from clock_hand;
-     * a way with recently_used=0 is evicted. Ways with recently_used=1 get
-     * cleared and the hand advances. Termination is guaranteed within
-     * 2 * WAYS_PER_SET iterations because each visited way that survives
-     * the first pass has its bit cleared. */
-    for (size_t step = 0; step < 2 * WAYS_PER_SET; ++step) {
-        size_t way = s.clock_hand;
-        s.clock_hand = static_cast<uint8_t>((s.clock_hand + 1) % WAYS_PER_SET);
-        if (!way_recently_used(s.recently_used_mask, way)) {
-            ++evictions_;
-            s.codes[way] = code;
-            s.functions[way] = id;
-            s.recently_used_mask = set_way_used(s.recently_used_mask, way);
-            return;
-        }
-        s.recently_used_mask = clear_way_used(s.recently_used_mask, way);
-    }
+    /* FIFO eviction: overwrite next_evict slot, advance pointer. */
+    size_t way = s.next_evict;
+    s.next_evict = static_cast<uint8_t>((way + 1) % WAYS_PER_SET);
+    ++evictions_;
+    s.codes[way] = code;
+    s.functions[way] = id;
 }
 
 void
