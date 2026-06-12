@@ -7,6 +7,7 @@ import typing as t
 
 from ddtrace.internal.settings import env
 
+
 log = logging.getLogger(__name__)
 
 
