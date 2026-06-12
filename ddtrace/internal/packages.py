@@ -222,12 +222,14 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
-    # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
-    # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
+    no_files_dists: list[importlib_metadata.Distribution] = []
+
+    d: t.Optional[Distribution] = None
     for dist in dists:
         try:
             if not (files := dist.files):
+                no_files_dists.append(dist)
                 continue
             metadata = dist.metadata
             name = metadata["name"]
@@ -245,6 +247,82 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     mapping[root] = d
         except Exception as exc:
             _warn_bad_dist(dist, exc)
+
+    # Fallback for environments where RECORD files are absent (e.g. Bazel's
+    # rules_python, which deliberately omits RECORD for hermeticity).
+    #
+    # Strategy 1: packages_distributions: fast, covers most packages.
+    # Strategy 2: directory scan of the dist's isolated site-packages: covers
+    #   the remainder, but only when the site-packages dir contains exactly one
+    #   .dist-info (true in Bazel's per-package isolated layout; unsafe in a
+    #   normal shared site-packages where multiple dists share one directory).
+    if no_files_dists:
+        # Strategy 1: packages_distributions maps module_name -> [dist_name, ...]
+        pkg_dists = get_package_distributions()
+        # Invert to dist_name_lower -> Distribution (lazily, only for no-files dists)
+        name_to_dist_obj: dict[str, Distribution] = {}
+        for _dist in no_files_dists:
+            try:
+                _n = _dist.metadata["name"]
+                _v = _dist.metadata["version"]
+                if _n and _v:
+                    name_to_dist_obj[_n.lower()] = Distribution(name=_n, version=_v)
+            except Exception as exc:
+                _warn_bad_dist(_dist, exc)
+
+        for module_name, dist_names in pkg_dists.items():
+            if module_name in mapping:
+                continue
+
+            for dist_name in dist_names:
+                d = name_to_dist_obj.get(dist_name.lower())
+                if d is not None:
+                    mapping[module_name] = d
+                    break
+
+        # Strategy 2: directory scan for dists still not covered
+        covered_dist_names = {d.name.lower() for d in mapping.values()}
+        for _dist in no_files_dists:
+            try:
+                _n = _dist.metadata["name"]
+                _v = _dist.metadata["version"]
+                if not (_n and _v) or _n.lower() in covered_dist_names:
+                    continue
+                site_packages = t.cast(Path, _dist.locate_file(""))
+                # Safety guard: only treat this as an isolated site-packages if it
+                # contains exactly one .dist-info directory (Bazel's per-package
+                # layout guarantee). A shared site-packages has many .dist-info dirs
+                # and scanning it would produce wildly incorrect mappings.
+                dist_infos = (
+                    [child for child in site_packages.iterdir() if child.suffix == ".dist-info"]
+                    if site_packages.is_dir()
+                    else []
+                )
+                if len(dist_infos) != 1:
+                    continue
+                d = Distribution(name=_n, version=_v)
+                for child in site_packages.iterdir():
+                    root = child.name
+                    if child.suffix in (".dist-info", ".egg-info") or root == ".." or root.startswith("__"):
+                        continue
+                    if root not in mapping:
+                        mapping[root] = d
+                    # Namespace packages (no __init__.py) need sub-entries so
+                    # that _root_module's sys.path loop, which returns keys
+                    # like "google/cloud", can find a match in the mapping.
+                    # Mirror the one-level depth used by the RECORD-based path.
+                    if child.is_dir() and not (child / "__init__.py").exists():
+                        try:
+                            for subchild in child.iterdir():
+                                if subchild.is_dir() and not subchild.name.startswith("__"):
+                                    ns_root = f"{root}/{subchild.name}"
+                                    if ns_root not in mapping:
+                                        mapping[ns_root] = d
+                        except OSError:
+                            pass
+                covered_dist_names.add(_n.lower())
+            except Exception as exc:
+                _warn_bad_dist(_dist, exc)
 
     return mapping
 
