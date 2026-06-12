@@ -124,6 +124,7 @@ class MistralAIIntegration(BaseLLMIntegration):
         msg = Message(content=content, role=role)
         tool_calls_raw = _get_attr(message, "tool_calls", None)
         if tool_calls_raw:
+            msg["tool_calls"] = []
             for tool_call in tool_calls_raw:
                 msg["tool_calls"].append(
                     ToolCall(

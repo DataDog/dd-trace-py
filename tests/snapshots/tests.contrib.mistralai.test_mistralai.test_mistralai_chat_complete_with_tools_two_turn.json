@@ -1,0 +1,54 @@
+[[
+  {
+    "name": "mistralai.request",
+    "service": "tests.contrib.mistralai",
+    "resource": "Chat.complete",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a2c25e300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
+      "language": "python",
+      "runtime-id": "1a7e6a0b6fe141699924369ada22e978"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 477.0
+    },
+    "duration": 7749824,
+    "start": 1781278179588942841
+  }],
+[
+  {
+    "name": "mistralai.request",
+    "service": "tests.contrib.mistralai",
+    "resource": "Chat.complete",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a2c25e300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
+      "language": "python",
+      "runtime-id": "1a7e6a0b6fe141699924369ada22e978"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 477.0
+    },
+    "duration": 6556303,
+    "start": 1781278179596859126
+  }]]

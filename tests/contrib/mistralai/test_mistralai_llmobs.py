@@ -1,0 +1,322 @@
+import json
+
+import pytest
+
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from tests.contrib.mistralai.utils import CHAT_TOOLS
+from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
+from tests.contrib.mistralai.utils import FULL_EMBED_REQUEST_KWARGS
+from tests.contrib.mistralai.utils import get_expected_chat_metadata
+from tests.contrib.mistralai.utils import get_expected_embed_metadata
+from tests.contrib.mistralai.utils import get_weather
+from tests.llmobs._utils import assert_llmobs_span_data
+
+
+COMMON_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.mistralai", "integration": "mistralai"}
+
+WEATHER_TOOL_DEFINITIONS = [
+    {
+        "name": "get_weather",
+        "description": "Get the current weather for a location.",
+        "schema": {
+            "type": "object",
+            "properties": {"location": {"type": "string"}},
+            "required": ["location"],
+        },
+    }
+]
+
+
+def _expected_chat_span_data(
+    span, *, model_name="mistral-large-latest", output_messages=None, error=False, **overrides
+):
+    kwargs = {
+        "span_kind": "llm",
+        "model_name": model_name,
+        "model_provider": "mistral",
+        "input_messages": [{"role": "user", "content": "Why is the sky blue?"}],
+        "tags": COMMON_TAGS,
+    }
+    if error:
+        kwargs["output_messages"] = output_messages or [{"role": "assistant", "content": ""}]
+        kwargs["error"] = {
+            "type": "builtins.TypeError",
+            "message": span.get_tag("error.message"),
+            "stack": span.get_tag("error.stack"),
+        }
+    else:
+        kwargs["output_messages"] = output_messages or [
+            {"role": "assistant", "content": "The sky is blue due to Rayleigh scattering."}
+        ]
+        kwargs["metrics"] = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+        kwargs["metadata"] = get_expected_chat_metadata()
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _expected_embed_span_data(span, *, model_name="mistral-embed", error=False, **overrides):
+    kwargs = {
+        "span_kind": "embedding",
+        "model_name": model_name,
+        "model_provider": "mistral",
+        "tags": COMMON_TAGS,
+    }
+    if error:
+        kwargs["output_value"] = ""
+        kwargs["error"] = {
+            "type": "builtins.TypeError",
+            "message": span.get_tag("error.message"),
+            "stack": span.get_tag("error.stack"),
+        }
+    else:
+        kwargs["output_value"] = "[1 embedding(s) returned with size 5]"
+        kwargs["metrics"] = {"input_tokens": 5, "output_tokens": 0, "total_tokens": 5}
+        kwargs["metadata"] = get_expected_embed_metadata()
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _expected_tool_first_call_span_data(**overrides):
+    kwargs = {
+        "span_kind": "llm",
+        "model_name": "mistral-large-latest",
+        "model_provider": "mistral",
+        "input_messages": [{"role": "user", "content": "What's the weather in NYC?"}],
+        "output_messages": [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": '{"location": "New York, NY"}',
+                        "tool_id": "call_305",
+                        "type": "function",
+                    }
+                ],
+            }
+        ],
+        "metadata": get_expected_chat_metadata(),
+        "metrics": {"input_tokens": 15, "output_tokens": 10, "total_tokens": 25},
+        "tags": COMMON_TAGS,
+        "tool_definitions": WEATHER_TOOL_DEFINITIONS,
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def _expected_tool_followup_span_data(**overrides):
+    kwargs = {
+        "span_kind": "llm",
+        "model_name": "mistral-large-latest",
+        "model_provider": "mistral",
+        "input_messages": [
+            {"role": "user", "content": "What's the weather in NYC?"},
+            {"role": "assistant", "content": "None"},
+            {
+                "role": "tool",
+                "content": json.dumps(
+                    {"location": "New York, NY", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny"}
+                ),
+            },
+        ],
+        "output_messages": [
+            {
+                "role": "assistant",
+                "content": "The weather in New York, NY is currently 72°F and sunny.",
+            }
+        ],
+        "metadata": get_expected_chat_metadata(),
+        "metrics": {"input_tokens": 30, "output_tokens": 20, "total_tokens": 50},
+        "tags": COMMON_TAGS,
+        "tool_definitions": WEATHER_TOOL_DEFINITIONS,
+    }
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_chat_complete(mock_chat_complete, mistral_client, mistralai_llmobs, test_spans):
+    mistral_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0]))
+
+
+def test_chat_complete_error(mock_chat_complete, mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        mistral_client.chat.complete(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
+
+
+async def test_async_chat_complete(mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete):
+    await mistral_client.chat.complete_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0]))
+
+
+async def test_async_chat_complete_error(mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete):
+    with pytest.raises(TypeError):
+        await mistral_client.chat.complete_async(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
+
+
+def test_embed_create(mock_embed_create, mistral_client, mistralai_llmobs, test_spans):
+    mistral_client.embeddings.create(
+        model="mistral-embed",
+        inputs="Hello world",
+        **FULL_EMBED_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_embed_span_data(spans[0], input_documents=[{"text": "Hello world"}]),
+    )
+
+
+def test_embed_create_error(mock_embed_create, mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        mistral_client.embeddings.create(
+            model="mistral-embed",
+            inputs="Hello world",
+            not_a_real_argument="this should fail",
+        )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_embed_span_data(spans[0], input_documents=[{"text": "Hello world"}], error=True),
+    )
+
+
+async def test_async_embed_create(mistral_client, mistralai_llmobs, test_spans, mock_async_embed_create):
+    await mistral_client.embeddings.create_async(
+        model="mistral-embed",
+        inputs="Hello world",
+        **FULL_EMBED_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_embed_span_data(spans[0], input_documents=[{"text": "Hello world"}]),
+    )
+
+
+async def test_async_embed_create_error(mistral_client, mistralai_llmobs, test_spans, mock_async_embed_create):
+    with pytest.raises(TypeError):
+        await mistral_client.embeddings.create_async(
+            model="mistral-embed",
+            inputs="Hello world",
+            not_a_real_argument="this should fail",
+        )
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_embed_span_data(spans[0], input_documents=[{"text": "Hello world"}], error=True),
+    )
+
+
+def test_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans, mock_chat_complete_with_tools):
+    response = mistral_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+    function_calls = response.choices[0].message.tool_calls
+    function_result = get_weather(location="New York, NY")
+
+    mistral_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[
+            {"role": "user", "content": "What's the weather in NYC?"},
+            response.choices[0].message,
+            {
+                "role": "tool",
+                "content": json.dumps(function_result),
+                "tool_call_id": function_calls[0].id,
+            },
+        ],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 2
+
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_tool_first_call_span_data(),
+    )
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[1]),
+        **_expected_tool_followup_span_data(),
+    )
+
+
+async def test_async_chat_complete_with_tools(
+    mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete_with_tools
+):
+    response = await mistral_client.chat.complete_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+    function_calls = response.choices[0].message.tool_calls
+    function_result = get_weather(location="New York, NY")
+
+    await mistral_client.chat.complete_async(
+        model="mistral-large-latest",
+        messages=[
+            {"role": "user", "content": "What's the weather in NYC?"},
+            response.choices[0].message,
+            {
+                "role": "tool",
+                "content": json.dumps(function_result),
+                "tool_call_id": function_calls[0].id,
+            },
+        ],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 2
+
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_tool_first_call_span_data(),
+    )
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[1]),
+        **_expected_tool_followup_span_data(),
+    )

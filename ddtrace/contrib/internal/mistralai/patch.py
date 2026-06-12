@@ -1,4 +1,4 @@
-import mistralai
+import mistralai.client as _mistralai_client
 import mistralai.client.chat
 import mistralai.client.embeddings
 
@@ -11,12 +11,16 @@ from ddtrace.contrib.internal.trace_utils import wrap
 config._add("mistralai", {})
 
 
+def _supported_versions():
+    return {"mistralai": ">=2.0.0"}
+
+
 def get_version() -> str:
-    return getattr(mistralai, "__version__", "")
+    return getattr(_mistralai_client, "__version__", "")
 
 
 def traced_chat_generate(func, instance, args, kwargs):
-    integration = mistralai._datadog_integration
+    integration = _mistralai_client._datadog_integration
     provider_name, model_name = "mistral", kwargs.get("model", "")
 
     with integration.trace(
@@ -34,7 +38,7 @@ def traced_chat_generate(func, instance, args, kwargs):
 
 
 async def traced_async_chat_generate(func, instance, args, kwargs):
-    integration = mistralai._datadog_integration
+    integration = _mistralai_client._datadog_integration
     provider_name, model_name = "mistral", kwargs.get("model", "")
 
     with integration.trace(
@@ -52,7 +56,7 @@ async def traced_async_chat_generate(func, instance, args, kwargs):
 
 
 def traced_embed_generate(func, instance, args, kwargs):
-    integration = mistralai._datadog_integration
+    integration = _mistralai_client._datadog_integration
     provider_name, model_name = "mistral", kwargs.get("model", "")
 
     with integration.trace(
@@ -70,7 +74,7 @@ def traced_embed_generate(func, instance, args, kwargs):
 
 
 async def async_traced_embed_generate(func, instance, args, kwargs):
-    integration = mistralai._datadog_integration
+    integration = _mistralai_client._datadog_integration
     provider_name, model_name = "mistral", kwargs.get("model", "")
 
     with integration.trace(
@@ -88,12 +92,12 @@ async def async_traced_embed_generate(func, instance, args, kwargs):
 
 
 def patch():
-    if getattr(mistralai, "_datadog_patch", False):
+    if getattr(_mistralai_client, "_datadog_patch", False):
         return
 
-    mistralai._datadog_patch = True
+    _mistralai_client._datadog_patch = True
     integration = MistralAIIntegration(integration_config=config.mistralai)
-    mistralai._datadog_integration = integration
+    _mistralai_client._datadog_integration = integration
 
     wrap("mistralai.client.chat", "Chat.complete", traced_chat_generate)
     wrap("mistralai.client.chat", "Chat.complete_async", traced_async_chat_generate)
@@ -102,14 +106,14 @@ def patch():
 
 
 def unpatch():
-    if not getattr(mistralai, "_datadog_patch", False):
+    if not getattr(_mistralai_client, "_datadog_patch", False):
         return
 
-    mistralai._datadog_patch = False
+    _mistralai_client._datadog_patch = False
 
-    unwrap(mistralai.client.chat.Chat, "complete")
-    unwrap(mistralai.client.chat.Chat, "complete_async")
-    unwrap(mistralai.client.embeddings.Embeddings, "create")
-    unwrap(mistralai.client.embeddings.Embeddings, "create_async")
+    unwrap(_mistralai_client.chat.Chat, "complete")
+    unwrap(_mistralai_client.chat.Chat, "complete_async")
+    unwrap(_mistralai_client.embeddings.Embeddings, "create")
+    unwrap(_mistralai_client.embeddings.Embeddings, "create_async")
 
-    delattr(mistralai, "_datadog_integration")
+    delattr(_mistralai_client, "_datadog_integration")
