@@ -1,0 +1,4 @@
+fixes:
+  - |
+    Code Security (IAST): Fixes false positive vulnerability reports that could occur when a tainted source
+    object was freed and another object reused the same memory address within the same request.

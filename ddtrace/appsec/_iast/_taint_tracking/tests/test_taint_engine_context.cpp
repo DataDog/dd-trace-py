@@ -289,7 +289,7 @@ TEST_F(ApplicationContextTest, ClearTaintMapFreesContainedTaintedObjects)
     std::weak_ptr<TaintedObject> w_to = to; // observe lifetime
     const uintptr_t dummy_key = 0xDEADBEEF;
     const Py_hash_t dummy_hash = 0;
-    tx_map->insert({ dummy_key, std::make_pair(dummy_hash, to) });
+    tx_map->emplace(dummy_key, TaintEntry{ dummy_hash, to, {} });
 
     // Drop our local strong reference so the map is the sole owner
     to.reset();

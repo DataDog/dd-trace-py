@@ -99,7 +99,7 @@ initialize_native_state()
  * This function safely resets all C++ global state that may have been
  * inherited from the parent process during fork. It:
  *
- * 1. Clears all taint maps (they contain stale PyObject pointers)
+ * 1. Abandons all inherited taint maps (they contain stale PyObject pointers)
  * 2. Resets the taint_engine_context (recreates the context array)
  * 3. Resets the initializer (recreates memory pools)
  *
@@ -133,7 +133,8 @@ initialize_native_state()
  *
  * If we called .reset() (destructor path):
  * - The TaintEngineContext destructor would iterate over all taint maps
- * - It would try to decrement refcounts on PyObject pointers
+ * - It would try to destroy TaintEntry keepalives and decrement refcounts
+ *   on inherited PyObject pointers
  * - This would access invalid memory → SEGFAULT
  *
  * By calling .release() (leak path):
@@ -177,7 +178,8 @@ reset_native_state_after_fork()
     // Using release() transfers ownership and returns the raw pointer without cleanup
     // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
-        taint_engine_context->clear_tainted_object_map();
+        // AIDEV-NOTE: Do not clear request_context_slots here. Destroying inherited
+        // TaintEntry values would run keepalive Py_DECREF calls in the child.
         (void)taint_engine_context.release(); // Leak the old object
     }
     if (initializer) {
@@ -240,7 +242,7 @@ PYBIND11_MODULE(_native, m)
           &reset_native_state_after_fork,
           "Reset native IAST state after fork. "
           "This recreates all global C++ singletons with fresh state, "
-          "clearing any inherited PyObject pointers or corrupted memory from parent process.");
+          "abandoning any inherited PyObject pointers or corrupted memory from parent process.");
 
     m.def("initialize_native_state",
           &initialize_native_state,

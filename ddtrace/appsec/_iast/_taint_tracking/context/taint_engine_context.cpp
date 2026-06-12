@@ -124,12 +124,6 @@ TaintEngineContext::debug_context_array_free_slots_number() const
     return free_count;
 }
 
-void
-TaintEngineContext::clear_tainted_object_map()
-{
-    request_context_slots.clear();
-}
-
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map(PyObject* obj)
 {
