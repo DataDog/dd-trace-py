@@ -646,3 +646,52 @@ def test_inferred_spans_api_gateway(client, test_spans):
             url="https://local/",
             start=1736973768,
         )
+
+
+def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
+    """CORSMiddleware short-circuits OPTIONS preflight before the router runs.
+
+    The span resource MUST use the route pattern (e.g. OPTIONS /users/{user_id})
+    not the raw request path (e.g. OPTIONS /users/123).  Without a fix, this
+    test fails because resource_paths is never populated by traced_handler and the
+    span resource stays as the raw path.
+    """
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    async def get_user(request):
+        return PlainTextResponse("user")
+
+    app = Starlette(
+        routes=[Route("/users/{user_id}", endpoint=get_user)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["GET", "POST"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with TestClient(app) as client:
+        r = client.options(
+            "/users/123",
+            headers={
+                "Origin": "http://testclient.local",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert r.status_code == 200
+
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "OPTIONS /users/{user_id}", (
+        f"Expected route pattern 'OPTIONS /users/{{user_id}}' but got {request_span.resource!r}. "
+        "CORSMiddleware short-circuits OPTIONS preflight before traced_handler runs, "
+        "so resource_paths is never populated and the span resource stays as the raw path."
+    )

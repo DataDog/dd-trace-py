@@ -1,0 +1,13 @@
+{
+  "implemented": false,
+  "tests_passing": null,
+  "lints_clean": false,
+  "behavior_verified": null,
+  "review_approved": false,
+  "review_has_feedback": false,
+  "pr_open": false,
+  "ci_passing": null,
+  "verdict_sha": "",
+  "workflow_override": "bug_fix",
+  "next_phase": "analyze"
+}
