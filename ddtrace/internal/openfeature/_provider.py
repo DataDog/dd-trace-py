@@ -98,19 +98,13 @@ class DataDogProvider(AbstractProvider):
     Feature Flags and Experimentation (FFE) product.
     """
 
-    def __init__(self, *args: typing.Any, initialization_timeout: typing.Optional[float] = None, **kwargs: typing.Any):
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
 
-        # Initialization timeout: constructor arg takes priority, then env var
-        if initialization_timeout is not None:
-            self._initialization_timeout = initialization_timeout
-        else:
-            self._initialization_timeout = ffe_config.initialization_timeout_ms / 1000.0
-
-        # Event used to block initialize() until config arrives.
-        # Also serves as the "config received" flag via is_set().
+        # Event set when the first RC config arrives; used by on_configuration_received()
+        # to guard the first-config path and by _emit_ready_event() timing.
         self._config_received = threading.Event()
 
         # Cache for reported exposures to prevent duplicates
@@ -177,16 +171,16 @@ class DataDogProvider(AbstractProvider):
         """
         Initialize the provider.
 
-        Blocks until Remote Config delivers the first FFE configuration or
-        the initialization timeout expires.
+        Returns immediately; the provider transitions to READY asynchronously once
+        Remote Config delivers the first FFE_FLAGS payload via on_configuration_received().
 
-        The timeout is configurable via:
-        - Constructor: DataDogProvider(initialization_timeout=10.0)  # seconds
-        - Env var: DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS=10000
+        If RC has already delivered config before initialize() runs (e.g. in the master
+        process of a pre-fork server), the fast path sets READY synchronously so the SDK
+        dispatches PROVIDER_READY on return.
 
         Provider lifecycle:
-            NOT_READY -> initialize() blocks -> config arrives -> READY
-            NOT_READY -> initialize() blocks -> timeout -> raises ProviderNotReadyError
+            NOT_READY -> initialize() returns -> RC delivers config -> on_configuration_received()
+                      -> READY (PROVIDER_READY event emitted via emit_provider_ready)
         """
         if not self._enabled:
             return
@@ -209,7 +203,8 @@ class DataDogProvider(AbstractProvider):
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter is already running", exc_info=True)
 
-        # Fast path: config already available (RC delivered before set_provider)
+        # Fast path: config already available (RC delivered before set_provider —
+        # common in pre-fork servers where master receives RC before workers fork).
         config = _get_ffe_config()
         if config is not None:
             logger.debug("FFE configuration already available, provider is READY")
@@ -217,20 +212,15 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # Block until config arrives or timeout expires
-        logger.debug(
-            "Waiting up to %.1fs for initial FFE configuration from Remote Config", self._initialization_timeout
-        )
-        if not self._config_received.wait(timeout=self._initialization_timeout):
-            # Timeout expired without receiving config
-            from openfeature.exception import ProviderNotReadyError
-
-            raise ProviderNotReadyError(
-                f"Provider timed out after {self._initialization_timeout:.1f}s waiting for "
-                "initial configuration from Remote Config"
-            )
-
-        # Config received during wait -- on_configuration_received() already set status
+        # Config not yet available — return without blocking. The provider stays
+        # NOT_READY; on_configuration_received() will flip it to READY and emit
+        # PROVIDER_READY when RC delivers the FFE_FLAGS payload.
+        # AIDEV-NOTE: Do NOT block here with _config_received.wait(). Blocking
+        # initialize() breaks gunicorn/uWSGI pre-fork workers: when the OpenFeature
+        # SDK runs initialize() in a background thread, fork() kills that thread in
+        # child processes, leaving every worker stuck waiting forever (or timing out
+        # with PROVIDER_ERROR). The async path (on_configuration_received) is the
+        # correct contract for server SDK providers.
 
     def shutdown(self) -> None:
         """
