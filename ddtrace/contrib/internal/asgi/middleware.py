@@ -522,6 +522,12 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
+                # If resource_paths was never populated (e.g. CORSMiddleware short-circuited
+                # before traced_handler ran), attempt to resolve the route pattern from the
+                # app's route tree so the span resource uses a template like
+                # "OPTIONS /users/{user_id}" instead of the raw path "OPTIONS /users/123".
+                if not scope.get("datadog", {}).get("resource_paths") and scope["type"] == "http":
+                    self._resolve_route_resource(scope, span)
                 # missing datadog scope should not crash request teardown.
                 request_spans = scope.get("datadog", {}).get("request_spans")
                 if request_spans and span in request_spans:
@@ -632,3 +638,42 @@ class TraceMiddleware:
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
         ) as ctx:
             core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message))
+
+    def _resolve_route_resource(self, scope: Mapping[str, Any], span: Span) -> None:
+        """Resolve the span resource to a route template when resource_paths is empty.
+
+        This handles cases where a middleware (e.g. CORSMiddleware) short-circuits
+        the request before the Starlette router runs, so traced_handler never
+        populates resource_paths.  We walk the app's route tree to find the best
+        matching route pattern and update the span resource accordingly.
+        """
+        try:
+            import starlette.routing
+
+            app = scope.get("app")
+            if app is None:
+                return
+            routes = getattr(app, "routes", None)
+            if not routes:
+                return
+            method = scope.get("method", "")
+            # Walk the route list and pick the best match (FULL > PARTIAL > NONE).
+            best_path = None
+            best_match = starlette.routing.Match.NONE
+            for route in routes:
+                if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)):
+                    continue
+                match, _ = route.matches(scope)
+                if match == starlette.routing.Match.FULL:
+                    best_path = route.path
+                    break
+                if match == starlette.routing.Match.PARTIAL and best_match != starlette.routing.Match.FULL:
+                    best_path = route.path
+                    best_match = match
+            if best_path:
+                if method:
+                    span.resource = "{} {}".format(method, best_path)
+                else:
+                    span.resource = best_path
+        except Exception:
+            log.debug("failed to resolve route pattern for span resource", exc_info=True)
