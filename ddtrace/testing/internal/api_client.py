@@ -349,12 +349,7 @@ class APIClient:
                         suite_ref = SuiteRef(module_ref, suite_name)
                         for test_name, test_data in suite_data["tests"].items():
                             test_ref = TestRef(suite_ref, test_name)
-                            properties = test_data.get("properties", {})
-                            test_properties[test_ref] = TestProperties(
-                                quarantined=properties.get("quarantined", False),
-                                disabled=properties.get("disabled", False),
-                                attempt_to_fix=properties.get("attempt_to_fix", False),
-                            )
+                            test_properties[test_ref] = TestProperties(attempt_to_fix=True)
 
                 page_info_response = attributes.get("page_info", {})
                 page_state = page_info_response.get("cursor") if page_info_response.get("has_next") else None

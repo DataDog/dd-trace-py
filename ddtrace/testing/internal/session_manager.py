@@ -158,9 +158,7 @@ class SessionManager:
         if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
             tm_properties = self.api_client.get_all_flaky_test_management_properties()
             self.atf_all_flaky_tests: t.Optional[set[TestRef]] = set(tm_properties.keys())
-            self.test_properties: dict[TestRef, TestProperties] = {
-                ref: TestProperties(attempt_to_fix=True) for ref in tm_properties
-            }
+            self.test_properties: dict[TestRef, TestProperties] = tm_properties
             log.info(
                 "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be skipped",
                 len(tm_properties),
