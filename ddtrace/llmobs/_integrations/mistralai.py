@@ -43,6 +43,14 @@ EMBED_METADATA_PARAMS = [
 class MistralAIIntegration(BaseLLMIntegration):
     _integration_name = "mistralai"
 
+    def _set_base_span_tags(
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
+    ) -> None:
+        if provider is not None:
+            span._set_attribute("mistralai.request.provider", provider)
+        if model is not None:
+            span._set_attribute("mistralai.request.model", model)
+
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -104,11 +112,11 @@ class MistralAIIntegration(BaseLLMIntegration):
                 for chunk in content:
                     input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
             else:
-                input_messages.append(Message(content=str(content), role=role))
+                input_messages.append(Message(content=str(content) if content is not None else "", role=role))
         return input_messages
 
     def _extract_output_messages(self, response):
-        if not response:
+        if response is None:
             return [Message(content="", role="assistant")]
         output_messages = []
         for choice in _get_attr(response, "choices", []) or []:

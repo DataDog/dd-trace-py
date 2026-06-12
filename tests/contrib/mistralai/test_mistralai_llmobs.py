@@ -112,7 +112,7 @@ def _expected_tool_followup_span_data(**overrides):
         "model_provider": "mistral",
         "input_messages": [
             {"role": "user", "content": "What's the weather in NYC?"},
-            {"role": "assistant", "content": "None"},
+            {"role": "assistant", "content": ""},
             {
                 "role": "tool",
                 "content": json.dumps(

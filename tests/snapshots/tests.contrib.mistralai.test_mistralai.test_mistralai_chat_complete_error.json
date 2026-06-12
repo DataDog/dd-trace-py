@@ -16,6 +16,8 @@
       "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/mistralai/patch.py\", line 30, in traced_chat_generate\n    resp = func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\nTypeError: Chat.complete() got an unexpected keyword argument 'not_a_real_argument'\n",
       "error.type": "builtins.TypeError",
       "language": "python",
+      "mistralai.request.model": "mistral-large-latest",
+      "mistralai.request.provider": "mistral",
       "runtime-id": "1a7e6a0b6fe141699924369ada22e978"
     },
     "metrics": {

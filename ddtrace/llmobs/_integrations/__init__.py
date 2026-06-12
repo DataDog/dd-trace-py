@@ -7,10 +7,10 @@ from .google_genai import GoogleGenAIIntegration
 from .langchain import LangChainIntegration
 from .litellm import LiteLLMIntegration
 from .llama_index import LlamaIndexIntegration
+from .mistralai import MistralAIIntegration
 from .openai import OpenAIIntegration
 from .pydantic_ai import PydanticAIIntegration
 from .vertexai import VertexAIIntegration
-from .mistralai import MistralAIIntegration
 
 
 __all__ = [
