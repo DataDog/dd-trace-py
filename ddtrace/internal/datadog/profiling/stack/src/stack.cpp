@@ -261,6 +261,48 @@ stack_set_max_sampling_period(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_adaptive_sampling_baseline(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double baseline_core_pct;
+
+    if (!PyArg_ParseTuple(args, "d", &baseline_core_pct)) {
+        return NULL;
+    }
+
+    Sampler::get().set_baseline_core_pct(baseline_core_pct);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_window_s(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned int window_s;
+
+    if (!PyArg_ParseTuple(args, "I", &window_s)) {
+        return NULL;
+    }
+
+    Sampler::get().set_p_stable_window_s(window_s);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_p_stable_percentile(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double percentile;
+
+    if (!PyArg_ParseTuple(args, "d", &percentile)) {
+        return NULL;
+    }
+
+    Sampler::get().set_p_stable_percentile(percentile);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 {
     unsigned int max_threads;
@@ -805,6 +847,18 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_sampling_period,
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
+    { "set_adaptive_sampling_baseline",
+      stack_set_adaptive_sampling_baseline,
+      METH_VARARGS,
+      "Set absolute overhead floor for adaptive sampling in core-percent units (1 = 0.01 core = 10 mcores)" },
+    { "set_p_stable_window_s",
+      stack_set_p_stable_window_s,
+      METH_VARARGS,
+      "Set rolling window duration in seconds for p_stable percentile computation" },
+    { "set_p_stable_percentile",
+      stack_set_p_stable_percentile,
+      METH_VARARGS,
+      "Set the percentile (0-100) used to compute p_stable from the rolling window" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy

@@ -217,18 +217,36 @@ def test_export_mode_apm_agent_when_agentless_disabled():
 @pytest.mark.subprocess(
     env={
         "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "1",
         "DD_LLMOBS_ML_APP": "test-ml-app",
         "DD_API_KEY": "<not-a-real-key>",
     },
     err=None,
 )
-def test_export_mode_llmobs_direct_when_apm_tracing_disabled():
-    """APM trace dropped: span events ship via the writer (transport inferred by the writer)."""
+def test_export_mode_llmobs_agentless_when_apm_tracing_disabled_and_agentless_enabled():
+    """APM trace dropped + agentless: events ship via the writer directly to intake."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._constants import LLMObsExportMode
 
     llmobs_service.enable()
-    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_DIRECT
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_AGENTLESS
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_APM_TRACING_ENABLED": "false",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+    },
+    err=None,
+)
+def test_export_mode_llmobs_agent_proxy_when_apm_tracing_disabled_and_agentless_disabled():
+    """APM trace dropped + agent proxy: events ship via the writer through the Agent EVP proxy."""
+    from ddtrace.llmobs import LLMObs as llmobs_service
+    from ddtrace.llmobs._constants import LLMObsExportMode
+
+    llmobs_service.enable(agentless_enabled=False)
+    assert llmobs_service._instance._export_mode == LLMObsExportMode.LLMOBS_AGENT_PROXY
 
 
 def test_service_disable(tracer):
@@ -1163,7 +1181,7 @@ def test_tag_dot_keys_sanitized_on_agentless_apm_path():
     err=None,
 )
 def test_tag_dot_keys_preserved_on_direct_llmobs_path():
-    """LLMOBS_DIRECT path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
+    """LLMOBS_AGENT_PROXY/LLMOBS_AGENTLESS path (DD_APM_TRACING_ENABLED=false): dots in tag keys are not modified."""
     from ddtrace.llmobs import LLMObs as llmobs_service
     from ddtrace.llmobs._utils import get_llmobs_tags
 
@@ -1518,7 +1536,7 @@ def test_llmobs_fork_recreates_and_restarts_eval_metric_writer():
     env={
         "_DD_LLMOBS_WRITER_INTERVAL": "5.0",
         "PYTHONWARNINGS": "ignore::DeprecationWarning",
-        # Force LLMOBS_DIRECT so finish enqueues into the writer directly; APM_AGENT would
+        # Force LLMOBS_AGENTLESS so finish enqueues into the writer directly; APM_AGENT would
         # cache for the rescue chain, leaving the buffer empty and defeating the assertions.
         "DD_APM_TRACING_ENABLED": "false",
         "DD_API_KEY": "<not-a-real-key>",

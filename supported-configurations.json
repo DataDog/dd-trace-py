@@ -204,7 +204,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE": [
@@ -407,7 +408,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_AREDIS_CMD_MAX_LENGTH": [
@@ -3514,6 +3516,20 @@
         "default": null
       }
     ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_TEST_OPTIMIZATION_ENV_DATA_FILE": [
       {
         "implementation": "A",
@@ -5152,7 +5168,8 @@
       {
         "implementation": "C",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_CLIENT_CERTIFICATE": [
@@ -5187,7 +5204,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_LOGS_INSECURE": [
@@ -5250,7 +5268,8 @@
       {
         "implementation": "B",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_METRICS_INSECURE": [
@@ -5334,7 +5353,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "OTEL_EXPORTER_OTLP_TRACES_INSECURE": [
@@ -5795,6 +5815,30 @@
         "implementation": "A",
         "type": "decimal",
         "default": "1.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_BASELINE": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "0.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_P_STABLE_PERCENTILE": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "95.0",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_P_STABLE_WINDOW_S": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "600",
         "internal": true
       }
     ],

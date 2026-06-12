@@ -79,17 +79,64 @@ _BLOCKED_TOOL_MSG = "[DATADOG AI GUARD] '{}' has been canceled for security reas
 _INVOCATION_CTX_KEY = "_dd_ai_guard_ctx"
 
 
+# Keys handled elsewhere (tool plumbing) or control-only (caching/reasoning);
+# everything else is a model-visible modality (image, document, video, ...).
+_HANDLED_CONTENT_KEYS = frozenset({"text", "toolUse", "toolResult", "json"})
+_CONTROL_CONTENT_KEYS = frozenset({"cachePoint", "reasoningContent"})
+
+# AIDEV-NOTE: APMSP-3089 — non-text content must NOT be silently dropped.
+# Dropping every non-text block made a document/image-only prompt produce zero
+# AI Guard messages, so evaluation was skipped while the model saw uninspected
+# content (a bypass). We emit a placeholder marker for each model-visible
+# non-text block so evaluation always triggers.
+_NON_TEXT_CONTENT_MARKER = "[non-text content: {kind}]"
+
+
+def _block_to_text(block: Any) -> str | None:
+    """Return the text for a Bedrock Converse content block.
+
+    ``text`` returns its text; ``guardContent`` unwraps inner text; other
+    model-visible modalities return a placeholder marker; handled
+    (``toolUse``/``toolResult``) or control-only blocks return ``None``.
+    """
+    if not isinstance(block, dict):
+        return None
+    if "text" in block:
+        return str(block["text"])
+    # guardContent wraps text: {"guardContent": {"text": {"text": "..."}}}
+    guard_content = block.get("guardContent")
+    if isinstance(guard_content, dict):
+        text = guard_content.get("text")
+        if isinstance(text, dict) and isinstance(text.get("text"), str):
+            return str(text["text"])
+        return _NON_TEXT_CONTENT_MARKER.format(kind="guardContent")
+    for key in block:
+        if key in _HANDLED_CONTENT_KEYS or key in _CONTROL_CONTENT_KEYS:
+            continue
+        return _NON_TEXT_CONTENT_MARKER.format(kind=key)
+    return None
+
+
 def _tool_result_text(tool_result: dict) -> str:
     """Extract text from a Bedrock Converse ToolResult.
 
-    ToolResultContent entries may contain ``text`` or ``json`` keys.
+    ``text``/``json`` entries are extracted; other modalities return a
+    placeholder marker rather than an empty string (APMSP-3089).
     """
     texts = []
     for entry in tool_result.get("content", []):
+        if not isinstance(entry, dict):
+            continue
         if "text" in entry:
             texts.append(entry["text"])
         elif "json" in entry:
             texts.append(try_format_json(entry["json"]))
+        else:
+            for key in entry:
+                if key in _CONTROL_CONTENT_KEYS:
+                    continue
+                texts.append(_NON_TEXT_CONTENT_MARKER.format(kind=key))
+                break
     return " ".join(texts)
 
 
@@ -125,8 +172,10 @@ def _convert_strands_messages(
             if not isinstance(content, list):
                 continue
 
-            # Collect text from all text content blocks in this message
-            texts = [block["text"] for block in content if "text" in block]
+            # Non-text blocks become placeholder markers (see _block_to_text)
+            # so a content-only message still produces a Message and evaluation
+            # is not skipped (APMSP-3089).
+            texts = [text for block in content if (text := _block_to_text(block)) is not None]
 
             if role == "user":
                 if texts:

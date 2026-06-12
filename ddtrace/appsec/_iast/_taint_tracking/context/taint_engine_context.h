@@ -62,6 +62,7 @@ class TaintEngineContext
 
     // Lifecycle control: mark the context as shutting down to prevent further access.
     static void set_shutting_down(bool v);
+    static bool is_shutting_down() { return shutting_down.load(std::memory_order_acquire); }
 
     // Fast-path: get the taint map for a known context_id (slot index).
     // Returns nullptr if the slot is empty or out of lifecycle.

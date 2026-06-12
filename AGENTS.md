@@ -75,6 +75,8 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 |--------|-------|-------|
 | Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
 | IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
+| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/appsec/ai_guard/`, `ddtrace/appsec/_ai_guard/`, `tests/appsec/ai_guard/` |
+| Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
