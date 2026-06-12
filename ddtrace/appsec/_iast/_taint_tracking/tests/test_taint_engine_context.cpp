@@ -327,6 +327,35 @@ TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
     ASSERT_TRUE(w_map.expired());
 }
 
+// Regression: an entry must keep its source object alive so the address can't be
+// recycled (and the stale entry mismatched) within a request.
+TEST_F(ApplicationContextTest, TaintEntryKeepsSourceObjectAlive)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    // Non-interned source string, tainted via the production set_ranges path.
+    py::str source("http://dummy.location.com");
+    PyObject* source_ptr = source.ptr();
+    const long refcnt_before = refcnt(source_ptr);
+
+    TaintRangeRefs ranges;
+    auto src = Source(std::string("location"), std::string("value"), OriginType::PARAMETER);
+    ranges.push_back(
+      std::make_shared<TaintRange>(0, static_cast<RANGE_LENGTH>(PyUnicode_GET_LENGTH(source_ptr)), std::move(src), 0));
+    ASSERT_TRUE(set_ranges(source_ptr, ranges, tx_map));
+
+    // Entry holds a keepalive ref, so the refcount is bumped.
+    EXPECT_GT(refcnt(source_ptr), refcnt_before);
+
+    // Clearing the slot releases it.
+    taint_engine_context->finish_request_context(ctx_id);
+    EXPECT_EQ(refcnt(source_ptr), refcnt_before);
+}
+
 TEST_F(ApplicationContextTest, FinishRequestContextWithInvalidIndexIsNoop)
 {
     const auto cap = taint_engine_context->debug_context_array_size();

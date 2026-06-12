@@ -234,12 +234,11 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
 
     set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_map->end()) {
-        it->second.tainted.reset();
         it->second = TaintEntry{ get_internal_hash(str), new_tainted_object, make_pyobject_keepalive(str) };
         return true;
     }
 
-    tx_map->insert({ obj_id, TaintEntry{ get_internal_hash(str), new_tainted_object, make_pyobject_keepalive(str) } });
+    tx_map->emplace(obj_id, TaintEntry{ get_internal_hash(str), new_tainted_object, make_pyobject_keepalive(str) });
 
     return true;
 }
@@ -412,14 +411,13 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
             // If the tainted object is different, we need to decref the previous one
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
-            it->second.tainted.reset();
             it->second = TaintEntry{ get_internal_hash(str), tainted_object, make_pyobject_keepalive(str) };
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
         it->second.hash = get_internal_hash(str);
         return;
     }
-    tx_map->insert({ obj_id, TaintEntry{ get_internal_hash(str), tainted_object, make_pyobject_keepalive(str) } });
+    tx_map->emplace(obj_id, TaintEntry{ get_internal_hash(str), tainted_object, make_pyobject_keepalive(str) });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*

@@ -20,39 +20,66 @@ class TaintedObject;
 // Alias
 using TaintedObjectPtr = shared_ptr<TaintedObject>;
 
-// RAII strong reference to the source PyObject of a taint-map entry.
-//
-// The taint map keys entries by the source object's memory address (get_unique_id).
-// Without keeping that object alive, it can be freed and its address reused — within
-// the same request — by a *different* string. When the new string has the same value
-// (e.g. a hardcoded "safe" redirect target equal to a tainted request parameter), the
-// stale entry's hash guard cannot tell them apart and the new, untainted string is
-// wrongly reported as tainted. Holding a strong reference for the lifetime of the
-// entry keeps the address uniquely owned, so reuse cannot happen until the entry is
-// cleared at end-of-request. All taint-map mutations run under the GIL, so the
-// Py_DECREF in the deleter is safe.
-using PyObjectKeepalive = std::shared_ptr<PyObject>;
+// Move-only strong ref to a taint-map entry's source PyObject. The map keys on the
+// object's address, so keeping it alive prevents the address being recycled (and the
+// stale entry mismatched) within a request. Mutations run under the GIL.
+class PyObjectKeepalive
+{
+  public:
+    PyObjectKeepalive() = default;
+
+    explicit PyObjectKeepalive(PyObject* obj)
+      : obj_(obj)
+    {
+        if (obj_ != nullptr) {
+            Py_INCREF(obj_);
+        }
+    }
+
+    PyObjectKeepalive(const PyObjectKeepalive&) = delete;
+    PyObjectKeepalive& operator=(const PyObjectKeepalive&) = delete;
+
+    PyObjectKeepalive(PyObjectKeepalive&& other) noexcept
+      : obj_(other.obj_)
+    {
+        other.obj_ = nullptr;
+    }
+
+    PyObjectKeepalive& operator=(PyObjectKeepalive&& other) noexcept
+    {
+        if (this != &other) {
+            release();
+            obj_ = other.obj_;
+            other.obj_ = nullptr;
+        }
+        return *this;
+    }
+
+    ~PyObjectKeepalive() { release(); }
+
+  private:
+    void release()
+    {
+        if (obj_ != nullptr) {
+            Py_DECREF(obj_);
+            obj_ = nullptr;
+        }
+    }
+
+    PyObject* obj_{ nullptr };
+};
 
 inline PyObjectKeepalive
 make_pyobject_keepalive(PyObject* obj)
 {
-    if (obj == nullptr) {
-        return {};
-    }
-    Py_INCREF(obj);
-    return { obj, [](PyObject* p) {
-                if (p != nullptr) {
-                    Py_DECREF(p);
-                }
-            } };
+    return PyObjectKeepalive{ obj };
 }
 
-// Value stored in the taint map for each tracked object.
+// Value stored in the taint map. Move-only: emplace/std::move it, never copy.
 struct TaintEntry
 {
     Py_hash_t hash{ 0 };
     TaintedObjectPtr tainted{ nullptr };
-    // Keeps the source object alive while this entry exists (prevents address reuse).
     PyObjectKeepalive keepalive{};
 };
 

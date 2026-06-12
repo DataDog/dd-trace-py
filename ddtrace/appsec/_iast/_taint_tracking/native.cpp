@@ -178,8 +178,8 @@ reset_native_state_after_fork()
     // Using release() transfers ownership and returns the raw pointer without cleanup
     // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
-        // AIDEV-NOTE: Do not clear request_context_slots here. Destroying inherited
-        // TaintEntry values would run keepalive Py_DECREF calls in the child.
+        // Don't clear the slots: destroying inherited TaintEntry keepalives would
+        // Py_DECREF parent pointers in the child.
         (void)taint_engine_context.release(); // Leak the old object
     }
     if (initializer) {
