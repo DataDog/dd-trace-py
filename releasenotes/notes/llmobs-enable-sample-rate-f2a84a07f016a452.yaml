@@ -3,5 +3,6 @@ features:
   - |
     LLM Observability: Added a ``sample_rate`` argument to ``LLMObs.enable()`` to configure the proportion of
     LLMObs traces to sample (between ``0.0`` and ``1.0``) in code. This takes precedence over the
-    ``DD_LLMOBS_SAMPLE_RATE`` environment variable. Values outside ``[0.0, 1.0]`` are logged at warning level
-    and ignored, falling back to ``DD_LLMOBS_SAMPLE_RATE`` (default ``1.0``).
+    ``DD_LLMOBS_SAMPLE_RATE`` environment variable. The effective sample rate (from either source) is validated
+    at enable time; values outside ``[0.0, 1.0]`` are logged at warning level and fall back to the default of
+    ``1.0``.

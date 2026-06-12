@@ -855,7 +855,8 @@ class LLMObs(Service):
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         :param float sample_rate: The proportion of LLMObs traces to sample, between 0.0 and 1.0 (inclusive).
             Takes precedence over the DD_LLMOBS_SAMPLE_RATE environment variable. Defaults to that env var, or 1.0
-            (sample everything) if neither is set.
+            (sample everything) if neither is set. Values outside [0.0, 1.0] (from either source) are ignored and
+            fall back to 1.0.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -876,15 +877,18 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
+        # A sample_rate passed to enable() overrides DD_LLMOBS_SAMPLE_RATE; otherwise the
+        # env-var-derived config value is kept.
         if sample_rate is not None:
-            if 0.0 <= sample_rate <= 1.0:
-                config._llmobs_sample_rate = sample_rate
-            else:
-                log.warning(
-                    "LLMObs.enable() called with sample_rate=%r, which is outside the valid range [0.0, 1.0]. "
-                    "Ignoring and falling back to DD_LLMOBS_SAMPLE_RATE (default 1.0).",
-                    sample_rate,
-                )
+            config._llmobs_sample_rate = sample_rate
+        # Validate the effective sample rate regardless of its source, falling back to the
+        # default of 1.0 if it is outside the valid range.
+        if not 0.0 <= config._llmobs_sample_rate <= 1.0:
+            log.warning(
+                "LLMObs sample rate %r is outside the valid range [0.0, 1.0]; falling back to 1.0.",
+                config._llmobs_sample_rate,
+            )
+            config._llmobs_sample_rate = 1.0
 
         error = None
         start_ns = time.time_ns()

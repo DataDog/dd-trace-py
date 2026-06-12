@@ -1180,8 +1180,20 @@ def test_enable_sample_rate_sets_sampler(llmobs, llmobs_enable_opts):
 
 @pytest.mark.parametrize("llmobs_enable_opts", [dict(sample_rate=1.5)])
 def test_enable_invalid_sample_rate_falls_back(llmobs, llmobs_enable_opts):
-    """An out-of-range sample_rate is ignored, falling back to the configured default (1.0)."""
+    """An out-of-range sample_rate argument falls back to the default (1.0)."""
     assert llmobs._instance._sampler.sample_rate == 1.0
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sample_rate=1.5)])
+def test_enable_validates_env_sample_rate(llmobs, ddtrace_global_config):
+    """An out-of-range DD_LLMOBS_SAMPLE_RATE (config value) is validated at enable() and falls back to 1.0."""
+    assert llmobs._instance._sampler.sample_rate == 1.0
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sample_rate=0.4)])
+def test_enable_keeps_valid_env_sample_rate(llmobs, ddtrace_global_config):
+    """A valid DD_LLMOBS_SAMPLE_RATE (config value) is kept when no sample_rate is passed to enable()."""
+    assert llmobs._instance._sampler.sample_rate == 0.4
 
 
 @pytest.mark.subprocess(
