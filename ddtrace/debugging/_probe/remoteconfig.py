@@ -114,8 +114,9 @@ class LogProbeFactory(ProbeFactory):
     @classmethod
     def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         take_snapshot = attribs.get("captureSnapshot", False)
+        capture_expressions = attribs.get("captureExpressions", [])
 
-        rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
+        rate = DEFAULT_SNAPSHOT_PROBE_RATE if (take_snapshot or capture_expressions) else DEFAULT_PROBE_RATE
         sampling = attribs.get("sampling")
         if sampling is not None:
             rate = sampling.get("snapshotsPerSecond", rate)
@@ -126,7 +127,7 @@ class LogProbeFactory(ProbeFactory):
             limits=CaptureLimits.parse(attribs["capture"]) if "capture" in attribs else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
-            capture_expressions=[CaptureExpression.parse(_) for _ in attribs.get("captureExpressions", [])],
+            capture_expressions=[CaptureExpression.parse(_) for _ in capture_expressions],
             template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
