@@ -105,14 +105,14 @@ class heap_tracker_t
     /* Decide whether we should sample an allocation of the given size. Accesses
      * shared state, and must be called with the GIL held and without making any C
      * Python API calls. Returns true if we should sample, and sets allocated_memory_val
-     * to the current allocated_memory value. */
-    bool should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val);
+     * to the domain's accumulated byte count (used as the sample weight). */
+    bool should_sample_no_cpython(size_t size, PyMemAllocatorDomain domain, uint64_t* allocated_memory_val);
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
      * If an allocation at the same address is already tracked, the old traceback
-     * is deleted internally. */
-    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb);
+     * is deleted internally. Resets only the triggering domain's byte counter. */
+    void add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb, PyMemAllocatorDomain domain);
 
     void export_heap_no_cpython();
 
@@ -134,26 +134,37 @@ class heap_tracker_t
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
-    /* This function is called from heap_tracker_t::postfork_child() as part of
-       the fork handler to reset the sampling state. */
-    void reset_sampling_state_no_cpython();
+    /* Reset the byte counter and redraw the sample target for the given domain.
+     * MEM domain uses a higher threshold (MEM_DOMAIN_SAMPLE_RATE_FACTOR × R) to
+     * reduce the frequency of expensive CPython traceback captures for small,
+     * high-frequency allocations (e.g. list/array internal buffers). */
+    void reset_sampling_state_no_cpython(PyMemAllocatorDomain domain);
 
-    /* Heap profiler sampling interval */
+    /* Heap profiler sampling interval (base rate R, in bytes) */
     uint64_t sample_size;
 
+    /* MEM-domain allocations are small and very frequent; sample at a lower
+     * rate to avoid paying the CPython stack-walk cost too often. */
+    static constexpr uint32_t MEM_DOMAIN_SAMPLE_RATE_FACTOR = 4;
+
     /* Per-instance PRNG engine used by next_sample_size_no_cpython.
-     * Declared before current_sample_size so it is initialised first in the
-     * constructor member-initialiser list, allowing next_sample_size_no_cpython
-     * to be called safely during current_sample_size initialisation.
      * std::minstd_rand stores all state in the object (no global locks), so it
      * is fork-safe (unlike rand). */
     std::minstd_rand rng;
-    /* Next heap sample target, in bytes allocated */
-    uint64_t current_sample_size;
+
+    /* Per-domain sampling state.  Each allocation domain accumulates bytes
+     * independently; a sample fires when the domain's counter crosses its
+     * own threshold. This prevents MEM-domain traffic from inflating the OBJ
+     * sample rate and vice versa.
+     * Indexed by PyMemAllocatorDomain: RAW=0, MEM=1, OBJ=2. */
+    struct domain_state_t {
+        uint64_t allocated_memory{0};
+        uint64_t current_sample_size{0};
+    };
+    std::array<domain_state_t, 3> domain_states_;
+
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
-    /* Bytes allocated since the last sample was collected */
-    uint64_t allocated_memory;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -220,9 +231,12 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
 heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   : sample_size(sample_size_val)
   , rng(sample_size_val != 0U ? sample_size_val : 0x9e3779b9U) // 2^32 / phi (golden ratio)
-  , current_sample_size(next_sample_size_no_cpython(sample_size_val))
-  , allocated_memory(0)
 {
+    // Initialise per-domain sampling counters.  Each domain draws its first
+    // sample target independently; MEM domain uses a higher threshold.
+    for (int d = 0; d < static_cast<int>(domain_states_.size()); ++d) {
+        reset_sampling_state_no_cpython(static_cast<PyMemAllocatorDomain>(d));
+    }
     // Pre-allocate pool capacity to avoid reallocations
     pool.reserve(POOL_CAPACITY);
     // Pre-allocate map capacity to avoid rehashing during ramp-up.
@@ -241,14 +255,14 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 }
 
 bool
-heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory_val)
+heap_tracker_t::should_sample_no_cpython(size_t size, PyMemAllocatorDomain domain, uint64_t* allocated_memory_val)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    allocated_memory += size;
-    *allocated_memory_val = allocated_memory;
+    auto& ds = domain_states_[static_cast<int>(domain)];
+    ds.allocated_memory += size;
+    *allocated_memory_val = ds.allocated_memory;
 
-    /* Check if we have enough sample or not */
-    if (allocated_memory < current_sample_size) {
+    if (ds.allocated_memory < ds.current_sample_size) {
         return false;
     }
 
@@ -265,7 +279,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
 }
 
 void
-heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
+heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb, PyMemAllocatorDomain domain)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
@@ -275,8 +289,8 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
-    // Get ready for the next sample
-    reset_sampling_state_no_cpython();
+    // Reset only the domain that triggered this sample so other domains are unaffected.
+    reset_sampling_state_no_cpython(domain);
 }
 
 void
@@ -294,10 +308,17 @@ heap_tracker_t::export_heap_no_cpython()
 }
 
 void
-heap_tracker_t::reset_sampling_state_no_cpython()
+heap_tracker_t::reset_sampling_state_no_cpython(PyMemAllocatorDomain domain)
 {
-    allocated_memory = 0;
-    current_sample_size = next_sample_size_no_cpython(sample_size);
+    auto& ds = domain_states_[static_cast<int>(domain)];
+    ds.allocated_memory = 0;
+    // MEM domain samples 4× less frequently than OBJ/RAW to reduce the cost of
+    // CPython traceback capture on high-frequency small allocations.
+    const uint32_t effective_rate = (domain == PYMEM_DOMAIN_MEM)
+        ? static_cast<uint32_t>(std::min<uint64_t>(
+              static_cast<uint64_t>(sample_size) * MEM_DOMAIN_SAMPLE_RATE_FACTOR, UINT32_MAX))
+        : static_cast<uint32_t>(sample_size);
+    ds.current_sample_size = next_sample_size_no_cpython(effective_rate);
 }
 
 void
@@ -318,8 +339,10 @@ heap_tracker_t::postfork_child()
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
 
-    // Reset the sampling state to start fresh after fork.
-    reset_sampling_state_no_cpython();
+    // Reset per-domain sampling state to start fresh after fork.
+    for (int d = 0; d < static_cast<int>(domain_states_.size()); ++d) {
+        reset_sampling_state_no_cpython(static_cast<PyMemAllocatorDomain>(d));
+    }
 }
 
 // Static member definition
@@ -360,12 +383,11 @@ memalloc_heap_untrack_no_cpython(void* ptr)
 void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
 {
-    (void)domain; // Parameter kept for API consistency but not currently used
     if (!heap_tracker_t::instance) {
         return;
     }
     uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, &allocated_memory_val)) {
+    if (!heap_tracker_t::instance->should_sample_no_cpython(size, domain, &allocated_memory_val)) {
         return;
     }
 
@@ -438,7 +460,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
-        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb));
+        heap_tracker_t::instance->add_sample_no_cpython(ptr, std::move(tb), domain);
     }
     // If instance is gone, tb's unique_ptr automatically deletes the traceback
 }
