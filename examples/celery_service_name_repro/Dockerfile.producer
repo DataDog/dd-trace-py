@@ -1,0 +1,13 @@
+FROM python:3
+
+EXPOSE 8080
+
+WORKDIR /usr/src/app
+
+COPY requirements.producer.txt ./
+COPY consumer.py ./
+COPY producer.py ./
+
+RUN pip install ddtrace -r requirements.producer.txt
+
+CMD ["ddtrace-run", "python", "producer.py"]

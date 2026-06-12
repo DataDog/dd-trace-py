@@ -1,0 +1,3 @@
+celery[redis]==5.3.4
+flask==3.0.0
+redis>=4.0.0

@@ -575,6 +575,41 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             assert run_span.service == "task-queue"
 
+    def test_worker_span_remove_integration_service_names(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        with mock.patch("ddtrace.contrib.internal.celery.signals.schematize_service_name", return_value="myapp"):
+            t = fn_task.apply()
+            self.assertTrue(t.successful())
+            traces = self.pop_traces()
+            self.assertEqual(1, len(traces))
+            span = traces[0][0]
+            self.assertEqual(span.service, "myapp")
+
+    def test_producer_span_remove_integration_service_names(self):
+        @self.app.task
+        def fn_task():
+            return 42
+
+        with mock.patch("ddtrace.contrib.internal.celery.signals.schematize_service_name", return_value="myapp"):
+            t = fn_task.delay()
+            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
+
+            traces = self.pop_traces()
+
+            if self.ASYNC_USE_CELERY_FIXTURES:
+                assert 2 == len(traces)
+                async_span = traces[0][0]
+                run_span = traces[1][0]
+                assert async_span.service == "myapp"
+            else:
+                assert 1 == len(traces)
+                run_span = traces[0][0]
+
+            assert run_span.service == "myapp"
+
     def test_trace_in_task(self):
         @self.app.task
         def fn_task():

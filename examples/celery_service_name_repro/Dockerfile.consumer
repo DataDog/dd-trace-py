@@ -1,0 +1,10 @@
+FROM python:3
+
+WORKDIR /usr/src/app
+
+COPY requirements.consumer.txt ./
+COPY consumer.py ./
+
+RUN pip install ddtrace -r requirements.consumer.txt
+
+CMD ["ddtrace-run", "celery", "-A", "consumer", "worker", "--loglevel=info"]
