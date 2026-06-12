@@ -24,6 +24,11 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
             res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin, contextid)
+            if isinstance(source_value, str) and "dummy.location" in source_value:
+                log.error(
+                    "IAST-TAINTSRC ctx=%s id_in=%#x id_out=%#x origin=%s name=%r value=%r",
+                    contextid, id(pyobject), id(res), source_origin, source_name, source_value,
+                )
             _set_metric_iast_executed_source(source_origin)
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
             return res
