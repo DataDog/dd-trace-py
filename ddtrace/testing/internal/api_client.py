@@ -29,26 +29,6 @@ log = logging.getLogger(__name__)
 _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 
 
-def _normalize_repo_id(repo_url: str) -> str:
-    """Normalize a git repository URL to the id_v2 format used by the FTM search API.
-
-    Converts URLs like https://github.com/DataDog/dd-trace-py.git or
-    git@github.com:DataDog/dd-trace-py.git to github.com/DataDog/dd-trace-py.
-    """
-    url = repo_url.strip()
-    if url.startswith("git@"):
-        # git@github.com:org/repo.git -> github.com/org/repo.git
-        url = url[4:].replace(":", "/", 1)
-    else:
-        for scheme in ("https://", "http://", "git://"):
-            if url.startswith(scheme):
-                url = url[len(scheme) :]
-                break
-    if url.endswith(".git"):
-        url = url[:-4]
-    return url
-
-
 def _get_known_tests_max_pages() -> int:
     """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
     try:
@@ -309,76 +289,6 @@ class APIClient:
 
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
-
-    def get_all_flaky_tests(self) -> set[TestRef]:
-        """Fetch all non-fixed flaky tests for this repository from the FTM search endpoint.
-
-        Used by the ATF-all-flaky mode (DD_TEST_MANAGEMENT_ATF_ALL_FLAKY) to build the full
-        set of flaky tests regardless of their management state (active/quarantined/disabled).
-        Handles cursor-based pagination automatically.
-        """
-        repo_url = self.env_tags.get(GitTag.REPOSITORY_URL)
-        if not repo_url:
-            log.warning("Git repository URL not available, cannot fetch all flaky tests")
-            return set()
-
-        app_key = env.get("DD_APP_KEY")
-        if not app_key:
-            log.warning("DD_APP_KEY is not set; cannot fetch all flaky tests (endpoint requires an application key)")
-            return set()
-
-        repo_id = _normalize_repo_id(repo_url)
-        query = f'-flaky_test_state:fixed @git.repository.id_v2:"{repo_id}"'
-        extra_headers = {"dd-application-key": app_key}
-
-        flaky_tests: set[TestRef] = set()
-        cursor: t.Optional[str] = None
-        page_limit = 100
-
-        while True:
-            page: dict[str, t.Any] = {"limit": page_limit}
-            if cursor:
-                page["cursor"] = cursor
-
-            request_data: dict[str, t.Any] = {
-                "data": {
-                    "type": "search_flaky_tests_request",
-                    "attributes": {
-                        "filter": {"query": query},
-                        "page": page,
-                    },
-                }
-            }
-
-            try:
-                result = self.connector.post_json(
-                    "/api/v2/test/flaky-test-management/tests", request_data, headers=extra_headers
-                )
-                result.on_error_raise_exception()
-            except Exception as e:
-                log.warning("Error fetching all flaky tests from API: %s", e)
-                return flaky_tests
-
-            try:
-                parsed = result.parsed_response
-                for item in parsed.get("data", []):
-                    attrs = item.get("attributes", {})
-                    module_name = attrs.get("module")
-                    suite_name = attrs.get("suite")
-                    test_name = attrs.get("name")
-                    if not module_name or not suite_name or not test_name:
-                        continue
-                    flaky_tests.add(TestRef(SuiteRef(ModuleRef(module_name), suite_name), test_name))
-
-                cursor = parsed.get("meta", {}).get("pagination", {}).get("next_page")
-                if not cursor:
-                    break
-            except Exception as e:
-                log.warning("Failed to parse all flaky tests response: %s", e)
-                break
-
-        log.debug("Fetched %d non-fixed flaky tests from FTM", len(flaky_tests))
-        return flaky_tests
 
     def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
