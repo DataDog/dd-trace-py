@@ -187,8 +187,8 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        # Override reserved OTel span attributes unless OTel compatibility mode is enabled
-        if not config._otel_trace_compatibility_enabled:
+        # Override reserved OTel span attributes unless OTel trace semantics is enabled
+        if not config._otel_trace_semantics_enabled:
             ddattribute = _OTelDatadogMapping.get(key)
             if ddattribute is not None:
                 _ddmap(self._ddspan, ddattribute, value)
@@ -263,8 +263,8 @@ class Span(OtelSpan):
             self._ddspan.error = 1
             if message:
                 self.set_attribute(ERROR_MSG, message)
-            elif config._otel_trace_compatibility_enabled:
-                # When OTel compatibility mode is enabled, the error message should reflect the description of the latest span status
+            elif config._otel_trace_semantics_enabled:
+                # When OTel trace semantics mode is enabled, the error message should reflect the description of the latest span status
                 self._ddspan._remove_attribute(ERROR_MSG)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
@@ -292,7 +292,7 @@ class Span(OtelSpan):
             # User provided attributes must take precedence over atrrs
             attrs.update(attributes)
 
-        if config._otel_trace_compatibility_enabled:
+        if config._otel_trace_semantics_enabled:
             if "exception.stacktrace" not in attrs:
                 attrs["exception.stacktrace"] = "".join(
                     traceback.format_exception(

@@ -4429,7 +4429,7 @@
         "default": "true"
       }
     ],
-    "DD_TRACE_OTEL_COMPATIBILITY_ENABLED": [
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

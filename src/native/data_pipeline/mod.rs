@@ -193,8 +193,8 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    fn enable_otel_trace_compatibility(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?.enable_otel_trace_compatibility();
+    fn enable_otel_trace_semantics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.enable_otel_trace_semantics();
         Ok(slf.into())
     }
 
