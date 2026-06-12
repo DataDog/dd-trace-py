@@ -471,7 +471,7 @@ class TestOptPlugin:
         elif test.is_quarantined():
             # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
-        elif self.manager.atf_all_flaky_tests is not None:
+        elif self.manager.atf_all_flaky_tests:
             item.add_marker(pytest.mark.skip(reason="not in flaky test list (DD_TEST_MANAGEMENT_ATF_ALL_FLAKY)"))
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
@@ -882,7 +882,7 @@ class TestOptPluginWithProtocol(TestOptPlugin):
             return
         elif test.is_quarantined():
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
-        elif self.manager.atf_all_flaky_tests is not None:
+        elif self.manager.atf_all_flaky_tests:
             item.add_marker(pytest.mark.skip(reason="not in flaky test list (DD_TEST_MANAGEMENT_ATF_ALL_FLAKY)"))
 
     @catch_and_log_exceptions()
