@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    test management: The ``DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES`` environment variable is now
+    respected by the ``ddtrace.testing`` internal pytest plugin. When set to a valid integer, it
+    overrides the retry count returned by the Datadog API for "attempt to fix" tests.

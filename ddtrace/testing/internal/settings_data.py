@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+import logging
+import os
 import typing as t
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,9 +44,16 @@ class TestManagementSettings:
 
     @classmethod
     def from_attributes(cls, test_management_attributes: dict[str, t.Any]) -> TestManagementSettings:
+        attempt_to_fix_retries_env = os.environ.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+        if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
+            attempt_to_fix_retries = int(attempt_to_fix_retries_env)
+            log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
+        else:
+            attempt_to_fix_retries = test_management_attributes["attempt_to_fix_retries"]
+            log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
         test_management_settings = cls(
             enabled=test_management_attributes["enabled"],
-            attempt_to_fix_retries=test_management_attributes["attempt_to_fix_retries"],
+            attempt_to_fix_retries=attempt_to_fix_retries,
         )
         return test_management_settings
 
