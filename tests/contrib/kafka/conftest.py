@@ -113,7 +113,7 @@ def should_filter_empty_polls():
     yield True
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture
 def patch_kafka():
     patch()
     yield
