@@ -4,18 +4,19 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
 from unittest.mock import patch
 
 # Path is also used in test_env_tags_non_empty_in_online_mode for get_workspace_path mock
 import pytest
 
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
+from ddtrace.testing.internal.http import BackendConnectorAgentlessSetup
 from ddtrace.testing.internal.http import NoOpBackendConnectorSetup
 import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
 
 
@@ -85,8 +86,8 @@ class TestSessionManagerProviderSelection:
         mock_api_client_cls.assert_not_called()
         assert isinstance(sm.api_client, CachedFileDataProvider)
 
-    def test_connector_is_noop_in_manifest_mode(self, monkeypatch, tmp_path):
-        """In manifest mode the connector setup must be NoOpBackendConnectorSetup."""
+    def test_connector_is_real_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode the network is available; connector must NOT be NoOp."""
         opt_dir = _make_manifest_dir(tmp_path)
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
@@ -98,6 +99,28 @@ class TestSessionManagerProviderSelection:
             patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
             patch.dict(os.environ, env),
         ):
+            sm = SessionManager(session=_make_session())
+
+        assert not isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
+        assert isinstance(sm.connector_setup, BackendConnectorAgentlessSetup)
+
+    def test_connector_is_noop_in_payload_files_mode(self, monkeypatch, tmp_path):
+        """In Bazel payload-files mode there is no network; connector must be NoOp."""
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", raising=False)
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
+        monkeypatch.setenv("TEST_UNDECLARED_OUTPUTS_DIR", str(output_dir))
+
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client_cls,
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            mock_api_client_cls.return_value = mock_api_client_settings()
             sm = SessionManager(session=_make_session())
 
         assert isinstance(sm.connector_setup, NoOpBackendConnectorSetup)
@@ -163,10 +186,7 @@ class TestUploadGitDataSkipping:
 
         sm = self._build_sm_with_mocked_api(monkeypatch, env)
 
-        mock_git_instance = Mock()
-        mock_git_instance.get_latest_commits.return_value = []
-        mock_git_instance.get_filtered_revisions.return_value = []
-        mock_git_instance.pack_objects.return_value = iter([])
+        mock_git_instance = get_mock_git_instance()
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git_instance) as mock_git_cls,
@@ -301,22 +321,18 @@ class TestEnvTagsStripping:
 # ---------------------------------------------------------------------------
 
 
-class TestSkippingForcedOffInManifestMode:
-    def test_skipping_disabled_in_manifest_mode(self, monkeypatch, tmp_path):
-        """Even if the cached settings file enables skipping, manifest mode forces it off."""
+class TestSkippingInManifestMode:
+    def _write_settings(self, cache_dir: Path, tests_skipping: bool, itr_enabled: bool) -> None:
         import json
 
-        opt_dir = _make_manifest_dir(tmp_path)
-        # Write settings with skipping_enabled=True
-        cache_dir = opt_dir / "cache" / "http"
-        cache_dir.mkdir(parents=True)
+        cache_dir.mkdir(parents=True, exist_ok=True)
         (cache_dir / "settings.json").write_text(
             json.dumps(
                 {
                     "data": {
                         "attributes": {
-                            "tests_skipping": True,
-                            "itr_enabled": True,
+                            "tests_skipping": tests_skipping,
+                            "itr_enabled": itr_enabled,
                             "require_git": False,
                             "code_coverage": False,
                             "known_tests_enabled": False,
@@ -333,6 +349,30 @@ class TestSkippingForcedOffInManifestMode:
                 }
             )
         )
+
+    def test_skipping_enabled_from_cache_in_manifest_mode(self, monkeypatch, tmp_path):
+        """In manifest mode, skipping_enabled comes from the cached settings file."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=True, itr_enabled=True)
+
+        monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
+        monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
+        env = MockDefaults.test_environment()
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value={}),
+            patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+            patch.dict(os.environ, env),
+        ):
+            sm = SessionManager(session=_make_session())
+
+        assert sm.settings.skipping_enabled is True
+        assert sm.settings.itr_enabled is True
+
+    def test_skipping_disabled_when_cache_says_disabled(self, monkeypatch, tmp_path):
+        """When cached settings has skipping disabled it stays disabled in manifest mode."""
+        opt_dir = _make_manifest_dir(tmp_path)
+        self._write_settings(opt_dir / "cache" / "http", tests_skipping=False, itr_enabled=False)
 
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_MANIFEST_FILE", str(opt_dir / "manifest.txt"))
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)

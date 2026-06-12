@@ -19,9 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import (
-    _derive_default_heap_sample_size,  # pyright: ignore[reportAttributeAccessIssue]
-)
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -75,7 +73,7 @@ def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
 def test_heap_samples_collected() -> None:
     import os
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
 
@@ -92,13 +90,17 @@ def test_heap_samples_collected() -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
 
+    # Verify heap-live-samples is also present and populated alongside heap-space
+    heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
+    assert len(heap_live_samples) > 0
+
 
 def test_memory_collector(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector")
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
     with mc:
-        _allocate_1k()
+        live_objects = _allocate_1k()  # noqa: F841
         mc.snapshot()
 
     ddup.upload()
@@ -113,6 +115,10 @@ def test_memory_collector(tmp_path: Path) -> None:
     for sample in samples:
         # We also want to check 'alloc-samples' is > 0.
         assert sample.value[alloc_samples_idx] > 0
+
+    # Verify heap-live-samples are present for live heap objects
+    heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
+    assert len(heap_live_samples) > 0, "Expected heap-live-samples in profile"
 
     # We also want to assert that there's a sample that's coming from _allocate_1k()
     # And also assert that it's actually coming from _allocate_1k()
@@ -148,7 +154,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]
         alloc_thread.start()
 
         mc.snapshot()
@@ -171,7 +177,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
 )
 def test_heap_profiler_large_heap_overhead() -> None:
     # NOTE: A regression test for integer arithmetic bugs.
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector.test_memalloc import one
 
     p = Profiler()
@@ -250,7 +256,7 @@ class HeapInfo:
 
 
 def has_function_in_profile_sample(
-    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable, str]
+    profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_or_name: Union[Callable[..., object], str]
 ) -> bool:
     """Check if a pprof profile sample contains a function in its stack trace.
 
@@ -278,7 +284,7 @@ def has_function_in_profile_sample(
 
 
 def get_tracemalloc_stats_per_func(
-    stats: Sequence[Statistic], funcs: Sequence[Callable]
+    stats: Sequence[Statistic], funcs: Sequence[Callable[..., object]]
 ) -> tuple[dict[str, int], dict[str, int]]:
     source_to_func: dict[str, str] = {}
 
@@ -290,8 +296,8 @@ def get_tracemalloc_stats_per_func(
     actual_sizes: dict[str, int] = {}
     actual_counts: dict[str, int] = {}
     for stat in stats:
-        f = stat.traceback[0]  # type: ignore[assignment]
-        key = f.filename + str(f.lineno)  # type: ignore[attr-defined]
+        frame = stat.traceback[0]
+        key = frame.filename + str(frame.lineno)
         if key in source_to_func:
             func_name = source_to_func[key]
             actual_sizes[func_name] = stat.size
@@ -314,7 +320,7 @@ def test_memalloc_data_race_regression() -> None:
     import threading
     import time
 
-    from ddtrace.profiling import Profiler
+    from ddtrace.profiling.profiler import Profiler
 
     gc.enable()
     # This threshold is controls when garbage collection is triggered. The
@@ -412,11 +418,13 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
     # Get sample type indices
     heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    heap_live_samples_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
     alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
     alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
 
     # Assert that required sample types exist
     assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+    assert heap_live_samples_idx >= 0, "heap-live-samples sample type not found in profile"
     assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
     assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
@@ -430,6 +438,12 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     print(f"Heap samples (heap-space>0): {len(heap_samples)}")
 
     assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
+
+    # Verify that live heap samples also have heap-live-samples > 0
+    for sample in heap_samples:
+        assert sample.value[heap_live_samples_idx] > 0, (
+            f"Live heap sample should have heap-live-samples > 0, got {sample.value[heap_live_samples_idx]}"
+        )
 
     total_allocation_count = 0
     for sample in allocation_samples:
@@ -448,7 +462,9 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     actual_count_total = sum(actual_counts.values())
 
     def get_allocation_info_from_profile(
-        profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
+        profile: pprof_pb2.Profile,
+        samples: Sequence[pprof_pb2.Sample],
+        funcs: Sequence[Union[Callable[..., object], str]],
     ) -> dict[str, HeapInfo]:
         got: dict[str, HeapInfo] = {}
         for sample in samples:
@@ -771,6 +787,126 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         del second_batch
 
 
+def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
+    """Verify heap-live-samples disappear from a stack after its objects are freed."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_live_samples_drops_after_free")
+
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
+
+    with mc:
+        # Allocate objects via 'one' and 'two', keep them alive
+        batch_one: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_one.append(one(256))
+
+        batch_two: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_two.append(two(512))
+
+        profile_before = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_before, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_before, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
+
+        # Both 'one' and 'two' should have live samples
+        live_before = [s for s in profile_before.sample if s.value[heap_space_idx] > 0]
+        one_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, one)]
+        two_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, two)]
+
+        assert len(one_live_before) > 0, "Expected live samples from 'one' before free"
+        assert len(two_live_before) > 0, "Expected live samples from 'two' before free"
+
+        # Verify heap-live-samples > 0 for all live entries
+        for s in live_before:
+            assert s.value[heap_live_idx] > 0, "Live sample should have heap-live-samples > 0"
+
+        # Free batch_one, keep batch_two
+        del batch_one
+        gc.collect()
+
+        profile_after = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_after, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_after, "heap-live-samples")
+
+        live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
+
+        # 'one' should have no significant live samples (freed)
+        min_alloc_size = 256
+        one_live_after = [
+            s
+            for s in live_after
+            if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
+        ]
+        assert len(one_live_after) == 0, (
+            f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
+        )
+
+        # 'two' should still have live samples with heap-live-samples > 0
+        two_live_after = [s for s in live_after if has_function_in_profile_sample(profile_after, s, two)]
+        assert len(two_live_after) > 0, "Expected live samples from 'two' to persist after freeing 'one'"
+        for s in two_live_after:
+            assert s.value[heap_live_idx] > 0, "Surviving live sample should have heap-live-samples > 0"
+
+        del batch_two
+
+
+def test_heap_live_samples_aggregate_accuracy(tmp_path: Path) -> None:
+    """Verify the sum of heap-live-samples is a reasonable estimate of actual live object count.
+
+    With a small sampling interval and many allocations, the aggregate heap-live-samples
+    should approximate the real number of live objects within a tolerance.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_live_samples_aggregate_accuracy")
+
+    sample_interval = 64
+    num_objects = 500
+    object_size = 256
+    mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
+
+    with mc:
+        # Allocate a known number of objects, all kept alive
+        live_objects: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(num_objects):
+            live_objects.append(one(object_size))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+        heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
+
+        # Sum heap-live-samples across all live entries attributed to 'one'
+        live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+        one_live_samples = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
+
+        assert len(one_live_samples) > 0, "Expected live samples from 'one'"
+
+        total_heap_live_count = sum(s.value[heap_live_idx] for s in one_live_samples)
+
+        print(f"Actual live objects: {num_objects}")
+        print(f"Reported heap-live-samples: {total_heap_live_count}")
+        print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
+
+        # The aggregate should be close to the actual count.
+        # With the Horvitz-Thompson estimator w = 1/(1-exp(-S/R)), the weight
+        # is deterministic for a given allocation size. For our allocations
+        # (size much greater than R), w ~= 1, so the sum should be very close to num_objects.
+        # We allow some slack (not all 500 may be sampled if
+        # an allocation lands exactly on a boundary, and bytearray allocations skew the count higher)
+        assert total_heap_live_count > 0, "heap-live-samples aggregate should be > 0"
+        ratio = total_heap_live_count / num_objects
+        assert 1 <= ratio <= 2, (
+            f"heap-live-samples aggregate ({total_heap_live_count}) should be within 2x of "
+            f"actual count ({num_objects}), got ratio={ratio:.2f}"
+        )
+
+        del live_objects
+
+
 def test_memory_collector_exception_handling(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_exception_handling")
 
@@ -783,7 +919,7 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
             assert profile is not None
             raise ValueError("Test exception")
 
-    with mc:
+    with mc:  # type: ignore[unreachable]
         _allocate_1k()
         profile = mc.snapshot_and_parse_pprof(output_filename)
         assert profile is not None
@@ -1232,7 +1368,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
     _memalloc.start(64, 1, False)
 
     stop = threading.Event()
-    shared: dict = {}
+    shared: dict[str, object] = {}
 
     def mutate(tid: int) -> None:
         i = 0

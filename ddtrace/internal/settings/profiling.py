@@ -55,7 +55,7 @@ def _derive_default_heap_sample_size(
     return int(max(math.ceil(total_mem / max_samples), default_heap_sample_size))
 
 
-def _check_for_ddup_available():
+def _check_for_ddup_available() -> tuple[str, bool]:
     # NB: importing ddup module results in importing _ddup.so file which could
     # raise an Exception within the ddup module, but we catch it there and
     # we don't propagate up to here. And regardless of whether ddup is available,
@@ -65,7 +65,7 @@ def _check_for_ddup_available():
     return (ddup.failure_msg, ddup.is_available)
 
 
-def _check_for_stack_available():
+def _check_for_stack_available() -> tuple[str, bool]:
     # NB: ditto for stack module as ddup.
     from ddtrace.internal.datadog.profiling import stack
 
@@ -90,7 +90,7 @@ def _parse_profiling_enabled(raw: str) -> bool:
     return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
-def _update_git_metadata_tags(tags):
+def _update_git_metadata_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Update profiler tags with git metadata
     """
@@ -106,7 +106,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags: dict[str, str]) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -306,10 +306,55 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_max_interval = DDConfig.v(
         int,
         "adaptive_sampling.max_interval_us",
-        default=1_000_000,
-        validator=validators.range(100, 1_000_000),
+        default=100_000,
+        validator=validators.range(100, 100_000),
         help_type="Integer",
-        help="Maximum sampling interval in microseconds for adaptive sampling.",
+        help="Maximum sampling interval in microseconds for adaptive sampling. Must be between 100us and 100ms.",
+        private=True,
+    )
+
+    adaptive_sampling_baseline = DDConfig.v(
+        float,
+        "adaptive_sampling.baseline",
+        default=0.0,
+        validator=validators.range(0, t.cast(int, float("inf"))),
+        help_type="Float",
+        help=(
+            "Absolute overhead floor for adaptive sampling, in core-percent units "
+            "(e.g. 1 = 0.01 core = 10 mcores ≈ 600 ms CPU/min). "
+            "Prevents the profiler from going silent on idle applications. "
+            "0 disables the floor (pure-ratio behaviour)."
+        ),
+        private=True,
+    )
+
+    adaptive_sampling_p_stable_window_s = DDConfig.v(
+        int,
+        "adaptive_sampling.p_stable_window_s",
+        default=600,
+        validator=validators.range(1, t.cast(int, float("inf"))),
+        help_type="Integer",
+        help=(
+            "Rolling window duration in seconds over which the stable app-CPU "
+            "percentile (p_stable) is computed for adaptive sampling. "
+            "Longer windows give a more stable sample rate at the cost of slower "
+            "adaptation to sustained load changes."
+        ),
+        private=True,
+    )
+
+    adaptive_sampling_p_stable_percentile = DDConfig.v(
+        float,
+        "adaptive_sampling.p_stable_percentile",
+        default=95.0,
+        validator=validators.range(0, 100),
+        help_type="Float",
+        help=(
+            "Percentile (0–100) of the rolling app-CPU window used as the stable "
+            "denominator in the adaptive sampling budget formula. "
+            "95 means the budget is based on the 95th-percentile CPU usage over "
+            "the last p_stable_window_s seconds."
+        ),
         private=True,
     )
 
@@ -342,7 +387,7 @@ class ProfilingConfigStack(DDConfig):
     fast_copy = DDConfig.v(
         bool,
         "fast_copy",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
         private=True,
@@ -571,7 +616,7 @@ if not stack_is_available:
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def config_str(config) -> str:
+def config_str(config: ProfilingConfig) -> str:
     configured_features: list[str] = []
     if config.stack.enabled:
         # NOTE: This is intentionally left as stack_v2, to have an easy way

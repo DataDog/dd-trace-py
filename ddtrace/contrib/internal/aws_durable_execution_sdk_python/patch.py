@@ -16,25 +16,48 @@ from aws_durable_execution_sdk_python.operation.step import StepOperationExecuto
 from ddtrace.contrib._events.aws_durable import AwsDurableExecuteEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableInvokeEvent
 from ddtrace.contrib._events.aws_durable import AwsDurableOperationEvent
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    mark_trace_context_checkpoints_visited,
+)
+from ddtrace.contrib.internal.aws_durable_execution_sdk_python.trace_checkpoint import (
+    maybe_save_trace_context_checkpoint,
+)
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.ext import aws_durable as aws_durable_ext
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
 
 
-config._add("aws_durable_execution_sdk_python", {})
+config._add(
+    "aws_durable_execution_sdk_python",
+    dict(
+        # Persist a ``_datadog_*`` checkpoint on suspend so the next invocation
+        # can resume the trace. Opt-out for customers who don't want synthetic
+        # ops appearing in their durable state.
+        cross_invocation_tracing=asbool(_get_config("DD_DURABLE_CROSS_INVOCATION_TRACING_ENABLED", default=True)),
+    ),
+)
 
 
 # Operations whose direct children should not set a resource.
 # Children of map/parallel can have unbounded names, increasing cardinality.
-_DYNAMIC_PARENT_OPERATIONS = frozenset({"aws.durable.map", "aws.durable.parallel"})
+_DYNAMIC_PARENT_OPERATIONS = frozenset({aws_durable_ext.SPAN_MAP, aws_durable_ext.SPAN_PARALLEL})
+
+# Operations that use the SDK's retry mechanism (StepDetails.attempt).
+_RETRYABLE_OPERATIONS = frozenset({aws_durable_ext.SPAN_STEP, aws_durable_ext.SPAN_WAIT_FOR_CONDITION})
+
+# Operations that use the SDK's retry mechanism (StepDetails.attempt).
+_RETRYABLE_OPERATIONS = frozenset({"aws.durable.step", "aws.durable.wait_for_condition"})
 
 
 def get_version() -> str:
@@ -73,11 +96,8 @@ class TracedThreadPoolExecutor(ThreadPoolExecutor):
         return super().submit(_wrapped, *args, **kwargs)
 
 
-def _read_execution_state(durable_context):
-    """Return (execution_arn, is_replay_execution) from a DurableContext."""
-    state = getattr(durable_context, "state", None)
-    if state is None:
-        return None, None
+def _read_execution_state(state):
+    """Return (execution_arn, is_replay_execution) from an ExecutionState."""
     arn = getattr(state, "durable_execution_arn", None) or None
     status_enum = getattr(state, "_replay_status", None)
     is_replay = (status_enum.name == "REPLAY") if status_enum is not None else None
@@ -85,8 +105,8 @@ def _read_execution_state(durable_context):
 
 
 def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwargs: dict):
-    # Parameterized decorator @durable_execution(boto3_client=...) calls us with
-    # us with no user function and returns a functools.partial, let it re-enter.
+    # Parameterized form @durable_execution(boto3_client=...) calls us with no
+    # user func and returns a functools.partial — let it re-enter.
     user_func = get_argument_value(args, kwargs, 0, "func", optional=True)
     if user_func is None or not callable(user_func):
         return wrapped(*args, **kwargs)
@@ -99,8 +119,16 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
 
     @functools.wraps(user_func)
     def traced_user_func(*inner_args, **inner_kwargs):
-        durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context", optional=True)
-        arn, is_replay = _read_execution_state(durable_context)
+        durable_context = get_argument_value(inner_args, inner_kwargs, 1, "durable_context")
+        state = durable_context.state
+        arn, is_replay = _read_execution_state(state)
+
+        # Mark our _datadog_* checkpoints visited so the SDK's replay tracker
+        # transitions REPLAY → NEW; without this it stays stuck in REPLAY.
+        # AIDEV-NOTE: always-on even when cross_invocation_tracing is off — if
+        # the writer was previously enabled, those ops still exist on resume and
+        # must be marked or the SDK pins to REPLAY forever.
+        mark_trace_context_checkpoints_visited(state)
 
         event = AwsDurableExecuteEvent(
             component=config.aws_durable_execution_sdk_python.integration_name,
@@ -117,6 +145,10 @@ def _traced_durable_execution(wrapped: Callable, instance: Any, args: tuple, kwa
                 # Dispatch without exc_info so __exit__ skips auto-dispatch
                 # and the span is not tagged with the exception.
                 ctx.event.suspended = True
+                # Workflow is pausing; another invocation will resume it. This
+                # is the only branch where it's worth persisting trace context.
+                if ctx.span is not None and config.aws_durable_execution_sdk_python.cross_invocation_tracing:
+                    maybe_save_trace_context_checkpoint(durable_context, ctx.span)
                 ctx.dispatch_ended_event()
                 raise
 
@@ -141,8 +173,27 @@ def _traced_process(wrapped: Callable, instance: Any, args: tuple, kwargs: dict)
         if isinstance(event, (AwsDurableInvokeEvent, AwsDurableOperationEvent)):
             operation_id = instance.operation_identifier.operation_id
             checkpoint = instance.state.get_checkpoint_result(operation_id)
-            event.replayed = checkpoint.is_succeeded()
+            is_succeeded = checkpoint.is_succeeded()
+            event.replayed = is_succeeded
             event.id = operation_id
+            # AIDEV-NOTE: report operation_attempt 0-indexed (0 = original, 1 =
+            # first retry) so a fresh execution and its replay agree. The
+            # server-maintained step_details.attempt is read at two points: a
+            # pending checkpoint holds the prior-failure count (already the
+            # 0-indexed index of the attempt about to run), while a succeeded
+            # checkpoint (read on a replay) holds the 1-indexed attempt that
+            # succeeded -- observed, not SDK-enforced; pinned by the unit test.
+            if isinstance(event, AwsDurableOperationEvent) and event.operation in _RETRYABLE_OPERATIONS:
+                operation = checkpoint.operation
+                if operation is not None and operation.step_details is not None:
+                    attempt = operation.step_details.attempt
+                    # AIDEV-NOTE: the `attempt > 0` guard is purely defensive;
+                    # we have NOT observed attempt == 0 on success. It avoids
+                    # emitting operation_attempt = -1 if a succeeded StepDetails
+                    # ever lacks "Attempt" (from_dict defaults it to 0).
+                    event.operation_attempt = (attempt - 1 if attempt > 0 else 0) if is_succeeded else attempt
+                else:
+                    event.operation_attempt = 0
     return wrapped(*args, **kwargs)
 
 
@@ -223,33 +274,43 @@ def patch():
     wrap("aws_durable_execution_sdk_python", "durable_execution", _traced_durable_execution)
 
     wrap("aws_durable_execution_sdk_python.context", "DurableContext.invoke", _traced_invoke)
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.step", _traced_operation("aws.durable.step", 1))
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.wait", _traced_operation("aws.durable.wait", 1))
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.step",
+        _traced_operation(aws_durable_ext.SPAN_STEP, 1),
+    )
+    wrap(
+        "aws_durable_execution_sdk_python.context",
+        "DurableContext.wait",
+        _traced_operation(aws_durable_ext.SPAN_WAIT, 1),
+    )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.wait_for_condition",
-        _traced_operation("aws.durable.wait_for_condition", 2),
+        _traced_operation(aws_durable_ext.SPAN_WAIT_FOR_CONDITION, 2),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.wait_for_callback",
-        _traced_operation("aws.durable.wait_for_callback", 1),
+        _traced_operation(aws_durable_ext.SPAN_WAIT_FOR_CALLBACK, 1),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.create_callback",
-        _traced_operation("aws.durable.create_callback", 0),
+        _traced_operation(aws_durable_ext.SPAN_CREATE_CALLBACK, 0),
     )
-    wrap("aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_operation("aws.durable.map", 2))
+    wrap(
+        "aws_durable_execution_sdk_python.context", "DurableContext.map", _traced_operation(aws_durable_ext.SPAN_MAP, 2)
+    )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.parallel",
-        _traced_operation("aws.durable.parallel", 1),
+        _traced_operation(aws_durable_ext.SPAN_PARALLEL, 1),
     )
     wrap(
         "aws_durable_execution_sdk_python.context",
         "DurableContext.run_in_child_context",
-        _traced_operation("aws.durable.child_context", 1),
+        _traced_operation(aws_durable_ext.SPAN_CHILD_CONTEXT, 1),
     )
 
     executor_module.ThreadPoolExecutor = TracedThreadPoolExecutor

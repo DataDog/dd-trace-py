@@ -1,5 +1,5 @@
 {
-  "tracer_version": "4.9.0",
+  "tracer_version": "4.12.0",
   "entries": [
     {
       "dependency_name": "aiobotocore",
@@ -82,23 +82,23 @@
           "python_version": "3.9"
         },
         {
-          "version": "3.13.5",
+          "version": "3.14.0",
           "python_version": "3.10"
         },
         {
-          "version": "3.13.5",
+          "version": "3.14.0",
           "python_version": "3.11"
         },
         {
-          "version": "3.13.5",
+          "version": "3.14.0",
           "python_version": "3.12"
         },
         {
-          "version": "3.13.5",
+          "version": "3.14.0",
           "python_version": "3.13"
         },
         {
-          "version": "3.13.5",
+          "version": "3.14.0",
           "python_version": "3.14"
         }
       ]
@@ -1153,7 +1153,7 @@
           "python_version": "3.10"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.15",
           "python_version": "3.10"
         },
         {
@@ -1169,7 +1169,7 @@
           "python_version": "3.11"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.15",
           "python_version": "3.11"
         },
         {
@@ -1189,7 +1189,7 @@
           "python_version": "3.12"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.15",
           "python_version": "3.12"
         },
         {
@@ -1205,7 +1205,7 @@
           "python_version": "3.13"
         },
         {
-          "version": "5.2.13",
+          "version": "5.2.15",
           "python_version": "3.13"
         }
       ]
@@ -1774,7 +1774,7 @@
           "python_version": "3.9"
         },
         {
-          "version": "0.136.0",
+          "version": "0.136.3",
           "python_version": "3.10"
         },
         {
@@ -1786,7 +1786,7 @@
           "python_version": "3.10"
         },
         {
-          "version": "0.136.0",
+          "version": "0.136.3",
           "python_version": "3.11"
         },
         {
@@ -1794,7 +1794,7 @@
           "python_version": "3.11"
         },
         {
-          "version": "0.136.0",
+          "version": "0.136.3",
           "python_version": "3.12"
         },
         {
@@ -1802,7 +1802,7 @@
           "python_version": "3.12"
         },
         {
-          "version": "0.136.0",
+          "version": "0.136.3",
           "python_version": "3.13"
         },
         {
@@ -1810,7 +1810,7 @@
           "python_version": "3.13"
         },
         {
-          "version": "0.136.0",
+          "version": "0.136.3",
           "python_version": "3.14"
         }
       ]
@@ -1970,7 +1970,7 @@
           "python_version": "3.10"
         },
         {
-          "version": "25.9.1",
+          "version": "26.5.0",
           "python_version": "3.10"
         },
         {
@@ -1978,19 +1978,19 @@
           "python_version": "3.11"
         },
         {
-          "version": "25.9.1",
+          "version": "26.5.0",
           "python_version": "3.11"
         },
         {
-          "version": "25.9.1",
+          "version": "26.5.0",
           "python_version": "3.12"
         },
         {
-          "version": "25.9.1",
+          "version": "26.5.0",
           "python_version": "3.13"
         },
         {
-          "version": "25.9.1",
+          "version": "26.5.0",
           "python_version": "3.14"
         }
       ]
@@ -3888,27 +3888,27 @@
           "python_version": "3.9"
         },
         {
-          "version": "1.1.1",
+          "version": "1.2.0",
           "python_version": "3.9"
         },
         {
-          "version": "1.1.1",
+          "version": "1.2.0",
           "python_version": "3.10"
         },
         {
-          "version": "1.1.1",
+          "version": "1.2.0",
           "python_version": "3.11"
         },
         {
-          "version": "1.1.1",
+          "version": "1.2.0",
           "python_version": "3.12"
         },
         {
-          "version": "1.1.2",
+          "version": "1.2.0",
           "python_version": "3.13"
         },
         {
-          "version": "1.1.2",
+          "version": "1.2.0",
           "python_version": "3.14"
         }
       ]

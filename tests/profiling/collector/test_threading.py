@@ -33,7 +33,7 @@ from tests.profiling.collector.lock_test_common import assert_pep604_type_union_
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
-from tests.profiling.collector.pprof_utils import pprof_pb2
+from tests.profiling.collector.pprof_utils import pprof_pb2  # type: ignore[attr-defined]
 from tests.profiling.collector.test_utils import init_ddup
 
 
@@ -294,6 +294,233 @@ def test_all_threading_collectors_survive_module_reimport(
     finally:
         sys.modules["threading"] = old_threading
         collector_inst.stop()
+
+
+@pytest.mark.subprocess()
+def test_lock_patching_survives_simulated_gevent_monkey_patch():
+    """Test that lock patches are re-applied after gevent-style in-place attribute replacement.
+
+    Exercises the full _ensure_gevent_monkey_hook path by injecting a fake
+    gevent.monkey into sys.modules before starting the collector, so the hook
+    registration in _start_service wraps patch_all/patch_thread automatically.
+    """
+    import sys
+    import threading
+    import types
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
+    fake_monkey = types.ModuleType("gevent.monkey")
+
+    def fake_patch_all():
+        threading.Lock = fake_lock_type
+
+    def fake_patch_thread():
+        threading.Lock = fake_lock_type
+
+    fake_monkey.patch_all = fake_patch_all
+    fake_monkey.patch_thread = fake_patch_thread
+    fake_monkey.is_module_patched = lambda mod: False
+
+    sys.modules["gevent.monkey"] = fake_monkey
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    fake_monkey.patch_all()
+
+    assert isinstance(threading.Lock, LockAllocatorWrapper), (
+        "Lock wrapper should be re-applied after gevent monkey-patching"
+    )
+
+    lock = threading.Lock()
+    assert isinstance(lock, _ProfiledLock), "Locks created after re-patch should be profiled"
+
+    collector.stop()
+
+
+@pytest.mark.subprocess()
+def test_lock_patching_survives_simulated_gevent_monkey_patch_thread():
+    """Test that direct gevent.monkey.patch_thread() calls also trigger re-patching."""
+    import sys
+    import threading
+    import types
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    fake_lock_type = type("FakeLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
+    fake_monkey = types.ModuleType("gevent.monkey")
+
+    def fake_patch_thread():
+        threading.Lock = fake_lock_type
+
+    fake_monkey.patch_all = lambda: None
+    fake_monkey.patch_thread = fake_patch_thread
+    fake_monkey.is_module_patched = lambda mod: False
+
+    sys.modules["gevent.monkey"] = fake_monkey
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    fake_monkey.patch_thread()
+
+    assert isinstance(threading.Lock, LockAllocatorWrapper), (
+        "Lock wrapper should be re-applied after direct patch_thread() call"
+    )
+
+    collector.stop()
+
+
+@pytest.mark.subprocess(err=lambda s: "re-applying lock profiling patches" in s)
+def test_lock_patching_full_sequence_cleanup_reimport_gevent():
+    """Test the full ddtrace-run + gevent worker sequence:
+    1. Profiler patches threading.Lock (gevent hook also registered)
+    2. cleanup_loaded_modules() removes threading from sys.modules
+    3. threading is re-imported (ModuleWatchdog fires, re-patches)
+    4. gevent.monkey.patch_all() overwrites the re-patched wrapper
+    5. Our gevent hook fires, re-patches again
+    """
+    import importlib
+    import sys
+    import threading
+    import types
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    fake_lock_type = type("GeventLockType", (), {"acquire": lambda self: None, "release": lambda self: None})
+    fake_monkey = types.ModuleType("gevent.monkey")
+
+    def fake_patch_all():
+        new_threading = sys.modules.get("threading")
+        if new_threading is not None:
+            new_threading.Lock = fake_lock_type
+
+    fake_monkey.patch_all = fake_patch_all
+    fake_monkey.patch_thread = lambda: None
+    fake_monkey.is_module_patched = lambda mod: False
+
+    sys.modules["gevent.monkey"] = fake_monkey
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    # Step 2: simulate cleanup_loaded_modules()
+    sys.modules.pop("threading")
+
+    # Step 3: re-import triggers ModuleWatchdog hook
+    new_threading = importlib.import_module("threading")
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper), "Re-import should trigger re-patch"
+
+    # Step 4+5: calling patch_all should overwrite then re-patch
+    fake_monkey.patch_all()
+
+    assert isinstance(new_threading.Lock, LockAllocatorWrapper), (
+        "Lock wrapper should survive the full cleanup -> reimport -> gevent monkey-patch sequence"
+    )
+
+    lock = new_threading.Lock()
+    assert isinstance(lock, _ProfiledLock), "Locks should be profiled after the full sequence"
+
+    collector.stop()
+
+
+@pytest.mark.subprocess()
+def test_all_collectors_survive_simulated_gevent_monkey_patch():
+    """Test that all lock collector types (Lock, RLock, Semaphore, etc.) re-patch after
+    simulated gevent monkey-patching.
+    """
+    import sys
+    import threading
+    import types
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+    from ddtrace.profiling.collector.threading import ThreadingConditionCollector
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from ddtrace.profiling.collector.threading import ThreadingRLockCollector
+    from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+
+    collector_pairs = [
+        (ThreadingLockCollector, "Lock"),
+        (ThreadingRLockCollector, "RLock"),
+        (ThreadingSemaphoreCollector, "Semaphore"),
+        (ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
+        (ThreadingConditionCollector, "Condition"),
+    ]
+
+    fake_types = {name: type("Fake" + name, (), {}) for _, name in collector_pairs}
+    fake_monkey = types.ModuleType("gevent.monkey")
+
+    def fake_patch_all():
+        for _, lock_name in collector_pairs:
+            setattr(threading, lock_name, fake_types[lock_name])
+
+    fake_monkey.patch_all = fake_patch_all
+    fake_monkey.patch_thread = lambda: None
+    fake_monkey.is_module_patched = lambda mod: False
+
+    sys.modules["gevent.monkey"] = fake_monkey
+
+    collectors = []
+    for cls, _ in collector_pairs:
+        c = cls()
+        c.start()
+        collectors.append(c)
+
+    for (_, lock_name), c in zip(collector_pairs, collectors):
+        assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper)
+
+    fake_monkey.patch_all()
+
+    for (_, lock_name), c in zip(collector_pairs, collectors):
+        assert isinstance(getattr(threading, lock_name), LockAllocatorWrapper), (
+            f"{type(c).__name__} should re-patch {lock_name} after gevent monkey-patching"
+        )
+
+    for c in collectors:
+        c.stop()
+
+
+@pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
+@pytest.mark.subprocess()
+def test_lock_patching_survives_real_gevent_monkey_patch():
+    """Integration test: verify lock profiler survives real gevent.monkey.patch_all().
+
+    Imports gevent.monkey before starting the collector so _ensure_gevent_monkey_hook
+    finds it in sys.modules and wraps patch_all/patch_thread automatically.
+    """
+    import threading
+
+    from gevent import monkey  # noqa: F811
+
+    from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+
+    collector = ThreadingLockCollector()
+    collector.start()
+    assert isinstance(threading.Lock, LockAllocatorWrapper)
+
+    monkey.patch_all()
+
+    assert isinstance(threading.Lock, LockAllocatorWrapper), (
+        "Lock wrapper should survive real gevent.monkey.patch_all()"
+    )
+
+    lock = threading.Lock()
+    assert isinstance(lock, _ProfiledLock), "Locks should still be profiled after real gevent monkey-patching"
+
+    collector.stop()
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
@@ -611,6 +838,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
     """
     import threading
     import time
+    from typing import cast
 
     from ddtrace.profiling.collector._lock import _ProfiledLock
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -623,8 +851,7 @@ def test_flush_sample_handles_shallow_stack() -> None:
         lock = threading.Lock()
 
     # Access the wrapped _ProfiledLock
-    profiled_lock = lock
-    assert isinstance(profiled_lock, _ProfiledLock)
+    profiled_lock = cast(_ProfiledLock, lock)
 
     # Simulate acquired state
     profiled_lock.acquired_time = time.monotonic_ns()
@@ -926,7 +1153,7 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         assert isinstance(obj, wrapped_type)
         unpickled = pickle.loads(pickle.dumps(obj))
         assert not isinstance(unpickled, wrapped_type)
-        return unpickled
+        return unpickled  # type: ignore[no-any-return]
 
     def test_lock_class_pickle(self) -> None:
         """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
@@ -1940,7 +2167,7 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
             # This should NOT raise TypeError
-            class CustomLock(self.lock_class):  # type: ignore[name-defined]
+            class CustomLock(self.lock_class):  # type: ignore[unreachable, name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
@@ -2237,7 +2464,7 @@ def test_exclude_modules_skips_wrapping() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native, got _ProfiledLock"
+        assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="some.nonexistent.module"))
@@ -2253,7 +2480,7 @@ def test_exclude_modules_wraps_non_excluded() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock), f"Lock should be profiled, got {type(lock)}"
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess()
@@ -2272,7 +2499,7 @@ def test_exclude_modules_empty_is_backward_compatible() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock)
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main"))
@@ -2288,7 +2515,7 @@ def test_exclude_modules_prefix_requires_dot_boundary() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert isinstance(lock, _ProfiledLock), "Prefix without dot boundary should not exclude"
+        assert isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES="__main__,some.other.module"))
@@ -2304,4 +2531,4 @@ def test_exclude_modules_multiple() -> None:
 
     with ThreadingLockCollector(capture_pct=100):
         lock = threading.Lock()
-        assert not isinstance(lock, _ProfiledLock), "Lock from excluded module should be native"
+        assert not isinstance(lock, _ProfiledLock)  # type: ignore[unreachable]

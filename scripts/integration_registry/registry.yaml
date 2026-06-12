@@ -4,10 +4,14 @@ integrations:
   is_tested: true
   dependency_names:
   - aiobotocore
+  - botocore
   tested_versions_by_dependency:
     aiobotocore:
       min: 1.0.7
       max: 3.1.0
+    botocore:
+      min: 1.15.32
+      max: 1.42.19
 
 - integration_name: aiohttp
   is_external_package: true
@@ -17,7 +21,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.5
+      max: 3.14.0
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -220,8 +224,8 @@ integrations:
       min: 1.34.49
       max: 1.38.26
     botocore:
-      min: 1.34.49
-      max: 1.38.26
+      min: 1.15.32
+      max: 1.42.19
 
 - integration_name: bottle
   is_external_package: true
@@ -305,7 +309,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.13
+      max: 5.2.15
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -391,7 +395,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.136.0
+      max: 0.136.3
 
 - integration_name: flask
   is_external_package: true
@@ -429,7 +433,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 21.1.2
-      max: 25.9.1
+      max: 26.5.0
 
 - integration_name: google_adk
   is_external_package: true
@@ -785,7 +789,7 @@ integrations:
   tested_versions_by_dependency:
     pymysql:
       min: 0.10.1
-      max: 1.1.2
+      max: 1.2.0
 
 - integration_name: pynamodb
   is_external_package: true

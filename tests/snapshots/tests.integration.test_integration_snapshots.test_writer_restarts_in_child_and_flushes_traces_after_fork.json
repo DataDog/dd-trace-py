@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "parent-span",
+    "service": "fork-test",
+    "resource": "parent-span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a27e35500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuq52vj3g,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
+      "language": "python",
+      "runtime-id": "e9137f90938e47d99d45971937f4020d"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 91153.0
+    },
+    "duration": 2218000,
+    "start": 1780998997002290000
+  }],
+[
+  {
+    "name": "child-span",
+    "service": "fork-test",
+    "resource": "child-span",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a27e35500000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpuq52vj3g,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
+      "language": "python",
+      "runtime-id": "53202310d1fd4f50a4eaa411ae87fa56"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 91156.0
+    },
+    "duration": 95000,
+    "start": 1780998997098421000
+  }]]

@@ -108,7 +108,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
 
         self._flush_full = False
 
-    def info_check(self, agent_info: Optional[dict]) -> bool:
+    def info_check(self, agent_info: Optional[dict[str, Any]]) -> bool:
         if agent_info is None:
             # Agent is unreachable
             return False
@@ -208,7 +208,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             except Exception:
                 log.debug("Cannot upload payload", exc_info=True)
 
-    def online(self) -> None:
+    def _flush(self) -> None:
         """Upload the buffer content to the agent."""
         if self._flush_full:
             # We received the signal to flush a full buffer
@@ -221,6 +221,9 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             if track.queue.count:
                 self._flush_track(track)
 
+    def online(self) -> None:
+        self._flush()
+
         if not self._tracks[SignalTrack.SNAPSHOT].enabled or not self._tracks[SignalTrack.LOGS].enabled:
             # If the tracks are not enabled, we raise an exception to
             # transition back to the agent check state in case we detect an
@@ -228,7 +231,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             msg = "Debugger tracks not enabled"
             raise ValueError(msg)
 
-    on_shutdown = online
+    def on_shutdown(self) -> None:  # type: ignore[override]
+        self._flush()
 
     @classmethod
     def get_collector(cls) -> Optional[SignalCollector]:

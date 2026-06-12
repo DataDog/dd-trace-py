@@ -137,6 +137,10 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
         return nullptr;
     }
 
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
+
     // 1) Direct text objects
     if (is_text(obj)) {
         auto map = get_tainted_object_map_from_pyobject(obj);
@@ -317,6 +321,9 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
 {
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
     const auto cap = request_context_slots.size();
     if (ctx_id >= cap) {
         return nullptr;
@@ -351,12 +358,28 @@ pyexport_taint_engine_context(py::module& m)
         return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr;
     });
 
-    m.def("is_in_taint_map", [](py::object tainted_obj) {
-        if (!taint_engine_context)
-            return false;
-        auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
-        return map_ptr != nullptr;
-    });
+    m.def(
+      "is_in_taint_map",
+      [](py::object tainted_obj, std::optional<size_t> context_id) {
+          if (!taint_engine_context)
+              return false;
+          if (TaintEngineContext::is_shutting_down())
+              return false;
+          if (context_id.has_value()) {
+              // Request-scoped check: only consult the calling request's slot.
+              const auto map_ptr = taint_engine_context->get_tainted_object_map_by_ctx_id(*context_id);
+              if (!map_ptr || map_ptr->empty()) {
+                  return false;
+              }
+              const auto& to_initial = get_tainted_object(tainted_obj.ptr(), map_ptr);
+              return to_initial && !to_initial->get_ranges().empty();
+          }
+          // No active request: scan every slot to locate the owning map.
+          const auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
+          return map_ptr != nullptr;
+      },
+      "tainted_obj"_a,
+      "context_id"_a = std::nullopt);
 
     m.def("debug_context_array_size", [] {
         if (!taint_engine_context)

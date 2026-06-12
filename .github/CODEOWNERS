@@ -13,7 +13,7 @@ tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-py
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/errortracking/                @DataDog/apm-core-python
-tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
+tests/contrib/grpc                  @DataDog/apm-idm-python
 tests/integration/                  @DataDog/apm-core-python
 
 # Files which can be approved by anyone
@@ -134,6 +134,7 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 # Config and benchmarks
 .cursor/rules/appsec.mdc            @DataDog/asm-python
 .cursor/rules/iast.mdc              @DataDog/asm-python
+.cursor/rules/ai-guard.mdc          @DataDog/asm-python
 .gitlab/templates/appsec            @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
@@ -149,6 +150,7 @@ ddtrace/contrib/internal/webbrowser          @DataDog/asm-python
 ddtrace/internal/_exceptions.py     @DataDog/asm-python
 ddtrace/internal/appsec/            @DataDog/asm-python
 ddtrace/internal/iast/              @DataDog/asm-python
+ddtrace/internal/sca/               @DataDog/asm-python
 ddtrace/internal/settings/asm.py             @DataDog/asm-python
 # tests files
 tests/appsec/                       @DataDog/asm-python
@@ -270,8 +272,10 @@ ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities-python
-scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python
+scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 supported-configurations.json                     @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+.github/workflows/config-registry.yml             @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
+.gitlab/config-registry.yml                       @DataDog/apm-sdk-capabilities-python @DataDog/apm-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
 tests/internal/test_env.py                         @DataDog/apm-sdk-capabilities-python
@@ -321,12 +325,6 @@ tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-
 tests/**/*appsec*                       @DataDog/asm-python
 tests/**/*iast*                         @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
-
-# AI Guard (order matters — overrides ASM)
-ddtrace/appsec/ai_guard/                  @DataDog/k9-ai-guard
-ddtrace/appsec/_ai_guard/                 @DataDog/k9-ai-guard
-tests/appsec/ai_guard/                    @DataDog/k9-ai-guard
-tests/appsec/integrations/langchain_tests @DataDog/k9-ai-guard
 
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
