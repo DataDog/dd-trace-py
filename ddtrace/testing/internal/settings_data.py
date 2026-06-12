@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import field
 import logging
-import os
 import typing as t
+
+from ddtrace.internal.settings import env
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class TestManagementSettings:
 
     @classmethod
     def from_attributes(cls, test_management_attributes: dict[str, t.Any]) -> TestManagementSettings:
-        attempt_to_fix_retries_env = os.environ.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+        attempt_to_fix_retries_env = env.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
         if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
             attempt_to_fix_retries = int(attempt_to_fix_retries_env)
             log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
