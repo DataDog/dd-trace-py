@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 import typing as t
 
+from ddtrace.internal.settings import env
+from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestProperties
@@ -21,6 +24,7 @@ from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.utils import asbool
 
 
 log = logging.getLogger(__name__)
@@ -163,10 +167,35 @@ class CachedFileDataProvider:
         return {}
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
-        # Hard no-op in manifest mode: skippable tests are not applied in hermetic
-        # Bazel runs. This matches the Go implementation which returns an empty set
-        # without reading the cache file.
-        return set(), None
+        # WARNING: this guard assumes Bazel ALWAYS sets DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
+        # together with DD_TEST_OPTIMIZATION_MANIFEST_FILE. If a Bazel workflow ever sets only
+        # the manifest file without the payload-files flag, cached skippable decisions would be
+        # applied inside the Bazel sandbox, potentially skipping tests the build system expects
+        # to run. Revisit this guard if that invariant changes.
+        #
+        # In Bazel payload-files mode the build system handles test selection;
+        # applying cached skippable decisions here would skip tests Bazel expects to run.
+        if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
+            return set(), None
+        cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
+        if cached is None:
+            return set(), None
+        try:
+            skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
+            for item in cached["data"]:
+                if item["type"] not in ("test", "suite"):
+                    continue
+                module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
+                suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
+                if item["type"] == "suite" and self._itr_skipping_level == ITRSkippingLevel.SUITE:
+                    skippable_items.add(suite_ref)
+                elif item["type"] == "test" and self._itr_skipping_level == ITRSkippingLevel.TEST:
+                    skippable_items.add(TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME)))
+            correlation_id = cached.get("meta", {}).get("correlation_id")
+        except Exception as e:
+            log.warning("Error parsing cached skippable tests file: %s", e)
+            return set(), None
+        return skippable_items, correlation_id
 
     # --- no-ops for methods unreachable in manifest mode ---
 
