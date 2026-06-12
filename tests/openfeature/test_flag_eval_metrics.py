@@ -360,9 +360,11 @@ class TestProviderHooksIntegration:
         assert provider._flag_eval_metrics is not None
 
     def test_get_provider_hooks_returns_flag_eval_hook(self, provider):
-        """get_provider_hooks should return the flag eval hook."""
+        """get_provider_hooks should return the OTel flag eval hook (and optionally the EVP hook)."""
         hooks = provider.get_provider_hooks()
-        assert len(hooks) == 1
+        # The OTel FlagEvalHook is always first when the provider is enabled.
+        # The EVP FlagEvaluationHook is also registered by default (DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true).
+        assert len(hooks) >= 1
         assert hooks[0] is provider._flag_eval_hook
 
     def test_provider_disabled_has_no_hooks(self):

@@ -8,7 +8,9 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from importlib.metadata import version
+import os
 import threading
+import time
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -26,6 +28,11 @@ from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
+from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+from ddtrace.internal.openfeature._flagevaluation_writer import (
+    EVAL_TIMESTAMP_METADATA_KEY,
+    FlagEvaluationWriter,
+)
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature.writer import get_exposure_writer
@@ -129,6 +136,18 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics = FlagEvalMetrics()
             self._flag_eval_hook = FlagEvalHook(self._flag_eval_metrics)
 
+        # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
+        # (default on). Gates ONLY the EVP path; the OTel path above is always registered
+        # when the provider is enabled (PRES-01 non-regression).
+        # AIDEV-NOTE: killswitch env var checked at init time so that tests can override with
+        # os.environ and create a fresh DataDogProvider to verify gating behavior.
+        self._flagevaluation_writer: typing.Optional[FlagEvaluationWriter] = None
+        self._flagevaluation_hook: typing.Optional[FlagEvaluationHook] = None
+        evp_counts_enabled = os.environ.get("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true").lower()
+        if self._enabled and evp_counts_enabled != "false":
+            self._flagevaluation_writer = FlagEvaluationWriter()
+            self._flagevaluation_hook = FlagEvaluationHook(self._flagevaluation_writer)
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -139,10 +158,19 @@ class DataDogProvider(AbstractProvider):
 
         The flag evaluation hook is registered here to track metrics for
         every flag evaluation via the finally_after hook stage.
+
+        Hook ordering:
+        1. OTel FlagEvalHook (_flageval_metrics.py) — always registered when provider is
+           enabled; emits feature_flag.evaluations OTel counter (PRES-01 preservation).
+        2. FlagEvaluationHook (_flagevaluation_hook.py) — registered only when
+           DD_FLAGGING_EVALUATION_COUNTS_ENABLED != "false"; enqueues cheap snapshots
+           to FlagEvaluationWriter for EVP flagevaluation emission.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_hook is not None:
             hooks.append(self._flag_eval_hook)
+        if self._flagevaluation_hook is not None:
+            hooks.append(self._flagevaluation_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -172,6 +200,14 @@ class DataDogProvider(AbstractProvider):
             start_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer is already running", exc_info=True)
+
+        # Start the EVP flagevaluation writer (if enabled via killswitch).
+        if self._flagevaluation_writer is not None:
+            try:
+                self._flagevaluation_writer.start()
+                logger.debug("FlagEvaluationWriter started")
+            except ServiceStatusError:
+                logger.debug("FlagEvaluationWriter is already running", exc_info=True)
 
         # Fast path: config already available (RC delivered before set_provider)
         config = _get_ffe_config()
@@ -210,6 +246,16 @@ class DataDogProvider(AbstractProvider):
             stop_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer has already stopped", exc_info=True)
+
+        # Stop the EVP flagevaluation writer (if it was started).
+        if self._flagevaluation_writer is not None:
+            try:
+                self._flagevaluation_writer.stop()
+                logger.debug("FlagEvaluationWriter stopped")
+            except ServiceStatusError:
+                logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
+            self._flagevaluation_writer = None
+            self._flagevaluation_hook = None
 
         # Shutdown flag evaluation metrics
         if self._flag_eval_metrics is not None:
@@ -354,10 +400,18 @@ class DataDogProvider(AbstractProvider):
                     evaluation_context=evaluation_context,
                 )
 
-            # Build flag_metadata with allocation_key if present
+            # Build flag_metadata with allocation_key and eval timestamp.
+            # The timestamp (milliseconds since epoch) is stamped here — at the provider
+            # resolution boundary — so the finally_after hook receives the most-accurate
+            # eval-time rather than the (later) hook-fire time. The hook falls back to
+            # hook-fire time when the metadata key is absent.
+            # AIDEV-NOTE: This mirrors the Go reference design (metadataEvalTimeKey in
+            # flagevaluation.go). Python's time.time() * 1000 is sufficient; the native
+            # PyO3 bridge does not surface a mutable metadata map, so we stamp it here.
             flag_metadata: dict[str, typing.Any] = {}
             if details.allocation_key:
                 flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
+            flag_metadata[EVAL_TIMESTAMP_METADATA_KEY] = int(time.time() * 1000)
 
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.
