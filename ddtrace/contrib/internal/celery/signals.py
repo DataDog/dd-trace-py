@@ -54,8 +54,7 @@ def trace_prerun(*args, **kwargs):
     trace_utils.activate_distributed_headers(tracer, int_config=config.celery, request_headers=request_headers)
 
     # propagate the `Span` in the current task Context
-    # fall back to worker_service_name when schematize returns None (v1 schema, no global service configured)
-    service = schematize_service_name(config.celery["worker_service_name"]) or config.celery["worker_service_name"]
+    service = schematize_service_name(config.celery["worker_service_name"])
     span = tracer.trace(c.WORKER_ROOT_SPAN, resource=task.name, span_type=SpanTypes.WORKER)
     set_service_and_source(span, service, config.celery, default_service_key="_default_service_worker")
 
@@ -131,7 +130,7 @@ def trace_before_publish(*args, **kwargs):
 
     # apply some tags here because most of the data is not available
     # in the task_after_publish signal
-    service = schematize_service_name(config.celery["producer_service_name"]) or config.celery["producer_service_name"]
+    service = schematize_service_name(config.celery["producer_service_name"])
     span = tracer.trace(c.PRODUCER_ROOT_SPAN, resource=task_name)
     set_service_and_source(span, service, config.celery, default_service_key="_default_service_producer")
 
