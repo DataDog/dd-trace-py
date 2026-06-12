@@ -40,6 +40,7 @@ from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
+from ddtrace.internal.settings._config import validate_llmobs_sample_rate
 from ddtrace.internal.settings.integration import _integration_env_var_id
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -877,14 +878,9 @@ class LLMObs(Service):
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
         if sample_rate is not None:
-            if not 0.0 <= sample_rate <= 1.0:
-                log.warning(
-                    "LLMObs.enable() called with sample_rate=%r, which is outside the valid range [0.0, 1.0]. "
-                    "Ignoring and falling back to DD_LLMOBS_SAMPLE_RATE (default 1.0).",
-                    sample_rate,
-                )
-            else:
-                config._llmobs_sample_rate = sample_rate
+            validated_sample_rate = validate_llmobs_sample_rate(sample_rate)
+            if validated_sample_rate is not None:
+                config._llmobs_sample_rate = validated_sample_rate
 
         error = None
         start_ns = time.time_ns()

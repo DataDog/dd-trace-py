@@ -1184,6 +1184,28 @@ def test_enable_invalid_sample_rate_falls_back(llmobs, llmobs_enable_opts):
     assert llmobs._instance._sampler.sample_rate == 1.0
 
 
+@pytest.mark.parametrize(
+    "value,expected",
+    [(0.0, 0.0), (0.5, 0.5), (1.0, 1.0), ("0.25", 0.25), (1.5, None), (-0.1, None), ("abc", None)],
+)
+def test_validate_llmobs_sample_rate(value, expected):
+    """validate_llmobs_sample_rate returns a float in [0.0, 1.0], or None for invalid input."""
+    from ddtrace.internal.settings._config import validate_llmobs_sample_rate
+
+    assert validate_llmobs_sample_rate(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("0.0", 0.0), ("0.5", 0.5), ("1.0", 1.0), ("1.5", 1.0), ("-0.1", 1.0), ("abc", 1.0)],
+)
+def test_llmobs_sample_rate_env_modifier(value, expected):
+    """DD_LLMOBS_SAMPLE_RATE invalid values fall back to the 1.0 default; valid values pass through."""
+    from ddtrace.internal.settings._config import _llmobs_sample_rate_env_modifier
+
+    assert _llmobs_sample_rate_env_modifier(value) == expected
+
+
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
