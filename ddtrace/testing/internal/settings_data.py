@@ -47,9 +47,12 @@ class TestManagementSettings:
     @classmethod
     def from_attributes(cls, test_management_attributes: dict[str, t.Any]) -> TestManagementSettings:
         attempt_to_fix_retries_env = env.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
-        if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
-            attempt_to_fix_retries = int(attempt_to_fix_retries_env)
-            log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
+        if attempt_to_fix_retries_env:
+            if not attempt_to_fix_retries_env.isdigit():
+                log.warning("Invalid number of Attempt to Fix retries set: %s", attempt_to_fix_retries_env)
+            else:
+                attempt_to_fix_retries = int(attempt_to_fix_retries_env)
+                log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
         else:
             attempt_to_fix_retries = test_management_attributes["attempt_to_fix_retries"]
             log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
