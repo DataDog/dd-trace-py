@@ -2,7 +2,6 @@ from time import monotonic
 from time import time_ns
 
 import aiokafka
-from aiokafka.protocol.metadata import MetadataRequest_v5
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -29,8 +28,15 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
+
+
+if parse_version(aiokafka.__version__) < (0, 13, 0):
+    from aiokafka.protocol.metadata import MetadataRequest_v5 as _MetadataRequest
+else:
+    from aiokafka.protocol.metadata import MetadataRequest as _MetadataRequest
 
 
 log = get_logger(__name__)
@@ -98,7 +104,7 @@ async def _get_cluster_id(client, topic):
         if node_id is None:
             client._dd_cluster_id_failure_time = monotonic()
             return ""
-        request = MetadataRequest_v5([topic] if topic else [], False)
+        request = _MetadataRequest(topics=[topic] if topic else [], allow_auto_topic_creation=False)
         response = await client.send(node_id, request)
         cluster_id = getattr(response, "cluster_id", "") or ""
         if cluster_id:
