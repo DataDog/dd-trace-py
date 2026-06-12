@@ -47,30 +47,6 @@ from .integration import IntegrationConfig
 
 log = get_logger(__name__)
 
-
-def validate_llmobs_sample_rate(value: Any) -> Optional[float]:
-    """Coerce ``value`` to a float in the inclusive range [0.0, 1.0].
-
-    Returns the validated rate, or ``None`` (after logging a warning) if the value cannot be
-    parsed as a number or falls outside the valid range. Callers decide what to fall back to.
-    """
-    try:
-        rate = float(value)
-    except (TypeError, ValueError):
-        log.warning("LLMObs sample rate %r is not a valid number; ignoring.", value)
-        return None
-    if not 0.0 <= rate <= 1.0:
-        log.warning("LLMObs sample rate %r is outside the valid range [0.0, 1.0]; ignoring.", value)
-        return None
-    return rate
-
-
-def _llmobs_sample_rate_env_modifier(value: Any) -> float:
-    """Modifier for DD_LLMOBS_SAMPLE_RATE: invalid values fall back to the 1.0 default."""
-    rate = validate_llmobs_sample_rate(value)
-    return 1.0 if rate is None else rate
-
-
 ENDPOINT_FETCHED_CONFIG = fetch_config_from_endpoint()
 DEFAULT_SERVICE_KEYS = frozenset(["_default_service", "_default_service_worker", "_default_service_producer"])
 
@@ -708,7 +684,7 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, _llmobs_sample_rate_env_modifier)
+        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
