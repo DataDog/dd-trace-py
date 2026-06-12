@@ -599,7 +599,7 @@ class Tracer(object):
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -635,7 +635,7 @@ class Tracer(object):
         core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)

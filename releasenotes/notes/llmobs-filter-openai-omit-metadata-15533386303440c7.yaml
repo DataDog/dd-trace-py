@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where the OpenAI integration recorded unset request parameters (OpenAI SDK's ``Omit``/``NotGiven`` sentinel values) as noise in LLM span metadata.

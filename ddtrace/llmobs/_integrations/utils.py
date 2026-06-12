@@ -40,6 +40,17 @@ from ddtrace.llmobs.types import ToolResult
 
 logger = get_logger(__name__)
 
+# The openai SDK uses `Omit`/`NotGiven` sentinels as defaults for unset request parameters.
+# Callers (e.g. PydanticAI) may forward these sentinels explicitly, so filter them out of span
+# metadata rather than serializing them to noisy repr strings. Identify them by class name instead
+# of importing openai: this shared utils module is provider-agnostic, so it must not depend on a
+# specific vendor SDK (which also avoids a circular import while ddtrace is patching openai).
+_OPENAI_SENTINEL_TYPE_NAMES = ("Omit", "NotGiven")
+
+
+def _is_openai_sentinel(value: Any) -> bool:
+    return type(value).__name__ in _OPENAI_SENTINEL_TYPE_NAMES
+
 
 COMMON_METADATA_KEYS = (
     "stream",
@@ -575,7 +586,7 @@ def get_metadata_from_kwargs(
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
         keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
-    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include}
+    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include and not _is_openai_sentinel(v)}
     return metadata
 
 
@@ -825,7 +836,13 @@ def openai_get_metadata_from_response(
     metadata = {}
 
     if kwargs:
-        metadata.update({k: v for k, v in kwargs.items() if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS})
+        metadata.update(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS and not _is_openai_sentinel(v)
+            }
+        )
 
     if not response:
         return metadata
