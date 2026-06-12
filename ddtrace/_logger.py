@@ -134,7 +134,9 @@ def _configure_ddtrace_native_logger():
     try:
         from ddtrace.internal.native._native import logger
 
-        backend = get_config("_DD_NATIVE_LOGGING_BACKEND")
+        trace_debug = get_config("DD_TRACE_DEBUG", False, asbool)
+        default_backend = "stderr" if trace_debug else None
+        backend = get_config("_DD_NATIVE_LOGGING_BACKEND", default=default_backend)
         if not backend:
             return
         kwargs = {"output": backend}
@@ -146,6 +148,7 @@ def _configure_ddtrace_native_logger():
             kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
 
         logger.configure(**kwargs)
-        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "warning", report_telemetry=True))
+        default_log_level = "debug" if trace_debug else "warning"
+        logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level, report_telemetry=True))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)
