@@ -4,6 +4,8 @@ Bridges the dd-trace-py task/evaluators/optimization_task interface with GEPA's
 evolutionary optimization loop via the ``GEPAAdapter`` protocol.
 """
 
+from __future__ import annotations
+
 from typing import Any
 from typing import Callable
 from typing import Mapping
@@ -80,6 +82,7 @@ class LLMObsGEPAAdapter:
         for record in batch:
             input_data = record.get("input_data", record)
             expected_output = record.get("expected_output")
+            metadata = record.get("metadata", {})
 
             # Run the user's task
             try:
@@ -90,9 +93,9 @@ class LLMObsGEPAAdapter:
 
             outputs.append(output)
 
-            # Run the first evaluator to get a score
+            # Score = average across all evaluators
             evaluations: dict = {}
-            score = 0.0
+            numeric_scores: list[float] = []
             for evaluator in self._evaluators:
                 try:
                     if isinstance(evaluator, BaseEvaluator):
@@ -102,7 +105,7 @@ class LLMObsGEPAAdapter:
                             input_data=input_data,
                             output_data=output,
                             expected_output=expected_output,
-                            metadata={},
+                            metadata=metadata,
                             span_id="",
                             trace_id="",
                         )
@@ -115,11 +118,11 @@ class LLMObsGEPAAdapter:
                         )
                     eval_name = getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "evaluator")
                     evaluations[eval_name] = result
-                    # Use the first evaluator's result as the score
-                    if score == 0.0:
-                        score = self._to_numeric_score(result)
+                    numeric_scores.append(self._to_numeric_score(result))
                 except Exception:
                     log.debug("Evaluator failed for record", exc_info=True)
+
+            score = sum(numeric_scores) / len(numeric_scores) if numeric_scores else 0.0
 
             scores.append(score)
 

@@ -58,7 +58,7 @@ opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
 gepa = [
-    "gepa>=0.0.26",
+    "gepa>=0.0.26; python_version >= '3.10'",
 ]
 
 [project.scripts]

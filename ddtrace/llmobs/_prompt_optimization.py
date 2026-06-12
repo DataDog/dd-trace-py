@@ -3,7 +3,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
 import inspect
-import os
 import random
 from typing import TYPE_CHECKING
 from typing import Any
@@ -151,7 +150,7 @@ _DATASET_SPLIT_SEED = 42  # Fixed seed for reproducible dataset shuffling
 def load_optimization_system_prompt(config: ConfigType) -> str:
     """Load and prepare the optimization system prompt.
 
-    Loads the template from _prompt_optimization.md and replaces placeholders.
+    Loads the template from ``_prompt_optimization_prompt.py`` and replaces placeholders.
     Adds evaluation model information and random tip at the end.
 
     :param config: Configuration dictionary with optional keys:
@@ -159,14 +158,9 @@ def load_optimization_system_prompt(config: ConfigType) -> str:
         - ``model_name``: Model name to add as context for the optimizer.
     :return: System prompt string with output format injected.
     """
+    from ddtrace.llmobs._prompt_optimization_prompt import OPTIMIZATION_SYSTEM_PROMPT_TEMPLATE
 
-    # Get the directory of this file
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    template_path = os.path.join(current_dir, "_prompt_optimization.md")
-
-    # Load template
-    with open(template_path, "r", encoding="utf-8") as f:
-        template = f.read()
+    template = OPTIMIZATION_SYSTEM_PROMPT_TEMPLATE
 
     output_format = config.get("evaluation_output_format")
     structure_placeholder = ""
@@ -1065,7 +1059,7 @@ class PromptOptimization:
         )
         log.info("GEPA final score: %.3f", final_score)
 
-        best_iteration = 1 if final_score > baseline_score else 0
+        best_iteration = 1 if (final_score or 0.0) > (baseline_score or 0.0) else 0
 
         return OptimizationResult(
             name=self.name,
@@ -1129,7 +1123,7 @@ class PromptOptimization:
         )
         log.info("GEPA final score (valid): %.3f", final_score)
 
-        best_iteration = 1 if final_score > baseline_score else 0
+        best_iteration = 1 if (final_score or 0.0) > (baseline_score or 0.0) else 0
         best_prompt = all_iterations[best_iteration]["prompt"]
 
         # Test phase with best prompt
