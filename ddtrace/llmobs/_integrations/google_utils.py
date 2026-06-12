@@ -140,7 +140,13 @@ def extract_generation_metrics_google_genai(response) -> dict[str, Any]:
         output_tokens = None
 
     cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
-    total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
+    total_token_count = _get_attr(usage_metadata, "total_token_count", None)
+    if total_token_count is not None:
+        total_tokens = total_token_count
+    elif input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+    else:
+        total_tokens = None
 
     if input_tokens is not None:
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens

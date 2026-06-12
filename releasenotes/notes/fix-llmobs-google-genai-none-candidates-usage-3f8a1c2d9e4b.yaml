@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fix ``Error extracting LLMObs fields`` crash in the google_genai
+    integration when Google GenAI returns partial response objects where ``candidates``
+    or usage metadata token fields are ``None``. This occurred during streaming chunks
+    and safety-filtered responses. Adds None guards before accessing ``candidates`` and
+    token count fields, returning sensible defaults when absent.
