@@ -156,7 +156,7 @@ class SessionManager:
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
 
         if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
-            tm_properties = self.api_client.get_test_management_properties()
+            tm_properties = self.api_client.get_all_flaky_test_management_properties()
             self.atf_all_flaky_tests: t.Optional[set[TestRef]] = set(tm_properties.keys())
             self.test_properties: dict[TestRef, TestProperties] = {
                 ref: TestProperties(attempt_to_fix=True) for ref in tm_properties

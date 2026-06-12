@@ -290,6 +290,85 @@ class APIClient:
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
 
+    def get_all_flaky_test_management_properties(self) -> dict[TestRef, TestProperties]:
+        """Fetch test management properties for all non-fixed flaky tests, without commit message context.
+
+        Used by DD_TEST_MANAGEMENT_ATF_ALL_FLAKY mode. Unlike get_test_management_properties(), this
+        method omits commit_message so the backend returns all managed tests regardless of ATF keys in
+        the commit, and handles pagination for large repositories.
+        """
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="test_management_tests.request",
+            duration="test_management_tests.request_ms",
+            response_bytes="test_management_tests.response_bytes",
+            error="test_management_tests.request_errors",
+        )
+
+        try:
+            repo_url = self.env_tags[GitTag.REPOSITORY_URL]
+        except KeyError as e:
+            log.warning(
+                "Git info not available, cannot fetch all flaky test management properties (missing key: %s)", e
+            )
+            telemetry.record_error(ErrorType.UNKNOWN)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+            return {}
+
+        test_properties: dict[TestRef, TestProperties] = {}
+        page_state: t.Optional[str] = None
+
+        while True:
+            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+            request_data: dict[str, t.Any] = {
+                "data": {
+                    "id": str(uuid.uuid4()),
+                    "type": "ci_app_libraries_tests_request",
+                    "attributes": {
+                        "repository_url": repo_url,
+                        "page_info": page_info,
+                    },
+                }
+            }
+
+            try:
+                result = self.connector.post_json(
+                    "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
+                )
+                result.on_error_raise_exception()
+            except Exception as e:
+                log.warning("Error getting all flaky Test Management properties from API: %s", e)
+                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+                return {}
+
+            try:
+                attributes = result.parsed_response["data"]["attributes"]
+                modules = attributes["modules"]
+                for module_name, module_data in modules.items():
+                    module_ref = ModuleRef(module_name)
+                    for suite_name, suite_data in module_data["suites"].items():
+                        suite_ref = SuiteRef(module_ref, suite_name)
+                        for test_name, test_data in suite_data["tests"].items():
+                            test_ref = TestRef(suite_ref, test_name)
+                            properties = test_data.get("properties", {})
+                            test_properties[test_ref] = TestProperties(
+                                quarantined=properties.get("quarantined", False),
+                                disabled=properties.get("disabled", False),
+                                attempt_to_fix=properties.get("attempt_to_fix", False),
+                            )
+
+                page_info_response = attributes.get("page_info", {})
+                page_state = page_info_response.get("cursor") if page_info_response.get("has_next") else None
+                if not page_state:
+                    break
+            except Exception as e:
+                log.warning("Failed to parse all flaky Test Management properties from API: %s", e)
+                telemetry.record_error(ErrorType.BAD_JSON)
+                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+                return {}
+
+        self.telemetry_api.record_test_management_tests_count(len(test_properties))
+        return test_properties
+
     def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.search_commits",
