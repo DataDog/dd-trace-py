@@ -322,8 +322,14 @@ class APIClient:
             log.warning("Git repository URL not available, cannot fetch all flaky tests")
             return set()
 
+        app_key = env.get("DD_APP_KEY")
+        if not app_key:
+            log.warning("DD_APP_KEY is not set; cannot fetch all flaky tests (endpoint requires an application key)")
+            return set()
+
         repo_id = _normalize_repo_id(repo_url)
         query = f'-flaky_test_state:fixed @git.repository.id_v2:"{repo_id}"'
+        extra_headers = {"dd-application-key": app_key}
 
         flaky_tests: set[TestRef] = set()
         cursor: t.Optional[str] = None
@@ -345,7 +351,9 @@ class APIClient:
             }
 
             try:
-                result = self.connector.post_json("/api/v2/test/flaky-test-management/tests", request_data)
+                result = self.connector.post_json(
+                    "/api/v2/test/flaky-test-management/tests", request_data, headers=extra_headers
+                )
                 result.on_error_raise_exception()
             except Exception as e:
                 log.warning("Error fetching all flaky tests from API: %s", e)
