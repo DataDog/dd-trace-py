@@ -317,7 +317,7 @@ class APIClient:
         test_properties: dict[TestRef, TestProperties] = {}
         page_state: t.Optional[str] = None
 
-        while True:
+        for page_number in range(_get_known_tests_max_pages()):
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
             request_data: dict[str, t.Any] = {
                 "data": {
@@ -351,15 +351,30 @@ class APIClient:
                             test_ref = TestRef(suite_ref, test_name)
                             test_properties[test_ref] = TestProperties(attempt_to_fix=True)
 
-                page_info_response = attributes.get("page_info", {})
-                page_state = page_info_response.get("cursor") if page_info_response.get("has_next") else None
-                if not page_state:
+                page_info_response = attributes.get("page_info")
+                if not page_info_response or not page_info_response.get("has_next"):
                     break
+                if not isinstance(page_info_response, dict):
+                    log.warning("All flaky tests response page_info is not a dict")
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+                    return {}
+                page_state = page_info_response.get("cursor")
+                if not page_state:
+                    log.warning("All flaky tests response missing pagination cursor on page %d", page_number + 1)
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+                    return {}
             except Exception as e:
                 log.warning("Failed to parse all flaky Test Management properties from API: %s", e)
                 telemetry.record_error(ErrorType.BAD_JSON)
                 self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
                 return {}
+        else:
+            log.warning("All flaky tests pagination exceeded max pages: %d", _get_known_tests_max_pages())
+            telemetry.record_error(ErrorType.BAD_JSON)
+            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
+            return {}
 
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
