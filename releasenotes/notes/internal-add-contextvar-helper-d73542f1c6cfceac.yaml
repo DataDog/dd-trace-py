@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Tracing: A rare crash happening on versions of CPython prior to 3.12 has been fixed.
