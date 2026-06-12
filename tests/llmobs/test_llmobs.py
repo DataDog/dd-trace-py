@@ -1172,6 +1172,18 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
     assert event_dd["sampling_decision"] in ("0", "1")
 
 
+@pytest.mark.parametrize("llmobs_enable_opts", [dict(sample_rate=0.3)])
+def test_enable_sample_rate_sets_sampler(llmobs, llmobs_enable_opts):
+    """LLMObs.enable(sample_rate=...) configures the span sampler."""
+    assert llmobs._instance._sampler.sample_rate == 0.3
+
+
+@pytest.mark.parametrize("llmobs_enable_opts", [dict(sample_rate=1.5)])
+def test_enable_invalid_sample_rate_falls_back(llmobs, llmobs_enable_opts):
+    """An out-of-range sample_rate is ignored, falling back to the configured default (1.0)."""
+    assert llmobs._instance._sampler.sample_rate == 1.0
+
+
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={

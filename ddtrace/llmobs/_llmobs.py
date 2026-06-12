@@ -834,6 +834,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
+        sample_rate: Optional[float] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -852,6 +853,9 @@ class LLMObs(Service):
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
+        :param float sample_rate: The proportion of LLMObs traces to sample, between 0.0 and 1.0 (inclusive).
+            Takes precedence over the DD_LLMOBS_SAMPLE_RATE environment variable. Defaults to that env var, or 1.0
+            (sample everything) if neither is set.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -872,6 +876,15 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
+        if sample_rate is not None:
+            if not 0.0 <= sample_rate <= 1.0:
+                log.warning(
+                    "LLMObs.enable() called with sample_rate=%r, which is outside the valid range [0.0, 1.0]. "
+                    "Ignoring and falling back to DD_LLMOBS_SAMPLE_RATE (default 1.0).",
+                    sample_rate,
+                )
+            else:
+                config._llmobs_sample_rate = sample_rate
 
         error = None
         start_ns = time.time_ns()
