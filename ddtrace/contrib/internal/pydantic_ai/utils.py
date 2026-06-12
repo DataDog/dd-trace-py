@@ -1,3 +1,4 @@
+import inspect
 import sys
 
 import wrapt
@@ -36,15 +37,33 @@ class TracedPydanticAsyncContextManager(wrapt.ObjectProxy):
 
 
 class TracedPydanticRunStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, integration, args, kwargs):
+    def __init__(self, wrapped, span, integration, instance, args, kwargs):
         super().__init__(wrapped)
         self._dd_span = span
         self._dd_integration = integration
+        self._dd_instance = instance
         self._args = args
         self._kwargs = kwargs
         self._streamed_run_result = None
 
+    def _infer_agent_name(self):
+        instance = self._dd_instance
+        # `infer_name=False` is the caller opting out of name inference; don't override it.
+        if instance is None or getattr(instance, "name", None) is not None or not self._kwargs.get("infer_name", True):
+            return
+        frame = inspect.currentframe()
+        # climb past _infer_agent_name and our proxy __aenter__ to the user's `async with` frame
+        caller = frame.f_back.f_back if frame and frame.f_back else None
+        if caller is None:
+            return
+        for namespace in (caller.f_locals, caller.f_globals):
+            for name, candidate in namespace.items():
+                if candidate is instance:
+                    instance.name = name
+                    return
+
     async def __aenter__(self):
+        self._infer_agent_name()
         result = await self.__wrapped__.__aenter__()
         self._streamed_run_result = TracedPydanticStreamedRunResult(
             result, self._dd_span, self._dd_integration, self._args, self._kwargs

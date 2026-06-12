@@ -1,0 +1,8 @@
+features:
+  - |
+    LLM Observability: The Pydantic AI integration now captures external toolset tools in the agent manifest, records the MCP servers attached to an agent (toolset-based servers by name and version; native ``capabilities=[MCP(...)]`` servers by id), and adds any MCP tools that are called during a run.
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where the Pydantic AI integration did not infer the agent name for agents run via ``run_stream``.
+  - |
+    LLM Observability: This fix resolves an issue where the Pydantic AI integration recorded an agent's system prompts as an unserializable placeholder instead of the actual prompt text.

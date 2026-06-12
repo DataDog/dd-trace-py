@@ -45,7 +45,7 @@ def traced_agent_run_stream(func, instance, args, kwargs):
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
-    return TracedPydanticRunStream(result, span, integration, args, kwargs)
+    return TracedPydanticRunStream(result, span, integration, instance, args, kwargs)
 
 
 def traced_agent_iter(func, instance, args, kwargs):

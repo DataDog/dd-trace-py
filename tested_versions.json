@@ -3652,7 +3652,7 @@
           "python_version": "3.10"
         },
         {
-          "version": "1.63.0",
+          "version": "1.106.0",
           "python_version": "3.10"
         },
         {
@@ -3664,7 +3664,7 @@
           "python_version": "3.11"
         },
         {
-          "version": "1.63.0",
+          "version": "1.106.0",
           "python_version": "3.11"
         },
         {
@@ -3676,7 +3676,7 @@
           "python_version": "3.12"
         },
         {
-          "version": "1.63.0",
+          "version": "1.106.0",
           "python_version": "3.12"
         },
         {
@@ -3688,7 +3688,7 @@
           "python_version": "3.13"
         },
         {
-          "version": "1.63.0",
+          "version": "1.106.0",
           "python_version": "3.13"
         },
         {
@@ -3697,10 +3697,6 @@
         },
         {
           "version": "1.0.0",
-          "python_version": "3.14"
-        },
-        {
-          "version": "1.63.0",
           "python_version": "3.14"
         }
       ]

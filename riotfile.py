@@ -3215,12 +3215,14 @@ venv = Venv(
                     pkgs={
                         "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
+                        "mcp": latest,
                     },
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
                     pkgs={
-                        "pydantic-ai-slim[openai]": ["==1.63.0"],
+                        "pydantic-ai-slim[openai,mcp]": ["==1.106.0"],
+                        "mcp": latest,
                     },
                 ),
             ],
