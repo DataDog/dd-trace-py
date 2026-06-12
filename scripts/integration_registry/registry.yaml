@@ -659,6 +659,16 @@ integrations:
       min: 2.0.0
       max: 2.4.9
 
+- integration_name: mistralai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - mistralai
+  tested_versions_by_dependency:
+    mistralai:
+      min: 1.10.0
+      max: 2.4.9
+
 - integration_name: mlflow
   is_external_package: true
   is_tested: true

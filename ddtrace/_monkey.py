@@ -169,6 +169,7 @@ _MODULES_FOR_CONTRIB = {
     "google_adk": ("google.adk",),
     "google_cloud_pubsub": ("google.cloud.pubsub_v1",),
     "google_genai": ("google.genai",),
+    "mistralai": ("mistralai.client",),
     "langchain": ("langchain_core",),
     "llama_index": ("llama_index.core",),
     "langgraph": (
