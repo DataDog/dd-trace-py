@@ -250,7 +250,7 @@ TaintEngineContext::get_tainted_object_map_from_ranges(const TaintRangeRefs& ran
 
         // Iterate over all tainted objects in this context map
         for (const auto& kv : *context_map) {
-            const auto& tainted_obj = kv.second.second;
+            const auto& tainted_obj = kv.second.tainted;
             if (!tainted_obj) {
                 continue;
             }
