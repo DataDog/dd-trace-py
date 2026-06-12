@@ -303,7 +303,7 @@ TaintEngineContext::debug_taint_map(size_t ctx_id)
     output << "[";
     for (const auto& [fst, snd] : *ctx_map) {
         output << "{ 'Id-Key': " << fst << ",";
-        output << "'Value': { 'Hash': " << snd.first << ", 'TaintedObject': '" << snd.second->toString() << "'}},";
+        output << "'Value': { 'Hash': " << snd.hash << ", 'TaintedObject': '" << snd.tainted->toString() << "'}},";
     }
     output << "]";
     return output.str();
