@@ -17,8 +17,8 @@ config._add(
         "distributed_tracing": asbool(env.get("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
         "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE", default=PRODUCER_SERVICE),
         "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE", default=WORKER_SERVICE),
-        "_default_service_producer": schematize_service_name("celery-producer"),
-        "_default_service_worker": schematize_service_name("celery-worker"),
+        "_default_service_producer": schematize_service_name("celery-producer"),  # type: ignore[operator]
+        "_default_service_worker": schematize_service_name("celery-worker"),  # type: ignore[operator]
     },
 )
 
