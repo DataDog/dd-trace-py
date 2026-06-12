@@ -20,10 +20,9 @@ namespace Datadog {
  * repetitive stacks. The cache short-circuits those three libdd calls
  * for any frame whose code object has been seen before.
  *
- * Organization: 4-way set-associative. Sets are indexed by a hash of
+ * Organization: 2-way set-associative. Sets are indexed by a hash of
  * the PyCodeObject pointer; within a set, ways are linearly scanned.
- * On a set-full insert, CLOCK / Second-Chance eviction picks the least
- * recently used way (single bit per way).
+ * On a set-full insert, FIFO eviction overwrites the next_evict slot.
  *
  * Concurrency: heap-profiler hooks run under the GIL. The singleton
  * is invoked single-threaded by construction; no internal locking.
@@ -37,7 +36,7 @@ namespace Datadog {
 class CodeFunctionCache
 {
   public:
-    static constexpr size_t WAYS_PER_SET = 4;
+    static constexpr size_t WAYS_PER_SET = 2;
     static constexpr size_t DEFAULT_CAPACITY = 1024;
     static constexpr size_t MIN_CAPACITY = 64;
     static constexpr size_t MAX_CAPACITY = 1 << 20; // 1M cap as a sanity ceiling
@@ -46,11 +45,10 @@ class CodeFunctionCache
      * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
     explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
 
-    /* Returns cached function_id if present; marks entry recently-used. */
+    /* Returns cached function_id if present. */
     std::optional<Datadog::function_id> lookup(PyCodeObject* code);
 
-    /* Inserts (code, id). If the target set is full, evicts the least
-     * recently used way via CLOCK. */
+    /* Inserts (code, id). If the target set is full, evicts via FIFO. */
     void insert(PyCodeObject* code, Datadog::function_id id);
 
     /* Drops every entry. Counters are preserved (use reset_counters to
@@ -76,12 +74,10 @@ class CodeFunctionCache
   private:
     struct Set
     {
-        PyCodeObject* codes[WAYS_PER_SET] = { nullptr, nullptr, nullptr, nullptr };
-        Datadog::function_id functions[WAYS_PER_SET] = { nullptr, nullptr, nullptr, nullptr };
-        /* One bit per way in the low nibble. Bit i = ways[i] recently used. */
-        uint8_t recently_used_mask = 0;
-        /* Next way to consider for eviction, in [0, WAYS_PER_SET). */
-        uint8_t clock_hand = 0;
+        PyCodeObject* codes[WAYS_PER_SET] = { nullptr, nullptr };
+        Datadog::function_id functions[WAYS_PER_SET] = { nullptr, nullptr };
+        /* FIFO eviction: next way to overwrite, alternates 0/1. */
+        uint8_t next_evict = 0;
     };
 
     std::vector<Set> sets_;
@@ -92,9 +88,6 @@ class CodeFunctionCache
     uint64_t evictions_ = 0;
 
     size_t set_index(PyCodeObject* code) const;
-    static bool way_recently_used(uint8_t mask, size_t way) { return (mask >> way) & 1u; }
-    static uint8_t set_way_used(uint8_t mask, size_t way) { return mask | static_cast<uint8_t>(1u << way); }
-    static uint8_t clear_way_used(uint8_t mask, size_t way) { return mask & static_cast<uint8_t>(~(1u << way)); }
 };
 
 /* Public API for the heap profiler.

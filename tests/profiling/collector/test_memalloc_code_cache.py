@@ -4,7 +4,6 @@ Covers:
   * cache populates while heap profiling
   * code_cache_reset_counters() zeros counters
   * code_cache_disable() / code_cache_enable() toggle
-  * DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE controls capacity
   * postfork_child clears cache slots (inherited PyCodeObject* otherwise hit)
   * eviction fires when active set exceeds capacity
 """
@@ -95,23 +94,23 @@ def test_code_cache_per_set_stats_basic() -> None:
     _memalloc.code_cache_disable()
     _memalloc.code_cache_enable()
     stats = _stats()
-    num_sets = stats["capacity"] // 4  # WAYS_PER_SET == 4
+    num_sets = stats["capacity"] // 2  # WAYS_PER_SET == 2
     hist = _memalloc.code_cache_per_set_stats()
     assert hist is not None
-    assert len(hist) == 5
+    assert len(hist) == 3
     assert sum(hist) == num_sets
     assert hist[0] == num_sets
-    assert all(hist[k] == 0 for k in range(1, 5))
+    assert all(hist[k] == 0 for k in range(1, 3))
 
     _start()
     try:
         _alloc_burst(500)
         hist = _memalloc.code_cache_per_set_stats()
         assert hist is not None
-        assert len(hist) == 5
+        assert len(hist) == 3
         assert sum(hist) == num_sets
         # At least one set should now hold an entry.
-        assert any(hist[k] > 0 for k in range(1, 5))
+        assert any(hist[k] > 0 for k in range(1, 3))
     finally:
         _stop()
 
@@ -136,40 +135,12 @@ def test_code_cache_disable_then_stats_is_none() -> None:
         _stop()
 
 
-def test_code_cache_env_var_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    """DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE is read at init time. Disable +
-    re-enable to force a fresh init with the new env value.
-    """
-    _memalloc.code_cache_disable()
-    monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", "128")
-    _memalloc.code_cache_enable()
-    stats = _stats()
-    # capacity_hint=128, WAYS_PER_SET=4 -> num_sets=32 (already pow2),
-    # capacity = 32 * 4 = 128.
-    assert stats["capacity"] == 128, f"expected 128, got {stats['capacity']}"
-
-    # MIN_CAPACITY clamp: 1 should round up to 64 (MIN_CAPACITY).
-    _memalloc.code_cache_disable()
-    monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", "1")
-    _memalloc.code_cache_enable()
-    stats = _stats()
-    assert stats["capacity"] >= 64, f"MIN_CAPACITY guard failed, got {stats['capacity']}"
-
-    # Bad value falls back to default.
-    _memalloc.code_cache_disable()
-    monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", "not-a-number")
-    _memalloc.code_cache_enable()
-    stats = _stats()
-    assert stats["capacity"] == 1024, f"bad-value fallback failed, got {stats['capacity']}"
-
-
-def test_code_cache_eviction_under_churn(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_code_cache_eviction_under_churn() -> None:
     """Force a small cache (cap=64) and allocate from far more distinct
     PyCodeObjects than fit; evictions must fire.
     """
     _memalloc.code_cache_disable()
-    monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", "64")
-    _memalloc.code_cache_enable()
+    _memalloc.code_cache_enable(64)
     stats = _stats()
     assert stats["capacity"] == 64
 
@@ -245,17 +216,6 @@ def test_code_cache_cleared_on_postfork_child() -> None:
             )
     finally:
         _stop()
-
-
-def test_code_cache_capacity_clamped_above_max(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pathologically large requested capacity is clamped to MAX_CAPACITY."""
-    _memalloc.code_cache_disable()
-    monkeypatch.setenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE", str(10**9))
-    _memalloc.code_cache_enable()
-    stats = _stats()
-    # MAX_CAPACITY = 1 << 20 (1M ways). num_sets pow2 = 1 << 18 = 262144
-    # capacity = 262144 * 4 = 1048576
-    assert stats["capacity"] == (1 << 20), f"MAX_CAPACITY clamp failed: {stats['capacity']}"
 
 
 # Avoid running these tests on free-threaded builds where memalloc isn't supported.
