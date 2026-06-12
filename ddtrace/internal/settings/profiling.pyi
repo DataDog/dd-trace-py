@@ -55,6 +55,7 @@ class ProfilingConfigHeap(DDConfig):
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
+    max_frames: int
 
 class ProfilingConfigException(DDConfig):
     enabled: bool

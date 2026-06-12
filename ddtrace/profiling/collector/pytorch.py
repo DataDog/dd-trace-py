@@ -18,9 +18,6 @@ LOG = logging.getLogger(__name__)
 
 _NANOS_PER_MICROSECOND = 1e3
 
-# Safety bound on how far we walk up the cpu_parent chain when reconstructing
-# the operator call tree, to guard against pathological depths.
-_MAX_FRAMES = 128
 
 # Frames require a file name, but GPU frames are not from a Python file.
 # We use the following as a placeholder.
@@ -209,7 +206,7 @@ def _handle_torch_trace(prof: Any) -> None:
         handle.push_frame(e.name, _FILE_PLACEHOLDER, 0, 0)
         parent = getattr(e, "cpu_parent", None)
         depth = 0
-        while parent is not None and depth < _MAX_FRAMES:
+        while parent is not None and depth < config.pytorch.max_frames:
             handle.push_frame(parent.name, _FILE_PLACEHOLDER, 0, 0)
             parent = getattr(parent, "cpu_parent", None)
             depth += 1
