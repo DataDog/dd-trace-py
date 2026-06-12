@@ -10,11 +10,14 @@ and exports. See `ddtrace/contrib/internal/anthropic/__init__.py` for format.
 
 Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_supported_versions()`,
 `patch()`, and `unpatch()`. Choose the right pattern from the Architecture section in the main skill:
-- **Events API (NEW — preferred for new standard integrations)**: Use `context_with_event()` + `TracingEvent` subclasses + `TracingSubscriber`. No existing contrib integration uses this yet, so read the infrastructure files directly:
-  - `ddtrace/_trace/events.py` — `TracingEvent` base class (subclass this per-event)
-  - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
-  - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
-  - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
+- **Events API (NEW — preferred for new standard integrations)**: Use `context_with_event()` + `TracingEvent` subclasses + `TracingSubscriber`. Concrete examples:
+  - `ddtrace/contrib/internal/httpx/patch.py` — sync and async HTTP with `context_with_event()`
+  - `ddtrace/contrib/internal/aiohttp/patch.py` — async HTTP client with `context_with_event()`
+  - Infrastructure reference:
+    - `ddtrace/_trace/events.py` — `TracingEvent` base class (subclass this per-event)
+    - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
+    - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
+    - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
 - **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py`. Use this when extending or mirroring an existing `context_with_data` integration.
 - **Bytecode wrapping** (`ddtrace.internal.wrapping.wrap/unwrap`): Lower overhead than wrapt; used by aws_lambda, asyncio, graphql. Preferred for performance-sensitive paths.
 - **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.

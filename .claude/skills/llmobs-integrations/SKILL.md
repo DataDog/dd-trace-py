@@ -78,7 +78,7 @@ Context items are set via `span._set_ctx_items({...})`.
 - **`integration.llmobs_set_tags()`** must be called in the **finally** block (not try or except)
 - **Streaming** must use `BaseStreamHandler`/`AsyncStreamHandler` -- never consume streams directly
 - **Error handling** uses `span.set_exc_info()` in the except block, before the finally block
-- **Integration instance** must be stored on the module: `module._datadog_integration = Integration(tracer, config)`
+- **Integration instance** must be stored on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
 
 ## Message Types
 

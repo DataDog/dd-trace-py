@@ -183,14 +183,19 @@ LLMObs tests go in `tests/llmobs/suitespec.yml`, NOT in `tests/contrib/suitespec
 
 ```yaml
 # tests/llmobs/suitespec.yml
-mylib:
-  parallelism: 1
-  paths:
-    - tests/contrib/mylib/test_mylib_llmobs.py
-  env:
-    MYLIB_API_KEY: "test-key"
-  dependencies:
-    - mylib>=1.0
+components:
+  mylib:
+    - ddtrace/contrib/internal/mylib/*
+
+suites:
+  mylib:
+    parallelism: 1
+    paths:
+      - tests/contrib/mylib/test_mylib_llmobs.py
+    env:
+      MYLIB_API_KEY: "test-key"
+    dependencies:
+      - mylib>=1.0
 ```
 
 ## Snapshot vs Manual Assertions
