@@ -8,6 +8,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import safe_contextvar_set
 
 
 log = get_logger(__name__)
@@ -65,7 +66,7 @@ class DefaultContextProvider(BaseContextProvider):
 
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
         """Makes the given context active in the current execution."""
-        _DD_CONTEXTVAR.set(ctx)
+        safe_contextvar_set(_DD_CONTEXTVAR, ctx)
         super(DefaultContextProvider, self).activate(ctx)
 
     def active(self) -> Optional[ActiveTrace]:
