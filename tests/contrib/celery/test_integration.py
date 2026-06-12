@@ -18,6 +18,7 @@ from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
+from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 
 from ...utils import override_global_config
 from .base import BACKEND_URL
@@ -575,41 +576,6 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             assert run_span.service == "task-queue"
 
-    def test_worker_span_remove_integration_service_names(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        with mock.patch("ddtrace.contrib.internal.celery.signals.schematize_service_name", return_value="myapp"):
-            t = fn_task.apply()
-            self.assertTrue(t.successful())
-            traces = self.pop_traces()
-            self.assertEqual(1, len(traces))
-            span = traces[0][0]
-            self.assertEqual(span.service, "myapp")
-
-    def test_producer_span_remove_integration_service_names(self):
-        @self.app.task
-        def fn_task():
-            return 42
-
-        with mock.patch("ddtrace.contrib.internal.celery.signals.schematize_service_name", return_value="myapp"):
-            t = fn_task.delay()
-            assert t.get(timeout=self.ASYNC_GET_TIMEOUT) == 42
-
-            traces = self.pop_traces()
-
-            if self.ASYNC_USE_CELERY_FIXTURES:
-                assert 2 == len(traces)
-                async_span = traces[0][0]
-                run_span = traces[1][0]
-                assert async_span.service == "myapp"
-            else:
-                assert 1 == len(traces)
-                run_span = traces[0][0]
-
-            assert run_span.service == "myapp"
-
     def test_trace_in_task(self):
         @self.app.task
         def fn_task():
@@ -871,6 +837,54 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             assert b"panic" not in full_output.lower(), (
                 f"Found panic in celery beat output:\nstdout:\n{output}\nstderr:\n{stderr}"
             )
+
+
+@pytest.mark.parametrize(
+    "schema_version,dd_service",
+    [(None, None), (None, "mysvc"), ("v0", None), ("v0", "mysvc"), ("v1", None), ("v1", "mysvc")],
+)
+def test_worker_schematized_service_name(ddtrace_run_python_code_in_subprocess, schema_version, dd_service):
+    expected = {
+        None: dd_service or "celery-worker",
+        "v0": dd_service or "celery-worker",
+        "v1": dd_service or DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME,
+    }[schema_version]
+
+    code = """
+import pytest
+import celery
+from ddtrace.contrib.internal.celery.patch import patch, unpatch
+from tests.utils import TracerTestCase
+
+class TestCase(TracerTestCase):
+    def test(self):
+        patch()
+        app = celery.Celery("test_app", broker="memory://")
+        app.conf.CELERY_ALWAYS_EAGER = True
+
+        @app.task
+        def fn_task():
+            return 42
+
+        fn_task.apply()
+        spans = self.pop_spans()
+        assert len(spans) == 1, spans
+        assert spans[0].service == "{expected}", spans[0].service
+        unpatch()
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(pytest.main(["-x", __file__]))
+""".format(expected=expected)
+
+    env = os.environ.copy()
+    if schema_version:
+        env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
+    if dd_service:
+        env["DD_SERVICE"] = dd_service
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (out, err)
+    assert err == b"", (out, err)
 
 
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])

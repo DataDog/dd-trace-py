@@ -1,2 +1,0 @@
-celery[redis]==5.3.4
-redis>=4.0.0

@@ -1,9 +1,5 @@
 ---
 fixes:
   - |
-    celery: Fixes an issue where Celery worker and producer spans ignored
-    ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED`` and always used
-    ``celery-worker``/``celery-producer`` as the service name instead of the
-    global service. Service name resolution now goes through
-    ``schematize_service_name``, consistent with other integrations such as
-    Flask and gRPC.
+    celery: Fixes Celery worker and producer spans ignoring ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED``,
+    causing spans to always use ``celery-worker``/``celery-producer`` instead of the configured global service name.
