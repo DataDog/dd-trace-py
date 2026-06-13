@@ -155,6 +155,11 @@ class heap_tracker_t
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
+    /* Number of samples silently dropped because allocs_m hit the cap.
+     * Accumulated across the lifetime of this tracker instance and surfaced
+     * via ProfilerStats so the backend / user can detect data loss. */
+    size_t cap_drops{ 0 };
+
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
@@ -252,12 +257,9 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
-        /* TODO(nick) this is vestigial from the original array-based
-         * implementation. Do we actually want this? It gives us bounded memory
-         * use, but the size limit is arbitrary and once we hit the arbitrary
-         * limit our reported numbers will be inaccurate.
-         */
+    if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
+        ++cap_drops;
+        reset_sampling_state_no_cpython();
         return false;
     }
 
@@ -290,7 +292,12 @@ heap_tracker_t::export_heap_no_cpython()
         tb->sample.export_sample();
     }
 
-    Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
+    auto& stats = Datadog::Sample::profile_borrow().stats();
+    stats.set_heap_tracker_size(allocs_m.size());
+    stats.set_heap_tracker_cap(TRACEBACK_ARRAY_MAX_COUNT);
+    if (cap_drops > 0) {
+        stats.set_heap_tracker_cap_drops(cap_drops);
+    }
 }
 
 void
@@ -317,6 +324,8 @@ heap_tracker_t::postfork_child()
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
+
+    cap_drops = 0;
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
