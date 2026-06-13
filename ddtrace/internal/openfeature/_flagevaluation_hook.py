@@ -1,11 +1,12 @@
 """
 FlagEvaluationHook — OpenFeature `finally_after` hook for EVP flagevaluation emission.
 
-Implements the frozen FANOUT-CONTRACT hook design:
+Hook design:
 - Cheap capture only in finally_after (no aggregation, no serialization, no I/O).
 - Non-blocking enqueue to FlagEvaluationWriter.
-- Covers success, error, and default eval paths (reviewer concern #7 3385309423).
-- Does NOT replace or modify the OTel FlagEvalHook in _flageval_metrics.py (PRES-01).
+- The finally_after stage covers success, error, and default eval paths.
+- Does NOT replace or modify the OTel FlagEvalHook in _flageval_metrics.py (the existing
+  feature_flag.evaluations OTel path is preserved unchanged).
 """
 
 import time
@@ -17,12 +18,10 @@ from openfeature.hook import HookContext
 from openfeature.hook import HookHints
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.openfeature._flagevaluation_writer import (
-    EVAL_TIMESTAMP_METADATA_KEY,
-    METADATA_ALLOCATION_KEY,
-    FlagEvaluationWriter,
-    _EvalEvent,
-)
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_ALLOCATION_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 
 
 logger = get_logger(__name__)
@@ -32,7 +31,7 @@ class FlagEvaluationHook(Hook):
     """
     OpenFeature Hook that enqueues cheap evaluation snapshots for EVP aggregation.
 
-    Implements `finally_after` (covers success/error/default — reviewer concern #7).
+    Implements `finally_after` (covers the success, error, and default eval paths).
     Does NO aggregation, serialization, or I/O on the hook thread.  All heavy work
     is deferred to FlagEvaluationWriter's background periodic worker.
     """
@@ -56,8 +55,8 @@ class FlagEvaluationHook(Hook):
         Eval-time: uses details.flag_metadata["dd.eval.timestamp_ms"] when present
         (stamped by the provider at eval entry); falls back to hook-fire time.
 
-        Runtime-default: True when details.value is None (absent variant — reviewer
-        concern #5 3395344504).
+        Runtime-default: True when the variant is absent (details.variant is None),
+        which detects a runtime default independent of the reason string.
 
         Attrs: shallow copy of the evaluation context attributes dict so the hook
         returns immediately and the worker can safely iterate attrs off-path.
@@ -66,7 +65,7 @@ class FlagEvaluationHook(Hook):
             flag_key: str = hook_context.flag_key or ""
 
             # Extract allocation_key from flag_metadata (same key as METADATA_ALLOCATION_KEY).
-            metadata: dict = details.flag_metadata or {}
+            metadata: dict[str, typing.Any] = details.flag_metadata or {}
             allocation_key: str = ""
             ak = metadata.get(METADATA_ALLOCATION_KEY)
             if isinstance(ak, str) and ak:
@@ -79,17 +78,13 @@ class FlagEvaluationHook(Hook):
             else:
                 eval_time_ms = int(time.time() * 1000)
 
-            # Variant: None/absent signals runtime_default (reviewer concern #5).
+            # Variant: None/absent signals a runtime default.
             variant = details.variant or ""
             runtime_default = details.variant is None
 
             # Reason: normalise to upper-case string.
             if details.reason is not None:
-                reason_raw = (
-                    details.reason.value
-                    if hasattr(details.reason, "value")
-                    else str(details.reason)
-                )
+                reason_raw = details.reason.value if hasattr(details.reason, "value") else str(details.reason)
                 reason = str(reason_raw).upper()
             else:
                 reason = "UNKNOWN"
@@ -99,7 +94,7 @@ class FlagEvaluationHook(Hook):
             if eval_ctx is not None:
                 targeting_key = eval_ctx.targeting_key or ""
                 # Shallow copy so we don't hold a reference to the caller's live dict.
-                attrs: typing.Dict[str, typing.Any] = dict(eval_ctx.attributes or {})
+                attrs: dict[str, typing.Any] = dict(eval_ctx.attributes or {})
             else:
                 targeting_key = ""
                 attrs = {}

@@ -1640,6 +1640,14 @@
         "default": "1.0"
       }
     ],
+    "DD_FLAGGING_EVALUATION_COUNTS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
+      }
+    ],
     "DD_FLASK_CACHE_SERVICE": [
       {
         "implementation": "A",

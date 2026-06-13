@@ -1,7 +1,7 @@
 """
 Unit tests for FlagEvaluationWriter — two-tier aggregation, canonical key, EVP transport.
 
-Tests validate the FANOUT-CONTRACT spec:
+Tests validate the two-tier aggregation spec:
 - canonical_context_key: sorted, type-tagged, length-delimited (NOT a hash)
 - Two-tier aggregation (full → degraded → drop-counted)
 - Caps GLOBAL_CAP=131072 / PER_FLAG_CAP=10000 / DEGRADED_CAP=32768
@@ -12,33 +12,30 @@ Tests validate the FANOUT-CONTRACT spec:
 """
 
 import json
-import queue
 import time
 from unittest import mock
 
 import pytest
 
-from ddtrace.internal.openfeature._flagevaluation_writer import (
-    DEGRADED_CAP,
-    EVAL_TIMESTAMP_METADATA_KEY,
-    FLAGEVALUATIONS_ENDPOINT,
-    GLOBAL_CAP,
-    MAX_CONTEXT_FIELDS,
-    MAX_FIELD_LENGTH,
-    PER_FLAG_CAP,
-    QUEUE_SIZE,
-    EVP_SUBDOMAIN_HEADER_NAME,
-    EVP_SUBDOMAIN_VALUE,
-    FlagEvaluationWriter,
-    _EvalEvent,
-    canonical_context_key,
-    flatten_and_prune_context,
-)
+from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
+from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIELDS
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_FIELD_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import QUEUE_SIZE
+from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
+from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_event(
     flag_key: str = "my-flag",
@@ -76,6 +73,7 @@ def writer():
 # canonical_context_key tests
 # ---------------------------------------------------------------------------
 
+
 class TestCanonicalContextKey:
     def test_empty_attrs_returns_empty_string(self):
         assert canonical_context_key({}) == ""
@@ -92,7 +90,7 @@ class TestCanonicalContextKey:
         assert canonical_context_key(a) == canonical_context_key(b)
 
     def test_int_vs_string_distinct_keys(self):
-        """int 1 vs string '1' must produce different keys (type-tagged, reviewer concern #3)."""
+        """int 1 vs string '1' must produce different keys (type-tagged)."""
         k_int = canonical_context_key({"x": 1})
         k_str = canonical_context_key({"x": "1"})
         assert k_int != k_str, "int 1 and str '1' must not alias into the same bucket"
@@ -108,15 +106,17 @@ class TestCanonicalContextKey:
         assert k_float != k_int
 
     def test_value_with_equals_or_newline_no_boundary_confusion(self):
-        """'=' and '\n' in values must not fake a field boundary (length-prefix protocol)."""
+        r"""'=' and '\n' in values must not fake a field boundary (length-prefix protocol)."""
         k_with = canonical_context_key({"a": "foo=bar\nbaz"})
         k_without = canonical_context_key({"a": "foo", "bar\nbaz": ""})
         assert k_with != k_without
 
     def test_no_hashlib_or_md5_used(self):
         """Verify no hash function is used by inspecting the module source."""
-        import ddtrace.internal.openfeature._flagevaluation_writer as mod_src
         import inspect
+
+        import ddtrace.internal.openfeature._flagevaluation_writer as mod_src
+
         src = inspect.getsource(mod_src)
         assert "hashlib" not in src, "hashlib must not appear in the writer"
         assert "md5" not in src, "md5 must not appear in the writer"
@@ -129,6 +129,7 @@ class TestCanonicalContextKey:
 # ---------------------------------------------------------------------------
 # flatten_and_prune_context tests
 # ---------------------------------------------------------------------------
+
 
 class TestFlattenAndPruneContext:
     def test_empty_returns_empty(self):
@@ -175,6 +176,7 @@ class TestFlattenAndPruneContext:
 # Aggregation tests (full → degraded → drop-counted)
 # ---------------------------------------------------------------------------
 
+
 class TestAggregation:
     def test_two_identical_evals_aggregate_into_one_bucket_count_2(self, writer):
         t0 = int(time.time() * 1000)
@@ -192,7 +194,7 @@ class TestAggregation:
         assert entry.last_evaluation == t1
 
     def test_two_evals_differing_context_value_type_produce_two_buckets(self, writer):
-        """int 1 vs str '1' in context → two distinct full-tier buckets (reviewer concern #3)."""
+        """int 1 vs str '1' in context → two distinct full-tier buckets."""
         e_int = _make_event(attrs={"x": 1})
         e_str = _make_event(attrs={"x": "1"})
         writer._aggregate(e_int)
@@ -213,11 +215,12 @@ class TestAggregation:
         assert len(writer._degraded) == 1
 
     def test_degraded_overflow_increments_dropped_counter(self, writer):
-        """Beyond degradedCap, increment _dropped_degraded_overflow (reviewer concern #8)."""
+        """Beyond degradedCap, increment _dropped_degraded_overflow."""
         # Fill the degraded map to the cap.
         for i in range(DEGRADED_CAP):
             key = (f"flag-{i}", "on", "alloc", "SPLIT")
             from ddtrace.internal.openfeature._flagevaluation_writer import _Entry
+
             writer._degraded[key] = _Entry(1000, False, "", {}, "")
 
         with writer._lock:
@@ -235,7 +238,7 @@ class TestAggregation:
         assert len(writer._full) == 0
 
     def test_runtime_default_when_variant_is_absent(self, writer):
-        """Absent/empty variant → runtime_default_used True (reviewer concern #5)."""
+        """Absent/empty variant → runtime_default_used True."""
         e = _make_event(variant="", runtime_default=True)
         writer._aggregate(e)
 
@@ -244,11 +247,9 @@ class TestAggregation:
         assert entry.runtime_default is True
 
     def test_degraded_event_omits_targeting_key_and_context(self, writer):
-        """Degraded tier strips targeting_key + context (schema omitempty, reviewer concern #2)."""
+        """Degraded tier strips targeting_key + context (schema omitempty)."""
         with writer._lock:
-            writer._add_to_degraded(
-                _make_event(targeting_key="some-key", attrs={"k": "v"})
-            )
+            writer._add_to_degraded(_make_event(targeting_key="some-key", attrs={"k": "v"}))
 
         entry = list(writer._degraded.values())[0]
         assert entry.targeting_key == ""
@@ -258,6 +259,7 @@ class TestAggregation:
 # ---------------------------------------------------------------------------
 # Enqueue non-blocking tests
 # ---------------------------------------------------------------------------
+
 
 class TestEnqueue:
     def test_enqueue_non_blocking_on_full_queue(self, writer):
@@ -278,6 +280,7 @@ class TestEnqueue:
 # ---------------------------------------------------------------------------
 # Periodic flush + EVP POST tests
 # ---------------------------------------------------------------------------
+
 
 class TestPeriodicFlush:
     def test_periodic_drains_queue_and_builds_payload(self, writer):
@@ -349,7 +352,7 @@ class TestPeriodicFlush:
         assert evals[0]["first_evaluation"] <= evals[0]["last_evaluation"]
 
     def test_context_pruning_above_256_fields(self, writer):
-        """Context with >256 fields is pruned before keying (reviewer concern #1)."""
+        """Context with >256 fields is pruned before keying."""
         attrs = {str(i): str(i) for i in range(300)}
         e = _make_event(attrs=attrs)
         writer.enqueue(e)
@@ -365,7 +368,7 @@ class TestPeriodicFlush:
         assert len(ev["context"]["evaluation"]) <= MAX_CONTEXT_FIELDS
 
     def test_context_value_exceeding_256_chars_pruned(self, writer):
-        """Context values >256 chars are skipped (reviewer concern #1)."""
+        """Context values >256 chars are skipped."""
         long_val = "x" * (MAX_FIELD_LENGTH + 10)
         attrs = {"short": "ok", "long_field": long_val}
         e = _make_event(attrs=attrs)
@@ -403,4 +406,233 @@ class TestPeriodicFlush:
 
     def test_class_exists_and_inherits_periodic_service(self):
         from ddtrace.internal.periodic import PeriodicService
+
         assert issubclass(FlagEvaluationWriter, PeriodicService)
+
+
+# ---------------------------------------------------------------------------
+# G3 — Schema conformance of the emitted payload (full + degraded rows)
+# ---------------------------------------------------------------------------
+
+# The flageval-worker schema (batchedflagevaluations.json) is not vendored into this
+# repo (it lives in dd-source/domains/evp-workers, inaccessible here). We codify the
+# worker contract as a structural validator that mirrors the Go reference payload
+# (dd-trace-go/openfeature/flagevaluation.go): required scalar fields, and variant/
+# allocation serialized as {"key": ...} OBJECTS — never bare strings.
+
+# Required fields that EVERY flagevaluation row (full or degraded) must carry.
+_REQUIRED_EVENT_FIELDS = {
+    "timestamp": int,
+    "flag": dict,
+    "first_evaluation": int,
+    "last_evaluation": int,
+    "evaluation_count": int,
+}
+
+
+def _assert_row_schema_valid(ev: dict) -> None:
+    """Assert one flagevaluation row conforms to the worker contract (mechanical)."""
+    # Required fields present with the right scalar types.
+    for field, typ in _REQUIRED_EVENT_FIELDS.items():
+        assert field in ev, f"required field {field!r} missing from row: {ev}"
+        assert isinstance(ev[field], typ), f"{field} must be {typ}, got {type(ev[field])}"
+
+    # flag.key is the one required nested field.
+    assert "key" in ev["flag"] and isinstance(ev["flag"]["key"], str)
+
+    # first <= last evaluation bound.
+    assert ev["first_evaluation"] <= ev["last_evaluation"]
+    assert ev["evaluation_count"] >= 1
+
+    # variant/allocation, when present, MUST be {"key": "..."} objects, NOT bare strings.
+    for obj_field in ("variant", "allocation"):
+        if obj_field in ev:
+            assert isinstance(ev[obj_field], dict), f"{obj_field} must serialize as an object"
+            assert set(ev[obj_field].keys()) == {"key"}, f"{obj_field} must be exactly {{key}}"
+            assert isinstance(ev[obj_field]["key"], str)
+
+    # error, when present, is {"message": "..."}.
+    if "error" in ev:
+        assert isinstance(ev["error"], dict)
+        assert "message" in ev["error"]
+
+    # context, when present, nests an "evaluation" map.
+    if "context" in ev:
+        assert isinstance(ev["context"], dict)
+        assert "evaluation" in ev["context"]
+        assert isinstance(ev["context"]["evaluation"], dict)
+
+    # runtime_default_used, when present, is a bool.
+    if "runtime_default_used" in ev:
+        assert isinstance(ev["runtime_default_used"], bool)
+
+
+class TestPayloadSchemaConformance:
+    def test_full_tier_row_is_schema_valid_with_object_variant_and_allocation(self, writer):
+        """A full-tier row carries variant/allocation as {key} objects + context.evaluation."""
+        writer.enqueue(
+            _make_event(
+                variant="on",
+                allocation_key="alloc-1",
+                attrs={"tier": "premium"},
+            )
+        )
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        decoded = json.loads(mock_send.call_args[0][0])
+        assert "flagEvaluations" in decoded
+        row = decoded["flagEvaluations"][0]
+        _assert_row_schema_valid(row)
+        # Specifically the {key} object shape (NOT bare strings).
+        assert row["variant"] == {"key": "on"}
+        assert row["allocation"] == {"key": "alloc-1"}
+        assert row["context"]["evaluation"]["tier"] == "premium"
+
+    def test_degraded_tier_row_is_schema_valid_and_omits_context(self, writer):
+        """A degraded-tier row is schema-valid with variant/allocation objects, no context."""
+        writer._per_flag_count["my-flag"] = PER_FLAG_CAP  # force degraded
+        writer.enqueue(_make_event(variant="on", allocation_key="alloc-1", attrs={"k": "v"}))
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        decoded = json.loads(mock_send.call_args[0][0])
+        row = decoded["flagEvaluations"][0]
+        _assert_row_schema_valid(row)
+        assert row["variant"] == {"key": "on"}
+        assert "context" not in row
+        assert "targeting_key" not in row
+
+    def test_error_row_carries_error_message_object(self, writer):
+        """An error evaluation produces a schema-valid row with error.message."""
+        writer.enqueue(
+            _make_event(
+                variant="",
+                reason="ERROR",
+                runtime_default=True,
+                error_message="Flag not found",
+            )
+        )
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        decoded = json.loads(mock_send.call_args[0][0])
+        row = decoded["flagEvaluations"][0]
+        _assert_row_schema_valid(row)
+        assert row["error"] == {"message": "Flag not found"}
+        # Absent variant -> runtime_default_used True, no variant object emitted.
+        assert row["runtime_default_used"] is True
+        assert "variant" not in row
+
+    def test_batch_payload_validates_full_and_degraded_rows_together(self, writer):
+        """A single flush emits BOTH a full row and a degraded row, both schema-valid."""
+        # Full-tier event.
+        writer.enqueue(_make_event(flag_key="full-flag", variant="on", attrs={"a": "b"}))
+        # Degraded-tier event (different flag forced to degraded).
+        writer._per_flag_count["deg-flag"] = PER_FLAG_CAP
+        writer.enqueue(_make_event(flag_key="deg-flag", variant="off"))
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        decoded = json.loads(mock_send.call_args[0][0])
+        rows = decoded["flagEvaluations"]
+        assert len(rows) == 2
+        for row in rows:
+            _assert_row_schema_valid(row)
+        flags = {r["flag"]["key"] for r in rows}
+        assert flags == {"full-flag", "deg-flag"}
+
+
+# ---------------------------------------------------------------------------
+# G5 — Shutdown drains the queue + final-flush before exit
+# ---------------------------------------------------------------------------
+
+
+class TestShutdownDrain:
+    def test_on_shutdown_drains_queue_and_flushes(self, writer):
+        """on_shutdown (the PeriodicService shutdown callback) must drain + flush queued events."""
+        writer.enqueue(_make_event(flag_key="pending-1"))
+        writer.enqueue(_make_event(flag_key="pending-2"))
+        assert writer._queue.qsize() == 2
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.on_shutdown()
+
+        # The queued events were drained, aggregated, and flushed in a final POST.
+        mock_send.assert_called_once()
+        decoded = json.loads(mock_send.call_args[0][0])
+        flags = {r["flag"]["key"] for r in decoded["flagEvaluations"]}
+        assert flags == {"pending-1", "pending-2"}
+        assert writer._queue.qsize() == 0
+
+    def test_real_start_stop_lifecycle_drains_pending_event(self):
+        """Real PeriodicService start()->enqueue->stop() drains the queue via on_shutdown."""
+        # Long interval so the periodic timer never fires; only stop() triggers the flush.
+        w = FlagEvaluationWriter(interval=3600.0)
+        sent = []
+        with mock.patch.object(w, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+            w.start()
+            w.enqueue(_make_event(flag_key="lifecycle-flag"))
+            w.stop()  # stop() runs on_shutdown -> periodic() -> drain + flush
+            # stop() requests shutdown; join() blocks until the worker (and its
+            # on_shutdown final flush) has fully completed before we assert.
+            w.join(timeout=5.0)
+        assert len(sent) == 1, "stop() must trigger a final drain+flush"
+        decoded = json.loads(sent[0][0])
+        assert decoded["flagEvaluations"][0]["flag"]["key"] == "lifecycle-flag"
+
+
+# ---------------------------------------------------------------------------
+# G4 — Backpressure drop counters are observable (emitted on flush)
+# ---------------------------------------------------------------------------
+
+
+class TestObservableDropCounters:
+    def test_queue_overflow_drop_count_is_logged_on_flush(self, writer):
+        """Queue-full drops increment _dropped_queue AND are surfaced (logged) on flush."""
+        # Fill the queue so the next enqueue drops.
+        for i in range(QUEUE_SIZE):
+            writer._queue.put_nowait(_make_event(flag_key=f"f{i}"))
+        writer.enqueue(_make_event(flag_key="dropped"))
+        assert writer._dropped_queue == 1
+
+        # Drain everything (so maps are populated) and assert the drop count is emitted.
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.logger") as mock_logger:
+            with mock.patch.object(writer, "_send_payload"):
+                writer.periodic()
+            # A warning naming the queue-full drop count must have been emitted.
+            warnings = [c for c in mock_logger.warning.call_args_list if "queue full" in str(c).lower()]
+            assert warnings, "queue-full drop count must be logged (observable)"
+        # Counter resets after emission.
+        assert writer._dropped_queue == 0
+
+    def test_degraded_overflow_drop_count_is_logged_on_flush(self, writer):
+        """Degraded-cap overflow drops increment _dropped_degraded_overflow AND are logged."""
+        from ddtrace.internal.openfeature._flagevaluation_writer import _Entry
+
+        # Saturate the degraded map to its cap.
+        for i in range(DEGRADED_CAP):
+            writer._degraded[(f"flag-{i}", "on", "alloc", "SPLIT")] = _Entry(1000, False, "", {}, "")
+        with writer._lock:
+            writer._add_to_degraded(_make_event(flag_key="overflow"))
+        assert writer._dropped_degraded_overflow == 1
+
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.logger") as mock_logger:
+            with mock.patch.object(writer, "_send_payload"):
+                writer.periodic()
+            warnings = [c for c in mock_logger.warning.call_args_list if "degraded cap" in str(c).lower()]
+            assert warnings, "degraded-cap overflow count must be logged (observable)"
+        assert writer._dropped_degraded_overflow == 0
+
+    def test_drop_accounting_is_complete_no_silent_loss(self, writer):
+        """Σ(tier counts + drops) == events processed (no silent loss)."""
+        # 3 distinct full-tier buckets + 2 degraded-overflow drops.
+        writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))
+        writer._aggregate(_make_event(flag_key="b", attrs={"x": 2}))
+        writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))  # repeat -> count 2 on bucket a
+
+        full_counts = sum(e.count for e in writer._full.values())
+        assert full_counts == 3  # 2 (a) + 1 (b)
+        assert writer._dropped_degraded_overflow == 0
+        assert writer._dropped_queue == 0

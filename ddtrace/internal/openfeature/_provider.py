@@ -8,7 +8,6 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from importlib.metadata import version
-import os
 import threading
 import time
 import typing
@@ -29,16 +28,15 @@ from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_K
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
-from ddtrace.internal.openfeature._flagevaluation_writer import (
-    EVAL_TIMESTAMP_METADATA_KEY,
-    FlagEvaluationWriter,
-)
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
+from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
 
 
@@ -132,13 +130,18 @@ class DataDogProvider(AbstractProvider):
 
         # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
-        # when the provider is enabled (PRES-01 non-regression).
-        # AIDEV-NOTE: killswitch env var checked at init time so that tests can override with
-        # os.environ and create a fresh DataDogProvider to verify gating behavior.
+        # when the provider is enabled (preserves the existing OTel non-regression).
+        # AIDEV-NOTE: the killswitch is read through the ddtrace config system
+        # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
+        # supported-configurations.json) rather than raw os.environ. A fresh
+        # OpenFeatureConfig instance is constructed here so the value reflects the current
+        # environment at provider-construction time (the config var parses the live
+        # environment via the DDConfig var system), which keeps the killswitch overridable
+        # per-instance in tests.
         self._flagevaluation_writer: typing.Optional[FlagEvaluationWriter] = None
         self._flagevaluation_hook: typing.Optional[FlagEvaluationHook] = None
-        evp_counts_enabled = os.environ.get("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true").lower()
-        if self._enabled and evp_counts_enabled != "false":
+        evp_counts_enabled = OpenFeatureConfig().flagging_evaluation_counts_enabled
+        if self._enabled and evp_counts_enabled:
             self._flagevaluation_writer = FlagEvaluationWriter()
             self._flagevaluation_hook = FlagEvaluationHook(self._flagevaluation_writer)
 
@@ -154,11 +157,11 @@ class DataDogProvider(AbstractProvider):
         every flag evaluation via the finally_after hook stage.
 
         Hook ordering:
-        1. OTel FlagEvalHook (_flageval_metrics.py) — always registered when provider is
-           enabled; emits feature_flag.evaluations OTel counter (PRES-01 preservation).
+        1. OTel FlagEvalHook (_flageval_metrics.py) — always registered when the provider
+           is enabled; emits the feature_flag.evaluations OTel counter (preserved unchanged).
         2. FlagEvaluationHook (_flagevaluation_hook.py) — registered only when
-           DD_FLAGGING_EVALUATION_COUNTS_ENABLED != "false"; enqueues cheap snapshots
-           to FlagEvaluationWriter for EVP flagevaluation emission.
+           DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
+           snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_hook is not None:

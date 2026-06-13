@@ -1,22 +1,21 @@
 """
 FlagEvaluationWriter — SDK-native EVP `flagevaluation` writer for dd-trace-py.
 
-Implements the frozen FANOUT-CONTRACT two-tier aggregation design (full → degraded →
-drop-counted). No libdatadog connection; uses the same PeriodicService + get_connection()
-transport path as ExposureWriter in writer.py.
+Implements a two-tier aggregation design (full → degraded → drop-counted). Uses the same
+PeriodicService + get_connection() transport path as the exposure writer in writer.py.
 
-Key design properties (port of Go PR #4886):
-- Async, best-effort recording: finally_after hook does cheap capture + non-blocking
+Key design properties:
+- Async, best-effort recording: the finally_after hook does cheap capture + non-blocking
   enqueue only. All flatten/prune/aggregate/flush work happens in the background worker.
-- Two-tier aggregation (full → degraded → drop-counted). No ultra-degraded tier.
-- Canonical context key: sorted, type-tagged, length-delimited — NOT a hash (reviewer
-  concern #3 3395004724). Distinct contexts always produce distinct keys.
-- Context pruning: ≤256 fields, string values ≤256 chars (reviewer concern #1).
+- Two-tier aggregation (full → degraded → drop-counted).
+- Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
+  contexts always produce distinct keys with no collisions.
+- Context pruning: ≤256 fields, string values ≤256 chars.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
-  DEGRADED_CAP=32_768 (degraded-tier). Overflow: drop-and-count (reviewer concern #8).
+  DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
-- First/last evaluation: min/max under lock (reviewer concern #4).
-- runtime_default_used: True when variant is None/absent (reviewer concern #5).
+- First/last evaluation: min/max under lock.
+- runtime_default_used: True when variant is None/absent.
 - Killswitch: DD_FLAGGING_EVALUATION_COUNTS_ENABLED (default on); gates EVP path only.
 - Non-blocking enqueue: queue.Queue(QUEUE_SIZE); drops + counts on queue.Full.
 """
@@ -28,12 +27,11 @@ import threading
 import time
 import typing
 
+from ddtrace import config as ddconfig
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.utils.http import get_connection
-
-from ddtrace import config as ddconfig
 
 
 logger = get_logger(__name__)
@@ -47,10 +45,10 @@ EVP_SUBDOMAIN_VALUE = "event-platform-intake"
 MAX_CONTEXT_FIELDS = 256
 MAX_FIELD_LENGTH = 256
 
-# Aggregation caps (sized for ≥2,500-flag scale target per FANOUT-CONTRACT).
-GLOBAL_CAP = 131_072      # bounds full-tier buckets
-PER_FLAG_CAP = 10_000     # bounds full-tier buckets per flag
-DEGRADED_CAP = 32_768     # bounds degraded-tier buckets; overflow is drop-counted
+# Aggregation caps (sized for a ≥2,500-flag scale target).
+GLOBAL_CAP = 131_072  # bounds full-tier buckets
+PER_FLAG_CAP = 10_000  # bounds full-tier buckets per flag
+DEGRADED_CAP = 32_768  # bounds degraded-tier buckets; overflow is drop-counted
 
 # Async hand-off queue size.
 QUEUE_SIZE = 4_096
@@ -75,6 +73,7 @@ _TAG_OTHER = b"o"
 # ---------------------------------------------------------------------------
 # Canonical context key — type-tagged, length-delimited, sorted
 # ---------------------------------------------------------------------------
+
 
 def _length_delimited(data: bytes) -> bytes:
     """Prepend a fixed 8-byte big-endian length to data."""
@@ -102,7 +101,7 @@ def _encode_context_value(v: typing.Any) -> bytes:
     return tag + _length_delimited(raw)
 
 
-def canonical_context_key(attrs: typing.Dict[str, typing.Any]) -> str:
+def canonical_context_key(attrs: dict[str, typing.Any]) -> str:
     """
     Build the EXACT, comparable canonical-context string key for a pruned context dict.
 
@@ -111,8 +110,7 @@ def canonical_context_key(attrs: typing.Dict[str, typing.Any]) -> str:
         length_delimited(key_bytes) + type_tag_byte + length_delimited(value_bytes)
 
     Because the full encoding is used as the map key (not a hash), distinct contexts
-    ALWAYS produce distinct keys — no hash collisions, no misattribution (reviewer
-    concern #3 3395004724).
+    ALWAYS produce distinct keys — no hash collisions, no misattribution.
 
     Returns "" for empty/None attrs.
     """
@@ -125,7 +123,7 @@ def canonical_context_key(attrs: typing.Dict[str, typing.Any]) -> str:
     return b"".join(parts).decode("latin-1")  # lossless binary → str for dict key
 
 
-def flatten_and_prune_context(attrs: typing.Dict[str, typing.Any]) -> typing.Dict[str, typing.Any]:
+def flatten_and_prune_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """
     Flatten nested dicts (dot-notation) and apply 256-field / 256-char prune.
 
@@ -138,7 +136,7 @@ def flatten_and_prune_context(attrs: typing.Dict[str, typing.Any]) -> typing.Dic
     if not attrs:
         return {}
 
-    flat: typing.Dict[str, typing.Any] = {}
+    flat: dict[str, typing.Any] = {}
     _flatten_recursive("", attrs, flat)
     if not flat:
         return {}
@@ -154,7 +152,7 @@ def flatten_and_prune_context(attrs: typing.Dict[str, typing.Any]) -> typing.Dic
         return flat
 
     # Deterministic prune: sort keys, keep first MAX_CONTEXT_FIELDS non-oversized values.
-    out: typing.Dict[str, typing.Any] = {}
+    out: dict[str, typing.Any] = {}
     count = 0
     for k in sorted(flat.keys()):
         if count >= MAX_CONTEXT_FIELDS:
@@ -167,7 +165,7 @@ def flatten_and_prune_context(attrs: typing.Dict[str, typing.Any]) -> typing.Dic
     return out
 
 
-def _flatten_recursive(prefix: str, attrs: typing.Any, out: typing.Dict[str, typing.Any]) -> None:
+def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any]) -> None:
     """Recursively flatten nested dicts into dot-notation keys."""
     if not isinstance(attrs, dict):
         if prefix:
@@ -185,21 +183,35 @@ def _flatten_recursive(prefix: str, attrs: typing.Any, out: typing.Dict[str, typ
 # Internal types
 # ---------------------------------------------------------------------------
 
+
 class _Entry:
     """Per-bucket aggregation state."""
 
-    __slots__ = ("count", "first_evaluation", "last_evaluation", "runtime_default",
-                 "targeting_key", "context_attrs", "error_message")
+    __slots__ = (
+        "count",
+        "first_evaluation",
+        "last_evaluation",
+        "runtime_default",
+        "targeting_key",
+        "context_attrs",
+        "error_message",
+    )
 
-    def __init__(self, now_ms: int, runtime_default: bool, targeting_key: str,
-                 context_attrs: typing.Dict[str, typing.Any], error_message: str) -> None:
+    def __init__(
+        self,
+        now_ms: int,
+        runtime_default: bool,
+        targeting_key: str,
+        context_attrs: dict[str, typing.Any],
+        error_message: str,
+    ) -> None:
         self.count: int = 1
         self.first_evaluation: int = now_ms
         self.last_evaluation: int = now_ms
         self.runtime_default: bool = runtime_default
         # Full-tier only:
         self.targeting_key: str = targeting_key
-        self.context_attrs: typing.Dict[str, typing.Any] = context_attrs
+        self.context_attrs: dict[str, typing.Any] = context_attrs
         self.error_message: str = error_message
 
     def observe(self, now_ms: int) -> None:
@@ -213,12 +225,13 @@ class _Entry:
 
 class _EvalEvent(typing.NamedTuple):
     """Minimal snapshot handed from finally_after to the background worker."""
+
     flag_key: str
-    variant: str           # "" when absent (= runtime_default)
+    variant: str  # "" when absent (= runtime_default)
     allocation_key: str
     reason: str
     targeting_key: str
-    attrs: typing.Dict[str, typing.Any]  # shallow copy from evaluation context
+    attrs: dict[str, typing.Any]  # shallow copy from evaluation context
     runtime_default: bool
     error_message: str
     eval_time_ms: int
@@ -228,11 +241,12 @@ class _EvalEvent(typing.NamedTuple):
 # FlagEvaluationWriter
 # ---------------------------------------------------------------------------
 
+
 class FlagEvaluationWriter(PeriodicService):
     """
     SDK-native EVP `flagevaluation` writer.
 
-    Implements the two-tier aggregation design from the frozen FANOUT-CONTRACT:
+    Two-tier aggregation design:
     - full-tier: keyed by (flag, variant, allocation, reason, targeting_key, canonical_context)
     - degraded-tier: keyed by (flag, variant, allocation, reason) — same cardinality as OTel
     - drop-counted: beyond degradedCap, increment _dropped_degraded_overflow
@@ -246,24 +260,25 @@ class FlagEvaluationWriter(PeriodicService):
         self._timeout = timeout
         self._intake: str = agent_config.trace_agent_url
         self._endpoint: str = FLAGEVALUATIONS_ENDPOINT
-        self._headers: typing.Dict[str, str] = {
+        self._headers: dict[str, str] = {
             "Content-Type": "application/json",
             EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_VALUE,
         }
 
-        # Async hand-off queue: non-blocking, bounded (reviewer concern #7).
-        self._queue: queue.Queue = queue.Queue(maxsize=QUEUE_SIZE)
+        # Async hand-off queue: non-blocking, bounded.
+        self._queue: "queue.Queue[_EvalEvent]" = queue.Queue(maxsize=QUEUE_SIZE)
 
-        # Aggregation maps (drained under _lock on each periodic() call).
+        # Aggregation maps (drained under _lock on each periodic() call). Keys are tuples of
+        # the enumerable dimensions plus (full tier) the canonical context string.
         self._lock = threading.Lock()
-        self._full: typing.Dict[tuple, _Entry] = {}
-        self._degraded: typing.Dict[tuple, _Entry] = {}
-        self._per_flag_count: typing.Dict[str, int] = {}  # flag_key → full-tier bucket count
+        self._full: dict[tuple[typing.Any, ...], _Entry] = {}
+        self._degraded: dict[tuple[typing.Any, ...], _Entry] = {}
+        self._per_flag_count: dict[str, int] = {}  # flag_key → full-tier bucket count
         self._global_count: int = 0
 
         # Observable drop counters.
-        self._dropped_queue: int = 0                  # queue.Full drops (hook path)
-        self._dropped_degraded_overflow: int = 0      # degraded-cap overflow drops
+        self._dropped_queue: int = 0  # queue.Full drops (hook path)
+        self._dropped_degraded_overflow: int = 0  # degraded-cap overflow drops
 
     # ------------------------------------------------------------------
     # Public API used by FlagEvaluationHook
@@ -382,7 +397,7 @@ class FlagEvaluationWriter(PeriodicService):
 
         # 4. Encode and POST.
         try:
-            context: typing.Dict[str, str] = {}
+            context: dict[str, str] = {}
             if ddconfig.service:
                 context["service"] = ddconfig.service
             if ddconfig.env:
@@ -390,7 +405,7 @@ class FlagEvaluationWriter(PeriodicService):
             if ddconfig.version:
                 context["version"] = ddconfig.version
 
-            payload_obj: typing.Dict[str, typing.Any] = {"flagEvaluations": events}
+            payload_obj: dict[str, typing.Any] = {"flagEvaluations": events}
             if context:
                 payload_obj["context"] = context
 
@@ -401,8 +416,8 @@ class FlagEvaluationWriter(PeriodicService):
 
         self._send_payload(payload, len(events))
 
-    def on_shutdown(self) -> None:
-        """Final flush on service shutdown."""
+    def on_shutdown(self):
+        """Final flush on service shutdown — drains the queue and flushes before exit."""
         self.periodic()
 
     # ------------------------------------------------------------------
@@ -500,17 +515,23 @@ class FlagEvaluationWriter(PeriodicService):
             if resp.status >= 300:
                 logger.debug(
                     "FlagEvaluationWriter: failed to send %d events to %s, status=%d: %s",
-                    num_events, self._intake, resp.status, resp.read(),
+                    num_events,
+                    self._intake,
+                    resp.status,
+                    resp.read(),
                 )
             else:
                 logger.debug(
                     "FlagEvaluationWriter: sent %d flag evaluation events to %s",
-                    num_events, self._intake,
+                    num_events,
+                    self._intake,
                 )
         except Exception:
             logger.debug(
                 "FlagEvaluationWriter: error sending %d events to %s",
-                num_events, self._intake, exc_info=True,
+                num_events,
+                self._intake,
+                exc_info=True,
             )
         finally:
             conn.close()
@@ -520,7 +541,8 @@ class FlagEvaluationWriter(PeriodicService):
 # Payload helpers
 # ---------------------------------------------------------------------------
 
-def _base_event(flag_key: str, entry: "_Entry", now_ms: int) -> typing.Dict[str, typing.Any]:
+
+def _base_event(flag_key: str, entry: "_Entry", now_ms: int) -> dict[str, typing.Any]:
     """Build the required-fields-only event dict for a single aggregation entry."""
     return {
         "timestamp": now_ms,

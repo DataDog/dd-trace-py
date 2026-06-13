@@ -50,6 +50,10 @@ components:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/*
     - ddtrace/internal/settings/asm.py
+  openfeature:
+    - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
+    - ddtrace/internal/settings/openfeature.py
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
@@ -219,6 +223,15 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/rate_limiter/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  openfeature_flagevaluation:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@openfeature'
+      - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
