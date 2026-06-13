@@ -90,7 +90,7 @@ class TestCanonicalContextKey:
         assert canonical_context_key(a) == canonical_context_key(b)
 
     def test_int_vs_string_distinct_keys(self):
-        """int 1 vs string '1' must produce different keys (type-tagged)."""
+        """int 1 vs string '1' must produce different keys (type-tagged keys)."""
         k_int = canonical_context_key({"x": 1})
         k_str = canonical_context_key({"x": "1"})
         assert k_int != k_str, "int 1 and str '1' must not alias into the same bucket"
@@ -194,7 +194,7 @@ class TestAggregation:
         assert entry.last_evaluation == t1
 
     def test_two_evals_differing_context_value_type_produce_two_buckets(self, writer):
-        """int 1 vs str '1' in context → two distinct full-tier buckets."""
+        """int 1 vs str '1' in context produce two distinct full-tier buckets."""
         e_int = _make_event(attrs={"x": 1})
         e_str = _make_event(attrs={"x": "1"})
         writer._aggregate(e_int)
@@ -247,7 +247,7 @@ class TestAggregation:
         assert entry.runtime_default is True
 
     def test_degraded_event_omits_targeting_key_and_context(self, writer):
-        """Degraded tier strips targeting_key + context (schema omitempty)."""
+        """Degraded tier strips targeting_key + context."""
         with writer._lock:
             writer._add_to_degraded(_make_event(targeting_key="some-key", attrs={"k": "v"}))
 
@@ -411,14 +411,13 @@ class TestPeriodicFlush:
 
 
 # ---------------------------------------------------------------------------
-# G3 — Schema conformance of the emitted payload (full + degraded rows)
+# Schema conformance of the emitted payload (full + degraded rows)
 # ---------------------------------------------------------------------------
 
 # The flageval-worker schema (batchedflagevaluations.json) is not vendored into this
-# repo (it lives in dd-source/domains/evp-workers, inaccessible here). We codify the
-# worker contract as a structural validator that mirrors the Go reference payload
-# (dd-trace-go/openfeature/flagevaluation.go): required scalar fields, and variant/
-# allocation serialized as {"key": ...} OBJECTS — never bare strings.
+# repo, so we codify the worker contract as a structural validator: required scalar
+# fields, and variant/allocation serialized as {"key": ...} OBJECTS — never bare
+# strings.
 
 # Required fields that EVERY flagevaluation row (full or degraded) must carry.
 _REQUIRED_EVENT_FIELDS = {
@@ -545,7 +544,7 @@ class TestPayloadSchemaConformance:
 
 
 # ---------------------------------------------------------------------------
-# G5 — Shutdown drains the queue + final-flush before exit
+# Shutdown drains the queue + final-flush before exit
 # ---------------------------------------------------------------------------
 
 
@@ -584,7 +583,7 @@ class TestShutdownDrain:
 
 
 # ---------------------------------------------------------------------------
-# G4 — Backpressure drop counters are observable (emitted on flush)
+# Backpressure drop counters are observable (emitted on flush)
 # ---------------------------------------------------------------------------
 
 

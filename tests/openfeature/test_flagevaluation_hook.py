@@ -177,7 +177,7 @@ class TestFlagEvaluationHook:
 
 
 class TestAsyncBoundary:
-    """G2: prove the hook does NOT aggregate on the eval call path.
+    """Prove the hook does NOT aggregate on the eval call path.
 
     The hook may only enqueue a cheap snapshot; flatten/prune/canonical-key/aggregate
     must run later in the writer's background worker, never on the eval thread.
@@ -228,7 +228,7 @@ class TestAsyncBoundary:
 
 
 class TestMetadataSourceMatchesOTelHook:
-    """G7: EVP hook reads allocation-key/eval metadata from the SAME source as the OTel hook.
+    """EVP hook reads allocation-key/eval metadata from the SAME source as the OTel hook.
 
     The existing OTel FlagEvalHook reads allocation_key from
     ``details.flag_metadata[METADATA_ALLOCATION_KEY]``. The EVP hook must read from the

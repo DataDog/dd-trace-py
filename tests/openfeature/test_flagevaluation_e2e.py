@@ -1,12 +1,12 @@
 """
 End-to-end tests for the EVP `flagevaluation` path through the real provider eval path.
 
-These cover the lifecycle/exit-path gates that unit tests of the hook/writer in isolation
+These cover the lifecycle/exit paths that unit tests of the hook/writer in isolation
 cannot prove:
 
-- G11: the EVP hook actually fires on the provider's REAL OpenFeature evaluation entrypoint
+- The EVP hook actually fires on the provider's REAL OpenFeature evaluation entrypoint
   (driven through the OpenFeature client, not by calling the hook directly).
-- G12: ALL evaluation exit paths are covered — success, native engine error, runtime default
+- ALL evaluation exit paths are covered — success, native engine error, runtime default
   (flag-not-found / no-config), and disabled.
 - The OTel `feature_flag.evaluations` path is preserved alongside the EVP path (non-regression).
 """
@@ -68,7 +68,7 @@ def _drain(provider):
 
 
 class TestEVPHookFiresOnRealEvalPath:
-    """G11: the EVP hook fires on the provider's real evaluation entrypoint."""
+    """The EVP hook fires on the provider's real evaluation entrypoint."""
 
     def test_evp_hook_registered_in_provider_hooks(self, provider_and_client):
         provider, _ = provider_and_client
@@ -95,7 +95,7 @@ class TestEVPHookFiresOnRealEvalPath:
         assert row.get("runtime_default_used", False) is False
 
     def test_variant_is_resolution_variant_not_value(self, provider_and_client):
-        """G1 end-to-end: emitted variant == resolution variant key, distinct from value."""
+        """End-to-end: emitted variant == resolution variant key, distinct from value."""
         provider, client = provider_and_client
         # String flag: value "blue", variant key "blue" (here equal); use details to confirm
         # the EVP row variant matches details.variant exactly.
@@ -109,7 +109,7 @@ class TestEVPHookFiresOnRealEvalPath:
 
 
 class TestEVPExitPathsCovered:
-    """G12: success / engine-error / runtime-default / disabled exit paths are all captured."""
+    """success / engine-error / runtime-default / disabled exit paths are all captured."""
 
     def test_flag_not_found_runtime_default_path(self, provider_and_client):
         provider, client = provider_and_client
