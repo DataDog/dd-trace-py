@@ -1,0 +1,6 @@
+# openfeature-sdk provides EvaluationContext / FlagEvaluationDetails / HookContext,
+# which the scenario imports directly. It is a test-time dependency (not a ddtrace
+# runtime dependency), so the benchmark base venv does not install it otherwise.
+# 0.8.0+ is required for the finally_after hook `details` parameter the scenario drives.
+# Mirrors the `openfeature` venv pin in riotfile.py.
+openfeature-sdk~=0.8.0
