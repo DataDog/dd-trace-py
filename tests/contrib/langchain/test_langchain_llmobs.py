@@ -1046,6 +1046,34 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
     )
 
 
+def test_llmobs_chat_model_empty_stream(langchain_core, langchain_llmobs):
+    """A traced chat-model stream that yields no chunks must not raise or log an error.
+
+    When ``traced_chat_stream`` folds an empty stream it falls back to an empty list
+    (``ddtrace/contrib/internal/langchain/patch.py`` ``_on_span_finished``), which the
+    chat-model tagger previously dereferenced as ``response.content`` -> ``AttributeError:
+    'list' object has no attribute 'content'``. The error was swallowed and logged once
+    per empty stream. The span should instead carry an empty output message.
+    """
+    integration = langchain_core._datadog_integration
+    span = integration.trace("langchain.request", submit_to_llmobs=True)
+    span.set_tag("langchain.request.stream", "True")
+    span.set_tag("langchain.request.provider", "fake")
+
+    # The empty-stream fallback in ``_on_span_finished`` passes an empty list as the response.
+    integration._llmobs_set_tags(
+        span=span,
+        args=[[langchain_core.messages.HumanMessage(content="hi")]],
+        kwargs={},
+        response=[],
+        operation="chat",
+    )
+    span.finish()
+
+    output_messages = get_llmobs_output_messages(span)
+    assert output_messages == [{"content": "", "role": ""}]
+
+
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     bedrock_env_config = dict(
         AWS_ACCESS_KEY_ID="testing",

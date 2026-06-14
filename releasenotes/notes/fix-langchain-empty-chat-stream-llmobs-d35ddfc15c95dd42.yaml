@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where the LangChain integration logged an error
+    (``Error extracting LLMObs fields ... AttributeError: 'list' object has no attribute 'content'``)
+    whenever a traced chat model stream completed without yielding any chunks. Such empty
+    streams are now captured as an empty output message instead of dropping the span enrichment
+    and logging an error.
