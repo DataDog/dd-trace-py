@@ -541,7 +541,11 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         if stream:
-            content = chat_completions.content
+            # A stream that yields no chunks is folded into an empty list by ``_on_span_finished``
+            # (see ``ddtrace/contrib/internal/langchain/patch.py``), which is not a message chunk
+            # and has no ``content``/role to extract. Treat it as an empty completion instead of
+            # dereferencing ``.content`` and raising ``AttributeError``.
+            content = _get_attr(chat_completions, "content", "") or ""
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
             _annotate_llmobs_span_data(
                 span, **cast(dict[str, Any], {output_key: [Message(content=content, role=ROLE_MAPPING.get(role, ""))]})
