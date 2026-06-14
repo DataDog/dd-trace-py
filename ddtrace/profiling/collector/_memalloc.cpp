@@ -119,7 +119,11 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     }
 
     if (ptr) {
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        uint64_t allocated_memory_val = 0;
+        if (memalloc_heap_sample_check_inline(nelem * elsize, memalloc_ctx->domain, &allocated_memory_val)) {
+            memalloc_heap_track_sample_invokes_cpython(
+              memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain, allocated_memory_val);
+        }
     }
 
     return ptr;
@@ -154,7 +158,11 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     // We may need to add synchronization here in the future to avoid races between realloc and untrack.
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        uint64_t allocated_memory_val = 0;
+        if (memalloc_heap_sample_check_inline(new_size, memalloc_ctx->domain, &allocated_memory_val)) {
+            memalloc_heap_track_sample_invokes_cpython(
+              memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain, allocated_memory_val);
+        }
     } else if (new_size == 0 && ptr != NULL) {
         // realloc(ptr, 0) is implementation-defined: some allocators (including
         // glibc) free ptr and return NULL.  In that case ptr is gone and must be
@@ -219,7 +227,11 @@ memalloc_alloc_mem(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     }
 
     if (ptr) {
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        uint64_t allocated_memory_val = 0;
+        if (memalloc_heap_sample_check_inline(nelem * elsize, memalloc_ctx->domain, &allocated_memory_val)) {
+            memalloc_heap_track_sample_invokes_cpython(
+              memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain, allocated_memory_val);
+        }
     }
 
     return ptr;
@@ -250,7 +262,11 @@ memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
     void* ptr2 = alloc.realloc(alloc.ctx, ptr, new_size);
     if (ptr2) {
         memalloc_heap_untrack_no_cpython(ptr);
-        memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        uint64_t allocated_memory_val = 0;
+        if (memalloc_heap_sample_check_inline(new_size, memalloc_ctx->domain, &allocated_memory_val)) {
+            memalloc_heap_track_sample_invokes_cpython(
+              memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain, allocated_memory_val);
+        }
     } else if (new_size == 0 && ptr != NULL) {
         memalloc_heap_untrack_no_cpython(ptr);
     }

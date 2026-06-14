@@ -33,6 +33,8 @@ template<typename K, typename V>
 using HeapMapType = std::unordered_map<K, V>;
 #endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 
+memalloc_sampling_counter_t* g_memalloc_sampling_counter = nullptr;
+
 /*
    How heap profiler sampling works:
 
@@ -103,11 +105,11 @@ class heap_tracker_t
      * internally if found. */
     void untrack_no_cpython(void* ptr);
 
-    /* Decide whether we should sample an allocation of the given size. Accesses
-     * shared state, and must be called with the GIL held and without making any C
-     * Python API calls. Returns true if we should sample, and sets allocated_memory_val
-     * to the domain's accumulated byte count (used as the sample weight). */
-    bool should_sample_no_cpython(size_t size, PyMemAllocatorDomain domain, uint64_t* allocated_memory_val);
+    /* Slow-path cap check: called from the inline fast-path only when a domain's
+     * byte counter crosses its threshold (~1/1000 allocs).  Returns true if the
+     * live-allocation cap has not been reached. Domain-agnostic: the per-domain
+     * counter bump + threshold test live in the inline fast-path (header). */
+    bool should_sample_slow_path();
 
     /* Track an allocation that we decided to sample. This updates shared state and
      * must be called with the GIL held and without making any C Python API calls.
@@ -132,6 +134,14 @@ class heap_tracker_t
     /* Reset the heap tracker state after fork in child process */
     void postfork_child();
 
+    /* Per-domain sampling state.  Each allocation domain accumulates bytes
+     * independently; a sample fires when the domain's counter crosses its own
+     * threshold. This prevents MEM-domain traffic from inflating the OBJ sample
+     * rate and vice versa. Indexed by PyMemAllocatorDomain: RAW=0, MEM=1, OBJ=2.
+     * Public because init publishes &domain_states_[0] via
+     * g_memalloc_sampling_counter for the per-domain inline fast-path. */
+    std::array<memalloc_sampling_counter_t, 3> domain_states_{};
+
   private:
     uint32_t next_sample_size_no_cpython(uint32_t sample_size);
 
@@ -152,18 +162,6 @@ class heap_tracker_t
      * std::minstd_rand stores all state in the object (no global locks), so it
      * is fork-safe (unlike rand). */
     std::minstd_rand rng;
-
-    /* Per-domain sampling state.  Each allocation domain accumulates bytes
-     * independently; a sample fires when the domain's counter crosses its
-     * own threshold. This prevents MEM-domain traffic from inflating the OBJ
-     * sample rate and vice versa.
-     * Indexed by PyMemAllocatorDomain: RAW=0, MEM=1, OBJ=2. */
-    struct domain_state_t {
-        uint64_t allocated_memory{0};
-        uint64_t current_sample_size{0};
-    };
-    std::array<domain_state_t, 3> domain_states_;
-
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
 
@@ -256,16 +254,9 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 }
 
 bool
-heap_tracker_t::should_sample_no_cpython(size_t size, PyMemAllocatorDomain domain, uint64_t* allocated_memory_val)
+heap_tracker_t::should_sample_slow_path()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
-    auto& ds = domain_states_[static_cast<int>(domain)];
-    ds.allocated_memory += size;
-    *allocated_memory_val = ds.allocated_memory;
-
-    if (ds.allocated_memory < ds.current_sample_size) {
-        return false;
-    }
 
     if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
         /* TODO(nick) this is vestigial from the original array-based
@@ -364,6 +355,7 @@ memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
         Datadog::memalloc_code_cache_init(Datadog::CodeFunctionCache::DEFAULT_CAPACITY);
+        g_memalloc_sampling_counter = heap_tracker_t::instance->domain_states_.data();
         return true;
     }
     return false;
@@ -372,6 +364,8 @@ memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 void
 memalloc_heap_tracker_deinit_no_cpython(void)
 {
+    // Clear the global pointer first so in-flight hooks see NULL and skip.
+    g_memalloc_sampling_counter = nullptr;
     // Delete the instance and set to nullptr. We set to nullptr first so that
     // if the destructor releases the GIL, we can use nullptr as a sentinel.
     heap_tracker_t* old_instance = heap_tracker_t::instance;
@@ -391,17 +385,27 @@ memalloc_heap_untrack_no_cpython(void* ptr)
     }
 }
 
-/* Track a memory allocation in the heap profiler. */
-void
-memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+/* Slow path: cap check.  Called from memalloc_heap_sample_check_inline (header)
+ * only when the byte counter crosses the threshold (~1/1000 allocs). */
+bool
+memalloc_heap_sample_slow_path()
 {
     if (!heap_tracker_t::instance) {
-        return;
+        return false;
     }
-    uint64_t allocated_memory_val = 0;
-    if (!heap_tracker_t::instance->should_sample_no_cpython(size, domain, &allocated_memory_val)) {
-        return;
-    }
+    return heap_tracker_t::instance->should_sample_slow_path();
+}
+
+/* Expensive path: collect traceback, record sample.  Only call after
+ * memalloc_heap_sample_check_inline returned true. */
+void
+memalloc_heap_track_sample_invokes_cpython(uint16_t max_nframe,
+                                           void* ptr,
+                                           size_t size,
+                                           PyMemAllocatorDomain domain,
+                                           uint64_t allocated_memory_val)
+{
+    (void)domain;
 
     /* Skip tracking if we're already inside the malloc hook on this thread.
      * Reentrant tracking would corrupt the heap tracker's data structures. */
