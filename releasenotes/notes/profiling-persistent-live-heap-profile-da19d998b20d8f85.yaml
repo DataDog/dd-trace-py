@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    profiling: live heap profiles are now built incrementally and kept as a
+    persistent profile across uploads. Newly sampled allocations are added and
+    freed allocations are subtracted in batches at export time, instead of
+    re-walking and re-adding the entire set of live allocations under the GIL on
+    every upload. This reduces the CPU and lock overhead of heap profiling,
+    most noticeably for applications that retain many long-lived sampled
+    allocations.
