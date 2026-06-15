@@ -1,14 +1,10 @@
 import json
 
-import httpx
-import mock
 import pytest
 
 from tests.contrib.mistralai.utils import CHAT_TOOLS
 from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
 from tests.contrib.mistralai.utils import FULL_EMBED_REQUEST_KWARGS
-from tests.contrib.mistralai.utils import TOOL_CALL_BODY
-from tests.contrib.mistralai.utils import TOOL_FINAL_RESPONSE_BODY
 from tests.contrib.mistralai.utils import get_weather
 from tests.utils import override_global_config
 
