@@ -419,6 +419,8 @@ s2.finish()
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                # Disable native logging to prevent debug-level stderr flood slowing down the subprocess.
+                "_DD_NATIVE_LOGGING_BACKEND": "",
             }
         )
 
@@ -526,6 +528,8 @@ def test_logging_during_tracer_init_succeeds_when_debug_logging_and_logs_injecti
     env = os.environ.copy()
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_LOGS_INJECTION"] = "true"
+    # Disable native logging to prevent debug-level stderr flood slowing down the subprocess.
+    env["_DD_NATIVE_LOGGING_BACKEND"] = ""
 
     # DEV: We don't actually have to execute any code to validate this
     out, err, status, pid = ddtrace_run_python_code_in_subprocess("", env=env)

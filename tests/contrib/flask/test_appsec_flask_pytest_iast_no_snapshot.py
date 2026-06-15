@@ -20,6 +20,9 @@ def test_flask_pytest_iast(iast_enabled, iast_request_sampling):
             "DD_TRACE_SQLITE_ENABLED": "0",
             "DD_IAST_ENABLED": iast_enabled,
             "DD_TRACE_DEBUG": "true",
+            # Disable native logging: with DD_TRACE_DEBUG=true it would write debug-level logs to stderr,
+            # flooding the pipe buffer and causing p.wait() to deadlock.
+            "_DD_NATIVE_LOGGING_BACKEND": "",
             "DD_IAST_REQUEST_SAMPLING": iast_request_sampling,
             # "DD_API_KEY": "invalidapikey",
             # "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
