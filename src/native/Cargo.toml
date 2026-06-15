@@ -40,7 +40,11 @@ libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v3
 ] }
 libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0" }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0", optional = true, features = [
+# TEMPORARY: pinned to an unreleased libdatadog branch (off main) that adds the
+# persistent-heap-profile APIs (Profile_add2_batch / sub2 / sub2_batch /
+# serialize_snapshot). Restore to the shared "v35.0.0" rev once those changes
+# are released. A git rev (not a local path) so CI builds resolve it too.
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "416b22b50fed4ea45ae3fbad77c2fbae02a93f02", optional = true, features = [
     "cbindgen",
 ] }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0", optional = true }
@@ -59,11 +63,3 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
-
-# TEMPORARY: build the profiling crates from a local libdatadog checkout so the
-# persistent-heap-profile work (Profile_add2_batch / sub2 / sub2_batch /
-# serialize_snapshot) is available before it is released. Replace with a pinned
-# rev once the libdatadog changes land.
-[patch."https://github.com/DataDog/libdatadog"]
-libdd-profiling-ffi = { path = "/Users/vlad.scherbich/go/src/github.com/DataDog/libdatadog/libdd-profiling-ffi" }
-libdd-profiling = { path = "/Users/vlad.scherbich/go/src/github.com/DataDog/libdatadog/libdd-profiling" }
