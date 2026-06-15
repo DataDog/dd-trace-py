@@ -432,7 +432,7 @@ class ElasticsearchPatchTest(TracerTestCase):
                 await es.close()
 
         try:
-            asyncio.get_event_loop().run_until_complete(run())
+            asyncio.run(run())
         finally:
             unpatch()
             patch()
