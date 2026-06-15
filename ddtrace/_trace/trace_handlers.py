@@ -391,14 +391,8 @@ def _on_traced_request_context_started_flask(ctx):
     flask_config = ctx.get_item("flask_config")
     flask_request = ctx.get_item("flask_request")
     _set_flask_request_tags(flask_request, current_span, flask_config)
-    # Also propagate url_rule-derived resource to the outer WSGI flask.request span during
-    # preprocess_request, so gunicorn worker-timeout (SIGABRT) requests that never reach
-    # start_response still carry the route pattern resource instead of the raw URL path.
-    # Mirrors the Django fix in PR #6674. _set_flask_request_tags is idempotent.
-    # `req_span` lives on the outer `wsgi.__call__` execution context; `find_item` walks
-    # up the context chain to retrieve it (same pattern `_on_start_response_pre` uses).
-    # Preferred over `tracer.current_root_span()`: if an outer WSGI middleware creates a
-    # span above `flask.request`, the local root would no longer be the WSGI req_span.
+    # Propagate route tags to the outer req_span so requests killed before start_response
+    # (e.g. gunicorn SIGABRT) still carry the route pattern resource.
     try:
         req_span = ctx.find_item("req_span")
         if req_span is not None and req_span is not current_span:
