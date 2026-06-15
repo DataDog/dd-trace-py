@@ -70,6 +70,43 @@ async def patched_run_single_turn_streamed_module(func, instance, args, kwargs):
     return await _patched_run_single_turn_module(func, instance, args, kwargs)
 
 
+# AIDEV-NOTE: MLOB-7584 — the module-level per-turn function's call shape varies by
+# agents version AND by streamed vs non-streamed variant. Verified against shipped
+# wheels 0.8.0-0.17.x:
+#   non-streamed 0.8.0-0.13.x:  run_single_turn(agent=<Agent>, ...)             # kwarg
+#   non-streamed >= 0.14.0:     run_single_turn(bindings=<AgentBindings>, ...)  # kwarg
+#   streamed     0.8.0-0.13.x:  run_single_turn_streamed(<RunResultStreaming>, <Agent>, ...)
+#   streamed     >= 0.14.0:     run_single_turn_streamed(<RunResultStreaming>, <AgentBindings>, ...)
+# The streamed variants pass the agent/bindings POSITIONALLY at index 1 (index 0 is the
+# RunResultStreaming, which exposes only ``current_agent`` — not the binding attrs or a
+# bare Agent's name/tools/handoffs, so the scan safely skips it). Reading only
+# ``args[0]``/``kwargs["bindings"]`` (the pre-fix behavior) missed the agent= kwarg shape
+# (0.8.0-0.13.x) AND the streamed positional shape (all versions), silently dropping the
+# manifest + agent-side context capture on those paths.
+def _extract_agent_from_module_call(args, kwargs):
+    """Resolve the Agent from a module-level run_single_turn[_streamed] call across versions."""
+    candidates = []
+    for key in ("bindings", "agent"):
+        value = kwargs.get(key)
+        if value is not None:
+            candidates.append(value)
+    candidates.extend(arg for arg in args if arg is not None)
+    for candidate in candidates:
+        # AgentBindings shape (>= 0.14.0): the agent lives under one of these.
+        bound_agent = (
+            getattr(candidate, "execution_agent", None)
+            or getattr(candidate, "public_agent", None)
+            or getattr(candidate, "agent", None)
+        )
+        if bound_agent is not None:
+            return bound_agent
+        # Bare Agent shape (0.8.0-0.13.x). name + tools + handoffs distinguishes an Agent
+        # from RunResultStreaming (which has ``current_agent`` but none of these).
+        if hasattr(candidate, "name") and hasattr(candidate, "tools") and hasattr(candidate, "handoffs"):
+            return candidate
+    return None
+
+
 async def _patched_run_single_turn_module(func, instance, args, kwargs):
     current_span = tracer.current_span()
     result = await func(*args, **kwargs)
@@ -78,14 +115,7 @@ async def _patched_run_single_turn_module(func, instance, args, kwargs):
         log.debug("No current span available, skipping tag_agent_manifest")
         return result
 
-    bindings = args[0] if args else kwargs.get("bindings")
-    agent = None
-    if bindings is not None:
-        agent = (
-            getattr(bindings, "execution_agent", None)
-            or getattr(bindings, "public_agent", None)
-            or getattr(bindings, "agent", None)
-        )
+    agent = _extract_agent_from_module_call(args, kwargs)
     if agent is None:
         return result
 

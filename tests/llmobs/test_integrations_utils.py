@@ -398,37 +398,21 @@ class TestOpenAIConstructMessageFromStreamedChunks:
 
 
 class TestSplitTokensByChars:
-    def test_distributes_proportionally(self):
+    @pytest.mark.parametrize(
+        "total_tokens,chars,expected",
+        [
+            # 800 chars total; cat A = 200, B = 600. Split of 1000 tokens: A=250, B=750.
+            (1000, {"A": 200, "B": 600}, {"A": 250, "B": 750}),
+            (0, {"A": 100, "B": 200}, {"A": 0, "B": 0}),  # zero total tokens
+            (1000, {"A": 0, "B": 0}, {"A": 0, "B": 0}),  # zero total chars -> undefined split
+            (-5, {"A": 100}, {"A": 0}),  # defensive: negative / malformed total
+            (1000, {}, {}),  # empty categories
+        ],
+    )
+    def test_split_tokens_by_chars(self, total_tokens, chars, expected):
         from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
 
-        # 800 chars total; cat A = 200, B = 600. Split of 1000 tokens: A=250, B=750.
-        result = split_tokens_by_chars(1000, {"A": 200, "B": 600})
-        assert result == {"A": 250, "B": 750}
-
-    def test_zero_total_tokens_returns_zeros(self):
-        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
-
-        result = split_tokens_by_chars(0, {"A": 100, "B": 200})
-        assert result == {"A": 0, "B": 0}
-
-    def test_zero_total_chars_returns_zeros(self):
-        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
-
-        # All categories empty — proportional split is undefined; return zeros.
-        result = split_tokens_by_chars(1000, {"A": 0, "B": 0})
-        assert result == {"A": 0, "B": 0}
-
-    def test_negative_total_tokens_returns_zeros(self):
-        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
-
-        # Defensive: negative or malformed totals shouldn't blow up the visualization.
-        result = split_tokens_by_chars(-5, {"A": 100})
-        assert result == {"A": 0}
-
-    def test_empty_categories_returns_empty(self):
-        from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
-
-        assert split_tokens_by_chars(1000, {}) == {}
+        assert split_tokens_by_chars(total_tokens, chars) == expected
 
 
 class TestSectionsWithPct:
@@ -585,73 +569,51 @@ def _make_integration():
 class TestOpenAIAgentsContextWindow:
     """Cover the model -> context_window resolver, including the o1-preview prefix bug."""
 
-    def test_exact_match(self):
-        integration = _make_integration()
-        assert integration._context_window_for("gpt-4o") == 128_000
-        assert integration._context_window_for("gpt-4") == 8_192
-        assert integration._context_window_for("o1") == 200_000
-
-    def test_dated_prefix_match(self):
-        # gpt-4o-2024-08-06 -> gpt-4o (longest-prefix wins)
-        integration = _make_integration()
-        assert integration._context_window_for("gpt-4o-2024-08-06") == 128_000
-        assert integration._context_window_for("gpt-4o-mini-2024-07-18") == 128_000
-
-    def test_o1_preview_resolves_to_128k_not_200k(self):
-        # Regression: longest-prefix sort must pick "o1-preview" (128k) over "o1" (200k).
-        integration = _make_integration()
-        assert integration._context_window_for("o1-preview") == 128_000
-        assert integration._context_window_for("o1-preview-2024-09-12") == 128_000
-
-    def test_o1_mini_not_confused_with_o1(self):
-        integration = _make_integration()
-        assert integration._context_window_for("o1-mini") == 128_000
-        assert integration._context_window_for("o1-mini-2024-09-12") == 128_000
-
-    def test_gpt_4_mini_not_confused_with_gpt_4(self):
-        integration = _make_integration()
-        # gpt-4o-mini must match the 128k entry, not gpt-4 (8k).
-        assert integration._context_window_for("gpt-4o-mini") == 128_000
-
-    def test_unknown_model_returns_zero(self):
-        integration = _make_integration()
-        assert integration._context_window_for("some-unknown-model") == 0
-        assert integration._context_window_for("") == 0
-        assert integration._context_window_for(None) == 0  # defensive
-
-    def test_o_series_models_resolve_correctly(self):
-        # o-series models are the most likely to be used with Responses API features;
-        # ensure the prefix resolver returns the right window for each.
-        integration = _make_integration()
-        assert integration._context_window_for("o3") == 200_000
-        assert integration._context_window_for("o3-2025-04-16") == 200_000
-        assert integration._context_window_for("o3-mini") == 200_000
-        assert integration._context_window_for("o3-mini-2025-01-31") == 200_000
-        assert integration._context_window_for("o4-mini") == 200_000
-        assert integration._context_window_for("o4-mini-2025-04-16") == 200_000
-
-    def test_gpt_41_dated_variants_resolve_via_prefix(self):
-        # gpt-4.1 has a 1M context window. Dated variants (e.g. ...-2025-04-14) must
-        # also resolve to the same window via longest-prefix sort.
-        integration = _make_integration()
-        assert integration._context_window_for("gpt-4.1") == 1_047_576
-        assert integration._context_window_for("gpt-4.1-2025-04-14") == 1_047_576
-        assert integration._context_window_for("gpt-4.1-mini") == 1_047_576
-        assert integration._context_window_for("gpt-4.1-nano") == 1_047_576
-
-    def test_gpt_5_x_variants_resolve_via_longest_prefix(self):
-        # gpt-5.4 and gpt-5.5 have 1,050,000 context windows but gpt-5.4-mini has
-        # 400,000. Longest-prefix sort must pick "gpt-5.4-mini" over "gpt-5.4" so
-        # the mini variant's dated snapshots don't mis-resolve to 1,050,000.
-        integration = _make_integration()
-        assert integration._context_window_for("gpt-5") == 400_000
-        assert integration._context_window_for("gpt-5-mini") == 400_000
-        assert integration._context_window_for("gpt-5.4") == 1_050_000
-        assert integration._context_window_for("gpt-5.4-2026-03-05") == 1_050_000
-        assert integration._context_window_for("gpt-5.5") == 1_050_000
-        assert integration._context_window_for("gpt-5.5-2026-04-23") == 1_050_000
-        assert integration._context_window_for("gpt-5.4-mini") == 400_000
-        assert integration._context_window_for("gpt-5.4-mini-2026-03-17") == 400_000
+    @pytest.mark.parametrize(
+        "model,expected",
+        [
+            ("gpt-4o", 128_000),
+            ("gpt-4", 8_192),
+            ("o1", 200_000),
+            # Dated snapshots resolve to the base model via longest-prefix.
+            ("gpt-4o-2024-08-06", 128_000),
+            ("gpt-4o-mini-2024-07-18", 128_000),
+            # Longest-prefix sort must pick "o1-preview" (128k) over "o1" (200k).
+            pytest.param("o1-preview", 128_000, id="o1-preview-not-200k"),
+            pytest.param("o1-preview-2024-09-12", 128_000, id="o1-preview-dated-not-200k"),
+            ("o1-mini", 128_000),
+            ("o1-mini-2024-09-12", 128_000),
+            # gpt-4o-mini must match the 128k entry, not gpt-4 (8k).
+            pytest.param("gpt-4o-mini", 128_000, id="gpt-4o-mini-not-gpt-4-8k"),
+            # Unknown / empty / None resolve to 0 (defensive).
+            ("some-unknown-model", 0),
+            ("", 0),
+            (None, 0),
+            # o-series (Responses API) each resolve to their 200k window.
+            ("o3", 200_000),
+            ("o3-2025-04-16", 200_000),
+            ("o3-mini", 200_000),
+            ("o3-mini-2025-01-31", 200_000),
+            ("o4-mini", 200_000),
+            ("o4-mini-2025-04-16", 200_000),
+            # gpt-4.1 family: 1M window, including dated / mini / nano via prefix.
+            ("gpt-4.1", 1_047_576),
+            ("gpt-4.1-2025-04-14", 1_047_576),
+            ("gpt-4.1-mini", 1_047_576),
+            ("gpt-4.1-nano", 1_047_576),
+            ("gpt-5", 400_000),
+            ("gpt-5-mini", 400_000),
+            ("gpt-5.4", 1_050_000),
+            ("gpt-5.4-2026-03-05", 1_050_000),
+            ("gpt-5.5", 1_050_000),
+            ("gpt-5.5-2026-04-23", 1_050_000),
+            # Longest-prefix must pick "gpt-5.4-mini" (400k) over "gpt-5.4" (1.05M).
+            pytest.param("gpt-5.4-mini", 400_000, id="gpt-5.4-mini-not-1.05M"),
+            pytest.param("gpt-5.4-mini-2026-03-17", 400_000, id="gpt-5.4-mini-dated-not-1.05M"),
+        ],
+    )
+    def test_context_window_resolution(self, model, expected):
+        assert _make_integration()._context_window_for(model) == expected
 
 
 class TestOpenAIAgentsContextState:
@@ -1225,46 +1187,6 @@ class TestOpenAIAgentsPatchCompat:
         finally:
             integration.record_agent_side = orig
 
-    def test_streamed_module_wrapper_routes_through_same_inner(self):
-        # The streamed wrapper (``patched_run_single_turn_streamed_module``) shares the
-        # same inner implementation as the non-streamed one. This test confirms both
-        # entry points produce identical record_agent_side calls for the same bindings.
-        import asyncio
-        from types import SimpleNamespace
-
-        import agents
-
-        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
-        from ddtrace.contrib.internal.openai_agents.patch import patched_run_single_turn_streamed_module
-        from ddtrace.trace import tracer
-
-        if not getattr(agents, "_datadog_patch", False):
-            patch_openai_agents()
-
-        integration = agents._datadog_integration
-        captured = []
-        orig = integration.record_agent_side
-        integration.record_agent_side = lambda trace_id, **kw: captured.append(kw)
-
-        mock_agent = SimpleNamespace(name="StreamedAgent", tools=[{"name": "t"}], handoffs=[])
-        bindings = SimpleNamespace(execution_agent=mock_agent, public_agent=mock_agent)
-
-        async def inner(*args, **kwargs):
-            return "streamed_result"
-
-        async def _run():
-            with tracer.trace("test"):
-                return await patched_run_single_turn_streamed_module(inner, None, (bindings,), {})
-
-        try:
-            result = asyncio.run(_run())
-            assert result == "streamed_result"
-            assert len(captured) == 1
-            assert captured[0]["agent_id"] == "StreamedAgent"
-            assert captured[0]["tools_chars"] > 0
-        finally:
-            integration.record_agent_side = orig
-
     def test_record_agent_side_before_first_llm_side_is_safe(self):
         # Edge case: record_agent_side fires with no paired record_llm_side. Locks
         # first_agent_id and first_agent but leaves first_llm / last_llm unset.
@@ -1287,3 +1209,89 @@ class TestOpenAIAgentsPatchCompat:
             "emit_context_delta must no-op when no LLM snapshot exists"
         )
         assert 42 not in integration._context_state, "state must still be popped"
+
+    # MLOB-7584 — the module-level per-turn function has FOUR real call shapes across
+    # agents versions / streamed variants (verified against shipped wheels 0.8.0-0.17.x).
+    # These exercise the shapes the original ``args[0]``/``bindings``-only extraction missed.
+    def _run_module_wrapper(self, args, kwargs):
+        import asyncio
+
+        import agents
+
+        from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn_module
+        from ddtrace.contrib.internal.openai_agents.patch import patch as patch_openai_agents
+        from ddtrace.trace import tracer
+
+        if not getattr(agents, "_datadog_patch", False):
+            patch_openai_agents()
+        integration = agents._datadog_integration
+        captured_manifest, captured_agent_side = [], []
+        orig_m = integration.tag_agent_manifest_from_agent
+        orig_a = integration.record_agent_side
+        integration.tag_agent_manifest_from_agent = lambda span, agent: captured_manifest.append(
+            getattr(agent, "name", None)
+        )
+        integration.record_agent_side = lambda trace_id, **kw: captured_agent_side.append(kw)
+
+        async def inner(*a, **k):
+            return "RESULT"
+
+        async def _run():
+            with tracer.trace("test_root"):
+                return await _patched_run_single_turn_module(inner, None, args, kwargs)
+
+        try:
+            result = asyncio.run(_run())
+        finally:
+            integration.tag_agent_manifest_from_agent = orig_m
+            integration.record_agent_side = orig_a
+        return result, captured_manifest, captured_agent_side
+
+    @staticmethod
+    def _agent(name="Analyst"):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(name=name, instructions="x", tools=[{"name": "t"}], handoffs=[], mcp_servers=[])
+
+    def test_module_wrapper_handles_agent_kwarg_shape(self):
+        # agents 0.8.0-0.13.x non-streamed: run_single_turn(agent=<Agent>, ...). The
+        # pre-fix wrapper read only kwargs["bindings"] and silently dropped this.
+        agent = self._agent()
+        result, manifest, agent_side = self._run_module_wrapper((), {"agent": agent, "all_tools": []})
+        assert result == "RESULT"
+        assert manifest == ["Analyst"]
+        assert agent_side and agent_side[0]["agent_id"] == "Analyst" and agent_side[0]["tools_chars"] > 0
+
+    def test_streamed_wrapper_handles_realistic_positional_bindings(self):
+        # agents >= 0.14.0 streamed: run_single_turn_streamed(<RunResultStreaming>, <bindings>, ...).
+        # The real arg[0] is the streamed result (NOT the bindings); the bindings is arg[1].
+        from types import SimpleNamespace
+
+        agent = self._agent("StreamedExec")
+        stream_result = SimpleNamespace(current_agent=agent)  # RunResultStreaming-like: current_agent only
+        bindings = SimpleNamespace(execution_agent=agent, public_agent=None)
+        result, manifest, agent_side = self._run_module_wrapper((stream_result, bindings, "hooks"), {})
+        assert result == "RESULT"
+        assert manifest == ["StreamedExec"], "must extract agent from bindings at arg[1], not the stream result"
+        assert agent_side and agent_side[0]["agent_id"] == "StreamedExec"
+
+    def test_streamed_wrapper_handles_realistic_positional_agent(self):
+        # agents 0.8.0-0.13.x streamed: run_single_turn_streamed(<RunResultStreaming>, <Agent>, ...).
+        from types import SimpleNamespace
+
+        agent = self._agent("StreamedAgent")
+        stream_result = SimpleNamespace(current_agent=agent)
+        result, manifest, agent_side = self._run_module_wrapper((stream_result, agent, "hooks"), {})
+        assert result == "RESULT"
+        assert manifest == ["StreamedAgent"]
+        assert agent_side and agent_side[0]["agent_id"] == "StreamedAgent"
+
+    def test_module_wrapper_skips_run_result_streaming_without_agent(self):
+        # Defensive: a RunResultStreaming-like object alone (current_agent only, no
+        # bindings attrs / no name+tools+handoffs) must NOT be mistaken for an Agent.
+        from types import SimpleNamespace
+
+        stream_result = SimpleNamespace(current_agent=self._agent())
+        result, manifest, agent_side = self._run_module_wrapper((stream_result,), {})
+        assert result == "RESULT"
+        assert manifest == [] and agent_side == []
