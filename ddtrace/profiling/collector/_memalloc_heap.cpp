@@ -329,8 +329,9 @@ heap_tracker_t::postfork_child()
     cap_drops = 0;
 
     // PyCodeObject pointers from the parent may have been reused for unrelated
-    // code objects in the child. Drop the cache entirely; rebuilding it is
-    // cheap relative to risking misattribution.
+    // code objects in the child. Clear all cache entries (the allocated sets
+    // vector is retained); re-populating it is cheap relative to risking
+    // misattribution.
     Datadog::memalloc_code_cache_clear();
 
     // Reset the sampling state to start fresh after fork.
