@@ -5,6 +5,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
+from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RCCallback
@@ -37,6 +38,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._parent_id = os.getpid()
         self._capabilities_map: dict[enum.IntFlag, str] = dict()
         self._consecutive_failures = 0
+        # Child-process consumer of the SHM (created at fork); None in the
+        # single-process case, where the poller dispatches directly.
+        self._subscriber = None
+        self._before_fork_registered = False
 
     def _agent_check(self) -> None:
         try:
@@ -92,37 +97,77 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             self.start()
 
+            # Lazily prepare cross-process SHM: the hook fires before the
+            # first fork and creates the shared-memory segment (no SHM in a pure
+            # single-process app).
+            if not self._before_fork_registered:
+                forksafe.register_before_fork(self._before_fork)
+                self._before_fork_registered = True
+
             return True
         return False
 
+    def _before_fork(self) -> None:
+        """Origin hook: enable SHM before forking so children inherit the SHM."""
+        if self._client._product_callbacks:
+            self._client.enable_shared_memory()
+
+    def _start_child_subscriber(self, reader) -> None:
+        from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+
+        self._subscriber = RemoteConfigSubscriber(reader, self._client.dispatch_native_changes, "RemoteConfigChild")
+        self._subscriber.start()
+
+    def _stop_child_subscriber(self, join: bool = False) -> None:
+        if self._subscriber is not None:
+            try:
+                self._subscriber.stop()
+                if join:
+                    self._subscriber.join()
+            except Exception:
+                log.debug("error stopping remote config child subscriber", exc_info=True)
+            self._subscriber = None
+
     def reset_at_fork(self) -> None:
-        """Client Id needs to be refreshed when application forks"""
+        """Refresh client state after a fork.
+
+        The child does not poll the agent (``_enable`` is cleared and the poller
+        thread is not restarted in the child); instead it consumes the snapshots
+        provided by the master process via shared memory.
+        """
         self._enable = False
         log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
-        self._client.renew_id()
 
-        # Restart the global subscriber if needed and if there are registered products
+        # Replace any inherited subscriber with one bound to a fresh reader over
+        # the inherited shared-memory segment.
+        self._stop_child_subscriber()
         if self._client._product_callbacks:
-            self._client.restart_subscriber()
-            log.debug(
-                "[%d][P: %d] Restarted global subscriber for registered products: %s",
-                os.getpid(),
-                os.getppid(),
-                list(self._client._product_callbacks.keys()),
-            )
+            reader = self._client.make_reader()
+            if reader is not None:
+                self._start_child_subscriber(reader)
+                log.debug(
+                    "[%d][P: %d] Started remote config child subscriber for products: %s",
+                    os.getpid(),
+                    os.getppid(),
+                    list(self._client._product_callbacks.keys()),
+                )
 
     def stop_subscriber(self, join: bool = False) -> None:
-        """Stop the global subscriber thread."""
+        """Stop the child-process subscriber thread (no-op in the master process)."""
         log.debug(
             "[%s][P: %s] Remote Config Poller. Stopping subscriber",
             os.getpid(),
             self._parent_id,
         )
-        self._client.stop_subscriber(join=join)
+        self._stop_child_subscriber(join=join)
 
     def disable(self, join: bool = False) -> None:
         self.stop_subscriber(join=join)
         self._client.reset_products()
+
+        if self._before_fork_registered:
+            forksafe.unregister_before_fork(self._before_fork)
+            self._before_fork_registered = False
 
         if self.status == ServiceStatus.STOPPED:
             return
@@ -181,10 +226,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 self._capabilities_map[capability] = product
 
             self._client.add_capabilities(capabilities)
-
-            # Start the global subscriber if not already running
-            if not self._client.is_subscriber_running():
-                self._client.start_subscriber()
 
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)

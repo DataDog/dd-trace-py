@@ -7,9 +7,9 @@ from typing import Sequence
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
@@ -21,7 +21,12 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 
 log = get_logger(__name__)
 
-APPSEC_PRODUCTS = {PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD}
+APPSEC_PRODUCTS = {
+    RemoteConfigProduct.AsmFeatures,
+    RemoteConfigProduct.Asm,
+    RemoteConfigProduct.AsmData,
+    RemoteConfigProduct.AsmDD,
+}
 
 
 def enable_appsec_rc() -> None:
@@ -39,20 +44,22 @@ def enable_appsec_rc() -> None:
 
     if _asm_feature_is_required():
         remoteconfig_poller.register_callback(
-            PRODUCTS.ASM_FEATURES,
+            RemoteConfigProduct.AsmFeatures,
             _appsec_callback,
-            capabilities=[_rc_capabilities()],
+            capabilities=_rc_capabilities(),
         )
-        remoteconfig_poller.enable_product(PRODUCTS.ASM_FEATURES)
+        remoteconfig_poller.enable_product(RemoteConfigProduct.AsmFeatures)
 
     # Register other ASM products if AppSec is enabled
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
-        remoteconfig_poller.register_callback(PRODUCTS.ASM_DATA, _appsec_callback)  # IP Blocking
-        remoteconfig_poller.enable_product(PRODUCTS.ASM_DATA)
-        remoteconfig_poller.register_callback(PRODUCTS.ASM, _appsec_callback)  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.enable_product(PRODUCTS.ASM)
-        remoteconfig_poller.register_callback(PRODUCTS.ASM_DD, _appsec_callback)  # DD Rules
-        remoteconfig_poller.enable_product(PRODUCTS.ASM_DD)
+        remoteconfig_poller.register_callback(RemoteConfigProduct.AsmData, _appsec_callback)  # IP Blocking
+        remoteconfig_poller.enable_product(RemoteConfigProduct.AsmData)
+        remoteconfig_poller.register_callback(
+            RemoteConfigProduct.Asm, _appsec_callback
+        )  # Exclusion Filters & Custom Rules
+        remoteconfig_poller.enable_product(RemoteConfigProduct.Asm)
+        remoteconfig_poller.register_callback(RemoteConfigProduct.AsmDD, _appsec_callback)  # DD Rules
+        remoteconfig_poller.enable_product(RemoteConfigProduct.AsmDD)
 
     # ensure exploit prevention patches are loaded by one-click activation
     if asm_config._asm_enabled:
@@ -91,19 +98,21 @@ class AppSecCallback(RCCallback):
             if asm_config._asm_static_rule_file is None:
                 if result["asm"].get("enabled", False):
                     # Register additional ASM products with the same callback
-                    remoteconfig_poller.register_callback(PRODUCTS.ASM_DATA, self)  # IP Blocking
-                    remoteconfig_poller.enable_product(PRODUCTS.ASM_DATA)
-                    remoteconfig_poller.register_callback(PRODUCTS.ASM, self)  # Exclusion Filters & Custom Rules
-                    remoteconfig_poller.enable_product(PRODUCTS.ASM)
-                    remoteconfig_poller.register_callback(PRODUCTS.ASM_DD, self)  # DD Rules
-                    remoteconfig_poller.enable_product(PRODUCTS.ASM_DD)
+                    remoteconfig_poller.register_callback(RemoteConfigProduct.AsmData, self)  # IP Blocking
+                    remoteconfig_poller.enable_product(RemoteConfigProduct.AsmData)
+                    remoteconfig_poller.register_callback(
+                        RemoteConfigProduct.Asm, self
+                    )  # Exclusion Filters & Custom Rules
+                    remoteconfig_poller.enable_product(RemoteConfigProduct.Asm)
+                    remoteconfig_poller.register_callback(RemoteConfigProduct.AsmDD, self)  # DD Rules
+                    remoteconfig_poller.enable_product(RemoteConfigProduct.AsmDD)
                 else:
-                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM_DATA)
-                    remoteconfig_poller.disable_product(PRODUCTS.ASM_DATA)
-                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM)
-                    remoteconfig_poller.disable_product(PRODUCTS.ASM)
-                    remoteconfig_poller.unregister_callback(PRODUCTS.ASM_DD)
-                    remoteconfig_poller.disable_product(PRODUCTS.ASM_DD)
+                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.AsmData)
+                    remoteconfig_poller.disable_product(RemoteConfigProduct.AsmData)
+                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.Asm)
+                    remoteconfig_poller.disable_product(RemoteConfigProduct.Asm)
+                    remoteconfig_poller.unregister_callback(RemoteConfigProduct.AsmDD)
+                    remoteconfig_poller.disable_product(RemoteConfigProduct.AsmDD)
         debug_info = (
             f"appsec._remoteconfiguration.deb::_appsec_callback::payload"
             f"{tuple(p.path for p in payloads)}[{os.getpid()}][P: {os.getppid()}]"

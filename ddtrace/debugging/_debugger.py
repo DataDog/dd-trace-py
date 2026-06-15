@@ -49,6 +49,7 @@ from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
@@ -242,10 +243,10 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+        callback = remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebugger)
 
-        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING")
-        remoteconfig_poller.disable_product("LIVE_DEBUGGING")
+        remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebugger)
+        remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebugger)
 
         # Currently the product enablement and the callback registration are
         # tied together within the RC client so here we have to pretend that
@@ -303,8 +304,8 @@ class Debugger(Service):
                 self._probe_registry,
                 di_config.diagnostics_interval,
             )
-            remoteconfig_poller.register_callback("LIVE_DEBUGGING", di_callback)
-            remoteconfig_poller.enable_product("LIVE_DEBUGGING")
+            remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebugger, di_callback)
+            remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebugger)
 
             # Load local probes from the probe file.
             self._load_local_config()
