@@ -1216,9 +1216,10 @@ def test_record_llmobs_enabled_tags_sample_rate():
     """The product_enabled/init_time telemetry metrics are tagged with the effective sample rate."""
     from ddtrace.llmobs import _telemetry
 
-    with mock.patch.object(_telemetry.telemetry_writer, "add_count_metric") as mock_count, mock.patch.object(
-        _telemetry.telemetry_writer, "add_distribution_metric"
-    ) as mock_dist:
+    with (
+        mock.patch.object(_telemetry.telemetry_writer, "add_count_metric") as mock_count,
+        mock.patch.object(_telemetry.telemetry_writer, "add_distribution_metric") as mock_dist,
+    ):
         _telemetry.record_llmobs_enabled(
             error=None,
             agentless_enabled=False,
