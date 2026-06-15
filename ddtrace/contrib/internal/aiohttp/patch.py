@@ -2,6 +2,7 @@ from collections.abc import MutableMapping
 from typing import Optional
 
 import aiohttp
+from multidict import CIMultiDict
 import wrapt
 from yarl import URL
 
@@ -97,8 +98,9 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         headers = {}
     elif not isinstance(headers, MutableMapping):
         # aiohttp accepts LooseHeaders: dict, Mapping, or sequence of (key, value) pairs.
-        # HTTPPropagator.inject requires a MutableMapping; convert non-mapping types to dict.
-        headers = dict(headers)
+        # dict() would collapse duplicate entries (e.g. repeated Cookie/Set-Cookie values);
+        # CIMultiDict preserves them and matches aiohttp's own header representation.
+        headers = CIMultiDict(headers)
     kwargs["headers"] = headers
 
     service: Optional[str] = (

@@ -256,6 +256,26 @@ async def test_request_with_tuple_headers():
             assert header_val in ("value", ["value"]), f"unexpected header value: {header_val!r}"
 
 
+@pytest.mark.asyncio
+async def test_request_with_duplicate_tuple_headers():
+    """
+    When headers contain duplicate keys as a sequence of tuples (e.g. repeated Cookie)
+        Both values should be preserved in the outgoing request.
+    """
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            "%s/headers" % URL,
+            headers=(("x-multi", "first"), ("x-multi", "second")),
+        ) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+            # The server should see both values (either as a list or comma-joined).
+            raw = data["headers"].get("X-Multi") or data["headers"].get("x-multi")
+            assert raw is not None, "x-multi header not forwarded"
+            values = raw if isinstance(raw, list) else [v.strip() for v in raw.split(",")]
+            assert "first" in values and "second" in values, f"duplicate headers collapsed: {raw!r}"
+
+
 @pytest.mark.skipif(
     tuple(int(x) for x in aiohttp.__version__.split(".")[:2]) < (3, 8),
     reason="base_url parameter added in aiohttp 3.8.0",
