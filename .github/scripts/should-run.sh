@@ -25,6 +25,7 @@ changed=$(git diff --name-only "$BASE_SHA" HEAD)
 
 is_ignored() {
     local f="$1"
+    [[ "$f" == ".gitlab-ci.yml" ]] && return 0
     [[ "$f" == "ddtrace/.gitlab-ci.yml" ]] && return 0
     [[ "$f" == ddtrace/.gitlab/* ]] && return 0
     [[ "$f" == ddtrace/.cursor/* ]] && return 0
