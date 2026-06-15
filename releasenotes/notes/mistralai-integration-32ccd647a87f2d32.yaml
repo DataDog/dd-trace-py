@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Tracing: Adds support for tracing ``mistralai`` chat and embedding calls.
+    Distributed tracing and LLM Observability integration are included.
+    Enable with ``DD_TRACE_MISTRALAI_ENABLED=true`` (default).
