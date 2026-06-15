@@ -13,21 +13,42 @@ from __future__ import annotations
 import os
 import sys
 import textwrap
+from typing import TYPE_CHECKING
 from typing import Callable
 
 import pytest
 
-from ddtrace.profiling.collector import _memalloc
+
+if TYPE_CHECKING:
+    # For type checking, use the real module so annotations like
+    # _memalloc._CodeCacheStats resolve against the .pyi stub.
+    from ddtrace.profiling.collector import _memalloc
+else:
+    # Skip on free-threaded builds before importing _memalloc: the extension
+    # isn't available there and a module-level import would fail at collection
+    # time. importorskip keeps collection from hard-failing on builds without
+    # the extension.
+    if hasattr(sys, "flags") and getattr(sys.flags, "no_gil", False):  # pragma: no cover
+        pytest.skip("memalloc not supported on free-threaded Python", allow_module_level=True)
+    _memalloc = pytest.importorskip("ddtrace.profiling.collector._memalloc")
 
 
 MAX_FRAMES = 32
 HEAP_SAMPLE_SIZE = 256
 ALLOC_BYTES = 1024
+PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 
 
-def _alloc_burst(n: int = 200) -> list[bytearray]:
+def _alloc_one(size: int) -> object:
+    # Python 3.13 moved bytearray's buffer to an allocation domain the heap
+    # profiler doesn't track; use a tuple (OBJ domain) on 3.13+ so allocations
+    # stay tracked across versions.
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def _alloc_burst(n: int = 200) -> list[object]:
     """Allocate enough to almost certainly trigger a sample."""
-    return [bytearray(ALLOC_BYTES) for _ in range(n)]
+    return [_alloc_one(ALLOC_BYTES) for _ in range(n)]
 
 
 def _start() -> None:
@@ -144,11 +165,13 @@ def test_code_cache_eviction_under_churn() -> None:
     stats = _stats()
     assert stats["capacity"] == 64
 
-    # Build 400 distinct functions (way over cap).
-    fns: list[Callable[[], bytearray]] = []
+    # Build 400 distinct functions (way over cap). Allocate a tracked type
+    # ((None,)*N on 3.13+, bytearray otherwise) so samples fire across versions.
+    alloc_expr = f"(None,) * {ALLOC_BYTES}" if PY_313_OR_ABOVE else f"bytearray({ALLOC_BYTES})"
+    fns: list[Callable[[], object]] = []
     for i in range(400):
-        ns: dict[str, Callable[[], bytearray]] = {}
-        exec(textwrap.dedent(f"def fn_{i}(): return bytearray({ALLOC_BYTES})"), ns)
+        ns: dict[str, Callable[[], object]] = {}
+        exec(textwrap.dedent(f"def fn_{i}(): return {alloc_expr}"), ns)
         fns.append(ns[f"fn_{i}"])
 
     _start()
@@ -165,6 +188,7 @@ def test_code_cache_eviction_under_churn() -> None:
         _stop()
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="os.fork is not available on this platform")
 def test_code_cache_cleared_on_postfork_child() -> None:
     """After fork, the child inherits the parent's PyCodeObject* values
     but the cache slots must be empty. Verify by: parent populates cache,
@@ -216,8 +240,3 @@ def test_code_cache_cleared_on_postfork_child() -> None:
             )
     finally:
         _stop()
-
-
-# Avoid running these tests on free-threaded builds where memalloc isn't supported.
-if hasattr(sys, "flags") and getattr(sys.flags, "no_gil", False):  # pragma: no cover
-    pytest.skip("memalloc not supported on free-threaded Python", allow_module_level=True)
