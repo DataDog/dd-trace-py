@@ -59,3 +59,11 @@ build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0",
 name = "_native"
 path = "lib.rs"
 crate-type = ["cdylib"]
+
+# TEMPORARY: build the profiling crates from a local libdatadog checkout so the
+# persistent-heap-profile work (Profile_add2_batch / sub2 / sub2_batch /
+# serialize_snapshot) is available before it is released. Replace with a pinned
+# rev once the libdatadog changes land.
+[patch."https://github.com/DataDog/libdatadog"]
+libdd-profiling-ffi = { path = "/Users/vlad.scherbich/go/src/github.com/DataDog/libdatadog/libdd-profiling-ffi" }
+libdd-profiling = { path = "/Users/vlad.scherbich/go/src/github.com/DataDog/libdatadog/libdd-profiling" }
