@@ -134,6 +134,23 @@ def test_replay_from_loaded_baseline_cases():
     assert runner.replay("e", runner.structural, cases=cases)[0]["status"] == "CHANGED"
 
 
+# --- SDK bridge (Slice C) -------------------------------------------------- #
+def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
+    from ddtrace.llmobs import _inline_experiment_sdk as sdk
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return {"v": x, "ts": "volatile"}
+
+    _set_mode(Mode.REPLAY)
+    task = sdk._make_task("e")
+    assert task({"x": 5}, None) == {"v": 5, "ts": "volatile"}  # task re-invokes the subject
+
+    ev = sdk._make_evaluator(runner.structural)
+    assert ev({}, {"v": 5, "ts": "a"}, {"v": 9, "ts": "b"}) is True  # same shape -> match
+    assert ev({}, {"v": 5}, {"v": 9, "extra": 1}) is False  # extra field -> no match
+
+
 # --- CLI helpers ----------------------------------------------------------- #
 def test_cli_arg_parser():
     p = cli._build_arg_parser()
@@ -141,6 +158,8 @@ def test_cli_arg_parser():
     assert a.command == "capture" and a.target == "myapp:gen" and a.out == "b.json"
     a = p.parse_args(["replay", "myapp", "--ignore", "a,b"])
     assert a.command == "replay" and a.ignore == "a,b" and a.comparator == "structural"
+    a = p.parse_args(["replay", "myapp", "--publish", "--project", "p", "--ml-app", "m"])
+    assert a.publish is True and a.project == "p" and a.ml_app == "m"
     assert p.parse_args(["list", "myapp"]).command == "list"
 
 

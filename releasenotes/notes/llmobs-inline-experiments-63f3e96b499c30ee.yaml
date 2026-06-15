@@ -6,5 +6,7 @@ features:
     already-instrumented app with the new ``ddtrace.llmobs.experimental.experiment_start`` /
     ``experiment_end`` decorators (an inert no-op during normal execution), then run it out-of-band
     with the new ``ddtrace-experiment`` command, which captures a baseline and replays the current
-    code against it, reporting per-case ``MATCH`` / ``CHANGED``. These APIs are experimental and may
-    change or be removed without notice.
+    code against it, reporting per-case ``MATCH`` / ``CHANGED``. Pass ``ddtrace-experiment replay
+    --publish`` to run the replay through the LLM Obs Experiments SDK so results appear in the
+    Experiments UI with eval metrics. These APIs are experimental and may change or be removed
+    without notice.

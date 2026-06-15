@@ -84,6 +84,14 @@ def _build_arg_parser():
         "--comparator", default="structural", choices=["exact", "structural", "ignoring"], help="default: structural"
     )
     rep.add_argument("--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)")
+    rep.add_argument(
+        "--publish",
+        action="store_true",
+        help="run via the LLM Obs Experiments SDK so results appear in the Experiments UI (needs DD_API_KEY)",
+    )
+    rep.add_argument("--ml-app", default=None, help="ml_app for --publish (default: $DD_LLMOBS_ML_APP)")
+    rep.add_argument("--project", default=None, help="project name for --publish")
+    rep.add_argument("--experiment-name", default=None, help="experiment name for --publish")
 
     lst = sub.add_parser("list", help="import the target and list registered experiment subjects")
     lst.add_argument("target", help="module[:entrypoint] to import")
@@ -135,6 +143,26 @@ def main():
     baselines = runner.load_baselines(infile)
     ignore = [k for k in args.ignore.split(",") if k]
     comparator = runner.comparator_from_spec(args.comparator, ignore)
+
+    if args.publish:
+        # Route through the real Experiments SDK so results land in the UI.
+        import os as _os
+
+        from ddtrace.llmobs import LLMObs
+        from ddtrace.llmobs import _inline_experiment_sdk as sdk
+
+        if not LLMObs.enabled:
+            ml_app = args.ml_app or _os.environ.get("DD_LLMOBS_ML_APP") or "inline-experiments"
+            LLMObs.enable(ml_app=ml_app, agentless_enabled=True)
+        for name, cases in baselines.items():
+            if name not in ie.registered_experiments():
+                print("  (skipping %r — not registered by %r)" % (name, args.target))
+                continue
+            exp = sdk.run_as_experiment(
+                name, cases, comparator, experiment_name=args.experiment_name, project_name=args.project
+            )
+            print("published experiment %r -> %s" % (name, sdk.experiment_url(exp) or "LLM Obs -> Experiments"))
+        return
 
     ie._set_mode(ie.Mode.REPLAY)
     total = {}
