@@ -1143,6 +1143,79 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert req_span.get_tag("flask.endpoint") == "show_user"
         assert req_span.get_tag(http.STATUS_CODE) == "200"
 
+    def test_request_resource_propagated_to_outer_wsgi_span(self):
+        """When Flask is wrapped in DDWSGIMiddleware, the outer wsgi.request span must
+        receive the route-pattern resource (not the raw URL path).
+
+        We verify via _set_flask_request_tags call arguments: when req_span differs from
+        current_span (DDWSGIMiddleware scenario), both spans must receive a call — the
+        propagation branch in _on_traced_request_context_started_flask must fire.
+        """
+        from werkzeug.test import Client as WerkzeugClient
+        from werkzeug.wrappers import Response
+
+        import ddtrace._trace.trace_handlers as trace_handlers
+        from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
+
+        calls = []  # list of (request, span, cfg) tuples
+        original = trace_handlers._set_flask_request_tags
+
+        def recording_fn(request, span, cfg):
+            calls.append(span)
+            return original(request, span, cfg)
+
+        @self.app.route("/items/<int:item_id>")
+        def show_item(item_id):
+            return jsonify({"item_id": item_id})
+
+        wrapped = DDWSGIMiddleware(self.app)
+        client = WerkzeugClient(wrapped, Response)
+
+        from unittest.mock import patch as mock_patch
+
+        with mock_patch.object(trace_handlers, "_set_flask_request_tags", recording_fn):
+            client.get("/items/42")
+
+        # In the DDWSGIMiddleware case req_span (wsgi.request) != current_span (flask.request).
+        # The propagation guard must have fired an additional _set_flask_request_tags call on
+        # req_span, so we must see at least 2 DISTINCT span objects in calls.
+        distinct_spans = {id(s) for s in calls}
+        assert len(distinct_spans) >= 2, (
+            "Expected _set_flask_request_tags on at least 2 distinct spans (wsgi.request + flask.request), "
+            f"got {len(distinct_spans)}: {[s.name for s in calls]}"
+        )
+
+    def test_request_route_tags_idempotent_on_same_span(self):
+        """_set_flask_request_tags must be idempotent: calling it multiple times on the
+        same span must not corrupt tag values. All tag writes are guarded by
+        `if not span.get_tag(...)`, so a repeated call must be a no-op for tags that
+        were already set.
+        """
+        import ddtrace._trace.trace_handlers as trace_handlers
+
+        # Record every (span_id, tag_key, tag_value) write via set_tag.
+        writes = {}  # (span_id, key) -> list of values
+
+        original_set_tag = trace_handlers.Span.set_tag
+
+        def spy_set_tag(span_self, key, value=None):
+            writes.setdefault((id(span_self), key), []).append(value)
+            return original_set_tag(span_self, key, value)
+
+        @self.app.route("/users/<int:user_id>")
+        def show_user(user_id):
+            return jsonify({"user_id": user_id})
+
+        from unittest.mock import patch as mock_patch
+
+        with self.override_global_config({}):
+            with mock_patch.object(trace_handlers.Span, "set_tag", spy_set_tag):
+                self.client.get("/users/99")
+
+        # No tag key on the same span should receive two DIFFERENT values.
+        corrupted = {(sid, key): vals for (sid, key), vals in writes.items() if len(set(str(v) for v in vals)) > 1}
+        assert not corrupted, f"_set_flask_request_tags wrote conflicting values for the same tag: {corrupted}"
+
     def test_http_response_header_tracing(self):
         @self.app.route("/response_headers")
         def response_headers():
