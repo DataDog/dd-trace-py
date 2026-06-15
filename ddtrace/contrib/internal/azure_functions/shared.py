@@ -9,6 +9,7 @@ from typing import Union
 import azure.functions as azure_functions
 
 from ddtrace import config
+from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags_from_context
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -149,10 +150,16 @@ def wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_deta
             message_id = None
 
             if config.azure_functions.distributed_tracing:
+                # For this PoC we only inherit trace-level context when the batch holds a single
+                # message, so there is exactly one producer to inherit from and no heuristic is
+                # needed. Alternatives exist for multi-message batches but each picks one arbitrarily.
+                single_message = len(msg_arg_value) == 1
                 for message in msg_arg_value:
                     parent_context = HTTPPropagator.extract(message.application_properties)
                     if parent_context.trace_id is not None and parent_context.span_id is not None:
                         ctx.span.link_span(parent_context)
+                        if single_message and config.azure_functions.span_link_context_propagation:
+                            _copy_trace_level_tags_from_context(ctx.span, parent_context)
         elif isinstance(msg_arg_value, azure_functions.ServiceBusMessage):
             batch_count = None
             fully_qualified_namespace = (
@@ -164,6 +171,8 @@ def wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_deta
                 parent_context = HTTPPropagator.extract(msg_arg_value.application_properties)
                 if parent_context.trace_id is not None and parent_context.span_id is not None:
                     ctx.span.link_span(parent_context)
+                    if config.azure_functions.span_link_context_propagation:
+                        _copy_trace_level_tags_from_context(ctx.span, parent_context)
         else:
             batch_count = None
             fully_qualified_namespace = None

@@ -46,6 +46,7 @@ from ddtrace.propagation.http import HTTPPropagator
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace._trace.context import Context  # noqa:F401
     from ddtrace.internal.settings.integration import IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
@@ -616,6 +617,35 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
         target_span._set_attribute(
             SAMPLING_DECISION_TRACE_TAG_KEY, parent.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
         )
+
+
+def _copy_trace_level_tags_from_context(target_span: "Span", context: "Context") -> None:
+    """Copy trace-level context (baggage, origin, sampling decision) from a remote ``Context``
+    onto a local root span.
+
+    This is the ``Context``-sourced twin of ``_copy_trace_level_tags`` (which copies the same
+    trace-level tags from a parent ``Span``). It is used when a consumer starts a *new* trace that
+    *links* to a producer living in another process (e.g. the Azure Functions Service Bus trigger):
+    the linked consumer inherits the producer's propagated trace context so the two span-linked
+    traces share a sampling decision, origin, and baggage.
+
+    DEV: the body is deliberately duplicated from ``_copy_trace_level_tags`` rather than sharing a
+    single implementation — this lives in a PoC that illustrates how head-based context propagation
+    can flow across a *span link*, not only a parent/child edge, so the two paths are kept side by
+    side for readability.
+    """
+    for key, value in context._baggage.items():
+        target_span.context.set_baggage_item(key, value)
+        target_span._set_attribute(f"baggage.{key}", value)
+
+    if context.sampling_priority is not None:
+        target_span.context.sampling_priority = context.sampling_priority
+
+    if context._meta.get(_ORIGIN_KEY):
+        target_span._set_attribute(_ORIGIN_KEY, context._meta[_ORIGIN_KEY])
+
+    if context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        target_span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, context._meta[SAMPLING_DECISION_TRACE_TAG_KEY])
 
 
 def _flatten(

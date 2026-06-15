@@ -15,6 +15,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("azure_functions"),
         distributed_tracing=asbool(_get_config("DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING", default=True)),
+        span_link_context_propagation=asbool(_get_config("DD_AZURE_SPAN_LINK_CONTEXT_PROPAGATION", default=True)),
     ),
 )
 
