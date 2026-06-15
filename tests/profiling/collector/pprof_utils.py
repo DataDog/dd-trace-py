@@ -250,6 +250,10 @@ def parse_newest_profile(
     the newest profile that has given filename prefix.
     """
     files = glob.glob(filename_prefix + ".*.pprof")
+    # The persistent live-heap profile is written as a separate
+    # "<prefix>.<pid>.<seq>.heap.pprof" attachment; exclude it from the primary
+    # profile candidates (use parse_newest_heap_profile to read it).
+    files = [f for f in files if not f.endswith(".heap.pprof")]
 
     if not files:
         raise FileNotFoundError(
@@ -281,6 +285,32 @@ def parse_newest_profile(
 
     if assert_samples:
         assert len(profile.sample) > 0, "No samples found in profile"
+
+    return profile
+
+
+def parse_newest_heap_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
+    """Parse the newest persistent live-heap profile for the given prefix.
+
+    With the persistent heap profile (Option A), live-heap samples are emitted
+    in a separate pprof attachment named
+    "<filename_prefix>.<pid>.<seq>.heap.pprof", rather than in the primary
+    profile. This finds and parses the newest such file.
+    """
+    files = glob.glob(filename_prefix + ".*.heap.pprof")
+
+    if not files:
+        raise FileNotFoundError(
+            f"No heap profile files found for {filename_prefix}, all pprof files: {glob.glob('*.pprof') or '(none)'}"
+        )
+
+    # Filenames look like "<prefix>.<pid>.<seq>.heap.pprof"; sort by <seq>.
+    files.sort(key=lambda f: int(f.rsplit(".", 3)[-3]))
+    filename = files[-1]
+    profile = parse_profile(filename)
+
+    if assert_samples:
+        assert len(profile.sample) > 0, "No samples found in heap profile"
 
     return profile
 
