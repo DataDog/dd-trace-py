@@ -56,6 +56,10 @@ class LLMObsGEPAAdapter:
         self._optimization_task = optimization_task
         self._config = config
         self._labelization_function = labelization_function
+        # Assign as instance field so GEPA's duck-typed protocol check finds it
+        # (GEPAAdapter declares `propose_new_texts` as an optional callable field,
+        # not a method).
+        self.propose_new_texts = self._propose_new_texts_impl
 
     # ------------------------------------------------------------------
     # GEPAAdapter protocol
@@ -150,7 +154,14 @@ class LLMObsGEPAAdapter:
         :returns: Mapping of component name to list of reflective entries.
         """
         items: list[dict] = []
-        trajectories = eval_batch.trajectories or []
+        trajectories = eval_batch.trajectories
+        if not trajectories:
+            log.warning(
+                "make_reflective_dataset called with no trajectories. "
+                "Ensure evaluate() was called with capture_traces=True. "
+                "Returning empty reflective dataset."
+            )
+            return {"system_prompt": []}
         for traj in trajectories:
             feedback = self._build_feedback(traj)
             items.append(
@@ -162,7 +173,7 @@ class LLMObsGEPAAdapter:
             )
         return {"system_prompt": items}
 
-    def propose_new_texts(
+    def _propose_new_texts_impl(
         self, candidate: dict, reflective_dataset: Mapping, components_to_update: list
     ) -> dict[str, str]:
         """Generate an improved prompt using the user's optimization_task.

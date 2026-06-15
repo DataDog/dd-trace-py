@@ -557,6 +557,33 @@ class TestRunRouting:
         opt.run()
         mock_run.assert_called_once()
 
+    @patch.object(PromptOptimization, "_run_gepa_without_split")
+    def test_gepa_stopping_condition_warns(self, mock_run):
+        mock_run.return_value = MagicMock()
+        opt = _make_prompt_optimization(method="gepa", stopping_condition=lambda _: True)
+        with patch("ddtrace.llmobs._prompt_optimization.log") as mock_log:
+            opt.run()
+            warning_messages = [str(call) for call in mock_log.warning.call_args_list]
+            assert any("stopping_condition" in m for m in warning_messages)
+
+    @patch.object(PromptOptimization, "_run_gepa_without_split")
+    def test_gepa_max_iterations_warns(self, mock_run):
+        mock_run.return_value = MagicMock()
+        opt = _make_prompt_optimization(method="gepa", max_iterations=10)
+        with patch("ddtrace.llmobs._prompt_optimization.log") as mock_log:
+            opt.run()
+            warning_messages = [str(call) for call in mock_log.warning.call_args_list]
+            assert any("max_iterations" in m for m in warning_messages)
+
+    @patch.object(PromptOptimization, "_run_gepa_without_split")
+    def test_gepa_no_warn_when_defaults(self, mock_run):
+        mock_run.return_value = MagicMock()
+        opt = _make_prompt_optimization(method="gepa")
+        with patch("ddtrace.llmobs._prompt_optimization.log") as mock_log:
+            opt.run()
+            warning_messages = [str(call) for call in mock_log.warning.call_args_list]
+            assert not any("stopping_condition" in m or "max_iterations" in m for m in warning_messages)
+
 
 # ===========================================================================
 # 7. _run_without_split (metaprompting)
@@ -912,6 +939,48 @@ class TestGEPAAdapterHelpers:
         records = LLMObsGEPAAdapter._dataset_to_gepa_format(ds)
         assert records == []
 
+    def test_make_reflective_dataset_schema(self):
+        """make_reflective_dataset must return Mapping[str, list[dict]] with required keys."""
+        adapter = self._make_adapter()
+        candidate = {"system_prompt": "current"}
+        eval_batch = MagicMock()
+        eval_batch.trajectories = [
+            {
+                "input_data": {"q": "hello"},
+                "expected_output": "world",
+                "output": "wrong",
+                "evaluations": {"acc": 0.0},
+                "score": 0.0,
+            }
+        ]
+        result = adapter.make_reflective_dataset(candidate, eval_batch, ["system_prompt"])
+        assert isinstance(result, dict)
+        assert "system_prompt" in result
+        assert len(result["system_prompt"]) == 1
+        entry = result["system_prompt"][0]
+        assert "Inputs" in entry
+        assert "Generated Outputs" in entry
+        assert "Feedback" in entry
+
+    def test_make_reflective_dataset_empty_trajectories_warns(self):
+        """make_reflective_dataset warns and returns empty list when trajectories is None."""
+        adapter = self._make_adapter()
+        eval_batch = MagicMock()
+        eval_batch.trajectories = None
+        with patch("ddtrace.llmobs._optimizers.gepa_strategy.log") as mock_log:
+            result = adapter.make_reflective_dataset({}, eval_batch, ["system_prompt"])
+            mock_log.warning.assert_called_once()
+            assert "capture_traces" in str(mock_log.warning.call_args)
+        assert result == {"system_prompt": []}
+
+    def test_propose_new_texts_is_callable_field(self):
+        """propose_new_texts must be a callable field (not just a method) for GEPA protocol."""
+        adapter = self._make_adapter()
+        # GEPA checks `adapter.propose_new_texts is not None` then calls it directly
+        assert callable(adapter.propose_new_texts)
+        # Must not be None (GEPA skips proposal if None)
+        assert adapter.propose_new_texts is not None
+
 
 # ===========================================================================
 # 12. GEPA Adapter evaluate
@@ -1098,6 +1167,20 @@ class TestRunGEPACore:
             assert call_kwargs["max_metric_calls"] == 200
             assert call_kwargs["seed"] == 99
             assert call_kwargs["candidate_selection_strategy"] == "elite"
+
+    def test_max_metric_calls_default(self):
+        """max_metric_calls defaults to 150 when not specified in config."""
+        mock_gepa = MagicMock()
+        mock_result = MagicMock()
+        mock_result.best_candidate = {"system_prompt": "optimized"}
+        mock_gepa.optimize.return_value = mock_result
+
+        with patch.dict(sys.modules, {"gepa": mock_gepa}):
+            opt = _make_prompt_optimization(method="gepa")
+            ds = _make_dataset()
+            opt._run_gepa_core(ds, ds)
+            call_kwargs = mock_gepa.optimize.call_args[1]
+            assert call_kwargs["max_metric_calls"] == 150
 
 
 # ===========================================================================

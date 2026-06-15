@@ -631,9 +631,12 @@ class PromptOptimization:
         :param _llmobs_instance: Internal LLMObs instance.
         :param tags: Optional tags to associate with the optimization.
         :param max_iterations: Maximum number of optimization iterations to run.
-        :param stopping_condition: Optional function to determine when to stop optimization.
+                              Only used with ``method="metaprompting"``. For ``method="gepa"``,
+                              control the search budget via ``config["max_metric_calls"]`` instead.
+        :param stopping_condition: Optional function to determine when to stop optimization early.
                                    Takes summary_evaluations dict from the experiment result
                                    and returns True if should stop.
+                                   Only used with ``method="metaprompting"``. Ignored for ``method="gepa"``.
         :param dataset_split: Controls dataset splitting. Accepts:
             - ``False`` (default): No splitting, use full dataset for everything.
             - ``True``: Split with default ratios (60/20/20 without test_dataset, 80/20 with).
@@ -793,6 +796,16 @@ class PromptOptimization:
         log.info("Starting prompt optimization: %s (method=%s)", self.name, self._method)
 
         if self._method == "gepa":
+            if self._stopping_condition is not None:
+                log.warning(
+                    "stopping_condition is not used with method='gepa' and will be ignored. "
+                    "GEPA manages its own stopping via config['max_metric_calls']."
+                )
+            if self._max_iterations != 5:
+                log.warning(
+                    "max_iterations is not used with method='gepa' and will be ignored. "
+                    "Control the search budget via config['max_metric_calls'] instead."
+                )
             if self._dataset_split_enabled:
                 return self._run_gepa_with_split(jobs)
             return self._run_gepa_without_split(jobs)
