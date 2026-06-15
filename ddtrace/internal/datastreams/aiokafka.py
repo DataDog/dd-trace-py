@@ -48,7 +48,7 @@ def dsm_aiokafka_send_start(
         header_dict = {}
     payload_size += _calculate_byte_size(header_dict)
 
-    cluster_id = core.find_item("kafka_cluster_id", "")
+    cluster_id = core.find_item("kafka_cluster_id")
     edge_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
     if cluster_id:
         edge_tags.append(f"kafka_cluster_id:{cluster_id}")
@@ -73,7 +73,7 @@ def dsm_aiokafka_send_completed(
 
     if record_metadata is not None:
         reported_offset = record_metadata.offset if isinstance(record_metadata.offset, int) else -1
-        cluster_id = core.find_item("kafka_cluster_id", "")
+        cluster_id = core.find_item("kafka_cluster_id")
         dsm_processor.track_kafka_produce(
             record_metadata.topic,
             record_metadata.partition,
@@ -104,7 +104,7 @@ def dsm_aiokafka_message_consume(
         if val is not None
     }
     group = instance._group_id
-    cluster_id = core.find_item("kafka_cluster_id", "")
+    cluster_id = core.find_item("kafka_cluster_id")
 
     payload_size = 0
     payload_size += _calculate_byte_size(message.value)
@@ -151,7 +151,7 @@ def dsm_aiokafka_message_commit(instance: "GroupCoordinator", args: Any, kwargs:
 
     offsets = get_argument_value(args, kwargs, 1, "offsets", optional=True)
     if offsets:
-        cluster_id = core.find_item("kafka_cluster_id", "")
+        cluster_id = core.find_item("kafka_cluster_id")
         for tp, offset in offsets.items():
             # offset can be either an int or a tuple of (offset, metadata)
             if isinstance(offset, int):
