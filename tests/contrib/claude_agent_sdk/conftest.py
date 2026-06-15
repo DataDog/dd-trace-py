@@ -28,7 +28,6 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def claude_agent_sdk_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {

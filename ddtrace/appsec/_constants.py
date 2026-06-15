@@ -231,6 +231,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     PAYMENT_CANCELLATION: Literal["server.business_logic.payment.cancellation"] = (
         "server.business_logic.payment.cancellation"
     )
+    # Persistent: WAF deduplicates, so only the first LLM call per request is surfaced (by design).
+    LLM_EVENT: Literal["server.business_logic.llm.event"] = "server.business_logic.llm.event"
     PERSISTENT_ADDRESSES = frozenset(
         (
             REQUEST_BODY,
@@ -251,6 +253,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             PAYMENT_SUCCESS,
             PAYMENT_FAILURE,
             PAYMENT_CANCELLATION,
+            LLM_EVENT,
         )
     )
 

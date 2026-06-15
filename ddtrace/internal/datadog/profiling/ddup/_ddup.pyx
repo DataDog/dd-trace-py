@@ -77,7 +77,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_heap(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
@@ -475,9 +475,9 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
-    def push_heap(self, value: int) -> None:
+    def push_heap(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_gputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
