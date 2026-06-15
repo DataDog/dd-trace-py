@@ -695,6 +695,9 @@ def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
         "CORSMiddleware short-circuits OPTIONS preflight before traced_handler runs, "
         "so resource_paths is never populated and the span resource stays as the raw path."
     )
+    assert request_span.get_tag("http.route") == "/users/{user_id}", (
+        f"Expected http.route tag to be '/users/{{user_id}}' but got {request_span.get_tag('http.route')!r}"
+    )
 
 
 def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
@@ -745,6 +748,10 @@ def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
     assert "world" not in request_span.resource, f"Resource must not be the raw path, got: {request_span.resource!r}"
     assert request_span.resource == "OPTIONS /api", (
         f"Expected mount prefix 'OPTIONS /api' for sub-app CORS preflight, got: {request_span.resource!r}"
+    )
+    # http.route is NOT set for a partial (Mount) match — only full Route matches warrant it.
+    assert request_span.get_tag("http.route") is None, (
+        f"Expected http.route to be unset for a partial Mount match, got: {request_span.get_tag('http.route')!r}"
     )
 
 
@@ -804,4 +811,7 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.resource == "OPTIONS /resource/{item_id}", (
         f"Expected route pattern after idempotent calls, got: {request_span.resource!r}"
+    )
+    assert request_span.get_tag("http.route") == "/resource/{item_id}", (
+        f"Expected http.route tag '/resource/{{item_id}}', got: {request_span.get_tag('http.route')!r}"
     )

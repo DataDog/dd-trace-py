@@ -665,20 +665,29 @@ class TraceMiddleware:
             # Walk the route list and pick the best match (FULL > PARTIAL > NONE).
             best_path = None
             best_match = starlette.routing.Match.NONE
+            best_is_route = False
             for route in routes:
                 if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)):
                     continue
                 match, _ = route.matches(scope)
                 if match == starlette.routing.Match.FULL:
                     best_path = route.path
+                    best_match = match
+                    best_is_route = isinstance(route, starlette.routing.Route)
                     break
                 if match == starlette.routing.Match.PARTIAL and best_match != starlette.routing.Match.FULL:
                     best_path = route.path
                     best_match = match
+                    best_is_route = isinstance(route, starlette.routing.Route)
             if best_path:
                 if method:
                     span.resource = "{} {}".format(method, best_path)
                 else:
                     span.resource = best_path
+                # Set http.route when the path matched a Route pattern (path segment matched
+                # even if method didn't). Skip for Mount matches — they are path prefixes, not
+                # full route templates, so the template isn't meaningful as an http.route value.
+                if best_is_route:
+                    span._set_attribute(http.ROUTE, best_path)
         except Exception:
             log.debug("failed to resolve route pattern for span resource", exc_info=True)
