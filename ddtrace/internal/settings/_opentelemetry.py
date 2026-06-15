@@ -93,7 +93,7 @@ def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
 def _is_otlp_trace_metrics_enabled(exporter_config: "ExporterConfig") -> bool:
     """Whether client-computed span stats should be exported as OTLP metrics.
 
-    Tri-state ``OTEL_CLIENT_STATS_COMPUTATION_ENABLED`` takes precedence; when unset, the
+    Tri-state ``OTEL_TRACES_SPAN_METRICS_ENABLED`` takes precedence; when unset, the
     feature auto-enables only if both OTLP trace export and OTel metrics export are enabled.
     """
     from ddtrace.internal.settings._config import config
