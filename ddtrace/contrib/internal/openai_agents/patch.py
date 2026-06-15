@@ -48,16 +48,21 @@ async def _patched_run_single_turn(func, instance, args, kwargs, agent_index=0):
         log.debug("No current span available, skipping tag_agent_manifest")
         return result
 
-    integration = agents._datadog_integration
-    integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
+    # AIDEV-NOTE: MLOB-7584 — best-effort; the SDK guards its tracing-processor callbacks
+    # but NOT this wrap site, so an unguarded raise here would surface in the user's Runner.run.
+    try:
+        integration = agents._datadog_integration
+        integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
 
-    agent = get_argument_value(args, kwargs, agent_index, "agent", True)
-    if agent:
-        integration.record_agent_side(
-            current_span.trace_id,
-            tools_chars=count_tools_chars(agent),
-            agent_id=getattr(agent, "name", None),
-        )
+        agent = get_argument_value(args, kwargs, agent_index, "agent", True)
+        if agent:
+            integration.record_agent_side(
+                current_span.trace_id,
+                tools_chars=count_tools_chars(agent),
+                agent_id=getattr(agent, "name", None),
+            )
+    except Exception:
+        log.debug("openai_agents context_delta agent-side capture failed", exc_info=True)
 
     return result
 
@@ -115,17 +120,22 @@ async def _patched_run_single_turn_module(func, instance, args, kwargs):
         log.debug("No current span available, skipping tag_agent_manifest")
         return result
 
-    agent = _extract_agent_from_module_call(args, kwargs)
-    if agent is None:
-        return result
+    # AIDEV-NOTE: MLOB-7584 — best-effort; the SDK guards its tracing-processor callbacks
+    # but NOT this wrap site, so an unguarded raise here would surface in the user's Runner.run.
+    try:
+        agent = _extract_agent_from_module_call(args, kwargs)
+        if agent is None:
+            return result
 
-    integration = agents._datadog_integration
-    integration.tag_agent_manifest_from_agent(current_span, agent)
-    integration.record_agent_side(
-        current_span.trace_id,
-        tools_chars=count_tools_chars(agent),
-        agent_id=getattr(agent, "name", None),
-    )
+        integration = agents._datadog_integration
+        integration.tag_agent_manifest_from_agent(current_span, agent)
+        integration.record_agent_side(
+            current_span.trace_id,
+            tools_chars=count_tools_chars(agent),
+            agent_id=getattr(agent, "name", None),
+        )
+    except Exception:
+        log.debug("openai_agents context_delta agent-side capture failed", exc_info=True)
 
     return result
 

@@ -850,6 +850,20 @@ class TestOpenAIAgentsContextState:
         integration.clear_state()
         assert integration._context_state == {}
 
+    def test_context_state_is_bounded_and_evicts_oldest(self):
+        # Resumed/HITL runs use the SDK's ReattachedTrace, which never fires on_trace_end,
+        # so their _context_state entry is never popped. The bounded OrderedDict caps the
+        # leak and evicts oldest-inserted first (which targets exactly those orphans).
+        integration = _make_integration()
+        cap = integration._CONTEXT_STATE_MAX
+        for tid in range(cap + 50):
+            integration.record_llm_side(
+                trace_id=tid, input_tokens=10, system_chars=1, user_chars=1, assistant_chars=1, model="gpt-4o"
+            )
+        assert len(integration._context_state) == cap
+        assert 0 not in integration._context_state  # oldest-inserted evicted
+        assert (cap + 49) in integration._context_state  # newest kept
+
 
 class TestSplitMessageChars:
     """Cover the role-split helper that drives per-category char counts."""
@@ -1261,6 +1275,21 @@ class TestOpenAIAgentsPatchCompat:
         assert result == "RESULT"
         assert manifest == ["Analyst"]
         assert agent_side and agent_side[0]["agent_id"] == "Analyst" and agent_side[0]["tools_chars"] > 0
+
+    def test_wrapper_swallows_capture_errors_so_user_run_survives(self):
+        # A pathological agent whose attribute access raises must NOT propagate out of the
+        # wrap site into the user's Runner.run — the SDK does not guard this call site.
+        class _BoomAgent:
+            name = "Boom"
+            handoffs = []
+
+            @property
+            def tools(self):
+                raise ValueError("boom")
+
+        result, manifest, agent_side = self._run_module_wrapper((), {"agent": _BoomAgent()})
+        assert result == "RESULT"  # the user's run completes
+        assert manifest == [] and agent_side == []  # capture degraded gracefully, no raise
 
     def test_streamed_wrapper_handles_realistic_positional_bindings(self):
         # agents >= 0.14.0 streamed: run_single_turn_streamed(<RunResultStreaming>, <bindings>, ...).

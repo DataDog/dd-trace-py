@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import json
 from typing import Any
 from typing import Optional
@@ -149,7 +150,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
-        self._context_state: dict[int, dict[str, Any]] = {}
+        self._context_state: OrderedDict[int, dict[str, Any]] = OrderedDict()
 
     def trace(
         self,
@@ -410,6 +411,22 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
                 return self._OPENAI_MODEL_CONTEXT_WINDOWS[prefix]
         return 0
 
+    _CONTEXT_STATE_MAX = 1024
+
+    def _get_or_create_context_state(self, trace_id: int) -> dict[str, Any]:
+        """Get-or-create the per-trace context state, bounded to ``_CONTEXT_STATE_MAX``.
+
+        AIDEV-NOTE: MLOB-7584 — oldest-first eviction bounds the leak from runs whose
+        trace-end hook never fires (same-process resumed/HITL runs use the SDK's
+        ``ReattachedTrace``, which never notifies processors, so the entry never pops).
+        """
+        state = self._context_state.get(trace_id)
+        if state is None:
+            if len(self._context_state) >= self._CONTEXT_STATE_MAX:
+                self._context_state.popitem(last=False)
+            state = self._context_state[trace_id] = {}
+        return state
+
     def record_llm_side(
         self,
         trace_id: int,
@@ -430,7 +447,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             "assistant_chars": assistant_chars,
             "model": model or "",
         }
-        state = self._context_state.setdefault(trace_id, {})
+        state = self._get_or_create_context_state(trace_id)
         if "first_llm" not in state:
             state["first_llm"] = snapshot
         state["last_llm"] = snapshot
@@ -447,7 +464,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
         snapshot = {"tools_chars": tools_chars}
-        state = self._context_state.setdefault(trace_id, {})
+        state = self._get_or_create_context_state(trace_id)
 
         if "first_agent_id" not in state:
             state["first_agent_id"] = agent_id
