@@ -24,6 +24,14 @@ namespace Datadog {
  * the PyCodeObject pointer; within a set, ways are linearly scanned.
  * On a set-full insert, FIFO eviction overwrites the next_evict slot.
  *
+ * Address reuse: the key is a raw PyCodeObject* and CPython may free a
+ * code object and reassign its address to a new one. Each entry therefore
+ * also stores the code object's identity (name/filename/firstlineno) at
+ * insert time; lookup returns a hit only if that identity still matches
+ * the live code object, so a reused address is treated as a miss instead
+ * of misattributing the frame. The caller supplies the identity (it holds
+ * the live object), so the cache never dereferences a stored pointer.
+ *
  * Concurrency: heap-profiler hooks run under the GIL. The singleton
  * is invoked single-threaded by construction; no internal locking.
  *
@@ -45,11 +53,14 @@ class CodeFunctionCache
      * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
     explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
 
-    /* Returns cached function_id if present. */
-    std::optional<Datadog::function_id> lookup(PyCodeObject* code);
+    /* Returns the cached function_id for `code` only if present AND its stored
+     * identity still matches the supplied (name, filename, firstlineno),
+     * guarding against PyCodeObject address reuse. Otherwise a miss. */
+    std::optional<Datadog::function_id> lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno);
 
-    /* Inserts (code, id). If the target set is full, evicts via FIFO. */
-    void insert(PyCodeObject* code, Datadog::function_id id);
+    /* Inserts (code, id) together with the identity used to validate future
+     * lookups. If the target set is full, evicts via FIFO. */
+    void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
 
     /* Drops every entry. Counters are preserved (use reset_counters to
      * zero them). */
@@ -76,12 +87,18 @@ class CodeFunctionCache
     {
         PyCodeObject* codes[WAYS_PER_SET] = { nullptr, nullptr };
         Datadog::function_id functions[WAYS_PER_SET] = { nullptr, nullptr };
+        /* Identity captured at insert, compared on lookup to detect address
+         * reuse. Stored as opaque values and never dereferenced, so a stale
+         * pointer is safe to compare. */
+        PyObject* names[WAYS_PER_SET] = { nullptr, nullptr };
+        PyObject* filenames[WAYS_PER_SET] = { nullptr, nullptr };
+        int firstlines[WAYS_PER_SET] = { 0, 0 };
         /* FIFO eviction: next way to overwrite, alternates 0/1. */
         uint8_t next_evict = 0;
     };
 
     std::vector<Set> sets_;
-    uint8_t log2_set_bits_; // log2(num_sets); num_sets is a power of two in [16, 1<<18]
+    uint8_t log2_set_bits_; // log2(num_sets); num_sets is a power of two in [32, 1<<19], so this is in [5, 19]
 
     uint64_t hits_ = 0;
     uint64_t misses_ = 0;

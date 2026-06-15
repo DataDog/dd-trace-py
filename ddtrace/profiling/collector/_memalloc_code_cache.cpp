@@ -63,13 +63,21 @@ CodeFunctionCache::occupancy_histogram() const
 }
 
 std::optional<Datadog::function_id>
-CodeFunctionCache::lookup(PyCodeObject* code)
+CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno)
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
         if (s.codes[i] == code) {
-            ++hits_;
-            return s.functions[i];
+            /* Validate identity to defend against PyCodeObject address reuse:
+             * CPython may free a code object and hand its address to a new one.
+             * On mismatch the slot is stale; report a miss so the caller
+             * re-interns and overwrites it via insert(). */
+            if (s.names[i] == name && s.filenames[i] == filename && s.firstlines[i] == firstlineno) {
+                ++hits_;
+                return s.functions[i];
+            }
+            ++misses_;
+            return std::nullopt;
         }
     }
     ++misses_;
@@ -77,7 +85,11 @@ CodeFunctionCache::lookup(PyCodeObject* code)
 }
 
 void
-CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
+CodeFunctionCache::insert(PyCodeObject* code,
+                          Datadog::function_id id,
+                          PyObject* name,
+                          PyObject* filename,
+                          int firstlineno)
 {
     Set& s = sets_[set_index(code)];
 
@@ -85,6 +97,9 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
         if (s.codes[i] == nullptr || s.codes[i] == code) {
             s.codes[i] = code;
             s.functions[i] = id;
+            s.names[i] = name;
+            s.filenames[i] = filename;
+            s.firstlines[i] = firstlineno;
             return;
         }
     }
@@ -95,6 +110,9 @@ CodeFunctionCache::insert(PyCodeObject* code, Datadog::function_id id)
     ++evictions_;
     s.codes[way] = code;
     s.functions[way] = id;
+    s.names[way] = name;
+    s.filenames[way] = filename;
+    s.firstlines[way] = firstlineno;
 }
 
 void
