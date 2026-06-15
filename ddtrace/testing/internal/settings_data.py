@@ -50,6 +50,8 @@ class TestManagementSettings:
         if attempt_to_fix_retries_env:
             if not attempt_to_fix_retries_env.isdigit():
                 log.warning("Invalid number of Attempt to Fix retries set: %s", attempt_to_fix_retries_env)
+                attempt_to_fix_retries = test_management_attributes["attempt_to_fix_retries"]
+                log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
             else:
                 attempt_to_fix_retries = int(attempt_to_fix_retries_env)
                 log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)

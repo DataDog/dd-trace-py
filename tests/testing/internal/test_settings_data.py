@@ -31,7 +31,7 @@ class TestTestManagementSettingsFromAttributes:
         assert settings.attempt_to_fix_retries == 10
 
     def test_retries_env_var_invalid_non_digit(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When the env var is not a valid integer, the API value is used."""
+        """When the env var is not a valid integer, a warning is logged and the API value is used."""
         monkeypatch.setenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES", "not-a-number")
         settings = TestManagementSettings.from_attributes(SAMPLE_ATTRIBUTES)
         assert settings.attempt_to_fix_retries == 30
