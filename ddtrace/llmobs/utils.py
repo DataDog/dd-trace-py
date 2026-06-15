@@ -86,6 +86,8 @@ def _extract_audio_part(audio_part: dict[str, Any]) -> "AudioPart":
     attachment_key = audio_part.get("attachment_key")
     if content is None and attachment_key is None:
         raise TypeError("AudioPart must have either 'content' or 'attachment_key'.")
+    if content is not None and attachment_key is not None:
+        raise TypeError("AudioPart must have only one of 'content' or 'attachment_key', not both.")
 
     formatted_audio_part = AudioPart(mime_type=mime_type)
     if content is not None:

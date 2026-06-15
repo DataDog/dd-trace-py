@@ -250,6 +250,12 @@ def test_messages_audio_parts_invalid():
     with pytest.raises(TypeError, match="AudioPart must have either 'content' or 'attachment_key'"):
         Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav"}]}])
 
+    # both content and attachment_key (backend expects exactly one)
+    with pytest.raises(TypeError, match="AudioPart must have only one of 'content' or 'attachment_key', not both"):
+        Messages(
+            [{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA", "attachment_key": "k"}]}]
+        )
+
     # invalid content type
     with pytest.raises(TypeError, match="AudioPart content must be a base64-encoded string"):
         Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": 123}]}])
