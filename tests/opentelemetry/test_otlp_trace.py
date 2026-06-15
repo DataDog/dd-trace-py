@@ -78,7 +78,8 @@ def test_otlp_trace_metrics_exported_via_http():
     Stats computation, OTLP encoding and export all happen natively in libdatadog; dd-trace-py only
     supplies the OTLP metrics endpoint to the NativeWriter. The native stats worker flushes the
     concentrator on its periodic tick and POSTs the histogram to the OTLP /v1/metrics endpoint.
-    Service identity is reported on the InstrumentationScope so one payload can carry many services.
+    Service identity is reported as resource attributes; a span whose service differs from the
+    configured default additionally carries service.name on its data point.
     """
     from http.server import BaseHTTPRequestHandler
     from http.server import ThreadingHTTPServer
@@ -139,9 +140,11 @@ def test_otlp_trace_metrics_exported_via_http():
     content_type, body = metrics_payload
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
-    scope_metrics = payload["resourceMetrics"][0]["scopeMetrics"][0]
+    resource_metrics = payload["resourceMetrics"][0]
+    scope_metrics = resource_metrics["scopeMetrics"][0]
     metric = scope_metrics["metrics"][0]
     assert metric["name"] == "traces.span.sdk.metrics.duration"
-    scope_attrs = {a["key"]: a["value"]["stringValue"] for a in scope_metrics["scope"]["attributes"]}
-    assert scope_attrs["service.name"] == "test-svc"
+    # Service identity lives on the resource, not the scope.
+    resource_attrs = {a["key"]: a["value"]["stringValue"] for a in resource_metrics["resource"]["attributes"]}
+    assert resource_attrs["service.name"] == "test-svc"
     assert metric["histogram"]["dataPoints"], "No data points in exported histogram"
