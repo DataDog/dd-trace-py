@@ -282,7 +282,7 @@ class APIClient:
                         test_properties[test_ref] = TestProperties(
                             quarantined=props.get("quarantined", False),
                             disabled=props.get("disabled", False),
-                            attempt_to_fix=props.get("attempt_to_fix", False) or props.get("active", False),
+                            attempt_to_fix=statuses is not None or props.get("attempt_to_fix", False),
                         )
 
         except Exception as e:
