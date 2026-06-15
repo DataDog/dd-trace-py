@@ -111,7 +111,8 @@ def test_code_cache_per_set_stats_basic() -> None:
     """Return a histogram[k] for k in [0..WAYS_PER_SET]: sum equals num_sets,
     and an empty cache puts everything in bucket 0.
     """
-    # Empty cache: enable+disable+enable clears slots without freeing memory.
+    # Empty cache: disable() tears down the singleton (frees the backing vector),
+    # then enable() reallocates a fresh one, so every slot starts empty.
     _memalloc.code_cache_disable()
     _memalloc.code_cache_enable()
     stats = _stats()
