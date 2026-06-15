@@ -1,12 +1,15 @@
+import asyncio
 import datetime
 from http.client import HTTPConnection
 from importlib import import_module
 import json
 import time
+from unittest import mock
 
 import pytest
 
 from ddtrace import config
+import ddtrace.contrib.internal.elasticsearch.patch as _es_patch
 from ddtrace.contrib.internal.elasticsearch.patch import get_version
 from ddtrace.contrib.internal.elasticsearch.patch import get_versions
 from ddtrace.contrib.internal.elasticsearch.patch import patch
@@ -373,3 +376,86 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert len(versions) > 0
         for module_name, v in versions.items():
             emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
+
+    def test_sync_coro_close_on_transport_error(self):
+        """Regression gh #17100. span.finished is always True in CPython (tp_finalize closes
+        generators via refcounting), so we spy on explicit close() calls instead.
+        """
+        closed = []
+        orig = _es_patch._get_perform_request_coro
+
+        def spy_factory(t):
+            f = orig(t)
+            return lambda *a: _Spy(f(*a), closed)
+
+        with mock.patch.object(_es_patch, "_get_perform_request_coro", spy_factory):
+            unpatch()
+            patch()
+        try:
+            self.es.search(index="nonexistent_zombie_test", body={"query": {"match_all": {}}})
+        except Exception:
+            pass
+        finally:
+            unpatch()
+            patch()
+        if elasticsearch.__version__ < (8, 0, 0):
+            assert closed, "coro.close() not called on TransportError (gh #17100)"
+
+    def test_async_coro_close_on_transport_error(self):
+        """Regression gh #17100. async wrapper leaves the generator suspended at yield when
+        the awaited coroutine raises; without coro.close() the span stays open until GC.
+        span.finished is always True in CPython (tp_finalize); spy asserts the explicit call.
+        """
+        opensearchpy = pytest.importorskip("opensearchpy")
+        if not hasattr(opensearchpy, "AsyncOpenSearch"):
+            pytest.skip("opensearch-py < 2.0")
+        closed = []
+        orig = _es_patch._get_perform_request_coro
+
+        def spy_factory(t):
+            f = orig(t)
+            return lambda *a: _Spy(f(*a), closed)
+
+        with mock.patch.object(_es_patch, "_get_perform_request_coro", spy_factory):
+            unpatch()
+            patch()
+        cfg = self._get_es_config()
+        url = "http://%s:%d" % (cfg["host"], cfg["port"])
+
+        async def run():
+            es = opensearchpy.AsyncOpenSearch(hosts=[url])
+            try:
+                await es.search(index="nonexistent_zombie_test", body={"query": {"match_all": {}}})
+            except Exception:
+                pass
+            finally:
+                await es.close()
+
+        try:
+            asyncio.get_event_loop().run_until_complete(run())
+        finally:
+            unpatch()
+            patch()
+        assert closed, "coro.close() not called on async TransportError (gh #17100)"
+
+
+class _Spy:
+    """Wraps a generator to track explicit close() calls.
+    CPython's tp_finalize closes generators at the C level, bypassing this wrapper.
+    """
+
+    def __init__(self, gen, log):
+        self._gen, self._log = gen, log
+
+    def __next__(self):
+        return next(self._gen)
+
+    def send(self, v):
+        return self._gen.send(v)
+
+    def throw(self, *a):
+        return self._gen.throw(*a)
+
+    def close(self):
+        self._log.append(True)
+        self._gen.close()
