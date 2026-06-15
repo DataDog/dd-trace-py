@@ -2,5 +2,5 @@
 other:
   - |
     profiling: introduce a ``PyCodeObject*`` cache in the heap profiler to
-    avoid repeated ``parse_linetable`` and symbol-resolution calls on hot
-    allocation sites.
+    avoid repeated libdatadog string interning and function-registration
+    calls on hot allocation sites.
