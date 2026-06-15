@@ -877,15 +877,10 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
-        # A sample_rate passed to enable() overrides DD_LLMOBS_SAMPLE_RATE; otherwise the
-        # env-var-derived config value is kept.
-        if sample_rate is not None:
-            config._llmobs_sample_rate = sample_rate
-        # Validate the effective sample rate regardless of its source, falling back to the
-        # default of 1.0 if it is outside the valid range.
+        config._llmobs_sample_rate = sample_rate or config._llmobs_sample_rate
         if not 0.0 <= config._llmobs_sample_rate <= 1.0:
             log.warning(
-                "LLMObs sample rate %r is outside the valid range [0.0, 1.0]; falling back to 1.0.",
+                "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.",
                 config._llmobs_sample_rate,
             )
             config._llmobs_sample_rate = 1.0
