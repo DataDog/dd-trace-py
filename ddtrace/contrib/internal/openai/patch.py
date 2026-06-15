@@ -455,6 +455,9 @@ def _patched_endpoint_async(patch_hook):
                     except StopIteration:
                         pass
                     raise
+            # Return immediately like the sync path: no span and no second
+            # .before dispatch for raw-response streaming on the success path.
+            return func(*args, **kwargs)
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.

@@ -569,3 +569,77 @@ class TestRawResponseStreaming:
 
         assert len(received) == 1
         assert received[0].get("model") == "gpt-4.1"
+
+    def test_async_raw_response_streaming_dispatches_before_event_once(self, openai_sdk):
+        """Async raw-response streaming must dispatch .before exactly once (no double dispatch)."""
+        received = []
+        core.on("openai.completions.create.before", received.append)
+        try:
+
+            async def run():
+                client = openai_sdk.AsyncOpenAI(
+                    api_key="<test-key>",
+                    http_client=httpx.AsyncClient(
+                        transport=_AsyncMockTransport(
+                            lambda: httpx.Response(
+                                200,
+                                headers={"content-type": "text/event-stream"},
+                                stream=httpx.ByteStream(
+                                    b"data: "
+                                    b'{"id":"cmpl-test","object":"text_completion",'
+                                    b'"choices":[{"text":"hi","finish_reason":null,"index":0}],'
+                                    b'"model":"gpt-3.5-turbo-instruct"}\n\n'
+                                    b"data: [DONE]\n\n"
+                                ),
+                            )
+                        )
+                    ),
+                )
+                raw = await client.completions.with_raw_response.create(
+                    model="gpt-3.5-turbo-instruct", prompt="hi", stream=True
+                )
+                async for _ in raw.parse():
+                    pass
+
+            asyncio.run(run())
+        except Exception:
+            pass  # stream parsing may raise; .before was already dispatched
+        finally:
+            core.reset_listeners("openai.completions.create.before")
+
+        assert len(received) == 1
+        assert received[0].get("model") == "gpt-3.5-turbo-instruct"
+
+    def test_async_raw_response_chat_streaming_dispatches_before_event_once(self, openai_sdk):
+        """Async raw-response chat streaming must dispatch .before exactly once."""
+        received = []
+        core.on("openai.chat.completions.create.before", received.append)
+        try:
+
+            async def run():
+                client = openai_sdk.AsyncOpenAI(
+                    api_key="<test-key>",
+                    http_client=httpx.AsyncClient(
+                        transport=_AsyncMockTransport(
+                            lambda: httpx.Response(
+                                200,
+                                headers={"content-type": "text/event-stream"},
+                                stream=httpx.ByteStream(_fake_stream_chunks()),
+                            )
+                        )
+                    ),
+                )
+                raw = await client.chat.completions.with_raw_response.create(
+                    model="gpt-4.1", messages=[{"role": "user", "content": "hi"}], stream=True
+                )
+                async for _ in raw.parse():
+                    pass
+
+            asyncio.run(run())
+        except Exception:
+            pass
+        finally:
+            core.reset_listeners("openai.chat.completions.create.before")
+
+        assert len(received) == 1
+        assert received[0].get("model") == "gpt-4.1"
