@@ -318,7 +318,9 @@ class APIClient:
         page_state: t.Optional[str] = None
 
         for page_number in range(_get_known_tests_max_pages()):
-            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+            page_info: dict[str, t.Any] = (
+                {"page_size": 100} if page_state is None else {"page_size": 100, "page_state": page_state}
+            )
             request_data: dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
