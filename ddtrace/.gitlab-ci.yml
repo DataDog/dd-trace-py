@@ -389,8 +389,13 @@ detect_circular_imports:
     - uv run --script cycles.py analyze --root ddtrace/ddtrace cycles-pr.json
     - cat cycles-pr.json
     - cd ddtrace && git checkout main && cd ..
+    - MAIN_ROOT="ddtrace/ddtrace"
+    - |
+      if [ ! -d "$MAIN_ROOT" ]; then
+        MAIN_ROOT="ddtrace"
+      fi
     # Analyse main branch ddtrace using the PR version of cycles.py (has uv metadata)
-    - uv run --script cycles.py analyze --root ddtrace/ddtrace cycles-base.json
+    - uv run --script cycles.py analyze --root "$MAIN_ROOT" cycles-base.json
     - cat cycles-base.json
     - |
       set +e
