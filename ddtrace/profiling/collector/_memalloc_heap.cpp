@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -117,6 +118,9 @@ class heap_tracker_t
 
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
+
+    /* Get the sampling interval R */
+    uint64_t get_sample_size() const { return sample_size; }
 
     /* Traceback pool operations */
     std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
@@ -420,7 +424,17 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // Use the weighted size (allocated_memory_val) so the heap profile accounts
     // for sampling, matching the tcmalloc/Go pprof approach: each sampled live
     // allocation represents ~R bytes of heap, not just its own raw size.
-    tb->sample.push_heap(allocated_memory_val);
+    //
+    // For heap-live-samples, use the Horvitz-Thompson estimator: w = 1 / (1 - exp(-S/R))
+    // where S is the allocation size and R is the sampling interval.
+    // This is the inverse of the probability that a contiguous region of S bytes
+    // contains at least one Poisson sample point. Each sampled allocation of size S
+    // represents w real allocations of that size in the population.
+    double s = static_cast<double>(size > 0 ? size : 1);
+    double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
+    double p = 1.0 - std::exp(-s / r);
+    int64_t heap_count = static_cast<int64_t>(1.0 / p);
+    tb->sample.push_heap(allocated_memory_val, heap_count);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {

@@ -5,21 +5,23 @@ from typing import Final
 class LLMObsExportMode(str, Enum):
     """The primary path LLMObs span data takes to Datadog.
 
-    Only the primary path is modeled here; the writer's wire transport (Agent EVP proxy vs
-    direct-to-intake) is inferred from the ``LLMObsSpanWriter``'s ``is_agentless``.
-
-    APM_AGENTLESS — rides the APM trace to intake at 100% (APM writer swapped to agentless).
-    APM_AGENT     — rides the APM trace via the Agent, which drops unsampled spans; LLMObs
-                    processor re-ships predicted drops through ``LLMObsSpanWriter`` agent proxy.
-    LLMOBS_DIRECT — APM tracing off; events ship via ``LLMObsSpanWriter`` at span finish.
+    APM_AGENTLESS      — rides the APM trace to intake at 100% (APM writer swapped to agentless).
+    APM_AGENT          — rides the APM trace via the Agent, which drops unsampled spans; LLMObs
+                         processor re-ships predicted drops through ``LLMObsSpanWriter`` agent proxy.
+    LLMOBS_AGENT_PROXY — APM tracing off; events ship via ``LLMObsSpanWriter`` through the Agent
+                         EVP proxy at span finish.
+    LLMOBS_AGENTLESS   — APM tracing off; events ship via ``LLMObsSpanWriter`` directly to intake
+                         at span finish.
     """
 
-    LLMOBS_DIRECT = "llmobs_direct"
+    LLMOBS_AGENT_PROXY = "llmobs_agent_proxy"
+    LLMOBS_AGENTLESS = "llmobs_agentless"
     APM_AGENTLESS = "apm_agentless"
     APM_AGENT = "apm_agent"
 
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
+CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
 
 
 SESSION_ID = "_ml_obs.session_id"

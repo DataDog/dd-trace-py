@@ -107,13 +107,20 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
+        producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=True) as consumer:
         msg = await consumer.getone()
+        consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
+    assert producer_cluster_id == consumer_cluster_id != "", (
+        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
+    )
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
+    assert (
+        max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id))
+        == msg.offset + 1
+    )
 
 
 @pytest.mark.asyncio
@@ -131,15 +138,22 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
         await producer.send_and_wait(topic, value=PAYLOAD, key=KEY)
-        cluster_id = getattr(producer.client, "_dd_cluster_id", "") or ""
+        producer_cluster_id = getattr(producer.client, "_dd_cluster_id", "")
 
     async with consumer_ctx([topic], enable_auto_commit=False) as consumer:
         await consumer.getone()
         msg = await consumer.getone()
         await consumer.commit(offsets)
+        consumer_cluster_id = getattr(consumer._client, "_dd_cluster_id", "")
 
-    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, cluster_id)) == 1
-    assert max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, cluster_id)) == msg.offset + 1
+    assert producer_cluster_id == consumer_cluster_id != "", (
+        f"cluster_id not resolved: producer={producer_cluster_id!r} consumer={consumer_cluster_id!r}"
+    )
+    assert max_produce_offset(dsm_processor, PartitionKey(topic, 0, producer_cluster_id)) == 1
+    assert (
+        max_commit_offset(dsm_processor, ConsumerPartitionKey(GROUP_ID, topic, 0, consumer_cluster_id))
+        == msg.offset + 1
+    )
 
 
 @pytest.mark.asyncio
