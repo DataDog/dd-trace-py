@@ -71,6 +71,7 @@ jobs:
           TEST_ROOT="$ISOLATED_DIR/tests"
 
           mkdir -p "$TEST_ROOT/profiling"
+<<<<<<< HEAD
           cp "$REPO_ROOT/ddtrace/tests/__init__.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/ddtrace/tests/utils.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/ddtrace/tests/subprocesstest.py" "$TEST_ROOT/"
@@ -78,6 +79,16 @@ jobs:
           cp "$REPO_ROOT/ddtrace/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/ddtrace/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
           cp -R "$REPO_ROOT/ddtrace/tests/profiling/collector" "$TEST_ROOT/profiling/"
+=======
+          cp "$REPO_ROOT/tests/__init__.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/utils.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/subprocesstest.py" "$TEST_ROOT/"
+          cp "$REPO_ROOT/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_cpu.py" "$TEST_ROOT/profiling/"
+          cp -R "$REPO_ROOT/tests/profiling/collector" "$TEST_ROOT/profiling/"
+>>>>>>> main
 
           cd "$ISOLATED_DIR"
 

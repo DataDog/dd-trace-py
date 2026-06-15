@@ -122,19 +122,23 @@ class EchionSampler
         // took its snapshot. Traversing a corrupted list to free nodes would crash.
         frame_cache_.postfork_child();
 
-        // Clear stale entries from parent process.
-        // No lock needed: only one thread exists in child immediately after fork.
-        task_link_map_.clear();
-        weak_task_link_map_.clear();
-        greenlet_info_map_.clear();
-        greenlet_parent_map_.clear();
-        greenlet_thread_map_.clear();
+        // Also use placement new for all containers touched by the sampling thread.
+        // Using placement new means the existing containers are abandoned and
+        // their memory leaked in the child and we may lose some data (e.g. relationships
+        // between asyncio Tasks).
+        // However, this is the only way to safely continue working after fork.
+        new (&thread_info_map_) std::unordered_map<uintptr_t, ThreadInfo::Ptr>();
+        new (&task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&weak_task_link_map_) std::unordered_map<PyObject*, PyObject*>();
+        new (&greenlet_info_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::Ptr>();
+        new (&greenlet_parent_map_) std::unordered_map<GreenletInfo::ID, GreenletInfo::ID>();
+        new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
+        new (&previous_task_objects_) std::unordered_set<PyObject*>();
 
-        // Reset the scratch set via placement new instead of clear() for the
-        // same fork-safety reason as frame_cache_: the Sampling Thread may have
-        // been mid-insert (e.g. rehash) when fork snapshotted the set, so
-        // traversing its buckets to free nodes (as clear() does) could crash.
-        // Abandon the old buckets (intentional one-time leak).
+        asyncio_frame_cache_key_.reset();
+        uvloop_frame_cache_key_.reset();
+        asyncio_task_count_ = 0;
+
         new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
         // Clear renderer caches to avoid using stale interned IDs from the
