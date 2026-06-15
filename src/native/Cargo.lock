@@ -188,7 +188,7 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 [[package]]
 name = "build_common"
 version = "35.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "cbindgen",
  "serde",
@@ -483,7 +483,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 [[package]]
 name = "datadog-ffe"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "chrono",
  "derive_more",
@@ -1385,7 +1385,7 @@ checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
 [[package]]
 name = "libdd-alloc"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -1395,7 +1395,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1406,7 +1406,7 @@ dependencies = [
 [[package]]
 name = "libdd-capabilities-impl"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "bytes",
  "http",
@@ -1419,7 +1419,7 @@ dependencies = [
 [[package]]
 name = "libdd-common"
 version = "4.2.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1458,7 +1458,7 @@ dependencies = [
 [[package]]
 name = "libdd-common-ffi"
 version = "35.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "build_common",
@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "libdd-crashtracker"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "blazesym",
@@ -1505,7 +1505,7 @@ dependencies = [
 [[package]]
 name = "libdd-data-pipeline"
 version = "6.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1539,7 +1539,7 @@ dependencies = [
 [[package]]
 name = "libdd-ddsketch"
 version = "1.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "prost",
 ]
@@ -1547,7 +1547,7 @@ dependencies = [
 [[package]]
 name = "libdd-dogstatsd-client"
 version = "3.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "cadence",
@@ -1560,7 +1560,7 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "libc",
@@ -1588,7 +1588,7 @@ dependencies = [
 [[package]]
 name = "libdd-log"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "chrono",
  "tracing",
@@ -1599,7 +1599,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1638,7 +1638,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-ffi"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "allocator-api2",
  "anyhow",
@@ -1660,7 +1660,7 @@ dependencies = [
 [[package]]
 name = "libdd-profiling-protobuf"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "prost",
 ]
@@ -1668,7 +1668,7 @@ dependencies = [
 [[package]]
 name = "libdd-remote-config"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "base64",
@@ -1694,7 +1694,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "async-trait",
  "futures",
@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "libdd-shared-runtime-ffi"
 version = "35.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "build_common",
  "libdd-shared-runtime",
@@ -1721,7 +1721,7 @@ dependencies = [
 [[package]]
 name = "libdd-telemetry"
 version = "5.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1748,7 +1748,7 @@ dependencies = [
 [[package]]
 name = "libdd-tinybytes"
 version = "1.1.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "serde",
 ]
@@ -1756,7 +1756,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-normalization"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "libdd-trace-protobuf",
@@ -1765,7 +1765,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-obfuscation"
 version = "4.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "fluent-uri",
@@ -1781,7 +1781,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-protobuf"
 version = "3.0.2"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "prost",
  "serde",
@@ -1791,7 +1791,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-stats"
 version = "5.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1816,7 +1816,7 @@ dependencies = [
 [[package]]
 name = "libdd-trace-utils"
 version = "8.0.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "base64",
@@ -1847,7 +1847,7 @@ dependencies = [
 [[package]]
 name = "libdd-tracer-flare"
 version = "0.1.0"
-source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#13cc0b4174aaaecd255c1a3c827131fb0268164c"
+source = "git+https://github.com/DataDog/libdatadog?branch=munir%2Fotlp-trace-metrics#dbc8c4bf4c1244957455777eb0b324b357cdf18f"
 dependencies = [
  "anyhow",
  "bytes",
