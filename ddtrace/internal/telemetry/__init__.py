@@ -17,6 +17,7 @@ from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
+from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
 from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
@@ -55,6 +56,10 @@ def get_config(
 
     effective_val = default
     telemetry_name = envs[0]
+    # Configurations marked ``sensitive: true`` in the registry are excluded from
+    # configuration telemetry, regardless of which source supplies the value.
+    if telemetry_name in SENSITIVE_CONFIGURATIONS:
+        report_telemetry = False
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
 
@@ -128,6 +133,11 @@ def report_configuration(config: DDConfig) -> None:
             continue
 
         env_name = e.full_name
+
+        # Configurations marked ``sensitive: true`` in the registry are excluded
+        # from configuration telemetry.
+        if env_name in SENSITIVE_CONFIGURATIONS:
+            continue
 
         # Get the item value recursively
         env_val = config

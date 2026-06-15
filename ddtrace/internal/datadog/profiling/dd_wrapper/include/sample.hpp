@@ -119,7 +119,7 @@ class Sample
     bool push_acquire(int64_t acquire_time, int64_t count);
     bool push_release(int64_t lock_time, int64_t count);
     bool push_alloc(int64_t size, int64_t count);
-    bool push_heap(int64_t size);
+    bool push_heap(int64_t size, int64_t count);
     void reset_alloc();
     void reset_heap();
     bool push_gpu_gputime(int64_t time, int64_t count);
