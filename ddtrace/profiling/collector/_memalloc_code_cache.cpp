@@ -1,6 +1,7 @@
 #include "_memalloc_code_cache.h"
 
 #include <algorithm>
+#include <bit>
 #include <cstdlib>
 #include <cstring>
 
@@ -28,7 +29,9 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity_hint)
 {
     size_t num_sets = clamp_to_pow2_set_count(capacity_hint);
     sets_.assign(num_sets, Set{});
-    log2_set_bits_ = static_cast<uint8_t>(__builtin_ctzll(num_sets));
+    /* num_sets is a power of two, so countr_zero gives log2(num_sets).
+     * std::countr_zero (<bit>, C++20) is portable across GCC/Clang/MSVC. */
+    log2_set_bits_ = static_cast<uint8_t>(std::countr_zero(num_sets));
 }
 
 size_t
