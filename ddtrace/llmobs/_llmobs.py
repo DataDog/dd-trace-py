@@ -877,23 +877,21 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
-        # A valid sample_rate argument overrides the env-derived rate; an invalid one is
-        # ignored so it can't clobber an already-configured rate.
+        # Validate and fallback sample rates (inline arg --> env var --> 1.0)
         if sample_rate is not None and 0.0 <= sample_rate <= 1.0:
             config._llmobs_sample_rate = sample_rate
-        elif sample_rate is not None:
-            log.warning(
-                "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.",
-                sample_rate,
-            )
-        # Validate the effective rate (an invalid env-derived rate, or no valid value at all)
-        # and fall back to the default if it is still out of range.
-        if not 0.0 <= config._llmobs_sample_rate <= 1.0:
-            log.warning(
-                "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.",
-                config._llmobs_sample_rate,
-            )
-            config._llmobs_sample_rate = 1.0
+        else:
+            if sample_rate is not None:
+                log.warning(
+                    "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.",
+                    sample_rate,
+                )
+            if not 0.0 <= config._llmobs_sample_rate <= 1.0:
+                log.warning(
+                    "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.",
+                    config._llmobs_sample_rate,
+                )
+                config._llmobs_sample_rate = 1.0
 
         error = None
         start_ns = time.time_ns()
