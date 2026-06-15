@@ -112,7 +112,11 @@ class MistralAIIntegration(BaseLLMIntegration):
                 for chunk in content:
                     input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
             else:
-                input_messages.append(Message(content=str(content) if content is not None else "", role=role))
+                msg = Message(content=str(content) if content is not None else "", role=role)
+                tool_calls_raw = _get_attr(message, "tool_calls", None)
+                if tool_calls_raw:
+                    msg["tool_calls"] = self._extract_tool_calls(tool_calls_raw)
+                input_messages.append(msg)
         return input_messages
 
     def _extract_output_messages(self, response):
@@ -126,22 +130,27 @@ class MistralAIIntegration(BaseLLMIntegration):
             output_messages.append(self._extract_message_from_assistant_message(message))
         return output_messages or [Message(content="", role="assistant")]
 
+    def _extract_tool_calls(self, tool_calls_raw):
+        tool_calls = []
+        for tool_call in tool_calls_raw:
+            fn = _get_attr(tool_call, "function", None)
+            tool_calls.append(
+                ToolCall(
+                    name=str(_get_attr(fn, "name", "")),
+                    arguments=_get_attr(fn, "arguments", {}),
+                    tool_id=str(_get_attr(tool_call, "id", "")),
+                    type="function",
+                )
+            )
+        return tool_calls
+
     def _extract_message_from_assistant_message(self, message):
         role = str(_get_attr(message, "role", "assistant") or "assistant")
         content = str(_get_attr(message, "content", "") or "")
         msg = Message(content=content, role=role)
         tool_calls_raw = _get_attr(message, "tool_calls", None)
         if tool_calls_raw:
-            msg["tool_calls"] = []
-            for tool_call in tool_calls_raw:
-                msg["tool_calls"].append(
-                    ToolCall(
-                        name=str(_get_attr(_get_attr(tool_call, "function", None), "name", "")),
-                        arguments=_get_attr(_get_attr(tool_call, "function", None), "arguments", {}),
-                        tool_id=str(_get_attr(tool_call, "id", "")),
-                        type="function",
-                    )
-                )
+            msg["tool_calls"] = self._extract_tool_calls(tool_calls_raw)
         return msg
 
     def _extract_embedding_input_documents(self, kwargs):

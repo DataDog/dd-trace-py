@@ -1,18 +1,16 @@
 import mistralai.client as _mistralai_client
-import mistralai.client.chat
-import mistralai.client.embeddings
 
-from ddtrace.llmobs._integrations import MistralAIIntegration
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.llmobs._integrations import MistralAIIntegration
 
 
 config._add("mistralai", {})
 
 
 def _supported_versions():
-    return {"mistralai": ">=2.0.0"}
+    return {"mistralai": ">=1.10.0"}
 
 
 def get_version() -> str:
