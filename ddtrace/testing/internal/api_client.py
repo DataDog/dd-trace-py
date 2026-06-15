@@ -221,7 +221,9 @@ class APIClient:
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 
-    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
+    def get_test_management_properties(
+        self, statuses: t.Optional[tuple[str, ...]] = None
+    ) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -230,18 +232,22 @@ class APIClient:
         )
 
         try:
-            commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
-            commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
+            attributes: dict[str, t.Any] = {
+                "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+            }
+            if statuses is not None:
+                attributes["statuses"] = list(statuses)
+            else:
+                commit_message = self.env_tags.get(GitTag.COMMIT_HEAD_MESSAGE) or self.env_tags[GitTag.COMMIT_MESSAGE]
+                commit_sha = self.env_tags.get(GitTag.COMMIT_HEAD_SHA) or self.env_tags[GitTag.COMMIT_SHA]
+                attributes["commit_message"] = commit_message
+                attributes["sha"] = commit_sha
 
-            request_data = {
+            request_data: dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "commit_message": commit_message,
-                        "sha": commit_sha,
-                    },
+                    "attributes": attributes,
                 }
             }
 
@@ -268,112 +274,19 @@ class APIClient:
 
             for module_name, module_data in modules.items():
                 module_ref = ModuleRef(module_name)
-                suites = module_data["suites"]
-                for suite_name, suite_data in suites.items():
+                for suite_name, suite_data in module_data["suites"].items():
                     suite_ref = SuiteRef(module_ref, suite_name)
-                    tests = suite_data["tests"]
-                    for test_name, test_data in tests.items():
+                    for test_name, test_data in suite_data["tests"].items():
                         test_ref = TestRef(suite_ref, test_name)
-                        properties = test_data.get("properties", {})
+                        props = test_data.get("properties", {})
                         test_properties[test_ref] = TestProperties(
-                            quarantined=properties.get("quarantined", False),
-                            disabled=properties.get("disabled", False),
-                            attempt_to_fix=properties.get("attempt_to_fix", False),
+                            quarantined=props.get("quarantined", False),
+                            disabled=props.get("disabled", False),
+                            attempt_to_fix=props.get("attempt_to_fix", False) or props.get("active", False),
                         )
 
         except Exception as e:
             log.warning("Failed to parse Test Management tests data from API: %s", e)
-            telemetry.record_error(ErrorType.BAD_JSON)
-            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-            return {}
-
-        self.telemetry_api.record_test_management_tests_count(len(test_properties))
-        return test_properties
-
-    def get_all_flaky_test_management_properties(self) -> dict[TestRef, TestProperties]:
-        """Fetch test management properties for all non-fixed flaky tests, without commit message context.
-
-        Used by DD_TEST_MANAGEMENT_ATF_ALL_FLAKY mode. Unlike get_test_management_properties(), this
-        method omits commit_message so the backend returns all managed tests regardless of ATF keys in
-        the commit, and handles pagination for large repositories.
-        """
-        telemetry = self.telemetry_api.with_request_metric_names(
-            count="test_management_tests.request",
-            duration="test_management_tests.request_ms",
-            response_bytes="test_management_tests.response_bytes",
-            error="test_management_tests.request_errors",
-        )
-
-        try:
-            repo_url = self.env_tags[GitTag.REPOSITORY_URL]
-        except KeyError as e:
-            log.warning(
-                "Git info not available, cannot fetch all flaky test management properties (missing key: %s)", e
-            )
-            telemetry.record_error(ErrorType.UNKNOWN)
-            self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-            return {}
-
-        test_properties: dict[TestRef, TestProperties] = {}
-        page_state: t.Optional[str] = None
-
-        for page_number in range(_get_known_tests_max_pages()):
-            page_info: dict[str, t.Any] = (
-                {"page_size": 100} if page_state is None else {"page_size": 100, "page_state": page_state}
-            )
-            request_data: dict[str, t.Any] = {
-                "data": {
-                    "id": str(uuid.uuid4()),
-                    "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "repository_url": repo_url,
-                        "page_info": page_info,
-                    },
-                }
-            }
-
-            try:
-                result = self.connector.post_json(
-                    "/api/v2/test/libraries/test-management/tests", request_data, telemetry=telemetry
-                )
-                result.on_error_raise_exception()
-            except Exception as e:
-                log.warning("Error getting all flaky Test Management properties from API: %s", e)
-                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-                return {}
-
-            try:
-                attributes = result.parsed_response["data"]["attributes"]
-                modules = attributes["modules"]
-                for module_name, module_data in modules.items():
-                    module_ref = ModuleRef(module_name)
-                    for suite_name, suite_data in module_data["suites"].items():
-                        suite_ref = SuiteRef(module_ref, suite_name)
-                        for test_name, test_data in suite_data["tests"].items():
-                            test_ref = TestRef(suite_ref, test_name)
-                            test_properties[test_ref] = TestProperties(attempt_to_fix=True)
-
-                page_info_response = attributes.get("page_info")
-                if not page_info_response or not page_info_response.get("has_next"):
-                    break
-                if not isinstance(page_info_response, dict):
-                    log.warning("All flaky tests response page_info is not a dict")
-                    telemetry.record_error(ErrorType.BAD_JSON)
-                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-                    return {}
-                page_state = page_info_response.get("cursor")
-                if not page_state:
-                    log.warning("All flaky tests response missing pagination cursor on page %d", page_number + 1)
-                    telemetry.record_error(ErrorType.BAD_JSON)
-                    self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-                    return {}
-            except Exception as e:
-                log.warning("Failed to parse all flaky Test Management properties from API: %s", e)
-                telemetry.record_error(ErrorType.BAD_JSON)
-                self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
-                return {}
-        else:
-            log.warning("All flaky tests pagination exceeded max pages: %d", _get_known_tests_max_pages())
             telemetry.record_error(ErrorType.BAD_JSON)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_TEST_MANAGEMENT_TESTS] = "true"
             return {}

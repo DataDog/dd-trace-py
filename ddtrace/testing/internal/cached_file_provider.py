@@ -44,9 +44,9 @@ class TestOptDataProvider(t.Protocol):
 
     def get_known_tests(self) -> set[TestRef]: ...
 
-    def get_test_management_properties(self) -> dict[TestRef, TestProperties]: ...
-
-    def get_all_flaky_test_management_properties(self) -> dict[TestRef, TestProperties]: ...
+    def get_test_management_properties(
+        self, statuses: t.Optional[tuple[str, ...]] = None
+    ) -> dict[TestRef, TestProperties]: ...
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]: ...
 
@@ -139,7 +139,9 @@ class CachedFileDataProvider:
             log.warning("Error parsing cached known tests file: %s", e)
             return set()
 
-    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
+    def get_test_management_properties(
+        self, statuses: t.Optional[tuple[str, ...]] = None
+    ) -> dict[TestRef, TestProperties]:
         cached = _read_cache_json(self._cache_path("cache/http/test_management.json"))
         if cached is None:
             return {}
@@ -154,17 +156,13 @@ class CachedFileDataProvider:
                         props[TestRef(suite_ref, test_name)] = TestProperties(
                             quarantined=p.get("quarantined", False),
                             disabled=p.get("disabled", False),
-                            attempt_to_fix=p.get("attempt_to_fix", False),
+                            attempt_to_fix=p.get("attempt_to_fix", False) or p.get("active", False),
                         )
             self._telemetry_api.record_test_management_tests_count(len(props))
             return props
         except Exception as e:
             log.warning("Error parsing cached test management file: %s", e)
             return {}
-
-    def get_all_flaky_test_management_properties(self) -> dict[TestRef, TestProperties]:
-        # Not supported in offline/manifest mode — network access is unavailable.
-        return {}
 
     def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         # WARNING: this guard assumes Bazel ALWAYS sets DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
