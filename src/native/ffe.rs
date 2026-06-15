@@ -191,6 +191,14 @@ pub mod ffe {
                 EvaluationError::ConfigurationParseError => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
+                // Per-flag configuration that fails to parse (e.g. invalid regex,
+                // variant type mismatch) is surfaced as FlagConfigurationInvalid by
+                // libdatadog (see per_flag_config_error in datadog-ffe). Treat it
+                // as a parse error so callers see error.type=parse_error.
+                EvaluationError::FlagConfigurationInvalid => ResolutionDetails::error(
+                    ErrorCode::ParseError,
+                    "flag configuration is invalid or unsupported",
+                ),
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
                     ErrorCode::ProviderNotReady,
                     "configuration is missing",
