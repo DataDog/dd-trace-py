@@ -15,9 +15,11 @@ from typing import TypedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._evaluators import BaseEvaluator
+from ddtrace.llmobs._evaluators import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import EvaluatorType
+from ddtrace.llmobs._experiment import SummaryEvaluatorType
 
 
 log = get_logger(__name__)
@@ -50,12 +52,16 @@ class LLMObsGEPAAdapter:
         optimization_task: Callable[[str, str, ConfigType], str],
         config: ConfigType,
         labelization_function: Optional[Callable[[dict[str, Any]], str]] = None,
+        compute_score: Optional[Callable[[dict], float]] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
     ) -> None:
         self._task = task
         self._evaluators = evaluators
         self._optimization_task = optimization_task
         self._config = config
         self._labelization_function = labelization_function
+        self._compute_score = compute_score
+        self._summary_evaluators = summary_evaluators or []
         # Assign as instance field so GEPA's duck-typed protocol check finds it
         # (GEPAAdapter declares `propose_new_texts` as an optional callable field,
         # not a method).
@@ -76,7 +82,10 @@ class LLMObsGEPAAdapter:
         from gepa import EvaluationBatch
 
         outputs: list = []
-        scores: list[float] = []
+        all_evaluations: list[dict] = []
+        all_inputs: list = []
+        all_expected: list = []
+        per_record_scores: list[float] = []
         trajectories: list[TrajectoryRecord] | None = [] if capture_traces else None
 
         # Inject candidate prompt into config
@@ -96,8 +105,10 @@ class LLMObsGEPAAdapter:
                 output = None
 
             outputs.append(output)
+            all_inputs.append(input_data)
+            all_expected.append(expected_output)
 
-            # Score = average across all evaluators
+            # Run per-record evaluators
             evaluations: dict = {}
             numeric_scores: list[float] = []
             for evaluator in self._evaluators:
@@ -126,9 +137,9 @@ class LLMObsGEPAAdapter:
                 except Exception:
                     log.debug("Evaluator failed for record", exc_info=True)
 
-            score = sum(numeric_scores) / len(numeric_scores) if numeric_scores else 0.0
-
-            scores.append(score)
+            record_score = sum(numeric_scores) / len(numeric_scores) if numeric_scores else 0.0
+            per_record_scores.append(record_score)
+            all_evaluations.append(evaluations)
 
             if trajectories is not None:
                 trajectories.append(
@@ -137,9 +148,24 @@ class LLMObsGEPAAdapter:
                         expected_output=expected_output,
                         output=output,
                         evaluations=evaluations,
-                        score=score,
+                        score=record_score,
                     )
                 )
+
+        # Align GEPA's evolutionary scoring with compute_score when available.
+        # compute_score operates on aggregated summary evaluations; we run the
+        # summary evaluators on this batch and use the result as a uniform
+        # per-record score so that mean(scores) == compute_score(batch).
+        if self._compute_score is not None and self._summary_evaluators:
+            try:
+                summary_evals = self._run_summary_evaluators(all_inputs, outputs, all_expected, all_evaluations)
+                batch_score = float(self._compute_score(summary_evals))
+                scores = [batch_score] * len(batch)
+            except Exception:
+                log.debug("compute_score alignment failed; falling back to per-record average", exc_info=True)
+                scores = per_record_scores
+        else:
+            scores = per_record_scores
 
         return EvaluationBatch(outputs=outputs, scores=scores, trajectories=trajectories)
 
@@ -304,6 +330,49 @@ class LLMObsGEPAAdapter:
 
         log.warning("Unexpected evaluator result type %s, returning 0.0", type(result).__name__)
         return 0.0
+
+    def _run_summary_evaluators(
+        self,
+        inputs: list,
+        outputs: list,
+        expected_outputs: list,
+        all_evaluations: list[dict],
+    ) -> dict:
+        """Run summary evaluators and return aggregated results in LLMObs summary format.
+
+        :param inputs: Per-record input_data values.
+        :param outputs: Per-record task outputs.
+        :param expected_outputs: Per-record expected outputs.
+        :param all_evaluations: Per-record evaluator results dicts.
+        :returns: Dict keyed by evaluator name matching ``summary_evaluations`` format.
+        """
+        from ddtrace.llmobs._experiment import SummaryEvaluatorContext
+
+        evaluators_results: dict[str, list] = {}
+        for record_evals in all_evaluations:
+            for eval_name, eval_result in record_evals.items():
+                evaluators_results.setdefault(eval_name, []).append(eval_result)
+
+        summary: dict = {}
+        for evaluator in self._summary_evaluators:
+            eval_name = getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "summary_evaluator")
+            try:
+                if isinstance(evaluator, BaseSummaryEvaluator):
+                    ctx = SummaryEvaluatorContext(
+                        inputs=inputs,
+                        outputs=outputs,
+                        expected_outputs=expected_outputs,
+                        evaluation_results=evaluators_results,
+                        metadata={},
+                    )
+                    result = evaluator.evaluate(ctx)
+                else:
+                    result = evaluator(inputs, outputs, expected_outputs, evaluators_results)
+                summary[eval_name] = {"value": result, "error": None}
+            except Exception:
+                log.debug("Summary evaluator %s failed", eval_name, exc_info=True)
+                summary[eval_name] = {"value": None, "error": "failed"}
+        return summary
 
     @staticmethod
     def _dataset_to_gepa_format(dataset: Dataset) -> list[dict]:

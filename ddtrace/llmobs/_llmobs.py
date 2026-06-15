@@ -1277,6 +1277,8 @@ class LLMObs(Service):
         dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[str] = None,
         method: str = "metaprompting",
+        dataset_split_seed: int = 42,
+        gepa_config: Optional[dict] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -1338,6 +1340,12 @@ class LLMObs(Service):
         :param method: Optimization method to use. ``"metaprompting"`` (default) uses the built-in
                       iterative optimization loop. ``"gepa"`` uses the GEPA evolutionary optimizer
                       (requires ``pip install ddtrace[gepa]``).
+        :param dataset_split_seed: Random seed for dataset shuffling when ``dataset_split`` is enabled.
+                                   Default is 42. Change to get a different train/valid/test partition.
+        :param gepa_config: Optional dict of GEPA-specific kwargs forwarded directly to ``gepa.optimize()``,
+                            taking precedence over equivalent keys in ``config``. Supported keys include
+                            ``max_metric_calls`` (default 150), ``seed``, and
+                            ``candidate_selection_strategy``. Only used with ``method="gepa"``.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1428,6 +1436,8 @@ class LLMObs(Service):
             dataset_split=dataset_split,
             test_dataset=pulled_test_dataset,
             method=method,
+            dataset_split_seed=dataset_split_seed,
+            gepa_config=gepa_config,
         )
 
     @classmethod

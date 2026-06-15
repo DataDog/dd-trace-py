@@ -223,6 +223,17 @@ class TestPhaseResult:
     experiment_url: str
 
 
+@dataclass
+class GEPAOptimizerMetadata:
+    """Metadata captured from the GEPA optimization run."""
+
+    num_candidates: int
+    best_valset_score: float
+    total_metric_calls: Optional[int]
+    num_full_val_evals: Optional[int]
+    seed: Optional[int]
+
+
 class OptimizationIteration:
     """Represents a single iteration in the prompt optimization process.
 
@@ -450,6 +461,8 @@ class OptimizationResult:
         iterations: list[IterationData],
         best_iteration: int,
         test_phase: Optional[TestPhaseResult] = None,
+        gepa_metadata: Optional[GEPAOptimizerMetadata] = None,
+        optimizer_error: Optional[str] = None,
     ) -> None:
         """Initialize optimization results.
 
@@ -458,12 +471,16 @@ class OptimizationResult:
         :param iterations: list of results from each iteration (IterationData).
         :param best_iteration: Index of the iteration with best performance.
         :param test_phase: Results from the final test phase (when dataset splitting is enabled).
+        :param gepa_metadata: Metadata from the GEPA optimizer run (method='gepa' only).
+        :param optimizer_error: Error message if the optimizer failed and fell back to the initial prompt.
         """
         self.name = name
         self.initial_prompt = initial_prompt
         self.iterations = iterations
         self.best_iteration = best_iteration
         self._test_phase = test_phase
+        self.gepa_metadata = gepa_metadata
+        self.optimizer_error = optimizer_error
 
     @property
     def best_prompt(self) -> str:
@@ -541,6 +558,18 @@ class OptimizationResult:
             f"Best score: {self.best_score:.4f}" if self.best_score is not None else "Best score: N/A",
         ]
 
+        if self.optimizer_error:
+            lines.append(f"Optimizer error (fell back to initial prompt): {self.optimizer_error}")
+
+        if self.gepa_metadata:
+            m = self.gepa_metadata
+            lines.append(
+                f"GEPA: {m.num_candidates} candidates, "
+                f"best valset score {m.best_valset_score:.4f}"
+                + (f", {m.total_metric_calls} metric calls" if m.total_metric_calls is not None else "")
+                + (f", seed {m.seed}" if m.seed is not None else "")
+            )
+
         if self.test_score is not None:
             lines.append(f"Test score: {self.test_score:.4f}")
             if self.test_experiment_url:
@@ -598,6 +627,8 @@ class PromptOptimization:
         dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[Dataset] = None,
         method: str = "metaprompting",
+        dataset_split_seed: int = 42,
+        gepa_config: Optional[dict] = None,
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -650,6 +681,12 @@ class PromptOptimization:
         :param method: Optimization method to use. ``"metaprompting"`` (default) uses the built-in
                       iterative optimization loop. ``"gepa"`` uses the GEPA evolutionary optimizer
                       (requires ``pip install ddtrace[gepa]``).
+        :param dataset_split_seed: Random seed for dataset shuffling when splitting. Default 42.
+                                   Change to get a different train/valid/test partition.
+        :param gepa_config: Optional dict of GEPA-specific kwargs passed directly to ``gepa.optimize()``,
+                            taking precedence over the equivalent keys in ``config``. Supported keys:
+                            ``max_metric_calls`` (default 150), ``seed``, ``candidate_selection_strategy``.
+                            Only used with ``method="gepa"``.
         :raises ValueError: If required config parameters or compute_score are missing, or if
                            method is not recognized.
         """
@@ -697,6 +734,8 @@ class PromptOptimization:
         if method not in _VALID_METHODS:
             raise ValueError(f"Unknown optimization method {method!r}. Must be one of {_VALID_METHODS}.")
         self._method = method
+        self._dataset_split_seed = dataset_split_seed
+        self._gepa_config: dict = gepa_config or {}
 
     def _make_sub_dataset(self, split_name: str, records: list[DatasetRecord]) -> Dataset:
         """Create a sub-dataset from a list of records.
@@ -735,8 +774,8 @@ class PromptOptimization:
             raise ValueError("_split_dataset called without split ratios")
         records = list(self._dataset)
 
-        # Shuffle with fixed seed for reproducibility
-        rng = random.Random(_DATASET_SPLIT_SEED)  # nosec B311
+        # Shuffle with configurable seed for reproducibility
+        rng = random.Random(self._dataset_split_seed)  # nosec B311
         rng.shuffle(records)
 
         if self._test_dataset is not None:
@@ -1053,7 +1092,29 @@ class PromptOptimization:
         log.info("GEPA baseline score: %.3f", baseline_score)
 
         # Run GEPA
-        optimized_prompt = self._run_gepa_core(self._dataset, self._dataset)
+        optimized_prompt, gepa_metadata, optimizer_error = self._run_gepa_core(self._dataset, self._dataset)
+
+        # Skip final experiment if GEPA failed or returned the same prompt (no-op)
+        if optimized_prompt == current_prompt:
+            log.info("GEPA returned unchanged prompt; skipping final experiment")
+            all_iterations.append(
+                IterationData(
+                    iteration=1,
+                    prompt=optimized_prompt,
+                    results=baseline_results,
+                    score=baseline_score,
+                    experiment_url=baseline_url,
+                    summary_evaluations=baseline_evals,
+                )
+            )
+            return OptimizationResult(
+                name=self.name,
+                initial_prompt=str(self._initial_prompt),
+                iterations=all_iterations,
+                best_iteration=0,
+                gepa_metadata=gepa_metadata,
+                optimizer_error=optimizer_error,
+            )
 
         # Final experiment with optimized prompt
         final_results, final_url = self._run_experiment(1, optimized_prompt, jobs)
@@ -1079,6 +1140,8 @@ class PromptOptimization:
             initial_prompt=str(self._initial_prompt),
             iterations=all_iterations,
             best_iteration=best_iteration,
+            gepa_metadata=gepa_metadata,
+            optimizer_error=optimizer_error,
         )
 
     def _run_gepa_with_split(self, jobs: int) -> OptimizationResult:
@@ -1117,26 +1180,41 @@ class PromptOptimization:
         log.info("GEPA baseline score (valid): %.3f", baseline_score)
 
         # Run GEPA with train/valid split
-        optimized_prompt = self._run_gepa_core(train_ds, valid_ds)
+        optimized_prompt, gepa_metadata, optimizer_error = self._run_gepa_core(train_ds, valid_ds)
 
-        # Final experiment on valid set
-        final_results, final_url = self._run_experiment(1, optimized_prompt, jobs, dataset=valid_ds, suffix="valid")
-        final_evals = final_results.get("summary_evaluations", {})
-        final_score = self._compute_score(final_evals)
-
-        all_iterations.append(
-            IterationData(
-                iteration=1,
-                prompt=optimized_prompt,
-                results=final_results,
-                score=final_score,
-                experiment_url=final_url,
-                summary_evaluations=final_evals,
+        # Skip final valid experiment if GEPA failed or returned the same prompt (no-op)
+        if optimized_prompt == current_prompt:
+            log.info("GEPA returned unchanged prompt; skipping final valid experiment")
+            all_iterations.append(
+                IterationData(
+                    iteration=1,
+                    prompt=optimized_prompt,
+                    results=baseline_results,
+                    score=baseline_score,
+                    experiment_url=baseline_url,
+                    summary_evaluations=baseline_evals,
+                )
             )
-        )
-        log.info("GEPA final score (valid): %.3f", final_score)
+            best_iteration = 0
+        else:
+            # Final experiment on valid set
+            final_results, final_url = self._run_experiment(1, optimized_prompt, jobs, dataset=valid_ds, suffix="valid")
+            final_evals = final_results.get("summary_evaluations", {})
+            final_score = self._compute_score(final_evals)
 
-        best_iteration = 1 if (final_score or 0.0) > (baseline_score or 0.0) else 0
+            all_iterations.append(
+                IterationData(
+                    iteration=1,
+                    prompt=optimized_prompt,
+                    results=final_results,
+                    score=final_score,
+                    experiment_url=final_url,
+                    summary_evaluations=final_evals,
+                )
+            )
+            log.info("GEPA final score (valid): %.3f", final_score)
+            best_iteration = 1 if (final_score or 0.0) > (baseline_score or 0.0) else 0
+
         best_prompt = all_iterations[best_iteration]["prompt"]
 
         # Test phase with best prompt
@@ -1152,19 +1230,31 @@ class PromptOptimization:
             iterations=all_iterations,
             best_iteration=best_iteration,
             test_phase=TestPhaseResult(results=test_results, score=test_score, experiment_url=test_url),
+            gepa_metadata=gepa_metadata,
+            optimizer_error=optimizer_error,
         )
 
-    def _run_gepa_core(self, train_ds: Dataset, valid_ds: Dataset) -> str:
-        """Run GEPA evolutionary optimization and return the best prompt.
+    def _run_gepa_core(
+        self, train_ds: Dataset, valid_ds: Dataset
+    ) -> tuple[str, Optional[GEPAOptimizerMetadata], Optional[str]]:
+        """Run GEPA evolutionary optimization and return (prompt, metadata, error).
 
         :param train_ds: Dataset used for GEPA's training evaluations.
         :param valid_ds: Dataset used for GEPA's validation scoring.
-        :returns: The best prompt found by GEPA, or the initial prompt on failure.
+        :returns: Tuple of (best_prompt, gepa_metadata, optimizer_error).
+                  On failure, best_prompt is the initial prompt, metadata is None,
+                  and optimizer_error contains the error message.
         """
+        import sys
+
         try:
             import gepa as gepa_pkg
         except ImportError:
-            raise ImportError("gepa package is required for method='gepa'. Install with: pip install ddtrace[gepa]")
+            py = f"{sys.version_info.major}.{sys.version_info.minor}"
+            raise ImportError(
+                f"gepa package is required for method='gepa' (requires Python >=3.10, current: {py}). "
+                "Install with: pip install ddtrace[gepa]"
+            )
 
         from ddtrace.llmobs._optimizers.gepa_strategy import LLMObsGEPAAdapter
 
@@ -1174,10 +1264,13 @@ class PromptOptimization:
             optimization_task=self._optimization_task,
             config=self._config,
             labelization_function=self._labelization_function,
+            compute_score=self._compute_score,
+            summary_evaluators=self._summary_evaluators,
         )
         train_data = LLMObsGEPAAdapter._dataset_to_gepa_format(train_ds)
         val_data = LLMObsGEPAAdapter._dataset_to_gepa_format(valid_ds)
 
+        # Base GEPA kwargs from config; gepa_config overrides
         gepa_kwargs: dict[str, Any] = {
             "seed_candidate": {"system_prompt": self._initial_prompt},
             "trainset": train_data,
@@ -1186,21 +1279,31 @@ class PromptOptimization:
             "display_progress_bar": True,
             "max_metric_calls": self._config.get("max_metric_calls", 150),
         }
-
-        # Optional GEPA params from config
+        # Legacy config keys (kept for backward compat)
         for config_key, gepa_key in [
             ("gepa_seed", "seed"),
             ("candidate_selection_strategy", "candidate_selection_strategy"),
         ]:
             if config_key in self._config:
                 gepa_kwargs[gepa_key] = self._config[config_key]
+        # gepa_config takes precedence over all of the above
+        gepa_kwargs.update(self._gepa_config)
 
         try:
             result = gepa_pkg.optimize(**gepa_kwargs)
-            return result.best_candidate["system_prompt"]
+            best_prompt = result.best_candidate["system_prompt"]
+            metadata = GEPAOptimizerMetadata(
+                num_candidates=result.num_candidates,
+                best_valset_score=result.val_aggregate_scores[result.best_idx],
+                total_metric_calls=result.total_metric_calls,
+                num_full_val_evals=result.num_full_val_evals,
+                seed=result.seed,
+            )
+            return best_prompt, metadata, None
         except Exception as e:
-            log.error("GEPA optimization failed: %s", e)
-            return self._initial_prompt  # fallback
+            error_msg = str(e)
+            log.error("GEPA optimization failed: %s", error_msg)
+            return self._initial_prompt, None, error_msg
 
     def _run_experiment(
         self,
@@ -1235,6 +1338,17 @@ class PromptOptimization:
         if runs_value is not None and isinstance(runs_value, int):
             runs_int = runs_value
 
+        phase = suffix if suffix else ("baseline" if iteration == 0 else "optimization")
+        experiment_tags = dict(self._tags)
+        experiment_tags.update(
+            {
+                "prompt_optimization_method": self._method,
+                "prompt_optimization_phase": phase,
+                "prompt_optimization_iteration": str(iteration),
+                "prompt_optimization_split_seed": str(self._dataset_split_seed),
+            }
+        )
+
         experiment = self._llmobs_instance.experiment(  # type: ignore[union-attr]
             name=f"{self.name}_{iteration_name}",
             project_name=self._tags["project_name"],
@@ -1244,6 +1358,7 @@ class PromptOptimization:
             summary_evaluators=self._summary_evaluators,
             config=experiment_config,
             runs=runs_int,
+            tags=experiment_tags,
         )
 
         experiment_results = experiment.run(

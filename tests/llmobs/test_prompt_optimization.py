@@ -1123,8 +1123,10 @@ class TestRunGEPACore:
         with patch.dict(sys.modules, {"gepa": mock_gepa}):
             opt = _make_prompt_optimization(method="gepa")
             ds = _make_dataset()
-            result = opt._run_gepa_core(ds, ds)
-            assert result == "GEPA optimized"
+            prompt, metadata, error = opt._run_gepa_core(ds, ds)
+            assert prompt == "GEPA optimized"
+            assert error is None
+            assert metadata is not None
 
     def test_gepa_not_installed(self):
         # Ensure gepa is not available
@@ -1141,8 +1143,10 @@ class TestRunGEPACore:
         with patch.dict(sys.modules, {"gepa": mock_gepa}):
             opt = _make_prompt_optimization(method="gepa")
             ds = _make_dataset()
-            result = opt._run_gepa_core(ds, ds)
-            assert result == "initial prompt"  # fallback to initial
+            prompt, metadata, error = opt._run_gepa_core(ds, ds)
+            assert prompt == "initial prompt"  # fallback to initial
+            assert metadata is None
+            assert error is not None
 
     def test_config_params_forwarded(self):
         mock_gepa = MagicMock()
@@ -1189,7 +1193,7 @@ class TestRunGEPACore:
 
 
 class TestRunGEPAWithoutSplit:
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     def test_baseline_and_final(self, mock_exp, mock_gepa_core):
         scores = [0.5, 0.8]
@@ -1206,7 +1210,7 @@ class TestRunGEPAWithoutSplit:
         assert result.total_iterations == 2
         assert result._test_phase is None
 
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     def test_best_iteration_selected(self, mock_exp, mock_gepa_core):
         # Baseline better than optimized
@@ -1223,7 +1227,7 @@ class TestRunGEPAWithoutSplit:
         result = opt._run_gepa_without_split(jobs=1)
         assert result.best_iteration == 0
 
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     def test_optimized_better(self, mock_exp, mock_gepa_core):
         scores = [0.3, 0.9]
@@ -1247,7 +1251,7 @@ class TestRunGEPAWithoutSplit:
 
 
 class TestRunGEPAWithSplit:
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     @patch.object(PromptOptimization, "_create_split_datasets")
     def test_creates_splits_and_test(self, mock_split, mock_exp, mock_gepa_core):
@@ -1272,7 +1276,7 @@ class TestRunGEPAWithSplit:
         assert result._test_phase is not None
         assert result._test_phase.score is not None
 
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     @patch.object(PromptOptimization, "_create_split_datasets")
     def test_test_runs_with_best_prompt(self, mock_split, mock_exp, mock_gepa_core):
@@ -1298,7 +1302,7 @@ class TestRunGEPAWithSplit:
         test_call = mock_exp.call_args_list[-1]
         assert test_call[0][1] == "optimized prompt"
 
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     @patch.object(PromptOptimization, "_create_split_datasets")
     def test_has_test_phase(self, mock_split, mock_exp, mock_gepa_core):
@@ -1320,7 +1324,7 @@ class TestRunGEPAWithSplit:
         result = opt._run_gepa_with_split(jobs=1)
         assert isinstance(result._test_phase, TestPhaseResult)
 
-    @patch.object(PromptOptimization, "_run_gepa_core", return_value="optimized prompt")
+    @patch.object(PromptOptimization, "_run_gepa_core", return_value=("optimized prompt", None, None))
     @patch.object(PromptOptimization, "_run_experiment")
     @patch.object(PromptOptimization, "_create_split_datasets")
     def test_baseline_wins(self, mock_split, mock_exp, mock_gepa_core):
