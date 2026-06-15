@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
