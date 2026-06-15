@@ -695,3 +695,113 @@ def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
         "CORSMiddleware short-circuits OPTIONS preflight before traced_handler runs, "
         "so resource_paths is never populated and the span resource stays as the raw path."
     )
+
+
+def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
+    """CORS preflight on a sub-app route must not produce a raw-path span resource.
+
+    When CORSMiddleware wraps a parent app that mounts a sub-app, the router
+    never runs for OPTIONS preflight requests, so resource_paths is empty.
+    _resolve_route_resource walks the parent's route list, finds the Mount as a
+    PARTIAL match, and uses its prefix ("/api") — giving "OPTIONS /api" instead of
+    the raw path "OPTIONS /api/hello/world".
+    """
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Mount
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    sub_app = Starlette(routes=[Route("/hello/{name}", endpoint=handler)])
+    app = Starlette(
+        routes=[Mount("/api", sub_app)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with TestClient(app) as client:
+        r = client.options(
+            "/api/hello/world",
+            headers={
+                "Origin": "http://testclient.local",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert r.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    # Resource must not contain the raw path segment — the fix resolves to the mount prefix.
+    assert "world" not in request_span.resource, f"Resource must not be the raw path, got: {request_span.resource!r}"
+    assert request_span.resource == "OPTIONS /api", (
+        f"Expected mount prefix 'OPTIONS /api' for sub-app CORS preflight, got: {request_span.resource!r}"
+    )
+
+
+def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
+    """_resolve_route_resource is called in both wrapped_send and the outer finally block.
+
+    The two calls must be safe: the second call must not corrupt the span resource
+    or raise an exception. The final resource on the span must be the route pattern.
+    """
+    from unittest import mock
+
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.middleware.cors import CORSMiddleware
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    import ddtrace.contrib.internal.asgi.middleware as asgi_middleware
+
+    call_count = []
+    original_fn = asgi_middleware.TraceMiddleware._resolve_route_resource
+
+    def counting_fn(self_obj, scope, span):
+        call_count.append(1)
+        return original_fn(self_obj, scope, span)
+
+    async def handler(request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(
+        routes=[Route("/resource/{item_id}", endpoint=handler)],
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://testclient.local"],
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ],
+    )
+
+    with mock.patch.object(asgi_middleware.TraceMiddleware, "_resolve_route_resource", counting_fn):
+        with TestClient(app) as client:
+            r = client.options(
+                "/resource/42",
+                headers={
+                    "Origin": "http://testclient.local",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+
+    assert r.status_code == 200
+    # Must have been called (at least once via wrapped_send, possibly again via finally)
+    assert len(call_count) >= 1, "_resolve_route_resource was never called"
+    # The final resource must be the route pattern, not the raw path
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "OPTIONS /resource/{item_id}", (
+        f"Expected route pattern after idempotent calls, got: {request_span.resource!r}"
+    )
