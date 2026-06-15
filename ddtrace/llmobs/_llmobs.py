@@ -855,8 +855,8 @@ class LLMObs(Service):
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         :param float sample_rate: The proportion of LLMObs traces to sample, between 0.0 and 1.0 (inclusive).
             Takes precedence over the DD_LLMOBS_SAMPLE_RATE environment variable. Defaults to that env var, or 1.0
-            (sample everything) if neither is set. Values outside [0.0, 1.0] (from either source) are ignored and
-            fall back to 1.0.
+            (sample everything) if neither is set. An out-of-range argument is ignored, keeping the env-derived
+            rate; an out-of-range env-derived rate (with no valid argument) falls back to 1.0.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -877,7 +877,18 @@ class LLMObs(Service):
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
-        config._llmobs_sample_rate = sample_rate if sample_rate is not None else config._llmobs_sample_rate
+        # A valid sample_rate argument overrides the env-derived rate; an invalid one is
+        # ignored so it can't clobber an already-configured rate.
+        if sample_rate is not None:
+            if 0.0 <= sample_rate <= 1.0:
+                config._llmobs_sample_rate = sample_rate
+            else:
+                log.warning(
+                    "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Ignoring and keeping %r.",
+                    sample_rate,
+                    config._llmobs_sample_rate,
+                )
+        # An invalid env-derived rate (with no valid override) still falls back to the default.
         if not 0.0 <= config._llmobs_sample_rate <= 1.0:
             log.warning(
                 "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.",
