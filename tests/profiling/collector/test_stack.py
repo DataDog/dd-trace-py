@@ -1241,3 +1241,117 @@ def test_span_id_in_profile_after_fork() -> None:
                 "Child process failed: profile samples after fork did not contain the expected span_id. "
                 "The Trace to Profile link is broken for forked processes."
             )
+
+
+# --- off-cpu-time tests ---
+# The off-cpu-time sample type uses DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS in the pprof
+# profile, which maps to the string "experimental-nanoseconds". If this string is wrong the tests
+# will fail with StopIteration; fix by printing profile.string_table to find the correct name.
+_OFF_CPU_TYPE = "experimental-nanoseconds"
+
+
+def _available_sample_types(profile) -> list[str]:
+    return [profile.string_table[st.type] for st in profile.sample_type]
+
+
+def test_off_cpu_time_sleeping_thread(tmp_path: Path) -> None:
+    """A thread that sleeps should accumulate off-cpu-time ≈ wall-time and cpu-time ≈ 0."""
+    test_name = "test_off_cpu_time_sleeping_thread"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sleeper() -> None:
+        for _ in range(10):
+            time.sleep(0.05)
+
+    with stack.StackCollector():
+        sleeper()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
+        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
+    )
+
+    off_cpu_samples = pprof_utils.get_samples_with_value_type(profile, _OFF_CPU_TYPE)
+    assert len(off_cpu_samples) > 0, "Expected off-cpu-time samples for a sleeping thread"
+
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=off_cpu_samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name=expected_thread_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleeper",
+                    filename="test_stack.py",
+                    line_no=sleeper.__code__.co_firstlineno + 2,
+                ),
+            ],
+        ),
+    )
+
+
+def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
+    """A CPU-bound thread should have much lower off-cpu-time than a sleeping thread."""
+    test_name = "test_off_cpu_lower_for_cpu_bound_thread"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    sleeping_off_cpu = 0
+    cpu_bound_off_cpu = 0
+
+    def sleeper() -> None:
+        for _ in range(5):
+            time.sleep(0.1)
+
+    def cpu_worker() -> None:
+        end = time.monotonic() + 0.5
+        while time.monotonic() < end:
+            _ = sum(range(10_000))
+
+    t_sleep = threading.Thread(target=sleeper, name="sleeper-thread")
+    t_cpu = threading.Thread(target=cpu_worker, name="cpu-thread")
+
+    with stack.StackCollector():
+        t_sleep.start()
+        t_cpu.start()
+        t_sleep.join()
+        t_cpu.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
+        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
+    )
+
+    off_cpu_idx = pprof_utils.get_sample_type_index(profile, _OFF_CPU_TYPE)
+
+    for sample in profile.sample:
+        for label in sample.label:
+            key = profile.string_table[label.key]
+            if key == "thread name":
+                name = profile.string_table[label.str]
+                if name == "sleeper-thread":
+                    sleeping_off_cpu += sample.value[off_cpu_idx]
+                elif name == "cpu-thread":
+                    cpu_bound_off_cpu += sample.value[off_cpu_idx]
+
+    assert sleeping_off_cpu > 0, "sleeper thread should have non-zero off-cpu-time"
+    assert sleeping_off_cpu > cpu_bound_off_cpu * 3, (
+        f"sleeper off-cpu ({sleeping_off_cpu}ns) should greatly exceed cpu-bound off-cpu ({cpu_bound_off_cpu}ns)"
+    )
