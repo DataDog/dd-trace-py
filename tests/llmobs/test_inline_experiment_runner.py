@@ -105,11 +105,42 @@ def test_replay_surfaces_task_error_as_row():
     assert rows[0]["status"] == "ERROR" and "boom" in rows[0]["new"]
 
 
+# --- persistence ----------------------------------------------------------- #
+def test_save_and_load_baselines(tmp_path):
+    _set_mode(Mode.CAPTURE)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return {"v": x}
+
+    f(1)
+    path = str(tmp_path / "b.json")
+    assert runner.save_baselines(path) == {"e": [{"input": {"x": 1}, "output": {"v": 1}}]}
+    assert runner.load_baselines(path) == {"e": [{"input": {"x": 1}, "output": {"v": 1}}]}
+
+
+def test_replay_from_loaded_baseline_cases():
+    # baseline produced by a previous (separate) capture, replayed against current code
+    _set_mode(Mode.CAPTURE)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return {"v": x, "shape": [1, 2]}
+
+    _set_mode(Mode.REPLAY)
+    cases = [{"input": {"x": 7}, "output": {"v": 7, "shape": [9, 9]}}]  # different leaf values, same shape
+    assert runner.replay("e", runner.structural, cases=cases)[0]["status"] == "MATCH"
+    cases = [{"input": {"x": 7}, "output": {"v": 7, "shape": [9]}}]  # different shape
+    assert runner.replay("e", runner.structural, cases=cases)[0]["status"] == "CHANGED"
+
+
 # --- CLI helpers ----------------------------------------------------------- #
 def test_cli_arg_parser():
     p = cli._build_arg_parser()
-    a = p.parse_args(["run", "myapp:gen", "--ignore", "a,b"])
-    assert a.command == "run" and a.target == "myapp:gen" and a.ignore == "a,b"
+    a = p.parse_args(["capture", "myapp:gen", "--out", "b.json"])
+    assert a.command == "capture" and a.target == "myapp:gen" and a.out == "b.json"
+    a = p.parse_args(["replay", "myapp", "--ignore", "a,b"])
+    assert a.command == "replay" and a.ignore == "a,b" and a.comparator == "structural"
     assert p.parse_args(["list", "myapp"]).command == "list"
 
 

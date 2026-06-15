@@ -1,23 +1,20 @@
 #!/usr/bin/env python
 """``ddtrace-experiment`` — run inline experiments (trace-seeded local regression).
 
-This is the explicit, out-of-band trigger for the ``@experiment_start`` /
-``@experiment_end`` decorators. It activates experiment mode *in-process*, imports the
-target module (which registers the decorated subjects), captures a baseline by running
-the app's entrypoint, then replays the current code against that baseline and reports
-MATCH / CHANGED per case.
+The explicit, out-of-band trigger for the ``@experiment_start`` / ``@experiment_end``
+decorators. The typical loop has two steps so a code change can be detected:
+
+    # 1. capture a baseline from the current (known-good) code
+    ddtrace-experiment capture myapp:generate_traffic
+    # 2. ...edit your prompt/model/logic...
+    # 3. replay the current code against the baseline
+    ddtrace-experiment replay myapp --comparator structural
 
 Activation is positive and explicit — the decorators are inert unless this command runs,
 so they are safe to leave in production code. As a one-way fail-safe this command also
-refuses to run when it looks like production (no TTY and ``DD_ENV=prod``); the fail-safe
-can only tighten the gate, never loosen it.
+refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).
 
-Examples::
-
-    ddtrace-experiment run myapp.entrypoint:generate_traffic
-    ddtrace-experiment run myapp.entrypoint:generate_traffic --comparator structural
-    ddtrace-experiment run myapp.entrypoint:generate_traffic --ignore generated_at,request_id
-    ddtrace-experiment list myapp.entrypoint
+The baseline is persisted between the two invocations (default: ``.llmobs_experiments.json``).
 """
 
 import argparse
@@ -74,20 +71,22 @@ def _build_arg_parser():
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run_p = sub.add_parser("run", help="capture a baseline (run the entrypoint) then replay the current code")
-    run_p.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
-    run_p.add_argument(
-        "--comparator",
-        default="structural",
-        choices=["exact", "structural", "ignoring"],
-        help="how to compare new output to baseline (default: structural)",
-    )
-    run_p.add_argument(
-        "--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)"
-    )
+    cap = sub.add_parser("capture", help="run the entrypoint and persist a baseline")
+    cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
+    cap.add_argument("--out", default=None, help="baseline file to write (default: .llmobs_experiments.json)")
 
-    list_p = sub.add_parser("list", help="import the target and list registered experiment subjects")
-    list_p.add_argument("target", help="module[:entrypoint] to import")
+    rep = sub.add_parser("replay", help="replay the current code against a persisted baseline")
+    rep.add_argument("target", help="module to import (registers the decorated subjects)")
+    rep.add_argument(
+        "--in", dest="infile", default=None, help="baseline file to read (default: .llmobs_experiments.json)"
+    )
+    rep.add_argument(
+        "--comparator", default="structural", choices=["exact", "structural", "ignoring"], help="default: structural"
+    )
+    rep.add_argument("--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)")
+
+    lst = sub.add_parser("list", help="import the target and list registered experiment subjects")
+    lst.add_argument("target", help="module[:entrypoint] to import")
     return parser
 
 
@@ -99,47 +98,56 @@ def main():
         print("ddtrace-experiment: refusing to run — looks like production (no TTY and DD_ENV=prod).", file=sys.stderr)
         sys.exit(2)
 
-    # Imported lazily so the prod fail-safe runs before any user code is imported.
+    # Imported lazily so the prod fail-safe runs before any user/ddtrace code is imported.
     from ddtrace.llmobs import _inline_experiment as ie
     from ddtrace.llmobs import _inline_experiment_runner as runner
 
     if args.command == "list":
         _import_target(args.target)
         names = ie.registered_experiments()
-        if not names:
-            print("no experiment subjects registered by %r" % args.target)
-        else:
-            print("registered experiment subjects:")
-            for n in names:
-                print("  - %s" % n)
+        print("registered experiment subjects:" if names else "no experiment subjects registered by %r" % args.target)
+        for n in names:
+            print("  - %s" % n)
         return
 
-    # run: capture -> replay, in-process.
-    _, entry = _import_target(args.target)  # registers subjects
-    if entry is None:
-        print(
-            "ddtrace-experiment run needs 'module:entrypoint' to drive a capture (e.g. myapp:generate_traffic).",
-            file=sys.stderr,
-        )
+    if args.command == "capture":
+        _, entry = _import_target(args.target)  # registers subjects
+        if entry is None:
+            print("capture needs 'module:entrypoint' to drive the app (e.g. myapp:generate_traffic).", file=sys.stderr)
+            sys.exit(2)
+        ie._set_mode(ie.Mode.CAPTURE)
+        result = entry()
+        if inspect.iscoroutine(result):
+            asyncio.run(result)
+        ie._set_mode(ie.Mode.OFF)
+        out = args.out or runner.DEFAULT_BASELINE_PATH
+        data = runner.save_baselines(out)
+        n = sum(len(v) for v in data.values())
+        print("captured %d case(s) across %d experiment(s) -> %s" % (n, len(data), os.path.abspath(out)))
+        return
+
+    # replay
+    _import_target(args.target)  # registers subjects (start fns needed for re-invocation)
+    infile = args.infile or runner.DEFAULT_BASELINE_PATH
+    if not os.path.exists(infile):
+        print("no baseline at %s — run `ddtrace-experiment capture` first." % infile, file=sys.stderr)
         sys.exit(2)
-
-    ie._set_mode(ie.Mode.CAPTURE)
-    result = entry()
-    if inspect.iscoroutine(result):
-        asyncio.run(result)
-
+    baselines = runner.load_baselines(infile)
     ignore = [k for k in args.ignore.split(",") if k]
     comparator = runner.comparator_from_spec(args.comparator, ignore)
 
     ie._set_mode(ie.Mode.REPLAY)
-    total = {"MATCH": 0, "CHANGED": 0, "ERROR": 0, "NO_END": 0}
-    for name in ie.registered_experiments():
-        counts = _print_report(name, runner.replay(name, comparator))
+    total = {}
+    for name, cases in baselines.items():
+        if name not in ie.registered_experiments():
+            print("  (skipping %r — not registered by %r)" % (name, args.target))
+            continue
+        counts = _print_report(name, runner.replay(name, comparator, cases=cases))
         for k, v in counts.items():
             total[k] = total.get(k, 0) + v
-
     ie._set_mode(ie.Mode.OFF)
-    # Non-zero exit if anything changed or errored, so this is CI-friendly.
+
+    # CI-friendly: non-zero exit if anything changed, errored, or never reached its end.
     sys.exit(1 if (total.get("CHANGED") or total.get("ERROR") or total.get("NO_END")) else 0)
 
 

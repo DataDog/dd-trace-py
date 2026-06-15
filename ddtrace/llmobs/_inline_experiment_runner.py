@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -24,6 +25,32 @@ from ddtrace.llmobs._inline_experiment import _start_output
 
 
 log = get_logger(__name__)
+
+DEFAULT_BASELINE_PATH = ".llmobs_experiments.json"
+
+
+def _normalize(value: Any) -> Any:
+    """JSON round-trip so captured (raw) and replayed values compare on equal footing
+    (and persisted baselines load back identically).
+    """
+    try:
+        return json.loads(json.dumps(value, default=str))
+    except (TypeError, ValueError):
+        return value
+
+
+def save_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
+    """Persist all captured baselines ({experiment_name: [cases]}) to a JSON file."""
+    data = {name: spec.get("cases", []) for name, spec in _REGISTRY.items() if spec.get("cases")}
+    with open(path, "w") as f:
+        json.dump(data, f, default=str, indent=2)
+    return data
+
+
+def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
+    """Load persisted baselines written by ``save_baselines``."""
+    with open(path) as f:
+        return json.load(f)
 
 
 # --------------------------------------------------------------------------- #
@@ -121,17 +148,24 @@ def replay(name: str, comparator: Callable[[Any, Any], bool] = exact, cases: Opt
 
     results = []
     for case in cases:
-        row = {"input": case["input"], "recorded": case["output"], "new": None, "status": "NO_END"}
+        recorded = _normalize(case["output"])
+        row = {"input": case["input"], "recorded": recorded, "new": None, "status": "NO_END"}
         try:
             ret = _invoke(spec, case["input"])
-            if not has_end:  # single-function unit: the return IS the output
-                row["new"] = _start_output(start_output_fn, ret)
-                row["status"] = "MATCH" if comparator(row["recorded"], row["new"]) else "CHANGED"
         except _ExperimentStop as stop:  # emit shape: end unwound with the output
-            row["new"] = stop.output
-            row["status"] = "MATCH" if comparator(row["recorded"], row["new"]) else "CHANGED"
+            new = stop.output
         except Exception as e:  # noqa: BLE001 - surface task errors as a row rather than abort
             row["new"] = "<error: %r>" % (e,)
             row["status"] = "ERROR"
+            results.append(row)
+            continue
+        else:
+            if has_end:
+                # the end marker never fired this replay -> leave status as NO_END
+                results.append(row)
+                continue
+            new = _start_output(start_output_fn, ret)  # single-function unit: return is the output
+        row["new"] = _normalize(new)
+        row["status"] = "MATCH" if comparator(recorded, row["new"]) else "CHANGED"
         results.append(row)
     return results
