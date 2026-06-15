@@ -96,6 +96,52 @@ def test_heap_samples_collected() -> None:
     assert len(heap_live_samples) > 0
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_MEMORY_ENABLED="false",
+        DD_PROFILING_HEAP_ENABLED="false",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_no_empty_heap_profile_without_allocations",
+    )
+)
+def test_no_empty_heap_profile_without_allocations() -> None:
+    # Regression test for the heap snapshot gating fix: the persistent heap
+    # profile must NOT be serialized/attached when no heap data was ever applied
+    # (e.g. a CPU/stack-only profiler that never started the memalloc collector).
+    # The profile's sample-type layout includes Heap whenever type_mask defaults
+    # to All, so before the fix an empty "<prefix>.<pid>.<seq>.heap.pprof" was
+    # written on every upload, breaking "<prefix>.*.pprof" globbing in output
+    # mode and shipping empty heap attachments otherwise. Serialization is now
+    # gated on heap_has_data() (heap_populated), set on the first non-empty
+    # heap_apply_batch. The positive/sticky case is covered by
+    # test_heap_samples_collected.
+    import glob
+    import os
+
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = Profiler()
+    p.start()
+    # Burn a little CPU so the primary profile has stack samples to upload, but
+    # never allocate anything that the (disabled) memalloc collector would track.
+    total = 0
+    for i in range(2_000_000):
+        total += i
+    p.stop()
+
+    # The primary profile is still produced.
+    pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+
+    # ... but no heap attachment should be emitted when no heap data was applied.
+    heap_files = glob.glob(output_filename + ".*.heap.pprof")
+    assert heap_files == [], "Expected no heap pprof files when no allocations were tracked, found: {}".format(
+        heap_files
+    )
+
+
 def test_memory_collector(tmp_path: Path) -> None:
     output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector")
 
