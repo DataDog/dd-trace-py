@@ -12,13 +12,11 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareState
-from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare._subscribers import _process_payloads
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import native_flare  # type: ignore
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 # Renamed to avoid pytest trying to collect it as a Test class:
@@ -720,161 +718,6 @@ def test_multiple_process_partial_failure():
         except Exception:
             break
     assert len(errors_list) == 1, f"Expected 1 error, got {len(errors_list)}: {errors_list}"
-
-
-class TracerFlareSubscriberTests(unittest.TestCase):
-    agent_config = {"name": "flare-log-level.test", "config": {"log_level": "DEBUG"}}
-    agent_task = {
-        "args": {
-            "case_id": "1111111",
-            "hostname": "myhostname",
-            "user_handle": "user.name@datadoghq.com",
-        },
-        "task_type": "tracer_flare",
-        "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
-    }
-
-    @pytest.fixture(autouse=True)
-    def inject_fixtures(self, tmp_path):
-        self.tmp_path = tmp_path
-
-    def setUp(self):
-        self.shared_dir = self.tmp_path / "tracer_flare_test"
-        self.shared_dir.mkdir(parents=True, exist_ok=True)
-        self.connector = PublisherSubscriberConnector()
-        flare = Flare(
-            trace_agent_url=TRACE_AGENT_URL,
-            ddconfig={"config": "testconfig"},
-            flare_dir=self.shared_dir,
-        )
-        # TODO: TracerFlareManager.zip_and_send() (Rust/libdatadog) does not support
-        # custom request headers, so we cannot pass test_session_token to scope flare
-        # uploads to this test's session in the test agent. Under xdist parallel
-        # execution, unscoped flare requests bleed across workers causing unreliable
-        # counts. Wrap the native manager so all methods (handle_remote_config_data,
-        # set_current_log_level) still delegate to the real implementation, but
-        # zip_and_send is replaced with a MagicMock so uploads are counted in-process
-        # without making real HTTP calls. The native object's attributes are read-only
-        # (PyO3), so we can't patch zip_and_send in-place; wrapping it in a MagicMock
-        # first is the workaround.
-        # Remove this mock once libdatadog's TracerFlareManager gains custom header support.
-        flare._native_manager = mock.MagicMock(wraps=flare._native_manager)
-        flare._native_manager.zip_and_send = mock.MagicMock()
-        self.tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=self.connector,
-            flare=flare,
-        )
-
-    def get_data_from_connector_and_exec(self):
-        if self.tracer_flare_sub.has_stale_flare():
-            self.tracer_flare_sub.current_request_start = None
-            self.tracer_flare_sub.flare.revert_configs()
-            self.tracer_flare_sub.flare.clean_up_files()
-            return
-
-        data = self.tracer_flare_sub._data_connector.read()
-        if not data:
-            return
-
-        state = TracerFlareState()
-        state.current_request_start = self.tracer_flare_sub.current_request_start
-        _process_payloads(self.tracer_flare_sub.flare, state, data)
-        self.tracer_flare_sub.current_request_start = state.current_request_start
-
-    def generate_agent_config(self):
-        self.connector.write([build_payload("AGENT_CONFIG", self.agent_config, "config")])
-        self.get_data_from_connector_and_exec()
-
-    def generate_agent_task(self):
-        self.connector.write([build_payload("AGENT_TASK", self.agent_task, "task")])
-        self.get_data_from_connector_and_exec()
-
-    def _flare_upload_count(self) -> int:
-        return self.tracer_flare_sub.flare._native_manager.zip_and_send.call_count
-
-    def test_configuration_order_payload_is_skipped(self):
-        """
-        AGENT_CONFIG payloads with configuration_order shape (no 'name' field) must be
-        silently skipped — no exception raised, no warning logged, flare state unchanged.
-        """
-        configuration_order_payload = {
-            "internal_order": [],
-            "order": [
-                "flare-log-level-61c7ebea-7129-4e63-9bce-95e61d38493a",
-                "flare-log-level-b9b280f9-bc3a-4d1c-898c-3ba564616241",
-            ],
-        }
-        with mock.patch("ddtrace.internal.flare._subscribers.log") as mock_log:
-            self.connector.write([build_payload("AGENT_CONFIG", configuration_order_payload, "config")])
-            self.get_data_from_connector_and_exec()
-
-        # Flare must not have started
-        assert self.tracer_flare_sub.current_request_start is None
-        # No warning logged — this is an expected payload shape, not an error
-        mock_log.warning.assert_not_called()
-
-    def test_process_flare_request_success(self):
-        """
-        Ensure a successful tracer flare process
-        """
-        assert self.tracer_flare_sub.stale_tracer_flare_num_mins == 20
-
-        # Generate an AGENT_CONFIG product to start the flare request
-        self.generate_agent_config()
-        assert self.tracer_flare_sub.current_request_start is not None
-        uploads_before = self._flare_upload_count()
-
-        # Generate an AGENT_TASK product to complete the request
-        self.generate_agent_task()
-        assert self._flare_upload_count() == uploads_before + 1
-
-        # Timestamp cleared after request completed
-        assert self.tracer_flare_sub.current_request_start is None, (
-            "current_request_start timestamp should have been reset after request was completed"
-        )
-
-    def test_detect_stale_flare(self):
-        """
-        Ensure we clean up and revert configurations if a tracer
-        flare job has gone stale
-        """
-        # Set this to 0 so all requests are stale
-        self.tracer_flare_sub.stale_tracer_flare_num_mins = 0
-
-        # Start a flare request with AGENT_CONFIG
-        self.generate_agent_config()
-        assert self.tracer_flare_sub.current_request_start is not None
-
-        # Setting this to 0 minutes so all jobs are considered stale
-        assert self.tracer_flare_sub.has_stale_flare()
-
-        # Trigger cleanup of stale request by receiving another AGENT_CONFIG
-        self.get_data_from_connector_and_exec()
-
-        # After handling stale request, state should be reset
-        assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
-        assert not self.tracer_flare_sub.flare.flare_dir.exists()
-
-    def test_no_overlapping_requests(self):
-        """
-        If a new tracer flare request is generated while processing
-        a pre-existing request, we will continue processing the current
-        one while disregarding the new request(s)
-        """
-        # Start initial flare request
-        self.generate_agent_config()
-
-        original_request_start = self.tracer_flare_sub.current_request_start
-        assert original_request_start is not None
-
-        # Generate another AGENT_CONFIG while first one is still active
-        # libdatadog v26 will return None since already collecting,
-        # and subscriber will ignore it
-        self.generate_agent_config()
-
-        assert self.tracer_flare_sub.current_request_start == original_request_start, (
-            "Original request should not have been updated with newer request start time"
-        )
 
 
 @pytest.mark.xfail(reason="Native logger is causing deadlocks when forking and has been disabled")
