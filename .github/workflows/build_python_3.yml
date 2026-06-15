@@ -86,7 +86,7 @@ jobs:
           for wheel in ./wheelhouse/*.whl; do
             if [ -f "$wheel" ]; then
               echo "Validating $(basename $wheel)..."
-              python ddtrace/scripts/validate_wheel.py "$wheel"
+              python scripts/validate_wheel.py "$wheel"
             fi
           done
 
