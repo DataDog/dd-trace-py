@@ -74,6 +74,7 @@ extern "C"
     void ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count);
     void ddup_push_gpu_memory(Datadog::Sample* sample, int64_t mem, int64_t count);
     void ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count);
+    void ddup_push_offcputime(Datadog::Sample* sample, int64_t off_cpu_time, int64_t count);
     void ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name);
     void ddup_push_threadinfo(Datadog::Sample* sample,
                               int64_t thread_id,

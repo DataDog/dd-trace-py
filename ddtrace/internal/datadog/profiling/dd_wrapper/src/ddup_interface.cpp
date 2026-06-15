@@ -220,6 +220,12 @@ ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count) // cp
 }
 
 void
+ddup_push_offcputime(Datadog::Sample* sample, int64_t off_cpu_time, int64_t count) // cppcheck-suppress unusedFunction
+{
+    sample->push_offcputime(off_cpu_time, count);
+}
+
+void
 ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name) // cppcheck-suppress unusedFunction
 {
     sample->push_lock_name(lock_name);

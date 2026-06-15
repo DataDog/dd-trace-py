@@ -81,6 +81,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
+    void ddup_push_offcputime(Sample *sample, int64_t off_cpu_time, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -490,6 +491,10 @@ cdef class SampleHandle:
     def push_gpu_flops(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
             ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_offcputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_offcputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:
