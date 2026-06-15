@@ -85,6 +85,8 @@ config._add(
         trace_args_kwargs=_get_config("DD_TRACE_RAY_ARGS_KWARGS", default=False, modifier=asbool),
         submission_spans=_get_config("DD_TRACE_RAY_SUBMISSION_SPANS_ENABLED", default=False, modifier=asbool),
         ignored_actors=_get_config("DD_TRACE_RAY_IGNORED_ACTORS", default={}, modifier=_parse_ignored_actors),
+        train_enabled=_get_config("DD_TRACE_RAY_TRAIN_ENABLED", default=True, modifier=asbool),
+        train_per_rank_trace=_get_config("DD_TRACE_RAY_TRAIN_PER_RANK_TRACE", default=False, modifier=asbool),
     ),
 )
 
@@ -238,6 +240,11 @@ def patch():
     def _(m):
         _w(m.RemoteFunction, "_remote", traced_submit_task)
 
+    if config.ray.train_enabled:
+        from ddtrace.contrib.internal.ray.train import _install_train
+
+        _install_train()
+
     _w(ray, "get", traced_get)
     _w(ray, "wait", traced_wait)
     _w(ray, "put", traced_put)
@@ -246,6 +253,11 @@ def patch():
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
         return
+
+    if config.ray.train_enabled:
+        from ddtrace.contrib.internal.ray.train import _uninstall_train
+
+        _uninstall_train()
 
     _u(ray.remote_function.RemoteFunction, "_remote")
 

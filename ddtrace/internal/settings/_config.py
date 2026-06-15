@@ -205,6 +205,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "mlflow",
         "ray",
+        "pytorch",
         "aiokafka",
         "google_cloud_pubsub",
     }

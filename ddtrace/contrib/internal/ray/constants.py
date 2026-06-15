@@ -74,3 +74,27 @@ RAY_TASK_RESOURCES_PREFIX = "ray.task.resources."
 RAY_ACTOR_CLASS_NAME = "ray.actor.class_name"
 RAY_ACTOR_MODULE_NAME = "ray.actor.module_name"
 RAY_ACTOR_METHOD_NAME = "ray.actor.method_name"
+
+# Ray Train integration — operation names
+RAY_TRAIN_FIT_OPERATION = "ray.train.fit"
+RAY_TRAIN_WORKER_OPERATION = "ray.train.worker"
+
+# Ray Train integration — span tags
+RAY_TRAIN_RANK_TAG = "rank"
+RAY_TRAIN_WORLD_SIZE_TAG = "world_size"
+
+# Canonical ML training-job tags shared with the PyTorch contrib.
+TRAINING_JOB_ID_TAG = "training_job.id"
+TRAINING_JOB_FRAMEWORK_TAG = "training_job.framework"
+TRAINING_JOB_TRAINER_TAG = "training_job.trainer"
+TRAINING_JOB_STATUS_TAG = "training_job.status"
+
+TRAINING_JOB_STATUS_RUNNING = "running"
+TRAINING_JOB_STATUS_SUCCEEDED = "succeeded"
+TRAINING_JOB_STATUS_FAILED = "failed"
+
+# Marker tag set when `DD_TRACE_RAY_TRAIN_PER_RANK_TRACE=true` rewrites
+# the fit span as a parent that workers reference via span_link instead of
+# parent_id.
+RAY_TRAIN_TRACE_MODE_TAG = "dd.trace_mode"
+RAY_TRAIN_TRACE_MODE_PER_RANK = "per_rank"

@@ -847,6 +847,16 @@ integrations:
   dependency_names:
   - pytest_benchmark
 
+- integration_name: pytorch
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - torch
+  tested_versions_by_dependency:
+    torch:
+      min: 2.0.0
+      max: 2.3.1
+
 - integration_name: ray
   is_external_package: true
   is_tested: false
