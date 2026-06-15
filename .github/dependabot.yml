@@ -25,11 +25,10 @@ updates:
     ignore:
       - dependency-name: "DataDog/commit-headless:*"
         update-types: ["version-update:semver-major"]
+    # Only `default-days` is supported for non-semver ecosystems such as
+    # github-actions; the `semver-*-days` keys are rejected by Dependabot here.
     cooldown:
       default-days: 2
-      semver-major-days: 7
-      semver-minor-days: 2
-      semver-patch-days: 2
 
   # Docker base images --------------------------------------------------------
   # Tracks `FROM <image>:<tag>` (and digest) references in all Dockerfiles in
@@ -46,11 +45,9 @@ updates:
       docker-images:
         patterns:
           - "*"
+    # docker is a non-semver ecosystem: only `default-days` is supported.
     cooldown:
       default-days: 2
-      semver-major-days: 7
-      semver-minor-days: 2
-      semver-patch-days: 2
 
   # Docker Compose ------------------------------------------------------------
   # Tracks `image:` references in docker-compose.* files used for tests and
@@ -65,8 +62,6 @@ updates:
       docker-compose-images:
         patterns:
           - "*"
+    # docker-compose is a non-semver ecosystem: only `default-days` is supported.
     cooldown:
       default-days: 2
-      semver-major-days: 7
-      semver-minor-days: 2
-      semver-patch-days: 2
