@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -256,10 +257,19 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
 void
 heap_tracker_t::pending_adds_remove_no_cpython(traceback_t* tb)
 {
-    const std::ptrdiff_t idx = tb->pending_add_idx;
-    // Defensive: only remove if the slot really points back at this traceback.
+    std::ptrdiff_t idx = tb->pending_add_idx;
+    // The cached index should always point back at this traceback. If it ever
+    // desyncs, fall back to a linear scan rather than returning early: the
+    // caller is about to recycle `tb` into the pool, so leaving a stale pointer
+    // in pending_adds would later batch-apply freed/reused memory and corrupt
+    // the persistent heap profile.
     if (idx < 0 || static_cast<size_t>(idx) >= pending_adds.size() || pending_adds[static_cast<size_t>(idx)] != tb) {
-        return;
+        const auto it = std::find(pending_adds.begin(), pending_adds.end(), tb);
+        if (it == pending_adds.end()) {
+            // Genuinely not present (already removed): nothing to do.
+            return;
+        }
+        idx = std::distance(pending_adds.begin(), it);
     }
     traceback_t* last = pending_adds.back();
     pending_adds[static_cast<size_t>(idx)] = last;
