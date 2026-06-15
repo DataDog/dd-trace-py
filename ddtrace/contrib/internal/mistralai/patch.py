@@ -1,4 +1,6 @@
 import mistralai.client as _mistralai_client
+import mistralai.client.chat  # noqa: F401
+import mistralai.client.embeddings  # noqa: F401
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
