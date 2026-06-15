@@ -45,6 +45,7 @@ workflow:
 
 include:
   - local: ddtrace/.gitlab/ci-templates.yml # Reusable templates (setup_ci_deps, etc.)
+  - local: ddtrace/.gitlab/config-registry.yml # Reusable templates (setup_ci_deps, etc.)
   - local: ddtrace/.gitlab/one-pipeline.locked.yml
   - local: ddtrace/.gitlab/services.yml # Include early so others can use the definitions
   - local: ddtrace/.gitlab/package.yml
