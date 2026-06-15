@@ -102,7 +102,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span, export_mode: LLMObsExportMode, span_writer_is_agentless: Optional[bool] = None):
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -112,16 +112,7 @@ def record_span_created(span: Span, export_mode: LLMObsExportMode, span_writer_i
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
-    if export_mode == LLMObsExportMode.APM_AGENTLESS:
-        intake = "apm_agentless"
-    elif export_mode == LLMObsExportMode.APM_AGENT:
-        intake = "apm_agent"
-    elif export_mode == LLMObsExportMode.LLMOBS_DIRECT and span_writer_is_agentless is True:
-        intake = "llmobs_agentless"
-    elif export_mode == LLMObsExportMode.LLMOBS_DIRECT and span_writer_is_agentless is False:
-        intake = "llmobs_agent_proxy"
-    else:
-        intake = "unknown"
+    intake = export_mode.value
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
