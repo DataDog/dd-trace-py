@@ -469,6 +469,11 @@ class TraceMiddleware:
                         and not message.get("more_body", False)
                         and span.error == 0
                     ):
+                        # Resolve fallback route resource before finishing so span processors
+                        # see the correct value (e.g. CORSMiddleware short-circuits before
+                        # traced_handler populates resource_paths).
+                        if not scope.get("datadog", {}).get("resource_paths"):
+                            self._resolve_route_resource(scope, span)
                         # If the span has an error status code delay finishing the span until the
                         # traceback and exception message is available
                         span.finish()
