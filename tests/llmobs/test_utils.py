@@ -200,6 +200,61 @@ def test_messages_tool_results_missing_required_fields():
         Messages([{"content": "test", "tool_results": [{"result": 123}]}])
 
 
+def test_messages_with_audio_parts():
+    """Test that messages can include audio parts with inline base64 content."""
+    messages = Messages(
+        [
+            {
+                "content": "Here is the audio.",
+                "role": "user",
+                "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Here is the audio.",
+            "role": "user",
+            "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_audio_parts_attachment_key():
+    """Test that an audio part may reference an offloaded attachment instead of inline content."""
+    messages = Messages(
+        [{"content": "", "role": "user", "audio_parts": [{"mime_type": "audio/mp3", "attachment_key": "abc123"}]}]
+    )
+    expected = [
+        {"content": "", "role": "user", "audio_parts": [{"mime_type": "audio/mp3", "attachment_key": "abc123"}]}
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_audio_parts_invalid():
+    """Test that audio_parts raise errors when malformed."""
+    # audio_parts not a list
+    with pytest.raises(TypeError, match="audio_parts must be a list"):
+        Messages([{"content": "test", "audio_parts": {"mime_type": "audio/wav", "content": "AAAA"}}])
+
+    # each audio_part must be a dict
+    with pytest.raises(TypeError, match="Each audio_part must be a dictionary"):
+        Messages([{"content": "test", "audio_parts": ["not-a-dict"]}])
+
+    # missing mime_type
+    with pytest.raises(TypeError, match="AudioPart mime_type must be a non-empty string"):
+        Messages([{"content": "test", "audio_parts": [{"content": "AAAA"}]}])
+
+    # neither content nor attachment_key
+    with pytest.raises(TypeError, match="AudioPart must have either 'content' or 'attachment_key'"):
+        Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav"}]}])
+
+    # invalid content type
+    with pytest.raises(TypeError, match="AudioPart content must be a base64-encoded string"):
+        Messages([{"content": "test", "audio_parts": [{"mime_type": "audio/wav", "content": 123}]}])
+
+
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]

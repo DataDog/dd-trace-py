@@ -2,6 +2,7 @@ from typing import Any
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -68,6 +69,35 @@ def _extract_tool_result(tool_result: dict[str, Any]) -> "ToolResult":
         formatted_tool_result["type"] = tool_type
 
     return formatted_tool_result
+
+
+def _extract_audio_part(audio_part: dict[str, Any]) -> "AudioPart":
+    """Extract and validate an audio part dictionary."""
+    if not isinstance(audio_part, dict):
+        raise TypeError("Each audio_part must be a dictionary.")
+
+    # mime_type is required
+    mime_type = audio_part.get("mime_type")
+    if not mime_type or not isinstance(mime_type, str):
+        raise TypeError("AudioPart mime_type must be a non-empty string.")
+
+    # exactly one of content (inline base64) / attachment_key (offloaded ref) is expected
+    content = audio_part.get("content")
+    attachment_key = audio_part.get("attachment_key")
+    if content is None and attachment_key is None:
+        raise TypeError("AudioPart must have either 'content' or 'attachment_key'.")
+
+    formatted_audio_part = AudioPart(mime_type=mime_type)
+    if content is not None:
+        if not isinstance(content, str):
+            raise TypeError("AudioPart content must be a base64-encoded string.")
+        formatted_audio_part["content"] = content
+    if attachment_key is not None:
+        if not isinstance(attachment_key, str):
+            raise TypeError("AudioPart attachment_key must be a string.")
+        formatted_audio_part["attachment_key"] = attachment_key
+
+    return formatted_audio_part
 
 
 def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[ToolDefinition]:
@@ -157,6 +187,13 @@ class Messages:
                     raise TypeError("tool_results must be a list.")
                 formatted_tool_results = [_extract_tool_result(tool_result) for tool_result in tool_results]
                 msg_dict["tool_results"] = formatted_tool_results
+
+            audio_parts = message.get("audio_parts")
+            if audio_parts is not None:
+                if not isinstance(audio_parts, list):
+                    raise TypeError("audio_parts must be a list.")
+                formatted_audio_parts = [_extract_audio_part(audio_part) for audio_part in audio_parts]
+                msg_dict["audio_parts"] = formatted_audio_parts
 
             self.messages.append(msg_dict)
 

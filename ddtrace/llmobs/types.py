@@ -42,6 +42,19 @@ class ToolDefinition(TypedDict, total=False):
     version: str
 
 
+class AudioPart(TypedDict, total=False):
+    """A single audio segment attached to a Message.
+
+    The audio bytes live either inline as base64 (``content``) or out-of-band via the
+    attachment pipeline (``attachment_key``). The SDK only ever emits ``content``; the
+    backend offloads large inline content to an ``attachment_key`` on its side.
+    """
+
+    mime_type: str
+    content: str
+    attachment_key: str
+
+
 class Message(TypedDict, total=False):
     id: str
     role: str
@@ -49,6 +62,7 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    audio_parts: list[AudioPart]
 
 
 class _SpanField(TypedDict):
