@@ -639,7 +639,10 @@ class Config(object):
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
         # Tri-state: None auto-enables OTLP trace metrics when OTLP trace and OTel metrics export are on.
-        self._otel_stats_computation_enabled = _get_config("DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED", None, asbool)
+        self._otel_stats_computation_enabled = _get_config("OTEL_CLIENT_STATS_COMPUTATION_ENABLED", None, asbool)
+        # When True, the exported OTLP trace metric carries only OpenTelemetry attributes and omits
+        # Datadog-specific dd.* attributes (operation name, span type, top-level, origin, process tags).
+        self._otel_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 

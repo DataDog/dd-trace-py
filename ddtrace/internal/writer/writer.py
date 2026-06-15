@@ -676,7 +676,13 @@ def _build_base_exporter_builder(
         builder.set_test_session_token(test_session_token)
     # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
     if otlp_metrics_enabled or (compute_stats_enabled and not stats_opt_out):
-        stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        if otlp_metrics_enabled:
+            # The OTLP trace-metrics flush cadence is fixed at 10s (not overridable by
+            # OTEL_METRIC_EXPORT_INTERVAL). _DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL (milliseconds) is
+            # internal and exists only to speed up tests.
+            stats_interval = float(env.get("_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL") or 10000.0) / 1000.0
+        else:
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         bucket_size_ns: int = int(stats_interval * 1e9)
         builder.enable_stats(bucket_size_ns)
     elif stats_opt_out:
@@ -797,6 +803,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             if metrics_headers:
                 builder.set_otlp_metrics_headers(metrics_headers)
             builder.set_connection_timeout(otel_config.exporter.METRICS_TIMEOUT)
+            # OTel-semantics mode: emit only OpenTelemetry attributes, omitting Datadog-specific dd.*
+            # attributes on the exported metric.
+            if config._otel_semantics_enabled:
+                builder.enable_otel_trace_semantics()
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
