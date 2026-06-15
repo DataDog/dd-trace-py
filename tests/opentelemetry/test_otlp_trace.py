@@ -73,11 +73,12 @@ def test_otlp_traces_sent_via_http():
     }
 )
 def test_otlp_trace_metrics_exported_via_http():
-    """End-to-end: libdatadog computes span stats and exports the dd.trace.span.duration histogram.
+    """End-to-end: libdatadog computes span stats and exports the traces.span.sdk.metrics.duration histogram.
 
     Stats computation, OTLP encoding and export all happen natively in libdatadog; dd-trace-py only
     supplies the OTLP metrics endpoint to the NativeWriter. The native stats worker flushes the
     concentrator on its periodic tick and POSTs the histogram to the OTLP /v1/metrics endpoint.
+    Service identity is reported on the InstrumentationScope so one payload can carry many services.
     """
     from http.server import BaseHTTPRequestHandler
     from http.server import ThreadingHTTPServer
@@ -105,6 +106,8 @@ def test_otlp_trace_metrics_exported_via_http():
         os.environ["OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/metrics"
         # Route traces to the mock server too so the native writer doesn't log send failures.
         os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
+        # The flush cadence is fixed at 10s; shorten it for the test so the bucket exports quickly.
+        os.environ["_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL"] = "1000"
 
         t = threading.Thread(target=server.serve_forever)
         t.daemon = True
@@ -136,10 +139,9 @@ def test_otlp_trace_metrics_exported_via_http():
     content_type, body = metrics_payload
     assert "json" in content_type, f"Expected JSON content type, got: {content_type}"
     payload = json.loads(body)
-    metric = payload["resourceMetrics"][0]["scopeMetrics"][0]["metrics"][0]
-    assert metric["name"] == "dd.trace.span.duration"
-    resource_attrs = {
-        a["key"]: a["value"]["stringValue"] for a in payload["resourceMetrics"][0]["resource"]["attributes"]
-    }
-    assert resource_attrs["service.name"] == "test-svc"
+    scope_metrics = payload["resourceMetrics"][0]["scopeMetrics"][0]
+    metric = scope_metrics["metrics"][0]
+    assert metric["name"] == "traces.span.sdk.metrics.duration"
+    scope_attrs = {a["key"]: a["value"]["stringValue"] for a in scope_metrics["scope"]["attributes"]}
+    assert scope_attrs["service.name"] == "test-svc"
     assert metric["histogram"]["dataPoints"], "No data points in exported histogram"
