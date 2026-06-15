@@ -27,9 +27,9 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+from enum import Enum
 import functools
 import inspect
-from enum import Enum
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -107,7 +107,8 @@ def _spec(name: str) -> dict:
 # --------------------------------------------------------------------------- #
 def _bind_inputs(fn: Callable, args: tuple, kwargs: dict, inputs: Optional[list]) -> dict:
     """Entry args as a {param_name: value} dict, optionally restricted to ``inputs``
-    (so live infra args like ``agent``/``deps`` are excluded from the captured input)."""
+    (so live infra args like ``agent``/``deps`` are excluded from the captured input).
+    """
     try:
         bound = inspect.signature(fn).bind_partial(*args, **kwargs)
         bound.apply_defaults()
