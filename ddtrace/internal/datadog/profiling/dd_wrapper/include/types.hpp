@@ -17,7 +17,8 @@ enum SampleType : std::uint16_t
     GPUMemory = 1 << 8,
     GPUFlops = 1 << 9,
     OffCPU = 1 << 10,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops | OffCPU
+    All =
+      CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops | OffCPU
 };
 
 // Every Sample object has a corresponding `values` vector, since libdatadog expects contiguous values per sample.

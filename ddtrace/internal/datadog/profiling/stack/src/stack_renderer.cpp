@@ -240,9 +240,8 @@ StackRenderer::render_stack_end()
     // Off-CPU approximation: wall_time - cpu_time.
     // cpu_time_ns is 0 if render_cpu_time was not called (no measurement available).
     // Clamped to 0 to guard against clock skew between the two clocks.
-    const int64_t off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
-                                 ? thread_state.wall_time_ns - thread_state.cpu_time_ns
-                                 : 0;
+    const int64_t off_cpu_ns =
+      thread_state.wall_time_ns > thread_state.cpu_time_ns ? thread_state.wall_time_ns - thread_state.cpu_time_ns : 0;
     sample->push_offcputime(off_cpu_ns, 1);
 
     sample->flush_sample();
