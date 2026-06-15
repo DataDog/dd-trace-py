@@ -260,6 +260,13 @@ Datadog::Profile::heap_apply_batch(const ddog_prof_Sample2* adds,
 
     HeapApplyResult result{ true, true };
 
+    // Mark the heap profile as carrying data so uploads attach the snapshot.
+    // Sticky: once set it stays set for the lifetime of this profile so the
+    // persistent live set keeps being uploaded even on intervals with no churn.
+    if (n_adds > 0 || n_subs > 0) {
+        heap_populated = true;
+    }
+
     if (n_adds > 0) {
         const ddog_prof_Slice_Sample2 add_slice = { .ptr = adds, .len = n_adds };
         // Untimestamped (aggregated) samples: the persistent heap profile
@@ -328,6 +335,9 @@ Datadog::Profile::reset_heap_profile()
         ddog_Error_drop(&err);
         return false;
     }
+    // The live set is now empty; don't attach a snapshot again until new data
+    // is applied.
+    heap_populated = false;
     return true;
 }
 
@@ -380,6 +390,9 @@ Datadog::Profile::postfork_child()
     // prefork; we hold it here (single-threaded child) and unlock below.
     if (heap_enabled) {
         ddog_prof_Profile_drop(&heap_profile);
+        // The child starts heap tracking fresh, so the recreated profile is
+        // empty until the collector applies its first batch.
+        heap_populated = false;
         if (!make_profile(sample_types, &default_period, heap_profile)) {
             heap_enabled = false;
             std::cerr << "Error re-initializing heap profile after fork" << std::endl;

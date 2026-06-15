@@ -222,8 +222,13 @@ Datadog::UploaderBuilder::build()
     // non-destructive snapshot: the heap profile keeps accumulating across
     // uploads. On failure we log and continue without the heap attachment
     // rather than failing the whole upload.
+    // Gate on heap_has_data() (not just heap_is_enabled()): the sample-type
+    // layout includes Heap whenever type_mask defaults to All, so a CPU/lock/
+    // stack-only profiler would otherwise serialize and attach an empty heap
+    // pprof on every upload (breaking <prefix>.*.pprof globbing in output mode
+    // and shipping empty attachments in upload mode).
     ddog_prof_EncodedProfile heap_encoded{ .inner = nullptr };
-    if (state.profile_state.heap_is_enabled()) {
+    if (state.profile_state.heap_is_enabled() && state.profile_state.heap_has_data()) {
         auto heap_res = state.profile_state.heap_serialize_snapshot();
         if (heap_res.tag == DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
             heap_encoded = heap_res.ok;

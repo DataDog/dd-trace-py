@@ -73,6 +73,13 @@ class Profile
     ddog_prof_Profile heap_profile{};
     std::mutex heap_profile_mtx{};
     bool heap_enabled{ false };
+    // Whether any heap data has actually been applied to heap_profile. Stays
+    // false until the memalloc collector applies its first non-empty batch, so
+    // CPU/lock/stack-only profilers (whose sample-type layout still includes
+    // Heap because type_mask defaults to All) don't emit an empty heap pprof on
+    // every upload. Sticky once set: the persistent live set is uploaded every
+    // interval thereafter even when no new allocations occurred that interval.
+    bool heap_populated{ false };
 
     // Internal access methods - not for direct use
     ddog_prof_Profile& profile_borrow_internal();
@@ -106,6 +113,12 @@ class Profile
     // Whether the persistent heap profile is active (Heap sampling enabled and
     // the profile was successfully created).
     bool heap_is_enabled() const { return heap_enabled; }
+
+    // Whether the persistent heap profile has had data applied to it (see
+    // heap_populated). Uploaders should gate heap snapshot serialization on
+    // this in addition to heap_is_enabled() to avoid emitting empty heap
+    // attachments when the memalloc collector never ran.
+    bool heap_has_data() const { return heap_populated; }
 
     // Apply a whole export interval's worth of changes to the persistent heap
     // profile in a single locked pass: `adds` are newly tracked allocations,
