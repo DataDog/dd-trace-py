@@ -855,8 +855,7 @@ class LLMObs(Service):
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         :param float sample_rate: The proportion of LLMObs traces to sample, between 0.0 and 1.0 (inclusive).
             Takes precedence over the DD_LLMOBS_SAMPLE_RATE environment variable. Defaults to that env var, or 1.0
-            (sample everything) if neither is set. An out-of-range argument is ignored, keeping the env-derived
-            rate; an out-of-range env-derived rate (with no valid argument) falls back to 1.0.
+            (sample everything) if neither is set or within the valid range.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
