@@ -386,8 +386,7 @@ class TestGeventTracer(TracerTestCase):
             stderr=subprocess.PIPE,
         )
 
-        p.wait()
-        stdout, stderr = p.stdout.read(), p.stderr.read()
+        stdout, stderr = p.communicate()
         assert p.returncode == 0, f"stdout: {stdout.decode()}\n\nstderr: {stderr.decode()}"
         assert b"Test success" in stdout, stdout.decode()
         assert b"RecursionError" not in stderr, stderr.decode()
