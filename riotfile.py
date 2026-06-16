@@ -3210,7 +3210,7 @@ venv = Venv(
         Venv(
             name="mistralai",
             command="pytest {cmdargs} tests/contrib/mistralai",
-            pys=select_pys(),
+            pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
                 "mistralai": latest,

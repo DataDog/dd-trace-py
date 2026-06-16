@@ -12,7 +12,7 @@ config._add("mistralai", {})
 
 
 def _supported_versions():
-    return {"mistralai": ">=1.10.0"}
+    return {"mistralai": ">=2.0.0"}
 
 
 def get_version() -> str:
