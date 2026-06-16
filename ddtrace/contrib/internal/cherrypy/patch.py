@@ -12,13 +12,13 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
-from ddtrace.internal.trace_utils import set_service_and_source
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
@@ -50,6 +50,7 @@ SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direct
 class TraceTool(cherrypy.Tool):
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
+        config.cherrypy["service"] = schematize_service_name(service)
         if use_distributed_tracing is not None:
             self.use_distributed_tracing = use_distributed_tracing
 
@@ -82,12 +83,10 @@ class TraceTool(cherrypy.Tool):
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span
-            (
-                set_service_and_source(
-                    req_span,
-                    schematize_service_name(trace_utils.int_service(None, config.cherrypy, default="cherrypy")),
-                    config.cherrypy,
-                ),
+            set_service_and_source(
+                req_span,
+                trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
+                config.cherrypy,
             )
 
             ctx.set_item("req_span", req_span)
