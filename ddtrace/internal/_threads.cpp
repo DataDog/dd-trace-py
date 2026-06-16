@@ -1251,8 +1251,14 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
         if (threads != NULL) {
             if (state->pending_periodic_threads != NULL) {
                 std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
-                if (PyList_Extend(threads, state->pending_periodic_threads) < 0)
-                    PyErr_Clear();
+                Py_ssize_t pending_n = PyList_GET_SIZE(state->pending_periodic_threads);
+                for (Py_ssize_t i = 0; i < pending_n; i++) {
+                    PyObject* thread = PyList_GET_ITEM(state->pending_periodic_threads, i); // Borrowed reference.
+                    if (PyList_Append(threads, thread) < 0) {
+                        PyErr_Clear();
+                        break;
+                    }
+                }
             }
 
             Py_ssize_t n = PyList_Size(threads);
