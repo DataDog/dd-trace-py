@@ -42,6 +42,7 @@
 ".debugging/exploration":
   stage: tests
   extends: .testrunner
+  retry: 2
   timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${CI_PROJECT_DIR}/debugger-expl.txt"

@@ -30,7 +30,6 @@ log = get_logger(__name__)
 RAY_ACTOR_MODULE_DENYLIST = {
     "ray.data._internal",
     "ray.experimental",
-    "ray.data._internal",
 }
 
 
@@ -52,7 +51,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
     """Trace actor method submission, i.e the Actor.func.remote()
     call
     """
-    actor_name = instance._ray_actor_creation_function_descriptor.class_name
+    descriptor = instance._ray_actor_creation_function_descriptor
+    actor_name = descriptor.class_name
+    actor_module_name = getattr(descriptor, "module_name", None)
     method_name = get_argument_value(args, kwargs, 0, "method_name")
 
     # if _dd_trace_ctx was not injected in the param of the function, it means
@@ -79,6 +80,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
             is_task_submission=False,
             distributed_context=parent_context,
             use_active_context=parent_context is None,
+            actor_class_name=actor_name,
+            actor_module_name=actor_module_name,
+            actor_method_name=method_name,
         )
     ):
         core.dispatch_event(RayContextInjectionEvent(kwargs=kwargs))
@@ -98,6 +102,10 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
     if context is None:
         context = _extract_tracing_context_from_env()
 
+    actor_class_name = type(self).__name__
+    actor_module_name = getattr(type(self), "__module__", None)
+    actor_method_name = getattr(method, "__name__", None)
+
     with core.context_with_event(
         RayExecutionEvent(
             resource=f"{self.__class__.__name__}.{method.__name__}",
@@ -110,6 +118,9 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
             method_args=args,
             method_kwargs=kwargs,
             is_actor_method=True,
+            actor_class_name=actor_class_name,
+            actor_module_name=actor_module_name,
+            actor_method_name=actor_method_name,
         )
     ) as ctx:
         yield ctx.span

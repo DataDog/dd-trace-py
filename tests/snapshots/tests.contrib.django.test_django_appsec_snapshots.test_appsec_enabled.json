@@ -13,6 +13,7 @@
       "_dd.appsec.fp.http.header": "hdr-0110000010-bcea973b-1-4740ae63",
       "_dd.appsec.fp.http.network": "net-0-0000000000",
       "_dd.appsec.fp.session": "ssn----",
+      "_dd.appsec.normalized_route": "/",
       "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",

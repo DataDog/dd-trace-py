@@ -111,7 +111,7 @@ ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 # AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- --profile minimal --default-toolchain stable -y
+    sh -s -- --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/

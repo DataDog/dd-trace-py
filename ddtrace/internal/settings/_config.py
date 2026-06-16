@@ -638,6 +638,9 @@ class Config(object):
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -677,7 +680,7 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
@@ -733,13 +736,11 @@ class Config(object):
         self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "APM Agentless enabled: health metrics and client-side stats are disabled. "
                 "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
                 "bypassing the agent.",
             )
-            self._trace_rate_limit = -1
             self._trace_compute_stats = False
-            setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
 
@@ -777,8 +778,8 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:

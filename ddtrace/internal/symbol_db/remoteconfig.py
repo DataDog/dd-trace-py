@@ -53,9 +53,6 @@ class SymbolDatabaseCallback(RCCallback):
                 return
 
         for payload in payloads:
-            if payload.metadata is None:
-                continue
-
             config = payload.content
             if not isinstance(config, dict):
                 continue

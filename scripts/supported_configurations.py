@@ -5,6 +5,8 @@ Reads the JSON registry and produces a Python module with:
 - SUPPORTED_CONFIGURATIONS: frozenset of all registered env var names
 - CONFIGURATION_ALIASES: dict mapping env var name to list of aliases
 - DEPRECATED_CONFIGURATIONS: frozenset of deprecated env var names
+- SENSITIVE_CONFIGURATIONS: frozenset of env var names whose value is excluded
+  from configuration telemetry (marked ``"sensitive": true`` in the registry)
 
 Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
 
@@ -16,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import json
 from pathlib import Path
 import re
@@ -25,6 +28,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INPUT_FILE = REPO_ROOT / "supported-configurations.json"
 OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_supported_configurations.py"
+CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
@@ -43,6 +47,7 @@ def generate_module(data: dict) -> str:
     entries = {name: configs[name][0] for name in all_names}
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
     deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
+    sensitive = sorted(name for name, e in entries.items() if e.get("sensitive"))
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
@@ -65,6 +70,12 @@ def generate_module(data: dict) -> str:
         if deprecated
         else "DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()"
     )
+    sensitive_lines = "\n".join(f'        "{n}",' for n in sensitive)
+    sensitive_block = (
+        f"SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(\n    {{\n{sensitive_lines}\n    }}\n)"
+        if sensitive
+        else "SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()"
+    )
 
     return f"""\
 {HEADER}
@@ -78,6 +89,8 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 {aliases_block}
 
 {deprecated_block}
+
+{sensitive_block}
 """
 
 
@@ -90,6 +103,128 @@ def _is_envier_var_call(node: ast.AST) -> bool:
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == "DDConfig"
     )
+
+
+_STRING_CONSTANTS_CACHE: dict[Path, dict[str, str]] = {}
+
+
+def _literal_str(node: ast.AST | None) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _collect_string_constants(module: ast.Module) -> dict[str, str]:
+    """Collect simple string constants from a module without importing it.
+
+    Supports top-level constants (``FOO = "bar"``) and class attributes
+    (``Class.FOO = "bar"``), including annotated assignments.
+    """
+    constants: dict[str, str] = {}
+
+    def add(name: str, value: ast.AST | None) -> None:
+        if literal := _literal_str(value):
+            constants[name] = literal
+
+    for stmt in module.body:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    add(target.id, stmt.value)
+        elif isinstance(stmt, ast.AnnAssign):
+            if isinstance(stmt.target, ast.Name):
+                add(stmt.target.id, stmt.value)
+        elif isinstance(stmt, ast.ClassDef):
+            for child in stmt.body:
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if isinstance(target, ast.Name):
+                            add(f"{stmt.name}.{target.id}", child.value)
+                elif isinstance(child, ast.AnnAssign):
+                    if isinstance(child.target, ast.Name):
+                        add(f"{stmt.name}.{child.target.id}", child.value)
+
+    return constants
+
+
+def _module_path(module_name: str) -> Path | None:
+    module = REPO_ROOT.joinpath(*module_name.split("."))
+    module_file = module.with_suffix(".py")
+    if module_file.exists():
+        return module_file
+    package_file = module / "__init__.py"
+    return package_file if package_file.exists() else None
+
+
+def _string_constants_for_module(module_name: str) -> dict[str, str]:
+    path = _module_path(module_name)
+    if path is None:
+        return {}
+    if path not in _STRING_CONSTANTS_CACHE:
+        try:
+            text = path.read_text(errors="ignore")
+        except OSError:
+            _STRING_CONSTANTS_CACHE[path] = {}
+        else:
+            try:
+                _STRING_CONSTANTS_CACHE[path] = _collect_string_constants(ast.parse(text))
+            except SyntaxError:
+                _STRING_CONSTANTS_CACHE[path] = {}
+    return _STRING_CONSTANTS_CACHE[path]
+
+
+def _find_imported_names(module: ast.Module) -> dict[str, tuple[str, str]]:
+    """Map local import names to ``(module, imported_name)`` for absolute ``from`` imports."""
+    imported: dict[str, tuple[str, str]] = {}
+    for stmt in module.body:
+        if not isinstance(stmt, ast.ImportFrom) or stmt.module is None or stmt.level:
+            continue
+        for alias in stmt.names:
+            # Look up by the local name, but keep the original imported name for resolving
+            # constants from the source module (e.g. ``from x import Foo as Bar``).
+            imported[alias.asname or alias.name] = (stmt.module, alias.name)
+    return imported
+
+
+def _dotted_name(node: ast.AST) -> list[str] | None:
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return list(reversed(parts))
+    return None
+
+
+def _resolve_env_name_arg(
+    node: ast.AST,
+    local_constants: dict[str, str],
+    imported_names: dict[str, tuple[str, str]],
+) -> str | None:
+    if literal := _literal_str(node):
+        return literal
+
+    if isinstance(node, ast.Name):
+        if node.id in local_constants:
+            return local_constants[node.id]
+        if imported := imported_names.get(node.id):
+            module_name, imported_name = imported
+            return _string_constants_for_module(module_name).get(imported_name)
+        return None
+
+    parts = _dotted_name(node)
+    if not parts:
+        return None
+
+    local_key = ".".join(parts)
+    if local_key in local_constants:
+        return local_constants[local_key]
+
+    if imported := imported_names.get(parts[0]):
+        module_name, imported_name = imported
+        imported_key = ".".join([imported_name] + parts[1:])
+        return _string_constants_for_module(module_name).get(imported_key)
+
+    return None
 
 
 def _class_prefix(class_node: ast.ClassDef) -> str | None:
@@ -141,41 +276,91 @@ def _is_private_call(call: ast.Call) -> bool:
     )
 
 
-def _walk_envier_class(class_node: ast.ClassDef, chain: list[str], out: set[str]) -> None:
+def _walk_envier_class(
+    class_node: ast.ClassDef,
+    chain: list[str],
+    out: set[str],
+    resolve_env_name_arg: Callable[[ast.AST], str | None],
+    private_registry_mismatches: dict[str, str],
+) -> None:
     """Emit envier env vars from this class's body, recursing into lexically nested classes.
 
-    ``chain`` is the fully-resolved prefix chain for this class — the caller is
-    responsible for incorporating ``__prefix__`` or the ``.include`` namespace.
+    ``chain`` is the fully-resolved prefix chain for this class.
+    ``private_registry_mismatches`` is populated with likely public registry
+    spellings for ``private=True`` variables, mapped to the actual
+    leading-underscore env var name.
     """
     for stmt in class_node.body:
         if isinstance(stmt, ast.Assign) and _is_envier_var_call(stmt.value):
             args = stmt.value.args
-            if len(args) >= 2 and isinstance(args[1], ast.Constant) and isinstance(args[1].value, str):
+            env_name = resolve_env_name_arg(args[1]) if len(args) >= 2 else None
+            if env_name is not None:
                 # envier builds env names by joining chain + key on ".", uppercasing,
                 # then replacing "." with "_". private=True adds a leading underscore.
-                name = ".".join(chain + [args[1].value]).upper().replace(".", "_")
-                out.add(f"_{name}" if _is_private_call(stmt.value) else name)
+                name = ".".join(chain + [env_name]).upper().replace(".", "_")
+                if not _is_private_call(stmt.value):
+                    out.add(name)
+                else:
+                    # envier private=True changes the env var spelling, not just telemetry
+                    # visibility. Stale public registry entries would make env validation
+                    # accept variables that settings never read.
+                    private_name = f"_{name}"
+                    out.add(private_name)
+                    # Exact public spelling for this private variable.
+                    private_registry_mismatches[name] = private_name
+                    if len(chain) > 1:
+                        # Common stale spelling for included sub-configs: parent prefix
+                        # + variable name, but missing the sub-config's own prefix.
+                        unscoped_name = ".".join(chain[:-1] + [env_name]).upper().replace(".", "_")
+                        private_registry_mismatches[unscoped_name] = private_name
         elif isinstance(stmt, ast.ClassDef):
             inner = _class_prefix(stmt)
-            _walk_envier_class(stmt, chain + [inner] if inner else chain, out)
+            _walk_envier_class(
+                stmt,
+                chain + [inner] if inner else chain,
+                out,
+                resolve_env_name_arg,
+                private_registry_mismatches,
+            )
 
 
 def _chain_for(name: str, top_classes: dict[str, ast.ClassDef], includes: dict[str, tuple[str, str]]) -> list[str]:
     """Compute a class's full prefix chain, following ``.include`` parents transitively."""
     if name in includes:
-        parent, namespace = includes[name]
+        parent, _namespace = includes[name]
         parent_chain = _chain_for(parent, top_classes, includes) if parent in top_classes else []
-        return parent_chain + [namespace]
+        # Envier's include(namespace=...) sets the Python attribute namespace; the
+        # environment variable prefix still comes from the included class's
+        # __prefix__. In current settings these are usually equal, but keeping this
+        # distinction avoids generating registry names from attribute paths.
+        prefix = _class_prefix(top_classes[name])
+        return parent_chain + ([prefix] if prefix else [])
     prefix = _class_prefix(top_classes[name])
     return [prefix] if prefix else []
 
 
-def _scan_envier_module(module: ast.Module, out: set[str]) -> None:
+def _scan_envier_module(
+    module: ast.Module,
+    out: set[str],
+    private_registry_mismatches: dict[str, str],
+) -> None:
     """Emit envier-declared env vars from a parsed module's top-level classes."""
     includes = _find_includes(module)
     top_classes = {n.name: n for n in module.body if isinstance(n, ast.ClassDef)}
+    local_constants = _collect_string_constants(module)
+    imported_names = _find_imported_names(module)
+
+    def resolve_env_name_arg(node: ast.AST) -> str | None:
+        return _resolve_env_name_arg(node, local_constants, imported_names)
+
     for name, node in top_classes.items():
-        _walk_envier_class(node, _chain_for(name, top_classes, includes), out)
+        _walk_envier_class(
+            node,
+            _chain_for(name, top_classes, includes),
+            out,
+            resolve_env_name_arg,
+            private_registry_mismatches,
+        )
 
 
 def check_registry(data: dict) -> int:
@@ -187,6 +372,7 @@ def check_registry(data: dict) -> int:
 
     missing: set[str] = set()
     envier_vars: set[str] = set()
+    private_registry_mismatches: dict[str, str] = {}
 
     # Single pass over ddtrace/ Python files: (1) regex-scan the source text for any quoted
     # DD_*/_DD_*/OTEL_*/DATADOG_* literal, then (2) AST-scan for envier-declared vars whose
@@ -196,7 +382,10 @@ def check_registry(data: dict) -> int:
     for path in (REPO_ROOT / "ddtrace").rglob("*.py"):
         if path == OUTPUT_FILE:
             continue
-        text = path.read_text(errors="ignore")
+        try:
+            text = path.read_text(errors="ignore")
+        except OSError:
+            continue
         for m in pattern.finditer(text):
             var = m.group(1)
             if var not in all_known:
@@ -204,9 +393,11 @@ def check_registry(data: dict) -> int:
         # ast.parse is expensive; skip files that can't define envier configs.
         if "DDConfig" in text:
             try:
-                _scan_envier_module(ast.parse(text), envier_vars)
+                module = ast.parse(text)
             except SyntaxError:
                 pass
+            else:
+                _scan_envier_module(module, envier_vars, private_registry_mismatches)
 
     # Dynamic vars from PATCH_MODULES: DD_TRACE_{NAME}_ENABLED, DD_{NAME}_SERVICE[_NAME]
     assigns = {
@@ -237,20 +428,68 @@ def check_registry(data: dict) -> int:
         if var not in all_known:
             missing.add(var)
 
+    # The literal public name may appear in constants used as the DDConfig.v/var
+    # argument even though envier reads the leading-underscore name for private=True.
+    missing -= private_registry_mismatches.keys()
+
+    private_envier_vars = set(private_registry_mismatches.values())
+    bad_private_registrations = {
+        public_name: private_name
+        for public_name, private_name in private_registry_mismatches.items()
+        if public_name in configs
+    }
+    non_internal_private_registrations = {
+        private_name
+        for private_name in private_envier_vars
+        if private_name in configs and configs[private_name][0].get("internal") is not True
+    }
+
+    has_errors = False
     if missing:
+        has_errors = True
         print(
             f"ERROR: {len(missing)} var(s) found in ddtrace/ but missing from {INPUT_FILE.name}.\n"
             f"\n"
             f"To fix:\n"
             f"  1. Add the missing var(s) to supported-configurations.json\n"
             f"  2. Run: python scripts/supported_configurations.py\n"
-            f"  3. Register the var in the central Configuration Registry (internal contributors): https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations\n"
+            f"  3. Register the var in the central Configuration Registry (internal contributors): "
+            f"{CONFIG_REGISTRY_URL}\n"
             f"  4. Stage the updated files and commit\n"
             f"\n"
             f"Unregistered vars:"
         )
         for var in sorted(missing):
             print(f"  {var}")
+
+    if bad_private_registrations:
+        has_errors = True
+        print(
+            f"ERROR: {len(bad_private_registrations)} private envier var(s) are registered without their "
+            f"private env var spelling.\n"
+            f"\n"
+            f"Entries declared with private=True must be registered using the exact envier name, including "
+            f"the leading '_' and any sub-config prefix.\n"
+            f"\n"
+            f"Misregistered vars:"
+        )
+        for public_name, private_name in sorted(bad_private_registrations.items()):
+            print(f"  {public_name} should be {private_name}")
+
+    if non_internal_private_registrations:
+        has_errors = True
+        print(
+            f"ERROR: {len(non_internal_private_registrations)} private envier var(s) are registered without "
+            f"internal: true.\n"
+            f"\n"
+            f"Entries declared with private=True must be marked internal in {INPUT_FILE.name}.\n"
+            f"\n"
+            f"Non-internal private vars:"
+        )
+        for private_name in sorted(non_internal_private_registrations):
+            print(f"  {private_name}")
+
+    if has_errors:
         return 1
 
     print(f"Registry is complete ({len(all_known)} entries, no unregistered vars).")

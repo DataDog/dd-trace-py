@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.normalized_route": "/executions/osspawn",
       "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",

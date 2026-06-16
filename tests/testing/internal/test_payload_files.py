@@ -21,6 +21,8 @@ from ddtrace.testing.internal.writer import TestOptWriter
 
 _noop = NoOpBackendConnectorSetup()
 
+MAX_META_TAG_VALUE_LENGTH = 5000
+
 
 @pytest.fixture(autouse=True)
 def reset_payload_counter(monkeypatch):
@@ -97,6 +99,33 @@ class TestPayloadFileTestOptWriter:
         assert data["version"] == 1
         assert data["events"] == events
         assert "metadata" in data
+
+    def test_send_events_truncates_payload_metadata_and_event_meta(self, tmp_path):
+        tests_dir = tmp_path / "tests"
+        writer = PayloadFileTestOptWriter(connector_setup=_noop, output_dir=str(tests_dir))
+        long_metadata_value = "m" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        long_event_meta_value = "x" * (MAX_META_TAG_VALUE_LENGTH + 1)
+        writer.metadata["*"]["long_metadata"] = long_metadata_value
+        events: list[Event] = [
+            {
+                "type": "test",
+                "content": {
+                    "meta": {
+                        "test.name": "my_test",
+                        "long_meta": long_event_meta_value,
+                    }
+                },
+            }
+        ]
+
+        writer._send_events(events)
+
+        [payload_file] = list(tests_dir.glob("tests-*.json"))
+        data = json.loads(payload_file.read_text())
+        assert data["metadata"]["*"]["long_metadata"] == "m" * MAX_META_TAG_VALUE_LENGTH
+        assert data["events"][0]["content"]["meta"]["long_meta"] == "x" * MAX_META_TAG_VALUE_LENGTH
+        assert writer.metadata["*"]["long_metadata"] == long_metadata_value
+        assert events[0]["content"]["meta"]["long_meta"] == long_event_meta_value
 
     def test_send_events_skips_http(self, tmp_path):
         tests_dir = tmp_path / "tests"

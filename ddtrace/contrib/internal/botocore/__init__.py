@@ -23,7 +23,11 @@ Configuration
 
 .. py:data:: ddtrace.config.botocore['distributed_tracing']
 
-   Whether to inject distributed tracing data to requests in SQS, SNS, EventBridge, Kinesis Streams and Lambda.
+   Whether to inject distributed tracing data into outbound AWS requests. This covers the
+   message payloads of SQS, SNS, EventBridge, Kinesis Streams and Lambda, as well as
+   W3C/Datadog propagation headers on the signed HTTP request for all AWS services
+   (injected before SigV4 signing). Also governs the same header injection for the
+   ``aiobotocore`` integration.
 
    Can also be enabled with the ``DD_BOTOCORE_DISTRIBUTED_TRACING`` environment variable.
 
