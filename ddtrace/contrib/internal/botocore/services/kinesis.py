@@ -156,7 +156,9 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
             core.dispatch("botocore.patched_kinesis_api_call.started", (ctx,))
 
             if is_kinesis_put_operation:
-                records_to_process = select_records_for_injection(params, bool(config.botocore["distributed_tracing"]))
+                records_to_process = select_records_for_injection(
+                    params, bool(function_vars.get("distributed_tracing"))
+                )
                 for record, should_inject_trace_context in records_to_process:
                     update_record(ctx, record, stream_arn, inject_trace_context=should_inject_trace_context)
 

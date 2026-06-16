@@ -122,7 +122,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
     )
     should_update_messages = (
         args
-        and config.botocore["distributed_tracing"]
+        and function_vars.get("distributed_tracing")
         and endpoint_name == "sqs"
         and operation in ("SendMessage", "SendMessageBatch")
     )
