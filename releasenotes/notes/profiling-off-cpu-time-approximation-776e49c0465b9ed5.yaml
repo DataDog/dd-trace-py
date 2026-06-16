@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Profiling: Adds off-CPU time as a new sample type in the stack profiler.
+    Each stack sample now includes an ``off-cpu-time`` value computed as
+    ``wall_time - cpu_time``, approximating the time a thread spent waiting
+    (on I/O, locks, sleeps, or OS scheduling) during each sampling interval.
