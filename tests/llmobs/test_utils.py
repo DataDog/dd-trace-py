@@ -4,7 +4,9 @@ import pytest
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _coerce_meta_key
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _sanitize_span_event_depth
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Documents
@@ -389,6 +391,51 @@ class TestAnnotateLLMObsSpanData:
             assert data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] == {"key1": "val1", "key2": "val2"}
             assert data[LLMOBS_STRUCT.METRICS] == {"input_tokens": 10, "output_tokens": 5}
             assert {"env": "prod", "version": "1.0"}.items() <= data[LLMOBS_STRUCT.TAGS].items()
+
+
+class TestSanitizeSpanEventDepth:
+    """Non-string mapping keys must be coerced to strings so the msgpack meta_struct intake
+    path (APM convergence) round-trips identically to the JSON intake path (MLOB-7618)."""
+
+    @pytest.mark.parametrize(
+        "key,expected",
+        [
+            ("already_str", "already_str"),
+            (1, "1"),
+            (-42, "-42"),
+            (True, "true"),
+            (False, "false"),
+            (1.5, "1.5"),
+            (None, "null"),
+            (float("inf"), "Infinity"),
+            (float("-inf"), "-Infinity"),
+            (float("nan"), "NaN"),
+        ],
+    )
+    def test_coerce_meta_key_scalars(self, key, expected):
+        assert _coerce_meta_key(key) == expected
+
+    def test_bool_keys_are_not_treated_as_ints(self):
+        """bool is a subclass of int; True/1 and False/0 must not collapse to the same int form."""
+        assert _coerce_meta_key(True) == "true"
+        assert _coerce_meta_key(1) == "1"
+
+    def test_sanitizes_top_level_non_string_keys(self):
+        sanitized = _sanitize_span_event_depth({"metadata": {1: "a", 2.0: "b", True: "c", None: "d"}})
+        assert sanitized == {"metadata": {"1": "a", "2.0": "b", "true": "c", "null": "d"}}
+
+    def test_sanitizes_nested_non_string_keys(self):
+        sanitized = _sanitize_span_event_depth({"metadata": {"outer": {3: {"4": [{5: "v"}]}}}})
+        assert sanitized == {"metadata": {"outer": {"3": {"4": [{"5": "v"}]}}}}
+
+    def test_string_keyed_structures_pass_through_unchanged(self):
+        original = {"metadata": {"temperature": 0.5, "nested": {"k": [1, 2, 3]}}}
+        assert _sanitize_span_event_depth(original) == original
+
+    def test_does_not_mutate_input(self):
+        original = {"metadata": {1: "a"}}
+        _sanitize_span_event_depth(original)
+        assert original == {"metadata": {1: "a"}}  # original keys untouched
 
 
 class TestTraceIdNormalization:

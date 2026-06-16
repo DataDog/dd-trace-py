@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where spans annotated with ``metadata``
+    containing non-string keys (for example ``int``, ``float``, or ``bool`` keys) could be
+    dropped during ingestion on the APM meta_struct intake path. Metadata keys are now
+    coerced to strings before encoding, matching the behavior of the direct intake path.

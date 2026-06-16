@@ -4,6 +4,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import math
 import re
 from typing import TYPE_CHECKING
 from typing import Any
@@ -248,9 +249,39 @@ def _unserializable_default_repr(obj):
 _MAX_NESTED_META_DEPTH = 12
 
 
+def _coerce_meta_key(key: Any) -> str:
+    """Coerce a mapping key to a string using the same rules as JSON object keys.
+
+    Non-string keys (int/float/bool/None) are encoded verbatim by the msgpack meta_struct
+    intake path used by APM convergence, which the llmobs_spans trace-indexer cannot decode
+    into a string-keyed map, so the whole span is dropped (MLOB-7618). The direct LLMObs
+    intake never hit this because json.dumps stringifies these keys at encode time; coercing
+    here gives both intake paths identical semantics. Already-string keys pass through unchanged.
+    """
+    if isinstance(key, str):
+        return key
+    if isinstance(key, bool):  # check before int: bool is a subclass of int
+        return "true" if key else "false"
+    if isinstance(key, int):
+        return str(key)
+    if isinstance(key, float):
+        if math.isnan(key):
+            return "NaN"
+        if key == math.inf:
+            return "Infinity"
+        if key == -math.inf:
+            return "-Infinity"
+        return float.__repr__(key)
+    if key is None:
+        return "null"
+    # Non-scalar key (json.dumps would raise TypeError). Stringify rather than drop the span.
+    return safe_json(key)
+
+
 def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation.
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
+    and every mapping key coerced to a string (see _coerce_meta_key).
     The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
@@ -267,7 +298,10 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
             )
             return safe_json(node)
         if isinstance(node, dict):
-            return {k: _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+            return {
+                _coerce_meta_key(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k))
+                for k, v in node.items()
+            }
         return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
 
     return _walk(obj, 0, "")
