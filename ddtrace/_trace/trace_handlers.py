@@ -1852,7 +1852,7 @@ def _on_proxy_request_end(
         proxy_request = ctx.get_item("proxy_request") or ctx.get_item("request_item")
         request_type = getattr(proxy_request, "request_type", None)
         request_method = getattr(proxy_request, "method", None)
-        request_route = getattr(proxy_request, "route_path", None)
+        request_route = ctx.get_item("matched_route") or getattr(proxy_request, "route_path", None)
         status_code = getattr(response_status, "code", None)
 
         span._set_attribute(COMPONENT, config.ray.integration_name)

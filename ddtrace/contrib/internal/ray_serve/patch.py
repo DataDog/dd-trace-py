@@ -161,6 +161,7 @@ async def traced_handle_request_with_rejection(func, instance: "ReplicaBase", ar
 async def traced_proxy_request(func, instance, args, kwargs):
     proxy_request: ProxyRequest = cast(ProxyRequest, get_argument_value(args, kwargs, 0, "proxy_request"))
     grpc_context = None
+    matched_route = None
 
     if isinstance(proxy_request, gRPCProxyRequest):
         grpc_context = proxy_request.ray_serve_grpc_context
@@ -183,6 +184,7 @@ async def traced_proxy_request(func, instance, args, kwargs):
             # Best-effort only: keep current behavior if route pattern matching fails.
             pass
 
+        matched_route = route_path
         resource = f"{method} {route_path}"
 
     with core.context_with_data(
@@ -194,6 +196,7 @@ async def traced_proxy_request(func, instance, args, kwargs):
         call_trace=False,
         distributed_context=tracer.current_trace_context() if not distributed_context.span_id else distributed_context,
         proxy_request=proxy_request,
+        matched_route=matched_route,
     ) as ctx:
         if grpc_context is not None:
             core.dispatch("ray.serve.grpc.context.inject", (ctx, grpc_context))

@@ -50,7 +50,7 @@
          "_dd.tags.process": "entrypoint.basedir:workers,entrypoint.name:default_worker,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ray._private.workers",
          "component": "ray",
          "http.method": "GET",
-         "http.route": "/name/foo",
+         "http.route": "/name/{name}",
          "http.status_code": "200",
          "language": "python",
          "ray.serve.request.type": "http",

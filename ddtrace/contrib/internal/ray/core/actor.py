@@ -31,7 +31,6 @@ log = get_logger(__name__)
 RAY_ACTOR_MODULE_DENYLIST = {
     "ray.data._internal",
     "ray.experimental",
-    "ray.data._internal",
     "ray.serve._private.controller",
     "ray.serve._private.proxy",
 }

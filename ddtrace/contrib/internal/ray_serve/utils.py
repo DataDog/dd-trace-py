@@ -22,20 +22,6 @@ def extract_grpc_context(headers: Optional["RayServegRPCContext"]) -> Context:
     return HTTPPropagator.extract(metadata)
 
 
-def inject_grpc_context(span_context: Context, headers: Optional["RayServegRPCContext"]) -> None:
-    # `headers` is None when calling the deployment handle remote, which is used in
-    # the integration tests to reconfigure() (used in the throttling tests)
-    if headers is None:
-        return
-
-    trace_headers: dict[str, str] = {}
-    HTTPPropagator.inject(span_context, trace_headers)
-
-    invocation_metadata = list(headers.invocation_metadata())
-    invocation_metadata.extend(trace_headers.items())
-    headers._invocation_metadata = invocation_metadata
-
-
 def _extract_proxy_request_http_context(proxy_request: ProxyRequest) -> Context:
     try:
         headers = extract_headers(getattr(proxy_request, "scope", {}))
