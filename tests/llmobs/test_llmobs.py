@@ -1214,9 +1214,8 @@ def test_enable_validates_env_sample_rate():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
         LLMObs.enable(agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 1.0
     mock_log.warning.assert_any_call(
@@ -1230,9 +1229,8 @@ def test_enable_invalid_sample_rate_keeps_configured_rate():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
         LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 0.2
     mock_log.warning.assert_any_call(
@@ -1246,9 +1244,8 @@ def test_enable_invalid_arg_and_invalid_env_falls_back():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
         LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 1.0
     mock_log.warning.assert_any_call(
