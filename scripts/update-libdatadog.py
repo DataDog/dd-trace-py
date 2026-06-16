@@ -49,6 +49,7 @@ import shutil
 import subprocess
 import sys
 import textwrap
+import threading
 import urllib.request
 
 
@@ -70,6 +71,9 @@ ALLOWED_REPAIR_PREFIXES = ("src/native/", "setup.py")
 # The read-only shell tools let the agent locate and inspect libdatadog's fetched
 # source under $CARGO_HOME/git/checkouts (outside the repo tree) so it can discover
 # e.g. a crate's new name when one was renamed at the target rev.
+# Hard cap per repair iteration so a hung/slow agent can't block the job; the
+# job's own timeout is the outer backstop.
+CLAUDE_REPAIR_TIMEOUT_S = 600
 CLAUDE_MODEL = "anthropic/claude-sonnet-4-6"
 CLAUDE_REPAIR_TOOLS = [
     "Read",
@@ -111,21 +115,60 @@ class RunResult:
         return self.returncode == 0
 
 
-def run(label: str, cmd: list[str], *, cwd: Path | None = None, check: bool = True) -> RunResult:
-    """Run a command, streaming a header, capturing combined output."""
+def run(
+    label: str, cmd: list[str], *, cwd: Path | None = None, check: bool = True, timeout: float | None = None
+) -> RunResult:
+    """Run a command, streaming its output live and capturing it for the caller.
+
+    Output is streamed line-by-line (so long-running steps don't look frozen in CI)
+    while also being captured into the result. If `timeout` is set, the process is
+    killed after that many seconds and the step is reported as failed (rc 124) —
+    this is what stops a hung subprocess (e.g. Claude) from blocking the job
+    indefinitely.
+    """
     print(f"\n$ {' '.join(cmd)}", flush=True)
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         cmd,
         cwd=str(cwd) if cwd else None,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
     )
-    if proc.stdout:
-        print(proc.stdout, end="", flush=True)
-    result = RunResult(label=label, returncode=proc.returncode, output=proc.stdout or "")
+    timed_out = False
+    timer: threading.Timer | None = None
+    if timeout:
+
+        def _kill() -> None:
+            nonlocal timed_out
+            timed_out = True
+            proc.kill()
+
+        timer = threading.Timer(timeout, _kill)
+        timer.start()
+
+    lines: list[str] = []
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+            lines.append(line)
+    finally:
+        proc.wait()
+        if timer:
+            timer.cancel()
+
+    output = "".join(lines)
+    returncode = proc.returncode
+    if timed_out:
+        msg = f"\n[timeout] '{label}' exceeded {timeout:.0f}s and was killed."
+        print(msg, flush=True)
+        output += msg + "\n"
+        returncode = 124
+
+    result = RunResult(label=label, returncode=returncode, output=output)
     if check and not result.ok:
-        raise StepError(label, proc.returncode, result.output)
+        raise StepError(label, returncode, output)
     return result
 
 
@@ -490,8 +533,10 @@ def repair_loop(failure: StepError, target_rev: str, max_iterations: int, artifa
             "--permission-mode",
             "bypassPermissions",
         ]
-        transcript = run(f"claude-repair-{i}", cmd, cwd=REPO_ROOT, check=False)
+        transcript = run(f"claude-repair-{i}", cmd, cwd=REPO_ROOT, check=False, timeout=CLAUDE_REPAIR_TIMEOUT_S)
         (artifacts / f"repair-transcript-{i}.log").write_text(transcript.output)
+        if transcript.returncode == 124:
+            print(f"[repair] iteration {i} timed out after {CLAUDE_REPAIR_TIMEOUT_S}s; moving on.")
 
         _revert_changes_outside_allowed()
 
