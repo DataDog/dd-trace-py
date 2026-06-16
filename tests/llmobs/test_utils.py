@@ -377,6 +377,13 @@ class TestAnnotateLLMObsSpanData:
             assert meta[LLMOBS_STRUCT.METADATA] == {"temperature": 0.5}
             assert meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] == tools
 
+    def test_metadata_keys_are_stringified(self, llmobs):
+        """Non-string metadata keys are coerced to strings (MLOB-7618)."""
+        with llmobs.task(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metadata={42: "a", 2.5: "b", True: "c", None: "d"})
+            metadata = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA]
+            assert metadata == {"42": "a", "2.5": "b", "True": "c", "None": "d"}
+
     def test_merges_metadata_metrics_tags_across_calls(self, llmobs):
         """metadata, metrics, and tags accumulate rather than overwrite across multiple annotate calls."""
         with llmobs.task(name="test_span") as span:

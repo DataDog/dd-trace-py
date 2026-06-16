@@ -612,7 +612,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
