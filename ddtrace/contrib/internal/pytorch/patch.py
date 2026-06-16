@@ -16,7 +16,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"torch": ">=2.0,<3.0"}
+    return {"torch": ">=2.0"}
 
 
 def patch() -> None:
