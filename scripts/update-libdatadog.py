@@ -172,8 +172,8 @@ def regenerate_lockfile() -> None:
 
     Tolerant by design: if the new rev renamed/removed a crate we depend on,
     this `cargo update` fails to resolve. We do NOT crash here — the same
-    resolution error resurfaces in `cargo build` during validate(), which IS
-    routed to the repair loop so the agent can fix src/native/Cargo.toml.
+    resolution error resurfaces in `cargo build` during validate_native(), which
+    IS routed to the repair loop so the agent can fix src/native/Cargo.toml.
     """
     pkgs = _libdatadog_package_names()
     cmd = ["cargo", "update", "--manifest-path", str(CARGO_TOML)]
@@ -262,33 +262,60 @@ def sync_rust_minimum_version(target_rev: str) -> str | None:
 # --------------------------------------------------------------------------- #
 # Phase 3 — validate
 # --------------------------------------------------------------------------- #
-def validate(skip_python: bool) -> list[RunResult]:
-    """Run the cargo (and optionally python) validation suite.
+def validate_native() -> None:
+    """Run the cargo validation suite — the repairable signal.
 
-    Raises StepError on the first failing step so the caller can route to the
-    repair loop with the failing command's output.
+    Raises StepError on the first failing step so the caller can route it to the
+    repair loop. This is native-code only: every failure here is something the
+    agent can plausibly fix by editing src/native.
     """
-    results: list[RunResult] = []
-    cargo_steps = [
+    for label, cmd in (
         ("cargo-build", ["cargo", "build", "--all-features"]),
         ("cargo-fmt", ["cargo", "fmt", "--all", "--", "--check"]),
         ("cargo-clippy", ["cargo", "clippy", "--all-features", "--", "-D", "warnings"]),
         ("cargo-test", ["cargo", "test", "--no-fail-fast", "--locked"]),
-    ]
-    for label, cmd in cargo_steps:
-        results.append(run(label, cmd, cwd=NATIVE_DIR))
+    ):
+        run(label, cmd, cwd=NATIVE_DIR)
 
-    if not skip_python:
-        # Build + import smoke. Heavier suites run in CI once the PR exists.
-        results.append(run("pip-install", [sys.executable, "-m", "pip", "install", "-e", "."], cwd=REPO_ROOT))
-        results.append(
-            run(
-                "native-import-smoke",
-                [sys.executable, "-c", "import ddtrace.internal.native; print('native import OK')"],
-                cwd=REPO_ROOT,
-            )
-        )
-    return results
+
+def _python_with_pip() -> str | None:
+    """A real interpreter that has pip, or None.
+
+    NOT sys.executable: under `uv run --script` that's an ephemeral env without
+    pip, so installing the project with it fails spuriously.
+    """
+    self_py = Path(sys.executable).resolve()
+    for cand in ("python3", "python", "python3.12", "python3.11"):
+        path = shutil.which(cand)
+        if not path or Path(path).resolve() == self_py:
+            continue
+        if run("python-pip-check", [path, "-m", "pip", "--version"], check=False).ok:
+            return path
+    return None
+
+
+def validate_python() -> bool:
+    """Best-effort build + import smoke. Returns False on a real failure.
+
+    Deliberately NOT routed to the repair loop: a pip/venv problem is an
+    environment issue, not a libdatadog API change. The comprehensive Python
+    suite runs in PR CI anyway; this is just an early ABI smoke. Skips (returns
+    True) when no pip-capable interpreter is available.
+    """
+    py = _python_with_pip()
+    if not py:
+        print("\n[python-smoke] no pip-capable interpreter found; skipping (full suite runs in PR CI).")
+        return True
+    if not run("pip-install", [py, "-m", "pip", "install", "-e", "."], cwd=REPO_ROOT, check=False).ok:
+        print("\n[python-smoke] `pip install -e .` failed — see log; not treated as a native-build failure.")
+        return False
+    smoke = run(
+        "native-import-smoke",
+        [py, "-c", "import ddtrace.internal.native; print('native import OK')"],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    return smoke.ok
 
 
 # --------------------------------------------------------------------------- #
@@ -432,15 +459,14 @@ def _repair_prompt(failure: StepError, target_rev: str, log_path: Path) -> str:
     )
 
 
-def repair_loop(
-    failure: StepError, target_rev: str, max_iterations: int, artifacts: Path, *, skip_python: bool
-) -> bool:
-    """Attempt to fix build/test breakage from libdatadog API changes.
+def repair_loop(failure: StepError, target_rev: str, max_iterations: int, artifacts: Path) -> bool:
+    """Attempt to fix native build breakage from libdatadog API changes.
 
     Each iteration: invoke Claude (constrained to src/native + setup.py), revert
-    any out-of-scope edits, then re-run validate() — the deterministic gate the
-    agent cannot influence. Returns True once validate() passes, else False after
-    max_iterations.
+    any out-of-scope edits, then re-run validate_native() — the deterministic
+    gate the agent cannot influence. Returns True once it passes, else False
+    after max_iterations. Only native (cargo) failures are repaired; environment
+    issues (e.g. pip) are never routed here.
     """
     if not _claude_available():
         return False
@@ -470,7 +496,7 @@ def repair_loop(
         _revert_changes_outside_allowed()
 
         try:
-            validate(skip_python=skip_python)
+            validate_native()
             print(f"\n[repair] converged after {i} iteration(s).")
             return True
         except StepError as exc:
@@ -531,20 +557,22 @@ def main() -> int:
     if rust_version:
         summary_lines.append(f"- Bumped `RUST_MINIMUM_VERSION` to `{rust_version}` (from libdatadog's toolchain).")
 
+    # Native (cargo) validation — the repairable signal. Only failures here are
+    # routed to the AI repair loop.
     converged = True
     repaired = False
     try:
-        validate(skip_python=args.skip_python)
+        validate_native()
     except StepError as exc:
         (artifacts / f"{exc.label}.log").write_text(exc.output)
         print(f"\nValidation failed at {exc.label!r}; entering repair loop.")
         # Phase 5 ---------------------------------------------------------- #
-        converged = repair_loop(exc, target_rev, args.max_repair_iterations, artifacts, skip_python=args.skip_python)
+        converged = repair_loop(exc, target_rev, args.max_repair_iterations, artifacts)
         repaired = converged
         if not converged:
             summary_lines += [
                 "",
-                f"> ⚠️ **Validation FAILED** at `{exc.label}` and automated repair did not converge "
+                f"> ⚠️ **Native build FAILED** at `{exc.label}` and automated repair did not converge "
                 f"after {args.max_repair_iterations} attempt(s). Opened as a **draft** for a human to finish. "
                 "See the `repair-*` / `*-after-repair-*` logs in the job artifacts.",
             ]
@@ -553,6 +581,11 @@ def main() -> int:
             f"- Build initially broke and was auto-repaired by Claude "
             f"({args.max_repair_iterations}-attempt cap). **Scrutinize the src/native diff.**"
         )
+
+    # Python smoke — best-effort, NOT routed to repair (env issue ≠ API change).
+    # The comprehensive Python suite runs in PR CI.
+    if converged and not args.skip_python and not validate_python():
+        summary_lines.append("- ⚠️ Python import smoke did not pass — verify the native ABI in PR CI.")
 
     # Phase 4 -------------------------------------------------------------- #
     note = write_release_note(target_rev)

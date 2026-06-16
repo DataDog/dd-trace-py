@@ -71,10 +71,12 @@ include:
       export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
       export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
       export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-update\nx-dd-tag-dd.team: apm-python'
-      # PR creation disabled while we validate the rest of the flow. --no-push runs
-      # the full bump -> validate -> repair -> commit, but skips `git push` and
-      # `gh pr create` (it prints the command instead). Drop --no-push to go live.
-      scripts/update-libdatadog.py --no-push
+      # --no-push: PR creation disabled while we validate the rest of the flow
+      #   (runs the full bump -> validate -> repair -> commit; prints the gh command).
+      # --skip-python: cargo is the real native signal here; the full Python suite
+      #   runs in PR CI (and `pip install -e .` isn't viable from this uv env).
+      # Drop these flags to go live.
+      scripts/update-libdatadog.py --no-push --skip-python
   artifacts:
     when: always
     paths:
