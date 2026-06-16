@@ -3502,6 +3502,13 @@
         "default": null
       }
     ],
+    "DD_TEST_MANAGEMENT_ATF_ALL_FLAKY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES": [
       {
         "implementation": "A",
