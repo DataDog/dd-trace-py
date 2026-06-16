@@ -605,7 +605,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 // for cases where the thread is being restarted after a fork to preserve the
 // existing next trigger time).
 static PyObject*
-_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool wait_until_started = true)
 {
     // AIDEV-NOTE: PyRef is constructed before the lock — it only requires the
     // GIL (held here), not _thread_mutex. This keeps self alive across the
@@ -787,12 +787,14 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
 
     } // _thread_mutex released here — before blocking on _started.
 
-    // Wait for the thread to start. Outside the lock: the new thread sets
-    // _started while we wait, so holding _thread_mutex here would deadlock.
-    {
-        AllowThreads _(self->_state);
+    if (wait_until_started) {
+        // Wait for the thread to start. Outside the lock: the new thread sets
+        // _started while we wait, so holding _thread_mutex here would deadlock.
+        {
+            AllowThreads _(self->_state);
 
-        self->_started->wait();
+            self->_started->wait();
+        }
     }
 
     Py_RETURN_NONE;
@@ -995,7 +997,12 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // preserve _next_call_time from before the fork. This ensures that
         // a restarted thread fires at the same time it would have without
         // the fork, rather than being pushed back by a full interval.
-        PyObject* started = _PeriodicThread_do_start(self);
+        //
+        // The child path runs from os.register_at_fork(after_in_child=...)
+        // before application code resumes, so it must not block waiting for the
+        // replacement thread to start. The parent path passes force=True and
+        // still waits so parent services are fully restored before continuing.
+        PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
         if (started == NULL)
             return NULL;
         Py_DECREF(started);

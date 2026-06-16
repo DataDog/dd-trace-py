@@ -162,26 +162,15 @@ def _after_fork_child():
 
     _forking = False
 
-    # Keep child at-fork work minimal for services that opt out of child-side
-    # restart. Parent process threads are still restarted in _after_fork_parent()
-    # below.
+    # Keep child at-fork work minimal: thread restarts happen asynchronously in
+    # the child so application code can resume immediately after fork. Parent
+    # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
-        child_autorestart = getattr(thread, "__dd_child_autorestart__", True)
-        log.debug(
-            "%s thread %s after fork in child",
-            "Restarting" if child_autorestart else "Cleaning up",
-            thread.name,
-        )
-        autorestart = getattr(thread, "__autorestart__", True)
+        log.debug("Restarting thread %s after fork in child", thread.name)
         try:
-            if not child_autorestart:
-                thread.__autorestart__ = False
             thread._after_fork(force=False)
         except Exception as e:
-            log.error("failed to refresh periodic thread %s after fork in child: %s", thread.name, e)
-        finally:
-            if not child_autorestart:
-                thread.__autorestart__ = autorestart
+            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
