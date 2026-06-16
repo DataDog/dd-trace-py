@@ -19,6 +19,9 @@
     name: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   timeout: 15m
   rules:
+    # Auto-run when an upstream pipeline (e.g. libdatadog) triggers us with this
+    # variable set; otherwise stays a manual ▶ button.
+    - if: '$UPDATE_LIBDATADOG_VERSION == "true"'
     - when: manual
       allow_failure: true
   script:
