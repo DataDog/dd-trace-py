@@ -411,6 +411,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
         ),
+        "_llmobs_sample_rate": _ConfigItem(
+            default=1.0,
+            envs=["DD_LLMOBS_SAMPLE_RATE"],
+            modifier=float,
+        ),
     }
 
 
@@ -685,7 +690,6 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
