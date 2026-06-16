@@ -37,6 +37,8 @@ typedef struct periodic_thread PeriodicThread;
 // Forward declarations for module callbacks defined later in this file.
 static PyObject*
 _threads_at_exit(PyObject* module, PyObject* args);
+static PyObject*
+_threads_pending_threads(PyObject* module, PyObject* args);
 static int
 _threads_exec(PyObject* module);
 static int
@@ -70,6 +72,7 @@ struct module_state
     // Private list of PeriodicThread objects that have been restarted
     // asynchronously in a forked child but have not registered a new thread id.
     PyObject* pending_periodic_threads{ nullptr };
+    std::mutex pending_periodic_threads_mutex;
 
     // Sentinel returned by a periodic target to request a clean stop of the
     // loop without error. Checked by PeriodicThread__periodic after each call.
@@ -88,6 +91,7 @@ struct module_state
 // ----------------------------------------------------------------------------
 static PyMethodDef _threads_methods[] = {
     { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { "_pending_threads", _threads_pending_threads, METH_NOARGS, "Return pending periodic thread restart snapshot" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
@@ -508,15 +512,27 @@ remove_periodic_thread_entries_for_self(PyObject* periodic_threads, PeriodicThre
 
 // ----------------------------------------------------------------------------
 static int
-remove_pending_periodic_thread(PyObject* pending_periodic_threads, PeriodicThread* self)
+append_pending_periodic_thread(module_state* state, PeriodicThread* self)
 {
-    if (pending_periodic_threads == NULL)
+    if (state == nullptr || state->pending_periodic_threads == NULL)
         return 0;
 
-    Py_ssize_t size = PyList_GET_SIZE(pending_periodic_threads);
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    return PyList_Append(state->pending_periodic_threads, (PyObject*)self);
+}
+
+// ----------------------------------------------------------------------------
+static int
+remove_pending_periodic_thread(module_state* state, PeriodicThread* self)
+{
+    if (state == nullptr || state->pending_periodic_threads == NULL)
+        return 0;
+
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    Py_ssize_t size = PyList_GET_SIZE(state->pending_periodic_threads);
     for (Py_ssize_t i = size - 1; i >= 0; i--) {
-        PyObject* item = PyList_GET_ITEM(pending_periodic_threads, i); // Borrowed reference.
-        if (item == (PyObject*)self && PySequence_DelItem(pending_periodic_threads, i) < 0)
+        PyObject* item = PyList_GET_ITEM(state->pending_periodic_threads, i); // Borrowed reference.
+        if (item == (PyObject*)self && PySequence_DelItem(state->pending_periodic_threads, i) < 0)
             return -1;
     }
 
@@ -728,7 +744,7 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                                 PyErr_Clear();
                         }
                         if (state->pending_periodic_threads != NULL) {
-                            if (remove_pending_periodic_thread(state->pending_periodic_threads, self) < 0)
+                            if (remove_pending_periodic_thread(state, self) < 0)
                                 PyErr_Clear();
                         }
 
@@ -1063,7 +1079,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // parent path (force=True) still waits.
         bool pending_restart_registered = false;
         if (!force && self->_state != nullptr && self->_state->pending_periodic_threads != NULL) {
-            if (PyList_Append(self->_state->pending_periodic_threads, (PyObject*)self) == 0)
+            if (append_pending_periodic_thread(self->_state, self) == 0)
                 pending_restart_registered = true;
             else
                 PyErr_Clear();
@@ -1072,7 +1088,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
         if (started == NULL) {
             if (pending_restart_registered) {
-                if (remove_pending_periodic_thread(self->_state->pending_periodic_threads, self) < 0)
+                if (remove_pending_periodic_thread(self->_state, self) < 0)
                     PyErr_Clear();
             }
             return NULL;
@@ -1233,8 +1249,11 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
     if (state != nullptr && state->periodic_threads != NULL) {
         PyObject* threads = PyDict_Values(state->periodic_threads);
         if (threads != NULL) {
-            if (state->pending_periodic_threads != NULL && PyList_Extend(threads, state->pending_periodic_threads) < 0)
-                PyErr_Clear();
+            if (state->pending_periodic_threads != NULL) {
+                std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+                if (PyList_Extend(threads, state->pending_periodic_threads) < 0)
+                    PyErr_Clear();
+            }
 
             Py_ssize_t n = PyList_Size(threads);
 
@@ -1278,6 +1297,18 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
         state->at_exit.store(true, std::memory_order_release);
 
     Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+_threads_pending_threads(PyObject* module, PyObject* Py_UNUSED(args))
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+    if (state == nullptr || state->pending_periodic_threads == NULL)
+        return PyList_New(0);
+
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    return PyList_GetSlice(state->pending_periodic_threads, 0, PyList_GET_SIZE(state->pending_periodic_threads));
 }
 
 // ----------------------------------------------------------------------------

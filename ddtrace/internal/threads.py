@@ -202,10 +202,10 @@ def _before_fork() -> None:
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())
-    # Workers restarted non-blockingly in a forked child live here until their
-    # replacement thread registers a real id. getattr (not a direct import)
-    # avoids editing the .pyi stub and tolerates an out-of-date native build.
-    _threads_to_restart_after_fork.update(getattr(_threads_mod, "_pending_periodic_threads", ()))
+    # Workers restarted non-blockingly in a forked child live in the native
+    # pending snapshot until their replacement thread registers a real id.
+    pending_threads = getattr(_threads_mod, "_pending_threads", lambda: ())()
+    _threads_to_restart_after_fork.update(pending_threads)
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
