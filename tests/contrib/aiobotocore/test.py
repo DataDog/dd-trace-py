@@ -482,25 +482,23 @@ async def test_sqs_client_peer_service_in_lambda(tracer, test_spans, monkeypatch
 
 @pytest.mark.asyncio
 async def test_s3_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
-    """Test that peer.service tag is set for S3 when running in AWS Lambda"""
+    """peer.service is set to bucket name when Bucket param is present"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
     bucket_name = f"{time.time()}bucket".replace(".", "")
 
     async with aiobotocore_client("s3", tracer) as s3:
-        # Test with bucket parameter
         await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
-    # Should have peer.service set to bucket-specific hostname
-    assert span.get_tag("peer.service") == f"{bucket_name}.s3.us-west-2.amazonaws.com"
+    assert span.get_tag("peer.service") == bucket_name
 
 
 @pytest.mark.asyncio
 async def test_dynamodb_client_peer_service_in_lambda(tracer, test_spans, monkeypatch):
-    """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
+    """peer.service falls back to hostname when no TableName param is present"""
     monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
 
     async with aiobotocore_client("dynamodb", tracer) as dynamodb:
@@ -510,7 +508,6 @@ async def test_dynamodb_client_peer_service_in_lambda(tracer, test_spans, monkey
     assert len(traces) == 1
     assert len(traces[0]) == 1
     span = traces[0][0]
-    # Should have peer.service set to dynamodb hostname
     assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
 
 
@@ -560,3 +557,74 @@ async def test_eventbridge_client_peer_service_in_lambda(tracer, test_spans, mon
     span = traces[0][0]
     # Should have peer.service set to events hostname
     assert span.get_tag("peer.service") == "events.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_sqs_client_peer_service_resource_name_in_lambda(tracer, test_spans, monkeypatch):
+    """peer.service is set to queue name when QueueUrl is present"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("sqs", tracer) as sqs:
+        queue_url = (await sqs.create_queue(QueueName="my-test-queue"))["QueueUrl"]
+        test_spans.pop_traces()  # discard setup span
+
+        await sqs.send_message(QueueUrl=queue_url, MessageBody="hello")
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    span = traces[0][0]
+    assert span.get_tag("peer.service") == "my-test-queue"
+
+
+@pytest.mark.asyncio
+async def test_kinesis_client_peer_service_resource_name_in_lambda(tracer, test_spans, monkeypatch):
+    """peer.service is set to stream name when StreamName is present"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("kinesis", tracer) as kinesis:
+        await kinesis.create_stream(StreamName="my-stream", ShardCount=1)
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    span = traces[0][0]
+    assert span.get_tag("peer.service") == "my-stream"
+
+
+@pytest.mark.asyncio
+async def test_sns_client_peer_service_resource_name_in_lambda(tracer, test_spans, monkeypatch):
+    """peer.service is set to topic name when TopicArn is present"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("sns", tracer) as sns:
+        topic_arn = (await sns.create_topic(Name="my-topic"))["TopicArn"]
+        test_spans.pop_traces()  # discard setup span
+
+        await sns.publish(TopicArn=topic_arn, Message="hello")
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    span = traces[0][0]
+    assert span.get_tag("peer.service") == "my-topic"
+
+
+@pytest.mark.asyncio
+async def test_eventbridge_client_peer_service_resource_name_in_lambda(tracer, test_spans, monkeypatch):
+    """peer.service is set to event bus name when EventBusName is present in entries"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("events", tracer) as events:
+        await events.put_events(
+            Entries=[
+                {
+                    "Source": "my.app",
+                    "DetailType": "test",
+                    "Detail": "{}",
+                    "EventBusName": "my-event-bus",
+                }
+            ]
+        )
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    span = traces[0][0]
+    assert span.get_tag("peer.service") == "my-event-bus"

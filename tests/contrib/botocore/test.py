@@ -3459,36 +3459,59 @@ class BotocoreTest(TracerTestCase):
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_sqs_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for SQS when running in AWS Lambda"""
+        """peer.service falls back to hostname when no queue URL/name is present"""
         sqs = self.session.create_client("sqs", region_name="us-east-1")
 
         sqs.list_queues()
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to sqs hostname
         assert span.get_tag("peer.service") == "sqs.us-east-1.amazonaws.com"
+
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_sqs_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to queue name when QueueUrl is present"""
+        sqs = self.session.create_client("sqs", region_name="us-east-1")
+        queue_url = sqs.create_queue(QueueName="my-test-queue")["QueueUrl"]
+        self.reset()
+
+        sqs.send_message(QueueUrl=queue_url, MessageBody="hello")
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-test-queue"
 
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_s3_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for S3 when running in AWS Lambda"""
+        """peer.service is set to bucket name when Bucket param is present"""
         s3 = self.session.create_client("s3", region_name="us-east-1")
 
-        # Test with bucket parameter
         s3.create_bucket(Bucket="test-bucket")
         spans = self.get_spans()
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to bucket-specific hostname
-        assert span.get_tag("peer.service") == "test-bucket.s3.us-east-1.amazonaws.com"
+        assert span.get_tag("peer.service") == "test-bucket"
+
+    @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_s3_client_peer_service_no_bucket_in_lambda(self):
+        """peer.service falls back to hostname when no Bucket param is present"""
+        s3 = self.session.create_client("s3", region_name="us-east-1")
+
+        s3.list_buckets()
+        spans = self.get_spans()
+        assert spans
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.get_tag("peer.service") == "s3.us-east-1.amazonaws.com"
 
     @mock_dynamodb
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_dynamodb_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
+        """peer.service falls back to hostname when no TableName param is present"""
         dynamodb = self.session.create_client("dynamodb", region_name="us-west-2")
 
         dynamodb.list_tables()
@@ -3496,47 +3519,104 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to dynamodb hostname
         assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
+
+    @mock_dynamodb
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_dynamodb_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to table name when TableName param is present"""
+        dynamodb = self.session.create_client("dynamodb", region_name="us-west-2")
+
+        dynamodb.create_table(
+            TableName="my-table",
+            KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-table"
 
     @mock_kinesis
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_kinesis_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for Kinesis when running in AWS Lambda"""
+        """peer.service falls back to hostname when no stream name is present"""
         kinesis = self.session.create_client("kinesis", region_name="us-east-1")
 
         kinesis.list_streams()
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to kinesis hostname
         assert span.get_tag("peer.service") == "kinesis.us-east-1.amazonaws.com"
+
+    @mock_kinesis
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_kinesis_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to stream name when StreamName is present"""
+        kinesis = self.session.create_client("kinesis", region_name="us-east-1")
+
+        kinesis.create_stream(StreamName="my-stream", ShardCount=1)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-stream"
 
     @mock_sns
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_sns_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for SNS when running in AWS Lambda"""
+        """peer.service falls back to hostname when no topic ARN is present"""
         sns = self.session.create_client("sns", region_name="us-west-2")
 
         sns.list_topics()
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to sns hostname
         assert span.get_tag("peer.service") == "sns.us-west-2.amazonaws.com"
+
+    @mock_sns
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_sns_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to topic name when TopicArn is present"""
+        sns = self.session.create_client("sns", region_name="us-west-2")
+        topic_arn = sns.create_topic(Name="my-topic")["TopicArn"]
+        self.reset()
+
+        sns.publish(TopicArn=topic_arn, Message="hello")
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-topic"
 
     @mock_events
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_eventbridge_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
+        """peer.service falls back to hostname when no event bus name is present"""
         events = self.session.create_client("events", region_name="us-east-1")
 
         events.list_rules()
         spans = self.get_spans()
         assert spans
-        assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to events hostname
         assert span.get_tag("peer.service") == "events.us-east-1.amazonaws.com"
+
+    @mock_events
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_eventbridge_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to event bus name when EventBusName is present in entries"""
+        events = self.session.create_client("events", region_name="us-east-1")
+
+        events.put_events(
+            Entries=[
+                {
+                    "Source": "my.app",
+                    "DetailType": "test",
+                    "Detail": "{}",
+                    "EventBusName": "my-event-bus",
+                }
+            ]
+        )
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-event-bus"

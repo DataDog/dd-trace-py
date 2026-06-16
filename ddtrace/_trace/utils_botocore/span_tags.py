@@ -28,33 +28,82 @@ SERVICE_MAP = {
 }
 
 
-# Helper to build AWS hostname from service, region and parameters
-def _derive_peer_hostname(service: str, region: str, params: Optional[dict[str, Any]] = None) -> Optional[str]:
-    """Return hostname for given AWS service according to Datadog peer hostname rules.
+def _derive_peer_service_name(endpoint_name: str, params: Optional[dict[str, Any]]) -> Optional[str]:
+    """Return the logical resource name to use as peer.service for known AWS services.
 
-    Only returns hostnames for specific AWS services:
-        - eventbridge/events -> events.<region>.amazonaws.com
-        - sqs               -> sqs.<region>.amazonaws.com
-        - sns               -> sns.<region>.amazonaws.com
-        - kinesis           -> kinesis.<region>.amazonaws.com
-        - dynamodb          -> dynamodb.<region>.amazonaws.com
-        - s3                -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
-                              s3.<region>.amazonaws.com          (otherwise)
-
-    Other services return ``None``.
+    - sqs               -> queue name (last segment of QueueUrl, or QueueName)
+    - sns               -> topic name (last segment of TopicArn)
+    - kinesis           -> stream name (StreamName)
+    - events/eventbridge -> event bus name (EventBusName from params or first entry)
+    - states            -> state machine name (last segment of stateMachineArn)
+    - s3                -> bucket name (Bucket)
+    - dynamodb          -> table name (TableName)
+    - lambda            -> function name (FunctionName)
+    - cloudwatch        -> log group name (logGroupName)
+    - redshift          -> cluster identifier (ClusterIdentifier)
     """
+    if not params:
+        return None
 
+    service = endpoint_name.lower()
+
+    if service == "sqs":
+        queue_url = params.get("QueueUrl", "")
+        if queue_url and (queue_url.startswith("sqs:") or queue_url.startswith("http")):
+            return queue_url.split("/")[-1]
+        return params.get("QueueName") or None
+
+    if service == "sns":
+        topic_arn = params.get("TopicArn", "")
+        if topic_arn:
+            return topic_arn.split(":")[-1]
+        return None
+
+    if service == "kinesis":
+        return params.get("StreamName") or None
+
+    if service in ("events", "eventbridge"):
+        # PutEvents stores the bus name per entry; fall back to top-level EventBusName
+        entries = params.get("Entries")
+        if entries and isinstance(entries, list) and entries[0].get("EventBusName"):
+            return entries[0]["EventBusName"]
+        return params.get("EventBusName") or params.get("Name") or None
+
+    if service == "states":
+        arn = params.get("stateMachineArn", "")
+        if arn:
+            return arn.split(":")[-1]
+        return None
+
+    if service == "s3":
+        return params.get("Bucket") or None
+
+    if service in ("dynamodb", "dynamodbdocument"):
+        return params.get("TableName") or None
+
+    if service == "lambda":
+        return params.get("FunctionName") or None
+
+    if service == "cloudwatch":
+        return params.get("logGroupName") or None
+
+    if service == "redshift":
+        return params.get("ClusterIdentifier") or None
+
+    return None
+
+
+def _derive_peer_hostname(service: str, region: Optional[str]) -> Optional[str]:
+    """Return hostname-based peer.service fallback for services with no resource identifier in params."""
     if not region:
         return None
 
     aws_service = service.lower()
 
     if aws_service == "s3":
-        bucket = params.get("Bucket") if params else None
-        return f"{bucket}.s3.{region}.amazonaws.com" if bucket else f"s3.{region}.amazonaws.com"
+        return f"s3.{region}.amazonaws.com"
 
     mapped = SERVICE_MAP.get(aws_service)
-
     return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
@@ -92,12 +141,12 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         span._set_attribute("region", region_name)
         span._set_attribute("aws.partition", aws.get_aws_partition(region_name))
 
-        # Derive peer hostname only in serverless environments to avoid
-        # unnecessary tag noise in traditional hosts/containers.
-        if in_aws_lambda():
-            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
-            if hostname:
-                span._set_attribute("peer.service", hostname)
+    if in_aws_lambda():
+        peer_service = _derive_peer_service_name(endpoint_name, params) or _derive_peer_hostname(
+            endpoint_name, region_name
+        )
+        if peer_service:
+            span._set_attribute("peer.service", peer_service)
 
 
 def set_botocore_response_metadata_tags(
