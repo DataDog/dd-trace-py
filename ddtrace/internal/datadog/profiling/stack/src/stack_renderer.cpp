@@ -225,8 +225,9 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
         return;
     }
 
-    // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
-    // to the task level, but for now just keep it because this is how the v1 sampler works
+    // TODO- thread-level CPU time is attributed to the first task on a thread (whichever task is
+    // current when render_cpu_time fires).  Per-task CPU time would require intercepting every asyncio/greenlet
+    // context switch and diffing the thread CPU clock at each switch -- a separate effort.
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
     thread_state.has_cpu_time = true;
     sample->push_cputime(thread_state.cpu_time_ns, 1);
