@@ -14,6 +14,9 @@ from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
+_ATF_ALL_FLAKY_ENV_VAR = "DD_TEST_MANAGEMENT_ATF_ALL_FLAKY"
+
+
 class TestAttemptToFix:
     def test_atf_passing_test_retried_fully(self, pytester: Pytester) -> None:
         """Test that an always-passing attempt-to-fix test is retried the full number of times."""
@@ -191,3 +194,108 @@ class TestAttemptToFix:
         assert len(test_events) == 1
         assert test_events[0]["content"]["meta"].get("test.status") == "fail"
         assert test_events[0]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "false"
+
+
+class TestAtfAllFlaky:
+    def test_atf_all_flaky_non_flaky_tests_are_deselected(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode, only tests listed in test_properties run; all others are deselected."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_flaky():
+                assert True
+
+            def test_not_flaky():
+                assert True
+        """
+        )
+
+        flaky_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_flaky")
+        test_properties = {flaky_ref: TestProperties(attempt_to_fix=True)}
+
+        monkeypatch.setenv(_ATF_ALL_FLAKY_ENV_VAR, "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    test_management_properties=test_properties,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        # test_flaky runs with full ATF retries (1 initial + 20 retries)
+        flaky_events = list(event_capture.events_by_test_name("test_flaky"))
+        assert len(flaky_events) == 21
+
+        # test_not_flaky is deselected — no events emitted
+        not_flaky_events = list(event_capture.events_by_test_name("test_not_flaky"))
+        assert len(not_flaky_events) == 0
+
+    def test_atf_all_flaky_passing_test_marked_as_fixed(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode, a test that passes all retries is marked as attempt_to_fix_passed."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_flaky_but_fixed():
+                assert True
+        """
+        )
+
+        flaky_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_flaky_but_fixed")
+        test_properties = {flaky_ref: TestProperties(attempt_to_fix=True)}
+
+        monkeypatch.setenv(_ATF_ALL_FLAKY_ENV_VAR, "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    test_management_properties=test_properties,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        test_events = list(event_capture.events_by_test_name("test_flaky_but_fixed"))
+        assert len(test_events) == 21
+        assert test_events[-1]["content"]["meta"].get("test.test_management.attempt_to_fix_passed") == "true"
+
+    def test_atf_all_flaky_no_flaky_tests_deselects_all(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode with an empty flaky test list, all tests are deselected and none run."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_normal():
+                assert True
+        """
+        )
+
+        monkeypatch.setenv(_ATF_ALL_FLAKY_ENV_VAR, "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    test_management_properties={},
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                pytester.inline_run("--ddtrace", "-v", "-s")
+
+        normal_events = list(event_capture.events_by_test_name("test_normal"))
+        assert len(normal_events) == 0
