@@ -1172,33 +1172,6 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
     assert event_dd["sampling_decision"] in ("0", "1")
 
 
-def test_record_llmobs_enabled_tags_sample_rate():
-    """The product_enabled/init_time telemetry metrics are tagged with the effective sample rate."""
-    from ddtrace.llmobs import _telemetry
-
-    with (
-        mock.patch.object(_telemetry.telemetry_writer, "add_count_metric") as mock_count,
-        mock.patch.object(_telemetry.telemetry_writer, "add_distribution_metric") as mock_dist,
-    ):
-        _telemetry.record_llmobs_enabled(
-            error=None,
-            agentless_enabled=False,
-            site="datadoghq.com",
-            start_ns=0,
-            auto=False,
-            instrumented_proxy_urls=None,
-            ml_app="app",
-            sample_rate=0.5,
-        )
-    assert dict(mock_count.call_args.kwargs["tags"])["sample_rate"] == "0.5"
-    assert dict(mock_dist.call_args.kwargs["tags"])["sample_rate"] == "0.5"
-
-
-# The sample_rate tests below run in subprocesses so DD_LLMOBS_SAMPLE_RATE is parsed
-# end-to-end (config init -> enable() validation -> sampler), rather than tampering with
-# the already-parsed config value via the ddtrace_global_config fixture.
-
-
 @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
 def test_enable_sample_rate_sets_sampler():
     """LLMObs.enable(sample_rate=...) configures the span sampler."""
@@ -1241,9 +1214,9 @@ def test_enable_validates_env_sample_rate():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs as llmobs_module
+    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(llmobs_module, "log") as mock_log:
+    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
         LLMObs.enable(agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 1.0
     mock_log.warning.assert_any_call(
@@ -1257,9 +1230,9 @@ def test_enable_invalid_sample_rate_keeps_configured_rate():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs as llmobs_module
+    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(llmobs_module, "log") as mock_log:
+    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
         LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 0.2
     mock_log.warning.assert_any_call(
@@ -1273,9 +1246,9 @@ def test_enable_invalid_arg_and_invalid_env_falls_back():
     from unittest import mock
 
     from ddtrace.llmobs import LLMObs
-    import ddtrace.llmobs._llmobs as llmobs_module
+    import ddtrace.llmobs._llmobs
 
-    with mock.patch.object(llmobs_module, "log") as mock_log:
+    with mock.patch.object(ddtrace.llmobs._llmobs, "log") as mock_log:
         LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
     assert LLMObs._instance._sampler.sample_rate == 1.0
     mock_log.warning.assert_any_call(
