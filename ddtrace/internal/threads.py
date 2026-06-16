@@ -1,6 +1,7 @@
 from time import monotonic_ns
 import typing as t
 
+from ddtrace.internal import _threads as _threads_mod
 from ddtrace.internal import forksafe
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
@@ -44,11 +45,6 @@ class BoundMethod(t.Protocol):
     __self__: t.Any
 
     def __call__(self) -> None: ...
-
-
-class ForkRestartPolicy(t.Protocol):
-    __autorestart__: bool
-    __dd_child_autorestart__: bool
 
 
 # List of threads that have requested to be started while forking. These will
@@ -172,18 +168,10 @@ def _after_fork_child():
     # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Restarting thread %s after fork in child", thread.name)
-        restart_policy = t.cast(ForkRestartPolicy, thread)
-        autorestart = getattr(restart_policy, "__autorestart__", True)
-        child_autorestart = getattr(restart_policy, "__dd_child_autorestart__", True)
         try:
-            if not child_autorestart:
-                restart_policy.__autorestart__ = False
             thread._after_fork(force=False)
         except Exception as e:
             log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
-        finally:
-            if not child_autorestart:
-                restart_policy.__autorestart__ = autorestart
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
@@ -214,6 +202,10 @@ def _before_fork() -> None:
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())
+    # Workers restarted non-blockingly in a forked child live here until their
+    # replacement thread registers a real id. getattr (not a direct import)
+    # avoids editing the .pyi stub and tolerates an out-of-date native build.
+    _threads_to_restart_after_fork.update(getattr(_threads_mod, "_pending_periodic_threads", ()))
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads

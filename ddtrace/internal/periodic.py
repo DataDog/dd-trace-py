@@ -8,29 +8,18 @@ from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.threads import RLock
 
 
-class ForkRestartPolicy(typing.Protocol):
-    __dd_child_autorestart__: bool
-
-
 class PeriodicService(service.Service):
     """A service that runs periodically.
 
     It automatically resumes its execution after a fork.
     """
 
-    def __init__(
-        self,
-        interval: float = 0.0,
-        no_wait_at_start: bool = False,
-        autorestart: bool = True,
-        child_autorestart: bool = True,
-    ) -> None:
+    def __init__(self, interval: float = 0.0, no_wait_at_start: bool = False, autorestart: bool = True) -> None:
         super().__init__()
         self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None
         self._no_wait_at_start = no_wait_at_start
         self._autorestart = autorestart
-        self._child_autorestart = child_autorestart
 
     @property
     def interval(self):
@@ -59,7 +48,6 @@ class PeriodicService(service.Service):
             no_wait_at_start=self._no_wait_at_start,
         )
         self._worker.__autorestart__ = self._autorestart
-        typing.cast(ForkRestartPolicy, self._worker).__dd_child_autorestart__ = self._child_autorestart
         self._worker.start()
 
     def _stop_service(self, *args, **kwargs):
