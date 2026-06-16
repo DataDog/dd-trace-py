@@ -87,9 +87,10 @@ TEST_FRAMEWORK = "pytest"
 _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
 
 # Out-of-session retries (OSR): after the main test session finishes (and all fixtures, including session-scoped ones,
-# have been torn down), a randomly-chosen subset of the tests that ultimately failed is re-run once each in a brand new
-# session within the same pytest process. This gives a "clean slate" retry for flaky tests that leak state and would
-# therefore fail every in-session ATR retry. Enabled by default; the env var is a safety kill switch only.
+# have been torn down), a randomly-chosen subset of the tests that exhausted Auto Test Retries (failed every in-session
+# ATR attempt) is re-run once each in a brand new session within the same pytest process. This gives a "clean slate"
+# retry for tests that leak state and would therefore fail every in-session ATR retry. Because OSR targets ATR-exhausted
+# failures, it only does anything when ATR is enabled. Enabled by default; the env var is a safety kill switch only.
 _OSR_ENABLED_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"
 _OSR_COUNT_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRY_COUNT"
 _OSR_DEFAULT_MAX_TESTS = 5
@@ -736,17 +737,23 @@ class TestOptPlugin:
     def _is_osr_candidate(self, test: Test, retry_handler: t.Optional[RetryHandler]) -> bool:
         """Return whether a finished test is eligible to be retried out of session.
 
-        Eligible tests are plain failures and ATR-exhausted failures: those are the ones that can leak state and fail
-        every in-session retry, which OSR's clean-slate re-run is meant to catch. Quarantined, disabled, attempt-to-fix
-        and Early Flake Detection tests have their own retry/handling semantics and are excluded.
+        Only ATR-exhausted failures qualify: the test was retried by Auto Test Retries and failed *every* in-session
+        attempt. ATR stops as soon as any attempt passes, so a test that is still failing after ATR is exhausted is
+        failing consistently (not flaky/intermittent within the session) — yet it may still be a state leak that a
+        clean-slate rerun in a fresh session can clear. This is the only "not flaky" signal we can derive: there is no
+        general backend flag for it. Tests we *do* know are special-cased — quarantined, disabled — are excluded, as
+        are tests owned by another retry policy (Early Flake Detection, attempt-to-fix), which is why the handler must
+        be ATR. (ATR being the applicable handler already implies the test is not new/EFD-eligible.)
         """
         if test.get_status() != TestStatus.FAIL:
             return False
-        if test.is_quarantined() or test.is_disabled() or test.is_attempt_to_fix():
+        if not isinstance(retry_handler, AutoTestRetriesHandler):
             return False
-        if retry_handler is not None and not isinstance(retry_handler, AutoTestRetriesHandler):
+        if test.is_quarantined() or test.is_disabled():
             return False
-        return True
+        # Require that ATR actually retried the test (and it still failed), i.e. it is genuinely exhausted rather than,
+        # e.g., configured with zero retries.
+        return len(test.test_runs) > 1
 
     def _mark_reports_as_osr(self, reports: _ReportGroup) -> None:
         """Mark a re-run's report as 'rerun' so it does not change pytest's pass/fail tally.
