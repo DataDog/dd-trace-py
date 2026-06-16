@@ -17,11 +17,15 @@ import json
 
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.hook import HookContext
+import pytest
 
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentState
 from ddtrace.internal.openfeature._span_enrichment import encode_delta_varint
 from ddtrace.internal.openfeature._span_enrichment import hash_targeting_key
+from tests.openfeature.config_helpers import create_boolean_flag
+from tests.openfeature.config_helpers import create_config
+from tests.openfeature.config_helpers import create_string_flag
 
 
 def _decode_delta_varint(encoded: str) -> set:
@@ -122,12 +126,56 @@ class TestSpanEnrichmentState:
         assert state._defaults["flag-0"] == "v0"
 
     def test_runtime_default_detection_missing_variant_object_json_stringified(self):
-        # Object default -> json.dumps (NOT str(dict) / "[object Object]").
+        # Object default -> JSON.stringify (NOT str(dict) / "[object Object]").
+        # Node JSON.stringify is COMPACT (no spaces): {"a":1,"b":[2,3]}. The exact
+        # bytes are spelled out so this test documents the wire format / catches a
+        # regression to Python's space-after-colon json.dumps default.
         state = SpanEnrichmentState()
         state.add_default("obj-flag", {"a": 1, "b": [2, 3]})
         stored = state._defaults["obj-flag"]
-        assert stored == json.dumps({"a": 1, "b": [2, 3]})
+        assert stored == '{"a":1,"b":[2,3]}'
         assert json.loads(stored) == {"a": 1, "b": [2, 3]}
+
+    def test_default_value_null_renders_node_null(self):
+        # WR-01 parity: Node String(null) -> "null". Python str(None) -> "None".
+        # A found-but-default flag whose resolved value is None (FlagDisabled /
+        # DefaultAllocationNull) MUST serialize "null" to match the Node wire byte.
+        state = SpanEnrichmentState()
+        state.add_default("null-flag", None)
+        assert state._defaults["null-flag"] == "null"
+
+    def test_default_value_bool_renders_node_lowercase(self):
+        # WR-01 parity: Node String(true)/String(false) -> "true"/"false".
+        # Python str(True)/str(False) -> "True"/"False" (capitalized) -- diverges.
+        state = SpanEnrichmentState()
+        state.add_default("bool-true", True)
+        state.add_default("bool-false", False)
+        assert state._defaults["bool-true"] == "true"
+        assert state._defaults["bool-false"] == "false"
+
+    def test_default_value_list_renders_compact_json(self):
+        # WR-01 parity: array default -> compact JSON.stringify ([1,"a",true]),
+        # NOT Python's str(list) ("[1, 'a', True]") and NOT space-padded json.
+        state = SpanEnrichmentState()
+        state.add_default("list-flag", [1, "a", True])
+        assert state._defaults["list-flag"] == '[1,"a",true]'
+
+    def test_default_value_nested_object_with_bool_and_null_compact(self):
+        # Nested structures route through json.dumps, so inner bool/null already
+        # render as JSON true/false/null -- verify the full compact byte string.
+        state = SpanEnrichmentState()
+        state.add_default("nested", {"on": True, "off": False, "x": None, "n": 3})
+        assert state._defaults["nested"] == '{"on":true,"off":false,"x":null,"n":3}'
+
+    def test_default_value_number_and_string_unchanged(self):
+        # WR-01: numbers and strings already match Node's String(); leave as str().
+        state = SpanEnrichmentState()
+        state.add_default("int-flag", 42)
+        state.add_default("float-flag", 3.5)
+        state.add_default("str-flag", "hello")
+        assert state._defaults["int-flag"] == "42"
+        assert state._defaults["float-flag"] == "3.5"
+        assert state._defaults["str-flag"] == "hello"
 
     def test_default_value_truncated_to_64_chars(self):
         state = SpanEnrichmentState()
@@ -142,6 +190,50 @@ class TestSpanEnrichmentState:
         assert len(value) <= SpanEnrichmentState.MAX_DEFAULT_VALUE_LENGTH
         # round-trips through utf-8 cleanly (no lone surrogate / broken byte)
         assert value.encode("utf-8").decode("utf-8") == value
+
+    def test_default_value_truncation_counts_utf16_units_like_node(self):
+        # WR-02 parity: Node slice(0,64) counts UTF-16 CODE UNITS. Each astral
+        # code point (e.g. "🎉" U+1F389) is a surrogate PAIR = 2 UTF-16 units, so
+        # Node keeps 64/2 = 32 emoji. Python str[:64] would keep 64 code points
+        # (64 emoji) -- a byte-for-byte divergence. After the fix we keep 32.
+        state = SpanEnrichmentState()
+        state.add_default("emoji-flag", "🎉" * 100)
+        value = state._defaults["emoji-flag"]
+        assert value == "🎉" * 32
+        # 32 code points here, NOT 64 -- proves UTF-16-unit (not code-point) counting.
+        assert len(value) == 32
+        # The Node-equivalent reference: slice the UTF-16 encoding at 64 units.
+        node_equiv = ("🎉" * 100).encode("utf-16-le")[: 64 * 2].decode("utf-16-le")
+        assert value == node_equiv
+        # Still valid UTF-8 (no lone surrogate left by the pair-aligned cut).
+        assert value.encode("utf-8").decode("utf-8") == value
+
+    def test_default_value_truncation_drops_split_surrogate_stays_valid_utf8(self):
+        # WR-02 edge: when the 64-unit boundary falls in the MIDDLE of a surrogate
+        # pair (a leading BMP char shifts the astral chars by one unit), the lone
+        # high surrogate must be dropped so the result is still valid UTF-8.
+        # "a" (1 unit) + "🎉"*100 (2 units each): unit 64 is the HIGH surrogate of
+        # the 32nd emoji (units 2..63 are emoji 1..31's pairs; wait through it):
+        #   unit 0      = "a"
+        #   units 1..63 = 31 full emoji (62 units) + 1 leftover HIGH surrogate
+        # => keep "a" + 31 emoji, drop the split surrogate.
+        state = SpanEnrichmentState()
+        state.add_default("mixed-flag", "a" + "🎉" * 100)
+        value = state._defaults["mixed-flag"]
+        assert value == "a" + "🎉" * 31
+        # No lone surrogate -> round-trips through utf-8 cleanly.
+        assert value.encode("utf-8").decode("utf-8") == value
+        # Matches the Node slice(0,64) reference exactly.
+        node_equiv = ("a" + "🎉" * 100).encode("utf-16-le")[: 64 * 2].decode("utf-16-le", "ignore")
+        assert value == node_equiv
+
+    def test_default_value_truncation_bmp_unchanged_at_64(self):
+        # Regression guard: pure-BMP content (1 code point == 1 UTF-16 unit) keeps
+        # exactly 64 chars -- the UTF-16 path must not change ASCII/BMP behavior.
+        state = SpanEnrichmentState()
+        state.add_default("ascii-flag", "x" * 200)
+        assert state._defaults["ascii-flag"] == "x" * 64
+        assert len(state._defaults["ascii-flag"]) == 64
 
     def test_has_data(self):
         state = SpanEnrichmentState()
@@ -169,8 +261,9 @@ class TestSpanEnrichmentState:
         assert hash_targeting_key("user-123") in subjects
 
         # ffe_runtime_defaults is a JSON-stringified object {flagKey: valueStr}.
+        # The inner value string is compact JSON.stringify bytes ({"k":"v"}).
         defaults = json.loads(tags["ffe_runtime_defaults"])
-        assert defaults["obj-flag"] == json.dumps({"k": "v"})
+        assert defaults["obj-flag"] == '{"k":"v"}'
 
     def test_to_span_tags_omits_empty(self):
         state = SpanEnrichmentState()
@@ -253,7 +346,8 @@ class TestSpanEnrichmentHook:
                 hook.finally_after(_make_hook_context(flag_key="theme"), details, {})
             raw = root.get_tag("ffe_runtime_defaults")
             assert raw is not None
-            assert json.loads(raw) == {"theme": json.dumps({"color": "blue"})}
+            # Object default rendered via compact JSON.stringify ({"color":"blue"}).
+            assert json.loads(raw) == {"theme": '{"color":"blue"}'}
             assert root.get_tag("ffe_flags_enc") is None
         finally:
             hook.destroy()
@@ -348,3 +442,157 @@ class TestGateOffNegativeControl:
         assert root.get_tag("ffe_flags_enc") is None
         assert root.get_tag("ffe_subjects_enc") is None
         assert root.get_tag("ffe_runtime_defaults") is None
+
+
+class TestRealProviderIntegration:
+    """WR-05: drive the ACTUAL DataDogProvider + OpenFeature client end-to-end so
+    the provider->hook wiring (FlagNotFound -> ffe_runtime_defaults; do_log ->
+    flag_metadata threading) is exercised by the real path, not hand-built dicts.
+
+    Every other hook test in this file constructs FlagEvaluationDetails by hand
+    and calls hook.finally_after directly. None of them prove that the provider
+    actually PRODUCES the details shape the hook contracts on -- a regression in
+    _provider.py (e.g. dropping METADATA_DO_LOG, or changing the FlagNotFound
+    early-return so variant is no longer None) would pass the entire rest of the
+    suite while silently breaking the L2 contract. These tests close that gap by
+    going through api.set_provider (which registers get_provider_hooks() into the
+    client) + client.get_*_details, with BOTH gates on.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_config(self):
+        from ddtrace.internal.openfeature._config import _set_ffe_config
+
+        _set_ffe_config(None)
+        yield
+        _set_ffe_config(None)
+
+    @pytest.fixture
+    def both_gates_on(self):
+        # Provider gate AND span-enrichment gate both on -> get_provider_hooks()
+        # returns the SpanEnrichmentHook, which api.set_provider wires into the
+        # client's finally chain. A low init timeout keeps initialize() from
+        # blocking on Remote Config in the unit environment.
+        from tests.utils import override_global_config
+
+        with override_global_config(
+            {
+                "experimental_flagging_provider_enabled": True,
+                "experimental_flagging_provider_span_enrichment_enabled": True,
+            }
+        ):
+            yield
+
+    def _set_provider_with_config(self, config):
+        """Load an FFE config, set a real DataDogProvider, return a client.
+
+        A config MUST be loaded for the provider to reach READY and for the
+        FlagNotFound branch (vs PROVIDER_NOT_READY) to fire on a missing flag.
+        """
+        from openfeature import api
+
+        from ddtrace.internal.openfeature._native import process_ffe_configuration
+        from ddtrace.openfeature import DataDogProvider
+
+        process_ffe_configuration(config)
+        provider = DataDogProvider(initialization_timeout=0.1)
+        api.set_provider(provider)
+        return provider, api.get_client()
+
+    def test_provider_hook_is_wired_into_client(self, both_gates_on):
+        # Sanity: with both gates on, the span-enrichment hook is constructed and
+        # exposed via get_provider_hooks (the seam api.set_provider consumes).
+        from ddtrace.openfeature import DataDogProvider
+
+        provider = DataDogProvider(initialization_timeout=0.1)
+        try:
+            assert provider._span_enrichment_hook is not None
+            assert provider._span_enrichment_hook in provider.get_provider_hooks()
+        finally:
+            provider._span_enrichment_hook.destroy()
+
+    def test_real_provider_flag_not_found_writes_runtime_defaults(self, both_gates_on):
+        # WR-05 (a): a genuinely-not-found flag goes through the provider's real
+        # FlagNotFound early-return (variant=None, no flag_metadata), the client
+        # invokes the registered span-enrichment finally hook, and the root span
+        # carries ffe_runtime_defaults == {flag_key: String(default_value)}.
+        from openfeature import api
+
+        from ddtrace.trace import tracer
+
+        # Config is loaded (so the provider is READY) but does NOT contain the
+        # queried flag -> the native eval returns FlagNotFound.
+        config = create_config(create_boolean_flag("some-other-flag", enabled=True, default_value=True))
+        _provider, client = self._set_provider_with_config(config)
+        try:
+            with tracer.trace("root") as root:
+                value = client.get_string_value("definitely-missing-flag", "fallback-default")
+                assert value == "fallback-default"  # default returned
+            raw = root.get_tag("ffe_runtime_defaults")
+            assert raw is not None, "FlagNotFound should produce ffe_runtime_defaults via the real hook path"
+            decoded = json.loads(raw)
+            assert decoded == {"definitely-missing-flag": "fallback-default"}
+            # No serial id on a not-found flag -> no flags tag.
+            assert root.get_tag("ffe_flags_enc") is None
+        finally:
+            api.shutdown()
+
+    def test_real_provider_flag_not_found_null_default_renders_node_null(self, both_gates_on):
+        # WR-01 x WR-05: a not-found OBJECT flag whose default is None must render
+        # "null" (Node String(null)) -- the cross-SDK byte the L2 decoder expects --
+        # driven entirely through the real provider + client, not a hand-built dict.
+        from openfeature import api
+
+        from ddtrace.trace import tracer
+
+        config = create_config(create_boolean_flag("unrelated", enabled=True, default_value=True))
+        _provider, client = self._set_provider_with_config(config)
+        try:
+            with tracer.trace("root") as root:
+                # get_object_details with a None default + missing flag -> default None.
+                details = client.get_object_details("missing-object-flag", None)
+                assert details.value is None
+            raw = root.get_tag("ffe_runtime_defaults")
+            assert raw is not None
+            decoded = json.loads(raw)
+            assert decoded == {"missing-object-flag": "null"}
+        finally:
+            api.shutdown()
+
+    def test_real_provider_success_threads_do_log_metadata(self, both_gates_on):
+        # WR-05 (b): on a successful evaluation the provider threads __dd_do_log
+        # into flag_metadata (the field the hook reads to gate subjects). Assert
+        # the SHAPE the provider actually emits -- the exact contract the hook and
+        # the L2 subjects scenario depend on -- via the real resolve path.
+        from openfeature import api
+
+        from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
+
+        config = create_config(create_string_flag("present-flag", "hello", enabled=True))
+        provider, _client = self._set_provider_with_config(config)
+        try:
+            details = provider.resolve_string_details("present-flag", "default")
+            assert details.value == "hello"
+            assert details.variant is not None  # success path -> variant present
+            # The provider lifts native do_log into the OpenFeature flag_metadata
+            # dict that the enrichment hook consumes (test fixtures set doLog=true).
+            assert METADATA_DO_LOG in details.flag_metadata
+            assert details.flag_metadata[METADATA_DO_LOG] is True
+        finally:
+            api.shutdown()
+
+    def test_real_provider_flag_not_found_details_shape(self, both_gates_on):
+        # WR-05: the FlagNotFound FlagResolutionDetails the provider emits has
+        # variant=None (the exact field the hook's runtime-default branch keys on).
+        # Guards against a regression to the early-return shape.
+        from openfeature import api
+        from openfeature.flag_evaluation import Reason
+
+        config = create_config(create_boolean_flag("unrelated2", enabled=True, default_value=True))
+        provider, _client = self._set_provider_with_config(config)
+        try:
+            details = provider.resolve_string_details("nope-not-here", "d")
+            assert details.variant is None
+            assert details.reason == Reason.ERROR
+        finally:
+            api.shutdown()
