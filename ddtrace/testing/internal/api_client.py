@@ -283,6 +283,7 @@ class APIClient:
                             quarantined=props.get("quarantined", False),
                             disabled=props.get("disabled", False),
                             attempt_to_fix=statuses is not None or props.get("attempt_to_fix", False),
+                            active=props.get("active", False),
                         )
 
         except Exception as e:

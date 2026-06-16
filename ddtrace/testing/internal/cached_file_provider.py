@@ -157,6 +157,7 @@ class CachedFileDataProvider:
                             quarantined=p.get("quarantined", False),
                             disabled=p.get("disabled", False),
                             attempt_to_fix=statuses is not None or p.get("attempt_to_fix", False),
+                            active=p.get("active", False),
                         )
             self._telemetry_api.record_test_management_tests_count(len(props))
             return props
