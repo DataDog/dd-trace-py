@@ -406,6 +406,42 @@ def test_child_periodic_restart_does_not_block_app_code_after_fork():
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
 @pytest.mark.subprocess
+def test_periodic_service_child_autorestart_false_skips_child_restart():
+    import os
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+    svc = MyService(interval=60, child_autorestart=False)
+    svc.start()
+    assert svc._worker is not None
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            assert svc._worker is not None
+            os.write(child_send, b"1" if svc._worker.ident is None else b"0")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
 def test_child_periodic_restart_visible_to_immediate_second_fork():
     import os
     from threading import Event

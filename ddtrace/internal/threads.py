@@ -167,10 +167,17 @@ def _after_fork_child():
     # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Restarting thread %s after fork in child", thread.name)
+        autorestart = getattr(thread, "__autorestart__", True)
+        child_autorestart = getattr(thread, "__dd_child_autorestart__", True)
         try:
+            if not child_autorestart:
+                thread.__autorestart__ = False
             thread._after_fork(force=False)
         except Exception as e:
             log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
+        finally:
+            if not child_autorestart:
+                thread.__autorestart__ = autorestart
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():

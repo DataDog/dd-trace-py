@@ -964,10 +964,12 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", (char**)kwlist, &force))
         return NULL;
 
-    // Check the __autorestart__ attribute (class or instance). Subclasses and
-    // instances can set __autorestart__ = False to opt out of automatic
-    // restart after fork in the child. When force=True (parent path) this
-    // check is skipped and the thread is always restarted.
+    // Check the __autorestart__ and __dd_child_autorestart__ attributes
+    // (class or instance). Subclasses and instances can set __autorestart__ =
+    // False to opt out of automatic restart after fork entirely. ddtrace
+    // services can set __dd_child_autorestart__ = False to opt out only in the
+    // child. When force=True (parent path), these checks are skipped and the
+    // thread is always restarted.
     bool should_restart = static_cast<bool>(force);
     if (!should_restart) {
         PyObject* autorestart = PyObject_GetAttrString((PyObject*)self, "__autorestart__");
@@ -976,6 +978,15 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
             Py_DECREF(autorestart);
         } else {
             PyErr_Clear();
+        }
+        if (should_restart) {
+            PyObject* child_autorestart = PyObject_GetAttrString((PyObject*)self, "__dd_child_autorestart__");
+            if (child_autorestart != NULL) {
+                should_restart = (PyObject_IsTrue(child_autorestart) == 1);
+                Py_DECREF(child_autorestart);
+            } else {
+                PyErr_Clear();
+            }
         }
     }
 
