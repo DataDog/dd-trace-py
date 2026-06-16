@@ -199,13 +199,13 @@ def _before_fork() -> None:
     with _forking_lock:
         _forking = True
 
+    # Snapshot pending restarts first so a worker moving pending -> active
+    # concurrently cannot be missed between the two snapshots.
+    pending_threads = getattr(_threads_mod, "_pending_threads", lambda: ())()
+    _threads_to_restart_after_fork.update(pending_threads)
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())
-    # Workers restarted non-blockingly in a forked child live in the native
-    # pending snapshot until their replacement thread registers a real id.
-    pending_threads = getattr(_threads_mod, "_pending_threads", lambda: ())()
-    _threads_to_restart_after_fork.update(pending_threads)
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
