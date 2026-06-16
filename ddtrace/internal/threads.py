@@ -162,23 +162,23 @@ def _after_fork_child():
 
     _forking = False
 
-    # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here. _after_fork() (without force=True) respects
-    # __autorestart__: cleanup always runs, but the thread is only restarted
-    # when __autorestart__ is True. This is intentional in the child — threads
-    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
-    # forked workers.
+    # Keep child at-fork work minimal. This hook runs before application code
+    # resumes in the forked child, so starting background threads here can block
+    # applications that need to perform immediate child-side handshakes.
     for thread in _threads_to_restart_after_fork.copy():
-        log.debug("Restarting thread %s after fork in child", thread.name)
+        log.debug("Cleaning up thread %s after fork in child", thread.name)
+        autorestart = getattr(thread, "__autorestart__", True)
         try:
-            thread._after_fork()
+            thread.__autorestart__ = False
+            thread._after_fork(force=False)
         except Exception as e:
-            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
+            log.error("failed to clean up periodic thread %s after fork in child: %s", thread.name, e)
+        finally:
+            thread.__autorestart__ = autorestart
     _threads_to_restart_after_fork.clear()
 
-    for thread_start in _threads_to_start_after_fork.copy():
-        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
-        _safe_restart(thread_start, thread_start.__self__.name)
+    for thread_start in _threads_to_start_after_fork:
+        log.debug("Dropping deferred thread start %s after fork in child", thread_start.__self__.name)
     _threads_to_start_after_fork.clear()
 
 

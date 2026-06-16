@@ -285,21 +285,17 @@ def test_awakeable_periodic_service():
 @pytest.mark.subprocess
 def test_forksafe_awakeable_periodic_service():
     import os
-    from threading import Event
 
     from ddtrace.internal import periodic
 
     queue = [None]
-    periodic_ran = Event()
 
     class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
         def reset(self):
             queue.clear()
-            periodic_ran.clear()
 
         def periodic(self):
             queue.append(len(queue))
-            periodic_ran.set()
 
     awake_me = AwakeMe(1)
     awake_me.start()
@@ -308,13 +304,11 @@ def test_forksafe_awakeable_periodic_service():
 
     pid = os.fork()
     if pid == 0:
-        # child: check that the thread has been restarted and the state has been
-        # reset
+        # child: check that inherited state is reset, but no background thread
+        # is started before application code resumes after fork.
         assert not queue
-
-        awake_me.awake()
-        periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
-        assert queue
+        assert awake_me._worker is not None
+        assert awake_me._worker.ident is None
         os._exit(42)
 
     awake_me.stop()
@@ -322,6 +316,47 @@ def test_forksafe_awakeable_periodic_service():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_periodic_service_does_not_restart_before_child_code_after_fork():
+    """Child at-fork hooks must not start periodic threads before app code runs."""
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    periodic_ran = Event()
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+    svc._worker.awake()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            os.write(child_send, b"1" if svc._worker.ident is not None else b"0")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"0"
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
