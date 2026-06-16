@@ -41,6 +41,8 @@ include:
       curl -fsSL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
       chmod +x ./authanywhere
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      # The testrunner image sets NPM_CONFIG_PREFIX, which nvm refuses to run with.
+      unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
       nvm install --lts
       npm install -g @anthropic-ai/claude-code
@@ -63,6 +65,7 @@ include:
     # Mint the AI Gateway token immediately before use (short expiry), re-source
     # nvm so the claude CLI is on PATH, then run the update.
     - |
+      unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
       raw_token="$(./authanywhere --audience rapid-ai-platform)"
       export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"

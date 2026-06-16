@@ -33,12 +33,15 @@
     # Install Node LTS + the Claude Code CLI.
     - |
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      # nvm refuses to run when NPM_CONFIG_PREFIX is set (some images set it).
+      unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"
       . "$NVM_DIR/nvm.sh"
       nvm install --lts
       npm install -g @anthropic-ai/claude-code
     # Mint the AI Gateway token immediately before use (short expiry window).
     - |
+      unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
       raw_token="$(./authanywhere --audience rapid-ai-platform)"
       export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
