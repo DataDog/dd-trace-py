@@ -1,0 +1,76 @@
+# Bump libdatadog to its latest `main` commit, validate the native build, let
+# Claude attempt a bounded repair if it breaks, and open a PR. The brain is
+# scripts/update-libdatadog.py — this job only provides auth + a clean env.
+#
+# Runs on the testrunner image because it carries the Rust toolchain the
+# `rust ci` job relies on (cargo build/clippy/test). Two credentials are wired:
+#   - AI Gateway (authanywhere --audience rapid-ai-platform) for the repair loop
+#   - GitHub (dd-octo-sts, gitlab.libdatadog-update.create-pr policy) for the PR
+# The octo-sts policy must be merged to `main` first (octo-sts reads policies
+# from the default branch).
+#
+# Triggered manually, or automatically when an upstream pipeline (e.g.
+# libdatadog) passes UPDATE_LIBDATADOG_VERSION=true.
+
+include:
+  - local: ".gitlab/testrunner.yml"
+
+"update libdatadog":
+  stage: tests
+  extends: .testrunner
+  timeout: 40m
+  needs: []
+  interruptible: false
+  rules:
+    # Auto-run when an upstream pipeline triggers us; otherwise a manual button.
+    - if: '$UPDATE_LIBDATADOG_VERSION == "true"'
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    ARTIFACTS_DIR: "${CI_PROJECT_DIR}/libdatadog-update"
+  before_script:
+    - !reference [.testrunner, before_script]
+  script:
+    # Download authanywhere + install Node LTS and the Claude CLI (for the repair
+    # loop). Slow steps first so the short-lived AI token is minted last.
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then ARCH="amd64"; else ARCH="arm64"; fi
+      curl -fsSL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
+      chmod +x ./authanywhere
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      nvm install --lts
+      npm install -g @anthropic-ai/claude-code
+    # GitHub token for the PR. Best-effort: if unavailable, the script still bumps +
+    # validates and prints the `gh pr create` command instead of opening the PR.
+    - |
+      if command -v dd-octo-sts >/dev/null 2>&1; then
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > gh_token || true
+        if [ -s gh_token ]; then
+          export GH_TOKEN="$(cat gh_token)"
+          # origin is the GitLab mirror; add a GitHub remote for the branch push.
+          git remote remove gh-origin 2>/dev/null || true
+          git remote add gh-origin "https://x-access-token:${GH_TOKEN}@github.com/DataDog/dd-trace-py.git"
+          export GIT_PUSH_REMOTE="gh-origin"
+        fi
+        rm -f gh_token
+      else
+        echo "dd-octo-sts not found in image; PR creation will be skipped (branch push + command print only)."
+      fi
+    # Mint the AI Gateway token immediately before use (short expiry), re-source
+    # nvm so the claude CLI is on PATH, then run the update.
+    - |
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      raw_token="$(./authanywhere --audience rapid-ai-platform)"
+      export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
+      export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
+      export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-update\nx-dd-tag-dd.team: apm-python'
+      scripts/update-libdatadog.py
+  artifacts:
+    when: always
+    paths:
+      - libdatadog-update/
+    expire_in: 1 month
