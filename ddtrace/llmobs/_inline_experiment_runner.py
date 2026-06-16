@@ -39,7 +39,7 @@ def _normalize(value: Any) -> Any:
         return value
 
 
-def save_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
+def save_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict[str, Any]:
     """Persist all captured baselines ({experiment_name: [cases]}) to a JSON file."""
     data = {name: spec.get("cases", []) for name, spec in _REGISTRY.items() if spec.get("cases")}
     with open(path, "w") as f:
@@ -47,10 +47,11 @@ def save_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
     return data
 
 
-def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
+def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict[str, Any]:
     """Load persisted baselines written by ``save_baselines``."""
     with open(path) as f:
-        return json.load(f)
+        data: dict[str, Any] = json.load(f)
+    return data
 
 
 # --------------------------------------------------------------------------- #
@@ -60,10 +61,10 @@ def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict:
 # --------------------------------------------------------------------------- #
 def exact(recorded: Any, new: Any) -> bool:
     """Strict equality. Deterministic outputs only."""
-    return recorded == new
+    return bool(recorded == new)
 
 
-def _deep_drop(value: Any, keys: set) -> Any:
+def _deep_drop(value: Any, keys: set[str]) -> Any:
     if isinstance(value, dict):
         return {k: _deep_drop(v, keys) for k, v in value.items() if k not in keys}
     if isinstance(value, list):
@@ -76,7 +77,7 @@ def ignoring(*keys: str) -> Callable[[Any, Any], bool]:
     keyset = set(keys)
 
     def cmp(recorded: Any, new: Any) -> bool:
-        return _deep_drop(recorded, keyset) == _deep_drop(new, keyset)
+        return bool(_deep_drop(recorded, keyset) == _deep_drop(new, keyset))
 
     return cmp
 
@@ -95,10 +96,10 @@ def _shape(value: Any) -> Any:
 
 def structural(recorded: Any, new: Any) -> bool:
     """Equivalent if the output *shape* matches (keys / types / list-lengths)."""
-    return _shape(recorded) == _shape(new)
+    return bool(_shape(recorded) == _shape(new))
 
 
-def comparator_from_spec(kind: str = "structural", ignore: Optional[list] = None) -> Callable[[Any, Any], bool]:
+def comparator_from_spec(kind: str = "structural", ignore: Optional[list[str]] = None) -> Callable[[Any, Any], bool]:
     """Build a comparator from CLI-style options."""
     if ignore:
         return ignoring(*ignore)
@@ -112,7 +113,7 @@ def comparator_from_spec(kind: str = "structural", ignore: Optional[list] = None
 # --------------------------------------------------------------------------- #
 # Replay
 # --------------------------------------------------------------------------- #
-def _invoke(spec: dict, input_kwargs: dict) -> Any:
+def _invoke(spec: dict[str, Any], input_kwargs: dict[str, Any]) -> Any:
     """Call the entry with captured inputs + freshly-built live fixtures. Handles async."""
     entry = spec["start"]
     fixtures = spec.get("fixtures")
@@ -132,7 +133,9 @@ def _invoke(spec: dict, input_kwargs: dict) -> Any:
     return entry(**fx, **input_kwargs)
 
 
-def replay(name: str, comparator: Callable[[Any, Any], bool] = exact, cases: Optional[list] = None) -> list:
+def replay(
+    name: str, comparator: Callable[[Any, Any], bool] = exact, cases: Optional[list[dict[str, Any]]] = None
+) -> list[dict[str, Any]]:
     """Re-drive a subject over its captured cases; return per-case result rows.
 
     Each row: ``{input, recorded, new, status}`` where status is
@@ -146,10 +149,10 @@ def replay(name: str, comparator: Callable[[Any, Any], bool] = exact, cases: Opt
     start_output_fn = spec.get("start_output")
     cases = cases if cases is not None else spec.get("cases", [])
 
-    results = []
+    results: list[dict[str, Any]] = []
     for case in cases:
         recorded = _normalize(case["output"])
-        row = {"input": case["input"], "recorded": recorded, "new": None, "status": "NO_END"}
+        row: dict[str, Any] = {"input": case["input"], "recorded": recorded, "new": None, "status": "NO_END"}
         try:
             ret = _invoke(spec, case["input"])
         except _ExperimentStop as stop:  # emit shape: end unwound with the output

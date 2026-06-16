@@ -17,23 +17,30 @@ refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).
 The baseline is persisted between the two invocations (default: ``.llmobs_experiments.json``).
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import importlib
 import inspect
 import os
 import sys
+from typing import Any
 
 
-def _smells_like_prod():
+def _smells_like_prod() -> bool:
+    # ``env`` (not ``os.environ``) is the repo-mandated accessor; imported lazily so this
+    # one-way fail-safe still runs before the user's app/LLMObs is imported.
+    from ddtrace.internal.settings import env
+
     try:
         not_a_tty = not sys.stdout.isatty()
     except Exception:
         not_a_tty = False
-    return not_a_tty and os.environ.get("DD_ENV", "").lower() in ("prod", "production")
+    return not_a_tty and env.get("DD_ENV", "").lower() in ("prod", "production")
 
 
-def _import_target(target):
+def _import_target(target: str) -> tuple[Any, Any]:
     """Resolve 'module' or 'module:callable'; importing registers decorated subjects."""
     mod_name, _, attr = target.partition(":")
     mod = importlib.import_module(mod_name)
@@ -41,15 +48,15 @@ def _import_target(target):
     return mod, entry
 
 
-def _trunc(v, n=34):
+def _trunc(v: Any, n: int = 34) -> str:
     import json
 
     s = v if isinstance(v, str) else json.dumps(v, default=str)
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
-def _print_report(name, rows):
-    counts = {}
+def _print_report(name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     print("\n  experiment: %s   (%d case(s))" % (name, len(rows)))
     print("  " + "-" * 92)
     print("  %-8s %-32s %-22s %-22s" % ("status", "input", "recorded", "new"))
@@ -65,7 +72,7 @@ def _print_report(name, rows):
     return counts
 
 
-def _build_arg_parser():
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ddtrace-experiment", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -98,7 +105,7 @@ def _build_arg_parser():
     return parser
 
 
-def main():
+def main() -> None:
     parser = _build_arg_parser()
     args = parser.parse_args()
 
@@ -130,8 +137,8 @@ def main():
         ie._set_mode(ie.Mode.OFF)
         out = args.out or runner.DEFAULT_BASELINE_PATH
         data = runner.save_baselines(out)
-        n = sum(len(v) for v in data.values())
-        print("captured %d case(s) across %d experiment(s) -> %s" % (n, len(data), os.path.abspath(out)))
+        case_count = sum(len(v) for v in data.values())
+        print("captured %d case(s) across %d experiment(s) -> %s" % (case_count, len(data), os.path.abspath(out)))
         return
 
     # replay
@@ -146,13 +153,12 @@ def main():
 
     if args.publish:
         # Route through the real Experiments SDK so results land in the UI.
-        import os as _os
-
+        from ddtrace.internal.settings import env
         from ddtrace.llmobs import LLMObs
         from ddtrace.llmobs import _inline_experiment_sdk as sdk
 
         if not LLMObs.enabled:
-            ml_app = args.ml_app or _os.environ.get("DD_LLMOBS_ML_APP") or "inline-experiments"
+            ml_app = args.ml_app or env.get("DD_LLMOBS_ML_APP") or "inline-experiments"
             LLMObs.enable(ml_app=ml_app, agentless_enabled=True)
         for name, cases in baselines.items():
             if name not in ie.registered_experiments():
@@ -165,7 +171,7 @@ def main():
         return
 
     ie._set_mode(ie.Mode.REPLAY)
-    total = {}
+    total: dict[str, int] = {}
     for name, cases in baselines.items():
         if name not in ie.registered_experiments():
             print("  (skipping %r — not registered by %r)" % (name, args.target))

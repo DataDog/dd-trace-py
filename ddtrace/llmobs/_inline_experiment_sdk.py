@@ -27,7 +27,7 @@ from ddtrace.llmobs._inline_experiment_runner import _invoke
 log = get_logger(__name__)
 
 
-def _make_task(name: str) -> Callable:
+def _make_task(name: str) -> Callable[..., Any]:
     """An Experiment task that replays the subject: re-invoke its entry with the
     record's ``input_data`` and return the produced output.
     """
@@ -35,7 +35,7 @@ def _make_task(name: str) -> Callable:
     has_end = "end" in spec
     start_output_fn = spec.get("start_output")
 
-    def task(input_data, config):
+    def task(input_data: Any, config: Any) -> Any:
         try:
             ret = _invoke(spec, input_data)
         except _ExperimentStop as stop:  # emit shape: end unwound with the output
@@ -47,35 +47,36 @@ def _make_task(name: str) -> Callable:
     return task
 
 
-def _make_evaluator(comparator: Callable[[Any, Any], bool]) -> Callable:
+def _make_evaluator(comparator: Callable[[Any, Any], bool]) -> Callable[..., Any]:
     """Wrap a comparator as a boolean experiment evaluator. The function name becomes
     the eval-metric label in the UI.
     """
 
-    def regression_match(input_data, output_data, expected_output):
+    def regression_match(input_data: Any, output_data: Any, expected_output: Any) -> bool:
         return bool(comparator(expected_output, output_data))
 
     return regression_match
 
 
-def experiment_url(experiment) -> Optional[str]:
+def experiment_url(experiment: Any) -> Optional[str]:
     return getattr(experiment, "url", None) or getattr(getattr(experiment, "_experiment", None), "url", None)
 
 
 def run_as_experiment(
     name: str,
-    cases: list,
+    cases: list[dict[str, Any]],
     comparator: Callable[[Any, Any], bool],
     experiment_name: Optional[str] = None,
     project_name: Optional[str] = None,
     dataset_name: Optional[str] = None,
-):
+) -> Any:
     """Create a Dataset from ``cases`` and run the subject as an LLM Obs experiment
     scored by ``comparator``. Returns the experiment. Requires ``LLMObs`` to be enabled.
     """
     from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._experiment import DatasetRecordNew
 
-    records = [{"input_data": c["input"], "expected_output": c["output"]} for c in cases]
+    records: list[DatasetRecordNew] = [{"input_data": c["input"], "expected_output": c["output"]} for c in cases]
     dataset = LLMObs.create_dataset(
         dataset_name or ("inline-experiment-%s" % name),
         project_name=project_name,

@@ -51,11 +51,13 @@ class Mode(Enum):
 _mode: Mode = Mode.OFF
 
 # name -> {"start", "inputs", "start_output", "end", "end_output", "fixtures", "cases"}
-_REGISTRY: dict[str, dict] = {}
+_REGISTRY: dict[str, dict[str, Any]] = {}
 
 # Pairs a start (one function) with an end (possibly another) across one call tree;
 # a ContextVar propagates down the stack and across ``await`` within the same task.
-_current_case: contextvars.ContextVar = contextvars.ContextVar("_llmobs_experiment_case", default=None)
+_current_case: contextvars.ContextVar[Optional[dict[str, Any]]] = contextvars.ContextVar(
+    "_llmobs_experiment_case", default=None
+)
 
 
 class _ExperimentStop(BaseException):
@@ -93,19 +95,21 @@ def registered_experiments() -> list[str]:
     return sorted(_REGISTRY)
 
 
-def captured_cases(name: str) -> list[dict]:
+def captured_cases(name: str) -> list[dict[str, Any]]:
     """The (input, output) baselines captured for an experiment during CAPTURE mode."""
     return list(_REGISTRY.get(name, {}).get("cases", []))
 
 
-def _spec(name: str) -> dict:
+def _spec(name: str) -> dict[str, Any]:
     return _REGISTRY.setdefault(name, {"cases": []})
 
 
 # --------------------------------------------------------------------------- #
 # Input/output extraction
 # --------------------------------------------------------------------------- #
-def _bind_inputs(fn: Callable, args: tuple, kwargs: dict, inputs: Optional[list]) -> dict:
+def _bind_inputs(
+    fn: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any], inputs: Optional[list[str]]
+) -> dict[str, Any]:
     """Entry args as a {param_name: value} dict, optionally restricted to ``inputs``
     (so live infra args like ``agent``/``deps`` are excluded from the captured input).
     """
@@ -120,12 +124,12 @@ def _bind_inputs(fn: Callable, args: tuple, kwargs: dict, inputs: Optional[list]
     return named
 
 
-def _start_output(output_fn: Optional[Callable], ret: Any) -> Any:
+def _start_output(output_fn: Optional[Callable[..., Any]], ret: Any) -> Any:
     """Single-function unit: the semantic output is the entry's return value."""
     return output_fn(ret) if output_fn is not None else ret
 
 
-def _end_output(output_fn: Optional[Callable], args: tuple, kwargs: dict) -> Any:
+def _end_output(output_fn: Optional[Callable[..., Any]], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Emit shape: the semantic output is what was passed INTO the end function."""
     if output_fn is not None:
         return output_fn(args, kwargs)
@@ -134,7 +138,7 @@ def _end_output(output_fn: Optional[Callable], args: tuple, kwargs: dict) -> Any
     return {"args": list(args), "kwargs": dict(kwargs)}
 
 
-def _record_case(name: str, inputs: dict, output: Any) -> None:
+def _record_case(name: str, inputs: dict[str, Any], output: Any) -> None:
     _spec(name)["cases"].append({"input": inputs, "output": output})
 
 
@@ -142,13 +146,13 @@ def _record_case(name: str, inputs: dict, output: Any) -> None:
 # Decorators
 # --------------------------------------------------------------------------- #
 def experiment_start(
-    _fn: Optional[Callable] = None,
+    _fn: Optional[Callable[..., Any]] = None,
     *,
     name: str = "default",
-    inputs: Optional[list] = None,
-    output: Optional[Callable] = None,
-    fixtures: Optional[Callable] = None,
-) -> Callable:
+    inputs: Optional[list[str]] = None,
+    output: Optional[Callable[..., Any]] = None,
+    fixtures: Optional[Callable[..., Any]] = None,
+) -> Callable[..., Any]:
     """Mark the ENTRY point of an experiment subject.
 
     :param name: Experiment name; groups a start with its end and its captured cases.
@@ -162,10 +166,10 @@ def experiment_start(
     Inert (pure passthrough) unless a runner has activated CAPTURE/REPLAY.
     """
 
-    def deco(fn: Callable) -> Callable:
+    def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
         _spec(name).update(start=fn, inputs=inputs, start_output=output, fixtures=fixtures)
 
-        def _finish_capture(case_inputs: dict, reached_end: bool, result: Any) -> None:
+        def _finish_capture(case_inputs: dict[str, Any], reached_end: bool, result: Any) -> None:
             if reached_end:
                 return  # an experiment_end already recorded the output for this case
             if "end" not in _REGISTRY.get(name, {}):  # single-function unit
@@ -177,7 +181,7 @@ def experiment_start(
             async def awrapper(*args: Any, **kwargs: Any) -> Any:
                 if _mode is Mode.OFF:
                     return await fn(*args, **kwargs)
-                case = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
+                case: dict[str, Any] = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
                 token = _current_case.set(case)
                 try:
                     result = await fn(*args, **kwargs)
@@ -193,7 +197,7 @@ def experiment_start(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if _mode is Mode.OFF:
                 return fn(*args, **kwargs)
-            case = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
+            case: dict[str, Any] = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
             token = _current_case.set(case)
             try:
                 result = fn(*args, **kwargs)
@@ -209,11 +213,11 @@ def experiment_start(
 
 
 def experiment_end(
-    _fn: Optional[Callable] = None,
+    _fn: Optional[Callable[..., Any]] = None,
     *,
     name: str = "default",
-    output: Optional[Callable] = None,
-) -> Callable:
+    output: Optional[Callable[..., Any]] = None,
+) -> Callable[..., Any]:
     """Mark the STOP point of an experiment subject (emit shape).
 
     Captures the output here. In REPLAY, unwinds before this function runs so its
@@ -223,10 +227,10 @@ def experiment_end(
         the end function was called with.
     """
 
-    def deco(fn: Callable) -> Callable:
+    def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
         _spec(name).update(end=fn, end_output=output)
 
-        def _handle(args: tuple, kwargs: dict) -> None:
+        def _handle(args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             out = _end_output(output, args, kwargs)
             if _mode is Mode.REPLAY:
                 raise _ExperimentStop(out)  # capture + unwind before side effects
