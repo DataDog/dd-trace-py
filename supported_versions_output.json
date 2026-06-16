@@ -17,7 +17,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.14.0",
+        "max_tracer_supported": "3.14.1",
         "auto-instrumented": true
     },
     {
