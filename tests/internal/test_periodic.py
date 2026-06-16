@@ -285,17 +285,21 @@ def test_awakeable_periodic_service():
 @pytest.mark.subprocess
 def test_forksafe_awakeable_periodic_service():
     import os
+    from threading import Event
 
     from ddtrace.internal import periodic
 
     queue = [None]
+    periodic_ran = Event()
 
     class AwakeMe(periodic.ForksafeAwakeablePeriodicService):
         def reset(self):
             queue.clear()
+            periodic_ran.clear()
 
         def periodic(self):
             queue.append(len(queue))
+            periodic_ran.set()
 
     awake_me = AwakeMe(1)
     awake_me.start()
@@ -304,11 +308,13 @@ def test_forksafe_awakeable_periodic_service():
 
     pid = os.fork()
     if pid == 0:
-        # child: check that inherited state is reset, but no background thread
-        # is started before application code resumes after fork.
+        # child: check that the thread has been restarted and the state has been
+        # reset
         assert not queue
-        assert awake_me._worker is not None
-        assert awake_me._worker.ident is None
+
+        awake_me.awake()
+        periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
+        assert queue
         os._exit(42)
 
     awake_me.stop()
@@ -321,7 +327,7 @@ def test_forksafe_awakeable_periodic_service():
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
 @pytest.mark.subprocess
 def test_periodic_service_does_not_restart_before_child_code_after_fork():
-    """Child at-fork hooks must not start periodic threads before app code runs."""
+    """Services can opt out of starting threads before app child code runs."""
     import os
     from threading import Event
 
@@ -334,7 +340,7 @@ def test_periodic_service_does_not_restart_before_child_code_after_fork():
         def periodic(self):
             periodic_ran.set()
 
-    svc = MyService(interval=60)
+    svc = MyService(interval=60, child_autorestart=False)
     svc.start()
     assert svc._worker is not None
     svc._worker.awake()

@@ -81,7 +81,7 @@ class RuntimeWorker(periodic.PeriodicService):
     _lock = Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
-        super().__init__(interval=interval)
+        super().__init__(interval=interval, child_autorestart=False)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
             self.dogstatsd_url or ddtrace.internal.settings._agent.config.dogstatsd_url

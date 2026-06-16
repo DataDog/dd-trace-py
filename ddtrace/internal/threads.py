@@ -162,26 +162,31 @@ def _after_fork_child():
 
     _forking = False
 
-    # Keep child at-fork work minimal. This hook runs before application code
-    # resumes in the forked child, so starting background threads here can block
-    # applications that need to perform immediate child-side handshakes. Parent
-    # process threads are still restarted in _after_fork_parent() below.
-    # Products that need child-side workers should use product-specific fork
-    # handling or lazy initialization rather than this generic at-fork hook.
+    # Keep child at-fork work minimal for services that opt out of child-side
+    # restart. Parent process threads are still restarted in _after_fork_parent()
+    # below.
     for thread in _threads_to_restart_after_fork.copy():
-        log.debug("Cleaning up thread %s after fork in child", thread.name)
+        child_autorestart = getattr(thread, "__dd_child_autorestart__", True)
+        log.debug(
+            "%s thread %s after fork in child",
+            "Restarting" if child_autorestart else "Cleaning up",
+            thread.name,
+        )
         autorestart = getattr(thread, "__autorestart__", True)
         try:
-            thread.__autorestart__ = False
+            if not child_autorestart:
+                thread.__autorestart__ = False
             thread._after_fork(force=False)
         except Exception as e:
-            log.error("failed to clean up periodic thread %s after fork in child: %s", thread.name, e)
+            log.error("failed to refresh periodic thread %s after fork in child: %s", thread.name, e)
         finally:
-            thread.__autorestart__ = autorestart
+            if not child_autorestart:
+                thread.__autorestart__ = autorestart
     _threads_to_restart_after_fork.clear()
 
-    for thread_start in _threads_to_start_after_fork:
-        log.debug("Dropping deferred thread start %s after fork in child", thread_start.__self__.name)
+    for thread_start in _threads_to_start_after_fork.copy():
+        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
+        _safe_restart(thread_start, thread_start.__self__.name)
     _threads_to_start_after_fork.clear()
 
 
