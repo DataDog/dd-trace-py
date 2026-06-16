@@ -204,6 +204,7 @@ INTEGRATION_CONFIGS = frozenset(
         "openai_agents",
         "mcp",
         "mlflow",
+        "pytorch",
         "ray",
         "aiokafka",
         "google_cloud_pubsub",
