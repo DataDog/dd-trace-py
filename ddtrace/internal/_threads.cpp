@@ -1227,12 +1227,15 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
 {
     module_state* state = (module_state*)PyModule_GetState(module);
 
-    // Stop and join all running periodic threads. We snapshot the values first
-    // to avoid mutation of the dict during iteration (threads remove themselves
-    // from periodic_threads when they stop).
+    // Stop and join all running or pending periodic threads. We snapshot first
+    // to avoid mutation during iteration (threads remove themselves when they
+    // stop or finish a pending child restart).
     if (state != nullptr && state->periodic_threads != NULL) {
         PyObject* threads = PyDict_Values(state->periodic_threads);
         if (threads != NULL) {
+            if (state->pending_periodic_threads != NULL && PyList_Extend(threads, state->pending_periodic_threads) < 0)
+                PyErr_Clear();
+
             Py_ssize_t n = PyList_Size(threads);
 
             // Send the stop signal to all threads.
