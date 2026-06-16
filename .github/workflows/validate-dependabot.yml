@@ -21,7 +21,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install validation tooling
-        run: pip install "pyyaml==6.0.2" "check-jsonschema==0.37.3"
+        # ci-deps: allow — minimal install of two pinned dependabot-validation
+        # tools; not worth adding to ci/requirements/ci.txt since they are only
+        # used by this workflow. Same pattern as .gitlab/package.yml:434.
+        run: pip install "pyyaml==6.0.2" "check-jsonschema==0.37.3"  # ci-deps: allow
       # Structural validation against the published Dependabot JSON schema.
       - name: Validate against Dependabot schema
         run: check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml
