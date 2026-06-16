@@ -31,6 +31,8 @@ import json
 import typing
 from weakref import WeakKeyDictionary
 
+from openfeature.hook import Hook
+
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
@@ -130,40 +132,94 @@ class SpanEnrichmentState:
         if len(self._defaults) >= self.MAX_DEFAULTS:
             log.debug("span enrichment: runtime-default limit (%d) reached, dropping", self.MAX_DEFAULTS)
             return
-        # Object/array default -> JSON (NOT str(dict)); scalars -> str.
-        if isinstance(value, (dict, list)):
-            value_str = json.dumps(value)
-        else:
-            value_str = str(value)
+        value_str = self._coerce_default_value(value)
         if len(value_str) > self.MAX_DEFAULT_VALUE_LENGTH:
-            # Slicing a Python str truncates by code point, so it can never
-            # split a multi-byte character (UTF-8-safe).
-            value_str = value_str[: self.MAX_DEFAULT_VALUE_LENGTH]
+            value_str = self._truncate_utf16(value_str, self.MAX_DEFAULT_VALUE_LENGTH)
         self._defaults[flag_key] = value_str
+
+    @staticmethod
+    def _coerce_default_value(value: typing.Any) -> str:
+        """Render a runtime-default value to its wire string, byte-for-byte
+        matching the FROZEN Node reference (dd-trace-js#8343):
+
+            valueStr = (typeof value === "object" && value !== null)
+                ? JSON.stringify(value)
+                : String(value)
+
+        Node's ``String()`` of a JS primitive differs from Python's ``str()``
+        for exactly three cases that flow through this path -- ``null``/``None``
+        and the two booleans -- so we coerce those to the JS spelling to keep
+        ``ffe_runtime_defaults`` identical across SDKs (the L2 decoder compares
+        these bytes). Numbers and strings already match ``str()``.
+
+        - dict / list  -> ``json.dumps`` compact, mirroring ``JSON.stringify``
+          (NOT ``str(dict)`` / ``"[object Object]"``).
+        - None         -> ``"null"``   (Node ``String(null)``;  Python ``str`` -> "None")
+        - True / False -> ``"true"`` / ``"false"`` (Node; Python ``str`` -> "True"/"False")
+        - everything else (int, float, str) -> ``str(value)`` (already matches Node)
+        """
+        # bool is a subclass of int -- check it before the numeric str() fallback.
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, (dict, list)):
+            # separators omit the spaces JS JSON.stringify also omits.
+            return json.dumps(value, separators=(",", ":"))
+        return str(value)
+
+    @staticmethod
+    def _truncate_utf16(value_str: str, max_units: int) -> str:
+        """Truncate ``value_str`` to ``max_units`` UTF-16 code units, mirroring
+        Node's ``String.prototype.slice(0, n)`` (which counts UTF-16 units, not
+        Unicode code points -- Python's ``str[:n]`` counts code points).
+
+        For astral-plane content (one code point == a UTF-16 surrogate pair ==
+        two units) the two SDKs otherwise keep a different number of characters,
+        so the truncated tag would diverge byte-for-byte. We encode to
+        UTF-16-LE (2 bytes / unit), cut at ``max_units * 2`` bytes, and decode
+        back; the ``"ignore"`` handler drops a trailing lone high surrogate left
+        by a split pair so the result is always valid UTF-8 (no broken bytes).
+        """
+        u16 = value_str.encode("utf-16-le")
+        return u16[: max_units * 2].decode("utf-16-le", "ignore")
 
     def has_data(self) -> bool:
         # Subjects are not checked: add_subject never runs without add_serial_id.
         return bool(self._serial_ids) or bool(self._defaults)
 
     def to_span_tags(self) -> dict[str, str]:
+        # ffe_flags_enc is a BARE base64 string; ffe_subjects_enc and
+        # ffe_runtime_defaults are JSON-stringified objects. The JSON is emitted
+        # compact (no spaces) to byte-match Node's JSON.stringify -- the L2
+        # decoder json.loads() these, but keeping them compact preserves strict
+        # cross-SDK byte parity (Pattern F).
         tags: dict[str, str] = {}
         if self._serial_ids:
             tags[TAG_FLAGS_ENC] = encode_delta_varint(self._serial_ids)
         if self._subjects:
             tags[TAG_SUBJECTS_ENC] = json.dumps(
-                {hashed: encode_delta_varint(ids) for hashed, ids in self._subjects.items()}
+                {hashed: encode_delta_varint(ids) for hashed, ids in self._subjects.items()},
+                separators=(",", ":"),
             )
         if self._defaults:
-            tags[TAG_RUNTIME_DEFAULTS] = json.dumps(self._defaults)
+            tags[TAG_RUNTIME_DEFAULTS] = json.dumps(self._defaults, separators=(",", ":"))
         return tags
 
 
-class SpanEnrichmentHook:
+class SpanEnrichmentHook(Hook):
     """OpenFeature ``finally`` hook that accumulates feature-flag metadata per
     root span and writes the ``ffe_*`` tags when that root span finishes.
 
     Constructed ONLY when the span-enrichment gate is on, so when the gate is
     off nothing is allocated and nothing subscribes to span finish (DG-005).
+
+    Subclasses ``openfeature.hook.Hook`` (like the sibling ``FlagEvalHook``) so
+    the OpenFeature client can register it via ``get_provider_hooks()`` and
+    invoke the full hook protocol -- the client calls
+    ``supports_flag_value_type`` and the ``before``/``after``/``error`` stages on
+    every registered hook, so the base-class defaults (accept all types, no-op
+    stages) MUST be inherited. We override only ``finally_after``.
     """
 
     def __init__(self) -> None:
