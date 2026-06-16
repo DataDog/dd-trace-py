@@ -1144,12 +1144,17 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         assert req_span.get_tag(http.STATUS_CODE) == "200"
 
     def test_request_resource_propagated_to_outer_wsgi_span(self):
-        """When Flask is wrapped in DDWSGIMiddleware, the outer wsgi.request span must
-        receive the route-pattern resource (not the raw URL path).
+        """The preprocess_request propagation branch must fire for DDWSGIMiddleware.
 
-        We verify via _set_flask_request_tags call arguments: when req_span differs from
-        current_span (DDWSGIMiddleware scenario), both spans must receive a call — the
-        propagation branch in _on_traced_request_context_started_flask must fire.
+        In normal operation _on_start_response_pre already updates the WSGI span resource
+        when start_response runs. The fix adds an earlier call during preprocess_request so
+        that timed-out workers (where start_response never runs) still carry the route
+        pattern on the outer span.
+
+        We verify the preprocess_request branch fires by checking that
+        _set_flask_request_tags is called on at least 2 distinct spans: the fix calls it
+        on req_span (wsgi.request) during preprocess_request when req_span differs from
+        current_span (flask.request).
         """
         from werkzeug.test import Client as WerkzeugClient
         from werkzeug.wrappers import Response
