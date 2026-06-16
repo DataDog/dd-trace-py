@@ -4,7 +4,6 @@ from typing import Optional  # noqa:F401
 
 import ddtrace
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
@@ -82,7 +81,7 @@ class RuntimeWorker(periodic.PeriodicService):
     _lock = Lock()
 
     def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
-        super().__init__(interval=interval, child_autorestart=False)
+        super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
             self.dogstatsd_url or ddtrace.internal.settings._agent.config.dogstatsd_url
@@ -139,22 +138,6 @@ class RuntimeWorker(periodic.PeriodicService):
             cls._instance = runtime_worker
             cls.enabled = True
 
-    @classmethod
-    def reset_after_fork(cls) -> None:
-        """Clear stale runtime metrics state in forked children.
-
-        RuntimeWorker opts out of child periodic thread restart because the
-        generic at-fork hook runs before application child code resumes. The
-        inherited singleton therefore represents a stopped worker and must be
-        cleared so RuntimeWorker.enable() can start a fresh child worker later.
-        """
-        instance = cls._instance
-        worker = instance._worker if instance is not None else None
-        if worker is not None and getattr(worker, "ident", None) is None:
-            with cls._lock:
-                cls._instance = None
-                cls.enabled = False
-
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
@@ -172,6 +155,3 @@ class RuntimeWorker(periodic.PeriodicService):
 
     periodic = flush
     on_shutdown = flush
-
-
-forksafe.register(RuntimeWorker.reset_after_fork)
