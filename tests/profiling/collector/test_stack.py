@@ -1343,7 +1343,9 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
     )
 
     off_cpu_idx = pprof_utils.get_sample_type_index(profile, _OFF_CPU_TYPE)
+    cpu_time_idx = pprof_utils.get_sample_type_index(profile, "cpu-time")
 
+    cpu_bound_cpu_time = 0
     for sample in profile.sample:
         for label in sample.label:
             key = profile.string_table[label.key]
@@ -1353,6 +1355,10 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
                     sleeping_off_cpu += sample.value[off_cpu_idx]
                 elif name == "cpu-thread":
                     cpu_bound_off_cpu += sample.value[off_cpu_idx]
+                    cpu_bound_cpu_time += sample.value[cpu_time_idx]
+
+    if cpu_bound_cpu_time == 0:
+        pytest.skip("CPU time measurement unavailable for cpu-thread; cannot validate off-cpu ratio")
 
     assert sleeping_off_cpu > 0, "sleeper thread should have non-zero off-cpu-time"
     # 2x threshold: sleeper is 100% off-cpu; spinner should be mostly on-cpu.

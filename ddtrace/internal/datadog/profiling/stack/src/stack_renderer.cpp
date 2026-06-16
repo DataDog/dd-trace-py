@@ -42,8 +42,9 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.name = std::string(name);
     thread_state.now_time_ns = now_ns;
     thread_state.wall_time_ns = 1000 * wall_time_us;
-    thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
-                                  // since we don't know if we'll get a CPU time here.
+    thread_state.cpu_time_ns = 0;
+    thread_state.has_cpu_time = false;
+    thread_state.task_on_cpu = true;
 
     // Finalize the thread information we have
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
@@ -99,6 +100,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
     }
 
     sample->push_task_name(task_name);
+    thread_state.task_on_cpu = on_cpu;
 }
 
 void
@@ -226,6 +228,7 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
+    thread_state.has_cpu_time = true;
     sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 
@@ -237,12 +240,17 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    // Off-CPU approximation: wall_time - cpu_time.
-    // cpu_time_ns is 0 if render_cpu_time was not called (no measurement available).
-    // Clamped to 0 to guard against clock skew between the two clocks.
-    const int64_t off_cpu_ns =
-      thread_state.wall_time_ns > thread_state.cpu_time_ns ? thread_state.wall_time_ns - thread_state.cpu_time_ns : 0;
-    sample->push_offcputime(off_cpu_ns, 1);
+    // Off-CPU approximation.
+    // Only emit when CPU time was actually measured (has_cpu_time distinguishes "measured 0" from "unavailable").
+    // For on-CPU tasks/threads: approximate as wall - cpu, clamped to 0 for clock skew.
+    // For off-CPU tasks (suspended): the task was waiting for the full sampling interval, so off_cpu = wall.
+    if (thread_state.has_cpu_time) {
+        const int64_t off_cpu_ns = thread_state.task_on_cpu ? (thread_state.wall_time_ns > thread_state.cpu_time_ns
+                                                                 ? thread_state.wall_time_ns - thread_state.cpu_time_ns
+                                                                 : 0)
+                                                            : thread_state.wall_time_ns;
+        sample->push_offcputime(off_cpu_ns, 1);
+    }
 
     sample->flush_sample();
     SampleManager::drop_sample(sample);
