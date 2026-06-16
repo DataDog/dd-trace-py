@@ -164,7 +164,10 @@ def _after_fork_child():
 
     # Keep child at-fork work minimal. This hook runs before application code
     # resumes in the forked child, so starting background threads here can block
-    # applications that need to perform immediate child-side handshakes.
+    # applications that need to perform immediate child-side handshakes. Parent
+    # process threads are still restarted in _after_fork_parent() below.
+    # Products that need child-side workers should use product-specific fork
+    # handling or lazy initialization rather than this generic at-fork hook.
     for thread in _threads_to_restart_after_fork.copy():
         log.debug("Cleaning up thread %s after fork in child", thread.name)
         autorestart = getattr(thread, "__autorestart__", True)
