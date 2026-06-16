@@ -70,7 +70,7 @@ extern "C"
     void ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count);
     void ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count);
     void ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count);
-    void ddup_push_heap(Datadog::Sample* sample, int64_t size);
+    void ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count);
     void ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count);
     void ddup_push_gpu_memory(Datadog::Sample* sample, int64_t mem, int64_t count);
     void ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count);
