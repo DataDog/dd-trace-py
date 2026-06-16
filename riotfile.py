@@ -97,6 +97,9 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # DEV: TEMPORARY — enables NativeTraceBuffer across all test suites to validate
+    # behavior before it becomes the default. Remove before merging to main.
+    "_DD_TRACE_NATIVE_BUFFER": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"

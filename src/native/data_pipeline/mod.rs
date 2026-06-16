@@ -3,10 +3,13 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::SharedRuntime;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use std::sync::Arc;
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
+mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
 
@@ -200,8 +203,8 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
-        self.try_as_mut()?.set_shared_runtime(shared_runtime);
+        let runtime_arc = shared_runtime.as_arc().clone();
+        self.try_as_mut()?.set_shared_runtime(runtime_arc.clone());
         let exporter = TraceExporterPy {
             inner: Some(
                 self.builder
@@ -210,6 +213,7 @@ impl TraceExporterBuilderPy {
                     .build::<NativeCapabilities>()
                     .map_err(|err| PyValueError::new_err(format!("Builder {err}")))?,
             ),
+            runtime: runtime_arc,
         };
         Ok(exporter)
     }
@@ -223,6 +227,10 @@ impl TraceExporterBuilderPy {
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
     inner: Option<TraceExporter<NativeCapabilities>>,
+    /// Kept alive so the runtime is not shut down while this exporter is in use.
+    /// Never read explicitly — holding the Arc is sufficient to prevent shutdown.
+    #[allow(dead_code)]
+    runtime: Arc<SharedRuntime>,
 }
 
 #[pymethods]
@@ -271,9 +279,25 @@ impl TraceExporterPy {
 
 impl Drop for TraceExporterPy {
     fn drop(&mut self) {
-        if let Some(exporter) = self.inner.take() {
-            let _ = exporter.shutdown(Some(Duration::from_secs(3)));
-        }
+        // DEV: Do NOT call exporter.shutdown() here — it calls SharedRuntime::block_on()
+        // which acquires self.runtime mutex, causing a recursive-lock deadlock when
+        // Drop is triggered by a Python GC cascade during SharedRuntime::shutdown_async()
+        // (which already holds that mutex on the same thread):
+        //
+        //   SharedRuntime::shutdown()         ← acquires self.runtime mutex
+        //     └─ shutdown_async()             ← awaits worker futures
+        //          └─ TraceExporterWorker::drop()  ← drops Py<PyAny> callback
+        //               └─ Python GC cascade   ← SpanAggregator → NativeTraceBuffer → TraceExporterPy
+        //                    └─ TraceExporterPy::drop()
+        //                         └─ exporter.shutdown()
+        //                              └─ SharedRuntime::block_on()
+        //                                   └─ self.runtime.lock()  ← DEADLOCK (already held)
+        //
+        // Shutdown is handled explicitly by:
+        //   - NativeTraceBuffer.stop() (via trace_buffer.rs::NativeTraceBufferPy::shutdown)
+        //   - NativeRuntime._atexit() (via SharedRuntime::shutdown)
+        // By the time this Drop runs, shutdown has already completed or is not needed.
+        drop(self.inner.take());
     }
 }
 
@@ -283,6 +307,7 @@ pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterPy>()?;
     exceptions::register_exceptions(m)?;
     agent_response::register_agent_response(m)?;
+    trace_buffer::register_trace_buffer(m)?;
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use pyo3::{
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
-use crate::py_string::{PyBackedString, PyTraceData};
+use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
@@ -74,6 +74,89 @@ impl SpanData {
         if !self.has_attribute(k) {
             let _ = self.set_attribute(k, v);
         }
+    }
+
+    /// Build a libdatadog v0.4 `Span<PyTraceData>` from the span's current state.
+    ///
+    /// This is a snapshot — the `SpanData` fields are left intact so that callers
+    /// can still read `span_id`, `duration`, `get_tag()`, etc. after the span has
+    /// been submitted to the writer.
+    ///
+    /// `span_links` and `span_events` are **moved** out of `self` via
+    /// `std::mem::take`: they are not typically accessed after span finish and
+    /// moving avoids a costly deep clone.
+    ///
+    /// `packb` is an optional reference to `ddtrace.internal._encoding.packb`.
+    /// Pass `None` to skip meta_struct serialisation.
+    ///
+    /// # GIL requirement
+    /// Must be called with the GIL held — `AttrKey::as_bound` and
+    /// `AttributeValue::Str` dereference Python objects.
+    pub(crate) fn build_v04_span(
+        &self,
+        py: Python<'_>,
+        packb: Option<&Bound<'_, PyAny>>,
+    ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
+        // duration is Option<i64>; the libdatadog Span uses i64 with -1 as "unset".
+        // span_links/span_events are cloned — PyBackedString::clone() increments refcounts (GIL held).
+        let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData> {
+            trace_id: self.trace_id,
+            span_id: self.span_id,
+            parent_id: self.parent_id,
+            start: self.start,
+            duration: self.duration.unwrap_or(-1),
+            error: self.error,
+            name: self.name.clone_ref(py),
+            service: self.service.clone_ref(py),
+            resource: self.resource.clone_ref(py),
+            r#type: self.span_type.clone_ref(py),
+            span_links: self.span_links.clone(),
+            span_events: self.span_events.clone(),
+            ..Default::default()
+        };
+
+        // Materialise attributes into out.meta (Str) and out.metrics (Int/Float).
+        // Iterate rather than drain so self.attributes stays intact for post-finish
+        // get_tag / get_metric calls.
+        for (key, value) in &self.attributes {
+            let Ok(key_backed) = PyBackedString::try_from(key.as_bound(py).clone()) else {
+                continue;
+            };
+            match value {
+                AttributeValue::Str(s) => {
+                    let Ok(val) = PyBackedString::try_from(s.bind(py).clone()) else {
+                        continue;
+                    };
+                    out.meta.insert(key_backed, val);
+                }
+                AttributeValue::Int(i) => {
+                    out.metrics.insert(key_backed, *i as f64);
+                }
+                AttributeValue::Float(f) => {
+                    out.metrics.insert(key_backed, *f);
+                }
+            }
+        }
+
+        // Serialise meta_struct entries with packb.  Iterates (does not take) so
+        // post-finish _get_struct_tag calls still work.
+        if let (Some(meta_struct), Some(packb)) = (&self.meta_struct, packb) {
+            for (k, v) in meta_struct.bind(py).iter() {
+                let Ok(key_backed) = k.extract::<PyBackedString>() else {
+                    continue;
+                };
+                let Ok(result) = packb.call1((&v,)) else {
+                    continue;
+                };
+                let Ok(py_bytes) = result.cast::<pyo3::types::PyBytes>() else {
+                    continue;
+                };
+                out.meta_struct
+                    .insert(key_backed, Bytes::from_py_bytes(py_bytes));
+            }
+        }
+
+        out
     }
 }
 

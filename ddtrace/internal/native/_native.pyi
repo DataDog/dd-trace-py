@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any
+from typing import Callable
 from typing import Iterable
 from typing import Iterator
 from typing import Literal
@@ -416,6 +417,53 @@ class AgentResponse:
     rate_by_service: Mapping[str, float]
 
     def __init__(self, rate_by_service: Mapping[str, float]) -> None: ...
+
+class NativeTraceBuffer:
+    """
+    Native Rust trace buffer that serializes SpanData objects to the agent
+    wire format on a background tokio worker.
+
+    Builds a TraceExporter internally from the supplied config params.
+    Has no dependency on TraceExporterBuilder or TraceExporter.
+    """
+
+    def __init__(
+        self,
+        shared_runtime: SharedRuntime,
+        intake_url: str,
+        api_version: str,
+        service: Optional[str] = None,
+        env: Optional[str] = None,
+        app_version: Optional[str] = None,
+        hostname: Optional[str] = None,
+        language_version: Optional[str] = None,
+        language_interpreter: Optional[str] = None,
+        tracer_version: Optional[str] = None,
+        git_commit_sha: Optional[str] = None,
+        compute_stats_enabled: bool = False,
+        stats_opt_out: bool = False,
+        stats_interval_ns: Optional[int] = None,
+        test_session_token: Optional[str] = None,
+        otlp_endpoint: Optional[str] = None,
+        response_callback: Optional[Callable[..., None]] = None,
+    ) -> None: ...
+    def send_chunk(self, spans: list[SpanData]) -> None:
+        """
+        Move spans into the buffer.
+
+        After this call each span in the list is in an empty/default state
+        and must not be used further.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Trigger a background flush without waiting for it to complete."""
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Flush and stop the background worker, waiting up to timeout_ns nanoseconds."""
+        ...
+    def wait_shutdown_done(self, timeout_ns: int) -> None:
+        """Wait until the background worker confirms shutdown (primarily for tests)."""
+        ...
 
 class AgentError(Exception):
     """

@@ -109,13 +109,17 @@ def test_structured_logging_injection():
     config.version = "global-version"
     with tracer.trace("test span") as span:
         logger.msg("Hello!")
+        # DEV: save before the with-block exits so the assertion below uses the
+        # same values that were injected into the log record inside the span.
+        span_id = span.span_id
+        trace_id = span.trace_id
 
     assert len(capture_log.entries) == 1
     assert capture_log.entries[0]["event"] == "Hello!"
     assert capture_log.entries[0] == {
         "event": "Hello!",
-        "dd.span_id": str(span.span_id),
-        "dd.trace_id": format_trace_id(span.trace_id),
+        "dd.span_id": str(span_id),
+        "dd.trace_id": format_trace_id(trace_id),
         "dd.service": "global-service",
         "dd.env": "global-env",
         "dd.version": "global-version",
@@ -163,12 +167,16 @@ def test_structured_logging_injection_default_configs():
 
     with tracer.trace("test span") as span:
         logger.msg("Hello!")
+        # DEV: save before the with-block exits so the assertion below uses the
+        # same values that were injected into the log record inside the span.
+        span_id = span.span_id
+        trace_id = span.trace_id
 
     assert len(capture_log.entries) == 1
     assert capture_log.entries[0] == {
         "event": "Hello!",
-        "dd.span_id": str(span.span_id),
-        "dd.trace_id": format_trace_id(span.trace_id),
+        "dd.span_id": str(span_id),
+        "dd.trace_id": format_trace_id(trace_id),
         "dd.service": "ddtrace_subprocess_dir",
         "dd.env": "",
         "dd.version": "",

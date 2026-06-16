@@ -1091,6 +1091,118 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
+class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
+    """TraceWriter backed by the native Rust trace buffer.
+
+    The following exporter features are intentionally not configured:
+
+    * **Process tags** (``set_process_tags``) — not set.
+    * **Telemetry** (``enable_telemetry``) — not emitted.
+    * **Health metrics** (``enable_health_metrics``) — not emitted.
+    * **OTLP headers / connection timeout** — ``set_otlp_endpoint`` is wired
+      when ``otlp_endpoint`` is provided, but ``set_otlp_headers`` and
+      ``set_connection_timeout`` are not.
+    * **Sync mode** — when ``sync_mode=True`` (e.g., AWS Lambda / Cloud Functions),
+      ``write()`` calls ``flush_queue()`` immediately after buffering spans, matching
+      the behaviour of :class:`NativeWriter` and :class:`HTTPWriter`.
+    """
+
+    def __init__(
+        self,
+        intake_url: str,
+        api_version: Optional[str] = None,
+        compute_stats_enabled: bool = False,
+        response_callback: Optional[Callable] = None,
+        stats_opt_out: Optional[bool] = False,
+        otlp_endpoint: Optional[str] = None,
+        test_session_token: Optional[str] = None,
+        sync_mode: bool = False,
+    ) -> None:
+        self.intake_url = intake_url
+        self._api_version = _resolve_api_version(api_version)
+        self._compute_stats_enabled = compute_stats_enabled
+        self._response_cb = response_callback
+        self._stats_opt_out = stats_opt_out
+        self._otlp_endpoint = otlp_endpoint
+        self._test_session_token = _resolve_test_session_token(test_session_token)
+        self._sync_mode = sync_mode
+        self._native_buffer = self._create_native_buffer()
+
+    def _create_native_buffer(self) -> "native.NativeTraceBuffer":
+        _, commit_sha, _ = get_git_tags()
+        stats_interval_ns: Optional[int] = None
+        if self._compute_stats_enabled and not self._stats_opt_out:
+            stats_interval = float(env.get("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            stats_interval_ns = int(stats_interval * 1e9)
+        return native.NativeTraceBuffer(
+            shared_runtime=get_native_runtime(),
+            intake_url=self.intake_url,
+            api_version=self._api_version,
+            service=config.service or None,
+            env=config.env or None,
+            app_version=config.version or None,
+            hostname=get_hostname(),
+            language_version=compat.PYTHON_VERSION,
+            language_interpreter=compat.PYTHON_INTERPRETER,
+            tracer_version=__version__,
+            git_commit_sha=commit_sha or None,
+            compute_stats_enabled=self._compute_stats_enabled,
+            stats_opt_out=bool(self._stats_opt_out),
+            stats_interval_ns=stats_interval_ns,
+            test_session_token=self._test_session_token,
+            otlp_endpoint=self._otlp_endpoint,
+            response_callback=self._response_cb,
+        )
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        self._test_session_token = token
+        self.stop()
+        self._native_buffer = self._create_native_buffer()
+
+    def recreate(
+        self,
+        appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
+    ) -> "NativeTraceBuffer":
+        api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
+        self.stop()
+        return self.__class__(
+            intake_url=self.intake_url,
+            api_version=api_version,
+            compute_stats_enabled=self._compute_stats_enabled,
+            response_callback=self._response_cb,
+            stats_opt_out=self._stats_opt_out,
+            otlp_endpoint=self._otlp_endpoint,
+            test_session_token=self._test_session_token,
+            sync_mode=self._sync_mode,
+        )
+
+    def write(self, spans: Optional[list] = None) -> None:
+        if not spans:
+            return
+        # DEV: pending coordination with the trace exporter team on where keep-rate
+        # computation should live — libdatadog's QueueMetrics.spans_dropped_full_buffer
+        # tracks actual drops but resets on each read, requiring a Python-side SMA.
+        spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
+        self._native_buffer.send_chunk(spans)
+        if self._sync_mode:
+            self.flush_queue()
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        self._native_buffer.force_flush()
+
+    def join(self, timeout: Optional[float] = None) -> None:
+        # DEV: NativeTraceBuffer is not a PeriodicService (no background Python thread to join).
+        # Shutdown is handled by stop() which calls NativeTraceBufferPy.shutdown() with a timeout.
+        # This no-op exists so the tracer's shutdown sequence (which calls writer.join() on
+        # PeriodicService-based writers after writer.stop()) can work without branching on type.
+        pass
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        timeout_ns = int((timeout or 1.0) * 1e9)
+        self._native_buffer.shutdown(timeout_ns)
+
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
@@ -1155,6 +1267,19 @@ def create_trace_writer(
     otlp_endpoint = (
         otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
     )
+
+    # DEV: _DD_TRACE_NATIVE_BUFFER is a temporary feature flag used to validate
+    # NativeTraceBuffer across the full test suite before it becomes the default.
+    # It is intentionally undocumented and will be removed once the rollout is complete.
+    if env.get("_DD_TRACE_NATIVE_BUFFER"):
+        return NativeTraceBuffer(
+            intake_url=agent_config.trace_agent_url,
+            compute_stats_enabled=config._trace_compute_stats,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
+            otlp_endpoint=otlp_endpoint,
+            sync_mode=_use_sync_mode(),
+        )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,
