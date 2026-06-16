@@ -1,0 +1,48 @@
+# Manually-triggered job that asks Claude (via the Datadog AI Gateway) to report
+# the latest libdatadog version and compare it to the rev pinned in this repo.
+# It doubles as the AI-gateway smoke test: if this is green, the auth + gateway
+# plumbing works and we can build the claude-agent-sdk repair loop (Phase 5) on
+# top of it.
+#
+# Auth mirrors .gitlab/scripts/summarize_failures.py: authanywhere mints a
+# short-lived AI Gateway token (--audience rapid-ai-platform), and Claude talks
+# to the gateway via ANTHROPIC_BASE_URL + ANTHROPIC_CUSTOM_HEADERS.
+
+"check libdatadog version":
+  stage: tests
+  tags: [ "arch:amd64" ]
+  # Depend on nothing: needs:[] lets it start immediately, ignoring stage order;
+  # interruptible:false keeps it alive even if a new commit auto-cancels the rest.
+  needs: []
+  interruptible: false
+  image:
+    name: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  timeout: 15m
+  rules:
+    - when: manual
+      allow_failure: true
+  script:
+    # Download authanywhere (used to mint the AI Gateway token).
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then ARCH="amd64"; else ARCH="arm64"; fi
+      curl -fsSL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
+      chmod +x ./authanywhere
+    # Install Node LTS + the Claude Code CLI.
+    - |
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      export NVM_DIR="$HOME/.nvm"
+      . "$NVM_DIR/nvm.sh"
+      nvm install --lts
+      npm install -g @anthropic-ai/claude-code
+    # Mint the AI Gateway token immediately before use (short expiry window).
+    - |
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      raw_token="$(./authanywhere --audience rapid-ai-platform)"
+      export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
+      export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
+      # x-dd-tag-* are attribution tags; adjust ml_app/dd.team to taste.
+      export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-check\nx-dd-tag-dd.team: apm-python'
+      claude --bare -p 'Find the latest released version of DataDog/libdatadog by running `git ls-remote --tags https://github.com/DataDog/libdatadog` and picking the highest semantic-version tag (format vX.Y.Z). Then read src/native/Cargo.toml to find the libdatadog rev currently pinned in this repo. Report the latest version, the current pin, and whether an upgrade is available, in one short paragraph.' \
+        --model anthropic/claude-sonnet-4-6 \
+        --allowedTools 'Read' 'Bash(git ls-remote:*)' \
+        --permission-mode bypassPermissions
