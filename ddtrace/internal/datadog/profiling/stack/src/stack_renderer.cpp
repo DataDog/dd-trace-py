@@ -248,8 +248,8 @@ StackRenderer::render_stack_end()
         if (thread_state.task_on_cpu) {
             // wall - cpu, clamped to 0 for clock skew between the two measurement clocks.
             off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
-                ? thread_state.wall_time_ns - thread_state.cpu_time_ns
-                : 0;
+                           ? thread_state.wall_time_ns - thread_state.cpu_time_ns
+                           : 0;
         } else {
             // Suspended task: was off-CPU for the full sampling interval.
             off_cpu_ns = thread_state.wall_time_ns;
