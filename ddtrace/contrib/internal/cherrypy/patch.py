@@ -18,6 +18,7 @@ from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
+from ddtrace.internal.trace_utils import set_service_and_source
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
@@ -30,6 +31,7 @@ config._add(
     "cherrypy",
     dict(
         distributed_tracing=asbool(env.get("DD_CHERRYPY_DISTRIBUTED_TRACING", default=True)),
+        _default_service="cherrypy",
     ),
 )
 
@@ -48,7 +50,6 @@ SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direct
 class TraceTool(cherrypy.Tool):
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
-        self.service = service
         if use_distributed_tracing is not None:
             self.use_distributed_tracing = use_distributed_tracing
 
@@ -64,14 +65,6 @@ class TraceTool(cherrypy.Tool):
     def use_distributed_tracing(self, use_distributed_tracing):
         config.cherrypy["distributed_tracing"] = asbool(use_distributed_tracing)
 
-    @property
-    def service(self):
-        return config.cherrypy.get("service", "cherrypy")
-
-    @service.setter
-    def service(self, service):
-        config.cherrypy["service"] = schematize_service_name(service)
-
     def _setup(self):
         cherrypy.Tool._setup(self)
         cherrypy.request.hooks.attach("on_end_request", self._on_end_request, priority=5)
@@ -82,7 +75,6 @@ class TraceTool(cherrypy.Tool):
             "cherrypy.request",
             span_name=SPAN_NAME,
             span_type=SpanTypes.WEB,
-            service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
             tags={},
             distributed_headers=cherrypy.request.headers,
             integration_config=config.cherrypy,
@@ -90,6 +82,13 @@ class TraceTool(cherrypy.Tool):
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span
+            (
+                set_service_and_source(
+                    req_span,
+                    schematize_service_name(trace_utils.int_service(None, config.cherrypy, default="cherrypy")),
+                    config.cherrypy,
+                ),
+            )
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.cherrypy))
