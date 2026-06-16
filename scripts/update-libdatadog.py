@@ -67,8 +67,22 @@ RELEASENOTES_DIR = REPO_ROOT / "releasenotes" / "notes"
 ALLOWED_REPAIR_PREFIXES = ("src/native/", "setup.py")
 
 # Claude model + tools for the repair loop, mirroring .gitlab/check-libdatadog-version.yml.
+# The read-only shell tools let the agent locate and inspect libdatadog's fetched
+# source under $CARGO_HOME/git/checkouts (outside the repo tree) so it can discover
+# e.g. a crate's new name when one was renamed at the target rev.
 CLAUDE_MODEL = "anthropic/claude-sonnet-4-6"
-CLAUDE_REPAIR_TOOLS = ["Read", "Edit", "Write", "Grep", "Glob", "Bash(cargo:*)"]
+CLAUDE_REPAIR_TOOLS = [
+    "Read",
+    "Edit",
+    "Write",
+    "Grep",
+    "Glob",
+    "Bash(cargo:*)",
+    "Bash(find:*)",
+    "Bash(ls:*)",
+    "Bash(cat:*)",
+    "Bash(grep:*)",
+]
 
 # Matches the `rev = "..."` on any Cargo.toml line that pins the libdatadog git
 # source. Every git dependency in src/native/Cargo.toml is libdatadog, but we
@@ -150,18 +164,27 @@ def rewrite_cargo_toml(target_rev: str) -> int:
 
 
 def regenerate_lockfile() -> None:
-    """Refresh Cargo.lock for the changed git revs.
+    """Best-effort refresh of Cargo.lock for the changed git revs.
 
     Running `cargo update` against each libdatadog package re-resolves only the
-    libdatadog git source; registry deps are left untouched. A plain `cargo
-    check` would also update the lock, but doing it explicitly keeps the diff
-    minimal and makes the subsequent `cargo test --locked` meaningful.
+    libdatadog git source; registry deps are left untouched, keeping the lock
+    diff minimal in the happy path.
+
+    Tolerant by design: if the new rev renamed/removed a crate we depend on,
+    this `cargo update` fails to resolve. We do NOT crash here — the same
+    resolution error resurfaces in `cargo build` during validate(), which IS
+    routed to the repair loop so the agent can fix src/native/Cargo.toml.
     """
     pkgs = _libdatadog_package_names()
     cmd = ["cargo", "update", "--manifest-path", str(CARGO_TOML)]
     for pkg in pkgs:
         cmd += ["-p", pkg]
-    run("cargo-update", cmd, cwd=NATIVE_DIR)
+    res = run("cargo-update", cmd, cwd=NATIVE_DIR, check=False)
+    if not res.ok:
+        print(
+            "\n[cargo-update] lock refresh failed (likely a renamed/removed crate at the new rev); "
+            "deferring to `cargo build` in validation, which routes failures to the repair loop."
+        )
 
 
 def _libdatadog_package_names() -> list[str]:
@@ -396,7 +419,9 @@ def _repair_prompt(failure: StepError, target_rev: str, log_path: Path) -> str:
         f"and the build no longer passes. The failing step was `{failure.label}`. "
         f"Its full output is in {log_path} — read it first.\n\n"
         "Your job: make the native build compile and pass again by adapting our code to libdatadog's "
-        "changed API. Constraints:\n"
+        "changed API. The breakage may be a renamed/removed/moved crate (fix the dependency entries in "
+        "src/native/Cargo.toml — e.g. a `datadog-*` crate renamed to `libdd-*`), a changed function/type "
+        "signature, or a moved import. Constraints:\n"
         "- Edit ONLY files under src/native/ and setup.py. Do NOT modify tests, CI config, or anything else.\n"
         "- Do NOT weaken or delete assertions, lints, or tests to force a pass.\n"
         "- Verify your fix by running `cargo build --all-features` (and `cargo clippy --all-features -- -D warnings`) "
