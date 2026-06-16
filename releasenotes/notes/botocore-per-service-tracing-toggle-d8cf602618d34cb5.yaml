@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    botocore: Adds ``DD_BOTOCORE_{SERVICE}_DISTRIBUTED_TRACING`` environment variables to
+    disable distributed tracing injection for individual AWS services while still generating
+    spans. This mirrors the existing global ``DD_BOTOCORE_DISTRIBUTED_TRACING`` flag but
+    scoped to a single service. The service name corresponds to the botocore endpoint prefix,
+    with hyphens replaced by underscores and the name uppercased (e.g.
+    ``DD_BOTOCORE_KINESIS_DISTRIBUTED_TRACING=false`` prevents trace context from being
+    injected into Kinesis record bodies, avoiding payload size overflows).

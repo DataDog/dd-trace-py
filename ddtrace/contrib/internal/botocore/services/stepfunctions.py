@@ -49,7 +49,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
     operation = function_vars.get("operation")
 
     is_start_execution_call = endpoint_name == "states" and operation in {"StartExecution", "StartSyncExecution"}
-    should_update_input = args and config.botocore["distributed_tracing"] and is_start_execution_call
+    should_update_input = args and function_vars.get("distributed_tracing") and is_start_execution_call
     if should_update_input:
         call_name = schematize_cloud_messaging_operation(
             trace_operation,
