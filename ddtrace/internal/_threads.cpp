@@ -743,16 +743,18 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                             if (remove_periodic_thread_entries_for_self(state->periodic_threads, self) < 0)
                                 PyErr_Clear();
                         }
-                        if (state->pending_periodic_threads != NULL) {
-                            if (remove_pending_periodic_thread(state, self) < 0)
-                                PyErr_Clear();
-                        }
-
                         Py_DECREF(self->ident);
                         self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
                         // Map the PeriodicThread object to its thread ID
-                        PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self);
+                        if (PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self) == 0) {
+                            if (state->pending_periodic_threads != NULL) {
+                                if (remove_pending_periodic_thread(state, self) < 0)
+                                    PyErr_Clear();
+                            }
+                        } else {
+                            PyErr_Clear();
+                        }
                     }
 
                     // Set the native thread name for better debugging and profiling
