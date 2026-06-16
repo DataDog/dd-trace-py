@@ -251,8 +251,7 @@ _MAX_NESTED_META_DEPTH = 12
 def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
     _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
-    and every mapping key stringified (non-string keys break the msgpack meta_struct intake
-    path, MLOB-7618). The original structure is never mutated.
+    and every mapping key stringified. The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
 

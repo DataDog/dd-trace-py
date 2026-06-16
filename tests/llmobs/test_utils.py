@@ -394,11 +394,10 @@ class TestAnnotateLLMObsSpanData:
 
 class TestSanitizeSpanEventDepth:
     """Non-string mapping keys are stringified so the msgpack meta_struct intake path
-    does not drop the span (MLOB-7618)."""
+    does not drop the span (MLOB-7618).
+    """
 
     def test_stringifies_top_level_non_string_keys(self):
-        # Note: bool/int and float keys are tested in separate dicts to avoid Python
-        # collapsing equal keys (1 == True, 2 == 2.0) before the sanitizer runs.
         assert _sanitize_span_event_depth({"metadata": {5: "a", 2.5: "b", None: "c"}}) == {
             "metadata": {"5": "a", "2.5": "b", "None": "c"}
         }
