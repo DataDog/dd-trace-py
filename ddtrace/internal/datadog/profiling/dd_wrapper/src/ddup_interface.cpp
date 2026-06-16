@@ -196,9 +196,9 @@ ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count) // cppchec
 }
 
 void
-ddup_push_heap(Datadog::Sample* sample, int64_t size) // cppcheck-suppress unusedFunction
+ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count) // cppcheck-suppress unusedFunction
 {
-    sample->push_heap(size);
+    sample->push_heap(size, count);
 }
 
 void
