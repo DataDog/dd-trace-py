@@ -266,6 +266,11 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 def _instrument_message(messages, pin, start_ns, instance, err):
     ctx = None
+    # Drop error/event poll results (e.g. UNKNOWN_TOPIC_OR_PART, partition EOF). These
+    # are not consumed records: confluent_kafka exposes them as Message objects whose
+    # .value() returns the error text, so treating them as messages yields misleading
+    # spans and bogus DSM payload-size checkpoints sized to the error string.
+    messages = [message for message in messages if message is not None and message.error() is None]
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
     first_message = messages[0] if len(messages) else None
