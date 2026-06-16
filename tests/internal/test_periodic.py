@@ -406,6 +406,50 @@ def test_child_periodic_restart_does_not_block_app_code_after_fork():
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
 @pytest.mark.subprocess
+def test_child_periodic_restart_visible_to_immediate_second_fork():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+
+    pid = os.fork()
+    if pid == 0:
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os.close(child_recv)
+            try:
+                assert svc._worker is not None
+                svc._worker.awake()
+                os.write(child_send, b"1" if periodic_ran.wait(timeout=2) else b"0")
+            finally:
+                os._exit(0)
+
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        os._exit(os.WEXITSTATUS(grandchild_status))
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not

@@ -668,6 +668,17 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
 
                     // Retrieve the thread ID
                     {
+                        // A non-blocking post-fork restart can return before
+                        // this worker gets scheduled and registers its new
+                        // ident. In that window, _after_fork() keeps the
+                        // thread visible under the inherited ident so a
+                        // follow-up fork can still stop it. Remove that
+                        // temporary entry before installing the real one.
+                        if (self->ident != Py_None && state->periodic_threads != NULL) {
+                            if (PyDict_DelItem(state->periodic_threads, self->ident) < 0)
+                                PyErr_Clear();
+                        }
+
                         Py_DECREF(self->ident);
                         self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
@@ -1002,9 +1013,20 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // before application code resumes, so it must not block waiting for the
         // replacement thread to start. The parent path passes force=True and
         // still waits so parent services are fully restored before continuing.
+        bool pending_restart_registered = false;
+        if (!force && self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL) {
+            if (PyDict_SetItem(self->_state->periodic_threads, self->ident, (PyObject*)self) == 0)
+                pending_restart_registered = true;
+            else
+                PyErr_Clear();
+        }
+
         PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
-        if (started == NULL)
+        if (started == NULL) {
+            if (pending_restart_registered && PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
+                PyErr_Clear();
             return NULL;
+        }
         Py_DECREF(started);
     } else {
         // No restart: the common cleanup above is sufficient for fork-specific
