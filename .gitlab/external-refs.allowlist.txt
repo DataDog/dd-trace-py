@@ -15,6 +15,9 @@
 #
 #   .gitlab/external-refs.yml                 — the registry itself
 #   .gitlab/external-refs.allowlist.txt       — this file
+#   .gitlab/services.yml                      — pure registry of service-container
+#                                                images (every line is
+#                                                `name: registry.ddbuild.io/...`)
 #   .github/chainguard/*.yaml                 — STS policies pin GitLab/GitHub
 #                                                paths by design
 #   docs/github-org-migration-audit.md        — the audit doc lists every ref
@@ -60,14 +63,13 @@ scripts/codeql_scan.sh:10 URL rewrite for internal codescanning clone
 scripts/codeql_scan.sh:11 internal DataDog/codescanning clone (rerouted via insteadOf)
 
 
-# ===== Internal GitHub Actions still pinned by SHA in workflows =====
-# Wrapper composite actions live under .github/actions/. The wrappers
-# themselves still reference `DataDog/<action>` by SHA — that is exactly the
-# centralization point we want, so the wrappers are allowlisted here.
-
-.github/actions/dd-octo-sts-token/action.yml:* wrapper for DataDog/dd-octo-sts-action
-.github/actions/commit-headless/action.yml:* wrapper for DataDog/commit-headless
-.github/actions/dd-sts-token/action.yml:* wrapper for DataDog/dd-sts-action
+# ===== Wrapper composite actions =====
+# `.github/actions/<wrapper>/action.yml` files reference `DataDog/<action>@<sha>`
+# upstream — that is exactly what the wrappers exist to centralize. They are
+# NOT allowlisted with `:*` anymore; instead, `check-external-refs.py` applies
+# the stricter `wrapper-uses-not-sha-pinned` pattern to wrapper files, which
+# requires every `uses:` line to be SHA-pinned (40 hex chars). A tag or branch
+# ref like `@v1.0.4` or `@main` slipped into a wrapper would fail lint.
 
 
 # ===== Cross-project GitLab `include:` directives =====
@@ -78,3 +80,38 @@ scripts/codeql_scan.sh:11 internal DataDog/codescanning clone (rerouted via inst
 .gitlab/benchmarks/macrobenchmarks.yml:8 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
 .gitlab/benchmarks/macrobenchmarks.yml:10 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
 .gitlab/benchmarks/microbenchmarks.yml:2 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+
+
+# ===== Internal `registry.ddbuild.io` image references =====
+# These are pre-existing image refs in CI configs. They are pre-approved for
+# the current state of the repo. Any NEW `registry.ddbuild.io/...` reference
+# must either replace one of these (and update the line numbers below) or be
+# added here with a justification. The migration audit (APMLP-1185) is the
+# canonical inventory of internal endpoints; see docs/github-org-migration-audit.md.
+
+.gitlab-ci.yml:22 PROFILING_NATIVE_IMAGE base for the profiling-native job
+.gitlab-ci.yml:265 code-scanning image for the codeql-scan job
+.gitlab-ci.yml:335 mirror/python image for the package-version helper
+.gitlab-ci.yml:343 mirror/ubuntu image for the codeowners job
+.gitlab-ci.yml:547 dd-octo-sts-ci-base image for the prof-correctness trigger
+.gitlab-ci.yml:582 lib-injection image for the lib_injection_tests job
+.gitlab-ci.yml:677 mirror/ubuntu image for the test-dd-sts job
+.gitlab/benchmarks/microbenchmarks.yml:18 PACKAGE_IMAGE (manylinux2014_x86_64) for benchmarks
+.gitlab/benchmarks/microbenchmarks.yml:19 GITHUB_CLI_IMAGE (dd-octo-sts-ci-base) for benchmarks
+.gitlab/benchmarks/serverless.yml:2 SLS_CI_IMAGE for the serverless-tools trigger
+.gitlab/fuzz.yml:3 FUZZ_IMAGE registry path (fuzz pipeline)
+.gitlab/fuzz.yml:5 FUZZ_BASE_IMAGE (fuzz pipeline)
+.gitlab/fuzz.yml:10 mirror/docker image for the fuzz pipeline
+.gitlab/multi-os-tests.yml:12 mirror/ubuntu image for the multi-os-tests job
+.gitlab/native.yml:27 profiling-native image for native unit tests
+.gitlab/package.yml:2 IMAGE_BASE_URL for all dd-trace-py CI builder images
+.gitlab/package.yml:61 mirror/aws-cli image for wheel uploads
+.gitlab/package.yml:288 WINDOWS_BUILD_IMAGE for build-windows
+.gitlab/package.yml:300 dd-octo-sts-ci-base for download-win_arm64-wheels job
+.gitlab/package.yml:325 mirror/python image for download_dependency_wheels
+.gitlab/package.yml:391 mirror/python image for package version detection
+.gitlab/package.yml:413 mirror/python image for ddtrace-package validation
+.gitlab/package.yml:430 mirror/python image for ddtrace-package serverless validation
+.gitlab/release.yml:2 PYPI_PUBLISH_IMAGE (mirror/python)
+.gitlab/system-tests.yml:5 mirror/docker image for the system-tests-base template
+.gitlab/testrunner.yml:2 TESTRUNNER_IMAGE — the main CI test runner image

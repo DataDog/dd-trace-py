@@ -8,6 +8,11 @@ cross-project GitLab triggers, or ``dd-octo-sts`` scopes must either reuse a
 variable from ``.gitlab/external-refs.yml`` or be allowlisted in
 ``.gitlab/external-refs.allowlist.txt`` with a justification.
 
+It additionally enforces that wrapper composite actions under
+``.github/actions/<name>/action.yml`` SHA-pin every ``uses:`` they delegate
+to (40-character hex). That positive assertion is what prevents future
+regressions inside the wrappers (e.g. swapping a SHA for ``@main``).
+
 Run from the repository root::
 
     python scripts/check-external-refs.py
@@ -31,6 +36,8 @@ from typing import Iterable
 ROOT = Path(__file__).resolve().parent.parent
 
 # Files (and globs) we scan for external references.
+# AIDEV-NOTE: keep this list synced with the scope described in
+# docs/github-org-migration-audit.md ("How to use this document").
 SCAN_GLOBS: tuple[str, ...] = (
     ".gitlab-ci.yml",
     ".gitlab/**/*.yml",
@@ -48,6 +55,10 @@ EXEMPT_FILES: frozenset[str] = frozenset(
     {
         ".gitlab/external-refs.yml",
         ".gitlab/external-refs.allowlist.txt",
+        # services.yml is a pure registry of service-container images. Every
+        # non-trivial line is `name: registry.ddbuild.io/...`. Enumerating each
+        # line in the allowlist would obscure the policy, not enforce it.
+        ".gitlab/services.yml",
     }
 )
 
@@ -65,36 +76,79 @@ class Pattern:
     hint: str
 
 
-PATTERNS: tuple[Pattern, ...] = (
+# Global patterns: applied to every scanned file EXCEPT wrapper composite
+# actions (which have a separate, stricter rule below).
+#
+# All regexes are compiled with re.IGNORECASE so that lowercase variants
+# (`uses: datadog/…`, `--scope datadog/…`) — which resolve at runtime on
+# GitHub but would otherwise evade the lint — are also caught.
+GLOBAL_PATTERNS: tuple[Pattern, ...] = (
     Pattern(
         name="gitlab-trigger-project",
-        regex=re.compile(r"\bproject:\s*[\"']?DataDog/"),
+        regex=re.compile(r"\bproject:\s*[\"']?DataDog/", re.IGNORECASE),
         hint="Replace with $EXT_GITLAB_<NAME> from .gitlab/external-refs.yml.",
     ),
     Pattern(
         name="dd-octo-sts-scope",
-        regex=re.compile(r"--scope\s+DataDog/"),
+        regex=re.compile(r"--scope\s+DataDog/", re.IGNORECASE),
         hint="Replace with $EXT_GITHUB_<NAME> from .gitlab/external-refs.yml.",
     ),
     Pattern(
         name="internal-gitlab-host",
-        regex=re.compile(r"gitlab\.ddbuild\.io/DataDog/"),
+        regex=re.compile(r"gitlab\.ddbuild\.io/DataDog/", re.IGNORECASE),
         hint="Replace with $EXT_HOST_INTERNAL_GITLAB/DataDog/ or allowlist with justification.",
     ),
     Pattern(
+        name="internal-registry-host",
+        regex=re.compile(r"registry\.ddbuild\.io/", re.IGNORECASE),
+        hint=(
+            "New `registry.ddbuild.io/...` image: document it in "
+            "docs/github-org-migration-audit.md and allowlist with justification."
+        ),
+    ),
+    Pattern(
         name="github-action-uses",
-        regex=re.compile(r"^\s*-?\s*uses:\s*DataDog/"),
+        regex=re.compile(r"^\s*-?\s*uses:\s*DataDog/", re.IGNORECASE),
         hint="Replace with a wrapper composite action under .github/actions/.",
     ),
     Pattern(
         name="checkout-repository",
-        regex=re.compile(r"^\s*-?\s*repository:\s*[\"']?DataDog/"),
+        regex=re.compile(r"^\s*-?\s*repository:\s*[\"']?DataDog/", re.IGNORECASE),
         hint="Allowlist with justification (most cases are OSS repos).",
     ),
     Pattern(
         name="git-clone-datadog",
-        regex=re.compile(r"git\s+clone\s+(?:--\S+\s+)*[\"']?https://github\.com/DataDog/"),
+        regex=re.compile(
+            r"git\s+clone\s+(?:--\S+\s+)*[\"']?https://github\.com/DataDog/",
+            re.IGNORECASE,
+        ),
         hint="Allowlist with justification (most cases are OSS or rerouted clones).",
+    ),
+)
+
+# Wrapper-action patterns: applied ONLY to composite actions under
+# `.github/actions/<name>/action.yml`. The whole point of those wrappers is
+# to centralize `uses: DataDog/<action>@<sha>` lines, so the global
+# `github-action-uses` rule does not apply. Instead, we require that every
+# `uses:` line in a wrapper SHA-pins its reference (40 hex chars), which is
+# the security property the wrappers exist to guarantee.
+#
+# The negative lookahead matches anything after `@` that is NOT a 40-char
+# hex SHA followed by EOL / whitespace / inline `#` comment. So:
+#   uses: DataDog/foo@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4  -> OK
+#   uses: DataDog/foo@v1.0.4                                              -> violation
+#   uses: DataDog/foo@main                                                -> violation
+WRAPPER_PATTERNS: tuple[Pattern, ...] = (
+    Pattern(
+        name="wrapper-uses-not-sha-pinned",
+        regex=re.compile(
+            r"^\s*-?\s*uses:\s*[\w./-]+@(?![a-f0-9]{40}(?:\s|#|$))",
+            re.IGNORECASE,
+        ),
+        hint=(
+            "Wrapper composite actions MUST SHA-pin every `uses:` reference "
+            "(40 hex chars). Tag/branch pins defeat the purpose of the wrapper."
+        ),
     ),
 )
 
@@ -137,6 +191,11 @@ def _is_exempt(rel: str) -> bool:
     return any(rel.startswith(prefix) for prefix in EXEMPT_PREFIXES)
 
 
+def _is_wrapper_action(rel: str) -> bool:
+    """True if this file is a composite-action wrapper under .github/actions/."""
+    return rel.startswith(".github/actions/") and rel.endswith(("/action.yml", "/action.yaml"))
+
+
 def _collect_files() -> list[Path]:
     files: list[Path] = []
     seen: set[Path] = set()
@@ -156,12 +215,13 @@ def _collect_files() -> list[Path]:
 
 def _scan_file(path: Path) -> Iterable[Violation]:
     rel = str(path.relative_to(ROOT))
+    patterns = WRAPPER_PATTERNS if _is_wrapper_action(rel) else GLOBAL_PATTERNS
     try:
         text = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return
     for line_no, line in enumerate(text.splitlines(), start=1):
-        for pattern in PATTERNS:
+        for pattern in patterns:
             if pattern.regex.search(line):
                 yield Violation(
                     file=rel,
