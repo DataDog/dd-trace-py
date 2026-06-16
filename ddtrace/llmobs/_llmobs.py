@@ -332,12 +332,18 @@ class LLMObsSpan:
                 return None
             if span.get_tag("no_input") == "1":
                 span.input = []
+            # Redact or drop sensitive top-level metadata
+            span.metadata.pop("tool_config", None)
             return span
+
+    ``metadata`` exposes the span's top-level metadata for redaction. Internal Datadog
+    metadata is never included and cannot be modified through this object.
     """
 
     input: list[Message] = field(default_factory=list)
     output: list[Message] = field(default_factory=list)
     _tags: dict[str, str] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -431,7 +437,20 @@ def _normalize_llmobs_meta(
     empty optional fields.
     """
     llmobs_meta[LLMOBS_STRUCT.SPAN] = _SpanField(kind=span_kind)
-    llmobs_meta.setdefault(LLMOBS_STRUCT.METADATA, {})
+
+    current_metadata = llmobs_meta.get(LLMOBS_STRUCT.METADATA)
+    if not isinstance(current_metadata, dict):
+        current_metadata = {}
+    preserved_dd = current_metadata.get(LLMOBS_STRUCT.METADATA_DD)
+    user_metadata = llmobs_span.metadata
+    if not isinstance(user_metadata, dict):
+        log.warning("LLMObs span processor set non-dict metadata (%r); ignoring.", type(user_metadata))
+        user_metadata = current_metadata
+    # Drop any user-supplied `_dd` so internal metadata cannot be spoofed, then restore the real one.
+    new_metadata = {k: v for k, v in user_metadata.items() if k != LLMOBS_STRUCT.METADATA_DD}
+    if preserved_dd is not None:
+        new_metadata[LLMOBS_STRUCT.METADATA_DD] = preserved_dd
+    llmobs_meta[LLMOBS_STRUCT.METADATA] = new_metadata
 
     model_name = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_NAME, None)
     model_provider = llmobs_meta.pop(LLMOBS_STRUCT.MODEL_PROVIDER, None)
@@ -650,10 +669,19 @@ class LLMObs(Service):
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 
         llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        original_metadata = llmobs_meta.get(LLMOBS_STRUCT.METADATA)
+        if not isinstance(original_metadata, dict):
+            original_metadata = {}
+        llmobs_span.metadata = {k: v for k, v in original_metadata.items() if k != LLMOBS_STRUCT.METADATA_DD}
         user_processed_span = self._apply_user_span_processor(span, llmobs_span)
         if user_processed_span is None:
             log.debug("LLMObs span %s dropped by user processor", span)
             return False
+        # A processor that returns a new LLMObsSpan (rather than mutating in place) won't have
+        # carried over metadata; don't let that silently drop the original. Honor a replacement
+        # object's metadata only if it actually set it.
+        if user_processed_span is not llmobs_span and not user_processed_span.metadata:
+            user_processed_span.metadata = llmobs_span.metadata
 
         _normalize_llmobs_meta(
             span,

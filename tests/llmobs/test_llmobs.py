@@ -256,6 +256,8 @@ class TestLLMIOProcessing:
                 elif s.get_tag("span.kind") in ("embedding", "retrieval"):
                     for msg in s.input + s.output:
                         msg["content"] = "redacted"
+                if s.get_tag("scrub_metadata") == "1":
+                    s.metadata.pop("secret", None)
                 return s
 
             LLMObs.register_processor(span_processor)
@@ -271,6 +273,12 @@ class TestLLMIOProcessing:
                     ret_span,
                     output_data=[{"text": "sensitive result", "name": "result.pdf", "score": 0.9}],
                 )
+            with LLMObs.tool("tool_call") as tool_span:
+                LLMObs.annotate(
+                    tool_span,
+                    metadata={"secret": "leak", "keep": "ok"},
+                    tags={"scrub_metadata": "1"},
+                )
             """
             ),
             env=env,
@@ -280,7 +288,7 @@ class TestLLMIOProcessing:
         assert err.decode() == ""
         events = llmobs_backend.wait_for_num_events(num=1)
         traces = events[0]
-        assert len(traces) == 4
+        assert len(traces) == 5
         assert "scrub_values:1" in traces[0]["spans"][0]["tags"]
         assert traces[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
         assert traces[0]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "scrubbed"
@@ -294,6 +302,8 @@ class TestLLMIOProcessing:
         assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["text"] == "redacted"
         assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["name"] == "result.pdf"
         assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["score"] == 0.9
+        assert traces[4]["spans"][0]["meta"]["span"]["kind"] == "tool"
+        assert traces[4]["spans"][0]["meta"]["metadata"] == {"keep": "ok"}
 
     def test_register_unregister_processor(self, llmobs):
         def _sp(s):
@@ -389,6 +399,107 @@ class TestLLMIOProcessing:
             )
         assert get_llmobs_input(ret_span) == {"value": "find documents about secrets"}
         assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "result.pdf", "score": 0.9}]}
+
+    def _redact_metadata(span: LLMObsSpan):
+        if "secret" in span.metadata:
+            span.metadata["secret"] = "redacted"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_redact_metadata)])
+    def test_metadata_processor_mutate(self, llmobs, llmobs_enable_opts):
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"secret": "leak", "keep": "ok"})
+        assert get_llmobs_metadata(span) == {"secret": "redacted", "keep": "ok"}
+
+    def _drop_metadata(span: LLMObsSpan):
+        span.metadata = {}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_drop_metadata)])
+    def test_metadata_processor_remove(self, llmobs, llmobs_enable_opts):
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"secret": "leak", "other": "data"})
+        assert get_llmobs_metadata(span) == {}
+
+    def _conditional_metadata_processor(span: LLMObsSpan):
+        if span.get_tag("scrub_metadata") == "1":
+            span.metadata.pop("secret", None)
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_metadata_processor)])
+    def test_metadata_processor_conditional(self, llmobs, llmobs_enable_opts):
+        with llmobs.annotation_context(tags={"scrub_metadata": "1"}):
+            with llmobs.llm("openai.request") as scrubbed_span:
+                llmobs.annotate(scrubbed_span, metadata={"secret": "leak", "keep": "ok"})
+        assert get_llmobs_metadata(scrubbed_span) == {"keep": "ok"}
+
+        with llmobs.llm("openai.request") as unscrubbed_span:
+            llmobs.annotate(unscrubbed_span, metadata={"secret": "public"})
+        assert get_llmobs_metadata(unscrubbed_span) == {"secret": "public"}
+
+    _DD_VISIBLE_TO_PROCESSOR = {}
+
+    def _wipe_metadata_processor(span: LLMObsSpan):
+        TestLLMIOProcessing._DD_VISIBLE_TO_PROCESSOR["had_dd"] = "_dd" in span.metadata
+        span.metadata = {}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_wipe_metadata_processor)])
+    def test_metadata_processor_preserves_dd(self, llmobs, llmobs_enable_opts):
+        """Internal `_dd` metadata is never exposed to the processor and survives a wipe."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, metadata={"secret": "leak"})
+            _annotate_llmobs_span_data(span, cost_tags=["model"])
+        metadata = get_llmobs_metadata(span)
+        # user metadata wiped, but internal _dd preserved
+        assert metadata == {"_dd": {"cost_tags": ["model"]}}
+        # the processor never saw _dd
+        assert TestLLMIOProcessing._DD_VISIBLE_TO_PROCESSOR["had_dd"] is False
+
+    def _spoof_dd_processor(span: LLMObsSpan):
+        span.metadata["_dd"] = {"cost_tags": ["spoofed"]}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_spoof_dd_processor)])
+    def test_metadata_processor_dd_spoof_ignored(self, llmobs, llmobs_enable_opts):
+        """A processor cannot inject internal `_dd` metadata."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {"keep": "ok"}
+
+    def _bad_type_metadata_processor(span: LLMObsSpan):
+        span.metadata = "not a dict"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_bad_type_metadata_processor)])
+    def test_metadata_processor_bad_type(self, llmobs, llmobs_enable_opts):
+        """A non-dict metadata from the processor is ignored and the original retained."""
+        with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+            with llmobs.llm("openai.request") as span:
+                llmobs.annotate(span, metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {"keep": "ok"}
+        assert mock_log.warning.called
+
+    def _replacement_preserves_metadata(span: LLMObsSpan):
+        # returns a brand-new span (not in-place) that never touches metadata
+        return LLMObsSpan(input=[{"content": "scrubbed"}])
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_preserves_metadata)])
+    def test_metadata_processor_replacement_object_preserves_metadata(self, llmobs, llmobs_enable_opts):
+        """A processor returning a new LLMObsSpan without metadata must not drop the original."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {"keep": "ok"}
+
+    def _replacement_sets_metadata(span: LLMObsSpan):
+        return LLMObsSpan(input=span.input, metadata={"new": "data"})
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_sets_metadata)])
+    def test_metadata_processor_replacement_object_honors_metadata(self, llmobs, llmobs_enable_opts):
+        """A replacement object that explicitly sets metadata is honored."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"old": "data"})
+        assert get_llmobs_metadata(span) == {"new": "data"}
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
