@@ -155,7 +155,7 @@ class SessionManager:
             self.atf_all_flaky_tests: bool = True
             self.test_properties: dict[TestRef, TestProperties] = tm_properties
             log.info(
-                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be skipped",
+                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
                 len(tm_properties),
             )
         else:
