@@ -38,12 +38,13 @@ from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import OpenFeatureConfig
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.vendor.packaging.version import parse as parse_version
 
 
 # Handle different import paths between openfeature-sdk versions
 # Versions 0.7.0+ reorganized submodules
 pkg_version = version("openfeature-sdk")
-if pkg_version >= "0.7.0":
+if parse_version(pkg_version) >= parse_version("0.7.0"):
     from openfeature.provider import AbstractProvider
 else:
     from openfeature.provider.provider import AbstractProvider
@@ -149,6 +150,12 @@ class DataDogProvider(AbstractProvider):
         """Returns provider metadata."""
         return self._metadata
 
+    def attach(self, on_emit: typing.Callable[..., None]) -> None:
+        """Attach OpenFeature event dispatch and register for RC callbacks."""
+        super().attach(on_emit)
+        if self._enabled:
+            _register_provider(self)
+
     def get_provider_hooks(self) -> list[typing.Any]:
         """
         Returns provider-level hooks.
@@ -244,6 +251,7 @@ class DataDogProvider(AbstractProvider):
         if self._flagevaluation_writer is not None:
             try:
                 self._flagevaluation_writer.stop()
+                self._flagevaluation_writer.join()
                 logger.debug("FlagEvaluationWriter stopped")
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
@@ -537,16 +545,16 @@ class DataDogProvider(AbstractProvider):
         """
         Called when a Remote Configuration payload is received and processed.
 
-        Updates status first, then signals the event to unblock initialize().
-        Emits PROVIDER_READY for late arrivals (config received after initialize() timed out).
+        Updates status first, then signals the event for observers.
+        Emits PROVIDER_READY for late arrivals after non-blocking initialize().
         """
         if not self._config_received.is_set():
             self._status = ProviderStatus.READY
             logger.debug("First FFE configuration received, provider is now READY")
-            # Emit READY for late recovery: config arrived after init timed out
+            # Emit READY for late recovery: config arrived after initialize() returned.
             self._emit_ready_event()
 
-        # Signal the event last to unblock initialize() after status is updated
+        # Signal the event last after status is updated.
         self._config_received.set()
 
     def _emit_ready_event(self) -> None:

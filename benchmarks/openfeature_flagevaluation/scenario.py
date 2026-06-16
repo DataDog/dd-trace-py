@@ -4,11 +4,11 @@ This measures the cost an OpenFeature evaluation actually pays for server-side E
 flag-evaluation counting, mirroring the Go reference benchmark
 (``dd-trace-go/openfeature/flagevaluation_test.go``):
 
-* ``hook_enqueue`` — the ``finally_after`` hook hot path: cheap scalar capture + a
-  shallow context copy + a non-blocking bounded enqueue. This is what charges the
-  caller's evaluation goroutine/thread directly, so it must stay flat.
-* ``aggregate`` — the background worker hot path: flatten + deterministic prune +
-  canonical-context key + two-tier aggregation. This runs OFF the eval path, but its
+* ``hook_enqueue`` — the ``finally_after`` hook hot path: scalar capture + bounded
+  context snapshot + non-blocking bounded enqueue. This is what charges the caller's
+  evaluation goroutine/thread directly, so it must stay bounded.
+* ``aggregate`` — the background worker hot path: canonical-context key + two-tier
+  aggregation over already-bounded snapshots. This runs OFF the eval path, but its
   per-event cost still bounds throughput of the writer thread.
 * ``hook_plus_drain`` — end-to-end: N hook enqueues followed by a full queue drain +
   aggregate, the realistic per-flush shape.
@@ -100,20 +100,21 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
 
         elif mode == "aggregate":
             # Pre-capture snapshots once; the measured loop only runs _aggregate
-            # (flatten + prune + canonical key + two-tier insert).
+            # (canonical key + two-tier insert).
             from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+            from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 
+            bounded_attrs = flatten_and_prune_context(attrs)
             events = [
                 _EvalEvent(
                     flag_key="flag-{}".format(i % num_flags),
                     variant="variant-{}".format(i % 4),
                     allocation_key="alloc-{}".format(i % num_flags),
-                    reason="TARGETING_MATCH",
                     targeting_key="user-{}".format(i % num_flags),
-                    attrs=dict(attrs),
+                    attrs=dict(bounded_attrs),
                     runtime_default=False,
                     error_message="",
-                    eval_time_ms=1_700_000_000_000 + i,
+                    eval_time_ms=1_760_000_000_000 + i,
                 )
                 for i in range(num_flags)
             ]

@@ -12,9 +12,11 @@ Tests validate the two-tier aggregation spec:
 """
 
 import json
+from pathlib import Path
 import time
 from unittest import mock
 
+from jsonschema import Draft7Validator
 import pytest
 
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
@@ -41,7 +43,6 @@ def _make_event(
     flag_key: str = "my-flag",
     variant: str = "on",
     allocation_key: str = "alloc-1",
-    reason: str = "TARGETING_MATCH",
     targeting_key: str = "user-1",
     attrs: dict = None,
     runtime_default: bool = False,
@@ -54,7 +55,6 @@ def _make_event(
         flag_key=flag_key,
         variant=variant,
         allocation_key=allocation_key,
-        reason=reason,
         targeting_key=targeting_key,
         attrs=attrs or {},
         runtime_default=runtime_default,
@@ -218,7 +218,7 @@ class TestAggregation:
         """Beyond degradedCap, increment _dropped_degraded_overflow."""
         # Fill the degraded map to the cap.
         for i in range(DEGRADED_CAP):
-            key = (f"flag-{i}", "on", "alloc", "SPLIT")
+            key = (f"flag-{i}", "on", "alloc", False, "")
             from ddtrace.internal.openfeature._flagevaluation_writer import _Entry
 
             writer._degraded[key] = _Entry(1000, False, "", {}, "")
@@ -275,6 +275,22 @@ class TestEnqueue:
     def test_enqueue_succeeds_when_queue_has_capacity(self, writer):
         writer.enqueue(_make_event())
         assert writer._queue.qsize() == 1
+
+    def test_enqueue_queues_pruned_context_snapshot(self, writer):
+        attrs = {f"field-{i:03d}": f"value-{i:03d}" for i in range(MAX_CONTEXT_FIELDS + 50)}
+        attrs["zzz-oversized"] = "x" * (MAX_FIELD_LENGTH + 1)
+
+        writer.enqueue(_make_event(attrs=attrs))
+
+        queued = writer._queue.get_nowait()
+        assert len(queued.attrs) == MAX_CONTEXT_FIELDS
+        assert "zzz-oversized" not in queued.attrs
+
+    def test_enqueue_flattens_nested_context_snapshot(self, writer):
+        writer.enqueue(_make_event(attrs={"user": {"id": 123, "plan": "pro"}}))
+
+        queued = writer._queue.get_nowait()
+        assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +365,7 @@ class TestPeriodicFlush:
         evals = decoded["flagEvaluations"]
         assert len(evals) == 1
         assert evals[0]["evaluation_count"] == 2
+        assert "reason" not in evals[0]
         assert evals[0]["first_evaluation"] <= evals[0]["last_evaluation"]
 
     def test_context_pruning_above_256_fields(self, writer):
@@ -414,10 +431,10 @@ class TestPeriodicFlush:
 # Schema conformance of the emitted payload (full + degraded rows)
 # ---------------------------------------------------------------------------
 
-# The flageval-worker schema (batchedflagevaluations.json) is not vendored into this
-# repo, so we codify the worker contract as a structural validator: required scalar
-# fields, and variant/allocation serialized as {"key": ...} OBJECTS — never bare
-# strings.
+# The copied flageval-worker schema is the contract surface for these tests.
+_SCHEMA_PATH = Path(__file__).parent / "testdata" / "flageval-worker" / "batchedflagevaluations.json"
+_BATCHED_FLAGEVALUATIONS_SCHEMA = json.loads(_SCHEMA_PATH.read_text())
+_BATCHED_FLAGEVALUATIONS_VALIDATOR = Draft7Validator(_BATCHED_FLAGEVALUATIONS_SCHEMA)
 
 # Required fields that EVERY flagevaluation row (full or degraded) must carry.
 _REQUIRED_EVENT_FIELDS = {
@@ -466,6 +483,11 @@ def _assert_row_schema_valid(ev: dict) -> None:
         assert isinstance(ev["runtime_default_used"], bool)
 
 
+def _assert_batch_schema_valid(payload: dict) -> None:
+    errors = sorted(_BATCHED_FLAGEVALUATIONS_VALIDATOR.iter_errors(payload), key=lambda e: e.path)
+    assert not errors, [f"{list(error.path)}: {error.message}" for error in errors]
+
+
 class TestPayloadSchemaConformance:
     def test_full_tier_row_is_schema_valid_with_object_variant_and_allocation(self, writer):
         """A full-tier row carries variant/allocation as {key} objects + context.evaluation."""
@@ -480,6 +502,7 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
+        _assert_batch_schema_valid(decoded)
         assert "flagEvaluations" in decoded
         row = decoded["flagEvaluations"][0]
         _assert_row_schema_valid(row)
@@ -491,14 +514,23 @@ class TestPayloadSchemaConformance:
     def test_degraded_tier_row_is_schema_valid_and_omits_context(self, writer):
         """A degraded-tier row is schema-valid with variant/allocation objects, no context."""
         writer._per_flag_count["my-flag"] = PER_FLAG_CAP  # force degraded
-        writer.enqueue(_make_event(variant="on", allocation_key="alloc-1", attrs={"k": "v"}))
+        writer.enqueue(
+            _make_event(
+                variant="on",
+                allocation_key="alloc-1",
+                attrs={"k": "v"},
+                error_message="degraded failure",
+            )
+        )
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
+        _assert_batch_schema_valid(decoded)
         row = decoded["flagEvaluations"][0]
         _assert_row_schema_valid(row)
         assert row["variant"] == {"key": "on"}
+        assert row["error"] == {"message": "degraded failure"}
         assert "context" not in row
         assert "targeting_key" not in row
 
@@ -507,7 +539,6 @@ class TestPayloadSchemaConformance:
         writer.enqueue(
             _make_event(
                 variant="",
-                reason="ERROR",
                 runtime_default=True,
                 error_message="Flag not found",
             )
@@ -516,6 +547,7 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
+        _assert_batch_schema_valid(decoded)
         row = decoded["flagEvaluations"][0]
         _assert_row_schema_valid(row)
         assert row["error"] == {"message": "Flag not found"}
@@ -535,12 +567,30 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
+        _assert_batch_schema_valid(decoded)
         rows = decoded["flagEvaluations"]
         assert len(rows) == 2
         for row in rows:
             _assert_row_schema_valid(row)
         flags = {r["flag"]["key"] for r in rows}
         assert flags == {"full-flag", "deg-flag"}
+
+    def test_worker_schema_rejects_top_level_reason(self):
+        bad = {
+            "flagEvaluations": [
+                {
+                    "timestamp": int(time.time() * 1000),
+                    "flag": {"key": "reason-flag"},
+                    "first_evaluation": int(time.time() * 1000),
+                    "last_evaluation": int(time.time() * 1000),
+                    "evaluation_count": 1,
+                    "reason": "targeting_match",
+                }
+            ]
+        }
+        errors = list(_BATCHED_FLAGEVALUATIONS_VALIDATOR.iter_errors(bad))
+        assert errors
+        assert any("Additional properties" in error.message and "reason" in error.message for error in errors)
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +662,7 @@ class TestObservableDropCounters:
 
         # Saturate the degraded map to its cap.
         for i in range(DEGRADED_CAP):
-            writer._degraded[(f"flag-{i}", "on", "alloc", "SPLIT")] = _Entry(1000, False, "", {}, "")
+            writer._degraded[(f"flag-{i}", "on", "alloc", False, "")] = _Entry(1000, False, "", {}, "")
         with writer._lock:
             writer._add_to_degraded(_make_event(flag_key="overflow"))
         assert writer._dropped_degraded_overflow == 1

@@ -6,7 +6,8 @@ PeriodicService + get_connection() transport path as the exposure writer in writ
 
 Key design properties:
 - Async, best-effort recording: the finally_after hook does cheap capture + non-blocking
-  enqueue only. All flatten/prune/aggregate/flush work happens in the background worker.
+  enqueue. The writer bounds context before queueing; aggregate/flush work happens in the
+  background worker.
 - Two-tier aggregation (full → degraded → drop-counted).
 - Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
   contexts always produce distinct keys with no collisions.
@@ -229,9 +230,8 @@ class _EvalEvent(typing.NamedTuple):
     flag_key: str
     variant: str  # "" when absent (= runtime_default)
     allocation_key: str
-    reason: str
     targeting_key: str
-    attrs: dict[str, typing.Any]  # shallow copy from evaluation context
+    attrs: dict[str, typing.Any]  # flattened and pruned context snapshot
     runtime_default: bool
     error_message: str
     eval_time_ms: int
@@ -247,12 +247,15 @@ class FlagEvaluationWriter(PeriodicService):
     SDK-native EVP `flagevaluation` writer.
 
     Two-tier aggregation design:
-    - full-tier: keyed by (flag, variant, allocation, reason, targeting_key, canonical_context)
-    - degraded-tier: keyed by (flag, variant, allocation, reason) — same cardinality as OTel
+    - full-tier: keyed by schema-visible dimensions only: flag, variant, allocation,
+      runtime_default_used, error.message, targeting_key, canonical_context
+    - degraded-tier: keyed by schema-visible retained dimensions: flag, variant, allocation,
+      runtime_default_used, error.message
     - drop-counted: beyond degradedCap, increment _dropped_degraded_overflow
 
-    The finally_after hook enqueues cheap _EvalEvent snapshots; the PeriodicService
-    background thread drains the queue, aggregates, and flushes via HTTP every 10 s.
+    The finally_after hook enqueues _EvalEvent snapshots through enqueue(), which bounds
+    context before buffering; the PeriodicService background thread drains the queue,
+    aggregates, and flushes via HTTP every 10 s.
     """
 
     def __init__(self, interval: float = DEFAULT_FLUSH_INTERVAL, timeout: float = 2.0) -> None:
@@ -288,17 +291,29 @@ class FlagEvaluationWriter(PeriodicService):
         """
         Non-blocking enqueue from the finally_after hook thread.
 
-        On queue.Full, increments _dropped_queue (observable) and returns immediately —
-        never blocks the evaluation hot path.
+        Context is flattened/pruned before it enters the queue so queue length is not the
+        only memory bound. On queue.Full, increments _dropped_queue (observable) and
+        returns immediately — never blocks the evaluation hot path.
         """
+        bounded_event = _EvalEvent(
+            flag_key=event.flag_key,
+            variant=event.variant,
+            allocation_key=event.allocation_key,
+            targeting_key=event.targeting_key,
+            attrs=flatten_and_prune_context(event.attrs) if event.attrs else {},
+            runtime_default=event.runtime_default,
+            error_message=event.error_message,
+            eval_time_ms=event.eval_time_ms,
+        )
+
         try:
-            self._queue.put_nowait(event)
+            self._queue.put_nowait(bounded_event)
         except queue.Full:
             with self._lock:
                 self._dropped_queue += 1
             logger.debug(
                 "FlagEvaluationWriter: queue full — dropped flag evaluation event for %s",
-                event.flag_key,
+                bounded_event.flag_key,
             )
 
     # ------------------------------------------------------------------
@@ -390,6 +405,8 @@ class FlagEvaluationWriter(PeriodicService):
                 ev["variant"] = {"key": variant}
             if allocation_key:
                 ev["allocation"] = {"key": allocation_key}
+            if entry.error_message:
+                ev["error"] = {"message": entry.error_message}
             events.append(ev)
 
         if not events:
@@ -438,10 +455,10 @@ class FlagEvaluationWriter(PeriodicService):
         Aggregate a single evaluation event into the two-tier maps.
 
         Implements: full-tier → degraded-tier → drop-counted cascade.
-        Context pruning and canonical key computation happen here (off the hot path).
+        Canonical key computation happens here (off the hot path). Context was already
+        flattened and pruned before enqueue.
         """
-        # Flatten + prune the context.
-        context_attrs = flatten_and_prune_context(event.attrs) if event.attrs else {}
+        context_attrs = event.attrs or {}
 
         # Build the full-tier key tuple.
         ctx_key = canonical_context_key(context_attrs)
@@ -449,7 +466,8 @@ class FlagEvaluationWriter(PeriodicService):
             event.flag_key,
             event.variant,
             event.allocation_key,
-            event.reason,
+            event.runtime_default,
+            event.error_message,
             event.targeting_key,
             ctx_key,
         )
@@ -489,7 +507,13 @@ class FlagEvaluationWriter(PeriodicService):
         Add to the degraded-tier map (drops targeting_key + context).
         Must be called with self._lock held.
         """
-        deg_key = (event.flag_key, event.variant, event.allocation_key, event.reason)
+        deg_key = (
+            event.flag_key,
+            event.variant,
+            event.allocation_key,
+            event.runtime_default,
+            event.error_message,
+        )
         if deg_key in self._degraded:
             self._degraded[deg_key].observe(event.eval_time_ms)
             return
@@ -503,7 +527,7 @@ class FlagEvaluationWriter(PeriodicService):
             runtime_default=event.runtime_default,
             targeting_key="",
             context_attrs={},
-            error_message="",
+            error_message=event.error_message,
         )
 
     def _send_payload(self, payload: bytes, num_events: int) -> None:

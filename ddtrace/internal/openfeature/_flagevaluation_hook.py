@@ -55,8 +55,7 @@ class FlagEvaluationHook(Hook):
         Eval-time: uses details.flag_metadata["dd.eval.timestamp_ms"] when present
         (stamped by the provider at eval entry); falls back to hook-fire time.
 
-        Runtime-default: True when the variant is absent (details.variant is None),
-        which detects a runtime default independent of the reason string.
+        Runtime-default: True when the variant is absent (details.variant is None).
 
         Attrs: shallow copy of the evaluation context attributes dict so the hook
         returns immediately and the worker can safely iterate attrs off-path.
@@ -82,13 +81,6 @@ class FlagEvaluationHook(Hook):
             variant = details.variant or ""
             runtime_default = details.variant is None
 
-            # Reason: normalise to upper-case string.
-            if details.reason is not None:
-                reason_raw = details.reason.value if hasattr(details.reason, "value") else str(details.reason)
-                reason = str(reason_raw).upper()
-            else:
-                reason = "UNKNOWN"
-
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
             if eval_ctx is not None:
@@ -108,7 +100,6 @@ class FlagEvaluationHook(Hook):
                 flag_key=flag_key,
                 variant=variant,
                 allocation_key=allocation_key,
-                reason=reason,
                 targeting_key=targeting_key,
                 attrs=attrs,
                 runtime_default=runtime_default,

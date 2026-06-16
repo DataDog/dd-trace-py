@@ -2814,6 +2814,7 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "mock": latest,
+                "jsonschema": latest,
                 # Test against openfeature-sdk 0.8.0+ (required for finally_after hook details parameter)
                 "openfeature-sdk": ["~=0.8.0", latest],
             },

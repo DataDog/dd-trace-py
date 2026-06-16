@@ -106,13 +106,13 @@ class TestFlagEvaluationHook:
         event = writer.enqueue.call_args[0][0]
         assert event.runtime_default is False
 
-    def test_finally_after_reason_normalized_to_upper(self, hook, writer):
-        """Reason must be upper-case string in the enqueued event."""
+    def test_finally_after_does_not_enqueue_openfeature_reason(self, hook, writer):
+        """OpenFeature reason is not an EVP field and must not enter the event snapshot."""
         hc = _make_hook_context()
         details = _make_details(reason=Reason.TARGETING_MATCH)
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
-        assert event.reason == "TARGETING_MATCH"
+        assert not hasattr(event, "reason")
 
     def test_finally_after_eval_time_from_metadata(self, hook, writer):
         """Eval-time must come from metadata["dd.eval.timestamp_ms"] when present."""
@@ -179,8 +179,8 @@ class TestFlagEvaluationHook:
 class TestAsyncBoundary:
     """Prove the hook does NOT aggregate on the eval call path.
 
-    The hook may only enqueue a cheap snapshot; flatten/prune/canonical-key/aggregate
-    must run later in the writer's background worker, never on the eval thread.
+    The hook may only enqueue a snapshot; canonical-key/aggregate must run later in the
+    writer's background worker, never on the eval thread.
     """
 
     def test_aggregate_not_called_on_hook_path(self):
@@ -199,7 +199,7 @@ class TestAsyncBoundary:
             # The event must be queued but NOT aggregated on the hook path.
             spy_aggregate.assert_not_called()
             assert real_writer._queue.qsize() == 1
-            # The aggregation maps are still empty — no flatten/prune/key happened yet.
+            # The aggregation maps are still empty — no keying/aggregation happened yet.
             assert real_writer._full == {}
             assert real_writer._degraded == {}
 
@@ -327,6 +327,24 @@ class TestKillswitchGating:
                 hooks = provider.get_provider_hooks()
                 assert len(hooks) == 1
                 assert hooks[0] is provider._flag_eval_hook
+
+    def test_provider_shutdown_joins_evp_writer_final_flush(self):
+        """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
+        from tests.utils import override_global_config
+
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            with mock.patch("ddtrace.internal.openfeature._provider.stop_exposure_writer"):
+                with mock.patch("ddtrace.internal.openfeature._provider.FlagEvaluationWriter") as writer_cls:
+                    from ddtrace.internal.openfeature._provider import DataDogProvider
+
+                    writer = writer_cls.return_value
+                    provider = DataDogProvider()
+
+                    provider.shutdown()
+
+        writer.stop.assert_called_once()
+        writer.join.assert_called_once()
+        assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(mock.call.join())
 
     def test_killswitch_enabled_true_registers_evp_hook(self):
         """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the EVP hook."""
