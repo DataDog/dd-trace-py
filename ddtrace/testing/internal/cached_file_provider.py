@@ -170,22 +170,35 @@ class CachedFileDataProvider:
         # In Bazel payload-files mode the build system handles test selection;
         # applying cached skippable decisions here would skip tests Bazel expects to run.
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
+            log.debug("Bazel payload-files mode active — suppressing skippable tests from cache")
             return set(), None
         cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
         if cached is None:
+            log.debug("No skippable tests cache file found — no tests will be skipped in this worker")
             return set(), None
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
             for item in cached["data"]:
                 if item["type"] not in ("test", "suite"):
                     continue
-                module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
+                module_name = item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME)
+                module_ref = ModuleRef(module_name)
                 suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
                 if item["type"] == "suite" and self._itr_skipping_level == ITRSkippingLevel.SUITE:
                     skippable_items.add(suite_ref)
                 elif item["type"] == "test" and self._itr_skipping_level == ITRSkippingLevel.TEST:
                     skippable_items.add(TestRef(suite_ref, item["attributes"].get("name", EMPTY_NAME)))
             correlation_id = cached.get("meta", {}).get("correlation_id")
+            log.debug(
+                "Loaded skippable tests from cache: count=%d correlation_id=%s itr_level=%s",
+                len(skippable_items),
+                correlation_id,
+                self._itr_skipping_level,
+            )
+            if log.isEnabledFor(logging.DEBUG) and skippable_items:
+                for ref in list(skippable_items)[:5]:
+                    # module comes from test.bundle in API response; must match discovery JSONL module field
+                    log.debug("Skippable ref from cache (module=test.bundle, no dot conversion): %r", ref)
         except Exception as e:
             log.warning("Error parsing cached skippable tests file: %s", e)
             return set(), None

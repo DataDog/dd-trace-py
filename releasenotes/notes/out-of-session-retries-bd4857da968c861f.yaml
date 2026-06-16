@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    pytest: Introduce out-of-session retries for Test Optimization. After a test session finishes
+    and all fixtures (including session-scoped ones) have been torn down, a randomly chosen subset
+    of up to 5 of the tests that ultimately failed is re-run once each in a fresh session within the
+    same pytest process. This gives a clean-slate retry for flaky tests that leak state and would
+    therefore fail every in-session Auto Test Retry. The feature is enabled by default and does not
+    change pytest's pass/fail verdict; it can be disabled by setting
+    ``DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED=false``.

@@ -353,6 +353,36 @@ class SessionManager:
 
         return test_module, test_suite, test
 
+    def start_replacement_session(self) -> TestSession:
+        """Create a fresh ``TestSession`` configured identically to the current one and make it the active session.
+
+        Used by the out-of-session retries feature: after the main session has finished (and all fixtures have been
+        torn down), a second session is created in the same process to re-run a subset of failed tests with a clean
+        slate. The new session reuses this manager's writers, so it must be configured to match the original session
+        (service, ITR attributes, configuration errors); the writer's ``"*"`` metadata already applies to every event
+        regardless of session, so command/framework/env tags carry over automatically.
+        """
+        previous = self.session
+
+        session = TestSession(name=previous.name)
+        session.set_attributes(
+            test_command=previous.test_command,
+            test_framework=previous.test_framework,
+            test_framework_version=previous.test_framework_version,
+        )
+        session.set_service(self.service)
+        session.set_itr_attributes(
+            itr_enabled=self.settings.itr_enabled,
+            skipping_enabled=self.settings.skipping_enabled,
+            skipping_level=self.itr_skipping_level,
+        )
+        if self.configuration_errors:
+            session.configuration_errors = self.configuration_errors
+            session.set_tags(self.configuration_errors)
+
+        self.session = session
+        return session
+
     def get_test(self, test_ref: TestRef) -> t.Optional[Test]:
         module = self.session.children.get(test_ref.suite.module.name)
         if not module:
