@@ -17,7 +17,6 @@ import json
 
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.hook import HookContext
-import pytest
 
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
 from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentState
@@ -76,10 +75,7 @@ class TestDeltaVarintCodec:
         assert encode_delta_varint({130, 100, 128, 108, 100}) == "ZAgUAg=="
 
     def test_hash_targeting_key_golden(self):
-        assert (
-            hash_targeting_key("user-123")
-            == "fcdec6df4d44dbc637c7c5b58efface52a7f8a88535423430255be0bb89bedd8"
-        )
+        assert hash_targeting_key("user-123") == "fcdec6df4d44dbc637c7c5b58efface52a7f8a88535423430255be0bb89bedd8"
 
 
 class TestSpanEnrichmentState:
