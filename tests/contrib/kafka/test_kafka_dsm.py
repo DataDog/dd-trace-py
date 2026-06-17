@@ -82,9 +82,6 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     PAYLOAD = bytes("data streams", encoding="utf-8")
     serializing_producer.produce(kafka_topic, value=PAYLOAD, key="test_key_2")
     serializing_producer.flush()
-    # Broker may not have propagated the new topic yet; error messages (e.g.
-    # UNKNOWN_TOPIC_OR_PART) are delivered as Message objects with error() set,
-    # so treat them like None and keep polling.
     message = None
     while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll()
