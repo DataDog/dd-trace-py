@@ -697,7 +697,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.34.1",
+        "max_tracer_supported": "2.34.2",
         "auto-instrumented": true
     },
     {

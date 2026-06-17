@@ -4310,7 +4310,7 @@
           "python_version": "3.9"
         },
         {
-          "version": "2.34.1",
+          "version": "2.34.2",
           "python_version": "3.10"
         },
         {
@@ -4318,19 +4318,19 @@
           "python_version": "3.11"
         },
         {
-          "version": "2.34.1",
+          "version": "2.34.2",
           "python_version": "3.11"
         },
         {
-          "version": "2.34.1",
+          "version": "2.34.2",
           "python_version": "3.12"
         },
         {
-          "version": "2.34.1",
+          "version": "2.34.2",
           "python_version": "3.13"
         },
         {
-          "version": "2.34.1",
+          "version": "2.34.2",
           "python_version": "3.14"
         }
       ]

@@ -895,7 +895,7 @@ integrations:
   tested_versions_by_dependency:
     requests:
       min: 2.25.1
-      max: 2.34.1
+      max: 2.34.2
 
 - integration_name: rq
   is_external_package: true
