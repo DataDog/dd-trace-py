@@ -647,7 +647,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.27.0
+      max: 1.27.2
 
 - integration_name: mlflow
   is_external_package: true
@@ -705,7 +705,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 2.3.0
+      max: 2.40.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -847,6 +847,16 @@ integrations:
   dependency_names:
   - pytest_benchmark
 
+- integration_name: pytorch
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - torch
+  tested_versions_by_dependency:
+    torch:
+      min: 2.0.1
+      max: 2.12.0
+
 - integration_name: ray
   is_external_package: true
   is_tested: false
@@ -885,7 +895,7 @@ integrations:
   tested_versions_by_dependency:
     requests:
       min: 2.25.1
-      max: 2.34.1
+      max: 2.34.2
 
 - integration_name: rq
   is_external_package: true

@@ -510,7 +510,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.27.0",
+        "max_tracer_supported": "1.27.2",
         "auto-instrumented": true
     },
     {
@@ -559,7 +559,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "2.3.0",
+        "max_tracer_supported": "2.40.0",
         "auto-instrumented": true
     },
     {
@@ -664,6 +664,14 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "torch",
+        "integration": "pytorch",
+        "minimum_tracer_supported": "2.0.1",
+        "max_tracer_supported": "2.12.0",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "ray",
         "integration": "ray",
         "minimum_tracer_supported": "2.46.0",
@@ -689,7 +697,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.34.1",
+        "max_tracer_supported": "2.34.2",
         "auto-instrumented": true
     },
     {
