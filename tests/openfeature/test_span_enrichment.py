@@ -299,18 +299,30 @@ def _make_hook_context(flag_key="flag", targeting_key=None):
 class TestSpanEnrichmentHook:
     """Integration-style: capture, root-span-finish write, cleanup, error isolation."""
 
-    def teardown_method(self):
-        # Make sure no hook leaves a span-finish subscription behind between tests.
-        try:
-            from ddtrace.internal import core
+    def setup_method(self):
+        # Hooks constructed via self._hook() are tracked and torn down with their
+        # own destroy() (targeted, by-callback) -- NOT a blanket
+        # core.reset_listeners("trace.span_finish"), which would also remove any
+        # other product's span-finish listeners and could mask a real lifecycle
+        # bug (e.g. a hook that fails to unsubscribe). Each test still calls
+        # hook.destroy() explicitly; this is a belt-and-suspenders safety net.
+        self._hooks: list = []
 
-            core.reset_listeners("trace.span_finish")
-        except Exception:
-            pass
+    def teardown_method(self):
+        for hook in self._hooks:
+            try:
+                hook.destroy()
+            except Exception:
+                pass
+
+    def _hook(self):
+        hook = SpanEnrichmentHook()
+        self._hooks.append(hook)
+        return hook
 
     def test_no_active_span_no_crash(self):
         # eval with no active root span -> no crash, no state stored.
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         try:
             details = _make_details(True, "on", {"__dd_split_serial_id": 100, "__dd_do_log": True})
             hook.finally_after(_make_hook_context(targeting_key="user-1"), details, {})
@@ -321,7 +333,7 @@ class TestSpanEnrichmentHook:
     def test_finished_root_writes_decoded_flags(self):
         from ddtrace.trace import tracer
 
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         try:
             with tracer.trace("root") as root:
                 for sid in (100, 108, 128, 130, 100):  # includes a dupe
@@ -338,7 +350,7 @@ class TestSpanEnrichmentHook:
     def test_runtime_default_missing_variant_writes_runtime_defaults(self):
         from ddtrace.trace import tracer
 
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         try:
             with tracer.trace("root") as root:
                 # variant None + no serial id => runtime-default branch.
@@ -355,7 +367,7 @@ class TestSpanEnrichmentHook:
     def test_do_log_gating_subjects(self):
         from ddtrace.trace import tracer
 
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         try:
             with tracer.trace("root") as root:
                 # do_log False + targeting key => serial id added, NO subject.
@@ -375,7 +387,7 @@ class TestSpanEnrichmentHook:
 
     def test_error_isolation_never_raises(self):
         # A malformed details object must not raise out of the hook.
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         try:
             from ddtrace.trace import tracer
 
@@ -388,7 +400,7 @@ class TestSpanEnrichmentHook:
         from ddtrace.internal import core
 
         assert core.has_listeners("trace.span_finish") in (True, False)
-        hook = SpanEnrichmentHook()
+        hook = self._hook()
         assert core.has_listeners("trace.span_finish") is True
         hook.destroy()
         # After destroy, our specific callback is gone (no listeners remain in this isolated test).
@@ -399,9 +411,9 @@ class TestSpanEnrichmentHook:
         # via a stale subscription from the first.
         from ddtrace.trace import tracer
 
-        hook1 = SpanEnrichmentHook()
+        hook1 = self._hook()
         hook1.destroy()  # symmetric teardown
-        hook2 = SpanEnrichmentHook()
+        hook2 = self._hook()
         try:
             with tracer.trace("root") as root:
                 details = _make_details(True, "on", {"__dd_split_serial_id": 100, "__dd_do_log": False})
@@ -409,6 +421,236 @@ class TestSpanEnrichmentHook:
             assert root.get_tag("ffe_flags_enc") == encode_delta_varint({100})
         finally:
             hook2.destroy()
+
+    def test_child_span_evaluation_aggregates_onto_local_root(self):
+        # Contract: a flag evaluated INSIDE a child span (or async continuation)
+        # must aggregate onto the LOCAL ROOT, not the child. _get_root_span uses
+        # tracer.current_root_span(), so multiple child-span evals fold onto the
+        # one root and the child carries no ffe_* tag.
+        from ddtrace.trace import tracer
+
+        hook = self._hook()
+        try:
+            with tracer.trace("root") as root:
+                with tracer.trace("child-a") as child_a:
+                    hook.finally_after(
+                        _make_hook_context(),
+                        _make_details(True, "on", {"__dd_split_serial_id": 100, "__dd_do_log": False}),
+                        {},
+                    )
+                with tracer.trace("child-b") as child_b:
+                    hook.finally_after(
+                        _make_hook_context(),
+                        _make_details(True, "on", {"__dd_split_serial_id": 108, "__dd_do_log": False}),
+                        {},
+                    )
+                # State accumulates on the ROOT while inside children.
+                assert root in hook._span_states
+                assert child_a not in hook._span_states
+                assert child_b not in hook._span_states
+            # Both child-span evals folded onto the single root.
+            assert root.get_tag("ffe_flags_enc") == encode_delta_varint({100, 108})
+            assert _decode_delta_varint(root.get_tag("ffe_flags_enc")) == {100, 108}
+            # Children carry NO ffe_* tags.
+            assert child_a.get_tag("ffe_flags_enc") is None
+            assert child_b.get_tag("ffe_flags_enc") is None
+        finally:
+            hook.destroy()
+
+    def test_no_data_evaluation_creates_no_lingering_state(self):
+        # WR/lifecycle: an evaluation with NEITHER a serial id NOR a runtime
+        # default (e.g. an older UFC payload that has a variant but no serial_id)
+        # must not allocate per-root state that lingers until span GC. State is
+        # only created inside the serial/default branches, and any state is
+        # always popped on root-span finish.
+        from ddtrace.trace import tracer
+
+        hook = self._hook()
+        try:
+            with tracer.trace("root") as root:
+                # variant present (not a runtime default) + no serial id => neither branch.
+                hook.finally_after(_make_hook_context(), _make_details(True, "on", {}), {})
+                assert root not in hook._span_states  # nothing allocated
+            # Nothing to write, nothing left over.
+            assert root.get_tag("ffe_flags_enc") is None
+            assert root not in hook._span_states
+        finally:
+            hook.destroy()
+
+    def test_empty_state_popped_on_finish(self):
+        # Even if empty state somehow exists (defensive), root-span finish must
+        # pop it -- it must not survive to span GC.
+        from ddtrace.trace import tracer
+
+        hook = self._hook()
+        try:
+            with tracer.trace("root") as root:
+                # Force-create empty state directly (bypassing the branch guard).
+                hook._get_or_create_state(root)
+                assert root in hook._span_states
+                assert hook._span_states[root].has_data() is False
+            assert root not in hook._span_states  # popped on finish despite no data
+        finally:
+            hook.destroy()
+
+    def test_two_live_hooks_do_not_stomp_each_other(self):
+        # Listener-lifecycle: two concurrently-live hooks (e.g. two OpenFeature
+        # domains/providers) must BOTH receive finish callbacks. The native event
+        # hub keys listeners by name and REPLACES same-name registrations, so a
+        # shared subscription name would let the second hook displace the first's
+        # finish callback while the first keeps accumulating state (never written,
+        # never cleaned). Per-instance names prevent the stomp.
+        from ddtrace.trace import tracer
+
+        hook1 = self._hook()
+        hook2 = self._hook()
+        try:
+            # Distinct subscription names => no replacement in the hub.
+            assert hook1._subscription_name != hook2._subscription_name
+            # Each hook accumulates onto its OWN root span and writes its own tag.
+            with tracer.trace("root-1") as root1:
+                hook1.finally_after(
+                    _make_hook_context(),
+                    _make_details(True, "on", {"__dd_split_serial_id": 100, "__dd_do_log": False}),
+                    {},
+                )
+            with tracer.trace("root-2") as root2:
+                hook2.finally_after(
+                    _make_hook_context(),
+                    _make_details(True, "on", {"__dd_split_serial_id": 5, "__dd_do_log": False}),
+                    {},
+                )
+            assert root1.get_tag("ffe_flags_enc") == encode_delta_varint({100})
+            assert root2.get_tag("ffe_flags_enc") == encode_delta_varint({5})
+        finally:
+            hook1.destroy()
+            hook2.destroy()
+
+    def test_destroyed_hook_leaves_other_hook_intact(self):
+        # Symmetric teardown: destroying one hook removes ONLY its callback; a
+        # second live hook still fires on finish (no over-broad reset).
+        from ddtrace.trace import tracer
+
+        hook1 = self._hook()
+        hook2 = self._hook()
+        try:
+            hook1.destroy()  # remove ONLY hook1's callback
+            with tracer.trace("root") as root:
+                hook2.finally_after(
+                    _make_hook_context(),
+                    _make_details(True, "on", {"__dd_split_serial_id": 7, "__dd_do_log": False}),
+                    {},
+                )
+            # hook2 still wired -> tag written.
+            assert root.get_tag("ffe_flags_enc") == encode_delta_varint({7})
+        finally:
+            hook2.destroy()
+
+    def test_concurrent_evaluations_on_one_root_no_lost_serial_ids(self):
+        # Concurrency (state-level): many threads concurrently accumulate
+        # distinct serial ids / subjects onto the SAME SpanEnrichmentState while
+        # another thread snapshots+encodes it. The per-state lock must let every
+        # distinct id land (no lost update under concurrent membership checks)
+        # and to_span_tags() must take a consistent snapshot (no "set/dict
+        # changed size during iteration"). The accumulator is the shared mutable
+        # structure (one per root span) the lock is added to protect.
+        #
+        # This drives the accumulator directly rather than via finally_after,
+        # because ddtrace's active-span context is thread-local: a worker thread
+        # does NOT see the main thread's root span, so finally_after would no-op
+        # off-thread. The real cross-thread contention the lock guards is the
+        # shared SpanEnrichmentState, which is exercised here.
+        import threading
+
+        n_threads = 8
+        per_thread = 25  # 8*25 = 200 == MAX_SERIAL_IDS (exactly fills, no drop)
+        state = SpanEnrichmentState()
+        errors: list = []
+        stop_encoding = threading.Event()
+
+        def add_ids(base):
+            for i in range(per_thread):
+                try:
+                    state.add_serial_id(base + i)
+                    state.add_subject("subject-%d" % (base + i), base + i)
+                except Exception as e:  # pragma: no cover - failure path
+                    errors.append(repr(e))
+
+        def hammer_encode():
+            while not stop_encoding.is_set():
+                try:
+                    state.to_span_tags()
+                    state.has_data()
+                except Exception as e:  # pragma: no cover - failure path
+                    errors.append(repr(e))
+
+        workers = [threading.Thread(target=add_ids, args=(t * per_thread,)) for t in range(n_threads)]
+        encoder = threading.Thread(target=hammer_encode)
+        encoder.start()
+        for w in workers:
+            w.start()
+        for w in workers:
+            w.join()
+        stop_encoding.set()
+        encoder.join()
+
+        assert errors == [], f"races raised: {errors[:3]}"
+        # Every distinct serial id (0..199) landed -> no lost update.
+        assert state._serial_ids == set(range(n_threads * per_thread))
+        assert len(state._serial_ids) == 200
+        # Final encode is a clean, consistent snapshot.
+        tags = state.to_span_tags()
+        assert _decode_delta_varint(tags["ffe_flags_enc"]) == set(range(n_threads * per_thread))
+
+    def test_finish_snapshot_consistent_under_concurrent_capture(self):
+        # Concurrency (hook-level): the root-span-finish path snapshots+encodes
+        # the accumulator while a background thread keeps mutating that same
+        # state. The lock must give the finish a consistent snapshot (never a
+        # mid-mutation crash). finally_after is driven on the MAIN thread (where
+        # the root context is active); the background thread mutates the state
+        # object directly to simulate a concurrent continuation.
+        import threading
+
+        from ddtrace.trace import tracer
+
+        hook = self._hook()
+        try:
+            errors: list = []
+            stop = threading.Event()
+            with tracer.trace("root") as root:
+                # Seed state on the main (in-context) thread.
+                hook.finally_after(
+                    _make_hook_context(),
+                    _make_details(True, "on", {"__dd_split_serial_id": 1, "__dd_do_log": False}),
+                    {},
+                )
+                state = hook._span_states[root]
+
+                def churn():
+                    i = 2
+                    while not stop.is_set():
+                        try:
+                            state.add_serial_id(i % 199)
+                            i += 1
+                        except Exception as e:  # pragma: no cover - failure path
+                            errors.append(repr(e))
+
+                t = threading.Thread(target=churn)
+                t.start()
+                # Repeatedly snapshot while churn() mutates -> must never raise.
+                for _ in range(2000):
+                    try:
+                        state.to_span_tags()
+                    except Exception as e:  # pragma: no cover - failure path
+                        errors.append(repr(e))
+                stop.set()
+                t.join()
+            # On finish the tag was written from a consistent snapshot.
+            assert errors == [], f"races raised: {errors[:3]}"
+            assert root.get_tag("ffe_flags_enc") is not None
+            assert root not in hook._span_states  # cleaned up on finish
+        finally:
+            hook.destroy()
 
 
 class TestGateOffNegativeControl:
@@ -594,5 +836,81 @@ class TestRealProviderIntegration:
             details = provider.resolve_string_details("nope-not-here", "d")
             assert details.variant is None
             assert details.reason == Reason.ERROR
+        finally:
+            api.shutdown()
+
+    def test_real_provider_unicode_string_default_raw_utf8_bytes(self, both_gates_on):
+        # WR-01 byte-parity: a not-found flag whose STRING default contains
+        # non-ASCII must serialize as RAW UTF-8 in ffe_runtime_defaults (Node
+        # JSON.stringify never \uXXXX-escapes). ensure_ascii=True (the json.dumps
+        # default) would emit 🎉 -- a byte-for-byte divergence from
+        # Node even though json.loads() decodes it to the same value. Assert on
+        # the RAW tag bytes, not just the decoded value, to lock the wire format.
+        from openfeature import api
+
+        from ddtrace.trace import tracer
+
+        config = create_config(create_boolean_flag("unrelated-uni", enabled=True, default_value=True))
+        _provider, client = self._set_provider_with_config(config)
+        try:
+            with tracer.trace("root") as root:
+                value = client.get_string_value("missing-unicode-flag", "🎉café")
+                assert value == "🎉café"
+            raw = root.get_tag("ffe_runtime_defaults")
+            assert raw is not None
+            # RAW bytes contain the literal UTF-8 characters, NOT \u escapes.
+            assert "🎉café" in raw
+            assert "\\u" not in raw
+            # Still valid JSON decoding back to the original value (Node parity).
+            assert json.loads(raw) == {"missing-unicode-flag": "🎉café"}
+        finally:
+            api.shutdown()
+
+    def test_real_provider_unicode_object_default_raw_utf8_json(self, both_gates_on):
+        # WR-01 byte-parity for OBJECT defaults: a not-found flag whose OBJECT
+        # default carries Unicode must serialize via JSON.stringify-equivalent
+        # compact + raw-UTF-8 json.dumps. The inner object string is itself a
+        # JSON value stored inside the outer map; both layers must be raw UTF-8.
+        from openfeature import api
+
+        from ddtrace.trace import tracer
+
+        config = create_config(create_boolean_flag("unrelated-obj", enabled=True, default_value=True))
+        _provider, client = self._set_provider_with_config(config)
+        try:
+            with tracer.trace("root") as root:
+                details = client.get_object_details("missing-object-uni", {"msg": "🎉", "name": "café"})
+                assert details.value == {"msg": "🎉", "name": "café"}
+            raw = root.get_tag("ffe_runtime_defaults")
+            assert raw is not None
+            # No \u escaping anywhere in the wire bytes.
+            assert "\\u" not in raw
+            assert "🎉" in raw and "café" in raw
+            # Outer map decodes; the inner value is compact JSON.stringify bytes.
+            decoded = json.loads(raw)
+            assert decoded == {"missing-object-uni": '{"msg":"🎉","name":"café"}'}
+            # And that inner string is itself valid JSON matching Node semantics.
+            assert json.loads(decoded["missing-object-uni"]) == {"msg": "🎉", "name": "café"}
+        finally:
+            api.shutdown()
+
+    def test_real_provider_object_default_compact_json_no_str_dict(self, both_gates_on):
+        # WR-01: an OBJECT runtime default must be compact JSON.stringify
+        # ({"a":1,"b":[2,3]}), NOT Python str(dict) ("{'a': 1, ...}") and NOT
+        # space-padded json. Driven through the real provider + client.
+        from openfeature import api
+
+        from ddtrace.trace import tracer
+
+        config = create_config(create_boolean_flag("unrelated-cmp", enabled=True, default_value=True))
+        _provider, client = self._set_provider_with_config(config)
+        try:
+            with tracer.trace("root") as root:
+                client.get_object_details("missing-compact", {"a": 1, "b": [2, 3]})
+            raw = root.get_tag("ffe_runtime_defaults")
+            assert raw is not None
+            decoded = json.loads(raw)
+            # Exact compact bytes, no spaces, no Python repr.
+            assert decoded == {"missing-compact": '{"a":1,"b":[2,3]}'}
         finally:
             api.shutdown()
