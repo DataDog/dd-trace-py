@@ -1,5 +1,6 @@
 import json
 
+import httpx
 import pytest
 
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
