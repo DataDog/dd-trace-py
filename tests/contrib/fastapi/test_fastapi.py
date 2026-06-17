@@ -430,7 +430,8 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
 
 def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
     """Regression test for FastAPI >= 0.137 lazy _IncludedRouter breaking resource names."""
-    from fastapi import APIRouter, FastAPI
+    from fastapi import APIRouter
+    from fastapi import FastAPI
 
     items = APIRouter()
 
