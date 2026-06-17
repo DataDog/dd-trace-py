@@ -42,7 +42,9 @@ def _derive_peer_service_name(endpoint_name: str, params: Optional[dict[str, Any
     - cloudwatch        -> log group name (logGroupName)
     - redshift          -> cluster identifier (ClusterIdentifier)
     """
+    print("In _derive_peer_service_name")
     if not params:
+        print("NO PARAMS")
         return None
 
     service = endpoint_name.lower()
@@ -50,7 +52,11 @@ def _derive_peer_service_name(endpoint_name: str, params: Optional[dict[str, Any
     if service == "sqs":
         queue_url = params.get("QueueUrl", "")
         if queue_url and (queue_url.startswith("sqs:") or queue_url.startswith("http")):
+            print("QUEUE URL")
+            print(queue_url.split("/")[-1])
             return queue_url.split("/")[-1]
+        print("QUEUE NAME")
+        print(params.get("QueueName"))
         return params.get("QueueName") or None
 
     if service == "sns":
