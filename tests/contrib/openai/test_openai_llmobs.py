@@ -119,6 +119,44 @@ class TestLLMObsOpenaiV1:
         assert get_llmobs_model_provider(spans[0]) == "unknown"
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
+    def test_chat_completion_filters_openai_sentinel_metadata(
+        self, mock_completions_post, openai, openai_llmobs, test_spans
+    ):
+        """openai.Omit / openai.NotGiven sentinels for unset params must not pollute span metadata.
+
+        Frameworks like PydanticAI forward every chat-completion parameter explicitly, defaulting
+        any the caller didn't set to ``openai.omit``. Without filtering, these sentinels are
+        serialized into span metadata as noisy repr strings (e.g. "<openai.Omit object at 0x...>"),
+        making the field unqueryable. Regression test for MLOS-693.
+        """
+        mock_completions_post.return_value = mock_openai_chat_completions_response
+        # Sentinel availability varies by openai version: NotGiven was exported starting in ~1.30,
+        # Omit only in openai>=2, and neither in very old clients (e.g. 1.0.0). Only construct and
+        # exercise the sentinels this installed version actually exposes; skip if it has none.
+        not_given_cls = getattr(openai, "NotGiven", None)
+        omit_cls = getattr(openai, "Omit", None)
+        sentinel_kwargs = {}
+        if not_given_cls is not None:
+            sentinel_kwargs["presence_penalty"] = not_given_cls()
+            sentinel_kwargs["seed"] = not_given_cls()
+        if omit_cls is not None:
+            sentinel_kwargs["temperature"] = omit_cls()
+            sentinel_kwargs["frequency_penalty"] = omit_cls()
+        if not sentinel_kwargs:
+            pytest.skip("installed openai exposes no Omit/NotGiven sentinel types")
+        client = openai.OpenAI(base_url="http://localhost:8000")
+        client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=multi_message_input,
+            top_p=0.9,
+            **sentinel_kwargs,
+        )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        # Only the explicitly-set value should survive; the Omit/NotGiven sentinels are dropped.
+        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9}
+
+    @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_provider_attribution_with_concurrent_openai_and_azure_clients(
         self, mock_completions_post, openai, azure_openai_config, openai_llmobs, test_spans
     ):
@@ -2848,10 +2886,10 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
-    def test_tool_with_deep_schema_has_schema_truncated(self, openai, openai_llmobs, test_spans):
-        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
-        replacing over-limit containers with empty containers while preserving name, description,
-        and all fields within the limit. Tools with shallow schemas are unaffected.
+    def test_tool_with_deep_schema_has_schema_stringified(self, openai, openai_llmobs, test_spans):
+        """Tool schemas that exceed the maximum nested depth are stringified at the point where
+        they exceed the limit, preserving all data as a JSON string while keeping shallower
+        structure intact. Tools with shallow schemas are unaffected.
         """
         deep_tool = {
             "type": "function",
@@ -2893,7 +2931,11 @@ MUL: "*"
                                                 "properties": {
                                                     "l4": {
                                                         "type": "object",
-                                                        "properties": {"l5": {}},
+                                                        "properties": (
+                                                            '{"l5": {"properties": {"l6": {"properties":'
+                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
+                                                            ' "type": "object"}}'
+                                                        ),
                                                     }
                                                 },
                                             }

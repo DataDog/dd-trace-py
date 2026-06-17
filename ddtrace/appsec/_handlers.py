@@ -8,6 +8,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
 from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
+from ddtrace.appsec._api_security._normalized_route import normalize_route_tornado
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -73,6 +74,7 @@ _NORMALIZED_ROUTE_BY_INTEGRATION = {
     "fastapi": normalize_route,
     "django": normalize_route_django,
     "flask": normalize_route_flask,
+    "tornado": normalize_route_tornado,
 }
 
 

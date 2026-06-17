@@ -566,8 +566,12 @@ def test_utf_non_ascii_io(llmobs, llmobs_backend):
             llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
-    assert events[0][0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
-    assert events[0][1]["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+    # Batch order follows span start, not finish, so match events by meta.input shape
+    # rather than positional indices.
+    llm_event = next(e for e in events[0] if "messages" in e["spans"][0]["meta"].get("input", {}))
+    workflow_event = next(e for e in events[0] if "value" in e["spans"][0]["meta"].get("input", {}))
+    assert llm_event["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert workflow_event["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
 
 
 def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
@@ -1156,3 +1160,158 @@ def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events,
     llm_event = llmobs_events[0]
     assert llm_event["meta"]["span"]["kind"] == "llm"
     assert llm_event["meta"]["model_name"] == "test-model"
+
+
+def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
+    """Every LLMObs span event carries the effective sample rate and sampling decision."""
+    with llmobs.llm(model_name="test-model") as span:
+        llmobs.annotate(span, input_data="in", output_data="out")
+    assert len(llmobs_events) == 1
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sample_rate"] == "1"
+    assert event_dd["sampling_decision"] in ("0", "1")
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
+def test_enable_sample_rate_sets_sampler():
+    """LLMObs.enable(sample_rate=...) configures the span sampler."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.3, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.3
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+def test_enable_sample_rate_arg_takes_precedence_over_env():
+    """LLMObs.enable(sample_rate=...) takes precedence over DD_LLMOBS_SAMPLE_RATE."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.3, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.3
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+def test_enable_sample_rate_zero_is_respected():
+    """LLMObs.enable(sample_rate=0.0) is respected and does not fall back to the env var/default."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.0, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.0
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.4"})
+def test_enable_keeps_valid_env_sample_rate():
+    """A valid DD_LLMOBS_SAMPLE_RATE is kept when no sample_rate is passed to enable()."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.4
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "1.5"})
+def test_enable_validates_env_sample_rate():
+    """An out-of-range DD_LLMOBS_SAMPLE_RATE is validated at enable() and falls back to 1.0."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 1.0
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.", 1.5
+    )
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.2"})
+def test_enable_invalid_sample_rate_keeps_configured_rate():
+    """An out-of-range (negative) sample_rate argument is ignored, keeping the configured env rate."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.2
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.", -0.4
+    )
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "5.0"})
+def test_enable_invalid_arg_and_invalid_env_falls_back():
+    """When both the argument and the env-derived rate are invalid, fall back to the default (1.0)."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 1.0
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.", -0.4
+    )
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.", 5.0
+    )
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0", "0.25", "0.5", "0.75", "1"]},
+)
+def test_sample_rate_inherited_by_child_span():
+    import os
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
+    with LLMObs.workflow("parent") as parent:
+        with LLMObs.workflow("child") as child:
+            pass
+
+    assert get_llmobs_sample_rate(parent) == configured_rate
+    assert get_llmobs_sample_rate(child) == configured_rate
+    assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.2", "0.4", "0.6", "0.8"]},
+)
+def test_sampling_decisions_follow_configured_rate():
+    """Across 200 independent root spans the fraction sampled should be within ±25 of the configured rate.
+
+    With n=200 and ±25 tolerance every variant is ≥6σ from the boundary, giving a combined
+    failure rate well under 1 in 10M runs.
+    """
+    import os
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    configured_rate = float(os.environ["DD_LLMOBS_SAMPLE_RATE"])
+    n = 200
+    spans = []
+    for _ in range(n):
+        with LLMObs.workflow("w") as span:
+            spans.append(span)
+
+    sampled = sum(1 for s in spans if get_llmobs_sampling_decision(s) == LLMObsSamplingDecision.SAMPLED)
+    expected = int(configured_rate * n)
+    assert abs(sampled - expected) <= 25, (
+        f"rate={configured_rate}: expected ~{expected} sampled out of {n}, got {sampled}"
+    )

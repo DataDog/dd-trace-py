@@ -1,0 +1,114 @@
+---
+description: Isolated responsibility - keep security products decoupled from contrib integrations via core events
+globs:
+  - "**/contrib/**"
+  - "**/appsec/**"
+alwaysApply: false
+---
+
+# Isolated Responsibility: Security Products vs. Shared Integrations
+
+## The shared-integration problem
+
+Security products — **AI Guard**, **IAST**, and **AppSec (AAP/WAF/RASP)** —
+need to observe the same libraries that base products instrument: web
+frameworks (Django, Flask, FastAPI, Tornado, …) and LLM SDKs (OpenAI,
+Anthropic, LangChain, …). Those same integrations are also used by base
+products such as **APM Tracing**, **Profiling**, and **LLM Observability**.
+
+The integration code for each library lives in **one** place:
+`ddtrace/contrib/internal/<library>/`.
+
+## The rule
+
+> **Security products are not mandatory base products of dd-trace-py.**
+> Their logic MUST stay isolated, and we MUST NEVER add imports from a security
+> product into `ddtrace/contrib/internal/*`.
+
+Concretely:
+
+- ❌ Do **not** `from ddtrace.appsec... import ...` inside
+  `ddtrace/contrib/internal/*`.
+- ❌ Do **not** call AI Guard / IAST / AppSec functions directly from a
+  contrib patch.
+- ❌ Do **not** make a contrib integration's behavior depend on a security
+  product being installed/enabled.
+
+Why: contrib integrations ship and run for every dd-trace-py user, including
+those who only use APM/Profiling/LLM Observability. A direct import would
+couple an optional security product into a base code path — adding import cost,
+breaking the modular boundary, and risking circular imports
+(see the `circular-import-analysis` skill).
+
+## How to share data instead: core events
+
+When a security product needs data from (or needs to intercept) a shared
+integration, use the **core event bus** in `ddtrace/internal/core`.
+
+### Producer — inside `ddtrace/contrib/internal/*`
+
+Emit an event at the relevant point in the patch. Use `allow_raise=True` when a
+listener must be able to stop the wrapped call (e.g. an AI Guard block
+decision):
+
+```python
+from ddtrace.internal import core
+
+core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+resp = func(*args, **kwargs)
+core.dispatch(f"{event}.after", (kwargs, resp), allow_raise=True)
+```
+
+The contrib layer knows **nothing** about who (if anyone) is listening.
+
+### Consumer — inside the security product
+
+Register listeners with `core.on(...)`. The canonical example is
+`ddtrace/appsec/_ai_guard/_listener.py`:
+
+```python
+from functools import partial
+from ddtrace.internal import core
+
+def ai_guard_listen():
+    client = new_ai_guard_client()
+    core.on("openai.chat.completions.create.before",
+            partial(_openai_chat_completion_before, client))
+    core.on("openai.chat.completions.create.after",
+            partial(_openai_chat_completion_after, client))
+    core.on("anthropic.messages.create.before",
+            partial(_anthropic_messages_create_before, client))
+    # ...
+```
+
+Listeners are only registered when the product is **enabled** (e.g. AI Guard's
+`init_ai_guard()` is gated on `DD_AI_GUARD_ENABLED`). When disabled, the events
+are still dispatched but have no subscribers — a cheap no-op.
+
+## Mental model
+
+```
+        ddtrace/contrib/internal/<lib>/   (shared, base-product code)
+                      │
+                      │  core.dispatch("<event>.before"/".after", ...)
+                      ▼
+        ┌─────────────────────────────────┐
+        │     ddtrace/internal/core        │   (event bus — decoupling layer)
+        └─────────────────────────────────┘
+              ▲            ▲            ▲
+   core.on(…) │ core.on(…) │ core.on(…) │
+        AI Guard         IAST         AppSec     (optional security products)
+```
+
+Contrib emits; security products subscribe. Neither side imports the other.
+
+## Checklist when wiring a security feature into an integration
+
+1. Is there an existing core event at the right spot? Reuse it.
+2. If not, add a `core.dispatch(...)` in the contrib patch — no security
+   imports. Pass `allow_raise=True` only if a listener must be able to block.
+3. Register the listener with `core.on(...)` inside the security product,
+   guarded by the product's enable flag.
+4. Convert SDK-native data to the product's own types inside the listener
+   (not in contrib).
+5. Run the `circular-import-analysis` skill if you added/moved modules.
