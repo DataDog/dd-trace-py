@@ -5561,6 +5561,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
       {
         "implementation": "A",
