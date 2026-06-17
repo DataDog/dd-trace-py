@@ -42,6 +42,13 @@ def test_heap_tracker_count_present():
         assert "heap_tracker_count" in metadata, f"Missing heap_tracker_count in {f}: {metadata}"
         assert isinstance(metadata["heap_tracker_count"], int), f"heap_tracker_count must be an integer: {metadata}"
         assert metadata["heap_tracker_count"] >= 0, f"heap_tracker_count must be non-negative: {metadata}"
+        assert "heap_tracker_cap" in metadata, f"Missing heap_tracker_cap in {f}: {metadata}"
+        assert isinstance(metadata["heap_tracker_cap"], int), f"heap_tracker_cap must be an integer: {metadata}"
+        assert metadata["heap_tracker_cap"] > 0, f"heap_tracker_cap must be positive: {metadata}"
+        assert "heap_tracker_cap_drops" in metadata, f"Missing heap_tracker_cap_drops in {f}: {metadata}"
+        assert isinstance(metadata["heap_tracker_cap_drops"], int), (
+            f"heap_tracker_cap_drops must be an integer: {metadata}"
+        )
 
     # The last file may be a partial flush, so check the penultimate one has tracked allocations
     if len(files) >= 2:

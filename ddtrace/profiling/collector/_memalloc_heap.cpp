@@ -295,9 +295,7 @@ heap_tracker_t::export_heap_no_cpython()
     auto& stats = Datadog::Sample::profile_borrow().stats();
     stats.set_heap_tracker_size(allocs_m.size());
     stats.set_heap_tracker_cap(TRACEBACK_ARRAY_MAX_COUNT);
-    if (cap_drops > 0) {
-        stats.set_heap_tracker_cap_drops(cap_drops);
-    }
+    stats.set_heap_tracker_cap_drops(cap_drops);
 }
 
 void
