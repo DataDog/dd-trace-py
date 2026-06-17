@@ -39,10 +39,12 @@ include:
   script:
     # Download authanywhere + install Node LTS and the Claude CLI (for the repair
     # loop). Slow steps first so the short-lived AI token is minted last.
+    # auth artifacts live in $HOME (OUTSIDE the repo working tree) so they can
+    # never appear in `git status` and thus never be committed.
     - |
       if [ "$(uname -m)" = "x86_64" ]; then ARCH="amd64"; else ARCH="arm64"; fi
-      curl -fsSL -o authanywhere "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
-      chmod +x ./authanywhere
+      curl -fsSL -o "$HOME/authanywhere" "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
+      chmod +x "$HOME/authanywhere"
       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
       # The testrunner image sets NPM_CONFIG_PREFIX, which nvm refuses to run with.
       unset NPM_CONFIG_PREFIX
@@ -52,14 +54,14 @@ include:
     # GitHub token for the PR (used only by the script's GitHub API calls — never
     # placed in a git remote URL). Best-effort: if unavailable, the script still
     # bumps + validates and just lists the changes instead of opening a PR.
-    # The token is written to tmp/github_token.txt (NOT an uploaded artifact) so the
-    # after_script can revoke it; do not rm it here.
+    # Written to $HOME (outside the repo, not an artifact) so after_script can revoke it.
     - |
-      mkdir -p tmp
       if command -v dd-octo-sts >/dev/null 2>&1; then
-        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > tmp/github_token.txt || true
-        if [ -s tmp/github_token.txt ]; then
-          export GH_TOKEN="$(cat tmp/github_token.txt)"
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > "$HOME/.dd_octo_sts_token" || true
+        if [ -s "$HOME/.dd_octo_sts_token" ]; then
+          export GH_TOKEN="$(cat "$HOME/.dd_octo_sts_token")"
+        else
+          echo "dd-octo-sts produced no token (is gitlab.libdatadog-update.create-pr merged to main?); PR creation will be skipped."
         fi
       else
         echo "dd-octo-sts not found in image; PR creation will be skipped (changes listed only)."
@@ -69,7 +71,7 @@ include:
     - |
       unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
-      raw_token="$(./authanywhere --audience rapid-ai-platform)"
+      raw_token="$("$HOME/authanywhere" --audience rapid-ai-platform)"
       export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
       export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
       export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-update\nx-dd-tag-dd.team: apm-python'
@@ -84,8 +86,8 @@ include:
     # immediately via the broker (rather than waiting out its short lifetime).
     # after_script runs in a fresh shell, so the token is read from the file.
     - !reference [.testrunner, after_script]
-    - if [[ -f tmp/github_token.txt ]]; then dd-octo-sts revoke -t "$(cat tmp/github_token.txt)" || true; fi
-    - rm -f tmp/github_token.txt
+    - if [[ -s "$HOME/.dd_octo_sts_token" ]]; then dd-octo-sts revoke -t "$(cat "$HOME/.dd_octo_sts_token")" || true; fi
+    - rm -f "$HOME/.dd_octo_sts_token"
   artifacts:
     when: always
     paths:

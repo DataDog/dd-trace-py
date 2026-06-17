@@ -65,6 +65,14 @@ GH_API_BASE = "https://api.github.com"
 # out of the tree we send to GitHub.
 COMMIT_PATH_PREFIXES = ("src/native/", "setup.py", "releasenotes/notes/")
 
+# Second line of defense: even within the allowlist above, refuse to commit a
+# path that looks like a secret/credential/binary. If this ever fires it means
+# the allowlist was loosened or something unexpected landed under it.
+SENSITIVE_PATH_RE = re.compile(
+    r"(token|secret|credential|authanywhere|password|\.pem$|\.key$|id_rsa|\.env$|\.netrc)",
+    re.IGNORECASE,
+)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NATIVE_DIR = REPO_ROOT / "src" / "native"
 CARGO_TOML = NATIVE_DIR / "Cargo.toml"
@@ -442,6 +450,12 @@ def create_verified_pr(branch: str, title: str, body: str, changes: list[tuple[s
     attributes it to the token's app bot (dd-octo-sts[bot]) and signs it — no
     local commit, no git author config, and no token-in-remote-URL needed.
     """
+    # Safety net: never commit a secret/credential-looking path, even if it
+    # somehow passed the COMMIT_PATH_PREFIXES allowlist.
+    sensitive = [p for p, _ in changes if SENSITIVE_PATH_RE.search(p)]
+    if sensitive:
+        raise RuntimeError(f"refusing to create commit: sensitive-looking path(s) in change set: {sensitive}")
+
     token = os.environ["GH_TOKEN"]
     owner, repo = GH_REPO_SLUG.split("/")
 
