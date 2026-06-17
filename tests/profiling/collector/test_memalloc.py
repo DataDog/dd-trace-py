@@ -609,12 +609,12 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
         initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
         assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
 
-        # Freed (and not-yet-freed) allocations show up as allocation samples in
-        # the primary profile; live objects show up in the heap profile.
-        freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+        # All allocations (freed and still-live) show up in the primary profile;
+        # live objects show up in the heap profile.
+        alloc_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
         live_samples = [s for s in heap_profile.sample if s.value[heap_space_idx] > 0]
 
-        assert len(freed_samples) > 0, "Should have some allocation samples"
+        assert len(alloc_samples) > 0, "Should have some allocation samples"
 
         assert len(live_samples) > 0, "Should have some live samples"
 
@@ -625,11 +625,11 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
                 f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-        one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
+        one_alloc_samples = [sample for sample in alloc_samples if has_function_in_profile_sample(profile, sample, one)]
 
-        assert len(one_freed_samples) > 0, "Should have allocation samples from function 'one'"
-        one_freed_samples_valid = all(sample.value[alloc_space_idx] > 0 for sample in one_freed_samples)
-        assert one_freed_samples_valid, "Allocation samples from function 'one' should have alloc-space > 0"
+        assert len(one_alloc_samples) > 0, "Should have allocation samples from function 'one'"
+        one_alloc_samples_valid = all(sample.value[alloc_space_idx] > 0 for sample in one_alloc_samples)
+        assert one_alloc_samples_valid, "Allocation samples from function 'one' should have alloc-space > 0"
 
         two_live_samples = [
             sample for sample in live_samples if has_function_in_profile_sample(heap_profile, sample, two)

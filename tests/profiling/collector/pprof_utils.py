@@ -292,11 +292,11 @@ def parse_newest_profile(
 def parse_newest_heap_profile(filename_prefix: str, assert_samples: bool = True) -> pprof_pb2.Profile:
     """Parse the newest persistent live-heap profile for the given prefix.
 
-    With the persistent heap profile (Option A), live-heap samples are emitted
-    in a separate pprof attachment named "<filename_prefix>.<seq>.heap.pprof"
-    (where filename_prefix already includes the PID), rather than in the primary
+    With the persistent heap profile, live-heap samples are emitted in a
+    separate pprof attachment named "<filename_prefix>.<seq>.heap.pprof"
+    (the prefix already includes the PID), rather than in the primary
     profile. This finds and parses the newest such file.
-    "
+    """
     files = glob.glob(filename_prefix + ".*.heap.pprof")
 
     if not files:

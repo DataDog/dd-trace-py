@@ -4,6 +4,7 @@
 #include "profiler_stats.hpp"
 #include "types.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -79,7 +80,7 @@ class Profile
     // Heap because type_mask defaults to All) don't emit an empty heap pprof on
     // every upload. Sticky once set: the persistent live set is uploaded every
     // interval thereafter even when no new allocations occurred that interval.
-    bool heap_populated{ false };
+    std::atomic<bool> heap_populated{ false };
 
     // Internal access methods - not for direct use
     ddog_prof_Profile& profile_borrow_internal();
