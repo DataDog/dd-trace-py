@@ -9,7 +9,7 @@ from tests.contrib.mistralai.utils import get_weather
 from tests.utils import override_global_config
 
 
-def test_global_tags(mock_chat_complete, mistral_client, test_spans):
+def test_global_tags(mistral_client, test_spans):
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
         mistral_client.chat.complete(
             model="mistral-large-latest",
@@ -24,7 +24,7 @@ def test_global_tags(mock_chat_complete, mistral_client, test_spans):
     assert span.get_tag("version") == "1234"
 
 
-def test_mistralai_chat_complete(mock_chat_complete, mistral_client, snapshot_context):
+def test_mistralai_chat_complete(mistral_client, snapshot_context):
     with snapshot_context(token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_complete"):
         mistral_client.chat.complete(
             model="mistral-large-latest",
@@ -33,7 +33,7 @@ def test_mistralai_chat_complete(mock_chat_complete, mistral_client, snapshot_co
         )
 
 
-def test_mistralai_chat_complete_error(mock_chat_complete, mistral_client, snapshot_context):
+def test_mistralai_chat_complete_error(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_complete_error",
         ignores=["meta.error.stack", "meta.error.message"],
@@ -46,7 +46,7 @@ def test_mistralai_chat_complete_error(mock_chat_complete, mistral_client, snaps
             )
 
 
-async def test_mistralai_chat_complete_async(mock_async_chat_complete, mistral_client, snapshot_context):
+async def test_mistralai_chat_complete_async(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_complete",
         ignores=["resource"],
@@ -58,7 +58,7 @@ async def test_mistralai_chat_complete_async(mock_async_chat_complete, mistral_c
         )
 
 
-async def test_mistralai_chat_complete_async_error(mock_async_chat_complete, mistral_client, snapshot_context):
+async def test_mistralai_chat_complete_async_error(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_complete_async_error",
         ignores=["meta.error.stack", "meta.error.message"],
@@ -71,7 +71,7 @@ async def test_mistralai_chat_complete_async_error(mock_async_chat_complete, mis
             )
 
 
-def test_mistralai_chat_complete_with_tools(mock_chat_complete_with_tools, mistral_client, snapshot_context):
+def test_mistralai_chat_complete_with_tools(mistral_client, snapshot_context):
     token = "tests.contrib.mistralai.test_mistralai.test_mistralai_chat_complete_with_tools_two_turn"
     with snapshot_context(token=token):
         resp = mistral_client.chat.complete(
@@ -106,7 +106,7 @@ def test_mistralai_chat_complete_with_tools(mock_chat_complete_with_tools, mistr
         assert "New York" in final_resp.choices[0].message.content
 
 
-def test_mistralai_embed_create(mock_embed_create, mistral_client, snapshot_context):
+def test_mistralai_embed_create(mistral_client, snapshot_context):
     with snapshot_context(token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create"):
         mistral_client.embeddings.create(
             model="mistral-embed",
@@ -115,7 +115,7 @@ def test_mistralai_embed_create(mock_embed_create, mistral_client, snapshot_cont
         )
 
 
-def test_mistralai_embed_create_error(mock_embed_create, mistral_client, snapshot_context):
+def test_mistralai_embed_create_error(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create_error",
         ignores=["meta.error.stack", "meta.error.message"],
@@ -128,7 +128,7 @@ def test_mistralai_embed_create_error(mock_embed_create, mistral_client, snapsho
             )
 
 
-async def test_mistralai_embed_create_async(mock_async_embed_create, mistral_client, snapshot_context):
+async def test_mistralai_embed_create_async(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create",
         ignores=["resource"],
@@ -140,7 +140,7 @@ async def test_mistralai_embed_create_async(mock_async_embed_create, mistral_cli
         )
 
 
-async def test_mistralai_embed_create_async_error(mock_async_embed_create, mistral_client, snapshot_context):
+async def test_mistralai_embed_create_async_error(mistral_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.mistralai.test_mistralai.test_mistralai_embed_create_async_error",
         ignores=["meta.error.stack", "meta.error.message"],

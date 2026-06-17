@@ -1,3 +1,6 @@
+import mistralai.client.chat  # noqa: F401
+import mistralai.client.embeddings  # noqa: F401
+
 from ddtrace.contrib.internal.mistralai.patch import get_version
 from ddtrace.contrib.internal.mistralai.patch import patch
 from ddtrace.contrib.internal.mistralai.patch import unpatch

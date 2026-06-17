@@ -76,6 +76,29 @@ TOOL_FINAL_RESPONSE_BODY = {
     ],
 }
 
+CHAT_COMPLETION_WITH_CACHED_TOKENS_BODY = {
+    "id": "chatcomplete-cached305",
+    "object": "chat.completion",
+    "model": "mistral-large-latest",
+    "created": 1,
+    "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 20,
+        "total_tokens": 30,
+        "prompt_token_details": {"cached_tokens": 5},
+    },
+    "choices": [
+        {
+            "index": 0,
+            "finish_reason": "stop",
+            "message": {
+                "role": "assistant",
+                "content": "The sky is blue due to Rayleigh scattering.",
+            },
+        }
+    ],
+}
+
 
 def get_weather(location: str) -> dict:
     """Mock weather function for tool testing."""

@@ -46,9 +46,16 @@ def _expected_chat_span_data(
         }
     else:
         kwargs["output_messages"] = output_messages or [
-            {"role": "assistant", "content": "The sky is blue due to Rayleigh scattering."}
+            {
+                "role": "assistant",
+                "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes "
+                "how light interacts with molecules and tiny particles in Earth's atmosphere. Here’s a "
+                "step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   - Sunlight appears white but is "
+                "actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, "
+                "blue, indigo, and violet.\n\n### 2. **Scattering by Air Molecules**\n",
+            }
         ]
-        kwargs["metrics"] = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+        kwargs["metrics"] = {"input_tokens": 9, "output_tokens": 100, "total_tokens": 109}
         kwargs["metadata"] = get_expected_chat_metadata()
     kwargs.update(overrides)
     return kwargs
@@ -69,8 +76,8 @@ def _expected_embed_span_data(span, *, model_name="mistral-embed", error=False, 
             "stack": span.get_tag("error.stack"),
         }
     else:
-        kwargs["output_value"] = "[1 embedding(s) returned with size 5]"
-        kwargs["metrics"] = {"input_tokens": 5, "output_tokens": 0, "total_tokens": 5}
+        kwargs["output_value"] = "[1 embedding(s) returned with size 1024]"
+        kwargs["metrics"] = {"input_tokens": 4, "output_tokens": 0, "total_tokens": 4}
         kwargs["metadata"] = get_expected_embed_metadata()
     kwargs.update(overrides)
     return kwargs
@@ -89,15 +96,15 @@ def _expected_tool_first_call_span_data(**overrides):
                 "tool_calls": [
                     {
                         "name": "get_weather",
-                        "arguments": '{"location": "New York, NY"}',
-                        "tool_id": "call_305",
+                        "arguments": '{"location": "New York City"}',
+                        "tool_id": "oG2fuvoqp",
                         "type": "function",
                     }
                 ],
             }
         ],
         "metadata": get_expected_chat_metadata(),
-        "metrics": {"input_tokens": 15, "output_tokens": 10, "total_tokens": 25},
+        "metrics": {"input_tokens": 72, "output_tokens": 14, "total_tokens": 86},
         "tags": COMMON_TAGS,
         "tool_definitions": WEATHER_TOOL_DEFINITIONS,
     }
@@ -118,8 +125,8 @@ def _expected_tool_followup_span_data(**overrides):
                 "tool_calls": [
                     {
                         "name": "get_weather",
-                        "arguments": '{"location": "New York, NY"}',
-                        "tool_id": "call_305",
+                        "arguments": '{"location": "New York City"}',
+                        "tool_id": "oG2fuvoqp",
                         "type": "function",
                     }
                 ],
@@ -134,11 +141,12 @@ def _expected_tool_followup_span_data(**overrides):
         "output_messages": [
             {
                 "role": "assistant",
-                "content": "The weather in New York, NY is currently 72°F and sunny.",
+                "content": "The current weather in **New York City** is **sunny** with a temperature of "
+                "**72°F**. Enjoy your day! \U0001f60a",
             }
         ],
         "metadata": get_expected_chat_metadata(),
-        "metrics": {"input_tokens": 30, "output_tokens": 20, "total_tokens": 50},
+        "metrics": {"input_tokens": 118, "output_tokens": 32, "total_tokens": 150},
         "tags": COMMON_TAGS,
         "tool_definitions": WEATHER_TOOL_DEFINITIONS,
     }
@@ -146,7 +154,7 @@ def _expected_tool_followup_span_data(**overrides):
     return kwargs
 
 
-def test_chat_complete(mock_chat_complete, mistral_client, mistralai_llmobs, test_spans):
+def test_chat_complete(mistral_client, mistralai_llmobs, test_spans):
     mistral_client.chat.complete(
         model="mistral-large-latest",
         messages=[{"role": "user", "content": "Why is the sky blue?"}],
@@ -158,7 +166,7 @@ def test_chat_complete(mock_chat_complete, mistral_client, mistralai_llmobs, tes
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0]))
 
 
-def test_chat_complete_error(mock_chat_complete, mistral_client, mistralai_llmobs, test_spans):
+def test_chat_complete_error(mistral_client, mistralai_llmobs, test_spans):
     with pytest.raises(TypeError):
         mistral_client.chat.complete(
             model="mistral-large-latest",
@@ -170,7 +178,7 @@ def test_chat_complete_error(mock_chat_complete, mistral_client, mistralai_llmob
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
 
 
-async def test_async_chat_complete(mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete):
+async def test_async_chat_complete(mistral_client, mistralai_llmobs, test_spans):
     await mistral_client.chat.complete_async(
         model="mistral-large-latest",
         messages=[{"role": "user", "content": "Why is the sky blue?"}],
@@ -182,7 +190,7 @@ async def test_async_chat_complete(mistral_client, mistralai_llmobs, test_spans,
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0]))
 
 
-async def test_async_chat_complete_error(mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete):
+async def test_async_chat_complete_error(mistral_client, mistralai_llmobs, test_spans):
     with pytest.raises(TypeError):
         await mistral_client.chat.complete_async(
             model="mistral-large-latest",
@@ -194,7 +202,7 @@ async def test_async_chat_complete_error(mistral_client, mistralai_llmobs, test_
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
 
 
-def test_embed_create(mock_embed_create, mistral_client, mistralai_llmobs, test_spans):
+def test_embed_create(mistral_client, mistralai_llmobs, test_spans):
     mistral_client.embeddings.create(
         model="mistral-embed",
         inputs="Hello world",
@@ -209,7 +217,7 @@ def test_embed_create(mock_embed_create, mistral_client, mistralai_llmobs, test_
     )
 
 
-def test_embed_create_error(mock_embed_create, mistral_client, mistralai_llmobs, test_spans):
+def test_embed_create_error(mistral_client, mistralai_llmobs, test_spans):
     with pytest.raises(TypeError):
         mistral_client.embeddings.create(
             model="mistral-embed",
@@ -225,7 +233,7 @@ def test_embed_create_error(mock_embed_create, mistral_client, mistralai_llmobs,
     )
 
 
-async def test_async_embed_create(mistral_client, mistralai_llmobs, test_spans, mock_async_embed_create):
+async def test_async_embed_create(mistral_client, mistralai_llmobs, test_spans):
     await mistral_client.embeddings.create_async(
         model="mistral-embed",
         inputs="Hello world",
@@ -240,7 +248,7 @@ async def test_async_embed_create(mistral_client, mistralai_llmobs, test_spans, 
     )
 
 
-async def test_async_embed_create_error(mistral_client, mistralai_llmobs, test_spans, mock_async_embed_create):
+async def test_async_embed_create_error(mistral_client, mistralai_llmobs, test_spans):
     with pytest.raises(TypeError):
         await mistral_client.embeddings.create_async(
             model="mistral-embed",
@@ -255,7 +263,7 @@ async def test_async_embed_create_error(mistral_client, mistralai_llmobs, test_s
     )
 
 
-def test_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans, mock_chat_complete_with_tools):
+def test_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans):
     response = mistral_client.chat.complete(
         model="mistral-large-latest",
         messages=[{"role": "user", "content": "What's the weather in NYC?"}],
@@ -293,9 +301,25 @@ def test_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans, 
     )
 
 
-async def test_async_chat_complete_with_tools(
-    mistral_client, mistralai_llmobs, test_spans, mock_async_chat_complete_with_tools
-):
+def test_chat_complete_with_cached_tokens(mistral_client, mistralai_llmobs, test_spans):
+    mistral_client.chat.complete(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(
+            spans[0],
+            metrics={"input_tokens": 9, "output_tokens": 100, "total_tokens": 109, "cache_read_input_tokens": 5},
+        ),
+    )
+
+
+async def test_async_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans):
     response = await mistral_client.chat.complete_async(
         model="mistral-large-latest",
         messages=[{"role": "user", "content": "What's the weather in NYC?"}],

@@ -1,3 +1,5 @@
+import os
+
 import httpx
 import mock
 import pytest
@@ -6,14 +8,11 @@ from ddtrace.contrib.internal.mistralai.patch import patch
 from ddtrace.contrib.internal.mistralai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.mistralai.utils import CHAT_COMPLETION_BODY
+from tests.contrib.mistralai.utils import CHAT_COMPLETION_WITH_CACHED_TOKENS_BODY
 from tests.contrib.mistralai.utils import EMBEDDING_BODY
 from tests.contrib.mistralai.utils import TOOL_CALL_BODY
 from tests.contrib.mistralai.utils import TOOL_FINAL_RESPONSE_BODY
 from tests.utils import override_global_config
-
-
-# Simulates the do_request method for both Chat and Embeddings
-# to return a successful response with the provided body.
 
 
 def _make_do_request(body):
@@ -41,7 +40,9 @@ def mistralai():
 
 @pytest.fixture
 def mistral_client(mistralai):
-    return mistralai(api_key="<not-a-real-key>")
+    return mistralai(
+        api_key=os.getenv("MISTRAL_API_KEY", "<not-a-real-key>"), server_url="http://127.0.0.1:9126/vcr/mistral"
+    )
 
 
 @pytest.fixture
@@ -109,6 +110,22 @@ def mock_async_chat_complete_with_tools(mistralai):
         return httpx.Response(200, json=TOOL_FINAL_RESPONSE_BODY)
 
     with mock.patch.object(Chat, "do_request_async", _fake_async_chat_complete_with_tools):
+        yield
+
+
+@pytest.fixture
+def mock_chat_complete_with_cached_tokens(mistralai):
+    from mistralai.client.chat import Chat
+
+    with mock.patch.object(Chat, "do_request", _make_do_request(CHAT_COMPLETION_WITH_CACHED_TOKENS_BODY)):
+        yield
+
+
+@pytest.fixture
+def mock_async_chat_complete_with_cached_tokens(mistralai):
+    from mistralai.client.chat import Chat
+
+    with mock.patch.object(Chat, "do_request_async", _make_do_request_async(CHAT_COMPLETION_WITH_CACHED_TOKENS_BODY)):
         yield
 
 
