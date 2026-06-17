@@ -304,7 +304,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake)
+        conn = get_connection(self._intake, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
