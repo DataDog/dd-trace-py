@@ -789,23 +789,23 @@ class TestOptPlugin:
         self.manager.writer.put_item(test_run)
 
     @pytest.hookimpl(hookwrapper=True)
-    def pytest_runtestloop(self, session: pytest.Session) -> t.Generator[None, None, None]:
+    def pytest_runtestloop(self, _session: pytest.Session) -> t.Generator[None, None, None]:
         yield
         # After the main loop, all fixtures (including session-scoped) have been torn down, so re-running a test now
         # gives it a clean slate. If the loop raised (e.g. -x stopped the session), the exception propagates through the
         # yield above and OSR is skipped.
         try:
-            self._maybe_run_out_of_session_retries(session)
+            self._maybe_run_out_of_session_retries()
         except Exception:
             log.debug("Error during out-of-session retries", exc_info=True)
 
-    def _maybe_run_out_of_session_retries(self, session: pytest.Session) -> None:
+    def _maybe_run_out_of_session_retries(self) -> None:
         if not self._osr_enabled:
             return
         # xdist is not supported for now: the controller process does not run tests and re-run coordination across
         # workers is a separate problem.
-        if self.is_xdist_worker or _is_xdist_run(session.config):
-            return
+        # if self.is_xdist_worker or _is_xdist_run(session.config):
+        #     return
 
         candidates = self._select_out_of_session_candidates()
         if not candidates:
@@ -1148,13 +1148,13 @@ def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
 
 
-def _is_xdist_run(config: pytest.Config) -> bool:
-    """Return whether tests are being distributed across processes by pytest-xdist."""
-    if not config.pluginmanager.hasplugin("xdist"):
-        return False
-    if getattr(config.option, "numprocesses", None):
-        return True
-    return getattr(config.option, "dist", "no") not in ("no", None)
+# def _is_xdist_run(config: pytest.Config) -> bool:
+#     """Return whether tests are being distributed across processes by pytest-xdist."""
+#     if not config.pluginmanager.hasplugin("xdist"):
+#         return False
+#     if getattr(config.option, "numprocesses", None):
+#         return True
+#     return getattr(config.option, "dist", "no") not in ("no", None)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
