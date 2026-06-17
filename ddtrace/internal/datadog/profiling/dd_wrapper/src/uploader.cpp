@@ -113,12 +113,20 @@ Datadog::Uploader::upload_unlocked()
                 std::ostringstream oss;
                 oss << output_filename << "." << getpid() << "." << ProfilerState::get().upload_seq.load()
                     << ".heap.pprof";
-                std::ofstream out(oss.str(), std::ios::binary);
+                std::string heap_filename = oss.str();
+                std::ofstream out(heap_filename, std::ios::binary);
                 if (out.is_open()) {
                     out.write(reinterpret_cast<const char*>(heap_bytes_res.ok.ptr),
                               static_cast<std::streamsize>(heap_bytes_res.ok.len));
+                    if (out.fail()) {
+                        std::cerr << "Error writing to heap profile file " << heap_filename << std::endl;
+                    }
+                } else {
+                    std::cerr << "Error opening heap profile file " << heap_filename << std::endl;
                 }
             } else {
+                std::cerr << "Error getting bytes from heap profile: "
+                          << err_to_msg(&heap_bytes_res.err, "Error getting bytes from heap profile") << std::endl;
                 ddog_Error_drop(&heap_bytes_res.err);
             }
         }
