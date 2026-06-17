@@ -799,10 +799,6 @@ class TestOptPlugin:
     def _maybe_run_out_of_session_retries(self) -> None:
         if not self._osr_enabled:
             return
-        # xdist is not supported for now: the controller process does not run tests and re-run coordination across
-        # workers is a separate problem.
-        # if self.is_xdist_worker or _is_xdist_run(session.config):
-        #     return
 
         candidates = self._select_out_of_session_candidates()
         if not candidates:
@@ -1143,15 +1139,6 @@ class XdistTestOptPlugin:
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
-
-
-# def _is_xdist_run(config: pytest.Config) -> bool:
-#     """Return whether tests are being distributed across processes by pytest-xdist."""
-#     if not config.pluginmanager.hasplugin("xdist"):
-#         return False
-#     if getattr(config.option, "numprocesses", None):
-#         return True
-#     return getattr(config.option, "dist", "no") not in ("no", None)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
