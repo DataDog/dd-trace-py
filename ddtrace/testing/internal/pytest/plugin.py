@@ -33,6 +33,7 @@ from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
+from ddtrace.testing.internal.pytest.utils import _encode_test_parameter  # noqa: F401
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
@@ -86,11 +87,13 @@ TEST_FRAMEWORK = "pytest"
 # Mapping of external rerun plugin names to the -p flag that disables them.
 _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
 
-# Out-of-session retries (OSR): after the main test session finishes (and all fixtures, including session-scoped ones,
-# have been torn down), a randomly-chosen subset of the tests that exhausted Auto Test Retries (failed every in-session
-# ATR attempt) is re-run once each in a brand new session within the same pytest process. This gives a "clean slate"
-# retry for tests that leak state and would therefore fail every in-session ATR retry. Because OSR targets ATR-exhausted
-# failures, it only does anything when ATR is enabled. Enabled by default; the env var is a safety kill switch only.
+# Out-of-session retries (OSR): after the main run loop finishes (and all fixtures, including session-scoped ones, have
+# been torn down), a randomly-chosen subset of the tests that exhausted Auto Test Retries (failed every in-session ATR
+# attempt) is re-run once each, in isolation, with `nextitem=None` so pytest re-creates and tears down their full
+# fixture chain — a "clean slate" for tests that leak state and would therefore fail every in-session ATR retry. Each
+# re-run is recorded as one more TestRun on the existing test (tagged retry_reason=out_of_session), not a separate
+# session. Because OSR targets ATR-exhausted failures, it only does anything when ATR is enabled. Enabled by default;
+# the env var is a safety kill switch only.
 _OSR_ENABLED_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"
 _OSR_COUNT_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRY_COUNT"
 _OSR_DEFAULT_MAX_TESTS = 5
@@ -286,12 +289,8 @@ class TestOptPlugin:
             self._osr_max_tests = int(env.get(_OSR_COUNT_ENV, str(_OSR_DEFAULT_MAX_TESTS)))
         except ValueError:
             self._osr_max_tests = _OSR_DEFAULT_MAX_TESTS
-        # pytest items whose test ultimately failed and are eligible to be retried out of session.
+        # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
-        # True while we are executing the out-of-session retry runs, so the protocol skips in-session retries.
-        self._in_osr = False
-        # True once a second (out-of-session) session has been started, so session finalization uses it.
-        self._osr_ran = False
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -353,13 +352,12 @@ class TestOptPlugin:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
-        # When out-of-session retries created a second session, its status reflects only the re-run tests, so we derive
-        # it from that session's own children. Otherwise, with xdist the main process does not execute tests, so we
-        # cannot rely on `session.get_status()` and set the status manually from the exit status reported by pytest.
-        if self._osr_ran:
-            status = self.session.get_status()
-        else:
-            status = TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+        # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
+        # behavior of determining the status based on the status of the children. Instead, we set the status manually
+        # based on the exit status reported by pytest.
+        self.session.set_status(
+            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+        )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
@@ -390,9 +388,18 @@ class TestOptPlugin:
             # Clean up external coverage instance registration
             clear_coverage_instance()
 
-        self._finish_and_write_session(status)
+        self.session.finish()
+
+        TelemetryAPI.get().record_session_finished(
+            test_framework=TEST_FRAMEWORK,
+            has_codeowners=self.manager.has_codeowners(),
+            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
+            efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
+        )
 
         if not self.is_xdist_worker:
+            # When running with xdist, only the main process writes the session event.
+            self.manager.writer.put_item(self.session)
             # All workers have finished by this point, so the upload sentinel and lock
             # file are no longer needed. Clean them up to keep .git/ tidy.
             self.manager.cleanup_upload_artifacts()
@@ -606,10 +613,6 @@ class TestOptPlugin:
         return test_run, reports
 
     def _do_test_runs(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
-        if self._in_osr:
-            self._do_out_of_session_run(item, nextitem)
-            return
-
         test = self.tests_by_nodeid[item.nodeid]
         retry_handler = self._check_applicable_retry_handlers(test)
 
@@ -771,54 +774,31 @@ class TestOptPlugin:
                 report.outcome = "rerun"
                 return
 
-    def _do_out_of_session_run(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> None:
-        """Execute a single, clean-slate run of a previously-failed test inside the out-of-session retry session.
+    def _do_out_of_session_run(self, item: pytest.Item) -> None:
+        """Re-run a single ATR-exhausted test once, in isolation, after the main run loop.
 
-        No in-session retries are performed (the test is retried exactly once).
+        The test runs with ``nextitem=None``, so pytest tears down and re-creates its entire fixture chain (function,
+        class, module and session scopes) for this attempt — a genuine clean slate. Fixture lifecycle is driven by
+        pytest's ``SetupState``, independent of the Datadog session, so we simply record the result as one more
+        ``TestRun`` on the existing test, tagged ``retry_reason=out_of_session`` and marked 'rerun' so it does not
+        change pytest's pass/fail tally. The original in-session failure stands.
         """
-        test = self.tests_by_nodeid[item.nodeid]
-
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            test_run, reports = self._do_one_test_run(item, nextitem, context)
+            test_run, reports = self._do_one_test_run(item, nextitem=None, context=context)
 
         test_run.set_tags({TestTag.IS_RETRY: TAG_TRUE, TestTag.RETRY_REASON: OUT_OF_SESSION_RETRY_REASON})
         self._mark_reports_as_osr(reports)
         self._log_test_reports(item, reports)
         test_run.finish()
-
-        final_status = test_run.get_status()
-        test.set_status(final_status)
-        test_run.set_final_status(final_status)
+        test_run.set_final_status(test_run.get_status())
         self.manager.writer.put_item(test_run)
-
-    def _finish_and_write_session(self, status: TestStatus) -> None:
-        """Set the status on the current session, finish it, emit finish telemetry and write the session event.
-
-        Shared by the normal session finish and the out-of-session retries flow (which finishes the original session
-        before starting a fresh one). Does NOT shut the manager/writers down, so it is safe to call more than once per
-        process.
-        """
-        self.session.set_status(status)
-        self.session.finish()
-
-        TelemetryAPI.get().record_session_finished(
-            test_framework=TEST_FRAMEWORK,
-            has_codeowners=self.manager.has_codeowners(),
-            is_unsupported_ci=(self.manager.env_tags.get(CITag.PROVIDER_NAME) is None),
-            efd_abort_reason=self.session.get_early_flake_detection_abort_reason(),
-        )
-
-        if not self.is_xdist_worker:
-            # When running with xdist, only the main process writes the session event.
-            self.manager.writer.put_item(self.session)
 
     @pytest.hookimpl(hookwrapper=True)
     def pytest_runtestloop(self, session: pytest.Session) -> t.Generator[None, None, None]:
         yield
-        # After the main loop, all fixtures (including session-scoped) have been torn down, giving OSR re-runs a clean
-        # slate. We run OSR here rather than in pytest_sessionfinish so the re-runs go through the normal protocol hooks
-        # while the original session has already been finalized. If the loop raised (e.g. -x stopped the session), the
-        # exception propagates through the yield above and OSR is skipped.
+        # After the main loop, all fixtures (including session-scoped) have been torn down, so re-running a test now
+        # gives it a clean slate. If the loop raised (e.g. -x stopped the session), the exception propagates through the
+        # yield above and OSR is skipped.
         try:
             self._maybe_run_out_of_session_retries(session)
         except Exception:
@@ -831,47 +811,22 @@ class TestOptPlugin:
         # workers is a separate problem.
         if self.is_xdist_worker or _is_xdist_run(session.config):
             return
-        if not self._osr_candidates:
-            return
 
         candidates = self._select_out_of_session_candidates()
         if not candidates:
             return
 
-        log.debug("Out-of-session retries: re-running %d failed test(s) in a new session", len(candidates))
-
-        # Finish and write the original session before starting a fresh one. The new session reuses the manager's
-        # writers, so we deliberately do NOT call manager.finish() here.
-        self._finish_and_write_session(TestStatus.FAIL if session.testsfailed else TestStatus.PASS)
-
-        self.session = self.manager.start_replacement_session()
-        self.session.start()
-        self._osr_ran = True
-
-        self._in_osr = True
-        try:
-            for i, item in enumerate(candidates):
-                nextitem = candidates[i + 1] if i + 1 < len(candidates) else None
-                item.ihook.pytest_runtest_protocol(item=item, nextitem=nextitem)
-        finally:
-            self._in_osr = False
+        log.debug("Out-of-session retries: re-running %d ATR-exhausted test(s) in isolation", len(candidates))
+        for item in candidates:
+            self._do_out_of_session_run(item)
 
     def _select_out_of_session_candidates(self) -> list[pytest.Item]:
-        """Pick up to `_osr_max_tests` failed tests at random, keeping them in collection order.
-
-        Collection order is preserved (even after the random sample) so that items sharing a suite stay adjacent and
-        the per-suite/module teardown logic in `pytest_runtest_protocol_wrapper` behaves correctly when we chain
-        `nextitem`.
-        """
+        """Pick up to ``_osr_max_tests`` of the ATR-exhausted tests, sampled at random when there are more."""
         # Candidates are already unique (each test is recorded once), but dedupe defensively.
         unique = list(dict.fromkeys(self._osr_candidates))
         if len(unique) <= self._osr_max_tests:
             return unique
-
-        order = {item: i for i, item in enumerate(unique)}
-        sampled = random.sample(unique, self._osr_max_tests)
-        sampled.sort(key=lambda item: order[item])
-        return sampled
+        return random.sample(unique, self._osr_max_tests)
 
     def _extract_longrepr(self, reports: _ReportGroup) -> tuple[t.Any, t.Any]:
         """

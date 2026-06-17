@@ -30,7 +30,7 @@ def _osr_events(event_capture: EventCapture) -> list[t.Any]:
 
 class TestOutOfSessionRetries:
     def test_atr_exhausted_then_rerun_out_of_session(self, pytester: Pytester) -> None:
-        """A test that fails every ATR retry is re-run once, in a new session, tagged retry_reason=out_of_session."""
+        """A test that fails every ATR retry is re-run once more, tagged retry_reason=out_of_session."""
         pytester.makepyfile(
             test_foo="""
             def test_fail():
@@ -53,11 +53,11 @@ class TestOutOfSessionRetries:
         assert result.ret == 1
         assert_stats(result, failed=1)
 
-        # Two sessions: the original one and the out-of-session retry one.
-        assert len(list(event_capture.events_by_type("test_session_end"))) == 2
+        # OSR re-runs are recorded in the same session, not a new one.
+        assert len(list(event_capture.events_by_type("test_session_end"))) == 1
 
         test_events = list(event_capture.events_by_test_name("test_fail"))
-        # 1 initial + 5 ATR retries (session 1) + 1 out-of-session retry (session 2).
+        # 1 initial + 5 ATR retries + 1 out-of-session retry.
         assert len(test_events) == 7
 
         atr_events = [e for e in test_events if e["content"]["meta"].get("test.retry_reason") == "auto_test_retry"]
@@ -166,15 +166,15 @@ class TestOutOfSessionRetries:
         assert result.ret == 1
         assert_stats(result, failed=7)
 
-        assert len(list(event_capture.events_by_type("test_session_end"))) == 2
+        assert len(list(event_capture.events_by_type("test_session_end"))) == 1
         assert len(_osr_events(event_capture)) == 5
 
     def test_state_leak_passes_when_retried_in_isolation(self, pytester: Pytester) -> None:
         """A test that fails every ATR retry due to a polluted session fixture passes out of session.
 
         This is the core motivating scenario: ATR retries reuse the polluted session-scoped fixture and all fail, then
-        the out-of-session retry runs the test alone in a fresh session, so the polluting test does not run and the
-        fixture is recreated clean.
+        the out-of-session retry runs the test alone with the session fixture recreated clean (and without the
+        polluting test), so it passes.
 
         NOTE: the victim must not be the last collected test. ATR retries the last test with ``nextitem=None``, which
         tears down session-scoped fixtures between attempts — so ATR would recover the leak itself and never exhaust.
@@ -215,7 +215,7 @@ class TestOutOfSessionRetries:
         # The main session still failed (OSR does not change pytest's verdict).
         assert result.ret == 1
 
-        assert len(list(event_capture.events_by_type("test_session_end"))) == 2
+        assert len(list(event_capture.events_by_type("test_session_end"))) == 1
 
         victim_events = list(event_capture.events_by_test_name("test_b_victim"))
         # The final run is the out-of-session retry, and it passes on the clean slate.
@@ -226,6 +226,74 @@ class TestOutOfSessionRetries:
         # The polluting test exhausts neither ATR nor OSR (it passes), so it is not re-run out of session.
         pollute_events = list(event_capture.events_by_test_name("test_a_pollutes"))
         assert all(e["content"]["meta"].get("test.retry_reason") != "out_of_session" for e in pollute_events)
+
+    def test_osr_recreates_and_tears_down_all_fixture_scopes(self, pytester: Pytester) -> None:
+        """The out-of-session re-run tears down and re-creates the test's whole fixture chain (clean slate).
+
+        It runs with ``nextitem=None``, so pytest re-creates and then tears down every scope (function, module,
+        session) for the re-run — independent of the Datadog session. We record each fixture's setup/teardown to a
+        file and assert the session- and module-scoped fixtures were set up and torn down one extra time for OSR.
+        """
+        events_file = pytester.path / "fixture_events.txt"
+        pytester.makepyfile(
+            test_foo=f"""
+            import pytest
+
+            EVENTS = {str(events_file)!r}
+
+            def _record(line):
+                with open(EVENTS, "a") as f:
+                    f.write(line + "\\n")
+
+            @pytest.fixture(scope="session")
+            def session_fix():
+                _record("session setup")
+                yield
+                _record("session teardown")
+
+            @pytest.fixture(scope="module")
+            def module_fix():
+                _record("module setup")
+                yield
+                _record("module teardown")
+
+            @pytest.fixture
+            def function_fix():
+                _record("function setup")
+                yield
+                _record("function teardown")
+
+            def test_fail(session_fix, module_fix, function_fix):
+                assert False
+
+            def test_trailing():
+                # Keeps test_fail from being last, so its ATR retries reuse the session/module fixtures
+                # (nextitem != None) rather than tearing them down between attempts.
+                assert True
+        """
+        )
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(auto_retries_enabled=True),
+            ),
+            setup_standard_mocks(),
+            out_of_session_retries_enabled(),
+        ):
+            result = pytester.inline_run("--ddtrace", "-v", "-s", "-p", "no:randomly")
+
+        assert result.ret == 1
+
+        lines = events_file.read_text().splitlines()
+        # Set up once for the main run (retained across ATR retries thanks to the trailing test), then once more for
+        # the out-of-session re-run — and every setup is matched by a teardown.
+        assert lines.count("session setup") == 2
+        assert lines.count("session teardown") == 2
+        assert lines.count("module setup") == 2
+        assert lines.count("module teardown") == 2
+        # The function-scoped fixture is torn down and re-created on every attempt (initial + ATR retries + OSR).
+        assert lines.count("function setup") == lines.count("function teardown") >= 3
 
     def test_disabled_by_env_var(self, pytester: Pytester) -> None:
         """The kill switch disables out-of-session retries even for ATR-exhausted tests."""
