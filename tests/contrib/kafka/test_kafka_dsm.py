@@ -272,8 +272,6 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
     producer.flush()
 
-    # Skip early if the producer couldn't retrieve cluster_id — the consumer commit
-    # relies on the producer-populated cache, so there's no point continuing.
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
     if not cluster_id:
         pytest.skip("Test broker does not provide cluster_id")
@@ -284,8 +282,6 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
         if message:
             consumer.commit(asynchronous=False, message=message)
 
-    # Skip if the consumer never received a cluster_id during poll — its commit will
-    # also lack it, making the backlog assertion below impossible to satisfy.
     if not (getattr(consumer, "_dd_cluster_id", "") or ""):
         pytest.skip("Consumer did not acquire cluster_id from broker cache; known intermittent issue")
 
