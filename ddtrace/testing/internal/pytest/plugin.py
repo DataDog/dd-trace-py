@@ -33,7 +33,6 @@ from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
-from ddtrace.testing.internal.pytest.utils import _encode_test_parameter  # noqa: F401
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
@@ -743,11 +742,9 @@ class TestOptPlugin:
         are tests owned by another retry policy (Early Flake Detection, attempt-to-fix), which is why the handler must
         be ATR. (ATR being the applicable handler already implies the test is not new/EFD-eligible.)
         """
-        if test.get_status() != TestStatus.FAIL:
+        if (test.get_status() != TestStatus.FAIL) or test.is_quarantined() or test.is_disabled():
             return False
         if not isinstance(retry_handler, AutoTestRetriesHandler):
-            return False
-        if test.is_quarantined() or test.is_disabled():
             return False
         # Require that ATR actually retried the test (and it still failed), i.e. it is genuinely exhausted rather than,
         # e.g., configured with zero retries.
