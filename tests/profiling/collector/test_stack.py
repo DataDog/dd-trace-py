@@ -1261,7 +1261,7 @@ def test_off_cpu_time_sleeping_thread(tmp_path: Path) -> None:
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
     ddup.start()
     ddup.upload()
 
@@ -1308,7 +1308,7 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix)
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
     ddup.start()
     ddup.upload()
 
