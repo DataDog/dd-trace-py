@@ -164,6 +164,34 @@ def unpatch():
         _u(starlette.background.BackgroundTasks, "add_task")
 
 
+def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
+    """Return True if traced_handler has already fired for this route instance on this request.
+
+    FastAPI >= 0.137 changed APIRoute.handle to call super().handle() (starlette Route.handle)
+    when effective_route_context is absent. When both the fastapi and starlette patches are
+    active, traced_handler fires twice for the same route instance, doubling resource_paths.
+    """
+    seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
+    if id(instance) in seen_routes:
+        return True
+    seen_routes.add(id(instance))
+    return False
+
+
+def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
+    """Return the fully-composed route template from FastAPI >= 0.137's effective_route_context.
+
+    FastAPI 0.137 introduced a lazy _IncludedRouter that no longer flattens nested include_router
+    paths onto a single route. As a result scope["route"].path_format only contains the
+    leaf-relative segment. FastAPI sets scope["fastapi"]["effective_route_context"].path_format
+    with the full composed path before calling APIRoute.handle; use it when available.
+    """
+    effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
+    if effective_route_context is None:
+        return None
+    return getattr(effective_route_context, "path_format", None)
+
+
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
@@ -178,14 +206,8 @@ def traced_handler(wrapped, instance, args, kwargs):
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
         return wrapped(*args, **kwargs)
 
-    # Guard against double-invocation of the same route instance within a single request.
-    # FastAPI >= 0.137 changed APIRoute.handle to call super().handle() (starlette Route.handle)
-    # when effective_route_context is absent. When both fastapi and starlette patches are active,
-    # traced_handler would fire twice for the same route, doubling resource_paths entries.
-    seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
-    if id(instance) in seen_routes:
+    if _is_duplicate_route_call(scope, instance):
         return wrapped(*args, **kwargs)
-    seen_routes.add(id(instance))
 
     # Add the path to the resource_paths list
     if "resource_paths" not in scope["datadog"]:
@@ -196,12 +218,7 @@ def traced_handler(wrapped, instance, args, kwargs):
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
-    # FastAPI >= 0.137 sets scope["fastapi"]["effective_route_context"] with the fully-composed
-    # route template before calling APIRoute.handle. With the new lazy _IncludedRouter, the leaf
-    # route's path is only the relative segment (e.g. "" or "/{item_id}"), so instance.path
-    # accumulation produces truncated resource names. Use the effective path when available.
-    effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
-    full_path = getattr(effective_route_context, "path_format", None) if effective_route_context is not None else None
+    full_path = _get_fastapi_effective_path(scope)
 
     if full_path is not None and request_spans:
         if scope.get("method"):
