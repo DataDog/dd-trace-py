@@ -178,6 +178,15 @@ def traced_handler(wrapped, instance, args, kwargs):
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
         return wrapped(*args, **kwargs)
 
+    # Guard against double-invocation of the same route instance within a single request.
+    # FastAPI >= 0.137 changed APIRoute.handle to call super().handle() (starlette Route.handle)
+    # when effective_route_context is absent. When both fastapi and starlette patches are active,
+    # traced_handler would fire twice for the same route, doubling resource_paths entries.
+    seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
+    if id(instance) in seen_routes:
+        return wrapped(*args, **kwargs)
+    seen_routes.add(id(instance))
+
     # Add the path to the resource_paths list
     if "resource_paths" not in scope["datadog"]:
         scope["datadog"]["resource_paths"] = [instance.path]
@@ -187,7 +196,20 @@ def traced_handler(wrapped, instance, args, kwargs):
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
-    if len(request_spans) == len(resource_paths):
+    # FastAPI >= 0.137 sets scope["fastapi"]["effective_route_context"] with the fully-composed
+    # route template before calling APIRoute.handle. With the new lazy _IncludedRouter, the leaf
+    # route's path is only the relative segment (e.g. "" or "/{item_id}"), so instance.path
+    # accumulation produces truncated resource names. Use the effective path when available.
+    effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
+    full_path = getattr(effective_route_context, "path_format", None) if effective_route_context is not None else None
+
+    if full_path is not None and request_spans:
+        if scope.get("method"):
+            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
+        else:
+            request_spans[0].resource = full_path
+        request_spans[0]._set_attribute(http.ROUTE, full_path)
+    elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):
             # We want to set the full resource name on the first request span
