@@ -14,6 +14,22 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
+    /* Persistent live-heap profile (Option A) bookkeeping. Only meaningful
+     * while this traceback is owned by the heap tracker.
+     *
+     * pending_add_idx encodes both whether this allocation has been applied to
+     * the persistent heap profile and, if not, where to find it for O(1)
+     * removal:
+     *   >= 0 : index of this traceback in the heap tracker's pending_adds
+     *          vector. The allocation is a pending ADD that has not yet been
+     *          applied, so a same-interval free collapses the add/free pair by
+     *          removing it from pending_adds at this index.
+     *   PENDING_ADD_APPLIED (-1): already applied to the persistent profile at
+     *          export time (or not currently pending), so a later free must
+     *          schedule a subtraction instead of collapsing. */
+    static constexpr std::ptrdiff_t PENDING_ADD_APPLIED = -1;
+    std::ptrdiff_t pending_add_idx = PENDING_ADD_APPLIED;
+
     /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
 

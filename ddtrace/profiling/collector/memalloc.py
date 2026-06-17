@@ -127,3 +127,66 @@ class MemoryCollector:
             )
 
         return pprof_utils.parse_newest_profile(output_filename, assert_samples=assert_samples)
+
+    def snapshot_and_parse_heap_pprof(self, output_filename: str, assert_samples: bool = True) -> pprof_pb2.Profile:
+        """Export samples, upload, and parse the persistent live-heap pprof.
+
+        Live-heap samples are emitted in a separate pprof attachment (the
+        persistent heap profile), so heap-focused tests should parse that file
+        rather than the primary profile.
+
+        Args:
+            output_filename: The pprof output filename prefix (without suffix)
+            assert_samples: Whether to assert that the heap profile contains samples
+
+        Returns:
+            Parsed pprof profile object (pprof_pb2.Profile)
+        """
+        # Export samples to profile
+        self.snapshot()
+
+        # Upload to write profile to disk
+        ddup.upload()
+
+        try:
+            from tests.profiling.collector import pprof_utils
+        except ImportError:
+            raise ImportError(
+                "pprof_utils is not available. snapshot_and_parse_heap_pprof() is only available in test environment."
+            )
+
+        return pprof_utils.parse_newest_heap_profile(output_filename, assert_samples=assert_samples)
+
+    def snapshot_and_parse_both_pprof(
+        self,
+        output_filename: str,
+        assert_samples: bool = True,
+        assert_heap_samples: bool = True,
+    ) -> "tuple[pprof_pb2.Profile, pprof_pb2.Profile]":
+        """Export samples once and parse both the primary and live-heap pprofs.
+
+        Allocation samples are drained from the primary profile on each export,
+        while live-heap samples live in the persistent heap profile. Tests that
+        need to correlate allocation and live-heap data must read both files from
+        a single snapshot/upload, since calling the single-profile helpers twice
+        would drain the allocation samples before the second read.
+
+        Returns:
+            (primary_profile, heap_profile) tuple of parsed pprof profiles.
+        """
+        # Export samples to profile
+        self.snapshot()
+
+        # Upload to write both pprof files to disk
+        ddup.upload()
+
+        try:
+            from tests.profiling.collector import pprof_utils
+        except ImportError:
+            raise ImportError(
+                "pprof_utils is not available. snapshot_and_parse_both_pprof() is only available in test environment."
+            )
+
+        primary = pprof_utils.parse_newest_profile(output_filename, assert_samples=assert_samples)
+        heap = pprof_utils.parse_newest_heap_profile(output_filename, assert_samples=assert_heap_samples)
+        return primary, heap

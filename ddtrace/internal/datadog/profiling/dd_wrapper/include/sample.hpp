@@ -183,6 +183,36 @@ class Sample
     // This is useful when the Sample object is embedded and will be destroyed later
     bool export_sample();
 
+    // Returns a borrowed ddog_prof_Sample2 view over this sample's locations,
+    // values and labels. The returned struct points into this Sample's internal
+    // buffers and is only valid while this Sample is alive and unmodified. Used
+    // by the persistent heap profile to batch-apply many samples at export time.
+    //
+    // Note: unlike export_sample(), this does NOT append the "<N frames
+    // omitted>" indicator; callers that care about dropped frames should have
+    // already called export_sample() (the heap collector does, when it records
+    // the originating allocation sample), which appends it at most once.
+    ddog_prof_Sample2 as_ddog_sample2() const;
+
+    // ========================================================================
+    // Persistent live-heap profile (Option A) helpers
+    // ========================================================================
+    // Whether the persistent heap profile is active.
+    static bool heap_profile_is_enabled();
+
+    // Apply a batch of changes to the persistent heap profile: `adds` are newly
+    // tracked allocations and `subs` are freed allocations. Either array may be
+    // empty/null. The add and sub halves succeed/fail independently; see
+    // Profile::heap_apply_batch for their differing retry semantics.
+    static HeapApplyResult heap_profile_apply_batch(const ddog_prof_Sample2* adds,
+                                                    size_t n_adds,
+                                                    const ddog_prof_Sample2* subs,
+                                                    size_t n_subs);
+
+    // Clear the persistent heap profile's accumulated state. Called when the
+    // heap tracker (re)initializes so the profile starts empty.
+    static bool heap_profile_reset();
+
     static ProfileBorrow profile_borrow();
     static void postfork_child();
     static void cleanup();

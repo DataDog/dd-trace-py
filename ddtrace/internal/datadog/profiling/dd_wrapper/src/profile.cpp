@@ -72,6 +72,10 @@ Datadog::Profile::cleanup()
 {
     // Drop the profile and release its resources
     ddog_prof_Profile_drop(&cur_profile);
+    if (heap_enabled) {
+        const std::lock_guard<std::mutex> lock(heap_profile_mtx);
+        ddog_prof_Profile_drop(&heap_profile);
+    }
 }
 
 void
@@ -201,6 +205,18 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
             std::cerr << "Error initializing cur_profile" << std::endl;
         }
     }
+
+    // When heap sampling is enabled, create the persistent heap profile. It
+    // uses the same sample-type layout as cur_profile so a Sample built for one
+    // can be applied to the other unchanged.
+    if (0U != (type_mask & SampleType::Heap)) {
+        if (make_profile(sample_types, &default_period, heap_profile)) {
+            heap_enabled = true;
+        } else if (!already_warned) {
+            already_warned = true;
+            std::cerr << "Error initializing heap_profile" << std::endl;
+        }
+    }
 }
 
 const Datadog::ValueIndex&
@@ -226,6 +242,105 @@ Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
     return true;
 }
 
+Datadog::HeapApplyResult
+Datadog::Profile::heap_apply_batch(const ddog_prof_Sample2* adds,
+                                   size_t n_adds,
+                                   const ddog_prof_Sample2* subs,
+                                   size_t n_subs)
+{
+    static bool add_already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool sub_already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!heap_enabled) {
+        // No persistent profile to keep consistent. Report success so the
+        // caller drains its buffers instead of retaining them forever.
+        return { true, true };
+    }
+
+    const std::lock_guard<std::mutex> lock(heap_profile_mtx);
+
+    HeapApplyResult result{ true, true };
+
+    // Mark the heap profile as carrying data so uploads attach the snapshot.
+    // Sticky: once set it stays set for the lifetime of this profile so the
+    // persistent live set keeps being uploaded even on intervals with no churn.
+    if (n_adds > 0 || n_subs > 0) {
+        heap_populated = true;
+    }
+
+    if (n_adds > 0) {
+        const ddog_prof_Slice_Sample2 add_slice = { .ptr = adds, .len = n_adds };
+        // Untimestamped (aggregated) samples: the persistent heap profile
+        // relies on aggregation + decrement, which timestamped samples do not
+        // support, so we always pass 0 for the timestamp.
+        auto res = ddog_prof_Profile_add2_batch(&heap_profile, add_slice, 0);
+        if (res.err != nullptr) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+            if (!add_already_warned) {
+                add_already_warned = true;
+                std::cerr << "Error adding heap samples: " << std::string(res.err) << std::endl;
+            }
+            result.adds_ok = false;
+        }
+        ddog_prof_Status_drop(&res);
+    }
+
+    if (n_subs > 0) {
+        const ddog_prof_Slice_Sample2 sub_slice = { .ptr = subs, .len = n_subs };
+        auto res = ddog_prof_Profile_sub2_batch(&heap_profile, sub_slice);
+        if (res.err != nullptr) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+            if (!sub_already_warned) {
+                sub_already_warned = true;
+                std::cerr << "Error subtracting heap samples: " << std::string(res.err) << std::endl;
+            }
+            result.subs_ok = false;
+        }
+        ddog_prof_Status_drop(&res);
+    }
+
+    return result;
+}
+
+ddog_prof_Profile_SerializeResult
+Datadog::Profile::heap_serialize_snapshot()
+{
+    if (!heap_enabled) {
+        // Callers must check heap_is_enabled() first; this is just a defensive
+        // fallback so the union is in a well-defined (ERR) state.
+        ddog_prof_Profile_SerializeResult res{};
+        res.tag = DDOG_PROF_PROFILE_SERIALIZE_RESULT_ERR;
+        return res;
+    }
+
+    const std::lock_guard<std::mutex> lock(heap_profile_mtx);
+    // Non-destructive: leaves heap_profile intact so it keeps accumulating.
+    return ddog_prof_Profile_serialize_snapshot(&heap_profile, nullptr, nullptr);
+}
+
+bool
+Datadog::Profile::reset_heap_profile()
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!heap_enabled) {
+        return false;
+    }
+
+    const std::lock_guard<std::mutex> lock(heap_profile_mtx);
+    auto res = ddog_prof_Profile_reset(&heap_profile);
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error resetting heap profile");
+            std::cerr << "Could not reset heap profile: " << errmsg << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return false;
+    }
+    // The live set is now empty; don't attach a snapshot again until new data
+    // is applied.
+    heap_populated = false;
+    return true;
+}
+
 void
 Datadog::Profile::prefork()
 {
@@ -235,11 +350,21 @@ Datadog::Profile::prefork()
     // until it finishes, guaranteeing the IndexSet<StackTrace> is in a
     // fully-consistent state before the child calls ddog_prof_Profile_drop().
     profile_mtx.lock();
+
+    // Same reasoning for the persistent heap profile: a concurrent (off-GIL)
+    // heap_serialize_snapshot or a heap_apply_batch must finish before we fork,
+    // so the child can safely drop and recreate it.
+    if (heap_enabled) {
+        heap_profile_mtx.lock();
+    }
 }
 
 void
 Datadog::Profile::postfork_parent()
 {
+    if (heap_enabled) {
+        heap_profile_mtx.unlock();
+    }
     profile_mtx.unlock();
 }
 
@@ -256,6 +381,23 @@ Datadog::Profile::postfork_child()
     const ddog_prof_Slice_SampleType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
     if (!make_profile(sample_types, &default_period, cur_profile)) {
         std::cerr << "Error re-initializing profile after fork" << std::endl;
+    }
+
+    // Recreate the persistent heap profile with the new dictionary. This also
+    // discards any allocations accumulated in the parent, which is correct: the
+    // child starts heap tracking fresh (the collector clears its pending buffer
+    // in heap_tracker_t::postfork_child()). heap_profile_mtx was locked by
+    // prefork; we hold it here (single-threaded child) and unlock below.
+    if (heap_enabled) {
+        ddog_prof_Profile_drop(&heap_profile);
+        // The child starts heap tracking fresh, so the recreated profile is
+        // empty until the collector applies its first batch.
+        heap_populated = false;
+        if (!make_profile(sample_types, &default_period, heap_profile)) {
+            heap_enabled = false;
+            std::cerr << "Error re-initializing heap profile after fork" << std::endl;
+        }
+        heap_profile_mtx.unlock();
     }
 
     // Unlock profile_mtx, which was locked by prefork.

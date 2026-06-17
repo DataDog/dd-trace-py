@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdint>
@@ -139,6 +140,12 @@ class heap_tracker_t
        the fork handler to reset the sampling state. */
     void reset_sampling_state_no_cpython();
 
+    /* Remove a not-yet-applied allocation from the pending_adds vector in O(1)
+       via swap-with-last. Called when an allocation is freed in the same export
+       interval it was tracked, so the add/free pair collapses and never reaches
+       the persistent heap profile. */
+    void pending_adds_remove_no_cpython(traceback_t* tb);
+
     /* Heap profiler sampling interval */
     uint64_t sample_size;
 
@@ -155,6 +162,24 @@ class heap_tracker_t
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
+
+    /* Persistent live-heap profile (Option A) change buffer.
+     *
+     * Instead of re-adding every live allocation to the profile on each upload
+     * (O(live set) under the GIL), we accumulate the delta since the last
+     * export and apply it to a persistent libdatadog profile that retains its
+     * state across uploads:
+     *   - pending_adds: allocations tracked this interval that have not yet been
+     *     applied. Raw pointers into allocs_m, which owns the traceback_t, so
+     *     they stay valid until applied (a freed-before-apply allocation is
+     *     removed from this vector by pair-collapse and never applied).
+     *   - pending_subs: allocations freed this interval that WERE applied in a
+     *     previous interval, so they must be subtracted. This vector owns the
+     *     freed traceback_t objects (moved out of allocs_m) to keep their Sample
+     *     data alive until the batched subtract at export time.
+     * Both are drained in export_heap_no_cpython(). */
+    std::vector<traceback_t*> pending_adds;
+    std::vector<std::unique_ptr<traceback_t>> pending_subs;
 
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
@@ -231,13 +256,52 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
 }
 
 void
+heap_tracker_t::pending_adds_remove_no_cpython(traceback_t* tb)
+{
+    std::ptrdiff_t idx = tb->pending_add_idx;
+    // The cached index should always point back at this traceback. If it ever
+    // desyncs, fall back to a linear scan rather than returning early: the
+    // caller is about to recycle `tb` into the pool, so leaving a stale pointer
+    // in pending_adds would later batch-apply freed/reused memory and corrupt
+    // the persistent heap profile.
+    if (idx < 0 || static_cast<size_t>(idx) >= pending_adds.size() || pending_adds[static_cast<size_t>(idx)] != tb) {
+        const auto it = std::find(pending_adds.begin(), pending_adds.end(), tb);
+        if (it == pending_adds.end()) {
+            // Genuinely not present (already removed): nothing to do.
+            return;
+        }
+        idx = std::distance(pending_adds.begin(), it);
+    }
+    traceback_t* last = pending_adds.back();
+    pending_adds[static_cast<size_t>(idx)] = last;
+    last->pending_add_idx = idx;
+    pending_adds.pop_back();
+}
+
+void
 heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (!node.empty()) {
-        pool_put_no_cpython(std::move(node.mapped()));
+    if (node.empty()) {
+        return;
+    }
+
+    std::unique_ptr<traceback_t> tb = std::move(node.mapped());
+
+    if (tb->pending_add_idx != traceback_t::PENDING_ADD_APPLIED) {
+        // Still a pending ADD (tracked and freed within the same export
+        // interval): collapse the add/free pair so it never reaches the
+        // persistent heap profile. This is the common, high-churn case and is
+        // where the batched-apply design saves the most work.
+        pending_adds_remove_no_cpython(tb.get());
+        pool_put_no_cpython(std::move(tb));
+    } else {
+        // Already applied to the persistent profile in a previous interval, so
+        // it must be subtracted. Keep the traceback alive (its Sample data is
+        // needed for the batched subtract) until the next export.
+        pending_subs.push_back(std::move(tb));
     }
 }
 
@@ -270,11 +334,19 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    // Record this allocation as a pending ADD for the persistent heap profile.
+    // It has not been applied yet (pending_add_idx >= 0), so a free before the
+    // next export will collapse the pair instead of reaching the profile.
+    tb->pending_add_idx = static_cast<std::ptrdiff_t>(pending_adds.size());
+    traceback_t* raw_tb = tb.get();
+
     auto [it, inserted] = allocs_m.insert_or_assign(ptr, std::move(tb));
     (void)it; // Unused, but needed for structured binding
 
     /* This should always be a new insertion. If not, we failed to properly untrack a previous allocation. */
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
+
+    pending_adds.push_back(raw_tb);
 
     // Get ready for the next sample
     reset_sampling_state_no_cpython();
@@ -285,10 +357,58 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and export them */
-    for (const auto& [ptr, tb] : allocs_m) {
-        (void)ptr; // Suppress unused variable warning
-        tb->sample.export_sample();
+    // Apply the changes accumulated since the last export to the persistent
+    // heap profile in a single batched pass, rather than re-adding the entire
+    // live set every time. The persistent profile is serialized
+    // (non-destructively) and uploaded as a separate pprof attachment by the
+    // uploader; we don't touch it here beyond applying the delta.
+    //
+    // heap_apply_batch reports the add and sub halves separately because they
+    // recover from failure differently (see Profile::heap_apply_batch). When
+    // heap profiling is disabled there is no persistent profile to keep in
+    // sync, so both halves default to "ok" and the buffers simply drain.
+    Datadog::HeapApplyResult applied{ true, true };
+    if (Datadog::Sample::heap_profile_is_enabled() && (!pending_adds.empty() || !pending_subs.empty())) {
+        std::vector<ddog_prof_Sample2> add_samples;
+        add_samples.reserve(pending_adds.size());
+        for (traceback_t* tb : pending_adds) {
+            add_samples.push_back(tb->sample.as_ddog_sample2());
+        }
+
+        std::vector<ddog_prof_Sample2> sub_samples;
+        sub_samples.reserve(pending_subs.size());
+        for (const auto& tb : pending_subs) {
+            sub_samples.push_back(tb->sample.as_ddog_sample2());
+        }
+
+        applied = Datadog::Sample::heap_profile_apply_batch(
+          add_samples.data(), add_samples.size(), sub_samples.data(), sub_samples.size());
+    }
+
+    // Pending ADDs: always drain, regardless of whether the add batch
+    // succeeded. add2_batch is not atomic and reports no count of how many
+    // samples it applied before failing, so re-sending the batch would
+    // double-count the already-applied prefix. We therefore mark every pending
+    // add as applied (PENDING_ADD_APPLIED) so a later free subtracts it, and
+    // clear the buffer. On the (rare) failure path this can under-count, but
+    // sub2 saturates so it can never drive the profile negative, and retaining
+    // the buffer would risk unbounded growth on a persistent error.
+    for (traceback_t* tb : pending_adds) {
+        tb->pending_add_idx = traceback_t::PENDING_ADD_APPLIED;
+    }
+    pending_adds.clear();
+
+    // Pending SUBs: drain on success, otherwise retain for retry on the next
+    // export. sub2 saturates (re-subtracting an already-applied sample is a
+    // no-op), so retrying is safe and avoids permanently over-counting freed
+    // allocations whose subtract never landed. Guard against unbounded growth
+    // if the failure is persistent: once the backlog exceeds the live-set
+    // bound, give up on it and accept the over-count rather than leak memory.
+    if (applied.subs_ok || pending_subs.size() > TRACEBACK_ARRAY_MAX_COUNT) {
+        for (auto& tb : pending_subs) {
+            pool_put_no_cpython(std::move(tb));
+        }
+        pending_subs.clear();
     }
 
     Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
@@ -314,6 +434,14 @@ heap_tracker_t::postfork_child()
     // Profile state. Global Profile state is reset after fork in
     // Profile::postfork_child()
     pool.clear();
+
+    // Drop the persistent heap profile change buffer. pending_subs owns its
+    // freed tracebacks (destroyed here); pending_adds holds raw pointers into
+    // allocs_m, so just clear it (cleared before allocs_m below to avoid leaving
+    // dangling pointers around, though neither is dereferenced). The child's
+    // persistent heap profile is recreated empty in Profile::postfork_child().
+    pending_adds.clear();
+    pending_subs.clear();
 
     // Allocations map may contain data from the parent process, and also
     // traceback_t objects may reference invalid Profile state.
@@ -341,6 +469,11 @@ memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
         Datadog::memalloc_code_cache_init(Datadog::CodeFunctionCache::DEFAULT_CAPACITY);
+        // The persistent heap profile must start empty whenever a fresh tracker
+        // starts: its live set is empty, and any state left over from a previous
+        // run (e.g. a profiler stop/start in the same process) would otherwise
+        // leak into this run's heap profile.
+        Datadog::Sample::heap_profile_reset();
         return true;
     }
     return false;

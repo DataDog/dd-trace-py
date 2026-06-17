@@ -20,6 +20,11 @@ class Uploader
     std::string output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
     ddog_prof_EncodedProfile encoded_profile{};
+    // Persistent live-heap profile snapshot (Option A). When present
+    // (inner != nullptr), it is uploaded as a second pprof attachment alongside
+    // the primary profile and merged by intake. Empty when heap profiling is
+    // disabled or the snapshot failed.
+    ddog_prof_EncodedProfile heap_encoded_profile{ .inner = nullptr };
     Datadog::ProfilerStats profiler_stats;
     std::string process_tags;
 
@@ -36,7 +41,8 @@ class Uploader
              ddog_prof_ProfileExporter ddog_exporter,
              ddog_prof_EncodedProfile encoded,
              Datadog::ProfilerStats stats,
-             std::string_view _process_tags);
+             std::string_view _process_tags,
+             ddog_prof_EncodedProfile heap_encoded = { .inner = nullptr });
     ~Uploader();
 
     // Disable copy constructor and copy assignment operator to avoid double-free
@@ -62,6 +68,8 @@ class Uploader
         other.ddog_exporter = { .inner = nullptr };
         encoded_profile = other.encoded_profile;
         other.encoded_profile = { .inner = nullptr };
+        heap_encoded_profile = other.heap_encoded_profile;
+        other.heap_encoded_profile = { .inner = nullptr };
         profiler_stats = other.profiler_stats;
         output_filename = std::move(other.output_filename);
         errmsg = std::move(other.errmsg);
@@ -73,10 +81,15 @@ class Uploader
         if (this != &other) {
             ddog_prof_Exporter_drop(&ddog_exporter);
             ddog_prof_EncodedProfile_drop(&encoded_profile);
+            if (heap_encoded_profile.inner != nullptr) {
+                ddog_prof_EncodedProfile_drop(&heap_encoded_profile);
+            }
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
             encoded_profile = other.encoded_profile;
             other.encoded_profile = { .inner = nullptr };
+            heap_encoded_profile = other.heap_encoded_profile;
+            other.heap_encoded_profile = { .inner = nullptr };
             profiler_stats = other.profiler_stats;
             output_filename = std::move(other.output_filename);
             errmsg = std::move(other.errmsg);
