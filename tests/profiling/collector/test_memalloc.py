@@ -19,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
