@@ -150,6 +150,21 @@ def _export_trace(span: Any) -> Optional[dict[str, Any]]:
         return None
 
 
+def _annotate_trace(span: Any, input_data: Any, output_data: Any) -> None:
+    """Set the boundary's input/output on the capture run's workflow span so the
+    top-level span shows what went in and came out (best-effort; must run while the
+    span is still open).
+    """
+    if span is None:
+        return
+    try:
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.annotate(span=span, input_data=input_data, output_data=output_data)
+    except Exception:
+        log.debug("inline experiment: could not annotate trace span", exc_info=True)
+
+
 def registered_experiments() -> list[str]:
     return sorted(_REGISTRY)
 
@@ -255,6 +270,10 @@ def experiment_start(
                     with _maybe_trace_span(name) as span:
                         case["_span"] = span
                         result = await fn(*args, **kwargs)
+                        # Single-function shape: annotate the root span with input/output
+                        # here, while it's still open (emit-shape annotates at the end marker).
+                        if span is not None and _mode is Mode.CAPTURE and "end" not in _REGISTRY.get(name, {}):
+                            _annotate_trace(span, case["inputs"], _start_output(output, result))
                     if _mode is Mode.CAPTURE:
                         _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
                     return result
@@ -277,6 +296,10 @@ def experiment_start(
                 with _maybe_trace_span(name) as span:
                     case["_span"] = span
                     result = fn(*args, **kwargs)
+                    # Single-function shape: annotate the root span with input/output
+                    # here, while it's still open (emit-shape annotates at the end marker).
+                    if span is not None and _mode is Mode.CAPTURE and "end" not in _REGISTRY.get(name, {}):
+                        _annotate_trace(span, case["inputs"], _start_output(output, result))
                 if _mode is Mode.CAPTURE:
                     _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
                 return result
@@ -314,6 +337,9 @@ def experiment_end(
             if case is not None:
                 case["reached_end"] = True
                 _record_case(name, case["inputs"], out, _export_trace(case.get("_span")))
+                # Annotate the root span here: it's still open (we're mid-call), and the
+                # emit-shape output is only known at this marker.
+                _annotate_trace(case.get("_span"), case["inputs"], out)
 
         if asyncio.iscoroutinefunction(fn):
 

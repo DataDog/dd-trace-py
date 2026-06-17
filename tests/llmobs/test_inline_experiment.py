@@ -128,6 +128,7 @@ class _FakeLLMObs:
     """Minimal stand-in for the real LLMObs in trace-linking tests."""
 
     enabled = True
+    annotations: list = []
 
     @staticmethod
     def workflow(name=None, **kwargs):
@@ -137,10 +138,15 @@ class _FakeLLMObs:
     def export_span(span=None):
         return {"span_id": "S1", "trace_id": "T1"}
 
+    @classmethod
+    def annotate(cls, span=None, input_data=None, output_data=None, **kwargs):
+        cls.annotations.append({"input_data": input_data, "output_data": output_data})
+
 
 def test_capture_with_trace_links_case_to_span(monkeypatch):
     import ddtrace.llmobs as llmobs_pkg
 
+    _FakeLLMObs.annotations = []
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
     _set_mode(Mode.CAPTURE)
     _set_trace(True)
@@ -151,11 +157,14 @@ def test_capture_with_trace_links_case_to_span(monkeypatch):
 
     assert f(5) == 10
     assert captured_cases("e") == [{"input": {"x": 5}, "output": 10, "trace": {"span_id": "S1", "trace_id": "T1"}}]
+    # the root workflow span is annotated with the boundary input/output
+    assert _FakeLLMObs.annotations == [{"input_data": {"x": 5}, "output_data": 10}]
 
 
 def test_capture_with_trace_emit_shape_links_case(monkeypatch):
     import ddtrace.llmobs as llmobs_pkg
 
+    _FakeLLMObs.annotations = []
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
     _set_mode(Mode.CAPTURE)
     _set_trace(True)
@@ -171,6 +180,8 @@ def test_capture_with_trace_emit_shape_links_case(monkeypatch):
 
     handle("hi")
     assert captured_cases("e") == [{"input": {"q": "hi"}, "output": "HI", "trace": {"span_id": "S1", "trace_id": "T1"}}]
+    # emit-shape annotates the root span with the input and the emitted output
+    assert _FakeLLMObs.annotations == [{"input_data": {"q": "hi"}, "output_data": "HI"}]
 
 
 def test_capture_with_trace_but_llmobs_disabled_is_safe(monkeypatch):
