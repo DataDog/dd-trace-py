@@ -338,6 +338,21 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
+    /* RAII guard: if start() returns early after the heap tracker has been
+     * initialized (e.g. a future code change adds a failable step), tear down
+     * the tracker + code cache so they don't leak. Disarmed at the bottom
+     * once memalloc_enabled is set. */
+    struct HeapTrackerGuard
+    {
+        bool disarmed = false;
+        ~HeapTrackerGuard()
+        {
+            if (!disarmed) {
+                memalloc_heap_tracker_deinit_no_cpython();
+            }
+        }
+    } heap_guard;
+
     PyMemAllocatorEx alloc;
 
     alloc.malloc = memalloc_malloc;
@@ -383,6 +398,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     (void)enable_mem_domain; // silence -Wunused-variable on Python < 3.12
 #endif // _PY312_AND_LATER
 
+    heap_guard.disarmed = true;
     memalloc_enabled = true;
 
     Py_RETURN_NONE;
@@ -541,8 +557,10 @@ PyDoc_STRVAR(memalloc_code_cache_enable__doc__,
              "code_cache_enable($module, capacity=1024, /)\n"
              "--\n"
              "\n"
-             "(Re-)create the singleton cache with the given capacity. No-op if already\n"
-             "enabled. For tests and A/B microbenches only; normal startup uses start().\n");
+             "(Re-)create the singleton cache with the given capacity. If a cache\n"
+             "already exists it is torn down first, so this is safe to call with a\n"
+             "new capacity at any time. For tests and A/B microbenches only; normal\n"
+             "startup uses start().\n");
 static PyObject*
 memalloc_code_cache_enable(PyObject* Py_UNUSED(module), PyObject* args)
 {
