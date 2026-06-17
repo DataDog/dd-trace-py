@@ -61,6 +61,15 @@ def kafka_topic(request):
             future.result()
         except KafkaException:
             pass  # The topic likely already exists
+
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        metadata = client.list_topics(timeout=2)
+        topic_md = metadata.topics.get(topic_name)
+        if topic_md and not topic_md.error:
+            break
+        time.sleep(0.2)
+
     yield topic_name
 
 

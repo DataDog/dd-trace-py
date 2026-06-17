@@ -86,7 +86,7 @@ def test_data_streams_kafka_serializing(dsm_processor, deserializing_consumer, s
     # UNKNOWN_TOPIC_OR_PART) are delivered as Message objects with error() set,
     # so treat them like None and keep polling.
     message = None
-    while message is None or message.error() is not None or str(message.value()) != str(PAYLOAD):
+    while message is None or str(message.value()) != str(PAYLOAD):
         message = deserializing_consumer.poll()
     edge_tags = [key[0] for key in all_pathway_stat_keys(dsm_processor)]
     assert any("direction:out" in tags for tags in edge_tags), "Producer DSM checkpoint missing"
