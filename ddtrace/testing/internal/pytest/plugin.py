@@ -94,7 +94,7 @@ _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:fla
 # in-session ATR retry. Each re-run is recorded as one more TestRun on the existing test (tagged
 # retry_reason=out_of_session), not a separate session. Because OSR targets ATR-exhausted failures, it only does
 # anything when ATR is enabled. Opt-in and disabled by default: set _DD_CIVISIBILITY_OSR_ENABLED=1 to enable it.
-_OSR_ENABLED_ENV = "_DD_CIVISIBILITY_OSR_ENABLED"
+_OSR_ENABLED_ENV = "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"
 _OSR_MAX_TESTS = 5
 OUT_OF_SESSION_RETRY_REASON = "out_of_session"
 OUT_OF_SESSION_RETRY_PRETTY_NAME = "Out-of-Session Retry"

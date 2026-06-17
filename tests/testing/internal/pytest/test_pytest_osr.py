@@ -16,7 +16,7 @@ from tests.testing.mocks import setup_standard_mocks
 @contextlib.contextmanager
 def out_of_session_retries_enabled() -> t.Iterator[None]:
     """Opt in to out-of-session retries (disabled by default)."""
-    with patch.dict(os.environ, {"_DD_CIVISIBILITY_OSR_ENABLED": "1"}):
+    with patch.dict(os.environ, {"_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1"}):
         yield
 
 
@@ -296,7 +296,10 @@ class TestOutOfSessionRetries:
         assert lines.count("function setup") == lines.count("function teardown") >= 3
 
     def test_disabled_by_default(self, pytester: Pytester) -> None:
-        """OSR is opt-in: without _DD_CIVISIBILITY_OSR_ENABLED, an ATR-exhausted test is not retried out of session."""
+        """
+        OSR is opt-in: without _DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED,
+        an ATR-exhausted test is not retried out of session.
+        """
         pytester.makepyfile(
             test_foo="""
             def test_fail():
