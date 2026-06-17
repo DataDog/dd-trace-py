@@ -100,6 +100,14 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_config_offcpu_time_enabled(bool enabled) // cppcheck-suppress unusedFunction
+{
+    if (enabled) {
+        Datadog::SampleManager::add_type(Datadog::SampleType::OffCPU);
+    }
+}
+
+void
 ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_output_filename(output_filename);

@@ -5882,6 +5882,14 @@
         "internal": true
       }
     ],
+    "_DD_PROFILING_STACK_OFFCPU_TIME_ENABLED": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_PROFILING_STACK_MAX_THREADS": [
       {
         "implementation": "A",

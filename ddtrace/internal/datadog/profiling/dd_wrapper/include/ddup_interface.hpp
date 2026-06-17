@@ -34,6 +34,7 @@ extern "C"
     void ddup_config_url(std::string_view url);
     void ddup_config_max_nframes(int max_nframes);
     void ddup_config_timeline(bool enable);
+    void ddup_config_offcpu_time_enabled(bool enable);
     void ddup_config_output_filename(std::string_view filename);
     void ddup_config_sample_pool_capacity(uint64_t capacity);
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms);

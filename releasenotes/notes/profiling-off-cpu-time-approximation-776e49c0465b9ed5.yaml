@@ -1,6 +1,7 @@
 ---
 features:
   - |
-    Profiling: Adds off-CPU time as a new sample type in the stack profiler.
-    Each stack sample now includes an ``off-cpu-time`` value approximating the
-    time a thread spent waiting (on I/O, locks, sleeps, or OS scheduling).
+    Profiling: Adds an off-CPU time approximation of the time a thread spent waiting
+    on I/O, locks, sleeps, or OS scheduling.
+    It is surfaced as a new sample type in the stack profiler, temporarily named
+    ``experimental-nanoseconds`` (to be renamed as ``off-cpu-time`` when the feature is GA'ed).
