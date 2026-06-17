@@ -109,22 +109,49 @@ def _reset() -> None:
 # workflow span so the baseline run is observable, and link the trace to the case.
 # Best-effort: never let tracing break capture if LLM Obs isn't enabled/importable.
 # --------------------------------------------------------------------------- #
+def _active_llmobs_span() -> Any:
+    """The currently-active span if it is an LLM Obs span, else None.
+
+    Uses the tracer's current span (which is reliable in async code, unlike the LLM Obs
+    context provider) and confirms it's an LLM Obs span by exporting it. This lets a
+    boundary that runs *inside* an existing ``@workflow``/``@agent`` span reuse that REAL
+    span instead of being wrapped in a synthetic one — no ``trace_link`` needed.
+    """
+    try:
+        from ddtrace import tracer
+        from ddtrace.llmobs import LLMObs
+
+        span = tracer.current_span()
+        if span is None:
+            return None
+        return span if LLMObs.export_span(span=span) else None
+    except Exception:
+        log.debug("inline experiment: could not resolve active span", exc_info=True)
+        return None
+
+
 @contextlib.contextmanager
 def _maybe_trace_span(name: str) -> Iterator[Any]:
-    """Open an LLM Obs ``workflow`` span around a captured call when tracing is on.
+    """Yield a span to annotate/link for this captured call (or ``None``), when tracing.
 
-    Yields the span (or ``None`` when not tracing / LLM Obs is disabled), so callers
-    can ``with _maybe_trace_span(name) as span:`` unconditionally.
+    Preference: reuse the boundary's **already-active** LLM Obs span (e.g.
+    ``@experiment_start`` nested inside an ``@workflow``/``@agent``) so the case links to
+    the real span with no wrapper; otherwise open a synthetic ``workflow`` span around the
+    call. Callers use ``with _maybe_trace_span(name) as span:`` unconditionally.
     """
     if not (_mode is Mode.CAPTURE and _trace):
         yield None
         return
     cm = None
-    # Guard only span *creation* — never the body, so a user-function error propagates.
+    # Guard only span setup — never the body, so a user-function error propagates.
     try:
         from ddtrace.llmobs import LLMObs
 
         if LLMObs.enabled:
+            active = _active_llmobs_span()
+            if active is not None:
+                yield active  # reuse the real span; we don't own it, so don't close it
+                return
             cm = LLMObs.workflow(name=name)
     except Exception:
         log.debug("inline experiment: could not open trace span for %r", name, exc_info=True)
@@ -250,12 +277,14 @@ def experiment_start(
         for the single-function-unit shape (no separate ``experiment_end``).
     :param fixtures: Callable (sync or async) returning a dict of the NON-captured args
         (the live infra) to supply at replay time.
-    :param trace_link: ``(ret) -> {"span_id", "trace_id"}`` (or an exported span). When the
-        boundary is ALREADY instrumented (e.g. an LLM Obs ``@workflow`` / ``@agent`` that
-        returns its own span context), supply this so ``--trace`` links the case to that
-        REAL span instead of wrapping the call in a synthetic span. With ``trace_link`` set,
-        no synthetic span is created (the app's own span is the top-level, already annotated
-        by its decorator). Applies to the single-function shape.
+    :param trace_link: ``(ret) -> {"span_id", "trace_id"}`` (or an exported span). Usually
+        unnecessary: when ``@experiment_start`` runs *inside* an LLM Obs span (nested under
+        an ``@workflow`` / ``@agent``), ``--trace`` auto-reuses that already-active REAL span
+        — no synthetic wrapper, no ``trace_link``. Supply ``trace_link`` only when the
+        boundary creates/owns its span *internally* and the decorator wraps it from the
+        outside (so there is no active span at the decorator boundary), e.g. a function that
+        returns its own span context. With ``trace_link`` set, no synthetic span is created.
+        Applies to the single-function shape.
 
     Inert (pure passthrough) unless a runner has activated CAPTURE/REPLAY.
     """

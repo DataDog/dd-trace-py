@@ -208,6 +208,30 @@ def test_capture_with_trace_link_uses_real_span_and_no_wrapper(monkeypatch):
     assert _FakeLLMObs.annotations == []
 
 
+def test_capture_with_trace_reuses_active_span_without_trace_link(monkeypatch):
+    # When a real LLM Obs span is already active (e.g. experiment_start nested inside an
+    # @workflow/@agent), --trace reuses it: no synthetic span, no trace_link needed.
+    import ddtrace
+    import ddtrace.llmobs as llmobs_pkg
+
+    _FakeLLMObs.annotations = []
+    _FakeLLMObs.workflow_calls = 0
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+    monkeypatch.setattr(ddtrace.tracer, "current_span", lambda: object(), raising=False)
+    _set_mode(Mode.CAPTURE)
+    _set_trace(True)
+
+    @experiment_start(name="e", output=lambda ret: ret)
+    def f(x):
+        return x * 2
+
+    assert f(5) == 10
+    # linked to the reused active span (via export_span), and NO synthetic workflow opened
+    assert captured_cases("e") == [{"input": {"x": 5}, "output": 10, "trace": {"span_id": "S1", "trace_id": "T1"}}]
+    assert _FakeLLMObs.workflow_calls == 0
+    assert _FakeLLMObs.annotations == [{"input_data": {"x": 5}, "output_data": 10}]
+
+
 def test_capture_with_trace_but_llmobs_disabled_is_safe(monkeypatch):
     class _Disabled:
         enabled = False
