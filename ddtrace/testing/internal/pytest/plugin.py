@@ -750,22 +750,6 @@ class TestOptPlugin:
         # e.g., configured with zero retries.
         return len(test.test_runs) > 1
 
-    def _mark_reports_as_osr(self, reports: _ReportGroup) -> None:
-        """Mark a re-run's report as 'rerun' so it does not change pytest's pass/fail tally.
-
-        The original in-session result stands; the OSR re-run is extra signal for Datadog and is surfaced in the
-        terminal as a RETRY. We mark the call report if present, otherwise the setup report (a test that fails during
-        setup has no call report).
-        """
-        for when in (TestPhase.CALL, TestPhase.SETUP):
-            if report := reports.get(when):
-                report.user_properties += [
-                    ("dd_retry_outcome", report.outcome),
-                    ("dd_retry_reason", OUT_OF_SESSION_RETRY_PRETTY_NAME),
-                ]
-                report.outcome = "rerun"
-                return
-
     def _do_out_of_session_run(self, item: pytest.Item) -> None:
         """Re-run a single ATR-exhausted test once, in isolation, after the main run loop.
 
@@ -776,13 +760,10 @@ class TestOptPlugin:
         change pytest's pass/fail tally. The original in-session failure stands.
         """
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            test_run, reports = self._do_one_test_run(item, nextitem=None, context=context)
+            test_run, _ = self._do_one_test_run(item, nextitem=None, context=context)
 
         test_run.set_tags({TestTag.IS_RETRY: TAG_TRUE, TestTag.RETRY_REASON: OUT_OF_SESSION_RETRY_REASON})
-        self._mark_reports_as_osr(reports)
-        self._log_test_reports(item, reports)
         test_run.finish()
-        test_run.set_final_status(test_run.get_status())
         self.manager.writer.put_item(test_run)
 
     @pytest.hookimpl(hookwrapper=True)
