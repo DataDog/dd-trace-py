@@ -63,6 +63,15 @@ def _make_event(
     )
 
 
+def _wait_until(predicate, timeout: float = 2.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
+
+
 @pytest.fixture
 def writer():
     """Create a FlagEvaluationWriter that is NOT started (no background thread)."""
@@ -630,6 +639,43 @@ class TestShutdownDrain:
         assert len(sent) == 1, "stop() must trigger a final drain+flush"
         decoded = json.loads(sent[0][0])
         assert decoded["flagEvaluations"][0]["flag"]["key"] == "lifecycle-flag"
+
+    def test_background_drain_accumulates_beyond_queue_size_before_flush(self):
+        """A flush window can exceed the bounded queue size and naturally degrade."""
+        sent = []
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.QUEUE_SIZE", 8):
+            with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.PER_FLAG_CAP", 12):
+                with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.DRAIN_INTERVAL", 0.01):
+                    w = FlagEvaluationWriter(interval=3600.0)
+                    with mock.patch.object(w, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+                        w.start()
+                        try:
+                            for i in range(14):
+                                assert _wait_until(lambda: not w._queue.full())
+                                w.enqueue(
+                                    _make_event(
+                                        flag_key="natural-degrade",
+                                        targeting_key=f"user-{i}",
+                                        attrs={"user": i},
+                                    )
+                                )
+                            assert _wait_until(lambda: w._queue.empty())
+                            with w._lock:
+                                assert w._dropped_queue == 0
+                                assert w._degraded
+                        finally:
+                            w.stop()
+                            w.join(timeout=5.0)
+
+        assert sent, "shutdown flush must emit the accumulated evaluation rows"
+        decoded = json.loads(sent[0][0])
+        degraded_rows = [
+            row
+            for row in decoded["flagEvaluations"]
+            if row["flag"]["key"] == "natural-degrade" and "context" not in row and "targeting_key" not in row
+        ]
+        assert len(degraded_rows) == 1
+        assert degraded_rows[0]["evaluation_count"] == 2
 
 
 # ---------------------------------------------------------------------------

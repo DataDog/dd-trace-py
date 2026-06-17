@@ -32,6 +32,7 @@ from ddtrace import config as ddconfig
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.utils.http import get_connection
 
 
@@ -56,6 +57,10 @@ QUEUE_SIZE = 4_096
 
 # Flush interval: dedicated 10 s timer, separate from ExposureWriter's 1 s interval.
 DEFAULT_FLUSH_INTERVAL = 10.0
+
+# Queue drain interval. This keeps the hand-off queue bounded while allowing a flush
+# window to accumulate more buckets than QUEUE_SIZE.
+DRAIN_INTERVAL = 0.1
 
 # Flag metadata key where the provider stamps the evaluation timestamp (ms).
 EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
@@ -283,6 +288,8 @@ class FlagEvaluationWriter(PeriodicService):
         self._dropped_queue: int = 0  # queue.Full drops (hook path)
         self._dropped_degraded_overflow: int = 0  # degraded-cap overflow drops
 
+        self._drain_worker: typing.Optional[PeriodicThread] = None
+
     # ------------------------------------------------------------------
     # Public API used by FlagEvaluationHook
     # ------------------------------------------------------------------
@@ -319,6 +326,24 @@ class FlagEvaluationWriter(PeriodicService):
     # ------------------------------------------------------------------
     # PeriodicService implementation
     # ------------------------------------------------------------------
+
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        self._drain_worker = PeriodicThread(
+            DRAIN_INTERVAL,
+            target=self._drain_queue,
+            name="%s:%s:drain" % (self.__class__.__module__, self.__class__.__name__),
+            no_wait_at_start=False,
+        )
+        self._drain_worker.start()
+        try:
+            super()._start_service(*args, **kwargs)
+        except Exception:
+            self._stop_drain_worker()
+            raise
+
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        self._stop_drain_worker()
+        super()._stop_service(*args, **kwargs)
 
     def periodic(self) -> None:
         """
@@ -435,6 +460,7 @@ class FlagEvaluationWriter(PeriodicService):
 
     def on_shutdown(self):
         """Final flush on service shutdown — drains the queue and flushes before exit."""
+        self._stop_drain_worker()
         self.periodic()
 
     # ------------------------------------------------------------------
@@ -449,6 +475,14 @@ class FlagEvaluationWriter(PeriodicService):
             except queue.Empty:
                 break
             self._aggregate(event)
+
+    def _stop_drain_worker(self) -> None:
+        worker = self._drain_worker
+        if worker is None:
+            return
+        self._drain_worker = None
+        worker.stop()
+        worker.join(timeout=1.0)
 
     def _aggregate(self, event: _EvalEvent) -> None:
         """
