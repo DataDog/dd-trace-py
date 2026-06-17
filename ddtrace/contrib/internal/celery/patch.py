@@ -17,8 +17,10 @@ config._add(
         "distributed_tracing": asbool(env.get("DD_CELERY_DISTRIBUTED_TRACING", default=False)),
         "producer_service_name": env.get("DD_CELERY_PRODUCER_SERVICE", default=PRODUCER_SERVICE),
         "worker_service_name": env.get("DD_CELERY_WORKER_SERVICE", default=WORKER_SERVICE),
-        "_default_service_producer": schematize_service_name("celery-producer"),  # type: ignore[operator]
-        "_default_service_worker": schematize_service_name("celery-worker"),  # type: ignore[operator]
+        # NB schematize_service_name is a dict lookup over loosely-typed schema functions, so mypy
+        # infers it as a non-callable object here (celery.patch is type-checked); hence type: ignore.
+        "_default_service_producer": schematize_service_name(PRODUCER_SERVICE),  # type: ignore[operator]
+        "_default_service_worker": schematize_service_name(WORKER_SERVICE),  # type: ignore[operator]
     },
 )
 
