@@ -6,6 +6,7 @@ from ddtrace.llmobs._inline_experiment import Mode
 from ddtrace.llmobs._inline_experiment import _ExperimentStop
 from ddtrace.llmobs._inline_experiment import _reset
 from ddtrace.llmobs._inline_experiment import _set_mode
+from ddtrace.llmobs._inline_experiment import _set_trace
 from ddtrace.llmobs._inline_experiment import captured_cases
 from ddtrace.llmobs._inline_experiment import experiment_end
 from ddtrace.llmobs._inline_experiment import experiment_start
@@ -110,3 +111,81 @@ def test_broad_except_does_not_swallow_replay_unwind():
     _set_mode(Mode.REPLAY)
     with pytest.raises(_ExperimentStop):
         ingest("x")  # _ExperimentStop is BaseException, so the broad except misses it
+
+
+# --------------------------------------------------------------------------- #
+# --trace: capture also opens an LLM Obs workflow span and links the case to it
+# --------------------------------------------------------------------------- #
+class _FakeSpan:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeLLMObs:
+    """Minimal stand-in for the real LLMObs in trace-linking tests."""
+
+    enabled = True
+
+    @staticmethod
+    def workflow(name=None, **kwargs):
+        return _FakeSpan()
+
+    @staticmethod
+    def export_span(span=None):
+        return {"span_id": "S1", "trace_id": "T1"}
+
+
+def test_capture_with_trace_links_case_to_span(monkeypatch):
+    import ddtrace.llmobs as llmobs_pkg
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+    _set_mode(Mode.CAPTURE)
+    _set_trace(True)
+
+    @experiment_start(name="e", output=lambda ret: ret)
+    def f(x):
+        return x * 2
+
+    assert f(5) == 10
+    assert captured_cases("e") == [{"input": {"x": 5}, "output": 10, "trace": {"span_id": "S1", "trace_id": "T1"}}]
+
+
+def test_capture_with_trace_emit_shape_links_case(monkeypatch):
+    import ddtrace.llmobs as llmobs_pkg
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+    _set_mode(Mode.CAPTURE)
+    _set_trace(True)
+
+    @experiment_start(name="e", inputs=["q"])
+    def handle(q):
+        emit(q.upper())
+        return "done"
+
+    @experiment_end(name="e", output=lambda args, kwargs: args[0])
+    def emit(answer):
+        return answer
+
+    handle("hi")
+    assert captured_cases("e") == [{"input": {"q": "hi"}, "output": "HI", "trace": {"span_id": "S1", "trace_id": "T1"}}]
+
+
+def test_capture_with_trace_but_llmobs_disabled_is_safe(monkeypatch):
+    class _Disabled:
+        enabled = False
+
+    import ddtrace.llmobs as llmobs_pkg
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _Disabled)
+    _set_mode(Mode.CAPTURE)
+    _set_trace(True)  # requested, but LLM Obs is off -> capture still works, no trace key
+
+    @experiment_start(name="e", output=lambda ret: ret)
+    def f(x):
+        return x + 1
+
+    assert f(2) == 3
+    assert captured_cases("e") == [{"input": {"x": 2}, "output": 3}]

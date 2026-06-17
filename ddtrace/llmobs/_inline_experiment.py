@@ -26,12 +26,14 @@ open in production. See the design doc's "Safety principle".
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import contextvars
 from enum import Enum
 import functools
 import inspect
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
@@ -49,6 +51,11 @@ class Mode(Enum):
 # The single gate. Only a deliberate runner flips this (never read from an OS env var),
 # so it cannot accidentally activate in production.
 _mode: Mode = Mode.OFF
+
+# Opt-in: when True (and mode is CAPTURE), the runner has enabled LLM Obs and each
+# captured call is wrapped in a workflow span so the baseline run is also viewable as a
+# trace. Independent of activation; only a deliberate runner sets it (default off).
+_trace: bool = False
 
 # name -> {"start", "inputs", "start_output", "end", "end_output", "fixtures", "cases"}
 _REGISTRY: dict[str, dict[str, Any]] = {}
@@ -84,11 +91,63 @@ def _get_mode() -> Mode:
     return _mode
 
 
+def _set_trace(on: bool) -> None:
+    global _trace
+    _trace = on
+
+
 def _reset() -> None:
     """Clear registry + mode. Primarily for tests."""
-    global _mode
+    global _mode, _trace
     _mode = Mode.OFF
+    _trace = False
     _REGISTRY.clear()
+
+
+# --------------------------------------------------------------------------- #
+# Tracing (opt-in via the runner's --trace): wrap each captured call in an LLM Obs
+# workflow span so the baseline run is observable, and link the trace to the case.
+# Best-effort: never let tracing break capture if LLM Obs isn't enabled/importable.
+# --------------------------------------------------------------------------- #
+@contextlib.contextmanager
+def _maybe_trace_span(name: str) -> Iterator[Any]:
+    """Open an LLM Obs ``workflow`` span around a captured call when tracing is on.
+
+    Yields the span (or ``None`` when not tracing / LLM Obs is disabled), so callers
+    can ``with _maybe_trace_span(name) as span:`` unconditionally.
+    """
+    if not (_mode is Mode.CAPTURE and _trace):
+        yield None
+        return
+    cm = None
+    # Guard only span *creation* — never the body, so a user-function error propagates.
+    try:
+        from ddtrace.llmobs import LLMObs
+
+        if LLMObs.enabled:
+            cm = LLMObs.workflow(name=name)
+    except Exception:
+        log.debug("inline experiment: could not open trace span for %r", name, exc_info=True)
+        cm = None
+    if cm is None:
+        yield None
+        return
+    with cm as span:
+        yield span
+
+
+def _export_trace(span: Any) -> Optional[dict[str, Any]]:
+    """Export ``{span_id, trace_id}`` for a captured call's span (or None)."""
+    if span is None:
+        return None
+    try:
+        from ddtrace.llmobs import LLMObs
+
+        exported = LLMObs.export_span(span)
+        return dict(exported) if exported else None
+    except Exception:
+        log.debug("inline experiment: could not export trace link", exc_info=True)
+        return None
 
 
 def registered_experiments() -> list[str]:
@@ -138,8 +197,11 @@ def _end_output(output_fn: Optional[Callable[..., Any]], args: tuple[Any, ...], 
     return {"args": list(args), "kwargs": dict(kwargs)}
 
 
-def _record_case(name: str, inputs: dict[str, Any], output: Any) -> None:
-    _spec(name)["cases"].append({"input": inputs, "output": output})
+def _record_case(name: str, inputs: dict[str, Any], output: Any, trace: Optional[dict[str, Any]] = None) -> None:
+    case: dict[str, Any] = {"input": inputs, "output": output}
+    if trace:
+        case["trace"] = trace  # {span_id, trace_id} of the capture run's span, when --trace
+    _spec(name)["cases"].append(case)
 
 
 # --------------------------------------------------------------------------- #
@@ -169,11 +231,13 @@ def experiment_start(
     def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
         _spec(name).update(start=fn, inputs=inputs, start_output=output, fixtures=fixtures)
 
-        def _finish_capture(case_inputs: dict[str, Any], reached_end: bool, result: Any) -> None:
+        def _finish_capture(
+            case_inputs: dict[str, Any], reached_end: bool, result: Any, trace: Optional[dict[str, Any]]
+        ) -> None:
             if reached_end:
                 return  # an experiment_end already recorded the output for this case
             if "end" not in _REGISTRY.get(name, {}):  # single-function unit
-                _record_case(name, case_inputs, _start_output(output, result))
+                _record_case(name, case_inputs, _start_output(output, result), trace)
 
         if asyncio.iscoroutinefunction(fn):
 
@@ -181,12 +245,18 @@ def experiment_start(
             async def awrapper(*args: Any, **kwargs: Any) -> Any:
                 if _mode is Mode.OFF:
                     return await fn(*args, **kwargs)
-                case: dict[str, Any] = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
+                case: dict[str, Any] = {
+                    "inputs": _bind_inputs(fn, args, kwargs, inputs),
+                    "reached_end": False,
+                    "_span": None,
+                }
                 token = _current_case.set(case)
                 try:
-                    result = await fn(*args, **kwargs)
+                    with _maybe_trace_span(name) as span:
+                        case["_span"] = span
+                        result = await fn(*args, **kwargs)
                     if _mode is Mode.CAPTURE:
-                        _finish_capture(case["inputs"], case["reached_end"], result)
+                        _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
                     return result
                 finally:
                     _current_case.reset(token)
@@ -197,12 +267,18 @@ def experiment_start(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             if _mode is Mode.OFF:
                 return fn(*args, **kwargs)
-            case: dict[str, Any] = {"inputs": _bind_inputs(fn, args, kwargs, inputs), "reached_end": False}
+            case: dict[str, Any] = {
+                "inputs": _bind_inputs(fn, args, kwargs, inputs),
+                "reached_end": False,
+                "_span": None,
+            }
             token = _current_case.set(case)
             try:
-                result = fn(*args, **kwargs)
+                with _maybe_trace_span(name) as span:
+                    case["_span"] = span
+                    result = fn(*args, **kwargs)
                 if _mode is Mode.CAPTURE:
-                    _finish_capture(case["inputs"], case["reached_end"], result)
+                    _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
                 return result
             finally:
                 _current_case.reset(token)
@@ -237,7 +313,7 @@ def experiment_end(
             case = _current_case.get()  # CAPTURE
             if case is not None:
                 case["reached_end"] = True
-                _record_case(name, case["inputs"], out)
+                _record_case(name, case["inputs"], out, _export_trace(case.get("_span")))
 
         if asyncio.iscoroutinefunction(fn):
 

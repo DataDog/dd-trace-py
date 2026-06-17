@@ -26,6 +26,7 @@ import inspect
 import os
 import sys
 from typing import Any
+from typing import Optional
 
 
 def _smells_like_prod() -> bool:
@@ -46,6 +47,32 @@ def _import_target(target: str) -> tuple[Any, Any]:
     mod = importlib.import_module(mod_name)
     entry = getattr(mod, attr) if attr else None
     return mod, entry
+
+
+def _enable_llmobs(ml_app_arg: Optional[str]) -> str:
+    """Enable LLM Obs so the capture run's traces are viewable in the UI.
+
+    Must run BEFORE importing the user's module so the LLM integrations are patched
+    before the app constructs its clients. agentless is used when a DD API key is
+    present; otherwise LLM Obs auto-detects a Datadog agent.
+    """
+    from ddtrace.internal.settings import env
+    from ddtrace.llmobs import LLMObs
+
+    ml_app = ml_app_arg or env.get("DD_LLMOBS_ML_APP") or "inline-experiments"
+    if not LLMObs.enabled:
+        agentless = True if env.get("DD_API_KEY") else None
+        LLMObs.enable(ml_app=ml_app, agentless_enabled=agentless)
+    return ml_app
+
+
+def _flush_llmobs() -> None:
+    try:
+        from ddtrace.llmobs import LLMObs
+
+        LLMObs.flush()
+    except Exception:
+        pass
 
 
 def _trunc(v: Any, n: int = 34) -> str:
@@ -81,6 +108,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     cap = sub.add_parser("capture", help="run the entrypoint and persist a baseline")
     cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
     cap.add_argument("--out", default=None, help="baseline file to write (default: .llmobs_experiments.json)")
+    cap.add_argument(
+        "--trace",
+        action="store_true",
+        help="also enable LLM Obs so the capture run's traces appear in the UI "
+        "(needs DD_API_KEY or a Datadog agent); links each case to its trace",
+    )
+    cap.add_argument("--ml-app", default=None, help="ml_app for --trace (default: $DD_LLMOBS_ML_APP)")
 
     rep = sub.add_parser("replay", help="replay the current code against a persisted baseline")
     rep.add_argument("target", help="module to import (registers the decorated subjects)")
@@ -126,19 +160,32 @@ def main() -> None:
         return
 
     if args.command == "capture":
+        # Enable LLM Obs BEFORE importing the app so its LLM integrations are patched
+        # before the app builds its clients (otherwise the calls aren't traced).
+        ml_app = _enable_llmobs(args.ml_app) if args.trace else None
         _, entry = _import_target(args.target)  # registers subjects
         if entry is None:
             print("capture needs 'module:entrypoint' to drive the app (e.g. myapp:generate_traffic).", file=sys.stderr)
             sys.exit(2)
+        ie._set_trace(bool(args.trace))
         ie._set_mode(ie.Mode.CAPTURE)
         result = entry()
         if inspect.iscoroutine(result):
             asyncio.run(result)
         ie._set_mode(ie.Mode.OFF)
+        ie._set_trace(False)
+        if args.trace:
+            _flush_llmobs()  # ensure the capture run's spans are sent before exit
         out = args.out or runner.DEFAULT_BASELINE_PATH
         data = runner.save_baselines(out)
         case_count = sum(len(v) for v in data.values())
         print("captured %d case(s) across %d experiment(s) -> %s" % (case_count, len(data), os.path.abspath(out)))
+        if args.trace:
+            linked = sum(1 for cases in data.values() for c in cases if c.get("trace"))
+            print(
+                "traces enabled (ml_app: %s) — %d/%d case(s) linked; view in LLM Observability."
+                % (ml_app, linked, case_count)
+            )
         return
 
     # replay
