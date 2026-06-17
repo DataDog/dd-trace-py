@@ -21,7 +21,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.14.0
+      max: 3.14.1
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -846,6 +846,16 @@ integrations:
   is_tested: false
   dependency_names:
   - pytest_benchmark
+
+- integration_name: pytorch
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - torch
+  tested_versions_by_dependency:
+    torch:
+      min: 2.0.1
+      max: 2.12.0
 
 - integration_name: ray
   is_external_package: true
