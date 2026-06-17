@@ -137,6 +137,10 @@ TaintEngineContext::get_tainted_object_map(PyObject* obj)
         return nullptr;
     }
 
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
+
     // 1) Direct text objects
     if (is_text(obj)) {
         auto map = get_tainted_object_map_from_pyobject(obj);
@@ -317,6 +321,9 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
 TaintedObjectMapTypePtr
 TaintEngineContext::get_tainted_object_map_by_ctx_id(size_t ctx_id)
 {
+    if (shutting_down.load(std::memory_order_acquire)) {
+        return nullptr;
+    }
     const auto cap = request_context_slots.size();
     if (ctx_id >= cap) {
         return nullptr;
@@ -353,6 +360,8 @@ pyexport_taint_engine_context(py::module& m)
 
     m.def("is_in_taint_map", [](py::object tainted_obj) {
         if (!taint_engine_context)
+            return false;
+        if (TaintEngineContext::is_shutting_down())
             return false;
         auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
         return map_ptr != nullptr;

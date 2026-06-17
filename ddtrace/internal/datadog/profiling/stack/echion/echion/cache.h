@@ -32,6 +32,8 @@ class LRUCache
         index.clear();
     }
 
+    size_t get_capacity() const { return capacity; }
+
   private:
     size_t capacity;
     std::list<std::pair<K, std::unique_ptr<V>>> items;
