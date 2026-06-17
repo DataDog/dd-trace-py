@@ -31,6 +31,14 @@ include:
       aud: dd-octo-sts
   variables:
     ARTIFACTS_DIR: "${CI_PROJECT_DIR}/libdatadog-update"
+    # Attribute the commit to the dd-octo-sts bot — the identity behind the token
+    # we mint (it already authors commits in this repo, e.g. 1a5569de). git reads
+    # these natively for both author and committer. NB: unlike the GitHub-API path
+    # peter-evans uses, a local commit won't carry GitHub's "Verified" badge.
+    GIT_AUTHOR_NAME: "dd-octo-sts[bot]"
+    GIT_AUTHOR_EMAIL: "200755185+dd-octo-sts[bot]@users.noreply.github.com"
+    GIT_COMMITTER_NAME: "dd-octo-sts[bot]"
+    GIT_COMMITTER_EMAIL: "200755185+dd-octo-sts[bot]@users.noreply.github.com"
   before_script:
     - !reference [.testrunner, before_script]
   script:
@@ -48,17 +56,19 @@ include:
       npm install -g @anthropic-ai/claude-code
     # GitHub token for the PR. Best-effort: if unavailable, the script still bumps +
     # validates and prints the `gh pr create` command instead of opening the PR.
+    # The token is written to tmp/github_token.txt (NOT an uploaded artifact) so the
+    # after_script can revoke it; do not rm it here.
     - |
+      mkdir -p tmp
       if command -v dd-octo-sts >/dev/null 2>&1; then
-        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > gh_token || true
-        if [ -s gh_token ]; then
-          export GH_TOKEN="$(cat gh_token)"
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > tmp/github_token.txt || true
+        if [ -s tmp/github_token.txt ]; then
+          export GH_TOKEN="$(cat tmp/github_token.txt)"
           # origin is the GitLab mirror; add a GitHub remote for the branch push.
           git remote remove gh-origin 2>/dev/null || true
           git remote add gh-origin "https://x-access-token:${GH_TOKEN}@github.com/DataDog/dd-trace-py.git"
           export GIT_PUSH_REMOTE="gh-origin"
         fi
-        rm -f gh_token
       else
         echo "dd-octo-sts not found in image; PR creation will be skipped (branch push + command print only)."
       fi
@@ -77,6 +87,13 @@ include:
       #   runs in PR CI (and `pip install -e .` isn't viable from this uv env).
       # Drop these flags to go live.
       scripts/update-libdatadog.py --no-push --skip-python
+  after_script:
+    # Preserve the testrunner's core-backtrace step, then revoke the GitHub token
+    # immediately via the broker (rather than waiting out its short lifetime).
+    # after_script runs in a fresh shell, so the token is read from the file.
+    - !reference [.testrunner, after_script]
+    - if [[ -f tmp/github_token.txt ]]; then dd-octo-sts revoke -t "$(cat tmp/github_token.txt)" || true; fi
+    - rm -f tmp/github_token.txt
   artifacts:
     when: always
     paths:

@@ -33,6 +33,8 @@ Environment:
                         the branch is pushed and the create-PR command is printed.
   GIT_PUSH_REMOTE       git remote to push to (default: origin). CI sets this to a
                         GitHub remote since `origin` is the GitLab mirror.
+  GIT_AUTHOR_*/         commit identity, read natively by git. CI sets these to
+  GIT_COMMITTER_*       dd-octo-sts[bot]; locally git falls back to your config.
   ANTHROPIC_AUTH_TOKEN  AI-gateway bearer token; required for the Phase 5 repair
   ANTHROPIC_BASE_URL    loop. If unset, repair is skipped and red builds draft-PR.
   ARTIFACTS_DIR         where to write logs and the summary (default: ./libdatadog-update)
@@ -408,6 +410,8 @@ def open_pr_or_fallback(
         ["git", "add", "src/native/Cargo.toml", "src/native/Cargo.lock", "setup.py", "releasenotes/notes/"],
         cwd=REPO_ROOT,
     )
+    # git reads the author/committer from GIT_AUTHOR_*/GIT_COMMITTER_* (the CI job
+    # sets these to dd-octo-sts[bot]) or, locally, from the developer's git config.
     run("git-commit", ["git", "commit", "-m", title], cwd=REPO_ROOT)
 
     # In GitLab CI `origin` is the GitLab mirror, not GitHub; the job sets
