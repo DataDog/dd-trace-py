@@ -1246,7 +1246,8 @@ def test_span_id_in_profile_after_fork() -> None:
 # --- off-cpu-time tests ---
 # The off-cpu-time sample type uses DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS in the pprof
 # profile, which maps to the string "experimental-nanoseconds". If this string is wrong the tests
-# will fail with StopIteration; fix by printing profile.string_table to find the correct name.
+# will fail with an assertion on _available_sample_types(); fix by printing profile.string_table
+# to find the correct name.
 _OFF_CPU_TYPE = "experimental-nanoseconds"
 
 
@@ -1362,8 +1363,8 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
         pytest.skip("CPU time measurement unavailable for cpu-thread; cannot validate off-cpu ratio")
 
     assert sleeping_off_cpu > 0, "sleeper thread should have non-zero off-cpu-time"
-    # 2x threshold: sleeper is 100% off-cpu; spinner should be mostly on-cpu.
-    # macOS ARM scheduler can preempt the spinner, so we use 2x not 3x.
+    # 2x threshold: sleeper is 100% off-cpu; cpu-thread should be mostly on-cpu.
+    # macOS ARM scheduler can preempt the cpu-thread, so we use 2x not 3x.
     assert sleeping_off_cpu > cpu_bound_off_cpu * 2, (
         f"sleeper off-cpu ({sleeping_off_cpu}ns) should greatly exceed cpu-bound off-cpu ({cpu_bound_off_cpu}ns)"
     )
