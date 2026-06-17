@@ -165,6 +165,16 @@ def _annotate_trace(span: Any, input_data: Any, output_data: Any) -> None:
         log.debug("inline experiment: could not annotate trace span", exc_info=True)
 
 
+def _link_from_return(extractor: Callable[..., Any], result: Any) -> Optional[dict[str, Any]]:
+    """Pull the boundary's own span link ``{span_id, trace_id}`` out of its return value."""
+    try:
+        link = extractor(result)
+        return dict(link) if link else None
+    except Exception:
+        log.debug("inline experiment: trace_link extractor failed", exc_info=True)
+        return None
+
+
 def registered_experiments() -> list[str]:
     return sorted(_REGISTRY)
 
@@ -229,6 +239,7 @@ def experiment_start(
     inputs: Optional[list[str]] = None,
     output: Optional[Callable[..., Any]] = None,
     fixtures: Optional[Callable[..., Any]] = None,
+    trace_link: Optional[Callable[..., Any]] = None,
 ) -> Callable[..., Any]:
     """Mark the ENTRY point of an experiment subject.
 
@@ -239,6 +250,12 @@ def experiment_start(
         for the single-function-unit shape (no separate ``experiment_end``).
     :param fixtures: Callable (sync or async) returning a dict of the NON-captured args
         (the live infra) to supply at replay time.
+    :param trace_link: ``(ret) -> {"span_id", "trace_id"}`` (or an exported span). When the
+        boundary is ALREADY instrumented (e.g. an LLM Obs ``@workflow`` / ``@agent`` that
+        returns its own span context), supply this so ``--trace`` links the case to that
+        REAL span instead of wrapping the call in a synthetic span. With ``trace_link`` set,
+        no synthetic span is created (the app's own span is the top-level, already annotated
+        by its decorator). Applies to the single-function shape.
 
     Inert (pure passthrough) unless a runner has activated CAPTURE/REPLAY.
     """
@@ -254,6 +271,15 @@ def experiment_start(
             if "end" not in _REGISTRY.get(name, {}):  # single-function unit
                 _record_case(name, case_inputs, _start_output(output, result), trace)
 
+        def _capture_span() -> Any:
+            # With trace_link the boundary already emits its own span: don't wrap it.
+            return contextlib.nullcontext(None) if trace_link is not None else _maybe_trace_span(name)
+
+        def _case_link(result: Any, span: Any) -> Optional[dict[str, Any]]:
+            if trace_link is not None:
+                return _link_from_return(trace_link, result)  # link the REAL span
+            return _export_trace(span)  # link the synthetic capture span
+
         if asyncio.iscoroutinefunction(fn):
 
             @functools.wraps(fn)
@@ -267,15 +293,16 @@ def experiment_start(
                 }
                 token = _current_case.set(case)
                 try:
-                    with _maybe_trace_span(name) as span:
+                    with _capture_span() as span:
                         case["_span"] = span
                         result = await fn(*args, **kwargs)
-                        # Single-function shape: annotate the root span with input/output
-                        # here, while it's still open (emit-shape annotates at the end marker).
+                        # Single-function shape: annotate the synthetic root span with
+                        # input/output while it's open (skipped when trace_link is set —
+                        # the boundary's own decorator already annotates the real span).
                         if span is not None and _mode is Mode.CAPTURE and "end" not in _REGISTRY.get(name, {}):
                             _annotate_trace(span, case["inputs"], _start_output(output, result))
                     if _mode is Mode.CAPTURE:
-                        _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
+                        _finish_capture(case["inputs"], case["reached_end"], result, _case_link(result, case["_span"]))
                     return result
                 finally:
                     _current_case.reset(token)
@@ -293,15 +320,16 @@ def experiment_start(
             }
             token = _current_case.set(case)
             try:
-                with _maybe_trace_span(name) as span:
+                with _capture_span() as span:
                     case["_span"] = span
                     result = fn(*args, **kwargs)
-                    # Single-function shape: annotate the root span with input/output
-                    # here, while it's still open (emit-shape annotates at the end marker).
+                    # Single-function shape: annotate the synthetic root span with
+                    # input/output while it's open (skipped when trace_link is set —
+                    # the boundary's own decorator already annotates the real span).
                     if span is not None and _mode is Mode.CAPTURE and "end" not in _REGISTRY.get(name, {}):
                         _annotate_trace(span, case["inputs"], _start_output(output, result))
                 if _mode is Mode.CAPTURE:
-                    _finish_capture(case["inputs"], case["reached_end"], result, _export_trace(case["_span"]))
+                    _finish_capture(case["inputs"], case["reached_end"], result, _case_link(result, case["_span"]))
                 return result
             finally:
                 _current_case.reset(token)

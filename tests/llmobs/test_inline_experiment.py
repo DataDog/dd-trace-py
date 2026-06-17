@@ -129,9 +129,11 @@ class _FakeLLMObs:
 
     enabled = True
     annotations: list = []
+    workflow_calls = 0
 
-    @staticmethod
-    def workflow(name=None, **kwargs):
+    @classmethod
+    def workflow(cls, name=None, **kwargs):
+        cls.workflow_calls += 1
         return _FakeSpan()
 
     @staticmethod
@@ -182,6 +184,28 @@ def test_capture_with_trace_emit_shape_links_case(monkeypatch):
     assert captured_cases("e") == [{"input": {"q": "hi"}, "output": "HI", "trace": {"span_id": "S1", "trace_id": "T1"}}]
     # emit-shape annotates the root span with the input and the emitted output
     assert _FakeLLMObs.annotations == [{"input_data": {"q": "hi"}, "output_data": "HI"}]
+
+
+def test_capture_with_trace_link_uses_real_span_and_no_wrapper(monkeypatch):
+    import ddtrace.llmobs as llmobs_pkg
+
+    _FakeLLMObs.annotations = []
+    _FakeLLMObs.workflow_calls = 0
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+    _set_mode(Mode.CAPTURE)
+    _set_trace(True)
+
+    # boundary already emits its own span and returns its {span_id, trace_id} as ret[1]
+    @experiment_start(name="e", output=lambda ret: ret[0], trace_link=lambda ret: ret[1])
+    def f(x):
+        return (x * 2, {"span_id": "REAL", "trace_id": "RT"})
+
+    assert f(5) == (10, {"span_id": "REAL", "trace_id": "RT"})
+    # case links to the REAL span, not a synthesized one
+    assert captured_cases("e") == [{"input": {"x": 5}, "output": 10, "trace": {"span_id": "REAL", "trace_id": "RT"}}]
+    # no synthetic span was opened, and we did not annotate (the real span's own decorator does)
+    assert _FakeLLMObs.workflow_calls == 0
+    assert _FakeLLMObs.annotations == []
 
 
 def test_capture_with_trace_but_llmobs_disabled_is_safe(monkeypatch):
