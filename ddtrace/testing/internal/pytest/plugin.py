@@ -88,15 +88,14 @@ TEST_FRAMEWORK = "pytest"
 _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
 
 # Out-of-session retries (OSR): after the main run loop finishes (and all fixtures, including session-scoped ones, have
-# been torn down), a randomly-chosen subset of the tests that exhausted Auto Test Retries (failed every in-session ATR
-# attempt) is re-run once each, in isolation, with `nextitem=None` so pytest re-creates and tears down their full
-# fixture chain — a "clean slate" for tests that leak state and would therefore fail every in-session ATR retry. Each
-# re-run is recorded as one more TestRun on the existing test (tagged retry_reason=out_of_session), not a separate
-# session. Because OSR targets ATR-exhausted failures, it only does anything when ATR is enabled. Enabled by default;
-# the env var is a safety kill switch only.
-_OSR_ENABLED_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"
-_OSR_COUNT_ENV = "DD_CIVISIBILITY_OUT_OF_SESSION_RETRY_COUNT"
-_OSR_DEFAULT_MAX_TESTS = 5
+# been torn down), a randomly-chosen subset (at most _OSR_MAX_TESTS) of the tests that exhausted Auto Test Retries
+# (failed every in-session ATR attempt) is re-run once each, in isolation, with `nextitem=None` so pytest re-creates and
+# tears down their full fixture chain — a "clean slate" for tests that leak state and would therefore fail every
+# in-session ATR retry. Each re-run is recorded as one more TestRun on the existing test (tagged
+# retry_reason=out_of_session), not a separate session. Because OSR targets ATR-exhausted failures, it only does
+# anything when ATR is enabled. Opt-in and disabled by default: set _DD_CIVISIBILITY_OSR_ENABLED=1 to enable it.
+_OSR_ENABLED_ENV = "_DD_CIVISIBILITY_OSR_ENABLED"
+_OSR_MAX_TESTS = 5
 OUT_OF_SESSION_RETRY_REASON = "out_of_session"
 OUT_OF_SESSION_RETRY_PRETTY_NAME = "Out-of-Session Retry"
 
@@ -284,11 +283,7 @@ class TestOptPlugin:
         self.extra_failed_reports: list[pytest.TestReport] = []
 
         # Out-of-session retries (OSR) state. See module-level docstring near `_OSR_ENABLED_ENV`.
-        self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "true"))
-        try:
-            self._osr_max_tests = int(env.get(_OSR_COUNT_ENV, str(_OSR_DEFAULT_MAX_TESTS)))
-        except ValueError:
-            self._osr_max_tests = _OSR_DEFAULT_MAX_TESTS
+        self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
 
@@ -821,12 +816,12 @@ class TestOptPlugin:
             self._do_out_of_session_run(item)
 
     def _select_out_of_session_candidates(self) -> list[pytest.Item]:
-        """Pick up to ``_osr_max_tests`` of the ATR-exhausted tests, sampled at random when there are more."""
+        """Pick up to ``_OSR_MAX_TESTS`` of the ATR-exhausted tests, sampled at random when there are more."""
         # Candidates are already unique (each test is recorded once), but dedupe defensively.
         unique = list(dict.fromkeys(self._osr_candidates))
-        if len(unique) <= self._osr_max_tests:
+        if len(unique) <= _OSR_MAX_TESTS:
             return unique
-        return random.sample(unique, self._osr_max_tests)
+        return random.sample(unique, _OSR_MAX_TESTS)
 
     def _extract_longrepr(self, reports: _ReportGroup) -> tuple[t.Any, t.Any]:
         """

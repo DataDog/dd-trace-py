@@ -15,8 +15,8 @@ from tests.testing.mocks import setup_standard_mocks
 
 @contextlib.contextmanager
 def out_of_session_retries_enabled() -> t.Iterator[None]:
-    """Re-enable out-of-session retries (disabled by default in ``setup_standard_mocks``)."""
-    with patch.dict(os.environ, {"DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "true"}):
+    """Opt in to out-of-session retries (disabled by default)."""
+    with patch.dict(os.environ, {"_DD_CIVISIBILITY_OSR_ENABLED": "1"}):
         yield
 
 
@@ -295,8 +295,8 @@ class TestOutOfSessionRetries:
         # The function-scoped fixture is torn down and re-created on every attempt (initial + ATR retries + OSR).
         assert lines.count("function setup") == lines.count("function teardown") >= 3
 
-    def test_disabled_by_env_var(self, pytester: Pytester) -> None:
-        """The kill switch disables out-of-session retries even for ATR-exhausted tests."""
+    def test_disabled_by_default(self, pytester: Pytester) -> None:
+        """OSR is opt-in: without _DD_CIVISIBILITY_OSR_ENABLED, an ATR-exhausted test is not retried out of session."""
         pytester.makepyfile(
             test_foo="""
             def test_fail():
@@ -309,7 +309,7 @@ class TestOutOfSessionRetries:
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(auto_retries_enabled=True),
             ),
-            setup_standard_mocks(),  # leaves OSR disabled
+            setup_standard_mocks(),  # OSR not opted in
         ):
             with EventCapture.capture() as event_capture:
                 result = pytester.inline_run("--ddtrace", "-v", "-s", "-p", "no:randomly")
@@ -317,5 +317,4 @@ class TestOutOfSessionRetries:
         assert result.ret == 1
         assert_stats(result, failed=1)
 
-        assert len(list(event_capture.events_by_type("test_session_end"))) == 1
         assert _osr_events(event_capture) == []

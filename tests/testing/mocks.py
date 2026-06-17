@@ -602,12 +602,7 @@ class BackendConnectorMockSetup:
 
 @contextlib.contextmanager
 def setup_standard_mocks() -> t.Generator[None, None, None]:
-    """Mock calls used by the session manager to get git and platform tags.
-
-    Out-of-session retries are disabled by default here so that the many existing plugin tests that deliberately fail
-    tests keep producing deterministic event counts. Tests that exercise OSR re-enable it by nesting their own
-    ``patch.dict(os.environ, {"DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "true"})`` inside this context.
-    """
+    """Mock calls used by the session manager to get git and platform tags."""
     with (
         patch.multiple(
             "ddtrace.testing.internal.session_manager",
@@ -616,7 +611,6 @@ def setup_standard_mocks() -> t.Generator[None, None, None]:
             Git=Mock(return_value=get_mock_git_instance()),
         ),
         patch.object(BackendConnectorSetup, "detect_setup", return_value=BackendConnectorMockSetup()),
-        patch.dict(os.environ, {"DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "false"}),
     ):
         yield
 
