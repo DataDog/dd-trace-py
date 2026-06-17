@@ -346,13 +346,10 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 bool
 memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 {
-    // TODO(dsn): what should we do if this was already initialized?
-    if (!heap_tracker_t::instance) {
-        heap_tracker_t::instance = new heap_tracker_t(sample_size);
-        Datadog::memalloc_code_cache_init(Datadog::CodeFunctionCache::DEFAULT_CAPACITY);
-        return true;
-    }
-    return false;
+    memalloc_heap_tracker_deinit_no_cpython();
+    heap_tracker_t::instance = new heap_tracker_t(sample_size);
+    Datadog::memalloc_code_cache_init(Datadog::CodeFunctionCache::DEFAULT_CAPACITY);
+    return true;
 }
 
 void
