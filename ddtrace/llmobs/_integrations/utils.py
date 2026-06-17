@@ -1630,3 +1630,71 @@ def extract_instance_metadata_from_stack(
     except Exception:
         logger.warning("Failed to extract prompt variable name")
         return default_variable_name, default_module_name
+
+
+# AIDEV-NOTE: MLOB-7584 — section names below are the cross-framework allowlist accepted
+# by the backend renderer (DataDog/web-ui#288158). Other names are silently dropped.
+CONTEXT_SECTION_SYSTEM = "system"
+CONTEXT_SECTION_TOOLS = "tools"
+CONTEXT_SECTION_USER_MESSAGES = "user_messages"
+CONTEXT_SECTION_ASSISTANT_MESSAGES = "assistant_messages"
+
+
+def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dict[str, int]:
+    """Distribute ``total_tokens`` proportional to ``char_counts``.
+
+    Total is authoritative (model-reported); per-category split is approximate
+    (~5-15% drift on real workloads). Acceptable for visualization, not for billing.
+    """
+    if total_tokens <= 0 or not char_counts:
+        return {name: 0 for name in char_counts}
+    total_chars = sum(char_counts.values())
+    if total_chars <= 0:
+        return {name: 0 for name in char_counts}
+    return {name: int(total_tokens * (chars / total_chars)) for name, chars in char_counts.items()}
+
+
+def _sections_with_pct(token_counts: dict[str, int]) -> list[dict[str, Any]]:
+    """Return ``sections`` list with pct as share of used tokens. Drops zero entries."""
+    total = sum(token_counts.values())
+    sections: list[dict[str, Any]] = []
+    for name, tokens in token_counts.items():
+        if tokens <= 0:
+            continue
+        pct = round(tokens / total * 100, 1) if total > 0 else 0.0
+        sections.append({"name": name, "tokens": tokens, "pct": pct})
+    return sections
+
+
+def tag_context_delta(
+    span: Span,
+    *,
+    first_token_counts: dict[str, int],
+    last_token_counts: dict[str, int],
+    first_input_tokens: int,
+    last_input_tokens: int,
+    context_window_size: int,
+) -> None:
+    """Emit ``meta.metadata._dd.context_delta``. Mirrors ``claude_agent_sdk._parse_context_delta``."""
+    if first_input_tokens <= 0 and last_input_tokens <= 0:
+        return
+
+    first_pct = round(first_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+    last_pct = round(last_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+
+    delta: dict[str, Any] = {
+        "first_input_tokens": first_input_tokens,
+        "last_input_tokens": last_input_tokens,
+        "delta_tokens": last_input_tokens - first_input_tokens,
+        "context_window_size": context_window_size,
+        "first_usage_pct": first_pct,
+        "last_usage_pct": last_pct,
+    }
+    first_sections = _sections_with_pct(first_token_counts)
+    last_sections = _sections_with_pct(last_token_counts)
+    if first_sections:
+        delta["first_sections"] = first_sections
+    if last_sections:
+        delta["last_sections"] = last_sections
+
+    _annotate_llmobs_span_data(span, context_delta=delta)

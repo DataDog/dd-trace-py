@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import json
 from typing import Any
 from typing import Optional
@@ -16,9 +17,15 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_ASSISTANT_MESSAGES
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_SYSTEM
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_TOOLS
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_USER_MESSAGES
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+from ddtrace.llmobs._integrations.utils import tag_context_delta
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -32,8 +39,109 @@ from ddtrace.trace import Span
 logger = get_logger(__name__)
 
 
+def count_tools_chars(agent) -> int:
+    """Sum chars for ``agent.tools + agent.handoffs`` serialized as JSON.
+
+    MCP server tools (``agent.mcp_servers``) are not counted — they're fetched async via
+    ``agent.get_mcp_tools()``. Agents that lean on MCP will see ``tools`` under-counted.
+    """
+    chars = 0
+    for tool in getattr(agent, "tools", None) or []:
+        chars += len(safe_json(tool) or str(tool))
+    for handoff in getattr(agent, "handoffs", None) or []:
+        chars += len(safe_json(handoff) or str(handoff))
+    return chars
+
+
+# Responses API non-role items bucketed as agent-produced. ``message`` items have
+# their own ``role`` and are bucketed by role, not by type.
+_ASSISTANT_PRODUCED_ITEM_TYPES = frozenset(
+    {
+        "function_call",
+        "function_call_output",
+        "tool_call",
+        "tool_call_output",
+        "computer_call",
+        "computer_call_output",
+        "code_interpreter_call",
+        "file_search_call",
+        "web_search_call",
+        "reasoning",
+        "reasoning_item",
+    }
+)
+
+
+def split_message_chars(messages: Any) -> tuple[int, int]:
+    """Return ``(user_chars, assistant_chars)`` for a response-span's ``input``.
+
+    Buckets role-tagged messages by role and Responses API non-role items (function_call,
+    function_call_output, reasoning, ...) into assistant_chars. system/developer roles
+    are excluded — they flow through ``response_system_instructions`` separately.
+    """
+    if isinstance(messages, str):
+        return len(messages), 0
+    if not isinstance(messages, list):
+        return 0, 0
+    user_chars = 0
+    assistant_chars = 0
+    for msg in messages:
+        if isinstance(msg, dict):
+            role = msg.get("role")
+            item_type = msg.get("type")
+            content = msg.get("content")
+            output = msg.get("output")
+            arguments = msg.get("arguments")
+        else:
+            role = getattr(msg, "role", None)
+            item_type = getattr(msg, "type", None)
+            content = getattr(msg, "content", None)
+            output = getattr(msg, "output", None)
+            arguments = getattr(msg, "arguments", None)
+        if content is not None:
+            chars = len(str(content))
+        elif output is not None:
+            chars = len(str(output))
+        elif arguments is not None:
+            chars = len(str(arguments))
+        else:
+            chars = 0
+        if role == "user":
+            user_chars += chars
+        elif role in ("assistant", "tool"):
+            assistant_chars += chars
+        elif item_type in _ASSISTANT_PRODUCED_ITEM_TYPES:
+            assistant_chars += chars
+        # role in ("system", "developer") and unknown shapes: skip
+    return user_chars, assistant_chars
+
+
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
+
+    # Static map — OpenAI doesn't expose context_window in API responses. Resolver below
+    # picks the longest-prefix match so "o1-preview" wins over "o1" and "gpt-5.4-mini"
+    # wins over "gpt-5.4". 0 fallback if unknown. Values cross-checked against
+    # developers.openai.com/api/docs/models on the dates of model launches.
+    _OPENAI_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+        "gpt-4o-mini": 128_000,
+        "gpt-4o": 128_000,
+        "gpt-4-turbo": 128_000,
+        "gpt-4.1": 1_047_576,
+        "gpt-4": 8_192,
+        "gpt-3.5-turbo": 16_385,
+        "gpt-5.4-mini": 400_000,
+        "gpt-5.5": 1_050_000,
+        "gpt-5.4": 1_050_000,
+        "gpt-5-mini": 400_000,
+        "gpt-5": 400_000,
+        "o1-preview": 128_000,
+        "o1-mini": 128_000,
+        "o1": 200_000,
+        "o3-mini": 200_000,
+        "o3": 200_000,
+        "o4-mini": 200_000,
+    }
 
     def __init__(self, integration_config: Any) -> None:
         super().__init__(integration_config)
@@ -42,6 +150,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+        self._context_state: OrderedDict[int, dict[str, Any]] = OrderedDict()
 
     def trace(
         self,
@@ -287,9 +396,146 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
+        self._context_state.clear()
+
+    def _context_window_for(self, model: str) -> int:
+        """Look up the model's context window. Returns 0 if unknown."""
+        if not model:
+            return 0
+        if model in self._OPENAI_MODEL_CONTEXT_WINDOWS:
+            return self._OPENAI_MODEL_CONTEXT_WINDOWS[model]
+        # Prefix match for dated model names (e.g. "gpt-4o-2024-08-06" -> "gpt-4o").
+        # Iterate longest-prefix-first so "gpt-4o-mini" wins over "gpt-4o" / "gpt-4".
+        for prefix in sorted(self._OPENAI_MODEL_CONTEXT_WINDOWS, key=len, reverse=True):
+            if model.startswith(prefix):
+                return self._OPENAI_MODEL_CONTEXT_WINDOWS[prefix]
+        return 0
+
+    _CONTEXT_STATE_MAX = 1024
+
+    def _get_or_create_context_state(self, trace_id: int) -> dict[str, Any]:
+        """Get-or-create the per-trace context state, bounded to ``_CONTEXT_STATE_MAX``.
+
+        AIDEV-NOTE: MLOB-7584 — oldest-first eviction bounds the leak from runs whose
+        trace-end hook never fires (same-process resumed/HITL runs use the SDK's
+        ``ReattachedTrace``, which never notifies processors, so the entry never pops).
+        """
+        state = self._context_state.get(trace_id)
+        if state is None:
+            if len(self._context_state) >= self._CONTEXT_STATE_MAX:
+                self._context_state.popitem(last=False)
+            state = self._context_state[trace_id] = {}
+        return state
+
+    def record_llm_side(
+        self,
+        trace_id: int,
+        *,
+        input_tokens: int,
+        system_chars: int,
+        user_chars: int,
+        assistant_chars: int,
+        model: str,
+    ) -> None:
+        """Capture per-LLM-call snapshot. Called from on_span_end on response-type spans."""
+        if not self.llmobs_enabled:
+            return
+        snapshot = {
+            "input_tokens": input_tokens,
+            "system_chars": system_chars,
+            "user_chars": user_chars,
+            "assistant_chars": assistant_chars,
+            "model": model or "",
+        }
+        state = self._get_or_create_context_state(trace_id)
+        if "first_llm" not in state:
+            state["first_llm"] = snapshot
+        state["last_llm"] = snapshot
+        state["_pending_llm"] = snapshot
+
+    def record_agent_side(self, trace_id: int, *, tools_chars: int, agent_id: Optional[str] = None) -> None:
+        """Capture per-turn agent-side snapshot. Locks to first agent on handoff.
+
+        Subsequent calls with a different ``agent_id`` than the first are dropped so
+        ``last_agent`` / ``last_llm_first_agent`` reflect the original agent's loop.
+        ``agent_id=None`` (legacy callers without handoff detection) is treated as a
+        single identity, preserving pre-handoff-aware behavior.
+        """
+        if not self.llmobs_enabled:
+            return
+        snapshot = {"tools_chars": tools_chars}
+        state = self._get_or_create_context_state(trace_id)
+
+        if "first_agent_id" not in state:
+            state["first_agent_id"] = agent_id
+
+        if agent_id == state["first_agent_id"]:
+            if "first_agent" not in state:
+                state["first_agent"] = snapshot
+            state["last_agent"] = snapshot
+            pending = state.get("_pending_llm")
+            if pending is not None:
+                state["last_llm_first_agent"] = pending
+        else:
+            state["_handoff_detected"] = True
+
+        state.pop("_pending_llm", None)
+
+    def emit_context_delta(self, trace_root_span: Span, trace_id: int) -> None:
+        """Emit context_delta on the trace root span at trace end.
+
+        AIDEV-NOTE: MLOB-7584 — the OAI tracing trace root span is annotated as
+        ``kind="workflow"`` (see ``_set_trace_attributes`` above). The claude_agent_sdk
+        sibling integration emits its equivalent payload on a ``kind="agent"`` span.
+        The LLMObs backend renders ``meta.metadata._dd.context_delta`` regardless of
+        the host span's kind, so both consumers work today, but a future contract
+        alignment pass should pick one canonical kind across integrations.
+        """
+        state = self._context_state.pop(trace_id, None)
+        if not state:
+            return
+        first_llm = state.get("first_llm")
+        # Prefer the first-agent's locked snapshot; fall back to last_llm for legacy
+        # paths where the agent-side hook didn't fire.
+        last_llm = state.get("last_llm_first_agent") or state.get("last_llm")
+        if not first_llm or not last_llm:
+            return
+
+        first_agent = state.get("first_agent", {"tools_chars": 0})
+        last_agent = state.get("last_agent", {"tools_chars": 0})
+
+        first_chars = {
+            CONTEXT_SECTION_SYSTEM: first_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: first_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: first_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: first_llm["assistant_chars"],
+        }
+        last_chars = {
+            CONTEXT_SECTION_SYSTEM: last_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: last_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: last_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: last_llm["assistant_chars"],
+        }
+
+        first_token_counts = split_tokens_by_chars(first_llm["input_tokens"], first_chars)
+        last_token_counts = split_tokens_by_chars(last_llm["input_tokens"], last_chars)
+
+        tag_context_delta(
+            trace_root_span,
+            first_token_counts=first_token_counts,
+            last_token_counts=last_token_counts,
+            first_input_tokens=first_llm["input_tokens"],
+            last_input_tokens=last_llm["input_tokens"],
+            context_window_size=self._context_window_for(last_llm.get("model", "")),
+        )
 
     def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any], agent_index: int) -> None:
+        """Pre-0.10-agents path: extract agent from positional args, then delegate."""
         agent = get_argument_value(args, kwargs, agent_index, "agent", True)
+        self.tag_agent_manifest_from_agent(span, agent)
+
+    def tag_agent_manifest_from_agent(self, span: Span, agent: Any) -> None:
+        """Build and attach the agent manifest from an agent object."""
         if not agent or not self.llmobs_enabled:
             return
 
@@ -329,7 +575,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         # convert model_settings to dict if it's not already
         model_settings = agent.model_settings
-        if type(model_settings) != dict:
+        if not isinstance(model_settings, dict):
             model_settings = getattr(model_settings, "__dict__", None)
 
         return load_data_value(model_settings)
