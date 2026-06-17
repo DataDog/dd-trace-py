@@ -189,6 +189,31 @@ def test_code_cache_eviction_under_churn() -> None:
         _stop()
 
 
+def test_code_cache_enable_replaces_existing() -> None:
+    """code_cache_enable(N) on an already-live cache must replace it with a
+    new one of capacity N, not silently no-op."""
+    _memalloc.code_cache_disable()
+    _memalloc.code_cache_enable(64)
+    assert _stats()["capacity"] == 64
+
+    _memalloc.code_cache_enable(256)
+    assert _stats()["capacity"] == 256, "second enable() should have replaced the cache"
+
+
+def test_start_stop_cycles_no_leak() -> None:
+    """Multiple start/stop cycles must not leak the heap tracker or code cache.
+    After each stop() the cache is torn down; after each start() it is
+    recreated and functional."""
+    for cycle in range(5):
+        _start()
+        objs = _alloc_burst(200)
+        stats = _stats()
+        assert stats["hits"] + stats["misses"] > 0, f"cycle {cycle}: cache unused"
+        assert len(objs) == 200
+        _stop()
+        assert _memalloc.code_cache_stats() is None, f"cycle {cycle}: cache not torn down"
+
+
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="os.fork is not available on this platform")
 def test_code_cache_cleared_on_postfork_child() -> None:
     """After fork, the child inherits the parent's PyCodeObject* values

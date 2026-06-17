@@ -132,9 +132,7 @@ CodeFunctionCache::reset_counters()
 bool
 memalloc_code_cache_init(size_t capacity)
 {
-    if (CodeFunctionCache::instance != nullptr) {
-        return false;
-    }
+    memalloc_code_cache_deinit();
     CodeFunctionCache::instance = new CodeFunctionCache(capacity);
     return true;
 }
