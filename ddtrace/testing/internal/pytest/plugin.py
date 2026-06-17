@@ -789,7 +789,7 @@ class TestOptPlugin:
         self.manager.writer.put_item(test_run)
 
     @pytest.hookimpl(hookwrapper=True)
-    def pytest_runtestloop(self, _session: pytest.Session) -> t.Generator[None, None, None]:
+    def pytest_runtestloop(self, session: pytest.Session) -> t.Generator[None, None, None]:
         yield
         # After the main loop, all fixtures (including session-scoped) have been torn down, so re-running a test now
         # gives it a clean slate. If the loop raised (e.g. -x stopped the session), the exception propagates through the
