@@ -18,8 +18,8 @@ else()
             "to build profiling native extensions.")
 endif()
 
-message(WARNING "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
-message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
+message(STATUS "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
+message(STATUS "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
 # setup.py by setting CARGO_TARGET_DIR environment variable.
