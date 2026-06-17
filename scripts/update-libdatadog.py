@@ -12,8 +12,8 @@ Phases:
   2. Apply bump — rewrite every libdatadog `rev = "..."` in src/native/Cargo.toml,
      regenerate Cargo.lock, and sync setup.py's RUST_MINIMUM_VERSION if needed.
   3. Validate — cargo build / fmt / clippy / test (+ optional python smoke).
-  4. Outcome — green: write release note, push branch, open PR (or print the
-     command if no GH token).
+  4. Outcome — green: write release note, then commit + open the PR via the
+     GitHub API as a verified, bot-attributed commit (no local commit / push).
   5. Repair — if validation is red, Claude (via the AI gateway) attempts a
      bounded set of fixes constrained to src/native + setup.py, with the build
      re-validated by code the agent can't influence. Converges → normal PR;
@@ -29,12 +29,10 @@ Usage:
   scripts/update-libdatadog.py --skip-python   # cargo-only validation (fast local loop)
 
 Environment:
-  GH_TOKEN              if set (and `gh` present), used to open the PR; otherwise
-                        the branch is pushed and the create-PR command is printed.
-  GIT_PUSH_REMOTE       git remote to push to (default: origin). CI sets this to a
-                        GitHub remote since `origin` is the GitLab mirror.
-  GIT_AUTHOR_*/         commit identity, read natively by git. CI sets these to
-  GIT_COMMITTER_*       dd-octo-sts[bot]; locally git falls back to your config.
+  GH_TOKEN              GitHub token (from octo-sts). When set, the bump is
+                        committed and the PR opened via the GitHub API as a
+                        verified, bot-attributed commit. Without it, the changes
+                        are listed and PR creation is skipped.
   ANTHROPIC_AUTH_TOKEN  AI-gateway bearer token; required for the Phase 5 repair
   ANTHROPIC_BASE_URL    loop. If unset, repair is skipped and red builds draft-PR.
   ARTIFACTS_DIR         where to write logs and the summary (default: ./libdatadog-update)
@@ -43,7 +41,9 @@ Environment:
 from __future__ import annotations
 
 import argparse
+import base64
 import dataclasses
+import json
 import os
 from pathlib import Path
 import re
@@ -52,11 +52,18 @@ import subprocess
 import sys
 import textwrap
 import threading
+import urllib.error
 import urllib.request
 
 
 LIBDATADOG_REPO = "https://github.com/DataDog/libdatadog"
 GH_REPO_SLUG = "DataDog/dd-trace-py"
+GH_API_BASE = "https://api.github.com"
+
+# Paths the PR commit is allowed to include. Bounds the commit to the bump's real
+# changes and keeps CI junk (the authanywhere binary, libdatadog-update/, tmp/)
+# out of the tree we send to GitHub.
+COMMIT_PATH_PREFIXES = ("src/native/", "setup.py", "releasenotes/notes/")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 NATIVE_DIR = REPO_ROOT / "src" / "native"
@@ -392,66 +399,129 @@ def git_branch_name(target_rev: str) -> str:
     return f"chore/update-libdatadog-{short(target_rev)}"
 
 
+def _gh_api(method: str, path: str, *, token: str, body: dict | None = None) -> dict:
+    """Call the GitHub REST API and return the parsed JSON (or {} for empty 2xx)."""
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(f"{GH_API_BASE}{path}", data=data, method=method)
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("X-GitHub-Api-Version", "2022-11-28")
+    if data is not None:
+        req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed api.github.com host)
+        raw = resp.read().decode()
+    return json.loads(raw) if raw else {}
+
+
+def _commit_changes() -> list[tuple[str, bool]]:
+    """(path, is_deleted) for in-scope working-tree changes vs HEAD, incl. untracked.
+
+    Restricted to COMMIT_PATH_PREFIXES so CI artifacts/binaries never enter the commit.
+    """
+    out = run(
+        "git-status", ["git", "status", "--porcelain", "--untracked-files=all"], cwd=REPO_ROOT, check=False
+    ).output
+    changes = []
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        status, path = line[:2], line[3:]
+        if " -> " in path:  # rename → take the new path
+            path = path.split(" -> ", 1)[1]
+        path = path.strip().strip('"')
+        if path.startswith(COMMIT_PATH_PREFIXES):
+            changes.append((path, "D" in status))
+    return changes
+
+
+def create_verified_pr(branch: str, title: str, body: str, changes: list[tuple[str, bool]], *, draft: bool) -> str:
+    """Create a GitHub-signed (Verified) commit via the API, point a branch at it,
+    and open a PR. Returns the PR URL.
+
+    The commit is built server-side from the current tip of main, so GitHub
+    attributes it to the token's app bot (dd-octo-sts[bot]) and signs it — no
+    local commit, no git author config, and no token-in-remote-URL needed.
+    """
+    token = os.environ["GH_TOKEN"]
+    owner, repo = GH_REPO_SLUG.split("/")
+
+    base_sha = _gh_api("GET", f"/repos/{owner}/{repo}/git/ref/heads/main", token=token)["object"]["sha"]
+    base_tree = _gh_api("GET", f"/repos/{owner}/{repo}/git/commits/{base_sha}", token=token)["tree"]["sha"]
+
+    tree: list[dict] = []
+    for path, deleted in changes:
+        full = REPO_ROOT / path
+        if deleted or not full.exists():
+            tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
+            continue
+        blob = _gh_api(
+            "POST",
+            f"/repos/{owner}/{repo}/git/blobs",
+            token=token,
+            body={"content": base64.b64encode(full.read_bytes()).decode(), "encoding": "base64"},
+        )
+        mode = "100755" if os.access(full, os.X_OK) else "100644"
+        tree.append({"path": path, "mode": mode, "type": "blob", "sha": blob["sha"]})
+
+    new_tree = _gh_api(
+        "POST", f"/repos/{owner}/{repo}/git/trees", token=token, body={"base_tree": base_tree, "tree": tree}
+    )
+    # Omit author/committer: GitHub attributes the commit to the app bot and signs it.
+    commit = _gh_api(
+        "POST",
+        f"/repos/{owner}/{repo}/git/commits",
+        token=token,
+        body={"message": f"{title}\n\n{body}", "tree": new_tree["sha"], "parents": [base_sha]},
+    )
+
+    try:
+        _gh_api(
+            "POST",
+            f"/repos/{owner}/{repo}/git/refs",
+            token=token,
+            body={"ref": f"refs/heads/{branch}", "sha": commit["sha"]},
+        )
+    except urllib.error.HTTPError as exc:
+        if exc.code != 422:  # 422 == ref already exists
+            raise
+        _gh_api(
+            "PATCH",
+            f"/repos/{owner}/{repo}/git/refs/heads/{branch}",
+            token=token,
+            body={"sha": commit["sha"], "force": True},
+        )
+
+    pr = _gh_api(
+        "POST",
+        f"/repos/{owner}/{repo}/pulls",
+        token=token,
+        body={"title": title, "head": branch, "base": "main", "body": body, "draft": draft},
+    )
+    return pr["html_url"]
+
+
 def open_pr_or_fallback(
     target_rev: str, branch: str, summary: str, *, push: bool, dry_run: bool, draft: bool = False
 ) -> None:
     flavor = "DRAFT " if draft else ""
     title = f"chore(native): update libdatadog to {short(target_rev)} (main)"
-    body = summary
+    changes = _commit_changes()
 
-    if dry_run:
-        print(f"\n[dry-run] would create branch, commit, and open {flavor}PR:")
-        print(f"  branch: {branch}\n  title:  {title}")
+    print(f"\nChanges to commit ({len(changes)}):")
+    for path, deleted in changes:
+        print(f"  {'D' if deleted else 'M'} {path}")
+
+    if dry_run or not push:
+        why = "dry-run" if dry_run else "--no-push"
+        print(f"\n[{why}] skipping PR creation; would open {flavor}PR '{title}' on branch {branch}.")
         return
 
-    run("git-checkout", ["git", "checkout", "-B", branch], cwd=REPO_ROOT)
-    run(
-        "git-add",
-        ["git", "add", "src/native/Cargo.toml", "src/native/Cargo.lock", "setup.py", "releasenotes/notes/"],
-        cwd=REPO_ROOT,
-    )
-    # git reads the author/committer from GIT_AUTHOR_*/GIT_COMMITTER_* (the CI job
-    # sets these to dd-octo-sts[bot]) or, locally, from the developer's git config.
-    run("git-commit", ["git", "commit", "-m", title], cwd=REPO_ROOT)
-
-    # In GitLab CI `origin` is the GitLab mirror, not GitHub; the job sets
-    # GIT_PUSH_REMOTE to a GitHub remote it configures with the octo-sts token.
-    remote = os.environ.get("GIT_PUSH_REMOTE", "origin")
-
-    if not push:
-        print("\n[--no-push] branch committed locally; not pushing. To open the PR:")
-        print(f"  git push -u {remote} {branch} && gh pr create --repo {GH_REPO_SLUG} --fill")
+    if not os.environ.get("GH_TOKEN"):
+        print(f"\n[no GH_TOKEN] cannot create the {flavor}PR via the GitHub API; skipping (changes listed above).")
         return
 
-    run("git-push", ["git", "push", "-u", remote, branch, "--force-with-lease"], cwd=REPO_ROOT)
-
-    if os.environ.get("GH_TOKEN") and shutil.which("gh"):
-        # --repo is required: `origin` here is the GitLab mirror, so gh can't infer
-        # the GitHub repo from the remotes.
-        cmd = [
-            "gh",
-            "pr",
-            "create",
-            "--repo",
-            GH_REPO_SLUG,
-            "--base",
-            "main",
-            "--head",
-            branch,
-            "--title",
-            title,
-            "--body",
-            body,
-        ]
-        if draft:
-            cmd.append("--draft")
-        run("gh-pr-create", cmd, cwd=REPO_ROOT)
-    else:
-        print(f"\n[no GH_TOKEN/gh] branch pushed. To open the {flavor}PR:")
-        draft_flag = " --draft" if draft else ""
-        print(
-            f"  gh pr create --repo {GH_REPO_SLUG} --base main --head {branch}{draft_flag} --title {title!r} --body ..."
-        )
+    url = create_verified_pr(branch, title, summary, changes, draft=draft)
+    print(f"\nOpened {flavor}PR (GitHub-signed commit): {url}")
 
 
 # --------------------------------------------------------------------------- #
