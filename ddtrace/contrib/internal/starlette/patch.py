@@ -220,12 +220,10 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     full_path = _get_fastapi_effective_path(scope)
 
-    if full_path is not None and request_spans:
-        if scope.get("method"):
+    if full_path is not None:
+        if request_spans:
             request_spans[0].resource = "{} {}".format(scope["method"], full_path)
-        else:
-            request_spans[0].resource = full_path
-        request_spans[0]._set_attribute(http.ROUTE, full_path)
+            request_spans[0]._set_attribute(http.ROUTE, full_path)
     elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):
