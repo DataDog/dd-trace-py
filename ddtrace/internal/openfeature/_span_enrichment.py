@@ -234,7 +234,7 @@ class SpanEnrichmentState:
         return tags
 
 
-class SpanEnrichmentHook(Hook):
+class SpanEnrichmentHook(Hook):  # type: ignore[misc]
     """OpenFeature ``finally`` hook that accumulates feature-flag metadata per
     root span and writes the ``ffe_*`` tags when that root span finishes.
 
