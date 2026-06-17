@@ -12,6 +12,7 @@ from ddtrace.internal.native import DDSketch
 from tests.datastreams.utils import all_pathway_stat_keys
 from tests.datastreams.utils import max_commit_offset
 from tests.datastreams.utils import max_produce_offset
+from tests.utils import override_config
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -32,7 +33,9 @@ def dsm_processor():
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
 @pytest.mark.parametrize("key_and_length", [("test-key", 8), ("你".encode("utf-8"), 3), (b"t2", 2)])
-def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topic, payload_and_length, key_and_length):
+def test_data_streams_payload_size(
+    dsm_processor, fresh_consumer, producer, empty_kafka_topic, payload_and_length, key_and_length
+):
     payload, payload_length = payload_and_length
     key, key_length = key_and_length
     test_headers = {"1234": "5678"}
@@ -44,9 +47,17 @@ def test_data_streams_payload_size(dsm_processor, consumer, producer, kafka_topi
     expected_payload_size += len(PROPAGATION_KEY_BASE_64)  # Add in header key length
     expected_payload_size += DSM_TEST_PATH_HEADER_SIZE  # to account for path header we add
 
-    producer.produce(kafka_topic, payload, key=key, headers=test_headers)
-    producer.flush()
-    consumer.poll()
+    # Disable APM header injection so it doesn't affect the payload size measurement.
+    with override_config("kafka", dict(distributed_tracing_enabled=False)):
+        producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
+        producer.flush()
+
+        # Poll until the produced message arrives (topic is empty, so first message = ours).
+        message = None
+        deadline = time.monotonic() + 10
+        while message is None and time.monotonic() < deadline:
+            message = fresh_consumer.poll(timeout=1.0)
+    assert message is not None, "Consumer did not receive the produced message within 10s"
 
     # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
     # can land in different buckets when the test straddles a boundary. Iterate
@@ -274,8 +285,10 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
     produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
     assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
     assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
-    for cb in commit_backlogs:
-        assert "kafka_cluster_id:" + cluster_id in cb["Tags"]
+    # Fixture setup commits offset=0 before the producer runs, so that entry lacks cluster_id.
+    assert any("kafka_cluster_id:" + cluster_id in cb["Tags"] for cb in commit_backlogs), (
+        "No kafka_commit backlog entry has kafka_cluster_id:{}".format(cluster_id)
+    )
     for pb in produce_backlogs:
         assert "kafka_cluster_id:" + cluster_id in pb["Tags"]
 
