@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    otel: Prevents the OpenTelemetry OTLP HTTP metrics exporter connection from being traced by ``requests``.
+    Unlike the trace and log exporters, the metrics exporter does not set the OTLP user-agent header, so the
+    export request to the collector was incorrectly traced. Exporter requests are now also matched against the
+    configured OTLP collector host so traces, metrics, and logs exports are all excluded from tracing.

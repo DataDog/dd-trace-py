@@ -96,3 +96,32 @@ def test_otel_metrics_disabled_and_unset():
     assert (meter_provider is None) or (type(meter_provider).__name__ == "_ProxyMeterProvider"), (
         "OpenTelemetry mterics exporter should not be configured automatically."
     )
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_TRACE_OTEL_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector.example:4318",
+    },
+)
+def test_otlp_export_request_to_collector_is_not_traced():
+    """OTLP exporter requests to the collector must not be traced.
+
+    The upstream OTLP HTTP metrics exporter omits the OTLP user-agent header that the trace
+    and log exporters set, so detection falls back to matching the configured collector host.
+    """
+    import requests
+
+    from ddtrace.contrib.internal.requests.connection import is_otlp_export
+
+    def prepared(url):
+        return requests.Request("POST", url, headers={"User-Agent": "python-requests/2.34.2"}).prepare()
+
+    # Export to the configured collector (any signal path) is detected and skipped.
+    assert is_otlp_export(prepared("http://collector.example:4318/v1/metrics")) is True
+    assert is_otlp_export(prepared("http://collector.example:4318/v1/traces")) is True
+    assert is_otlp_export(prepared("http://collector.example:4318/v1/logs")) is True
+    # Requests to a different host or port remain traced.
+    assert is_otlp_export(prepared("http://api.example:8080/v1/metrics")) is False
+    assert is_otlp_export(prepared("http://collector.example:9999/v1/metrics")) is False
