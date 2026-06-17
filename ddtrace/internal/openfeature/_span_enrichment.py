@@ -28,6 +28,7 @@ Lifecycle (mirrors the Node SpanEnrichmentHook):
 import base64
 import hashlib
 import json
+import threading
 import typing
 from weakref import WeakKeyDictionary
 
@@ -53,7 +54,7 @@ TAG_SUBJECTS_ENC = "ffe_subjects_enc"
 TAG_RUNTIME_DEFAULTS = "ffe_runtime_defaults"
 
 
-def encode_delta_varint(serial_ids: set[int]) -> str:
+def encode_delta_varint(serial_ids: typing.AbstractSet[int]) -> str:
     """ULEB128 delta-varint encode a set of serial ids -> bare base64 string.
 
     Dedupe is structural (the input is a set). Ids are sorted ascending and
@@ -87,6 +88,14 @@ def hash_targeting_key(targeting_key: str) -> str:
 class SpanEnrichmentState:
     """Per-root-span accumulator. Created lazily; never allocated when the gate
     is off (DG-005). Enforces the FROZEN limits, dedupes, and truncates.
+
+    Thread-safety: the Node reference accumulates on a single-threaded event
+    loop, but a root APM span in Python can be mutated by concurrent flag
+    evaluations on multiple threads (and by child-span continuations) while the
+    root-span-finish path snapshots/encodes it. A single per-state lock guards
+    every read/mutate so adds never lose updates and ``to_span_tags`` always
+    encodes a consistent snapshot (also correct under free-threaded CPython,
+    where the set/dict ops are no longer GIL-atomic).
     """
 
     MAX_SERIAL_IDS = 200
@@ -99,43 +108,47 @@ class SpanEnrichmentState:
         self._serial_ids: set[int] = set()
         self._subjects: dict[str, set[int]] = {}
         self._defaults: dict[str, str] = {}
+        self._lock = threading.Lock()
 
     def add_serial_id(self, serial_id: int) -> None:
-        if serial_id in self._serial_ids:
-            return
-        if len(self._serial_ids) >= self.MAX_SERIAL_IDS:
-            log.debug("span enrichment: serial id limit (%d) reached, dropping", self.MAX_SERIAL_IDS)
-            return
-        self._serial_ids.add(serial_id)
+        with self._lock:
+            if serial_id in self._serial_ids:
+                return
+            if len(self._serial_ids) >= self.MAX_SERIAL_IDS:
+                log.debug("span enrichment: serial id limit (%d) reached, dropping", self.MAX_SERIAL_IDS)
+                return
+            self._serial_ids.add(serial_id)
 
     def add_subject(self, targeting_key: str, serial_id: int) -> None:
         hashed = hash_targeting_key(targeting_key)
-        existing = self._subjects.get(hashed)
-        if existing is not None:
-            if len(existing) >= self.MAX_EXPERIMENTS_PER_SUBJECT:
-                log.debug(
-                    "span enrichment: experiments-per-subject limit (%d) reached, dropping",
-                    self.MAX_EXPERIMENTS_PER_SUBJECT,
-                )
+        with self._lock:
+            existing = self._subjects.get(hashed)
+            if existing is not None:
+                if len(existing) >= self.MAX_EXPERIMENTS_PER_SUBJECT:
+                    log.debug(
+                        "span enrichment: experiments-per-subject limit (%d) reached, dropping",
+                        self.MAX_EXPERIMENTS_PER_SUBJECT,
+                    )
+                    return
+                existing.add(serial_id)
                 return
-            existing.add(serial_id)
-            return
-        if len(self._subjects) >= self.MAX_SUBJECTS:
-            log.debug("span enrichment: subject limit (%d) reached, dropping", self.MAX_SUBJECTS)
-            return
-        self._subjects[hashed] = {serial_id}
+            if len(self._subjects) >= self.MAX_SUBJECTS:
+                log.debug("span enrichment: subject limit (%d) reached, dropping", self.MAX_SUBJECTS)
+                return
+            self._subjects[hashed] = {serial_id}
 
     def add_default(self, flag_key: str, value: typing.Any) -> None:
-        # First-wins: an existing flag key is never overwritten.
-        if flag_key in self._defaults:
-            return
-        if len(self._defaults) >= self.MAX_DEFAULTS:
-            log.debug("span enrichment: runtime-default limit (%d) reached, dropping", self.MAX_DEFAULTS)
-            return
         value_str = self._coerce_default_value(value)
         if len(value_str) > self.MAX_DEFAULT_VALUE_LENGTH:
             value_str = self._truncate_utf16(value_str, self.MAX_DEFAULT_VALUE_LENGTH)
-        self._defaults[flag_key] = value_str
+        with self._lock:
+            # First-wins: an existing flag key is never overwritten.
+            if flag_key in self._defaults:
+                return
+            if len(self._defaults) >= self.MAX_DEFAULTS:
+                log.debug("span enrichment: runtime-default limit (%d) reached, dropping", self.MAX_DEFAULTS)
+                return
+            self._defaults[flag_key] = value_str
 
     @staticmethod
     def _coerce_default_value(value: typing.Any) -> str:
@@ -165,7 +178,10 @@ class SpanEnrichmentState:
             return "true" if value else "false"
         if isinstance(value, (dict, list)):
             # separators omit the spaces JS JSON.stringify also omits.
-            return json.dumps(value, separators=(",", ":"))
+            # ensure_ascii=False emits raw UTF-8 like JS JSON.stringify (which
+            # never \uXXXX-escapes non-ASCII), so an object/array default with
+            # Unicode content is byte-for-byte identical to the Node reference.
+            return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
         return str(value)
 
     @staticmethod
@@ -186,24 +202,35 @@ class SpanEnrichmentState:
 
     def has_data(self) -> bool:
         # Subjects are not checked: add_subject never runs without add_serial_id.
-        return bool(self._serial_ids) or bool(self._defaults)
+        with self._lock:
+            return bool(self._serial_ids) or bool(self._defaults)
 
     def to_span_tags(self) -> dict[str, str]:
         # ffe_flags_enc is a BARE base64 string; ffe_subjects_enc and
         # ffe_runtime_defaults are JSON-stringified objects. The JSON is emitted
-        # compact (no spaces) to byte-match Node's JSON.stringify -- the L2
-        # decoder json.loads() these, but keeping them compact preserves strict
-        # cross-SDK byte parity (Pattern F).
+        # compact (no spaces) and with ensure_ascii=False to byte-match Node's
+        # JSON.stringify (raw UTF-8, no \uXXXX escaping) -- the L2 decoder
+        # json.loads() these, but keeping them compact + raw-UTF-8 preserves
+        # strict cross-SDK byte parity (Pattern F).
+        #
+        # Snapshot under the lock so concurrent add_*() can't mutate the sets/
+        # maps mid-encode (no "changed size during iteration", no lost update,
+        # consistent snapshot at root-span finish).
+        with self._lock:
+            serial_ids = frozenset(self._serial_ids)
+            subjects = {hashed: frozenset(ids) for hashed, ids in self._subjects.items()}
+            defaults = dict(self._defaults)
         tags: dict[str, str] = {}
-        if self._serial_ids:
-            tags[TAG_FLAGS_ENC] = encode_delta_varint(self._serial_ids)
-        if self._subjects:
+        if serial_ids:
+            tags[TAG_FLAGS_ENC] = encode_delta_varint(serial_ids)
+        if subjects:
             tags[TAG_SUBJECTS_ENC] = json.dumps(
-                {hashed: encode_delta_varint(ids) for hashed, ids in self._subjects.items()},
+                {hashed: encode_delta_varint(ids) for hashed, ids in subjects.items()},
                 separators=(",", ":"),
+                ensure_ascii=False,
             )
-        if self._defaults:
-            tags[TAG_RUNTIME_DEFAULTS] = json.dumps(self._defaults, separators=(",", ":"))
+        if defaults:
+            tags[TAG_RUNTIME_DEFAULTS] = json.dumps(defaults, separators=(",", ":"), ensure_ascii=False)
         return tags
 
 
@@ -225,9 +252,19 @@ class SpanEnrichmentHook(Hook):
     def __init__(self) -> None:
         # Keyed by span: state is GC'd with the span (zero idle leak, DG-005).
         self._span_states: "WeakKeyDictionary[typing.Any, SpanEnrichmentState]" = WeakKeyDictionary()
-        # A stable subscription name makes re-subscription idempotent and lets
-        # destroy() remove this exact callback.
-        self._subscription_name = "ffe.span_enrichment"
+        # Guards _span_states get/create/pop so concurrent evaluations and the
+        # root-span-finish callback never race on the dict (a WeakKeyDictionary
+        # is not thread-safe, and free-threaded CPython drops the GIL atomicity
+        # that masks this under the default build).
+        self._states_lock = threading.Lock()
+        # A PER-INSTANCE subscription name. The native event hub keys listeners
+        # by name and REPLACES a same-name registration (event_hub.rs `on`), so
+        # a shared name would let a second live provider/domain stomp this
+        # hook's finish callback -- the displaced hook would keep accumulating
+        # state in finally_after but never receive the finish event (state never
+        # written, never cleaned). id(self) makes each hook's subscription
+        # distinct; destroy() removes the exact callback by identity.
+        self._subscription_name = "ffe.span_enrichment.%d" % id(self)
         core.on(_SPAN_FINISH_EVENT, self._on_span_finish, self._subscription_name)
 
     def _get_root_span(self) -> typing.Optional[typing.Any]:
@@ -237,11 +274,12 @@ class SpanEnrichmentHook(Hook):
         return tracer.current_root_span()
 
     def _get_or_create_state(self, span: typing.Any) -> SpanEnrichmentState:
-        state = self._span_states.get(span)
-        if state is None:
-            state = SpanEnrichmentState()
-            self._span_states[span] = state
-        return state
+        with self._states_lock:
+            state = self._span_states.get(span)
+            if state is None:
+                state = SpanEnrichmentState()
+                self._span_states[span] = state
+            return state
 
     def finally_after(
         self,
@@ -264,14 +302,19 @@ class SpanEnrichmentHook(Hook):
             evaluation_context = getattr(hook_context, "evaluation_context", None)
             targeting_key = getattr(evaluation_context, "targeting_key", None)
 
-            state = self._get_or_create_state(root_span)
-
+            # Only allocate per-root state once we know this evaluation has
+            # something to record. An evaluation with neither a serial id nor a
+            # runtime default (e.g. an older UFC payload that has a variant but
+            # no serial_id) must NOT create empty state that lingers until span
+            # GC -- it leaves no state to clean up on finish.
             if serial_id is not None:
+                state = self._get_or_create_state(root_span)
                 state.add_serial_id(serial_id)
                 if do_log and targeting_key:
                     state.add_subject(targeting_key, serial_id)
             elif getattr(details, "variant", None) is None:
                 # Runtime-default detection = MISSING VARIANT (not a reason enum).
+                state = self._get_or_create_state(root_span)
                 state.add_default(hook_context.flag_key, getattr(details, "value", None))
         except Exception as e:
             # Enrichment must NEVER break flag evaluation.
@@ -282,16 +325,16 @@ class SpanEnrichmentHook(Hook):
         that span's accumulated state.
         """
         try:
-            state = self._span_states.get(span)
+            # Pop unconditionally so state is ALWAYS cleaned up on root-span
+            # finish -- including empty state from a no-data evaluation -- rather
+            # than lingering until span GC.
+            with self._states_lock:
+                state = self._span_states.pop(span, None)
             if state is None or not state.has_data():
                 return
-            try:
-                for key, value in state.to_span_tags().items():
-                    if value:
-                        span.set_tag(key, value)
-            finally:
-                # Cleanup on root-span finish (mirrors Node's spanStates.delete).
-                self._span_states.pop(span, None)
+            for key, value in state.to_span_tags().items():
+                if value:
+                    span.set_tag(key, value)
         except Exception as e:
             log.warning("span enrichment write failed: %s", e)
 
