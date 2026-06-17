@@ -178,18 +178,27 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     return False
 
 
-def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
-    """Return the fully-composed route template from FastAPI >= 0.137's effective_route_context.
+def _get_fastapi_effective_path(scope: dict, resource_paths: list) -> Optional[str]:
+    """Return the fully-composed resource path for a FastAPI >= 0.137 route, or None.
 
-    FastAPI 0.137 introduced a lazy _IncludedRouter that no longer flattens nested include_router
-    paths onto a single route. As a result scope["route"].path_format only contains the
-    leaf-relative segment. FastAPI sets scope["fastapi"]["effective_route_context"].path_format
-    with the full composed path before calling APIRoute.handle; use it when available.
+    FastAPI 0.137 introduced a lazy _IncludedRouter that no longer flattens nested
+    include_router paths onto a single route. scope["route"].path_format only contains
+    the leaf-relative segment; FastAPI sets scope["fastapi"]["effective_route_context"].path_format
+    with the full composed path before calling APIRoute.handle.
+
+    When available, combines that path with any mount prefix. resource_paths[:-1] covers
+    prefixes accumulated in the same scope. When FastAPI is mounted inside a Starlette app,
+    Starlette's Mount copies the scope before delegating so those prefixes are lost;
+    scope["root_path"] carries the mount prefix in that case.
     """
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
         return None
-    return getattr(effective_route_context, "path_format", None)
+    full_path = getattr(effective_route_context, "path_format", None)
+    if full_path is None:
+        return None
+    mount_prefix = "".join(resource_paths[:-1]) or scope.get("root_path", "")
+    return mount_prefix + full_path
 
 
 def traced_handler(wrapped, instance, args, kwargs):
@@ -218,12 +227,12 @@ def traced_handler(wrapped, instance, args, kwargs):
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
-    full_path = _get_fastapi_effective_path(scope)
+    combined_path = _get_fastapi_effective_path(scope, resource_paths)
 
-    if full_path is not None:
+    if combined_path is not None:
         if request_spans:
-            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
-            request_spans[0]._set_attribute(http.ROUTE, full_path)
+            request_spans[0].resource = "{} {}".format(scope["method"], combined_path)
+            request_spans[0]._set_attribute(http.ROUTE, combined_path)
     elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):

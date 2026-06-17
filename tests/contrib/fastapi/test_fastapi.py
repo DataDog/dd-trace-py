@@ -462,6 +462,31 @@ def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
         assert request_span.get_tag("http.route") == "/v1/items/{item_id}"
 
 
+def test_mounted_fastapi_resource_names(fastapi_tracer, test_spans):
+    """Regression test: FastAPI >= 0.137 mounted inside a Starlette app preserves the mount prefix."""
+    from fastapi import APIRouter
+    from fastapi import FastAPI
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    items = APIRouter()
+
+    @items.get("/{item_id}")
+    def get_item(item_id: str):
+        return {"id": item_id}
+
+    inner = FastAPI()
+    inner.include_router(items, prefix="/items")
+    outer = Starlette(routes=[Mount("/sub-app", app=inner)])
+
+    with TestClient(outer) as client:
+        r = client.get("/sub-app/items/42")
+        assert r.status_code == 200
+        request_span = test_spans.pop_traces()[0][0]
+        assert request_span.resource == "GET /sub-app/items/{item_id}"
+        assert request_span.get_tag("http.route") == "/sub-app/items/{item_id}"
+
+
 def test_distributed_tracing(client, tracer, test_spans):
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
