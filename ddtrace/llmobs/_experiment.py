@@ -2651,9 +2651,15 @@ class Experiment:
             supports_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
             extra_kwargs = {}
             # AIDEV-NOTE: keep these kwargs opt-in so existing 4-arg summary evaluators stay backward-compatible.
-            if supports_kwargs or "task_errors" in params:
+            # Skip positional-only params — they cannot be passed by keyword.
+            if supports_kwargs or (
+                "task_errors" in params and params["task_errors"].kind != inspect.Parameter.POSITIONAL_ONLY
+            ):
                 extra_kwargs["task_errors"] = task_errors
-            if supports_kwargs or "evaluation_details" in params:
+            if supports_kwargs or (
+                "evaluation_details" in params
+                and params["evaluation_details"].kind != inspect.Parameter.POSITIONAL_ONLY
+            ):
                 extra_kwargs["evaluation_details"] = eval_details_by_name
             return extra_kwargs
 

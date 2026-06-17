@@ -2399,6 +2399,109 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
 
 
+def test_summary_evaluator_receives_task_errors_when_declared(llmobs, test_dataset_one_record):
+    """Summary evaluator with task_errors param receives it; 4-arg evaluator does not."""
+    received = {}
+
+    def eval_with_task_errors(inputs, outputs, expected_outputs, evaluators_results, task_errors):
+        received["task_errors"] = task_errors
+        return 1
+
+    def eval_without_task_errors(inputs, outputs, expected_outputs, evaluators_results):
+        received["no_extra_kwargs"] = True
+        return 2
+
+    def simple_evaluator(input_data, output_data, expected_output):
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [simple_evaluator],
+        summary_evaluators=[eval_with_task_errors, eval_without_task_errors],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
+
+    assert "task_errors" in received
+    assert isinstance(received["task_errors"], list)
+    assert "no_extra_kwargs" in received
+
+    summary_evals_dict = {}
+    for r in summary_eval_results:
+        summary_evals_dict.update(r["evaluations"])
+    assert summary_evals_dict["eval_with_task_errors"]["error"] is None
+    assert summary_evals_dict["eval_without_task_errors"]["error"] is None
+
+
+def test_summary_evaluator_receives_evaluation_details_when_declared(llmobs, test_dataset_one_record):
+    """Summary evaluator with evaluation_details param receives it."""
+    received = {}
+
+    def eval_with_details(inputs, outputs, expected_outputs, evaluators_results, evaluation_details):
+        received["evaluation_details"] = evaluation_details
+        return 1
+
+    def simple_evaluator(input_data, output_data, expected_output):
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [simple_evaluator],
+        summary_evaluators=[eval_with_details],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False))
+
+    assert "evaluation_details" in received
+    assert isinstance(received["evaluation_details"], dict)
+
+
+def test_summary_evaluator_positional_only_params_not_injected(llmobs, test_dataset_one_record):
+    """task_errors/evaluation_details declared positional-only must not be injected as kwargs."""
+    received = {}
+
+    # Use exec to create a function with positional-only syntax (Python 3.8+)
+    ns = {}
+    exec(
+        "def eval_pos_only(inputs, outputs, expected_outputs, evaluators_results, task_errors, /):\n"
+        "    received['called'] = True\n"
+        "    return 99\n",
+        {"received": received},
+        ns,
+    )
+    eval_pos_only = ns["eval_pos_only"]
+
+    def simple_evaluator(input_data, output_data, expected_output):
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [simple_evaluator],
+        summary_evaluators=[eval_pos_only],
+    )
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    # Should not raise TypeError (positional-only param not injected as kwarg)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+    )
+
+    summary_evals_dict = {}
+    for r in summary_eval_results:
+        summary_evals_dict.update(r["evaluations"])
+    assert summary_evals_dict["eval_pos_only"]["error"] is None
+
+
 def test_experiment_with_remote_evaluator(llmobs, test_dataset_one_record):
     """Test that RemoteEvaluator integrates with experiment framework."""
     mock_response = {
