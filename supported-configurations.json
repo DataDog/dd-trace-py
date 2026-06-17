@@ -2838,6 +2838,13 @@
         "default": "1000000"
       }
     ],
+    "DD_PROFILING_PYTORCH_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "128"
+      }
+    ],
     "DD_PROFILING_SAMPLE_POOL_CAPACITY": [
       {
         "implementation": "A",
@@ -3003,6 +3010,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_PYTORCH_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "aliases": [
+          "DD_PYTORCH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYNAMODB_SERVICE": [
@@ -3513,6 +3530,20 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "default": null
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
         "default": null
       }
     ],
@@ -4606,6 +4637,13 @@
       }
     ],
     "DD_TRACE_RAY_CORE_API": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TRACE_PYTORCH_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5985,7 +6023,31 @@
         "version": "B",
         "type": "boolean",
         "default": "false",
-        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
+        "propertyKeys": [
+          "trace_stats_computation_experimental_client_obfuscation_enabled"
+        ]
+      }
+    ],
+    "DD_PYTORCH_JOB_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "_DD_RAY_RUN_METADATA": [
+      {
+        "implementation": "A",
+        "type": "json",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "DD_TRAINING_STEP_PROFILING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ]
   }

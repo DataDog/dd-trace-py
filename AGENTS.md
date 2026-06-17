@@ -43,6 +43,14 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
 - **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
 
+## Troubleshooting
+
+See `docs/troubleshooting.rst`. Covers common issues including:
+- Installation failures and missing native extensions
+- Traces not appearing in the Datadog app
+- Connection errors sending to the agent
+- Build failures and `ModuleNotFoundError` when running with riot
+
 ## Skills
 
 Use the Skill tool to invoke these. **Always prefer skills over raw commands.**

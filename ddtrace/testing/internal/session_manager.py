@@ -77,10 +77,11 @@ def _parse_line_number(value: str) -> t.Optional[int]:
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
         offline = get_offline_mode()
-        # NOTE: In manifest mode the sandbox has no network. Use a no-op connector so
-        # that writers and telemetry don't attempt to connect; the data provider reads
-        # from files instead of HTTP (see CachedFileDataProvider below).
-        if offline.manifest_enabled:
+        # NoOp connector only in Bazel payload-files mode: the hermetic sandbox has no
+        # network access and all output goes to files. In ddtest manifest mode the
+        # manifest file is present but the network IS available, so we use the real
+        # connector to submit spans to the backend.
+        if offline.payload_files_enabled:
             self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
         else:
             self.connector_setup = BackendConnectorSetup.detect_setup()
@@ -142,14 +143,6 @@ class SessionManager:
             )
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
-
-        # Manifest mode disables test skipping: cached skippable decisions should not
-        # be applied in hermetic Bazel runs.  Matches Go's post-read override.
-        if offline.manifest_enabled:
-            if self.settings.skipping_enabled:
-                log.debug("Test skipping disabled in manifest mode")
-            self.settings.skipping_enabled = False
-            self.settings.itr_enabled = False
 
         self.show_settings()
 
