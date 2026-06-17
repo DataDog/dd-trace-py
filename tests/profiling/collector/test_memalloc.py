@@ -1215,6 +1215,120 @@ def test_heap_stress() -> None:
         _memalloc.stop()
 
 
+def _alloc_in_named_function(n: int, size: int) -> list[Union[tuple[None, ...], bytearray]]:
+    """Allocate n objects of `size`. Named so the heap profile can attribute samples back to it."""
+    return [one(size) for _ in range(n)]
+
+
+def test_heap_filter_high_churn(tmp_path: Path) -> None:
+    """Heavy insert+erase pressure on the cuckoo filter.
+
+    Allocates many batches and frees each batch immediately. With
+    aggressive sampling, every allocation is a candidate for tracking,
+    exercising the filter's insert path on alloc and erase path on free.
+    Asserts: after the churn, NO live samples remain attributed to the
+    allocator function — i.e. the filter and the hashmap both correctly
+    erased every entry on free.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_churn")
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+
+    with mc:
+        for _ in range(50):
+            batch = _alloc_in_named_function(500, 256)
+            del batch
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+
+    live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+    live_from_allocator = [
+        s for s in live_samples if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
+    ]
+    # Every batch was freed, so no live samples from this function should remain.
+    assert len(live_from_allocator) == 0, (
+        f"after high-churn alloc/free, expected no live samples from allocator, "
+        f"got {len(live_from_allocator)} (filter or map leaked entries)"
+    )
+
+
+def test_heap_filter_address_reuse(tmp_path: Path) -> None:
+    """Python's free lists reuse pointers across allocations.
+
+    A tight alloc/free loop of identically-sized objects almost always
+    reuses the same underlying address. The cuckoo filter must correctly
+    transition state (erase then insert at the same ptr) without leaving
+    stale fingerprints behind. Asserts: zero live samples from the
+    allocator function after the loop completes.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_filter_address_reuse")
+    mc = memalloc.MemoryCollector(heap_sample_size=128)
+
+    with mc:
+        for _ in range(2000):
+            obj = one(512)  # likely reused address from prior iter
+            del obj
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+    live_from_allocator = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
+    assert len(live_from_allocator) == 0, (
+        f"after address-reuse churn, expected no live samples from allocator, "
+        f"got {len(live_from_allocator)} (filter erase failed at reused addresses)"
+    )
+
+
+def test_heap_filter_high_water_then_drain(tmp_path: Path) -> None:
+    """Hold a large working set, then drain it.
+
+    Snapshots the heap at the high-water mark, releases everything,
+    then snapshots again. Asserts: the second snapshot reports zero
+    live samples attributed to the allocator. This proves erase paths
+    actually reclaim filter slots — without working erase, the second
+    snapshot would still show all entries.
+    """
+    output_filename_high = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_water_then_drain_high")
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+
+    with mc:
+        live: list[Union[tuple[None, ...], bytearray]] = _alloc_in_named_function(20_000, 1024)
+        # Snapshot at high-water mark — should report many live samples.
+        profile_high = mc.snapshot_and_parse_pprof(output_filename_high)
+
+        del live[:]
+        gc.collect()
+
+        # Reset the prelude for the second snapshot so the pprof file is fresh.
+        output_filename_drained = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_water_then_drain_drained")
+        profile_drained = mc.snapshot_and_parse_pprof(output_filename_drained)
+
+    heap_space_idx_high = pprof_utils.get_sample_type_index(profile_high, "heap-space")
+    heap_space_idx_drained = pprof_utils.get_sample_type_index(profile_drained, "heap-space")
+
+    high_live = [
+        s
+        for s in profile_high.sample
+        if s.value[heap_space_idx_high] > 0
+        and has_function_in_profile_sample(profile_high, s, _alloc_in_named_function)
+    ]
+    drained_live = [
+        s
+        for s in profile_drained.sample
+        if s.value[heap_space_idx_drained] > 0
+        and has_function_in_profile_sample(profile_drained, s, _alloc_in_named_function)
+    ]
+
+    assert len(high_live) > 0, "high-water snapshot should have at least one live sample from allocator"
+    assert len(drained_live) == 0, (
+        f"drained snapshot should have zero live samples from allocator, got {len(drained_live)} "
+        f"(erase did not reclaim filter+map entries)"
+    )
+
+
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
 def test_memalloc_speed(benchmark, heap_sample_size) -> None:
     if heap_sample_size:

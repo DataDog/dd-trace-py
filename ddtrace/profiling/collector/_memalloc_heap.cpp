@@ -10,6 +10,7 @@
 #include <Python.h>
 
 #include "_memalloc_code_cache.h"
+#include "_memalloc_cuckoo.hpp"
 #include "_memalloc_debug.h"
 #include "_memalloc_gc_guard.hpp"
 #include "_memalloc_heap.h"
@@ -160,6 +161,9 @@ class heap_tracker_t
     uint64_t current_sample_size;
     /* Tracked allocations - using unique_ptr for automatic memory management */
     HeapMapType<void*, std::unique_ptr<traceback_t>> allocs_m;
+    /* Fast-reject filter for the free path. Must remain a superset of
+     * allocs_m's keys; see _memalloc_cuckoo.hpp for invariant details. */
+    CuckooFilter live_filter;
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
@@ -283,10 +287,18 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    /* Skip the allocs_m probe for the ~99% of frees that weren't sampled.
+     * False positives fall through to an empty extract. */
+    if (!live_filter.contains(ptr)) {
+        return;
+    }
     auto node = allocs_m.extract(ptr);
     if (node.empty()) {
         return;
     }
+
+    // Drop from the cuckoo fast-reject filter on free (maintains filter ⊇ allocs_m).
+    live_filter.erase(ptr);
 
     std::unique_ptr<traceback_t> tb = std::move(node.mapped());
 
@@ -333,6 +345,15 @@ void
 heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb)
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
+
+    /* Filter-first to preserve filter ⊇ allocs_m. If the filter refuses
+     * (back-to-back saturation), drop the sample — adding to allocs_m
+     * without a filter entry would create a false negative on untrack. */
+    if (!live_filter.insert(ptr)) {
+        pool_put_no_cpython(std::move(tb));
+        reset_sampling_state_no_cpython();
+        return;
+    }
 
     // Record this allocation as a pending ADD for the persistent heap profile.
     // It has not been applied yet (pending_add_idx >= 0), so a free before the
@@ -452,6 +473,10 @@ heap_tracker_t::postfork_child()
     // vector is retained); re-populating it is cheap relative to risking
     // misattribution.
     Datadog::memalloc_code_cache_clear();
+
+    // Filter must be reset alongside allocs_m to maintain the superset
+    // invariant.
+    live_filter.clear();
 
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
