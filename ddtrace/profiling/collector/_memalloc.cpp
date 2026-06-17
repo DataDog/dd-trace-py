@@ -26,7 +26,7 @@ typedef struct
 } memalloc_context_t;
 
 /* We only support being started once, so we use a global context for the whole
-   module. If we ever want to be started multiple twice, we'd need a more
+   module. If we ever want to be started multiple times, we'd need a more
    object-oriented approach and allocate a context per object.
 */
 static memalloc_context_t global_memalloc_ctx;

@@ -474,6 +474,34 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.send(empty_uuid_request)
         assert self._flare_upload_count() == uploads_before + 1
 
+    def test_api_key_redaction_does_not_mutate_live_config(self) -> None:
+        """_generate_config_file must not mutate the live ddconfig dict."""
+        api_key = "abcd1234efgh5678"
+        live_config = {"_dd_api_key": api_key, "other": "value"}
+        flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL,
+            ddconfig=live_config,
+            flare_dir=str(self.shared_dir),
+        )
+        flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        # The live dict must still hold the original, unredacted key
+        assert live_config["_dd_api_key"] == api_key, "live ddconfig was mutated: API key was overwritten in place"
+
+        # The config file written to disk must contain the redacted value
+        config_files = list(self.shared_dir.glob("tracer_config_*.json"))
+        assert config_files, "config file was not created"
+        with open(config_files[0]) as fh:
+            written = json.load(fh)
+        written_key: str = written["configs"]["_dd_api_key"]
+        assert written_key.endswith(api_key[-4:]), "last 4 chars of key must be preserved"
+        assert "*" in written_key, "API key must be partially redacted in the config file"
+        assert written_key != api_key, "API key must not be written in plain text"
+
+        flare.revert_configs()
+        flare.clean_up_files()
+
     def test_config_file_contents_validation(self):
         """
         Validate that flare preparation and log file creation works correctly.

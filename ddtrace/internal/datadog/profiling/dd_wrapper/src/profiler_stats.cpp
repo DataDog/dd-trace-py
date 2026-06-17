@@ -45,7 +45,6 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
-    string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
     asyncio_task_count = std::nullopt;
@@ -100,18 +99,6 @@ std::optional<size_t>
 Datadog::ProfilerStats::get_string_table_count() const
 {
     return string_table_count;
-}
-
-void
-Datadog::ProfilerStats::set_string_table_ephemeral_count(size_t count)
-{
-    string_table_ephemeral_count = count;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_ephemeral_count() const
-{
-    return string_table_ephemeral_count;
 }
 
 void
@@ -181,13 +168,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_string_table_count) {
         internal_metadata_json += R"("string_table_count": )";
         append_to_string(internal_metadata_json, *maybe_string_table_count);
-        internal_metadata_json += ",";
-    }
-
-    auto maybe_string_table_ephemeral_count = get_string_table_ephemeral_count();
-    if (maybe_string_table_ephemeral_count) {
-        internal_metadata_json += R"("string_table_ephemeral_count": )";
-        append_to_string(internal_metadata_json, *maybe_string_table_ephemeral_count);
         internal_metadata_json += ",";
     }
 

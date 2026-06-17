@@ -134,21 +134,20 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
             # Package not installed — skip
             continue
 
+        advisory_id = entry.get("id", "")
         constraints = entry.get("package_versions", [])
         if not _any_version_matches(installed_ver, constraints):
             log.debug(
                 "Skipping %s: installed %s does not match %s",
-                entry.get("vulnerability", {}).get("id", "?"),
+                advisory_id or "?",
                 installed_ver,
                 constraints,
             )
             continue
 
-        vuln = entry.get("vulnerability", {})
-        cve_id = vuln.get("id", "")
         targets = entry.get("targets", [])
 
-        if not targets or not cve_id:
+        if not targets or not advisory_id:
             continue
 
         for target_name in targets:
@@ -158,12 +157,12 @@ def load_cve_targets(installed_packages: dict[str, str]) -> list[dict[str, Any]]
                 {
                     "target": target_name,
                     "dependency_name": dep_name,
-                    "cve_id": cve_id,
+                    "cve_id": advisory_id,
                 }
             )
             log.debug(
-                "CVE %s applies to %s %s (constraint %s, target %s)",
-                cve_id,
+                "Advisory %s applies to %s %s (constraint %s, target %s)",
+                advisory_id,
                 dep_name,
                 installed_ver,
                 constraints,

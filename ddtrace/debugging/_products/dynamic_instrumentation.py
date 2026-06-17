@@ -24,7 +24,9 @@ def start() -> None:
 
 
 def enabled() -> bool:
-    return config.enabled
+    # TODO: remove bool() cast once envier mypy plugin resolves config
+    # attributes to their declared types
+    return bool(config.enabled)
 
 
 def before_fork() -> None:

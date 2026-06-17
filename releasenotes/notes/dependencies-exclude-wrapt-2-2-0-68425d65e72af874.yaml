@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Exclude ``wrapt==2.2.0`` from the supported dependency range to avoid a regression that breaks wrapped C descriptors.

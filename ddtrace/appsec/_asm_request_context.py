@@ -124,6 +124,8 @@ class ASM_Environment:
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
         self.downstream_requests: int = 0
+        # Idempotency flag for ``_dd.appsec.normalized_route`` — Django's sync path dispatches twice.
+        self.normalized_route_emitted: bool = False
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:

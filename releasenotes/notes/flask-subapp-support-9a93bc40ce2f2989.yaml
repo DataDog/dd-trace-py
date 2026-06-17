@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    AAP: API endpoint discovery now covers Flask sub-applications mounted via
+    ``werkzeug.middleware.dispatcher.DispatcherMiddleware``. Sub-app routes
+    are reported with their full mounted path.
+upgrade:
+  - |
+    flask: Requests served under a non-empty WSGI ``SCRIPT_NAME`` now expose
+    the client-hit resource on a new ``flask.resource.full`` tag (e.g.
+    ``GET /api/v2/users``). The span ``resource`` and ``flask.url_rule`` tag
+    are unchanged. The tag is only set when its value would differ from
+    ``span.resource``.
+  - |
+    flask: API endpoint discovery now reports every HTTP method the framework
+    serves — including Werkzeug's auto-added ``HEAD`` for any ``GET`` route
+    and Flask's auto-handled ``OPTIONS`` for every route — not just the
+    methods listed in ``methods=[...]``.

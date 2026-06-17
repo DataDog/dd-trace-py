@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Reduces native heap memory used by the stack collector in
+    gevent and asyncio workloads.

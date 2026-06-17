@@ -259,7 +259,7 @@ def test_profiler_ddtrace_deprecation():
 def test_libdd_failure_telemetry_logging():
     """Test that libdd initialization failures log to telemetry. This mimics
     one of the two scenarios where profiling can be configured.
-    1) using ddtrace-run with DD_PROFILNG_ENABLED=true
+    1) using ddtrace-run with DD_PROFILING_ENABLED=true
     2) import ddtrace.profiling.auto
     """
 

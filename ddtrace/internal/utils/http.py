@@ -380,15 +380,17 @@ def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None) -> Union[str, dict[str, Any]]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
     from urllib.parse import parse_qs
 
-    def parse_message(msg):
+    def parse_message(msg) -> Union[str, dict[str, Any]]:
+        res: Union[str, dict[str, Any]] = ""
+
         if msg.is_multipart():
-            res: dict[str, list] = {}
+            res = {}
             for part in msg.get_payload():
                 key = part.get_param("name", failobj=part.get_filename(), header="content-disposition")
                 value = parse_message(part)
@@ -396,15 +398,16 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
             res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
             content_type = msg.get("Content-Type")
-            if content_type in ("application/json", "text/json"):
+            base_content_type = content_type.split(";", 1)[0].strip() if content_type else content_type
+            if base_content_type in ("application/json", "text/json"):
                 res = json.loads(msg.get_payload())
-            elif content_type in ("application/xml", "text/xml"):
+            elif base_content_type in ("application/xml", "text/xml"):
                 import ddtrace.vendor.xmltodict as xmltodict
 
                 res = xmltodict.parse(msg.get_payload())
-            elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+            elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
                 res = parse_qs(msg.get_payload())
-            elif content_type in ("text/plain", None):
+            elif base_content_type in ("text/plain", None):
                 res = msg.get_payload()
             else:
                 res = ""
@@ -415,6 +418,7 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
         content_type = headers.get("Content-Type") or headers.get("content-type")
         msg = email.message_from_string("MIME-Version: 1.0\nContent-Type: %s\n%s" % (content_type, body))
         return parse_message(msg)
+
     return {}
 
 

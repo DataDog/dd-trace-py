@@ -5,8 +5,8 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.21.0
-ARG UV_VERSION=0.9.0
+ARG RIOT_VERSION=0.22.0
+ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -111,7 +111,7 @@ ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 # AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-    sh -s -- --profile minimal --default-toolchain stable -y
+    sh -s -- --default-toolchain stable -y
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/
@@ -120,7 +120,7 @@ COPY .python-version /home/bits/
 RUN npm install -g @datadog/datadog-ci
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.17" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 

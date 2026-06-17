@@ -97,6 +97,9 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
+    # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -411,6 +414,7 @@ venv = Venv(
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
             },
             venvs=[
                 Venv(pys=select_pys()),
@@ -575,7 +579,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.12"),
                     env={
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "zope-event": "==5.0",
@@ -620,7 +624,7 @@ venv = Venv(
                         # fork from a multi-threaded subprocess (ddtrace starts background
                         # threads on import), so suppress the warning to avoid spurious
                         # stderr output that causes @pytest.mark.subprocess() to fail.
-                        "PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::",
+                        "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
                     pkgs={
                         "pytest-asyncio": "~=0.23.7",
@@ -648,6 +652,7 @@ venv = Venv(
                 "elasticsearch": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
+                "setuptools": "<80",
             },
             venvs=[
                 Venv(
@@ -3150,6 +3155,36 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytorch",
+            command="pytest {cmdargs} tests/contrib/pytorch",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "torch": ["~=2.0.0", "~=2.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.2.0", "~=2.3.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.8.0", "~=2.9.0", "~=2.10.0", "~=2.11.0", "~=2.12.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),
@@ -3503,7 +3538,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.21.0",
+                "riot": "==0.22.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
@@ -4450,6 +4485,26 @@ venv = Venv(
                 "pytest-asyncio": "==0.23.7",
                 "openai": ["==1.102.0", latest],
             },
+        ),
+        Venv(
+            name="ai_guard_anthropic",
+            command="pytest {cmdargs} tests/appsec/ai_guard/anthropic/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # anthropic contrib VCR fixtures. Pinned to a single version
+                # because the suite only uses ``yaml.safe_load``.
+                "pyyaml": latest,
+            },
+            venvs=[
+                Venv(
+                    pkgs={"anthropic": "==0.28.0", "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pkgs={"anthropic": latest, "httpx": "<0.28.0"},
+                ),
+            ],
         ),
         Venv(
             name="claude_agent_sdk",

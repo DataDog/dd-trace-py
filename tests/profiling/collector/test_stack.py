@@ -644,6 +644,111 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_cpu_time_total_accuracy",
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    ),
+    err=None,
+)
+def test_gevent_cpu_time_total_accuracy() -> None:
+    """Verify that the sum of cpu-time across all profile samples roughly matches
+    the actual process CPU time consumed by gevent workers.
+
+    Without the on-CPU swap in unwind_greenlets, when the running greenlet is
+    not the first entry in current_greenlets, render_task_begin starts a new
+    sample for it and pushes thread_state.cpu_time_ns a second time (the first
+    push already happened on the sample inherited from render_thread_begin).
+    For M=4 workers, the over-count converges to ~1.5-1.6x of the real CPU
+    consumed by the process. With the swap in place, the on-CPU greenlet
+    always reuses the first sample and the duplicate push is avoided.
+
+    Adaptive sampling is disabled to mirror the experimental measurement cell
+    that gave the cleanest 1.6x signal; this also keeps the sample interval
+    deterministic across the timed region.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import time
+
+    import gevent
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    DURATION_S = 3.0
+    CPU_BURN_S = 0.01
+    SLEEP_S = 0.05
+    NUM_WORKERS = 4
+
+    def worker() -> None:
+        deadline = time.monotonic() + DURATION_S
+        while time.monotonic() < deadline:
+            burn_until = time.process_time_ns() + int(CPU_BURN_S * 1e9)
+            while time.process_time_ns() < burn_until:
+                pass
+            gevent.sleep(SLEEP_S)
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        # Stagger workers by CPU_BURN_S so their CPU bursts interleave with
+        # each other's sleep, which spreads the on-CPU greenlet across the
+        # unordered_map iteration order. Without staggering, the same greenlet
+        # tends to win the on-CPU position each sample, masking the bug.
+        workers = []
+        cpu_start_ns = time.process_time_ns()
+        for i in range(NUM_WORKERS):
+            if i > 0:
+                gevent.sleep(CPU_BURN_S)
+            workers.append(gevent.spawn(worker))
+        gevent.joinall(workers, timeout=DURATION_S + 10)
+        cpu_end_ns = time.process_time_ns()
+    finally:
+        p.stop()
+
+    assert all(g.dead for g in workers), "gevent workers did not finish within timeout"
+
+    actual_cpu_ns = cpu_end_ns - cpu_start_ns
+    assert actual_cpu_ns > 0, "process_time_ns did not advance"
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    profile_cpu_ns = sum(sample.value[cpu_time_index] for sample in profile.sample)
+
+    ratio = profile_cpu_ns / actual_cpu_ns
+
+    # Bounds picked from measured ratios across local Mac (n=10) and CI Linux
+    # py3.9-3.14 (n=6). With the fix applied: observed range was 0.975 - 1.058.
+    # Without the fix (bug): observed range was 1.61 - 1.63 (CI, n=5).
+    #
+    # Upper bound 1.20:
+    #   - ~14% above the worst observed fixed value (1.058)
+    #   - ~25% below the smallest observed bug value (1.61)
+    # Lower bound 0.85:
+    #   - ~13% below the worst observed fixed value (0.975)
+    #   - rejects a regression that drops real CPU (e.g. reintroducing the
+    #     is_running() gate removed in PR #16273) which would push the ratio
+    #     toward 0.
+    #
+    # These bounds exist to catch regressions while staying flake-safe across
+    # CI runners. They are NOT a claim about the profiler's CPU attribution
+    # accuracy.
+    assert 0.85 <= ratio <= 1.20, (
+        f"profile cpu-time total ({profile_cpu_ns / 1e9:.3f}s) does not match "
+        f"actual process CPU time ({actual_cpu_ns / 1e9:.3f}s); ratio={ratio:.2f} "
+        f"(expected ~1.0, bug produces ~1.6)"
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
@@ -994,11 +1099,11 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     )
 
 
-def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> None:
-    """Verify that tracking/untracking greenlets across 25+ uploads (which triggers
-    ephemeral string table clearing) does not crash or lose greenlet names.
+def test_greenlet_labels_do_not_depend_on_string_table_cleanup(tmp_path: Path) -> None:
+    """Verify that tracking/untracking greenlets across many uploads does not
+    crash or lose greenlet names now that greenlet labels are not StringTable entries.
     """
-    test_name = "test_greenlet_string_table_cleanup_after_ephemeral_clear"
+    test_name = "test_greenlet_labels_do_not_depend_on_string_table_cleanup"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -1010,7 +1115,7 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
     from ddtrace.internal.datadog.profiling import stack as native_stack
 
     with stack.StackCollector():
-        # Track a long-lived greenlet that should survive the ephemeral clear
+        # Track a long-lived greenlet that should survive many uploads
         long_lived_id = 0xDEAD0001
         native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
 
@@ -1020,12 +1125,12 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
             native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
             native_stack.untrack_greenlet(short_id)
 
-        # Do 30 uploads to trigger the ephemeral clear (threshold is 25)
+        # Do 30 uploads to exercise repeated profile serialization.
         for _ in range(30):
             ddup.upload()
 
-        # Track more short-lived greenlets after the clear to make sure the
-        # string table is still functional
+        # Track more short-lived greenlets after repeated uploads to make sure
+        # label handling remains functional
         for i in range(50):
             short_id = 0xCAFE0000 + i
             native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
@@ -1036,7 +1141,7 @@ def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> 
 
         native_stack.untrack_greenlet(long_lived_id)
 
-    # Final upload — if the string table is corrupted this would crash
+    # Final upload — if label handling is corrupted this would crash
     ddup.upload()
 
     # Verify we got a valid profile (no crash, no corruption)

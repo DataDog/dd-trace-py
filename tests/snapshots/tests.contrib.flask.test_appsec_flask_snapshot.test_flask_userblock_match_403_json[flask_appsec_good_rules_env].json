@@ -9,6 +9,7 @@
     "type": "web",
     "meta": {
       "_dd.appsec.event_rules.version": "rules_good",
+      "_dd.appsec.normalized_route": "/checkuser/{user_id}",
       "_dd.appsec.rc_products": "[] u:0 r:2",
       "_dd.appsec.user.collection_mode": "sdk",
       "_dd.appsec.waf.version": "1.30.1",
@@ -66,13 +67,13 @@
             "rule": {
               "id": "blk-001-002",
               "name": "Block User Addresses",
-              "tags": {
-                "type": "block_user",
-                "category": "security_response"
-              },
               "on_match": [
                 "block"
-              ]
+              ],
+              "tags": {
+                "category": "security_response",
+                "type": "block_user"
+              }
             },
             "rule_matches": [
               {
@@ -81,11 +82,11 @@
                 "parameters": [
                   {
                     "address": "usr.id",
-                    "key_path": [],
-                    "value": "123456",
                     "highlight": [
                       "123456"
-                    ]
+                    ],
+                    "key_path": [],
+                    "value": "123456"
                   }
                 ]
               }
@@ -112,8 +113,7 @@
          "flask.endpoint": "checkuser",
          "flask.url_rule": "/checkuser/<user_id>",
          "flask.view_args.user_id": "123456",
-         "http.client_ip": "127.0.0.1",
-         "network.client.ip": "127.0.0.1"
+         "http.client_ip": "127.0.0.1"
        },
        "duration": 3566167,
        "start": 1776102748069211304

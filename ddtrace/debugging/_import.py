@@ -16,7 +16,7 @@ class DebuggerModuleWatchdog(ModuleWatchdog):
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
-        if origin in cls._locations:
+        if str(origin) in cls._locations:
             # We already have a hook for this origin, don't register a new one
             # but invoke it directly instead, if the module was already loaded.
             module = cls.get_by_origin(origin)

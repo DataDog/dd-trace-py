@@ -761,6 +761,7 @@ CUSTOM_RULE_METHOD = [
                                     {"address": "server.business_logic.payment.cancellation", "key_path": ["id"]},
                                     {"address": "server.business_logic.payment.failure", "key_path": ["id"]},
                                     {"address": "server.business_logic.payment.success", "key_path": ["id"]},
+                                    {"address": "server.business_logic.llm.event", "key_path": ["provider"]},
                                 ],
                                 "type": "string",
                                 "value": "stripe",
@@ -811,6 +812,7 @@ def test_required_addresses():
         "server.business_logic.payment.creation",
         "server.business_logic.payment.success",
         "server.business_logic.payment.failure",
+        "server.business_logic.llm.event",
         "usr.id",
         "usr.login",
     }

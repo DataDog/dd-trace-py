@@ -2,6 +2,7 @@ import json
 from queue import SimpleQueue as Queue
 import time
 import typing as t
+from typing import Any
 from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
@@ -72,7 +73,7 @@ class ProbeStatusLogger:
 
         return json.dumps(payload)
 
-    def _write_payload(self, data: tuple[bytes, dict]) -> None:
+    def _write_payload(self, data: tuple[bytes, dict[str, Any]]) -> None:
         body, headers = data
         try:
             log.debug("Sending probe status payload: %r", body)

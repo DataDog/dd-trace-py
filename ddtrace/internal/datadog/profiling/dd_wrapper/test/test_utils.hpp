@@ -120,7 +120,7 @@ send_sample(unsigned int id)
             ddup_push_alloc(h, 1.0, 1);
             break;
         case 4: // heap
-            ddup_push_heap(h, 1);
+            ddup_push_heap(h, 1, 1);
             break;
     }
 

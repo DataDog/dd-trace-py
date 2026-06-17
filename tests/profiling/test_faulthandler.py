@@ -14,7 +14,7 @@ import pytest
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_manual_enable_after_profiler_start() -> None:
     """faulthandler.enable called after profiler start must not crash."""
@@ -37,7 +37,7 @@ def test_faulthandler_manual_enable_after_profiler_start() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_manual_enable_before_profiler_start() -> None:
     """faulthandler already enabled when profiler starts must not crash."""
@@ -64,7 +64,7 @@ def test_faulthandler_manual_enable_before_profiler_start() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_manual_multiple_enables() -> None:
     """Calling faulthandler.enable called multiple times must not crash or leak handlers."""
@@ -90,7 +90,7 @@ def test_faulthandler_manual_multiple_enables() -> None:
 @pytest.mark.subprocess(
     env={
         "PYTHONFAULTHANDLER": "1",
-        "DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_FAST_COPY": "1",
     },
     err=None,
@@ -122,7 +122,7 @@ def test_pythonfaulthandler_env_after_profiler_start() -> None:
 @pytest.mark.subprocess(
     env={
         "PYTHONFAULTHANDLER": "1",
-        "DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_FAST_COPY": "1",
     },
     err=None,
@@ -152,7 +152,7 @@ def test_pythonfaulthandler_env_with_multiple_manual_enables() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"},
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"},
     status=-11,
     err=lambda s: "Fatal Python error" in s or "Segmentation fault" in s,
 )
@@ -190,7 +190,7 @@ def test_faulthandler_traceback_on_segfault() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_pause_sampling_returns_false_when_not_running() -> None:
     """Calling pause_sampling must return False when the sampler is not running."""
@@ -202,7 +202,7 @@ def test_pause_sampling_returns_false_when_not_running() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_pause_resume_while_running() -> None:
     """Calling pause_sampling must return True when sampler is running, and resume must work."""
@@ -227,7 +227,7 @@ def test_pause_resume_while_running() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_stop_while_paused() -> None:
     """Stopping the sampler while paused must not hang or crash."""
@@ -248,7 +248,7 @@ def test_stop_while_paused() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_enable_during_sampling() -> None:
     """Calling faulthandler.enable while sampling is active must pause/swap/resume safely."""
@@ -275,7 +275,7 @@ def test_faulthandler_enable_during_sampling() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_with_fork() -> None:
     """Fork after calling faulthandler.enable + profiler start must not crash."""
@@ -314,7 +314,7 @@ def test_faulthandler_with_fork() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_uninstall_not_called_on_pause_timeout() -> None:
     """When pause_sampling times out (returns None), uninstall_segv_handler must not be called.
@@ -354,7 +354,7 @@ def test_uninstall_not_called_on_pause_timeout() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_enable_concurrent_threads() -> None:
     """Calling faulthandler.enable from two threads simultaneously must not deadlock or crash.
@@ -405,7 +405,194 @@ def test_faulthandler_enable_concurrent_threads() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
 @pytest.mark.subprocess(
-    env={"DD_PROFILING_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_reinstalls_ddtrace_handler() -> None:
+    """After faulthandler.disable, ddtrace's SIGSEGV handler must be reinstalled.
+
+    This is the core regression test for the bug: faulthandler.disable restores
+    its saved previous handler (which is not ddtrace's) and without the wrapper
+    would remove ddtrace's SIGSEGV/SIGBUS handler, breaking safe_memcpy recovery.
+    """
+    import faulthandler
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    mock_reinstall = MagicMock()
+
+    with patch.object(stack, "reinstall_segv_handler", mock_reinstall):
+        faulthandler.enable()
+        mock_reinstall.reset_mock()
+        faulthandler.disable()
+
+    # reinstall must have been called by the disable wrapper
+    mock_reinstall.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_pauses_sampler_when_running() -> None:
+    """faulthandler.disable must pause the sampler before swapping handlers."""
+    import faulthandler
+    import time
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        time.sleep(0.05)
+        mock_pause = MagicMock(return_value=True)
+        mock_resume = MagicMock()
+
+        with (
+            patch.object(stack, "pause_sampling", mock_pause),
+            patch.object(stack, "resume_sampling", mock_resume),
+        ):
+            faulthandler.enable()
+            mock_pause.reset_mock()
+            mock_resume.reset_mock()
+            faulthandler.disable()
+
+        mock_pause.assert_called_once()
+        mock_resume.assert_called_once()
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_when_sampler_not_running() -> None:
+    """faulthandler.disable when sampler is not running must still reinstall handler."""
+    import faulthandler
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    assert stack.is_available
+
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    mock_reinstall = MagicMock()
+    mock_resume = MagicMock()
+
+    # pause_sampling returns False when sampler is not running
+    with (
+        patch.object(stack, "pause_sampling", return_value=False),
+        patch.object(stack, "reinstall_segv_handler", mock_reinstall),
+        patch.object(stack, "resume_sampling", mock_resume),
+    ):
+        faulthandler.enable()
+        mock_reinstall.reset_mock()
+        faulthandler.disable()
+
+    mock_reinstall.assert_called_once()
+    # resume must not be called when pause returned False
+    mock_resume.assert_not_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_enable_disable_cycle_during_sampling() -> None:
+    """Repeated enable/disable cycles while sampling must not crash or deadlock."""
+    import faulthandler
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        time.sleep(0.05)
+        for _ in range(5):
+            faulthandler.enable()
+            faulthandler.disable()
+            assert not faulthandler.is_enabled()
+        # After all cycles, re-enable and confirm it still works
+        faulthandler.enable()
+        assert faulthandler.is_enabled()
+        time.sleep(0.05)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
+)
+def test_faulthandler_disable_concurrent_with_enable() -> None:
+    """Concurrent enable and disable calls must not deadlock or crash."""
+    import faulthandler
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import _faulthandler  # noqa: F401
+
+    assert stack.is_available
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+
+    stack.start()
+    try:
+        errors: list[BaseException] = []
+        n_threads = 4
+        barrier = threading.Barrier(n_threads)
+
+        def _toggle() -> None:
+            try:
+                barrier.wait(timeout=5)
+                for _ in range(10):
+                    faulthandler.enable()
+                    faulthandler.disable()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=_toggle) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            # 80 serialized calls through _enable_lock; each pause_sampling()
+            # can block up to 3 s on timeout, so give generous headroom.
+            t.join(timeout=30)
+
+        still_alive = [t for t in threads if t.is_alive()]
+        assert not still_alive, f"{len(still_alive)} thread(s) deadlocked"
+        assert not errors, f"Thread errors: {errors}"
+        time.sleep(0.05)
+    finally:
+        stack.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Signal handling not supported on Windows")
+@pytest.mark.subprocess(
+    env={"_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0", "_DD_PROFILING_STACK_FAST_COPY": "1"}, err=None
 )
 def test_faulthandler_real_profiler_instance() -> None:
     import threading
