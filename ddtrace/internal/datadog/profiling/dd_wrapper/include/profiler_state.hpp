@@ -70,7 +70,7 @@ class ProfilerState
     unsigned int max_nframes{ g_default_max_nframes };
     // OffCPU is excluded from the default mask and must be opted-in via
     // ddup_config_offcpu_time_enabled(true) / _DD_PROFILING_STACK_OFFCPU_TIME_ENABLED.
-    SampleType type_mask{ static_cast<SampleType>(SampleType::All ^ SampleType::OffCPU) };
+    SampleType type_mask{ static_cast<SampleType>(SampleType::All & ~SampleType::OffCPU) };
     size_t sample_pool_capacity{ g_default_sample_pool_capacity };
 
     // ========================================================================
