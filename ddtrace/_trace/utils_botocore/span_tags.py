@@ -42,7 +42,7 @@ def _derive_peer_service_name(endpoint_name: str, params: Optional[dict[str, Any
     - cloudwatch        -> log group name (logGroupName)
     - redshift          -> cluster identifier (ClusterIdentifier)
     """
-    print("In _derive_peer_service_name")
+    print("OLIVIER in _derive_peer_service_name")
     if not params:
         print("NO PARAMS")
         return None
@@ -114,6 +114,7 @@ def _derive_peer_hostname(service: str, region: Optional[str]) -> Optional[str]:
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
+    print ("OLIVIER in set_botocore_patched_api_call_span_tags")
     span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
@@ -148,6 +149,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         span._set_attribute("aws.partition", aws.get_aws_partition(region_name))
 
     if in_aws_lambda():
+        print("OLIVIER in aws lambda")
         peer_service = _derive_peer_service_name(endpoint_name, params) or _derive_peer_hostname(
             endpoint_name, region_name
         )
