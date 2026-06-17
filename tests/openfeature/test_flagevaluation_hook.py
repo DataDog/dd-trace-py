@@ -308,6 +308,18 @@ class TestKillswitchGating:
                 assert provider._flagevaluation_writer is None
                 assert provider._flagevaluation_hook is None
 
+    def test_flush_interval_env_configures_evp_writer(self):
+        with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_FLUSH_INTERVAL_SECONDS": "20"}):
+            from tests.utils import override_global_config
+
+            with override_global_config({"experimental_flagging_provider_enabled": True}):
+                with mock.patch("ddtrace.internal.openfeature._provider.FlagEvaluationWriter") as writer_cls:
+                    from ddtrace.internal.openfeature._provider import DataDogProvider
+
+                    DataDogProvider()
+
+        writer_cls.assert_called_once_with(interval=20.0)
+
     def test_killswitch_false_does_not_affect_otel_hook(self):
         """Killswitch must not suppress the OTel FlagEvalHook (OTel non-regression)."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):

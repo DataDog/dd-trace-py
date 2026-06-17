@@ -26,6 +26,12 @@ class OpenFeatureConfig(DDConfig):
         default=True,
     )
 
+    flagging_evaluation_counts_flush_interval = DDConfig.var(
+        float,
+        "DD_FLAGGING_EVALUATION_COUNTS_FLUSH_INTERVAL_SECONDS",
+        default=10.0,
+    )
+
     # Feature flag exposure intake configuration
     ffe_intake_enabled = DDConfig.var(
         bool,
@@ -51,6 +57,7 @@ class OpenFeatureConfig(DDConfig):
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
         "flagging_evaluation_counts_enabled",
+        "flagging_evaluation_counts_flush_interval",
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",

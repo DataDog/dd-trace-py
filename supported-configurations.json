@@ -1648,6 +1648,14 @@
         "experimental": true
       }
     ],
+    "DD_FLAGGING_EVALUATION_COUNTS_FLUSH_INTERVAL_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "decimal",
+        "default": "10.0",
+        "experimental": true
+      }
+    ],
     "DD_FLASK_CACHE_SERVICE": [
       {
         "implementation": "A",
