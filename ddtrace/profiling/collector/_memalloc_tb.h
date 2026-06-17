@@ -42,9 +42,5 @@ class traceback_t
  * backend frame limit while still keeping allocator-hook traversal finite. */
 #define TRACEBACK_MAX_WALKED_NFRAME 1024
 
-/* The maximum number of traceback samples we can store in the heap profiler.
- * This was historically UINT16_MAX to match a uint16_t index type that no
- * longer exists (we now use a hash map). 262144 is 4x the old limit and
- * covers model-serving / data-pipeline workloads with many long-lived
- * allocations. */
-#define TRACEBACK_ARRAY_MAX_COUNT (1U << 18) /* 262 144 */
+/* The maximum number of traceback samples we can store in the heap profiler */
+#define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
