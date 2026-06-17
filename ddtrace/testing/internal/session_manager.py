@@ -148,7 +148,7 @@ class SessionManager:
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
 
-        if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
             tm_properties = self.api_client.get_test_management_properties(
                 statuses=("active", "quarantined", "disabled")
             )
@@ -767,7 +767,7 @@ class SessionManager:
             log.debug("Test Management is disabled by environment variable")
             self.settings.test_management.enabled = False
 
-        if asbool(env.get("DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
             log.debug("ATF-all-flaky mode enabled: forcing Test Management on")
             self.settings.test_management.enabled = True
 

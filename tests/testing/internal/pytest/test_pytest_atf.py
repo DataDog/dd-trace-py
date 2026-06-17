@@ -14,7 +14,7 @@ from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
-_ATF_ALL_FLAKY_ENV_VAR = "DD_TEST_MANAGEMENT_ATF_ALL_FLAKY"
+_ATF_ALL_FLAKY_ENV_VAR = "_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY"
 
 
 class TestAttemptToFix:
