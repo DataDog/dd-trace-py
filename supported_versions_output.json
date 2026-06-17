@@ -573,7 +573,7 @@
         "dependency": "protobuf",
         "integration": "protobuf",
         "minimum_tracer_supported": "6.33.6",
-        "max_tracer_supported": "7.34.1",
+        "max_tracer_supported": "7.35.0",
         "auto-instrumented": false
     },
     {
