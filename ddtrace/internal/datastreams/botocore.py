@@ -137,21 +137,34 @@ def handle_sqs_prepare(params):
 def get_datastreams_context(message):
     """
     Formats we're aware of:
-        - message.Body.MessageAttributes._datadog.Value.decode() (SQS)
+        - message.MessageAttributes._datadog.StringValue (SQS)
         - message.MessageAttributes._datadog.StringValue (SNS -> SQS)
         - message.MessageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
         - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
-    message_body = message
+    # Parse the Body only to detect SNS-wrapped messages.  For plain SQS messages
+    # (even those with a JSON body), MessageAttributes live at the top level of the
+    # SQS message, not inside the Body.  Overwriting the attributes source with the
+    # parsed body would cause us to miss the _datadog attribute entirely.
+    parsed_body = None
     try:
         body = message.get("Body")
         if body:
-            message_body = json.loads(body)
+            parsed_body = json.loads(body)
     except (ValueError, TypeError):
         log.debug("Unable to parse message body as JSON, treat as non-json")
 
-    message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
+    is_sns_notification = parsed_body is not None and parsed_body.get("Type") == "Notification"
+
+    if is_sns_notification:
+        # SNS -> SQS: the notification envelope carries its own MessageAttributes.
+        attributes_source = parsed_body
+    else:
+        # Plain SQS (and SQS -> Lambda): attributes are at the top level of the message.
+        attributes_source = message
+
+    message_attributes = attributes_source.get("MessageAttributes") or attributes_source.get("messageAttributes")
     if not message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
@@ -162,7 +175,7 @@ def get_datastreams_context(message):
 
     datadog_attr = message_attributes["_datadog"]
 
-    if message_body.get("Type") == "Notification":
+    if is_sns_notification:
         # This is potentially a DSM SNS notification
         if datadog_attr.get("Type") == "Binary":
             context_json = json.loads(base64.b64decode(datadog_attr["Value"]).decode())
