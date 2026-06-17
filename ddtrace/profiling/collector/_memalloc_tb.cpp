@@ -80,6 +80,12 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         return;
     }
 
+    /* Loop-invariant: the singleton can't change during a single stack walk
+     * (single-threaded under the GIL), so capture it once. May be null if the
+     * heap tracker is torn down, in which case we fall back to interning every
+     * frame directly. */
+    Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
+
     uint16_t pushed_frames = 0;
     size_t walked_frames = 0;
     for (DataDog::py_frame_t* frame = current_frame; frame != NULL; frame = DataDog::get_previous_frame(frame)) {
@@ -111,7 +117,6 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
 
         /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
          * insert_function) Sample::push_frame would otherwise make. */
-        Datadog::CodeFunctionCache* cache = Datadog::CodeFunctionCache::instance;
         if (cache != nullptr) {
             std::optional<Datadog::function_id> cached =
               cache->lookup(code, code_name, code_filename, code_firstlineno);
