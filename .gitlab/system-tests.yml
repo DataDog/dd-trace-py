@@ -1,6 +1,28 @@
 # System tests - migrated from .github/workflows/system-tests.yml
 # See: https://github.com/DataDog/system-tests
 
+# Collects amd64 manylinux wheels from all "build linux" parallel variants into
+# a single non-parallel artifact. The system-tests child pipeline references this
+# job cross-pipeline (which doesn't support parallel: matrix: needs), so it must
+# be a single job.
+collect_wheels:
+  stage: system-tests
+  image: registry.ddbuild.io/images/mirror/alpine:latest
+  tags: ["arch:amd64"]
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+  script:
+    - ls -la pywheels/
+  artifacts:
+    paths:
+      - pywheels/*.whl
+
 .system-tests-base:
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["docker-in-docker:amd64"]
