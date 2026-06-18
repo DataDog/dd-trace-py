@@ -72,6 +72,7 @@ class GCMonitor
                    const std::array<int, 3>& thresholds,
                    int garbage_count,
                    const std::vector<std::string>& type_table,
+                   const std::vector<uint32_t>& type_counts,
                    const std::vector<RootNode>& roots);
 
     std::thread _thread;

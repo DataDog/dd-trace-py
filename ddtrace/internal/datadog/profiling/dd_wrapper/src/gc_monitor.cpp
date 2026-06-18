@@ -575,6 +575,12 @@ GCMonitor::take_snapshot()
         cur_objs[oid] = { tidx, sz };
     }
 
+    // Build per-type instance counts (parallel to type_table)
+    std::vector<uint32_t> type_counts(type_table.size(), 0);
+    for (const auto& [oid, info] : cur_objs) {
+        type_counts[info.first]++;
+    }
+
     const auto t_survivor_start = Clock::now();
     timing.type_scan_us = elapsed_us(t_type_scan_start, t_survivor_start);
 
@@ -701,7 +707,7 @@ GCMonitor::take_snapshot()
     // ------------------------------------------------------------------
     // 5. Serialize (GIL released)
     // ------------------------------------------------------------------
-    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, roots);
+    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots);
 
     const auto t_wall_end = Clock::now();
     timing.serialize_us = elapsed_us(t_serialize_start, t_wall_end);
@@ -722,6 +728,7 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
                      const std::array<int, 3>& thresholds,
                      int garbage_count,
                      const std::vector<std::string>& type_table,
+                     const std::vector<uint32_t>& type_counts,
                      const std::vector<RootNode>& roots)
 {
     // Compute snapshot time (ns since epoch)
@@ -762,6 +769,16 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
             out << ",";
         }
         out << "\"" << json_escape(type_table[i]) << "\"";
+    }
+    out << "]";
+
+    // per-type instance counts (parallel array to "tt")
+    out << ",\"tc\":[";
+    for (size_t i = 0; i < type_counts.size(); ++i) {
+        if (i > 0) {
+            out << ",";
+        }
+        out << type_counts[i];
     }
     out << "]";
 
