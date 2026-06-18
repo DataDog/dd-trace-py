@@ -3473,7 +3473,7 @@ class BotocoreTest(TracerTestCase):
     @mock_s3
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_s3_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for S3 when running in AWS Lambda"""
+        """Test that peer.service is set to the bucket name when running in AWS Lambda"""
         s3 = self.session.create_client("s3", region_name="us-east-1")
 
         # Test with bucket parameter
@@ -3482,8 +3482,8 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to bucket-specific hostname
-        assert span.get_tag("peer.service") == "test-bucket.s3.us-east-1.amazonaws.com"
+        # Should have peer.service set to the bucket name (the resource)
+        assert span.get_tag("peer.service") == "test-bucket"
 
     @mock_dynamodb
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
@@ -3530,7 +3530,7 @@ class BotocoreTest(TracerTestCase):
     @mock_events
     @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
     def test_eventbridge_client_peer_service_in_lambda(self):
-        """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
+        """Test that peer.service falls back to the events hostname when no rule is targeted"""
         events = self.session.create_client("events", region_name="us-east-1")
 
         events.list_rules()
@@ -3538,5 +3538,63 @@ class BotocoreTest(TracerTestCase):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        # Should have peer.service set to events hostname
+        # No resource name available -> fall back to the events hostname
         assert span.get_tag("peer.service") == "events.us-east-1.amazonaws.com"
+
+    # peer.service should resolve to the targeted resource name (queue/stream/
+    # table/topic/rule) rather than the AWS endpoint hostname.
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_sqs_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to the queue name when an SQS queue is targeted"""
+        sqs = self.session.create_client("sqs", region_name="us-east-1")
+
+        sqs.create_queue(QueueName="my-queue")
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-queue"
+
+    @mock_kinesis
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_kinesis_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to the stream name when a Kinesis stream is targeted"""
+        kinesis = self.session.create_client("kinesis", region_name="us-east-1")
+
+        kinesis.create_stream(StreamName="my-stream", ShardCount=1)
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-stream"
+
+    @mock_dynamodb
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_dynamodb_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to the table name when a DynamoDB table is targeted"""
+        dynamodb = self.session.create_client("dynamodb", region_name="us-west-2")
+
+        dynamodb.create_table(
+            TableName="my-table",
+            AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
+            KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        spans = self.get_spans()
+        assert spans
+        span = spans[0]
+        assert span.get_tag("peer.service") == "my-table"
+
+    @mock_sns
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
+    def test_sns_client_peer_service_resource_name_in_lambda(self):
+        """peer.service is set to the topic name when an SNS topic is targeted"""
+        sns = self.session.create_client("sns", region_name="us-west-2")
+
+        topic_arn = sns.create_topic(Name="my-topic")["TopicArn"]
+        self.get_spans()  # flush create_topic span
+        sns.publish(TopicArn=topic_arn, Message="hello")
+        spans = self.get_spans()
+        assert spans
+        publish_span = [s for s in spans if s.get_tag("aws.operation") == "Publish"][0]
+        assert publish_span.get_tag("peer.service") == "my-topic"

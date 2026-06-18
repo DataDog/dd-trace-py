@@ -58,6 +58,43 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[dict[str, 
     return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
+# Maps an AWS endpoint to the span tag (populated by
+# ``aws._add_api_param_span_tags``) that holds the targeted resource name.
+# This lets peer.service identify the downstream managed service by its
+# resource (queue/stream/table/topic/bucket name) rather than the AWS
+# endpoint hostname.
+_PEER_SERVICE_RESOURCE_TAGS = {
+    "sqs": "queuename",
+    "sns": "topicname",
+    "kinesis": "streamname",
+    "dynamodb": "tablename",
+    "dynamodbdocument": "tablename",
+    "s3": "bucketname",
+    "eventbridge": "rulename",
+    "events": "rulename",
+}
+
+
+def _derive_peer_service(span: Span, endpoint_name: str) -> Optional[str]:
+    """Return the AWS resource name to use as peer.service for the given service.
+
+    Reads the resource-name span tags already set by
+    ``aws._add_api_param_span_tags`` (queue/stream/table/topic/bucket name) so
+    that the inferred downstream service is identified by the specific resource
+    being accessed instead of the generic AWS endpoint hostname.
+
+    Returns ``None`` when no resource name is available (e.g. service-level
+    operations such as ``ListQueues``), in which case the caller falls back to
+    the endpoint hostname.
+    """
+
+    tag_name = _PEER_SERVICE_RESOURCE_TAGS.get(endpoint_name.lower())
+    if not tag_name:
+        return None
+
+    return span.get_tag(tag_name) or None
+
+
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
@@ -92,12 +129,16 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
         span._set_attribute("region", region_name)
         span._set_attribute("aws.partition", aws.get_aws_partition(region_name))
 
-        # Derive peer hostname only in serverless environments to avoid
-        # unnecessary tag noise in traditional hosts/containers.
+        # Derive peer.service only in serverless environments to avoid
+        # unnecessary tag noise in traditional hosts/containers. Prefer the
+        # targeted resource name (queue/stream/table/topic/bucket); fall back
+        # to the AWS endpoint hostname when no resource name is available.
         if in_aws_lambda():
-            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
-            if hostname:
-                span._set_attribute("peer.service", hostname)
+            peer_service = _derive_peer_service(span, endpoint_name)
+            if not peer_service:
+                peer_service = _derive_peer_hostname(endpoint_name, region_name, params)
+            if peer_service:
+                span._set_attribute("peer.service", peer_service)
 
 
 def set_botocore_response_metadata_tags(

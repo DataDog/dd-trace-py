@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    botocore: This fix changes the ``peer.service`` tag set on AWS SDK spans in
+    serverless (AWS Lambda) environments to use the targeted resource name
+    (queue, stream, table, topic, or bucket name) instead of the AWS endpoint
+    hostname. When no resource name is available (for example, service-level
+    operations such as ``ListQueues``), ``peer.service`` falls back to the
+    endpoint hostname as before.
