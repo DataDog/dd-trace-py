@@ -186,10 +186,8 @@ def _get_fastapi_effective_path(scope: dict, resource_paths: list) -> Optional[s
     the leaf-relative segment; FastAPI sets scope["fastapi"]["effective_route_context"].path_format
     with the full composed path before calling APIRoute.handle.
 
-    When available, combines that path with any mount prefix. resource_paths[:-1] covers
-    prefixes accumulated in the same scope. When FastAPI is mounted inside a Starlette app,
-    Starlette's Mount copies the scope before delegating so those prefixes are lost;
-    scope["root_path"] carries the mount prefix in that case.
+    When available, combines that path with any mount prefix accumulated in the same scope
+    (resource_paths[:-1]), e.g. from a Starlette Mount wrapping the FastAPI app.
     """
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
@@ -197,7 +195,7 @@ def _get_fastapi_effective_path(scope: dict, resource_paths: list) -> Optional[s
     full_path = getattr(effective_route_context, "path_format", None)
     if full_path is None:
         return None
-    mount_prefix = "".join(resource_paths[:-1]) or scope.get("root_path", "")
+    mount_prefix = "".join(resource_paths[:-1])
     return mount_prefix + full_path
 
 
