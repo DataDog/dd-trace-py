@@ -504,11 +504,18 @@ def test_model_settings_none_is_preserved():
     assert PydanticAIIntegration._get_model_settings(None) is None
 
 
-def test_model_settings_callable_is_omitted():
+def test_model_settings_callable_records_qualname():
     """Callable model_settings (dynamic per-step settings) cannot be serialized.
-    They must be omitted rather than stored as their empty ``__dict__`` ({}).
+    Record the callable's __qualname__ for visibility instead of storing {} or None.
     """
     from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
-    assert PydanticAIIntegration._get_model_settings(lambda: {"temperature": 0.5}) is None
-    assert PydanticAIIntegration._get_model_settings(lambda: None) is None
+    def my_settings(ctx):
+        return {"temperature": 0.5}
+
+    result = PydanticAIIntegration._get_model_settings(my_settings)
+    assert result == "test_model_settings_callable_records_qualname.<locals>.my_settings"
+
+    lambda_result = PydanticAIIntegration._get_model_settings(lambda: None)
+    assert isinstance(lambda_result, str)
+    assert lambda_result  # non-empty
