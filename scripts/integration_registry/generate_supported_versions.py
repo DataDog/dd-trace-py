@@ -270,19 +270,31 @@ def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[Tested
         if integration_name == "__pycache__":
             continue
 
+        dependency_names = set(get_dependency_names(integration_name))
+        tested_dependency_names = set(tested_versions_per_integration.get(integration_name, {}))
+
         for dependency_name, tested_versions in sorted(
             tested_versions_per_integration.get(integration_name, {}).items()
         ):
             entry = {
                 "dependency": dependency_name,
-                "integration": integration_name,
-                "auto-instrumented": is_auto_instrumented_package(integration_name),
-                "python_versions": build_python_versions(
-                    dependency_name,
-                    tested_versions,
-                    candidate_python_versions,
-                ),
             }
+
+            aliases = sorted(dependency_names - tested_dependency_names)
+            if aliases:
+                entry["aliases"] = aliases
+
+            entry.update(
+                {
+                    "integration": integration_name,
+                    "auto-instrumented": is_auto_instrumented_package(integration_name),
+                    "python_versions": build_python_versions(
+                        dependency_name,
+                        tested_versions,
+                        candidate_python_versions,
+                    ),
+                }
+            )
 
             if integration_name in pinned_integrations:
                 entry["pinned"] = "true"

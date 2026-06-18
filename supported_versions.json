@@ -167,6 +167,9 @@
     },
     {
         "dependency": "aiohttp-jinja2",
+        "aliases": [
+            "aiohttp_jinja2"
+        ],
         "integration": "aiohttp_jinja2",
         "auto-instrumented": true,
         "python_versions": {
@@ -500,6 +503,9 @@
     },
     {
         "dependency": "stdlib.asyncio",
+        "aliases": [
+            "pytest-asyncio"
+        ],
         "integration": "asyncio",
         "auto-instrumented": true,
         "python_versions": {
@@ -685,6 +691,9 @@
     },
     {
         "dependency": "datadog-lambda",
+        "aliases": [
+            "datadog_lambda"
+        ],
         "integration": "aws_lambda",
         "auto-instrumented": true,
         "python_versions": {
@@ -1447,6 +1456,10 @@
     },
     {
         "dependency": "dogpile-cache",
+        "aliases": [
+            "dogpile.cache",
+            "dogpile_cache"
+        ],
         "integration": "dogpile_cache",
         "auto-instrumented": true,
         "python_versions": {
@@ -3094,6 +3107,10 @@
     },
     {
         "dependency": "llama-index-core",
+        "aliases": [
+            "llama-index",
+            "llama_index"
+        ],
         "integration": "llama_index",
         "auto-instrumented": true,
         "python_versions": {
@@ -4817,6 +4834,9 @@
     },
     {
         "dependency": "stdlib.sqlite3",
+        "aliases": [
+            "pysqlite3-binary"
+        ],
         "integration": "sqlite3",
         "auto-instrumented": true,
         "python_versions": {
