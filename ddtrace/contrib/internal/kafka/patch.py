@@ -257,37 +257,31 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
             # consume returns a list of messages,
-            _instrument_message(result, pin, start_ns, instance, err, is_batch=True)
+            _instrument_message(result, pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
 
     return result
 
 
-def _instrument_message(messages, pin, start_ns, instance, err, is_batch=False):
-    ctx = None
+def _instrument_message(messages, pin, start_ns, instance, err):
     links = []
     first_message = messages[0] if len(messages) else None
+    # Relate the consume span to every message's producer via span links rather than
+    # continuing any single producer's trace. This applies to both poll() (a single
+    # message) and consume() (a batch): no producer is privileged as the parent, so no
+    # producer trace is polluted by the consume span's children.
     if config.kafka.distributed_tracing_enabled:
-        if is_batch:
-            # A batched consume() fans in records that may originate from distinct producer
-            # traces. Rather than parenting the consume span to an arbitrary first message
-            # (which pollutes that one producer's trace and orphans the rest), link every
-            # record's producer context so each is related to the consume span symmetrically.
-            # This mirrors the aiokafka getmany behavior.
-            for message in messages:
-                if message is None or not message.headers():
-                    continue
-                link_ctx = Propagator.extract(dict(message.headers()))
-                if link_ctx is not None and link_ctx.trace_id is not None:
-                    links.append(link_ctx)
-        elif first_message is not None and first_message.headers():
-            # A single-message poll() continues the producer's trace, as before.
-            ctx = Propagator.extract(dict(first_message.headers()))
+        for message in messages:
+            if message is None or not message.headers():
+                continue
+            link_ctx = Propagator.extract(dict(message.headers()))
+            if link_ctx is not None and link_ctx.trace_id is not None:
+                links.append(link_ctx)
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
+        child_of=tracer.context_provider.active(),
         activate=True,
     ) as span:
         for link_ctx in links:

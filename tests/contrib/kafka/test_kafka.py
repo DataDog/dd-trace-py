@@ -452,15 +452,16 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll()
 
+    produce_span = None
     consume_span = None
     traces = test_spans.pop_traces()
-    produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
+            if span.name == "kafka.produce":
+                produce_span = span
             if span.get_tag('kafka.received_message') == 'True':
                 if span.get_tag('kafka.message_key') == test_key:
                     consume_span = span
-                    break
 
     assert str(message.value()) == str(PAYLOAD)
 
@@ -468,12 +469,14 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
 
-    # kafka.consume span has a parent
+    # kafka.consume span links to the producer instead of continuing its trace
     assert consume_span.name == "kafka.consume"
-    assert consume_span.parent_id == produce_span.span_id
+    assert consume_span.parent_id is None
+    linked = {(link.trace_id, link.span_id) for link in consume_span._get_links()}
+    assert (produce_span.trace_id, produce_span.span_id) in linked
 
-    # Two of these spans are part of the same trace
-    assert produce_span.trace_id == consume_span.trace_id
+    # The producer and consumer spans are in different traces, related by a span link
+    assert produce_span.trace_id != consume_span.trace_id
 
 
 if __name__ == "__main__":

@@ -1,9 +1,8 @@
 ---
 features:
   - |
-    kafka: When distributed tracing is enabled, a batched ``Consumer.consume()`` now
-    links every message's producer trace to the ``kafka.consume`` span via span links,
-    instead of parenting the span to only the first message's trace. This prevents the
-    consume span and its children from being attached to an arbitrary single producer
-    trace when a batch contains messages from multiple producers. Single-message
-    ``poll()`` behavior is unchanged.
+    kafka: When distributed tracing is enabled, the ``kafka.consume`` span now relates to
+    every consumed message's producer trace via span links, instead of continuing a single
+    producer's trace. This applies to both ``poll()`` (a single message) and ``consume()``
+    (a batch): no producer is privileged as the span's parent, so the consume span and its
+    children are no longer attached to an arbitrary producer's trace.
