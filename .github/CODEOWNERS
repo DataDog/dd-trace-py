@@ -179,7 +179,7 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
-ddtrace/contrib/internal/openai                               @DataDog/ml-observability
+ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock_agents.py  @DataDog/ml-observability
