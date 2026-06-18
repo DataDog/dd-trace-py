@@ -8,7 +8,8 @@ r"""Update the pinned libdatadog dependency in src/native to the latest commit o
 libdatadog's `main` branch, validate the build, and (when green) open a PR.
 
 Phases:
-  1. Resolve target — `git ls-remote` libdatadog main → SHA. No-op if already pinned.
+  1. Resolve target — `git ls-remote` libdatadog main → SHA. No-op if already
+     pinned or if the pin is fewer than --min-commits behind main (drift gate).
   2. Apply bump — rewrite every libdatadog `rev = "..."` in src/native/Cargo.toml,
      regenerate Cargo.lock, and sync setup.py's RUST_MINIMUM_VERSION if needed.
   3. Validate — cargo build / fmt / clippy / test (+ optional python smoke).
@@ -27,8 +28,12 @@ Usage:
   scripts/update-libdatadog.py --dry-run       # show what would change, touch nothing
   scripts/update-libdatadog.py --target-rev SHA  # bump to a specific rev
   scripts/update-libdatadog.py --skip-python   # cargo-only validation (fast local loop)
+  scripts/update-libdatadog.py --min-commits 0 # bump regardless of drift
+  scripts/update-libdatadog.py --check-drift   # only evaluate the gate (exit 0 proceed / 100 skip)
 
 Environment:
+  LIBDATADOG_MIN_DRIFT  default for --min-commits (commits of libdatadog drift
+                        required before a bump proceeds; default 5).
   GH_TOKEN              GitHub token (from octo-sts). When set, the bump is
                         committed and the PR opened via the GitHub API as a
                         verified, bot-attributed commit. Without it, the changes
@@ -209,6 +214,26 @@ def resolve_latest_main_sha() -> str:
 def current_pinned_revs() -> set[str]:
     text = CARGO_TOML.read_text()
     return {m.group(2) for m in _LIBDD_REV_RE.finditer(text)}
+
+
+def libdatadog_commits_behind(pin: str) -> int | None:
+    """How many commits libdatadog `main` is ahead of `pin` (tag or SHA), via the
+    GitHub compare API. None if it can't be determined (network/api error).
+    """
+    owner_repo = LIBDATADOG_REPO.removeprefix("https://github.com/")
+    url = f"{GH_API_BASE}/repos/{owner_repo}/compare/{pin}...main"
+    try:
+        req = urllib.request.Request(url)
+        req.add_header("Accept", "application/vnd.github+json")
+        # Authenticate if a token is around (higher rate limit); libdatadog is
+        # public so this also works unauthenticated.
+        if os.environ.get("GH_TOKEN"):
+            req.add_header("Authorization", f"Bearer {os.environ['GH_TOKEN']}")
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (fixed host)
+            return int(json.loads(resp.read().decode()).get("ahead_by", 0))
+    except Exception as exc:  # noqa: BLE001 — best-effort gate; caller decides
+        print(f"[drift] could not compute commits-behind for {pin!r}: {exc}")
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -505,13 +530,22 @@ def create_verified_pr(branch: str, title: str, body: str, changes: list[tuple[s
             body={"sha": commit["sha"], "force": True},
         )
 
-    pr = _gh_api(
-        "POST",
-        f"/repos/{owner}/{repo}/pulls",
-        token=token,
-        body={"title": title, "head": branch, "base": "main", "body": body, "draft": draft},
-    )
-    return pr["html_url"]
+    try:
+        pr = _gh_api(
+            "POST",
+            f"/repos/{owner}/{repo}/pulls",
+            token=token,
+            body={"title": title, "head": branch, "base": "main", "body": body, "draft": draft},
+        )
+        return pr["html_url"]
+    except urllib.error.HTTPError as exc:
+        if exc.code != 422:  # 422 == a PR already exists for this head (re-run on same rev)
+            raise
+        existing = _gh_api("GET", f"/repos/{owner}/{repo}/pulls?head={owner}:{branch}&state=open", token=token)
+        if existing:
+            print("[pr] a PR already exists for this branch; the commit was updated on it.")
+            return existing[0]["html_url"]
+        raise
 
 
 def open_pr_or_fallback(
@@ -651,6 +685,19 @@ def main() -> int:
     parser.add_argument("--skip-python", action="store_true", help="cargo-only validation")
     parser.add_argument("--no-push", dest="push", action="store_false", help="commit but do not push/PR")
     parser.add_argument("--max-repair-iterations", type=int, default=3)
+    parser.add_argument(
+        "--min-commits",
+        type=int,
+        default=int(os.environ.get("LIBDATADOG_MIN_DRIFT", "5")),
+        help="only proceed when libdatadog main is at least this many commits ahead of the pin "
+        "(default 5 or $LIBDATADOG_MIN_DRIFT). --target-rev bypasses the gate.",
+    )
+    parser.add_argument(
+        "--check-drift",
+        action="store_true",
+        help="only evaluate the drift gate: exit 0 to proceed, 100 to skip. Lets CI avoid "
+        "expensive setup on no-op runs.",
+    )
     args = parser.parse_args()
 
     artifacts = Path(os.environ.get("ARTIFACTS_DIR", REPO_ROOT / "libdatadog-update"))
@@ -662,8 +709,28 @@ def main() -> int:
     print(f"\nTarget rev : {target_rev}")
     print(f"Current pin: {', '.join(sorted(pinned)) or '(none found)'}")
 
-    if pinned == {target_rev}:
-        print("Already pinned to target — nothing to do.")
+    already_current = pinned == {target_rev}
+
+    # Drift gate — proceed only when libdatadog main is far enough ahead of the
+    # pin (configurable; --target-rev forces a bump regardless).
+    behind = None if already_current else (libdatadog_commits_behind(sorted(pinned)[0]) if pinned else None)
+    if behind is not None:
+        print(f"Drift      : {behind} commit(s) behind libdatadog main (threshold {args.min_commits})")
+    if args.target_rev:
+        proceed = not already_current
+    else:
+        # If drift is unknown (API error), proceed rather than silently miss updates.
+        proceed = (not already_current) and (behind is None or behind >= args.min_commits)
+
+    if args.check_drift:
+        print("Decision   :", "proceed" if proceed else "skip")
+        return 0 if proceed else 100
+
+    if not proceed:
+        reason = (
+            "already pinned to target" if already_current else f"only {behind} commit(s) behind (< {args.min_commits})"
+        )
+        print(f"Nothing to do — {reason}.")
         return 0
 
     # Phase 2 -------------------------------------------------------------- #

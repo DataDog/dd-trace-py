@@ -22,8 +22,11 @@ include:
   needs: []
   interruptible: false
   rules:
-    # Auto-run when an upstream pipeline triggers us; otherwise a manual button.
+    # Runs automatically on every main commit and on upstream triggers; the script's
+    # drift gate decides whether to actually proceed (default: >= 5 commits behind
+    # libdatadog main). No allow_failure: a non-convergent repair fails the job red.
     - if: '$UPDATE_LIBDATADOG_VERSION == "true"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: manual
       allow_failure: true
   id_tokens:
@@ -31,12 +34,25 @@ include:
       aud: dd-octo-sts
   variables:
     ARTIFACTS_DIR: "${CI_PROJECT_DIR}/libdatadog-update"
+    # Commits of libdatadog drift required before a bump proceeds. Configurable;
+    # an upstream trigger can set 0 to force a bump regardless of drift.
+    LIBDATADOG_MIN_DRIFT: "5"
     # The PR commit is created server-side via the GitHub API (see the script),
     # so GitHub attributes it to the dd-octo-sts bot and signs it ("Verified") —
     # no local git author/committer, push remote, or token-in-URL needed.
   before_script:
     - !reference [.testrunner, before_script]
   script:
+    # Cheap drift gate FIRST, before any expensive setup: only proceed when
+    # libdatadog main is >= LIBDATADOG_MIN_DRIFT commits ahead of our pin.
+    # Exit 100 (from --check-drift) means "skip" -> finish the job green as a no-op.
+    - |
+      set +e
+      scripts/update-libdatadog.py --check-drift
+      rc=$?
+      set -e
+      if [ "$rc" -eq 100 ]; then echo "Below drift threshold — nothing to do."; exit 0; fi
+      if [ "$rc" -ne 0 ]; then echo "Drift check errored (rc=$rc)"; exit "$rc"; fi
     # Download authanywhere + install Node LTS and the Claude CLI (for the repair
     # loop). Slow steps first so the short-lived AI token is minted last.
     # auth artifacts live in $HOME (OUTSIDE the repo working tree) so they can
