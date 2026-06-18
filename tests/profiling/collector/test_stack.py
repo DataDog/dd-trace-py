@@ -1244,10 +1244,7 @@ def test_span_id_in_profile_after_fork() -> None:
 
 
 # --- off-cpu-time tests ---
-# The off-cpu-time sample type uses DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS in the pprof
-# profile, which maps to the string "experimental-nanoseconds". If this string is wrong the tests
-# will fail with an assertion on _available_sample_types(); fix by printing profile.string_table
-# to find the correct name.
+# Uses DDOG_PROF_SAMPLE_TYPE_OFF_CPU_TIME, which maps to the pprof string "off-cpu-time".
 _OFF_CPU_TYPE = "off-cpu-time"
 
 
