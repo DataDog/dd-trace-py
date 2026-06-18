@@ -1245,11 +1245,12 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
 {
     module_state* state = (module_state*)PyModule_GetState(module);
 
-    // Stop and join all running or pending periodic threads. We snapshot first
-    // to avoid mutation during iteration (threads remove themselves when they
-    // stop or finish a pending child restart).
+    // Stop and join all running or pending periodic threads. Snapshot pending
+    // first so a child-restarted worker that registers while we are snapshotting
+    // cannot move from pending into periodic_threads between the two snapshots
+    // and be missed by both.
     if (state != nullptr && state->periodic_threads != NULL) {
-        PyObject* threads = PyDict_Values(state->periodic_threads);
+        PyObject* threads = PyList_New(0);
         if (threads != NULL) {
             if (state->pending_periodic_threads != NULL) {
                 std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
@@ -1261,6 +1262,21 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
                         break;
                     }
                 }
+            }
+
+            PyObject* active_threads = PyDict_Values(state->periodic_threads);
+            if (active_threads != NULL) {
+                Py_ssize_t active_n = PyList_Size(active_threads);
+                for (Py_ssize_t i = 0; i < active_n; i++) {
+                    PyObject* thread = PyList_GET_ITEM(active_threads, i); // Borrowed reference.
+                    if (PyList_Append(threads, thread) < 0) {
+                        PyErr_Clear();
+                        break;
+                    }
+                }
+                Py_DECREF(active_threads);
+            } else {
+                PyErr_Clear();
             }
 
             Py_ssize_t n = PyList_Size(threads);
