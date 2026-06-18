@@ -241,20 +241,20 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    // Off-CPU approximation.  Only emit when CPU time was actually measured
-    // (has_cpu_time distinguishes "measured 0" from "unavailable").
-    if (thread_state.has_cpu_time) {
-        int64_t off_cpu_ns;
-        if (thread_state.task_on_cpu) {
-            // wall - cpu, clamped to 0 for clock skew between the two measurement clocks.
-            off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
-                           ? thread_state.wall_time_ns - thread_state.cpu_time_ns
-                           : 0;
-        } else {
-            // Suspended task: was off-CPU for the full sampling interval.
-            off_cpu_ns = thread_state.wall_time_ns;
+    // Off-CPU approximation.
+    if (thread_state.task_on_cpu) {
+        // On-CPU thread: off-cpu ≈ wall - cpu.  Only emit when CPU time was actually measured
+        // (has_cpu_time distinguishes "measured 0" from "unavailable on this platform").
+        if (thread_state.has_cpu_time) {
+            const int64_t off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
+                                         ? thread_state.wall_time_ns - thread_state.cpu_time_ns
+                                         : 0; // clamp to 0 for clock skew between the two clocks
+            sample->push_offcputime(off_cpu_ns, 1);
         }
-        sample->push_offcputime(off_cpu_ns, 1);
+    } else {
+        // Suspended task (asyncio/greenlet not currently scheduled): was off-CPU for the full
+        // sampling interval.  This is exact — no CPU time measurement required.
+        sample->push_offcputime(thread_state.wall_time_ns, 1);
     }
 
     sample->flush_sample();
