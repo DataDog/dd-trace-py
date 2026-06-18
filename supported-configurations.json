@@ -6028,10 +6028,38 @@
         ]
       }
     ],
+    "DD_PYTORCH_CAPTURE_GRAD_NORM": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_PYTORCH_CAPTURE_LOSS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PYTORCH_JOB_ID": [
       {
         "implementation": "A",
         "type": "string",
+        "default": null
+      }
+    ],
+    "DD_PYTORCH_MFU_PEAK_TFLOPS": [
+      {
+        "implementation": "A",
+        "type": "float",
+        "default": null
+      }
+    ],
+    "DD_PYTORCH_STEP_BOUNDARY_THRESHOLD_MS": [
+      {
+        "implementation": "A",
+        "type": "float",
         "default": null
       }
     ],

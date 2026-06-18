@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    pytorch: Adds a C-tracer init bundle bridge that publishes torch /
+    cuDNN / NCCL invariants and model parameter counts to the in-process
+    dd-trace-c tracer at patch time, plus an LR-scheduler ``step()``
+    wrapper that republishes ``optim.current_learning_rate`` so GPU-side
+    spans carry the current learning rate. Adds ``set_model()`` to
+    refresh the bundle when DDP / FSDP / DeepSpeed wraps the user model,
+    centralizes the inner-model unwrap for those three frameworks, and
+    exposes ``DD_PYTORCH_MFU_PEAK_TFLOPS`` and
+    ``DD_PYTORCH_STEP_BOUNDARY_THRESHOLD_MS`` for tuning step-profiling
+    detection.

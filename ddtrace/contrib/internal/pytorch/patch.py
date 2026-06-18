@@ -32,8 +32,10 @@ def patch() -> None:
     # Imported inside patch() so the module-level import of `_distributed`
     # doesn't pull in `torch.distributed.*` symbols at module import time.
     from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _scheduler_bridge
 
     _distributed.install()
+    _scheduler_bridge.install()
 
 
 def unpatch() -> None:
@@ -41,5 +43,7 @@ def unpatch() -> None:
         return
     torch._datadog_patch = False
     from ddtrace.contrib.internal.pytorch import _distributed
+    from ddtrace.contrib.internal.pytorch import _scheduler_bridge
 
     _distributed.uninstall()
+    _scheduler_bridge.uninstall()

@@ -70,6 +70,31 @@ def _load() -> bool:
     except AttributeError:
         pass
 
+    # Counters fed by Python wrappers (AMP scaler, clip_grad_norm_,
+    # MoE dropped-tokens). Each entry is independent — missing one
+    # symbol just disables that channel.
+    try:
+        fn5 = lib.dd_training_record_amp_skipped
+        fn5.restype = None
+        fn5.argtypes = []
+        _amp_skipped_fn = fn5
+    except AttributeError:
+        pass
+    try:
+        fn6 = lib.dd_training_record_dropped_tokens
+        fn6.restype = None
+        fn6.argtypes = [ctypes.c_uint64]
+        _dropped_tokens_fn = fn6
+    except AttributeError:
+        pass
+    try:
+        fn7 = lib.dd_training_record_grad_clip_ns
+        fn7.restype = None
+        fn7.argtypes = [ctypes.c_uint64]
+        _grad_clip_ns_fn = fn7
+    except AttributeError:
+        pass
+
     _lib = lib
     return True
 
@@ -100,6 +125,23 @@ def set_parent_context(span: Any, open_kwargs: dict[str, Any]) -> None:
             "framework": str(open_kwargs.get("framework") or "none"),
             "service": str(getattr(span, "service", None) or ""),
         }
+        # Merge any extra stringifiable keys (from _c_bridge.build_init_bundle).
+        # Skip the raw nn.Module under "model" and any private (_-prefixed) kwargs.
+        for k, v in open_kwargs.items():
+            if k in tags or k.startswith("_") or k == "model":
+                continue
+            try:
+                sv = str(v) if v is not None else ""
+            except Exception:
+                continue
+            if sv and len(k) < 64 and len(sv) < 256:
+                tags[k] = sv
+
+        # Hard cap at 64 — C bridge silently truncates, but enforce here so
+        # the bundle's contents stay deterministic.
+        if len(tags) > 64:
+            tags = dict(list(tags.items())[:64])
+
         keys_enc = [k.encode() for k in tags]
         vals_enc = [v.encode() for v in tags.values()]
         ArrType = ctypes.c_char_p * len(tags)
@@ -146,3 +188,33 @@ def step_end() -> None:
         _step_end_fn()
     except Exception:
         log.debug("pytorch: dd_training_step_end failed", exc_info=True)
+
+
+def record_amp_skipped() -> None:
+    """Bump the AMP grad-scaler skipped-step counter. No-op when absent."""
+    if not _load() or _amp_skipped_fn is None:
+        return
+    try:
+        _amp_skipped_fn()
+    except Exception:
+        log.debug("pytorch: dd_training_record_amp_skipped failed", exc_info=True)
+
+
+def record_dropped_tokens(n: int) -> None:
+    """Record one MoE dropped-token observation."""
+    if not _load() or _dropped_tokens_fn is None:
+        return
+    try:
+        _dropped_tokens_fn(ctypes.c_uint64(int(n)))
+    except Exception:
+        log.debug("pytorch: dd_training_record_dropped_tokens failed", exc_info=True)
+
+
+def record_grad_clip_ns(ns: int) -> None:
+    """Record one clip_grad_norm_ wall-time observation."""
+    if not _load() or _grad_clip_ns_fn is None:
+        return
+    try:
+        _grad_clip_ns_fn(ctypes.c_uint64(int(ns)))
+    except Exception:
+        log.debug("pytorch: dd_training_record_grad_clip_ns failed", exc_info=True)
