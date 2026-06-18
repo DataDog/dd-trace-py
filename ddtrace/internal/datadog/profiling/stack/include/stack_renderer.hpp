@@ -60,6 +60,8 @@ struct ThreadState
     int64_t now_time_ns = 0;
     bool has_cpu_time = false;
     bool task_on_cpu = true;
+    // Leaf frame name (first frame rendered), used to classify off-CPU cause.
+    std::string top_frame_name;
 };
 
 class StackRenderer

@@ -45,6 +45,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.cpu_time_ns = 0;
     thread_state.has_cpu_time = false;
     thread_state.task_on_cpu = true;
+    thread_state.top_frame_name.clear();
 
     // Finalize the thread information we have
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
@@ -101,6 +102,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
 
     sample->push_task_name(task_name);
     thread_state.task_on_cpu = on_cpu;
+    thread_state.top_frame_name.clear();
 }
 
 void
@@ -120,6 +122,13 @@ StackRenderer::render_frame(Frame& frame)
     static constexpr std::string_view missing_name = "<unknown function>";
 
     const auto& string_table = Sampler::get().get_echion().string_table();
+
+    if (thread_state.top_frame_name.empty()) {
+        auto maybe_top_name = string_table.lookup(frame.name);
+        if (maybe_top_name) {
+            thread_state.top_frame_name = std::string(maybe_top_name->get());
+        }
+    }
 
     auto line = frame.line;
 
@@ -188,6 +197,10 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
         return;
     }
 
+    if (thread_state.top_frame_name.empty()) {
+        thread_state.top_frame_name = name;
+    }
+
     auto maybe_name_id = Datadog::intern_string(name);
     if (!maybe_name_id) {
         return;
@@ -233,6 +246,24 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
     sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 
+// Classify the off-CPU cause from the leaf Python or native frame name.
+// Matches Python-level blocking patterns only; OS-level causes (preemption,
+// page faults) are indistinguishable here and fall through to "other".
+static std::string_view
+classify_offcpu_cause(std::string_view frame_name)
+{
+    if (frame_name.find("sleep") != std::string_view::npos) {
+        return "sleep";
+    }
+    if (frame_name.find("acquire") != std::string_view::npos || frame_name.find("wait") != std::string_view::npos) {
+        return "lock";
+    }
+    if (frame_name.find("recv") != std::string_view::npos || frame_name.find("send") != std::string_view::npos) {
+        return "io";
+    }
+    return "other";
+}
+
 void
 StackRenderer::render_stack_end()
 {
@@ -249,12 +280,16 @@ StackRenderer::render_stack_end()
             const int64_t off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
                                          ? thread_state.wall_time_ns - thread_state.cpu_time_ns
                                          : 0; // clamp to 0 for clock skew between the two clocks
-            sample->push_offcputime(off_cpu_ns, 1);
+            if (sample->push_offcputime(off_cpu_ns, 1) && off_cpu_ns > 0) {
+                sample->push_label(ExportLabelKey::off_cpu_cause, classify_offcpu_cause(thread_state.top_frame_name));
+            }
         }
     } else {
         // Suspended task (asyncio/greenlet not currently scheduled): was off-CPU for the full
         // sampling interval.  This is exact — no CPU time measurement required.
-        sample->push_offcputime(thread_state.wall_time_ns, 1);
+        if (sample->push_offcputime(thread_state.wall_time_ns, 1)) {
+            sample->push_label(ExportLabelKey::off_cpu_cause, classify_offcpu_cause(thread_state.top_frame_name));
+        }
     }
 
     sample->flush_sample();
