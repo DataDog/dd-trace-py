@@ -3719,7 +3719,7 @@
             },
             "3.11": {
                 "minimum_package_version": "1.0.0",
-                "maximum_package_version": "2.3.0",
+                "maximum_package_version": "2.2.0",
                 "tested_versions": [
                     "1.0.0",
                     "1.30.1",

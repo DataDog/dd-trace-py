@@ -14,7 +14,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(PROJECT_ROOT))
 
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: E402
-from pypi_python_support import compatible_python_versions  # noqa: E402
 
 
 CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
@@ -172,15 +171,6 @@ def _python_sort_key(python_version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in python_version.split("."))
 
 
-def _is_python_version_in_tested_range(python_version: str, tested_python_versions: set[str]) -> bool:
-    sorted_tested_versions = sorted(tested_python_versions, key=_python_sort_key)
-    return (
-        _python_sort_key(sorted_tested_versions[0])
-        <= _python_sort_key(python_version)
-        <= _python_sort_key(sorted_tested_versions[-1])
-    )
-
-
 def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
     packages = get_dependency_names(suite_name) or [suite_name]
     venv_packages = {package.lower(): version for package, version in venv.pkgs.items()}
@@ -218,53 +208,31 @@ def get_pinned_integrations(integration_names: set[str]) -> set[str]:
 
 
 def build_python_versions(
-    dependency_name: str,
     tested_versions: set[TestedVersion],
-    candidate_python_versions: tuple[str, ...],
 ) -> dict[str, dict[str, object]]:
     tested_by_python: dict[str, set[str]] = defaultdict(set)
-    supported_by_python: dict[str, set[str]] = defaultdict(set)
 
     for tested_version in tested_versions:
         tested_by_python[tested_version.python_version].add(tested_version.version)
 
-    for version in {tested_version.version for tested_version in tested_versions}:
-        version_tested_python_versions = {
-            tested_version.python_version for tested_version in tested_versions if tested_version.version == version
-        }
-        if version == "":
-            compatible_versions = set(version_tested_python_versions)
-        else:
-            compatible_versions = {
-                python_version
-                for python_version in compatible_python_versions(dependency_name, version, candidate_python_versions)
-                if _is_python_version_in_tested_range(python_version, version_tested_python_versions)
-            }
-            compatible_versions.update(
-                python_version for python_version, versions in tested_by_python.items() if version in versions
-            )
-
-        for python_version in compatible_versions:
-            supported_by_python[python_version].add(version)
-
     python_versions = {}
-    for python_version in sorted(supported_by_python, key=_python_sort_key):
-        supported_versions = sorted(supported_by_python[python_version], key=_version_sort_key)
+    for python_version in sorted(tested_by_python, key=_python_sort_key):
+        tested_python_versions = tested_by_python[python_version]
+        supported_versions = sorted(tested_python_versions, key=_version_sort_key)
         python_versions[python_version] = {
             "minimum_package_version": supported_versions[0],
             "maximum_package_version": supported_versions[-1],
-            "tested_versions": sorted(tested_by_python.get(python_version, set()), key=_version_sort_key),
+            "tested_versions": supported_versions,
         }
 
     return python_versions
 
 
-def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]], python_versions: set[str]):
+def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]]):
     """Build the JSON payload for supported_versions.json."""
     entries = []
     integration_names = set(get_integration_names())
     pinned_integrations = get_pinned_integrations(integration_names)
-    candidate_python_versions = tuple(sorted(python_versions, key=_python_sort_key))
 
     for integration_name in sorted(integration_names):
         if integration_name == "__pycache__":
@@ -289,9 +257,7 @@ def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[Tested
                     "integration": integration_name,
                     "auto-instrumented": is_auto_instrumented_package(integration_name),
                     "python_versions": build_python_versions(
-                        dependency_name,
                         tested_versions,
-                        candidate_python_versions,
                     ),
                 }
             )
@@ -306,10 +272,8 @@ def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[Tested
 
 def main() -> None:
     """Generate supported_versions.json from riot requirement lock files."""
-    tested_versions_per_integration, python_versions = collect_tested_versions()
-    SUPPORTED_VERSIONS_PATH.write_text(
-        json.dumps(to_json_data(tested_versions_per_integration, python_versions), indent=4) + "\n"
-    )
+    tested_versions_per_integration, _ = collect_tested_versions()
+    SUPPORTED_VERSIONS_PATH.write_text(json.dumps(to_json_data(tested_versions_per_integration), indent=4) + "\n")
 
 
 if __name__ == "__main__":

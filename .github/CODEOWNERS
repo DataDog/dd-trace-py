@@ -335,4 +335,3 @@ docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-
 supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/integration_registry/pypi_python_support.py          @DataDog/apm-core-python @DataDog/apm-idm-python
