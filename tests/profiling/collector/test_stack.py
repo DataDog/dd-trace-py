@@ -1244,21 +1244,29 @@ def test_span_id_in_profile_after_fork() -> None:
 
 
 # --- off-cpu-time tests ---
-# The off-cpu-time sample type uses DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS in the pprof
-# profile, which maps to the string "experimental-nanoseconds". If this string is wrong the tests
-# will fail with an assertion on _available_sample_types(); fix by printing profile.string_table
-# to find the correct name.
-_OFF_CPU_TYPE = "off-cpu-time"
+# Use subprocess isolation: ddup config (including the OffCPU sample type bit) persists for the
+# entire process lifetime via std::call_once in ProfilerState::start(). Without subprocess
+# isolation, an earlier test's ddup.start() call would initialize the profile without OffCPU,
+# preventing offcpu_time_enabled=True from taking effect in later tests.
 
 
-def _available_sample_types(profile) -> list[str]:
-    return [profile.string_table[st.type] for st in profile.sample_type]
-
-
-def test_off_cpu_time_sleeping_thread(tmp_path: Path) -> None:
+# Use subprocess as ddup config persists across tests.
+@pytest.mark.subprocess
+def test_off_cpu_time_sleeping_thread() -> None:
     """A thread that sleeps should accumulate off-cpu-time ≈ wall-time and cpu-time ≈ 0."""
+    import _thread
+    import os
+    import time
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
     test_name = "test_off_cpu_time_sleeping_thread"
-    pprof_prefix = str(tmp_path / test_name)
+    pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
@@ -1275,10 +1283,11 @@ def test_off_cpu_time_sleeping_thread(tmp_path: Path) -> None:
 
     ddup.upload()
 
+    _OFF_CPU_TYPE = "off-cpu-time"
+
     profile = pprof_utils.parse_newest_profile(output_filename)
-    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
-        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
-    )
+    available = [profile.string_table[st.type] for st in profile.sample_type]
+    assert _OFF_CPU_TYPE in available, f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {available}"
 
     off_cpu_samples = pprof_utils.get_samples_with_value_type(profile, _OFF_CPU_TYPE)
     if len(off_cpu_samples) == 0:
@@ -1302,10 +1311,22 @@ def test_off_cpu_time_sleeping_thread(tmp_path: Path) -> None:
     )
 
 
-def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
+# Use subprocess as ddup config persists across tests.
+@pytest.mark.subprocess
+def test_off_cpu_lower_for_cpu_bound_thread() -> None:
     """A CPU-bound thread should have much lower off-cpu-time than a sleeping thread."""
+    import os
+    import threading
+    import time
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
     test_name = "test_off_cpu_lower_for_cpu_bound_thread"
-    pprof_prefix = str(tmp_path / test_name)
+    pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
@@ -1339,10 +1360,11 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
 
     ddup.upload()
 
+    _OFF_CPU_TYPE = "off-cpu-time"
+
     profile = pprof_utils.parse_newest_profile(output_filename)
-    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
-        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
-    )
+    available = [profile.string_table[st.type] for st in profile.sample_type]
+    assert _OFF_CPU_TYPE in available, f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {available}"
 
     off_cpu_idx = pprof_utils.get_sample_type_index(profile, _OFF_CPU_TYPE)
     cpu_time_idx = pprof_utils.get_sample_type_index(profile, "cpu-time")
