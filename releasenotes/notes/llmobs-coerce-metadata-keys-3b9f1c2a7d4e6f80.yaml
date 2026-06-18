@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where spans annotated with ``metadata`` containing
+    non-string keys (e.g. ``int``/``float``/``bool``) could be dropped during ingestion.
+    Metadata keys are now stringified before encoding.
