@@ -257,6 +257,9 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
+    /* This cap bounds memory use but creates blind spots: once allocs_m is full,
+     * new allocations are not sampled. cap_drops tracks how often this happens
+     * so we can observe whether the limit is ever reached in practice. */
     if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
         ++cap_drops;
         reset_sampling_state_no_cpython();
@@ -294,7 +297,6 @@ heap_tracker_t::export_heap_no_cpython()
 
     auto& stats = Datadog::Sample::profile_borrow().stats();
     stats.set_heap_tracker_size(allocs_m.size());
-    stats.set_heap_tracker_cap(TRACEBACK_ARRAY_MAX_COUNT);
     stats.set_heap_tracker_cap_drops(cap_drops);
 }
 

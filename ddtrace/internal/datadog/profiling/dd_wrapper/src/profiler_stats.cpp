@@ -47,7 +47,6 @@ Datadog::ProfilerStats::reset_state()
     string_table_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
-    heap_tracker_cap = std::nullopt;
     heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
@@ -113,18 +112,6 @@ std::optional<size_t>
 Datadog::ProfilerStats::get_heap_tracker_size() const
 {
     return heap_tracker_size;
-}
-
-void
-Datadog::ProfilerStats::set_heap_tracker_cap(size_t cap)
-{
-    heap_tracker_cap = cap;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_heap_tracker_cap() const
-{
-    return heap_tracker_cap;
 }
 
 void
@@ -216,13 +203,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_heap_tracker_count) {
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
-        internal_metadata_json += ",";
-    }
-
-    auto maybe_heap_cap = get_heap_tracker_cap();
-    if (maybe_heap_cap) {
-        internal_metadata_json += R"("heap_tracker_cap": )";
-        append_to_string(internal_metadata_json, *maybe_heap_cap);
         internal_metadata_json += ",";
     }
 
