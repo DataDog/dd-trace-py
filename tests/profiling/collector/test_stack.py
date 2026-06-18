@@ -1248,7 +1248,7 @@ def test_span_id_in_profile_after_fork() -> None:
 # profile, which maps to the string "experimental-nanoseconds". If this string is wrong the tests
 # will fail with an assertion on _available_sample_types(); fix by printing profile.string_table
 # to find the correct name.
-_OFF_CPU_TYPE = "experimental-nanoseconds"
+_OFF_CPU_TYPE = "off-cpu-time"
 
 
 def _available_sample_types(profile) -> list[str]:

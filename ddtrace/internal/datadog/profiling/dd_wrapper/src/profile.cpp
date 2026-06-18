@@ -131,8 +131,8 @@ Datadog::Profile::setup_samplers()
         val_idx.gpu_flops_samples = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS_SAMPLES);
     }
     if (0U != (type_mask & SampleType::OffCPU)) {
-        val_idx.off_cpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS);
-        val_idx.off_cpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_COUNT);
+        val_idx.off_cpu_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_OFF_CPU_TIME);
+        val_idx.off_cpu_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_OFF_CPU_SAMPLES);
     }
 
     // Whatever the first sampler happens to be is the default "period" for the profile

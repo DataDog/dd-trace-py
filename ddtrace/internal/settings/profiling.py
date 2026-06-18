@@ -398,11 +398,7 @@ class ProfilingConfigStack(DDConfig):
         "offcpu_time_enabled",
         default=False,
         help_type="Boolean",
-        help=(
-            "Whether to enable the off-CPU time approximation sample type in the stack profiler. "
-            "For running threads, off-CPU time is approximated as max(0, wall_time - cpu_time). "
-            "For suspended async tasks and greenlets, off-CPU time equals wall_time."
-        ),
+        help=("Whether to enable the off-CPU time approximation sample type in the stack profiler."),
         private=True,
     )
 
