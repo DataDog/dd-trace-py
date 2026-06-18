@@ -257,26 +257,41 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
             # consume returns a list of messages,
-            _instrument_message(result, pin, start_ns, instance, err)
+            _instrument_message(result, pin, start_ns, instance, err, is_batch=True)
         elif config.kafka.trace_empty_poll_enabled:
             _instrument_message([None], pin, start_ns, instance, err)
 
     return result
 
 
-def _instrument_message(messages, pin, start_ns, instance, err):
+def _instrument_message(messages, pin, start_ns, instance, err, is_batch=False):
     ctx = None
-    # First message is used to extract context and enrich datadog spans
-    # This approach aligns with the opentelemetry confluent kafka semantics
+    links = []
     first_message = messages[0] if len(messages) else None
-    if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
-        ctx = Propagator.extract(dict(first_message.headers()))
+    if config.kafka.distributed_tracing_enabled:
+        if is_batch:
+            # A batched consume() fans in records that may originate from distinct producer
+            # traces. Rather than parenting the consume span to an arbitrary first message
+            # (which pollutes that one producer's trace and orphans the rest), link every
+            # record's producer context so each is related to the consume span symmetrically.
+            # This mirrors the aiokafka getmany behavior.
+            for message in messages:
+                if message is None or not message.headers():
+                    continue
+                link_ctx = Propagator.extract(dict(message.headers()))
+                if link_ctx is not None and link_ctx.trace_id is not None:
+                    links.append(link_ctx)
+        elif first_message is not None and first_message.headers():
+            # A single-message poll() continues the producer's trace, as before.
+            ctx = Propagator.extract(dict(first_message.headers()))
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         span_type=SpanTypes.WORKER,
         child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
         activate=True,
     ) as span:
+        for link_ctx in links:
+            span.link_span(link_ctx)
         set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns

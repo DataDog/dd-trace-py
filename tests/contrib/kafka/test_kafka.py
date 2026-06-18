@@ -211,6 +211,39 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
+def test_consume_batch_links_all_producer_traces(kafka_tracer, producer, consumer, kafka_topic, test_spans):
+    # A batched consume() must not continue any single producer's trace. Instead it links
+    # every producer in the batch, so no source record is privileged and no producer trace
+    # is polluted by the consume span's children.
+    with override_config("kafka", dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False)):
+        # Each produce() runs without an active span, so each message carries its own
+        # distinct producer trace context in its headers.
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        messages = consumer.consume(num_messages=2, timeout=10)
+        assert len(messages) == 2
+
+    traces = test_spans.pop_traces()
+    produce_spans = [span for trace in traces for span in trace if span.name == "kafka.produce"]
+    consume_spans = [span for trace in traces for span in trace if span.name == "kafka.consume"]
+    assert len(produce_spans) == 2
+    assert len(consume_spans) == 1
+    consume_span = consume_spans[0]
+
+    producer_trace_ids = {span.trace_id for span in produce_spans}
+    producer_span_ids = {span.span_id for span in produce_spans}
+
+    # The consume span is its own root: it does not join any single producer's trace.
+    assert consume_span.parent_id not in producer_span_ids
+    assert consume_span.trace_id not in producer_trace_ids
+
+    # It links to every producer trace in the batch.
+    linked = {(link.trace_id, link.span_id) for link in consume_span._get_links()}
+    for produce_span in produce_spans:
+        assert (produce_span.trace_id, produce_span.span_id) in linked
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 @pytest.mark.skip(reason="FIXME: This test requires the initialization of a new tracer. This is not supported")
