@@ -14,6 +14,12 @@ The aiobotocore integration is not enabled by default. Use
 Configuration
 ~~~~~~~~~~~~~
 
+Injection of distributed-tracing headers into outbound AWS requests is
+controlled by the shared botocore setting
+``ddtrace.config.botocore['distributed_tracing']`` (environment variable
+``DD_BOTOCORE_DISTRIBUTED_TRACING``, default ``True``), since aiobotocore
+signs requests through botocore.
+
 .. py:data:: ddtrace.config.aiobotocore['tag_no_params']
 
     This opts out of the default behavior of adding span tags for a narrow set of API parameters.

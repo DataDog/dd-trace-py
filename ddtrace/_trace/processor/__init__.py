@@ -416,8 +416,6 @@ class SpanAggregator(SpanProcessor):
             self.user_processors,
             [
                 self.sampling_processor,
-                # Runs after sampling_processor finalizes the root priority and before
-                # tags_processor mutates the span.
                 self.llmobs_processor,
                 self.tags_processor,
                 self.service_name_processor,

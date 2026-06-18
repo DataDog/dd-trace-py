@@ -108,6 +108,34 @@ def test_normalize_route_param_name_with_reserved_char_is_url_encoded():
         # Static-constant URL-encoding (rule 3).
         ("path with space", "/path%20with%20space"),
         ("safe.-~_", "/safe.-~_"),
+        # re_path() with multi-params in a single segment: RFC-1103 rule 5 combining via `+`.
+        # Character classes ([^/-]+, [^/]+) inside named groups are parsed transparently.
+        (
+            r"^api_security/multi-params-in-segment/(?P<id>[^/-]+)-(?P<format>[^/]+)$",
+            "/api_security/multi-params-in-segment/{id+format}",
+        ),
+        (
+            r"^api_security/optional-params/(?P<id>[^/-]+)-(?P<format>[^/]+)$",
+            "/api_security/optional-params/{id+format}",
+        ),
+        # re_path() single named group with a character class body — existing behaviour preserved.
+        (r"^api_security/params/(?P<id>[^/]+)$", "/api_security/params/{id}"),
+        # Splitting resumes after the char class; segments on both sides are emitted.
+        (r"^items/(?P<id>[^/]+)/detail$", "/items/{id}/detail"),
+        # \/ is a literal slash — same as an unescaped / for splitting purposes.
+        (r"^foo\/bar$", "/foo/bar"),
+        # /?-terminated route with a char class inside the param group.
+        (r"^api/(?P<id>[^/-]+)-(?P<fmt>[^/]+)/?$", "/api/{id+fmt}"),
+        # Named group whose body matches slashes: kept as one segment, emits a single {param}.
+        (r"^foo/(?P<x>[^/]+/[^/]+)/bar$", "/foo/{x}/bar"),
+        # \/ inside a char class within a named group — handled transparently.
+        (r"^foo/(?P<x>[^\/]+)/bar$", "/foo/{x}/bar"),
+        # \\ (escaped backslash) before a separator slash — backslash ends up URL-encoded.
+        (r"^foo\\/bar$", "/foo%5C/bar"),
+        # Structural \/ positions: leading, trailing, and optional-trailing.
+        (r"^\/foo$", "/foo"),
+        (r"^foo\/$", "/foo/"),
+        (r"^foo\/?$", "/foo"),
     ],
 )
 def test_normalize_route_django_happy_path(route, expected):
@@ -127,8 +155,10 @@ def test_normalize_route_django_happy_path(route, expected):
         "files/<path:tail>extra",
         # Unnamed regex group — we don't guess a placeholder, omit the tag.
         "asm/(?:nogrp)",
-        # Bare character class outside a named group — same rationale.
+        # Bare character class outside a named group — ambiguous to normalize.
         "[abc]",
+        # re_path with a top-level char class segment (not inside a group).
+        r"^[^/]+/resource$",
         # Malformed path() converter.
         "asm/<unterminated",
         # Reserved Django converter syntax: empty name.
