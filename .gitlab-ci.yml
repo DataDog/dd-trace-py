@@ -77,8 +77,17 @@ include:
       push_to_test_optimization: true
       libraries: python
       scenarios_groups: tracer_release
+      # Gate job (timing only): wait for at least one build linux to complete
+      # before triggering the child pipeline.
       binaries_artifact: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       binaries_artifact_path: "pywheels"
+      # Full set of wheels needed by each weblog's python version:
+      # flask-poc/django-poc/fastapi/uds-flask/uwsgi-poc → cp311
+      # python3.12 → cp312
+      # django-py3.13 → cp313
+      # tornado → cp314
+      binaries_artifacts: >-
+        build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]
 
 "pipeline variables":
   stage: .pre
