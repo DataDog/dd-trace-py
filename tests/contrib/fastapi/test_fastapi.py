@@ -462,6 +462,10 @@ def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
         assert request_span.get_tag("http.route") == "/v1/items/{item_id}"
 
 
+@pytest.mark.skipif(
+    parse_version(fastapi.__version__) < (0, 137),
+    reason="mounted sub-app resource name fix requires FastAPI >= 0.137",
+)
 def test_mounted_fastapi_resource_names(fastapi_tracer, test_spans):
     """Regression test: FastAPI >= 0.137 mounted inside a Starlette app preserves the mount prefix."""
     from fastapi import APIRouter
