@@ -41,6 +41,7 @@ extern "C"
 
     void ddup_config_user_tag(std::string_view key, std::string_view val);
     void ddup_config_sample_type(unsigned int type);
+    void ddup_set_profiler_settings_json(std::string_view settings_json);
 
     bool ddup_is_initialized();
     void ddup_start();
@@ -99,6 +100,10 @@ extern "C"
 
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+
+    // GC monitor controls
+    void ddup_start_gc_monitor(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled);
+    void ddup_stop_gc_monitor();
 #ifdef __cplusplus
 } // extern "C"
 #endif

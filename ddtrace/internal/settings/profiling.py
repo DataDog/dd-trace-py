@@ -469,6 +469,57 @@ class ProfilingConfigException(DDConfig):
     )
 
 
+class ProfilingConfigGC(DDConfig):
+    __item__ = __prefix__ = "gc"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable the GC reference-tree monitor",
+    )
+
+    interval_s = DDConfig.v(
+        int,
+        "interval",
+        default=60,
+        validator=_validate_positive_int,
+        help_type="Integer",
+        help="Interval in seconds between GC snapshots",
+    )
+
+    top_n = DDConfig.v(
+        int,
+        "top_n",
+        default=80,
+        validator=_validate_positive_int,
+        help_type="Integer",
+        help="Maximum number of leak suspects to include in the reference tree",
+    )
+
+    survivor_threshold = DDConfig.v(
+        int,
+        "survivor_threshold",
+        default=3,
+        validator=_validate_positive_int,
+        help_type="Integer",
+        help=("Number of consecutive GC snapshots an object must survive before it is considered a leak suspect"),
+    )
+
+    referrers_enabled = DDConfig.v(
+        bool,
+        "referrers",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to walk referrer chains (gc.get_referrers) to find GC roots for "
+            "leak suspects. Produces richer root category and fn fields but is expensive "
+            "on large heaps."
+        ),
+    )
+
+
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
@@ -476,6 +527,7 @@ ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
+ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
 
 config = ProfilingConfig()
 report_configuration(config)
