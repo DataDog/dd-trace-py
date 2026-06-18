@@ -774,5 +774,4 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             instance=None,
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
-            agent_index=0,
         )
