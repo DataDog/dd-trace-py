@@ -115,7 +115,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def _start_child_subscriber(self, reader) -> None:
         from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
-        self._subscriber = RemoteConfigSubscriber(reader, self._client.dispatch_native_changes, "RemoteConfigChild")
+        self._subscriber = RemoteConfigSubscriber(
+            reader,
+            self._client.dispatch_native_changes,
+            "RemoteConfigChild",
+            self._client.enabled_product_names,
+        )
         self._subscriber.start()
 
     def _stop_child_subscriber(self, join: bool = False) -> None:
