@@ -123,10 +123,14 @@ StackRenderer::render_frame(Frame& frame)
 
     const auto& string_table = Sampler::get().get_echion().string_table();
 
+    // For the leaf frame, capture the name for off-CPU cause classification.  Reuse the lookup
+    // result below to avoid a second string-table lookup on the same key.
+    std::optional<std::string_view> leaf_name_str;
     if (thread_state.top_frame_name.empty()) {
         auto maybe_top_name = string_table.lookup(frame.name);
         if (maybe_top_name) {
-            thread_state.top_frame_name = std::string(maybe_top_name->get());
+            leaf_name_str = maybe_top_name->get();
+            thread_state.top_frame_name = std::string(*leaf_name_str);
         }
     }
 
@@ -136,11 +140,11 @@ StackRenderer::render_frame(Frame& frame)
     auto maybe_name_id = string_id_cache.find(frame.name);
     if (maybe_name_id == string_id_cache.end()) {
         std::string_view name_str;
-        auto maybe_name_str = string_table.lookup(frame.name);
-        if (maybe_name_str) {
-            name_str = maybe_name_str->get();
+        if (leaf_name_str) {
+            name_str = *leaf_name_str; // reuse the lookup result from the top-frame capture above
         } else {
-            name_str = missing_name;
+            auto maybe_name_str = string_table.lookup(frame.name);
+            name_str = maybe_name_str ? maybe_name_str->get() : missing_name;
         }
 
         auto maybe_interned_name_id = Datadog::intern_string(name_str);

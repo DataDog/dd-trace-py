@@ -15,7 +15,7 @@ Writes a pprof profile, then prints:
 Usage:
     python scripts/demo_offcpu_approximation.py [--duration SECS]
 
-Requires: DD_PROFILING_STACK_V2_OFFCPU_TIME_ENABLED=true OR the script sets
+Requires: _DD_PROFILING_STACK_OFFCPU_TIME_ENABLED=true OR the script sets
 it internally via ddup.config(offcpu_time_enabled=True).
 """
 
