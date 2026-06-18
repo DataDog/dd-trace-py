@@ -257,7 +257,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
         )
     )
 
-    # EPHEMERAL ADDRESSES
+    # Non-persistent addresses: RASP addresses run in a subcontext; the others (extract-schema,
+    # login/payment business logic) run on the main context with rule_type=None.
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
     CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
     SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"
