@@ -505,9 +505,7 @@ ddwaf_subcontext_init = ctypes.CFUNCTYPE(ddwaf_subcontext, ddwaf_context)(
 
 
 def py_ddwaf_subcontext_init(ctx: ddwaf_context_capsule) -> ddwaf_subcontext_capsule:
-    # Pass the parent context capsule so the subcontext keeps it alive: ddwaf_subcontext_destroy
-    # requires the parent ddwaf_context to still exist, and capsule destruction is GC-ordered.
-    return ddwaf_subcontext_capsule(ddwaf_subcontext_init(ctx.ctx), ddwaf_subcontext_destroy, parent=ctx)
+    return ddwaf_subcontext_capsule(ddwaf_subcontext_init(ctx.ctx), ddwaf_subcontext_destroy)
 
 
 ddwaf_subcontext_eval = ctypes.CFUNCTYPE(

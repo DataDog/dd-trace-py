@@ -59,14 +59,12 @@ class ddwaf_context_capsule(Generic[T]):
 
 class ddwaf_subcontext_capsule(Generic[T]):
     # Subcontexts (libddwaf 2.0) evaluate non-persisting RASP data, inheriting the parent
-    # context's persistent data. Own lock to serialize eval/destroy on the same subcontext.
-    def __init__(self, subctx: type[T], free_fn: Callable[[type[T]], None], parent: Any = None) -> None:
+    # context's persistent data. In v2.0 a subcontext is independent of its parent context (the
+    # context may be destroyed first; shared objects are reference counted), so we don't need to
+    # keep a reference to the parent. Own lock to serialize eval/destroy on the same subcontext.
+    def __init__(self, subctx: type[T], free_fn: Callable[[type[T]], None]) -> None:
         self.subctx: Optional[type[T]] = subctx
         self.free_fn = free_fn
-        # Keep a strong reference to the parent context capsule: ddwaf_subcontext_destroy needs
-        # the parent ddwaf_context alive, and capsule __del__ order is GC-driven. Holding the
-        # parent here guarantees it outlives this subcontext capsule.
-        self._parent = parent
         self._lock: threading_Lock = threading_Lock()
 
     def __del__(self) -> None:
