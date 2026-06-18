@@ -77,7 +77,7 @@ include:
       push_to_test_optimization: true
       libraries: python
       scenarios_groups: tracer_release
-      binaries_artifact: "collect_wheels"
+      binaries_artifact: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       binaries_artifact_path: "pywheels"
 
 "pipeline variables":
