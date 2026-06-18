@@ -4,7 +4,7 @@
 # pipeline can be restored from git history.
 
 test:
-  image: ubuntu:24.04
+  image: registry.ddbuild.io/images/mirror/alpine:3.20
   tags: ["arch:amd64"]
   variables:
     SHOULD_FAIL: "false"
