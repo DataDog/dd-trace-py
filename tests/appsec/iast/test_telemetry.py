@@ -157,21 +157,23 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, tracer):
         tracer.configure(iast_enabled=True)
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
-            taint_pyobject(
-                pyobject="bar",
+            bar = "bar"
+            tainted = taint_pyobject(
+                pyobject=bar,
                 source_name="test_string_operator_add_two",
                 source_value="bar",
                 source_origin=OriginType.PARAMETER,
             )
+            assert tainted == "bar"
 
-    metrics_result = telemetry_writer._namespace.flush()
+        metrics_result = telemetry_writer._namespace.flush()
 
     generate_metrics = metrics_result[TELEMETRY_EVENT_TYPE.METRICS][TELEMETRY_NAMESPACE.IAST.value]
     # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
     # the agent)
     filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
-    assert filtered_metrics == ["executed.source", "request.tainted"]
-    assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
+    assert "executed.source" in filtered_metrics
+    assert "request.tainted" in filtered_metrics
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 

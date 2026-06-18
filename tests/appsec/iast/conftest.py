@@ -41,6 +41,7 @@ def no_request_sampling(tracer):
         {
             IAST.ENV_REQUEST_SAMPLING: "100",
             "DD_IAST_MAX_CONCURRENT_REQUEST": "100",
+            "DD_IAST_MAX_CONCURRENT_REQUESTS": "100",
         }
     ):
         oce.reconfigure()
