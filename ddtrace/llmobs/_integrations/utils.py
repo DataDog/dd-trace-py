@@ -335,13 +335,7 @@ def openai_set_meta_tags_from_completion(
 
 
 def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
-    """Build an LLMObs ``AudioPart`` from raw audio bytes or an already-encoded base64 string.
-
-    ``bytes`` are base64-encoded; a ``str`` is assumed to already be base64 and is passed through.
-    The returned part carries inline ``content`` (the backend offloads large content to an
-    attachment on its side). This is the shared primitive that provider integrations use to attach
-    audio to a message's ``audio_parts``.
-    """
+    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
     content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
     return AudioPart(mime_type=mime_type, content=content)
 

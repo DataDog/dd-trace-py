@@ -76,12 +76,11 @@ def _extract_audio_part(audio_part: dict[str, Any]) -> "AudioPart":
     if not isinstance(audio_part, dict):
         raise TypeError("Each audio_part must be a dictionary.")
 
-    # mime_type is required
     mime_type = audio_part.get("mime_type")
     if not mime_type or not isinstance(mime_type, str):
         raise TypeError("AudioPart mime_type must be a non-empty string.")
 
-    # exactly one of content (inline base64) / attachment_key (offloaded ref) is expected
+    # exactly one of content / attachment_key
     content = audio_part.get("content")
     attachment_key = audio_part.get("attachment_key")
     if content is None and attachment_key is None:

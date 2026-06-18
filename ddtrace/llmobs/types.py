@@ -43,12 +43,7 @@ class ToolDefinition(TypedDict, total=False):
 
 
 class AudioPart(TypedDict, total=False):
-    """A single audio segment attached to a Message.
-
-    The audio bytes live either inline as base64 (``content``) or out-of-band via the
-    attachment pipeline (``attachment_key``). The SDK only ever emits ``content``; the
-    backend offloads large inline content to an ``attachment_key`` on its side.
-    """
+    """An audio segment on a Message: inline base64 ``content`` or an offloaded ``attachment_key``."""
 
     mime_type: str
     content: str
