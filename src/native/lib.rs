@@ -7,6 +7,7 @@ mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
+mod ddwaf;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
@@ -72,6 +73,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add tracer_flare submodule
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
+
+    // Add libddwaf bindings submodule
+    m.add_wrapped(pyo3::wrap_pymodule!(ddwaf::ddwaf))?;
 
     Ok(())
 }

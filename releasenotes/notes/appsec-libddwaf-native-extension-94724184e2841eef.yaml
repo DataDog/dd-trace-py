@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    ASM: the libddwaf security library is now statically linked into the tracer's native extension
+    instead of being downloaded and shipped as a separate shared library. This is an internal change
+    with no effect on WAF behavior; the shared library previously bundled under
+    ``ddtrace/appsec/_ddwaf/libddwaf/`` is no longer part of the wheel.

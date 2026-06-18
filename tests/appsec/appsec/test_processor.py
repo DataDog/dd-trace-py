@@ -386,29 +386,22 @@ def test_ddwaf_not_raises_exception():
 
 @pytest.mark.subprocess(err="Disabling AppSec: libddwaf failed to load (mock libddwaf load failure)\n")
 def test_appsec_abort_on_waf_failure():
-    """Simulate a libddwaf loading error
+    """Simulate a libddwaf loading error.
 
     AppSecSpanProcessor enablement occurs in `load_appsec` with `override_global_config` and should abort
-    completely if an error is found in the bindings layer.
+    completely if an error is found in the bindings layer. libddwaf is now statically linked into the
+    native extension, so we simulate the failure by making the native ddwaf bindings raise on use.
     """
-    import ctypes
-
     import mock
 
     from ddtrace.internal.settings.asm import config as asm_config
     from tests.utils import override_global_config
 
-    original_cdll = ctypes.CDLL
-
-    ERROR_MESSAGE = "mock libddwaf load failure"
-
-    def _raise_on_libddwaf(path, *args, **kwargs):
-        if path == asm_config._asm_libddwaf:
-            raise OSError(ERROR_MESSAGE)
-        return original_cdll(path, *args, **kwargs)
-
     with (
-        mock.patch("ctypes.CDLL", side_effect=_raise_on_libddwaf),
+        mock.patch(
+            "ddtrace.internal.native._native.ddwaf.ddwaf_get_version",
+            side_effect=OSError("mock libddwaf load failure"),
+        ),
     ):
         with override_global_config(
             dict(

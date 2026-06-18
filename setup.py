@@ -114,7 +114,6 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 
 NATIVE_CRATE = HERE / "src" / "native"
 DDTRACE_DIR = HERE / "ddtrace"
-LIBDDWAF_DOWNLOAD_DIR = DDTRACE_DIR / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = DDTRACE_DIR / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = DDTRACE_DIR / "internal" / "datadog" / "profiling" / "stack"
@@ -127,8 +126,6 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
-
-LIBDDWAF_VERSION = "2.0.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -598,33 +595,6 @@ class LibraryDownload:
         return cls.get_package_name(arch, os) + ".tar.gz"
 
 
-class LibDDWafDownload(LibraryDownload):
-    name = "ddwaf"
-    download_dir = LIBDDWAF_DOWNLOAD_DIR
-    version = LIBDDWAF_VERSION
-    url_root = "https://github.com/DataDog/libddwaf/releases/download"
-    available_releases = {
-        "Windows": ["arm64", "win32", "x64"],
-        "Darwin": ["arm64", "x86_64"],
-        "Linux": ["aarch64", "x86_64"],
-    }
-    translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
-
-    @classmethod
-    def get_package_name(cls, arch, os):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
-        return archive_dir
-
-    @classmethod
-    def get_archive_name(cls, arch, os):
-        os_name = os.lower()
-        if os_name == "linux":
-            archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
-        else:
-            archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
-        return archive_dir
-
-
 # Source/build file extensions that should never appear in a binary wheel.
 # These live alongside .py files in package dirs but are only needed for compiling.
 _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
@@ -662,12 +632,11 @@ class LibraryDownloader(BuildPyCommand):
         # existing .so files (restored from ext_cache or left from the previous
         # build) to determine whether recompilation is needed.  Deleting them
         # here defeats those checks and forces a full rebuild every time.
-        # LibraryDownload.download_artifacts() handles version bumps internally
-        # via a .version sentinel, so libddwaf is always re-fetched when its
-        # version changes even when CleanLibraries.remove_artifacts() is skipped.
+        # libddwaf is statically linked into the native extension (its source is
+        # fetched and linked by the src/native cargo build), so there is no
+        # separate library to download here anymore.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        LibDDWafDownload.run()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
 
@@ -710,7 +679,6 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_artifacts() -> None:
-        shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         CleanLibraries.remove_native_extensions()
 
     @staticmethod
@@ -1746,7 +1714,6 @@ setup(
         # Type stubs and markers for all packages
         "": ["*.pyi", "py.typed"],
         "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
         "ddtrace.appsec.sca": ["_cve_data.json"],
         "ddtrace.internal": ["third-party.tar.gz"],
         "ddtrace.internal.datadog.profiling": (
