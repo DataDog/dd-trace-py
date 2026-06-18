@@ -63,6 +63,7 @@ class ProfilerState
     std::string output_filename;
     uint64_t max_timeout_ms{ g_default_max_timeout_ms };
     std::string process_tags;
+    std::string profiler_settings_info_json;
 
     // ========================================================================
     // Sample configuration
