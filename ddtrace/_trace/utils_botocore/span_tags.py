@@ -1,3 +1,4 @@
+import os
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -115,6 +116,9 @@ def _derive_peer_hostname(service: str, region: Optional[str]) -> Optional[str]:
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     print ("OLIVIER in set_botocore_patched_api_call_span_tags")
+    print("AWS_LAMBDA_FUNCTION_NAME", repr(os.environ.get("AWS_LAMBDA_FUNCTION_NAME")))
+    print("AWS_EXECUTION_ENV", repr(os.environ.get("AWS_EXECUTION_ENV")))
+    print("LAMBDA_TASK_ROOT", repr(os.environ.get("LAMBDA_TASK_ROOT")))
     span._set_attribute(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
