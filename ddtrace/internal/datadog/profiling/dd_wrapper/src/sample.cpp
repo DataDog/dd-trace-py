@@ -836,6 +836,37 @@ Datadog::Sample::profile_borrow()
     return ProfilerState::get().profile_state.borrow();
 }
 
+ddog_prof_Sample2
+Datadog::Sample::as_ddog_sample2() const
+{
+    return ddog_prof_Sample2{
+        .locations = { locations.data(), locations.size() },
+        .values = { values.data(), values.size() },
+        .labels = { labels.data(), labels.size() },
+    };
+}
+
+bool
+Datadog::Sample::heap_profile_is_enabled()
+{
+    return ProfilerState::get().profile_state.heap_is_enabled();
+}
+
+Datadog::HeapApplyResult
+Datadog::Sample::heap_profile_apply_batch(const ddog_prof_Sample2* adds,
+                                          size_t n_adds,
+                                          const ddog_prof_Sample2* subs,
+                                          size_t n_subs)
+{
+    return ProfilerState::get().profile_state.heap_apply_batch(adds, n_adds, subs, n_subs);
+}
+
+bool
+Datadog::Sample::heap_profile_reset()
+{
+    return ProfilerState::get().profile_state.reset_heap_profile();
+}
+
 void
 Datadog::Sample::postfork_child()
 {

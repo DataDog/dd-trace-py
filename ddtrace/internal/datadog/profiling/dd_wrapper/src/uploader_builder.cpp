@@ -4,6 +4,7 @@
 #include "profiler_state.hpp"
 #include "sample.hpp"
 
+#include <iostream>
 #include <numeric>
 #include <string>
 #include <string_view>
@@ -217,6 +218,27 @@ Datadog::UploaderBuilder::build()
         }
     }
 
+    // Serialize the persistent live-heap profile, if enabled. This is a
+    // non-destructive snapshot: the heap profile keeps accumulating across
+    // uploads. On failure we log and continue without the heap attachment
+    // rather than failing the whole upload.
+    // Gate on heap_has_data() (not just heap_is_enabled()): the sample-type
+    // layout includes Heap whenever type_mask defaults to All, so a CPU/lock/
+    // stack-only profiler would otherwise serialize and attach an empty heap
+    // pprof on every upload (breaking <prefix>.*.pprof globbing in output mode
+    // and shipping empty attachments in upload mode).
+    ddog_prof_EncodedProfile heap_encoded{ .inner = nullptr };
+    if (state.profile_state.heap_is_enabled() && state.profile_state.heap_has_data()) {
+        auto heap_res = state.profile_state.heap_serialize_snapshot();
+        if (heap_res.tag == DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
+            heap_encoded = heap_res.ok;
+        } else {
+            auto err = heap_res.err;
+            std::cerr << Datadog::err_to_msg(&err, "Error serializing heap profile") << std::endl;
+            ddog_Error_drop(&err);
+        }
+    }
+
     // We create a std::variant here instead of creating a temporary Uploader object.
     // i.e. return Datadog::Uploader{ output_filename, *ddog_exporter, encoded.ok, std::move(stats) }
     // because above code creates a temporary Uploader object, moves it into the
@@ -229,5 +251,6 @@ Datadog::UploaderBuilder::build()
                                                          *ddog_exporter,
                                                          encoded.ok,
                                                          stats,
-                                                         state.process_tags };
+                                                         state.process_tags,
+                                                         heap_encoded };
 }
