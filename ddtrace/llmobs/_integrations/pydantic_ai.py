@@ -204,7 +204,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         # agentless trace encoder at span finish ("Object of type Omit is not JSON
         # serializable"). Coerce to JSON-safe structures, mirroring the openai_agents
         # integration's handling of model_settings.
-        if model_settings is None:
+        if model_settings is None or callable(model_settings):
             return None
         if not isinstance(model_settings, dict):
             model_settings = getattr(model_settings, "__dict__", None)

@@ -502,3 +502,13 @@ def test_model_settings_none_is_preserved():
     from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
     assert PydanticAIIntegration._get_model_settings(None) is None
+
+
+def test_model_settings_callable_is_omitted():
+    """Callable model_settings (dynamic per-step settings) cannot be serialized.
+    They must be omitted rather than stored as their empty ``__dict__`` ({}).
+    """
+    from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+
+    assert PydanticAIIntegration._get_model_settings(lambda: {"temperature": 0.5}) is None
+    assert PydanticAIIntegration._get_model_settings(lambda: None) is None
