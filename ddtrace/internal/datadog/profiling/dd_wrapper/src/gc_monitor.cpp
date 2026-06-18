@@ -114,6 +114,10 @@ find_root(PyObject* obj,
     // the gc heap (the caller holds the objs list).
     PyObject* prev_obj = obj;
 
+    // Visited set prevents cycling between intermediate nodes.
+    std::unordered_set<uintptr_t> visited;
+    visited.insert(reinterpret_cast<uintptr_t>(obj));
+
     for (int depth = 0; depth < max_depth; ++depth) {
         PyObject* referrers =
           PyObject_CallMethod(reinterpret_cast<PyObject*>(PyImport_AddModule("gc")), "get_referrers", "O", prev_obj);
@@ -125,17 +129,25 @@ find_root(PyObject* obj,
         }
 
         bool found_root = false;
-        bool found_next = false;
+        // First unvisited GC-tracked referrer to follow if no root is found at
+        // this depth.  We scan ALL referrers before committing to this fallback
+        // so that a Frame or Module anywhere in the list is preferred over an
+        // arbitrary GC container that happens to appear earlier.
+        PyObject* next_obj = nullptr;
         Py_ssize_t nref = PyList_GET_SIZE(referrers);
 
         for (Py_ssize_t i = 0; i < nref; ++i) {
             PyObject* ref = PyList_GET_ITEM(referrers, i); // borrowed
 
-            if (ref == referrers || ref == obj) {
-                continue; // skip self-references from the gc machinery
+            // Skip the referrers list itself and any already-visited node
+            // (including the original suspect and the current prev_obj).
+            if (ref == referrers) {
+                continue;
             }
-
             uintptr_t ref_id = reinterpret_cast<uintptr_t>(ref);
+            if (visited.count(ref_id)) {
+                continue;
+            }
 
             // Frame -> Stack root
             if (PyFrame_Check(ref)) {
@@ -212,18 +224,23 @@ find_root(PyObject* obj,
                 break;
             }
 
-            // Walk further up: this referrer is our new prev_obj
-            prev_obj = ref;
-            found_next = true;
-            break;
+            // Remember the first unvisited GC-tracked referrer as a fallback
+            // walk target; keep scanning for a better (Frame/Module) root.
+            if (next_obj == nullptr) {
+                next_obj = ref;
+            }
         }
 
         Py_DECREF(referrers);
         PyErr_Clear();
 
-        if (found_root || !found_next) {
+        if (found_root || next_obj == nullptr) {
             break;
         }
+
+        // No terminal root at this depth; walk up through next_obj.
+        visited.insert(reinterpret_cast<uintptr_t>(next_obj));
+        prev_obj = next_obj;
     }
 
     return root;
@@ -569,7 +586,7 @@ GCMonitor::take_snapshot()
                 continue;
             }
 
-            RootNode root = find_root(obj, 8, gc_id_set, type_table, type_table_index);
+            RootNode root = find_root(obj, 20, gc_id_set, type_table, type_table_index);
 
             // Merge into existing roots with same category + fn + type_idx
             bool merged = false;
