@@ -15,7 +15,7 @@
 //!   mismatched `compaction_seq`, it retries.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -67,7 +67,7 @@ impl Manifest {
     /// short or misaligned.
     fn from_bytes(bytes: &[u8]) -> Option<&Manifest> {
         if bytes.len() < size_of::<ManifestHeader>()
-            || (bytes.as_ptr() as usize) % align_of::<Entry>() != 0
+            || !(bytes.as_ptr() as usize).is_multiple_of(align_of::<Entry>())
         {
             return None;
         }
@@ -415,6 +415,8 @@ pub struct ShmReader {
     contents: Option<MappedMem<ShmHandle>>,
     /// `(version, content)` tuples mapped by path of applied state
     active_configs: HashMap<String, (u64, Arc<Vec<u8>>)>,
+    /// Product names enabled at the previous read.
+    active_products: HashSet<String>,
 }
 
 impl ShmReader {
@@ -423,6 +425,7 @@ impl ShmReader {
             manifest: OneWayShmReader::new(manifest_handle.map()?, ()),
             contents: Some(contents_handle.map()?),
             active_configs: HashMap::new(),
+            active_products: HashSet::new(),
         })
     }
 
@@ -433,9 +436,14 @@ impl ShmReader {
 
     /// Read the latest published state and return the changes since the previous
     /// successful read (removals first).
-    pub fn read(&mut self) -> Vec<ChangeRecord> {
+    ///
+    /// `enabled` is the set of product names this consumer currently subscribes
+    /// to. Filters out configs for products not in `enabled`.
+    pub fn read(&mut self, enabled: HashSet<String>) -> Vec<ChangeRecord> {
         let (mut changed, mut bytes) = self.manifest.read();
-        if !changed {
+        // Force re-evaluation when our product subscriptions change, to pick up
+        // e.g. a newly enabled LIVE_DEBUGGER product.
+        if !changed && enabled == self.active_products {
             return Vec::new();
         }
 
@@ -491,6 +499,15 @@ impl ShmReader {
                     Ok(s) => s,
                     Err(_) => continue,
                 };
+                let parsed: RemoteConfigPath = match RemoteConfigPath::try_parse(path) {
+                    Ok(p) => p.into(),
+                    Err(_) => continue,
+                };
+
+                if !enabled.contains(&parsed.product.to_string()) {
+                    continue;
+                }
+
                 // Unchanged if same path and version
                 if let Some((v, c)) = self.active_configs.get(path) {
                     if *v == e.version {
@@ -498,17 +515,15 @@ impl ShmReader {
                         continue;
                     }
                 }
+
                 // Add or update: copy the bytes once and emit a record.
                 let content = Arc::new(content_bytes.to_vec());
                 new_configs.insert(path.to_string(), (e.version, content.clone()));
-                if let Ok(parsed) = RemoteConfigPath::try_parse(path) {
-                    let parsed: RemoteConfigPath = parsed.into();
-                    adds_updates.push(ChangeRecord::new(
-                        &parsed,
-                        e.version,
-                        Some(content.as_ref().clone()),
-                    ));
-                }
+                adds_updates.push(ChangeRecord::new(
+                    &parsed,
+                    e.version,
+                    Some(content.as_ref().clone()),
+                ));
             }
 
             (changed, bytes) = self.manifest.read();
@@ -525,6 +540,7 @@ impl ShmReader {
                 }
                 records.extend(adds_updates);
                 self.active_configs = new_configs;
+                self.active_products = enabled;
                 return records;
             }
         }
@@ -561,6 +577,10 @@ mod tests {
             .iter()
             .find(|c| c.path.contains(path_name))
             .and_then(|c| c.content.as_ref())
+    }
+
+    fn enabled(products: &[&str]) -> HashSet<String> {
+        products.iter().map(|p| p.to_string()).collect()
     }
 
     /// Copy `bytes` into an 8-aligned buffer so it can be cast as a `Manifest`
@@ -663,7 +683,7 @@ mod tests {
 
         let (mh, ch) = storage.take_handles().unwrap();
         let mut reader = ShmReader::new(mh, ch).unwrap();
-        let changes = reader.read();
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
         assert_eq!(content_of(&changes, "/big/"), Some(&big));
     }
 
@@ -685,7 +705,7 @@ mod tests {
 
         let (mh, ch) = storage.take_handles().unwrap();
         let mut reader = ShmReader::new(mh, ch).unwrap();
-        let changes = reader.read();
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].version, 10);
         assert_eq!(content_of(&changes, "/c/"), Some(&vec![10u8; 4000]));
@@ -738,7 +758,7 @@ mod tests {
         used += e.block_len();
         entries.insert(a.to_string(), e);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read();
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].version, 1);
         assert_eq!(content_of(&changes, "/a/"), Some(&b"AAAA".to_vec()));
@@ -750,7 +770,7 @@ mod tests {
         entries.insert(a.to_string(), e_a);
         entries.insert(b.to_string(), e_b);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read();
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
         assert_eq!(changes.len(), 2, "A updated + B added");
         assert_eq!(content_of(&changes, "/a/"), Some(&b"AA22".to_vec()));
         assert_eq!(content_of(&changes, "/b/"), Some(&b"BBBB".to_vec()));
@@ -758,15 +778,73 @@ mod tests {
         // Round 3: republish the identical manifest. Nothing changed, so even
         // though the generation bumps the reader emits no records.
         manifest_writer.write(&serialize_manifest(0, &entries));
-        assert!(reader.read().is_empty(), "unchanged snapshot emits nothing");
+        assert!(
+            reader.read(enabled(&["ASM_FEATURES"])).is_empty(),
+            "unchanged snapshot emits nothing"
+        );
 
         // Round 4: remove A (manifest keeps only B). A is emitted as a removal
         // with no content; unchanged B is not re-emitted.
         entries.remove(a);
         manifest_writer.write(&serialize_manifest(0, &entries));
-        let changes = reader.read();
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
         assert_eq!(changes.len(), 1);
         assert!(changes[0].path.contains("/a/"));
+        assert!(changes[0].content.is_none(), "removal carries no content");
+    }
+
+    /// In-product enablement: a config for a product the consumer has not enabled
+    /// is withheld from the active set, then (re-)emitted as an add once the
+    /// product is enabled — even though the manifest itself did not change — and
+    /// emitted as a removal once the product is disabled again.
+    #[test]
+    fn reader_withholds_until_product_enabled() {
+        let (manifest_writer, manifest_reader) = create_anon_pair().unwrap();
+        let contents_handle = ShmHandle::new(0x4000).unwrap();
+        let mut contents = contents_handle.clone().map().unwrap();
+        let mut reader = ShmReader::new(manifest_reader, contents_handle).unwrap();
+
+        let asm = "datadog/2/ASM_FEATURES/a/config";
+        let probe = "datadog/2/LIVE_DEBUGGING/p/config";
+        let mut used = 0usize;
+        let mut entries: HashMap<String, Entry> = HashMap::new();
+
+        // Publish an ASM_FEATURES config and a LIVE_DEBUGGING probe together.
+        let e_asm = put_block(&mut contents, used, 1, asm, b"ASM");
+        used += e_asm.block_len();
+        let e_probe = put_block(&mut contents, used, 1, probe, b"PROBE");
+        entries.insert(asm.to_string(), e_asm);
+        entries.insert(probe.to_string(), e_probe);
+        manifest_writer.write(&serialize_manifest(0, &entries));
+
+        // Only ASM_FEATURES enabled: the probe is withheld.
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        assert_eq!(changes.len(), 1, "only the enabled product is emitted");
+        assert!(changes[0].path.contains("/ASM_FEATURES/"));
+
+        // Enable LIVE_DEBUGGING. The manifest has NOT changed, but the subscription
+        // did, so the previously-withheld probe is now emitted as an add.
+        let changes = reader.read(enabled(&["ASM_FEATURES", "LIVE_DEBUGGING"]));
+        assert_eq!(
+            changes.len(),
+            1,
+            "newly-enabled product's config is re-emitted"
+        );
+        assert!(changes[0].path.contains("/LIVE_DEBUGGING/"));
+        assert_eq!(content_of(&changes, "/p/"), Some(&b"PROBE".to_vec()));
+
+        // Same subscription + unchanged manifest: nothing.
+        assert!(
+            reader
+                .read(enabled(&["ASM_FEATURES", "LIVE_DEBUGGING"]))
+                .is_empty(),
+            "unchanged snapshot and subscription emits nothing"
+        );
+
+        // Disable LIVE_DEBUGGING again: its config is emitted as a removal.
+        let changes = reader.read(enabled(&["ASM_FEATURES"]));
+        assert_eq!(changes.len(), 1, "disabled product's config is removed");
+        assert!(changes[0].path.contains("/LIVE_DEBUGGING/"));
         assert!(changes[0].content.is_none(), "removal carries no content");
     }
 }

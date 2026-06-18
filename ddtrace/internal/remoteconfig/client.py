@@ -121,6 +121,9 @@ class RemoteConfigClient:
         self._product_callbacks[product_name] = callback
         log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
 
+    def enabled_product_names(self) -> list:
+        return [str(p) for p in self._enabled_products]
+
     def unregister_product(self, product_name: str) -> None:
         self._product_callbacks.pop(product_name, None)
         log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)

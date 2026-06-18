@@ -184,7 +184,7 @@ def test_fork_broadcast():
                 sink = _Sink()
                 client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
                 reader = client.make_reader()
-                client.dispatch_native_changes(reader.read())
+                client.dispatch_native_changes(reader.read(client.enabled_product_names()))
                 got = sink.last
                 msg = "%d|%s|%s" % (
                     len(got),
