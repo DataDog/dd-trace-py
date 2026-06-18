@@ -66,6 +66,7 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - local: ".gitlab/config-registry.yml"
   - project: 'DataDog/system-tests'
     ref: nccatoni/gitlab
     file: 'utils/ci/gitlab/main.yml'
@@ -78,8 +79,6 @@ include:
       scenarios_groups: tracer_release
       binaries_artifact: "build linux"
       binaries_artifact_path: "pywheels"
-
-  - local: ".gitlab/config-registry.yml"
 
 "pipeline variables":
   stage: .pre
