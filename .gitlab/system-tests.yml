@@ -6,7 +6,7 @@
 # job cross-pipeline (which doesn't support parallel: matrix: needs), so it must
 # be a single job.
 collect_wheels:
-  stage: system-tests
+  stage: package
   image: registry.ddbuild.io/images/mirror/alpine:latest
   tags: ["arch:amd64"]
   needs:
