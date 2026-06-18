@@ -67,6 +67,17 @@ jobs:
       - name: Generate supported versions
         run: python scripts/integration_registry/generate_supported_versions.py
 
+      - name: Preview supported versions output
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          supported_versions = json.loads(Path("supported_versions.json").read_text())
+          print(f"Generated {len(supported_versions)} supported version entries.")
+          print(json.dumps(supported_versions[:3], indent=2))
+          PY
+
       - run: git diff
 
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
