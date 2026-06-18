@@ -1366,6 +1366,9 @@ static void
 _threads_free(void* module)
 {
     _threads_clear((PyObject*)module);
+    module_state* state = (module_state*)PyModule_GetState((PyObject*)module);
+    if (state != nullptr)
+        state->~module_state();
 }
 
 // ----------------------------------------------------------------------------
@@ -1377,7 +1380,8 @@ _threads_exec(PyObject* m)
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return -1;
 
-    // Initialize module state (placement new for std::atomic + PyObject* members).
+    // Initialize module state (placement new for C++ members).
+    // DEV: _threads_free() must explicitly run module_state's destructor.
     module_state* state = (module_state*)PyModule_GetState(m);
     new (state) module_state();
 
