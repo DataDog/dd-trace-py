@@ -137,26 +137,26 @@ def handle_sqs_prepare(params):
 def get_datastreams_context(message):
     """
     Formats we're aware of:
-        - message.Body.MessageAttributes._datadog.Value.decode() (SQS)
-        - message.MessageAttributes._datadog.StringValue (SNS -> SQS)
+        - message.MessageAttributes._datadog.StringValue (SQS)
+        - message.Body.MessageAttributes._datadog.Value.decode() (SNS -> SQS)
         - message.MessageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
         - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
     message_body = message
-    try:
-        body = message.get("Body")
-        if body:
-            message_body = json.loads(body)
-    except (ValueError, TypeError):
-        log.debug("Unable to parse message body as JSON, treat as non-json")
+    message_attributes = message.get("MessageAttributes") or message.get("messageAttributes")
 
-    message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
-    if not message_attributes:
-        log.debug("DataStreams skipped message: %r", message)
-        return None
+    # Fall back to the body for SNS -> SQS notifications, which carry their attributes there.
+    if not (message_attributes and "_datadog" in message_attributes):
+        try:
+            body = message.get("Body")
+            if body:
+                message_body = json.loads(body)
+        except (ValueError, TypeError):
+            log.debug("Unable to parse message body as JSON, treat as non-json")
+        message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
 
-    if "_datadog" not in message_attributes:
+    if not message_attributes or "_datadog" not in message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
 
