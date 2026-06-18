@@ -677,11 +677,6 @@ class LLMObs(Service):
         if user_processed_span is None:
             log.debug("LLMObs span %s dropped by user processor", span)
             return False
-        # A processor that returns a new LLMObsSpan (rather than mutating in place) won't have
-        # carried over metadata; don't let that silently drop the original. Honor a replacement
-        # object's metadata only if it actually set it.
-        if user_processed_span is not llmobs_span and not user_processed_span.metadata:
-            user_processed_span.metadata = llmobs_span.metadata
 
         _normalize_llmobs_meta(
             span,

@@ -451,9 +451,7 @@ class TestLLMIOProcessing:
             llmobs.annotate(span, metadata={"secret": "leak"})
             _annotate_llmobs_span_data(span, cost_tags=["model"])
         metadata = get_llmobs_metadata(span)
-        # user metadata wiped, but internal _dd preserved
         assert metadata == {"_dd": {"cost_tags": ["model"]}}
-        # the processor never saw _dd
         assert TestLLMIOProcessing._DD_VISIBLE_TO_PROCESSOR["had_dd"] is False
 
     def _spoof_dd_processor(span: LLMObsSpan):
@@ -479,27 +477,6 @@ class TestLLMIOProcessing:
                 llmobs.annotate(span, metadata={"keep": "ok"})
         assert get_llmobs_metadata(span) == {"keep": "ok"}
         assert mock_log.warning.called
-
-    def _replacement_preserves_metadata(span: LLMObsSpan):
-        # returns a brand-new span (not in-place) that never touches metadata
-        return LLMObsSpan(input=[{"content": "scrubbed"}])
-
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_preserves_metadata)])
-    def test_metadata_processor_replacement_object_preserves_metadata(self, llmobs, llmobs_enable_opts):
-        """A processor returning a new LLMObsSpan without metadata must not drop the original."""
-        with llmobs.llm("openai.request") as span:
-            llmobs.annotate(span, input_data="value", metadata={"keep": "ok"})
-        assert get_llmobs_metadata(span) == {"keep": "ok"}
-
-    def _replacement_sets_metadata(span: LLMObsSpan):
-        return LLMObsSpan(input=span.input, metadata={"new": "data"})
-
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_sets_metadata)])
-    def test_metadata_processor_replacement_object_honors_metadata(self, llmobs, llmobs_enable_opts):
-        """A replacement object that explicitly sets metadata is honored."""
-        with llmobs.llm("openai.request") as span:
-            llmobs.annotate(span, input_data="value", metadata={"old": "data"})
-        assert get_llmobs_metadata(span) == {"new": "data"}
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
