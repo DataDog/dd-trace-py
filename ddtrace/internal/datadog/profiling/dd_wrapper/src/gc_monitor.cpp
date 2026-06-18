@@ -293,6 +293,68 @@ serialize_node(std::ostringstream& out, const TreeNode& node, int indent)
     out << "}";
 }
 
+// Returns true when the type name matches a pattern that is known to produce
+// noisy / unactionable leak candidates.  Objects of these types are still
+// tracked for survivor-count purposes but are never promoted to the suspect
+// list that gets serialised.
+bool
+is_excluded_type(const std::string& tname) noexcept
+{
+    // Exact matches --------------------------------------------------------
+    // Python descriptor/slot types and other infrastructure objects that are
+    // always long-lived by design.
+    static const std::unordered_set<std::string> exact = {
+        // Descriptor / slot types -- always long-lived by design
+        "method",
+        "property",
+        "wrapper_descriptor",
+        "method_descriptor",
+        "staticmethod",
+        "classmethod_descriptor",
+        "getset_descriptor",
+        "member_descriptor",
+        // Persistent mapping types (pyrsistent / immutable hash-array maps)
+        "hamt",
+        "hamt_bitmap_node",
+        "hamt_array_node",
+        // C-level buffer wrappers
+        "managedbuffer",
+        "memoryview",
+        // Generic built-in containers: always category "O" (C-ext held) in
+        // practice; any real leak surfaces through a more specific application
+        // type anyway, and these only push actionable suspects off the top-N.
+        "dict",
+        "list",
+        "set",
+        "frozenset",
+        "tuple",
+    };
+    if (exact.count(tname) != 0) {
+        return true;
+    }
+
+    // Prefix matches -------------------------------------------------------
+    // Each entry is matched as a prefix of tname so that e.g. "cassandra."
+    // catches "cassandra.cluster.Cluster", "cassandra.pool.Host", etc.
+    static const std::string prefixes[] = {
+        "cassandra.", // Cassandra driver internals (C extension + Python)
+        "ddtrace.",   // tracer / profiler own objects
+        "_thread.",   // low-level threading primitives
+        "weakref.",   // weak reference types
+        "_frozen",    // _frozen_importlib* bootstrap modules
+        "_sitebuiltins",
+        "importlib.", // importlib.metadata, importlib_metadata, etc.
+        "importlib_", // importlib_metadata backport
+        "logging.",      "signal.", "typing.", "ast.", "bytecode.",
+    };
+    for (const auto& p : prefixes) {
+        if (tname.size() >= p.size() && tname.compare(0, p.size(), p) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -555,7 +617,7 @@ GCMonitor::take_snapshot()
     for (const auto& [oid, sc] : _survivor_counts) {
         if (sc >= _survivor_threshold) {
             auto it = cur_objs.find(oid);
-            if (it != cur_objs.end()) {
+            if (it != cur_objs.end() && !is_excluded_type(type_table[it->second.first])) {
                 suspects.push_back({ oid, it->second.first, it->second.second, sc });
             }
         }
