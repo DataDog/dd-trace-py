@@ -286,6 +286,18 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     ) as span:
         for link_ctx in links:
             span.link_span(link_ctx)
+            # extract() stores secondary/conflicting propagation styles (e.g. a message
+            # carrying both Datadog and W3C tracecontext with different trace ids) as span
+            # links on the context. link_span only adds the primary context, so copy these
+            # extracted links explicitly to avoid dropping them.
+            for extracted_link in link_ctx._span_links:
+                span.set_link(
+                    trace_id=extracted_link.trace_id,
+                    span_id=extracted_link.span_id,
+                    tracestate=extracted_link.tracestate,
+                    flags=extracted_link.flags,
+                    attributes=extracted_link.attributes,
+                )
         set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns

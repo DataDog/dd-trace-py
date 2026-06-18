@@ -211,17 +211,18 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
-def test_consume_batch_links_all_producer_traces(kafka_tracer, producer, consumer, kafka_topic, test_spans):
+def test_consume_batch_links_all_producer_traces(kafka_tracer, producer, fresh_consumer, empty_kafka_topic, test_spans):
     # A batched consume() must not continue any single producer's trace. Instead it links
     # every producer in the batch, so no source record is privileged and no producer trace
-    # is polluted by the consume span's children.
+    # is polluted by the consume span's children. Use a freshly emptied topic + consumer so
+    # only the messages produced here are read.
     with override_config("kafka", dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False)):
         # Each produce() runs without an active span, so each message carries its own
         # distinct producer trace context in its headers.
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
-        producer.produce(kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        messages = consumer.consume(num_messages=2, timeout=10)
+        messages = fresh_consumer.consume(num_messages=2, timeout=10)
         assert len(messages) == 2
 
     traces = test_spans.pop_traces()
@@ -242,6 +243,38 @@ def test_consume_batch_links_all_producer_traces(kafka_tracer, producer, consume
     linked = {(link.trace_id, link.span_id) for link in consume_span._get_links()}
     for produce_span in produce_spans:
         assert (produce_span.trace_id, produce_span.span_id) in linked
+
+
+def test_consume_preserves_terminated_context_links(
+    kafka_tracer, producer, fresh_consumer, empty_kafka_topic, test_spans
+):
+    # A message can carry multiple propagation styles with conflicting trace ids. extract()
+    # keeps the primary context and turns the others into "terminated_context" span links on
+    # that context. Both must end up as links on the consume span. Use a freshly emptied
+    # topic + consumer so only the crafted message below is read.
+    conflicting_headers = {
+        "x-datadog-trace-id": "1234567890",
+        "x-datadog-parent-id": "9876543210",
+        "x-datadog-sampling-priority": "1",
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    }
+    # Produce with distributed tracing disabled so the producer does not overwrite the
+    # crafted headers with its own injected context.
+    with override_config("kafka", dict(distributed_tracing_enabled=False, trace_empty_poll_enabled=False)):
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY, headers=conflicting_headers)
+        producer.flush()
+    with override_config("kafka", dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False)):
+        messages = fresh_consumer.consume(num_messages=1, timeout=10)
+        assert len(messages) == 1
+
+    traces = test_spans.pop_traces()
+    consume_spans = [span for trace in traces for span in trace if span.name == "kafka.consume"]
+    assert len(consume_spans) == 1
+    linked_trace_ids = {link.trace_id for link in consume_spans[0]._get_links()}
+
+    # Both the primary (datadog) and the terminated-context (tracecontext) links are present.
+    assert 1234567890 in linked_trace_ids
+    assert 0x4BF92F3577B34DA6A3CE929D0E0E4736 in linked_trace_ids
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
