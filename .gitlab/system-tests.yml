@@ -1,7 +1,6 @@
 # System tests - migrated from .github/workflows/system-tests.yml
 # See: https://github.com/DataDog/system-tests
 
-
 .system-tests-base:
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["docker-in-docker:amd64"]
