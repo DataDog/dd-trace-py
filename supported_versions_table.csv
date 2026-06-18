@@ -77,9 +77,9 @@ mlflow-tracing,mlflow,3.12.0,3.12.0,False
 molten,molten,1.0.2,1.0.2,True
 mysql-connector-python,mysql,8.0.5,9.4.0,True
 mysqlclient,mysqldb,2.2.1,2.2.6,True
-openai,openai,1.0.0,2.3.0,True
+openai,openai,1.0.0,2.40.0,True
 openai-agents,openai_agents,0.0.8,0.0.16,True
-protobuf,protobuf,6.33.6,7.34.1,False
+protobuf,protobuf,6.33.6,7.35.0,False
 psycopg,psycopg,3.0.18,3.3.4,True
 psycopg2-binary,psycopg,2.9.10,2.9.10,True
 pydantic-ai-slim,pydantic_ai *,0.8.1,1.63.0,True

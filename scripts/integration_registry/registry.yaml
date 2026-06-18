@@ -705,7 +705,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 2.3.0
+      max: 2.40.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -725,7 +725,7 @@ integrations:
   tested_versions_by_dependency:
     protobuf:
       min: 6.33.6
-      max: 7.34.1
+      max: 7.35.0
 
 - integration_name: psycopg
   is_external_package: true
