@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    Profiling: When off-CPU time collection is enabled
+    (``_DD_PROFILING_STACK_OFFCPU_TIME_ENABLED=true``), each stack sample with
+    non-zero off-CPU time now carries an ``off cpu cause`` pprof label classifying
+    the likely reason the thread was blocked:
+
+    - ``sleep`` — explicit sleep call (``time.sleep``, ``asyncio.sleep``)
+    - ``lock``  — lock or event wait (``threading.Lock.acquire``,
+      ``asyncio.Lock.acquire``, ``threading.Event.wait``, etc.)
+    - ``io``    — blocking socket I/O (``socket.recv``, ``socket.send``)
+    - ``other`` — off-CPU time observed but cause not identifiable from the
+      Python frame (includes OS preemption and C-extension blocking)
+
+    The label is inferred from the leaf Python or native frame name and is
+    intended for backend aggregation and filtering, not as a precise kernel-level
+    attribution.

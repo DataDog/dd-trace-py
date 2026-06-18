@@ -1368,3 +1368,99 @@ def test_off_cpu_lower_for_cpu_bound_thread(tmp_path: Path) -> None:
     assert sleeping_off_cpu > cpu_bound_off_cpu * 2, (
         f"sleeper off-cpu ({sleeping_off_cpu}ns) should greatly exceed cpu-bound off-cpu ({cpu_bound_off_cpu}ns)"
     )
+
+
+_OFF_CPU_CAUSE_LABEL = "off cpu cause"
+
+
+def test_off_cpu_cause_sleep(tmp_path: Path) -> None:
+    """Samples from a sleeping thread should be tagged with cause='sleep'."""
+    test_name = "test_off_cpu_cause_sleep"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
+    ddup.start()
+    ddup.upload()
+
+    def sleeper() -> None:
+        for _ in range(10):
+            time.sleep(0.05)
+
+    with stack.StackCollector():
+        sleeper()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
+        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
+    )
+
+    off_cpu_samples = pprof_utils.get_samples_with_value_type(profile, _OFF_CPU_TYPE)
+    if len(off_cpu_samples) == 0:
+        pytest.skip("No off-cpu samples collected; CPU time measurement may be unavailable on this platform")
+
+    labeled = pprof_utils.get_samples_with_label_key(profile, _OFF_CPU_CAUSE_LABEL)
+    labeled_offcpu = [s for s in labeled if s in off_cpu_samples]
+    assert len(labeled_offcpu) > 0, "off-cpu samples should have an 'off cpu cause' label"
+
+    causes = {
+        profile.string_table[
+            pprof_utils.get_label_with_key(profile.string_table, s, _OFF_CPU_CAUSE_LABEL).str  # type: ignore[union-attr]  # noqa: E501
+        ]
+        for s in labeled_offcpu
+    }
+    assert "sleep" in causes, f"expected 'sleep' cause for sleeping thread, got: {causes}"
+
+
+def test_off_cpu_cause_lock(tmp_path: Path) -> None:
+    """Samples from a thread blocked on a lock should be tagged with cause='lock'."""
+    test_name = "test_off_cpu_cause_lock"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
+    ddup.start()
+    ddup.upload()
+
+    lock = threading.Lock()
+    lock.acquire()
+
+    def lock_waiter() -> None:
+        for _ in range(5):
+            lock.acquire()
+            lock.release()
+
+    lock_thread = threading.Thread(target=lock_waiter, name="lock-thread")
+
+    with stack.StackCollector():
+        lock_thread.start()
+        time.sleep(0.3)
+        lock.release()
+        lock_thread.join()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    assert _OFF_CPU_TYPE in _available_sample_types(profile), (
+        f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {_available_sample_types(profile)}"
+    )
+
+    off_cpu_samples = pprof_utils.get_samples_with_value_type(profile, _OFF_CPU_TYPE)
+    if len(off_cpu_samples) == 0:
+        pytest.skip("No off-cpu samples collected; CPU time measurement may be unavailable on this platform")
+
+    labeled = pprof_utils.get_samples_with_label_key(profile, _OFF_CPU_CAUSE_LABEL)
+    labeled_offcpu = [s for s in labeled if s in off_cpu_samples]
+    assert len(labeled_offcpu) > 0, "off-cpu samples should have an 'off cpu cause' label"
+
+    causes = {
+        profile.string_table[
+            pprof_utils.get_label_with_key(profile.string_table, s, _OFF_CPU_CAUSE_LABEL).str  # type: ignore[union-attr]  # noqa: E501
+        ]
+        for s in labeled_offcpu
+    }
+    assert "lock" in causes, f"expected 'lock' cause for lock-waiting thread, got: {causes}"
