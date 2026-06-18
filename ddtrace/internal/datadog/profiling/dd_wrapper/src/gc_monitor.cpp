@@ -157,7 +157,12 @@ find_root(PyObject* obj,
                         file = file.substr(slash_pos + 1);
                     }
 
-                    root.fn = func + " (" + file + ":" + std::to_string(lineno) + ")";
+                    root.fn = func;
+                    root.fn += " (";
+                    root.fn += file;
+                    root.fn += ":";
+                    root.fn += std::to_string(lineno);
+                    root.fn += ")";
 
                     Py_XDECREF(co_name);
                     Py_XDECREF(co_filename);
@@ -556,6 +561,7 @@ GCMonitor::take_snapshot()
     if (_referrers_enabled && !suspects.empty()) {
         // Walk referrer chains to find roots and build the tree
         for (const auto& suspect : suspects) {
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             PyObject* obj = reinterpret_cast<PyObject*>(suspect.oid);
             // Verify the object is still in the list before walking
             // (the gc_id_set was built from the same objs list, so this is safe)
