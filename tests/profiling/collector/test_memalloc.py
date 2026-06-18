@@ -19,7 +19,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -86,13 +86,60 @@ def test_heap_samples_collected() -> None:
     x = _allocate_1k()  # noqa: F841
     p.stop()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    # Live-heap samples are emitted in the separate persistent heap profile.
+    profile = pprof_utils.parse_newest_heap_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
 
     # Verify heap-live-samples is also present and populated alongside heap-space
     heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
     assert len(heap_live_samples) > 0
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_MEMORY_ENABLED="false",
+        DD_PROFILING_HEAP_ENABLED="false",
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_no_empty_heap_profile_without_allocations",
+    )
+)
+def test_no_empty_heap_profile_without_allocations() -> None:
+    # Regression test for the heap snapshot gating fix: the persistent heap
+    # profile must NOT be serialized/attached when no heap data was ever applied
+    # (e.g. a CPU/stack-only profiler that never started the memalloc collector).
+    # The profile's sample-type layout includes Heap whenever type_mask defaults
+    # to All, so before the fix an empty "<prefix>.<pid>.<seq>.heap.pprof" was
+    # written on every upload, breaking "<prefix>.*.pprof" globbing in output
+    # mode and shipping empty heap attachments otherwise. Serialization is now
+    # gated on heap_has_data() (heap_populated), set on the first non-empty
+    # heap_apply_batch. The positive/sticky case is covered by
+    # test_heap_samples_collected.
+    import glob
+    import os
+
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    p = Profiler()
+    p.start()
+    # Burn a little CPU so the primary profile has stack samples to upload, but
+    # never allocate anything that the (disabled) memalloc collector would track.
+    total = 0
+    for i in range(2_000_000):
+        total += i
+    p.stop()
+
+    # The primary profile is still produced.
+    pprof_utils.parse_newest_profile(output_filename, assert_samples=False)
+
+    # ... but no heap attachment should be emitted when no heap data was applied.
+    heap_files = glob.glob(output_filename + ".*.heap.pprof")
+    assert heap_files == [], "Expected no heap pprof files when no allocations were tracked, found: {}".format(
+        heap_files
+    )
 
 
 def test_memory_collector(tmp_path: Path) -> None:
@@ -116,9 +163,11 @@ def test_memory_collector(tmp_path: Path) -> None:
         # We also want to check 'alloc-samples' is > 0.
         assert sample.value[alloc_samples_idx] > 0
 
-    # Verify heap-live-samples are present for live heap objects
-    heap_live_samples = pprof_utils.get_samples_with_value_type(profile, "heap-live-samples")
-    assert len(heap_live_samples) > 0, "Expected heap-live-samples in profile"
+    # Verify heap-live-samples are present for live heap objects. Live-heap
+    # samples are emitted in the separate persistent heap profile.
+    heap_profile = pprof_utils.parse_newest_heap_profile(output_filename)
+    heap_live_samples = pprof_utils.get_samples_with_value_type(heap_profile, "heap-live-samples")
+    assert len(heap_live_samples) > 0, "Expected heap-live-samples in heap profile"
 
     # We also want to assert that there's a sample that's coming from _allocate_1k()
     # And also assert that it's actually coming from _allocate_1k()
@@ -407,7 +456,10 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
             del junk
 
-            profile = mc.snapshot_and_parse_pprof(output_filename)
+            # Allocation samples live in the primary profile; live-heap samples
+            # live in the separate persistent heap profile. Read both from a
+            # single snapshot/upload so allocation samples aren't drained first.
+            profile, heap_profile = mc.snapshot_and_parse_both_pprof(output_filename)
 
     finally:
         if old is not None:
@@ -416,9 +468,9 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
             if "_DD_MEMALLOC_DEBUG_RNG_SEED" in os.environ:
                 del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
-    # Get sample type indices
-    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
-    heap_live_samples_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+    # Get sample type indices (both profiles share the same sample-type layout)
+    heap_space_idx = pprof_utils.get_sample_type_index(heap_profile, "heap-space")
+    heap_live_samples_idx = pprof_utils.get_sample_type_index(heap_profile, "heap-live-samples")
     alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
     alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
 
@@ -428,10 +480,10 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
     assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-    # Get allocation samples (freed) - these have alloc-space > 0 and heap-space == 0
-    allocation_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]
-    # Get heap samples (live) - these have heap-space > 0
-    heap_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+    # Allocation samples come from the primary profile (alloc-space > 0).
+    allocation_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+    # Live-heap samples come from the persistent heap profile (heap-space > 0).
+    heap_samples = [s for s in heap_profile.sample if s.value[heap_space_idx] > 0]
 
     print(f"Total samples: {len(profile.sample)}")
     print(f"Allocation samples (alloc-space>0, heap-space=0): {len(allocation_samples)}")
@@ -540,10 +592,12 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
 
         del data_to_free
 
-        profile = mc.snapshot_and_parse_pprof(output_filename)
+        # Allocation samples come from the primary profile, live-heap samples
+        # from the persistent heap profile. Read both from one snapshot/upload.
+        profile, heap_profile = mc.snapshot_and_parse_both_pprof(output_filename)
 
-        # Get sample type indices
-        heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        # Get sample type indices (both profiles share the same sample-type layout)
+        heap_space_idx = pprof_utils.get_sample_type_index(heap_profile, "heap-space")
         alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
         alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
 
@@ -555,41 +609,35 @@ def test_memory_collector_allocation_tracking_across_snapshots(tmp_path: Path) -
         initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
         assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
 
-        # Get freed samples (alloc-space > 0, heap-space == 0)
-        freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+        # All allocations (freed and still-live) show up in the primary profile;
+        # live objects show up in the heap profile.
+        alloc_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+        live_samples = [s for s in heap_profile.sample if s.value[heap_space_idx] > 0]
 
-        assert len(freed_samples) > 0, "Should have some freed samples after deletion"
+        assert len(alloc_samples) > 0, "Should have some allocation samples"
 
         assert len(live_samples) > 0, "Should have some live samples"
 
-        # Validate all samples have valid values
+        # Validate allocation samples carry non-negative counts.
         for sample in profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_space_idx] > 0, "Primary profile sample should have alloc-space > 0"
             assert sample.value[alloc_count_idx] >= 0, (
                 f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-        one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
+        one_alloc_samples = [sample for sample in alloc_samples if has_function_in_profile_sample(profile, sample, one)]
 
-        assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
-        one_freed_samples_valid = all(
-            sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
-        )
-        assert one_freed_samples_valid, (
-            "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
-        )
+        assert len(one_alloc_samples) > 0, "Should have allocation samples from function 'one'"
+        one_alloc_samples_valid = all(sample.value[alloc_space_idx] > 0 for sample in one_alloc_samples)
+        assert one_alloc_samples_valid, "Allocation samples from function 'one' should have alloc-space > 0"
 
-        two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, two)]
+        two_live_samples = [
+            sample for sample in live_samples if has_function_in_profile_sample(heap_profile, sample, two)
+        ]
 
         assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
-        two_live_samples_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in two_live_samples
-        )
-        assert two_live_samples_valid, "Live samples from function 'two' should have heap-space > 0 and alloc-space > 0"
+        two_live_samples_valid = all(sample.value[heap_space_idx] > 0 for sample in two_live_samples)
+        assert two_live_samples_valid, "Live samples from function 'two' should have heap-space > 0"
 
         del data_to_keep
 
@@ -629,12 +677,14 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         # ghost entries.
         gc.collect()
 
-        final_profile = mc.snapshot_and_parse_pprof(output_filename)
+        # Allocation samples come from the primary profile, live-heap samples
+        # from the persistent heap profile. Read both from one snapshot/upload.
+        final_profile, heap_profile = mc.snapshot_and_parse_both_pprof(output_filename)
 
-        assert len(final_profile.sample) > 0, "Final snapshot should have samples"
+        assert len(heap_profile.sample) > 0, "Final heap snapshot should have samples"
 
-        # Get sample type indices
-        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
+        # Get sample type indices (both profiles share the same sample-type layout)
+        heap_space_idx = pprof_utils.get_sample_type_index(heap_profile, "heap-space")
         alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
         alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
 
@@ -643,18 +693,15 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Validate all samples have valid values
+        # Validate primary-profile allocation samples carry valid values.
         for sample in final_profile.sample:
-            # Check that at least one value type is non-zero
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_space_idx] > 0, "Primary profile sample should have alloc-space > 0"
             assert sample.value[alloc_count_idx] >= 0, (
                 f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        # Get live samples (heap-space > 0) from the persistent heap profile.
+        live_samples = [s for s in heap_profile.sample if s.value[heap_space_idx] > 0]
 
         # Check that we have no significant live samples with 'one' in traceback (they were freed).
         # Small residual allocations (< min_alloc_size) may remain due to CPython internal
@@ -667,7 +714,7 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         one_samples_in_final = [
             sample
             for sample in live_samples
-            if has_function_in_profile_sample(final_profile, sample, one)
+            if has_function_in_profile_sample(heap_profile, sample, one)
             and sample.value[heap_space_idx] >= min_alloc_size
         ]
 
@@ -677,16 +724,14 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
 
         # Check that we have live samples from function 'two'
         batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
+            sample for sample in live_samples if has_function_in_profile_sample(heap_profile, sample, two)
         ]
 
         assert len(batch_two_live_samples) > 0, (
             f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
         )
-        batch_two_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0 for sample in batch_two_live_samples
-        )
-        assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space >= 0"
+        batch_two_valid = all(sample.value[heap_space_idx] > 0 for sample in batch_two_live_samples)
+        assert batch_two_valid, "Batch two samples should have heap-space > 0"
 
         del second_batch
 
@@ -706,62 +751,60 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         for _ in range(20):
             first_batch.append(one(256))
 
-        after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
+        after_first_primary, after_first_heap = mc.snapshot_and_parse_both_pprof(output_filename)
 
         second_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(15):
             second_batch.append(two(512))
 
-        final_profile = mc.snapshot_and_parse_pprof(output_filename)
+        final_primary, final_heap = mc.snapshot_and_parse_both_pprof(output_filename)
 
         # After initial snapshot, allocation tracking resets
         # So after_first_batch should have samples from the 20 allocations since last snapshot
-        after_first_batch_count = len(after_first_batch_profile.sample)
-        final_count = len(final_profile.sample)
+        after_first_batch_count = len(after_first_primary.sample)
+        final_count = len(final_primary.sample)
 
         assert after_first_batch_count > 0, (
             f"Should have samples from first batch allocations. Got {after_first_batch_count}"
         )
-        assert final_count > 0, f"Final snapshot should have samples. Got {final_count}"
+        assert final_count > 0, f"Final snapshot should have allocation samples. Got {final_count}"
 
-        # Get sample type indices
-        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
-        alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
-        alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
+        # Get sample type indices (both profiles share the same sample-type layout)
+        heap_space_idx = pprof_utils.get_sample_type_index(final_heap, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(final_primary, "alloc-space")
+        alloc_count_idx = pprof_utils.get_sample_type_index(final_primary, "alloc-samples")
 
         # Assert that required sample types exist
         assert heap_space_idx >= 0, "heap-space sample type not found in profile"
         assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
         assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Since no objects were deleted, heap samples should accumulate (first_batch + second_batch)
-        # Count heap samples in both profiles
-        after_first_heap_samples = [s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0]
-        final_heap_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        # Since no objects were deleted, the persistent heap profile should
+        # accumulate live samples (first_batch + second_batch).
+        after_first_heap_samples = [s for s in after_first_heap.sample if s.value[heap_space_idx] > 0]
+        final_heap_samples = [s for s in final_heap.sample if s.value[heap_space_idx] > 0]
 
         assert len(final_heap_samples) > len(after_first_heap_samples), (
             f"Final should have more heap samples than after first batch (nothing deleted). "
             f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
         )
 
-        # Validate all samples in final profile have valid values
-        for sample in final_profile.sample:
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+        # Validate all allocation samples in the final primary profile.
+        for sample in final_primary.sample:
+            assert sample.value[alloc_space_idx] > 0, "Primary profile sample should have alloc-space > 0"
             assert sample.value[alloc_count_idx] >= 0, (
                 f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        # Get live samples (heap-space > 0) from the persistent heap profile.
+        live_samples = [s for s in final_heap.sample if s.value[heap_space_idx] > 0]
 
         batch_one_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
+            sample for sample in live_samples if has_function_in_profile_sample(final_heap, sample, one)
         ]
 
         batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
+            sample for sample in live_samples if has_function_in_profile_sample(final_heap, sample, two)
         ]
 
         assert len(batch_one_live_samples) > 0, (
@@ -771,17 +814,20 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
             f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
         )
 
-        # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
-        # batch_two samples are new allocations, so alloc-space should be > 0
-        batch_one_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
+        # batch_one was reported as allocations in the first snapshot, so it
+        # should no longer appear in the final primary profile's allocation
+        # samples. batch_two is newly allocated, so it should appear there.
+        final_alloc_one = [
+            sample for sample in final_primary.sample if has_function_in_profile_sample(final_primary, sample, one)
+        ]
+        assert len(final_alloc_one) == 0, (
+            f"Batch one should not appear in final allocation samples (already reported), got {len(final_alloc_one)}"
         )
-        assert batch_one_valid, "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
 
-        batch_two_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
-        )
-        assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space > 0 (new allocations)"
+        final_alloc_two = [
+            sample for sample in final_primary.sample if has_function_in_profile_sample(final_primary, sample, two)
+        ]
+        assert len(final_alloc_two) > 0, "Batch two (new allocations) should appear in final allocation samples"
 
         del first_batch
         del second_batch
@@ -803,7 +849,8 @@ def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
         for _ in range(30):
             batch_two.append(two(512))
 
-        profile_before = mc.snapshot_and_parse_pprof(output_filename)
+        # Live-heap samples live in the persistent heap profile.
+        profile_before = mc.snapshot_and_parse_heap_pprof(output_filename)
 
         heap_space_idx = pprof_utils.get_sample_type_index(profile_before, "heap-space")
         heap_live_idx = pprof_utils.get_sample_type_index(profile_before, "heap-live-samples")
@@ -826,7 +873,7 @@ def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
         del batch_one
         gc.collect()
 
-        profile_after = mc.snapshot_and_parse_pprof(output_filename)
+        profile_after = mc.snapshot_and_parse_heap_pprof(output_filename)
 
         heap_space_idx = pprof_utils.get_sample_type_index(profile_after, "heap-space")
         heap_live_idx = pprof_utils.get_sample_type_index(profile_after, "heap-live-samples")
@@ -872,7 +919,8 @@ def test_heap_live_samples_aggregate_accuracy(tmp_path: Path) -> None:
         for _ in range(num_objects):
             live_objects.append(one(object_size))
 
-        profile = mc.snapshot_and_parse_pprof(output_filename)
+        # Live-heap samples live in the persistent heap profile.
+        profile = mc.snapshot_and_parse_heap_pprof(output_filename)
 
         heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
         heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
@@ -1165,6 +1213,120 @@ def test_heap_stress() -> None:
             del x[:100]
     finally:
         _memalloc.stop()
+
+
+def _alloc_in_named_function(n: int, size: int) -> list[Union[tuple[None, ...], bytearray]]:
+    """Allocate n objects of `size`. Named so the heap profile can attribute samples back to it."""
+    return [one(size) for _ in range(n)]
+
+
+def test_heap_filter_high_churn(tmp_path: Path) -> None:
+    """Heavy insert+erase pressure on the cuckoo filter.
+
+    Allocates many batches and frees each batch immediately. With
+    aggressive sampling, every allocation is a candidate for tracking,
+    exercising the filter's insert path on alloc and erase path on free.
+    Asserts: after the churn, NO live samples remain attributed to the
+    allocator function — i.e. the filter and the hashmap both correctly
+    erased every entry on free.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_churn")
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+
+    with mc:
+        for _ in range(50):
+            batch = _alloc_in_named_function(500, 256)
+            del batch
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+
+    live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+    live_from_allocator = [
+        s for s in live_samples if has_function_in_profile_sample(profile, s, _alloc_in_named_function)
+    ]
+    # Every batch was freed, so no live samples from this function should remain.
+    assert len(live_from_allocator) == 0, (
+        f"after high-churn alloc/free, expected no live samples from allocator, "
+        f"got {len(live_from_allocator)} (filter or map leaked entries)"
+    )
+
+
+def test_heap_filter_address_reuse(tmp_path: Path) -> None:
+    """Python's free lists reuse pointers across allocations.
+
+    A tight alloc/free loop of identically-sized objects almost always
+    reuses the same underlying address. The cuckoo filter must correctly
+    transition state (erase then insert at the same ptr) without leaving
+    stale fingerprints behind. Asserts: zero live samples from the
+    allocator function after the loop completes.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_heap_filter_address_reuse")
+    mc = memalloc.MemoryCollector(heap_sample_size=128)
+
+    with mc:
+        for _ in range(2000):
+            obj = one(512)  # likely reused address from prior iter
+            del obj
+        gc.collect()
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+    live_from_allocator = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
+    assert len(live_from_allocator) == 0, (
+        f"after address-reuse churn, expected no live samples from allocator, "
+        f"got {len(live_from_allocator)} (filter erase failed at reused addresses)"
+    )
+
+
+def test_heap_filter_high_water_then_drain(tmp_path: Path) -> None:
+    """Hold a large working set, then drain it.
+
+    Snapshots the heap at the high-water mark, releases everything,
+    then snapshots again. Asserts: the second snapshot reports zero
+    live samples attributed to the allocator. This proves erase paths
+    actually reclaim filter slots — without working erase, the second
+    snapshot would still show all entries.
+    """
+    output_filename_high = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_water_then_drain_high")
+    mc = memalloc.MemoryCollector(heap_sample_size=1024)
+
+    with mc:
+        live: list[Union[tuple[None, ...], bytearray]] = _alloc_in_named_function(20_000, 1024)
+        # Snapshot at high-water mark — should report many live samples.
+        profile_high = mc.snapshot_and_parse_pprof(output_filename_high)
+
+        del live[:]
+        gc.collect()
+
+        # Reset the prelude for the second snapshot so the pprof file is fresh.
+        output_filename_drained = _setup_profiling_prelude(tmp_path, "test_heap_filter_high_water_then_drain_drained")
+        profile_drained = mc.snapshot_and_parse_pprof(output_filename_drained)
+
+    heap_space_idx_high = pprof_utils.get_sample_type_index(profile_high, "heap-space")
+    heap_space_idx_drained = pprof_utils.get_sample_type_index(profile_drained, "heap-space")
+
+    high_live = [
+        s
+        for s in profile_high.sample
+        if s.value[heap_space_idx_high] > 0
+        and has_function_in_profile_sample(profile_high, s, _alloc_in_named_function)
+    ]
+    drained_live = [
+        s
+        for s in profile_drained.sample
+        if s.value[heap_space_idx_drained] > 0
+        and has_function_in_profile_sample(profile_drained, s, _alloc_in_named_function)
+    ]
+
+    assert len(high_live) > 0, "high-water snapshot should have at least one live sample from allocator"
+    assert len(drained_live) == 0, (
+        f"drained snapshot should have zero live samples from allocator, got {len(drained_live)} "
+        f"(erase did not reclaim filter+map entries)"
+    )
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
@@ -1465,7 +1627,7 @@ def test_mem_domain_allocations_appear_in_heap_samples(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    profile = pprof_utils.parse_newest_heap_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, (
         f"Expected heap-space samples from a 16 MB PYMEM_DOMAIN_MEM allocation on Python {sys.version_info[:2]}"
@@ -1492,7 +1654,7 @@ def test_bytearray_tracked_on_py313(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    profile = pprof_utils.parse_newest_heap_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, (
         "bytearray(8 MB) should produce heap-space samples on Python 3.13+ now that PYMEM_DOMAIN_MEM is hooked"
@@ -1519,14 +1681,16 @@ def test_mem_domain_free_untracks(tmp_path: Path) -> None:
         obj: object = _make_mem_domain_object(16 * 1024 * 1024)
         mc.snapshot()
         ddup.upload()
-        profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.parse_newest_heap_profile(output_filename)
         heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
         samples_after_alloc = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
         del obj
         mc.snapshot()
         ddup.upload()
-        profile = pprof_utils.parse_newest_profile(output_filename)
+        # After freeing the only tracked allocation, the persistent heap profile
+        # may be empty (the sample was subtracted out), so don't assert samples.
+        profile = pprof_utils.parse_newest_heap_profile(output_filename, assert_samples=False)
         heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
         samples_after_free = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
@@ -1549,7 +1713,7 @@ def test_mem_domain_realloc_retracks(tmp_path: Path) -> None:
             lst.append(None)
         mc.snapshot()
     ddup.upload()
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    profile = pprof_utils.parse_newest_heap_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "heap tracker must not be corrupted by repeated MEM reallocs"
     del lst
@@ -1567,7 +1731,7 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
         lst = [None] * 200_000  # MEM domain (ob_item)
         mc.snapshot()
     ddup.upload()
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    profile = pprof_utils.parse_newest_heap_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst

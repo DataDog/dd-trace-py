@@ -16,10 +16,12 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
                             ddog_prof_ProfileExporter _ddog_exporter,
                             ddog_prof_EncodedProfile _encoded_profile,
                             Datadog::ProfilerStats _stats,
-                            std::string_view _process_tags)
+                            std::string_view _process_tags,
+                            ddog_prof_EncodedProfile _heap_encoded_profile)
   : output_filename{ _output_filename }
   , ddog_exporter{ _ddog_exporter }
   , encoded_profile{ _encoded_profile }
+  , heap_encoded_profile{ _heap_encoded_profile }
   , profiler_stats{ _stats }
   , process_tags{ _process_tags }
 {
@@ -43,6 +45,9 @@ Datadog::Uploader::~Uploader()
 
     ddog_prof_Exporter_drop(&ddog_exporter);
     ddog_prof_EncodedProfile_drop(&encoded_profile);
+    if (heap_encoded_profile.inner != nullptr) {
+        ddog_prof_EncodedProfile_drop(&heap_encoded_profile);
+    }
 }
 
 bool
@@ -100,19 +105,64 @@ bool
 Datadog::Uploader::upload_unlocked()
 {
     if (!output_filename.empty()) {
-        return export_to_file(encoded_profile, profiler_stats.get_internal_metadata_json());
+        bool ok = export_to_file(encoded_profile, profiler_stats.get_internal_metadata_json());
+        if (ok && heap_encoded_profile.inner != nullptr) {
+            // Write the heap snapshot next to the primary profile for debugging.
+            auto heap_bytes_res = ddog_prof_EncodedProfile_bytes(&heap_encoded_profile);
+            if (heap_bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_OK_BYTE_SLICE) {
+                std::ostringstream oss;
+                oss << output_filename << "." << getpid() << "." << ProfilerState::get().upload_seq.load()
+                    << ".heap.pprof";
+                std::string heap_filename = oss.str();
+                std::ofstream out(heap_filename, std::ios::binary);
+                if (out.is_open()) {
+                    out.write(reinterpret_cast<const char*>(heap_bytes_res.ok.ptr),
+                              static_cast<std::streamsize>(heap_bytes_res.ok.len));
+                    if (out.fail()) {
+                        std::cerr << "Error writing to heap profile file " << heap_filename << std::endl;
+                    }
+                } else {
+                    std::cerr << "Error opening heap profile file " << heap_filename << std::endl;
+                }
+            } else {
+                std::cerr << "Error getting bytes from heap profile: "
+                          << err_to_msg(&heap_bytes_res.err, "Error getting bytes from heap profile") << std::endl;
+                ddog_Error_drop(&heap_bytes_res.err);
+            }
+        }
+        return ok;
     }
 
     std::vector<ddog_prof_Exporter_File> to_compress_files;
+    to_compress_files.reserve(2);
 
     std::string_view json_str = CodeProvenance::get_instance().get_json_str();
 
     if (!json_str.empty()) {
-        to_compress_files.reserve(1);
         to_compress_files.push_back({
           .name = to_slice("code-provenance.json"),
           .file = to_byte_slice(json_str),
         });
+    }
+
+    // Attach the persistent live-heap profile as a second pprof. The intake
+    // parses every `.pprof` attachment and merges them into a single profile
+    // event, so the heap samples are combined with the primary profile's
+    // cpu/wall/alloc samples (which no longer carry heap data). The bytes are
+    // borrowed from heap_encoded_profile, which this Uploader owns until after
+    // the send completes.
+    if (heap_encoded_profile.inner != nullptr) {
+        auto heap_bytes_res = ddog_prof_EncodedProfile_bytes(&heap_encoded_profile);
+        if (heap_bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_OK_BYTE_SLICE) {
+            to_compress_files.push_back({
+              .name = to_slice("profile-heap.pprof"),
+              .file = heap_bytes_res.ok,
+            });
+        } else {
+            std::cerr << "Error getting bytes from heap profile: "
+                      << err_to_msg(&heap_bytes_res.err, "Error getting bytes from heap profile") << std::endl;
+            ddog_Error_drop(&heap_bytes_res.err);
+        }
     }
 
     auto internal_metadata_json = profiler_stats.get_internal_metadata_json();

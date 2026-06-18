@@ -40,7 +40,7 @@ if(NOT TARGET Python3::Python)
 endif()
 
 # Source files for the extension
-set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp)
+set(SOURCE_FILES _memalloc.cpp _memalloc_tb.cpp _memalloc_heap.cpp _memalloc_reentrant.cpp _memalloc_code_cache.cpp)
 
 # Get the extension name from setup.py or use default Note: EXTENSION_NAME from setup.py already includes the full
 # suffix
@@ -138,3 +138,15 @@ endif()
 
 # Install the extension
 install(TARGETS ${FULL_EXTENSION_NAME} LIBRARY DESTINATION ${LIB_INSTALL_DIR})
+
+# Optional unit tests for the cuckoo filter. Off by default; enable with -DBUILD_TESTING=ON. Self-contained executable
+# (no gtest dependency); fails via assert() if any invariant is violated.
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(test_cuckoo test/test_cuckoo.cpp)
+    # Asserts must fire in tests, regardless of the surrounding build type.
+    target_compile_definitions(test_cuckoo PRIVATE DONT_COMPILE_ABSEIL)
+    target_compile_options(test_cuckoo PRIVATE -UNDEBUG)
+    target_include_directories(test_cuckoo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    add_test(NAME test_cuckoo COMMAND test_cuckoo)
+endif()
