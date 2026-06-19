@@ -91,13 +91,7 @@ class Sampler
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
-    // Tracks whether the sampler was running when prefork was called,
-    // so that postfork_parent/restart_after_fork can restore it.
-    bool was_running_at_fork_{ false };
-
     void atfork_child();
-    friend void stack_atfork_prepare();
-    friend void stack_atfork_parent();
     friend void stack_atfork_child();
 
   public:
@@ -153,12 +147,6 @@ class Sampler
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
-
-    // Record whether the Sampler was running before fork
-    void prefork();
-
-    // Restart the sampling thread in the parent after fork
-    void postfork_parent();
 
     // Restart the sampler after fork if it was running
     void restart_after_fork();
