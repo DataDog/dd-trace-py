@@ -72,22 +72,35 @@ include:
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      excluded_scenarios: "DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E"
       ref: nccatoni/gitlab
-      push_to_test_optimization: true
-      libraries: python
-      scenarios_groups: tracer_release
-      # Gate job (timing only): wait for at least one build linux to complete
-      # before triggering the child pipeline.
-      binaries_artifact: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
-      binaries_artifact_path: "pywheels"
-      # Full set of wheels needed by each weblog's python version:
-      # flask-poc/django-poc/fastapi/uds-flask/uwsgi-poc → cp311
-      # python3.12 → cp312
-      # django-py3.13 → cp313
-      # tornado → cp314
-      binaries_artifacts: >-
-        build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]
+
+system-tests-param:
+  stage: tests
+  image: registry.ddbuild.io/images/mirror/alpine:latest
+  tags:
+    - arch:amd64
+  needs:
+    - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+    - job: "build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]"
+      artifacts: false
+  script:
+    - |
+      {
+        echo 'LIBRARIES=python'
+        echo 'SCENARIO_GROUPS=tracer_release'
+        echo 'EXCLUDED_SCENARIOS=DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E'
+        echo 'SYSTEM_TESTS_PUSH_TO_TEST_OPTIMIZATION=true'
+        echo 'BINARIES_ARTIFACT_PATH=pywheels'
+        echo 'BINARIES_ARTIFACTS=build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]'
+      } > param.env
+  artifacts:
+    reports:
+      dotenv: param.env
 
 "pipeline variables":
   stage: .pre
