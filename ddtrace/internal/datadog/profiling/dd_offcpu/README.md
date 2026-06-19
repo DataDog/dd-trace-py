@@ -4,9 +4,9 @@ Standalone C + libbpf sidecar that measures **exact kernel off-CPU time** for a 
 Python process and (eventually) emits a pprof profile with Python frames. It replaces the
 userspace `wall_time − cpu_time` approximation with kernel-measured intervals.
 
-> **Status:** spike scaffold. The BPF program and daemon plumbing are in place; native
-> symbolization, Python frame walking, and libdatadog pprof emit are stubbed. See the
-> design doc (`ebpf-offcpu-profiler-design.md`) for scope and milestones.
+> **Status:** spike. Kernel off-CPU measurement, native ELF symbolization, and
+> out-of-process Python frame walking (CPython 3.12) are working; libdatadog pprof emit is
+> still stubbed. See the design doc (`ebpf-offcpu-profiler-design.md`) for scope and milestones.
 
 This component is **Linux-only** (eBPF). It will not build on macOS — the CMake configure
 step fails fast there.
@@ -57,12 +57,18 @@ no dynamic dependency on libbpf (`ldd` shows only libelf/libz/libc).
 
 ## Grant capabilities (once)
 
-The daemon needs `CAP_BPF` + `CAP_PERFMON` to load the program and read stacks. Set them on
-the binary so it can run as a plain (non-root) subprocess afterwards — same model as
-`dumpcap`/`ping`:
+The daemon needs three capabilities:
+- `CAP_BPF` + `CAP_PERFMON` — load the BPF program and read kernel/user stacks.
+- `CAP_SYS_PTRACE` — read the target's memory via `process_vm_readv` for the out-of-process
+  Python frame walk. Without it the walk silently yields no Python frames whenever the
+  daemon is not the target's parent and `kernel.yama.ptrace_scope` ≥ 1 (the default on
+  Ubuntu). Native off-CPU timing and native frames still work without it.
+
+Set them on the binary so it can run as a plain (non-root) subprocess afterwards — same
+model as `dumpcap`/`ping`:
 
 ```bash
-sudo setcap cap_bpf,cap_perfmon=ep build/dd_offcpu/dd_offcpu
+sudo setcap cap_bpf,cap_perfmon,cap_sys_ptrace=ep build/dd_offcpu/dd_offcpu
 ```
 
 ## Run
@@ -102,5 +108,5 @@ dd_offcpu/
 └── src/
     ├── main.c            # arg parse, skeleton load/attach, ring buffer poll loop
     ├── symbolize.{c,h}   # native ELF symbolizer
-    └── pysym.{c,h}       # Python frame walker (stub)
+    └── pysym.{c,h}       # out-of-process CPython frame walker (3.12)
 ```
