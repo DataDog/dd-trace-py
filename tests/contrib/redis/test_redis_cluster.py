@@ -212,7 +212,13 @@ _NODE = types.SimpleNamespace(host="redis-host", port=7000)
 
 
 class TestClusterConnTagsUnit:
-    """Unit tests for _build_tags cluster conn tag extraction — no live Redis required."""
+    """Unit tests for _build_tags cluster conn tag extraction — no live Redis required.
+
+    These complement test_connection_tags by covering edge cases that the integration test cannot
+    exercise: empty startup_nodes, the redis-py 5.x dict-of-dicts format, and a missing
+    nodes_manager. Mocking the internal structure here is intentional — we're testing our own
+    parsing logic, not the library's behavior.
+    """
 
     def _make_instance(self, startup_nodes):
         return types.SimpleNamespace(nodes_manager=types.SimpleNamespace(startup_nodes=startup_nodes))
