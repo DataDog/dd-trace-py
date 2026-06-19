@@ -1,12 +1,14 @@
 # dd_offcpu (spike)
 
 Standalone C + libbpf sidecar that measures **exact kernel off-CPU time** for a target
-Python process and (eventually) emits a pprof profile with Python frames. It replaces the
-userspace `wall_time − cpu_time` approximation with kernel-measured intervals.
+Python process and emits a pprof profile with Python frames. It replaces the userspace
+`wall_time − cpu_time` approximation with kernel-measured intervals.
 
-> **Status:** spike. Kernel off-CPU measurement, native ELF symbolization, and
-> out-of-process Python frame walking (CPython 3.12) are working; libdatadog pprof emit is
-> still stubbed. See the design doc (`ebpf-offcpu-profiler-design.md`) for scope and milestones.
+> **Status:** spike. Kernel off-CPU measurement, native ELF symbolization, out-of-process
+> Python frame walking (CPython 3.12), and gzipped pprof output (openable in `go tool
+> pprof`) are working. A production build would export via libdatadog instead of the
+> bundled minimal pprof writer. See the design doc (`ebpf-offcpu-profiler-design.md`) for
+> scope and milestones.
 
 This component is **Linux-only** (eBPF). It will not build on macOS — the CMake configure
 step fails fast there.
@@ -83,6 +85,15 @@ build/dd_offcpu/dd_offcpu --pid <pid>
 #   --output <file>       pprof output path (default: offcpu.pb.gz)
 ```
 
+On exit the daemon writes a gzipped pprof. The sample type is `off-cpu` (nanoseconds);
+samples carry `thread id` and `thread name` labels. View it with the standard tooling:
+
+```bash
+go tool pprof -http :8080 offcpu.pb.gz   # interactive flame graph
+go tool pprof -top offcpu.pb.gz          # text summary
+go tool pprof -traces offcpu.pb.gz       # per-sample stacks
+```
+
 A quick end-to-end target is `scripts/demo_offcpu_approximation.py`, which spawns threads
 that block on sleep / locks / I/O — useful for eyeballing the off-CPU output and comparing
 against the existing approximation (spike milestone 6).
@@ -108,5 +119,6 @@ dd_offcpu/
 └── src/
     ├── main.c            # arg parse, skeleton load/attach, ring buffer poll loop
     ├── symbolize.{c,h}   # native ELF symbolizer
-    └── pysym.{c,h}       # out-of-process CPython frame walker (3.12)
+    ├── pysym.{c,h}       # out-of-process CPython frame walker (3.12)
+    └── pprof.{c,h}       # minimal gzipped pprof writer (off-CPU samples)
 ```

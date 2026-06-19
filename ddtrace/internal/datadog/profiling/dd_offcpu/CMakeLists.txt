@@ -116,7 +116,7 @@ add_custom_target(offcpu_skel DEPENDS ${SKEL_H})
 # ------------------------------------------------------------------------------
 # Step 4: the userspace daemon.
 # ------------------------------------------------------------------------------
-add_executable(dd_offcpu src/main.c src/pysym.c src/symbolize.c)
+add_executable(dd_offcpu src/main.c src/pprof.c src/pysym.c src/symbolize.c)
 
 # offcpu_skel (skeleton) and libbpf_vendored (static lib + headers) must exist
 # before the daemon compiles/links.
