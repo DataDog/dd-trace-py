@@ -98,9 +98,9 @@ works whether or not the target is containerized.
 dd_offcpu/
 ├── CMakeLists.txt        # vmlinux.h -> BPF object -> skeleton -> dd_offcpu
 ├── bpf/offcpu.bpf.c      # CO-RE tp_btf/sched_switch off-CPU accumulation + ringbuf
-├── include/offcpu.h      # shared BPF<->userspace event struct
+├── shared/offcpu.h       # shared BPF<->userspace event struct (wire contract)
 └── src/
     ├── main.c            # arg parse, skeleton load/attach, ring buffer poll loop
-    ├── symbolize.{c,h}   # native ELF symbolizer (stub)
+    ├── symbolize.{c,h}   # native ELF symbolizer
     └── pysym.{c,h}       # Python frame walker (stub)
 ```

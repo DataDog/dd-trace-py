@@ -95,8 +95,8 @@ set(BPF_OBJ "${GEN_DIR}/offcpu.bpf.o")
 add_custom_command(
     OUTPUT ${BPF_OBJ}
     COMMAND ${CLANG_EXE} -g -O2 -target bpf -D__TARGET_ARCH_${BPF_TARGET_ARCH} -I${GEN_DIR}
-            -I${CMAKE_CURRENT_SOURCE_DIR}/include -I${LIBBPF_INCLUDE} -c ${BPF_SRC} -o ${BPF_OBJ}
-    DEPENDS ${BPF_SRC} ${VMLINUX_H} ${CMAKE_CURRENT_SOURCE_DIR}/include/offcpu.h ${LIBBPF_A}
+            -I${CMAKE_CURRENT_SOURCE_DIR}/shared -I${LIBBPF_INCLUDE} -c ${BPF_SRC} -o ${BPF_OBJ}
+    DEPENDS ${BPF_SRC} ${VMLINUX_H} ${CMAKE_CURRENT_SOURCE_DIR}/shared/offcpu.h ${LIBBPF_A}
     COMMENT "Compiling BPF program offcpu.bpf.c"
     VERBATIM)
 
@@ -122,7 +122,7 @@ add_executable(dd_offcpu src/main.c src/pysym.c src/symbolize.c)
 # before the daemon compiles/links.
 add_dependencies(dd_offcpu offcpu_skel libbpf_vendored)
 
-target_include_directories(dd_offcpu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src
+target_include_directories(dd_offcpu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/shared ${CMAKE_CURRENT_SOURCE_DIR}/src
                                              ${GEN_DIR} ${LIBBPF_INCLUDE} ${LIBELF_INCLUDE_DIRS})
 
 # Static libbpf first, then its transitive deps (libelf, zlib, pthread).

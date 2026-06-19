@@ -12,6 +12,7 @@
  * Usage: dd_offcpu --pid <pid> [--min-block-us <us>] [--output <file>]
  */
 #include <argp.h>
+#include <bpf/bpf.h>
 #include <bpf/libbpf.h>
 #include <errno.h>
 #include <signal.h>
@@ -118,7 +119,33 @@ struct daemon_ctx
 {
     struct symbolizer* sym;
     struct pysym* py;
+    int stackmap_fd;
 };
+
+/* Resolve and print the native user-space frames for one event. The BPF program
+ * stored the stack (captured when the thread went off-CPU) in the stack-trace
+ * map under e->user_stack_id; we read the address array back and symbolize each
+ * frame. */
+static void
+print_native_stack(struct daemon_ctx* dctx, const struct offcpu_event* e)
+{
+    if (e->user_stack_id < 0 || dctx->stackmap_fd < 0)
+        return;
+
+    __u64 ips[MAX_STACK_DEPTH];
+    __u32 key = (__u32)e->user_stack_id;
+    if (bpf_map_lookup_elem(dctx->stackmap_fd, &key, ips) != 0)
+        return;
+
+    for (int i = 0; i < MAX_STACK_DEPTH && ips[i] != 0; i++) {
+        char name[256];
+        /* Stop at the first address outside executable code: without frame
+         * pointers the kernel unwinder produces garbage past the leaf frames. */
+        if (symbolizer_resolve(dctx->sym, ips[i], name, sizeof(name)) != 0)
+            break;
+        printf("    native: %s\n", name);
+    }
+}
 
 static int
 handle_event(void* ctx, void* data, size_t size)
@@ -138,10 +165,8 @@ handle_event(void* ctx, void* data, size_t size)
     for (int i = 0; i < n; i++)
         printf("    py: %s\n", py_frames[i]);
 
-    /* Milestone 3: native frames (resolved from the BPF user stack id).
-     * TODO: read the stack from stackmap by e->user_stack_id and call
-     * symbolizer_resolve() on each address. */
-    (void)dctx->sym;
+    /* Milestone 3: native frames resolved from the BPF user stack id. */
+    print_native_stack(dctx, e);
 
     /* TODO milestone 5: accumulate this sample into the libdatadog pprof
      * builder instead of printing, and flush to env.output on exit. */
@@ -185,6 +210,7 @@ main(int argc, char** argv)
     struct daemon_ctx dctx = {
         .sym = symbolizer_new(env.pid),
         .py = pysym_new(env.pid),
+        .stackmap_fd = bpf_map__fd(skel->maps.stackmap),
     };
 
     struct ring_buffer* rb = ring_buffer__new(bpf_map__fd(skel->maps.events), handle_event, &dctx, NULL);
