@@ -77,10 +77,11 @@ def _parse_line_number(value: str) -> t.Optional[int]:
 class SessionManager:
     def __init__(self, session: TestSession) -> None:
         offline = get_offline_mode()
-        # NOTE: In manifest mode the sandbox has no network. Use a no-op connector so
-        # that writers and telemetry don't attempt to connect; the data provider reads
-        # from files instead of HTTP (see CachedFileDataProvider below).
-        if offline.manifest_enabled:
+        # NoOp connector only in Bazel payload-files mode: the hermetic sandbox has no
+        # network access and all output goes to files. In ddtest manifest mode the
+        # manifest file is present but the network IS available, so we use the real
+        # connector to submit spans to the backend.
+        if offline.payload_files_enabled:
             self.connector_setup: BackendConnectorSetup = NoOpBackendConnectorSetup()
         else:
             self.connector_setup = BackendConnectorSetup.detect_setup()
@@ -143,20 +144,25 @@ class SessionManager:
         self.settings = self.api_client.get_settings()
         self.override_settings_with_env_vars()
 
-        # Manifest mode disables test skipping: cached skippable decisions should not
-        # be applied in hermetic Bazel runs.  Matches Go's post-read override.
-        if offline.manifest_enabled:
-            if self.settings.skipping_enabled:
-                log.debug("Test skipping disabled in manifest mode")
-            self.settings.skipping_enabled = False
-            self.settings.itr_enabled = False
-
         self.show_settings()
 
         self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
-        self.test_properties = (
-            self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-        )
+
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            tm_properties = self.api_client.get_test_management_properties(
+                statuses=("active", "quarantined", "disabled")
+            )
+            self.atf_all_flaky_tests: bool = True
+            self.test_properties: dict[TestRef, TestProperties] = tm_properties
+            log.info(
+                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
+                len(tm_properties),
+            )
+        else:
+            self.atf_all_flaky_tests = False
+            self.test_properties = (
+                self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
+            )
 
         self.upload_git_data()
         if self.settings.itr_enabled:
@@ -760,6 +766,10 @@ class SessionManager:
         if not asbool(env.get("DD_TEST_MANAGEMENT_ENABLED", "true")):
             log.debug("Test Management is disabled by environment variable")
             self.settings.test_management.enabled = False
+
+        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
+            log.debug("ATF-all-flaky mode enabled: forcing Test Management on")
+            self.settings.test_management.enabled = True
 
         _coverage_upload_env = env.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "")
         if _coverage_upload_env.lower() in ("false", "0"):
