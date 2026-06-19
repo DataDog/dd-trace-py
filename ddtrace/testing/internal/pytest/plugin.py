@@ -409,6 +409,22 @@ class TestOptPlugin:
 
         self.manager.finish()
 
+    def pytest_collection_modifyitems(
+        self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
+    ) -> None:
+        if not self.manager.atf_all_flaky_tests:
+            return
+        selected = []
+        deselected = []
+        for item in items:
+            if item_to_test_ref(item) in self.manager.test_properties:
+                selected.append(item)
+            else:
+                deselected.append(item)
+        if deselected:
+            config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
         Discover modules, suites, and tests that have been selected by pytest.
