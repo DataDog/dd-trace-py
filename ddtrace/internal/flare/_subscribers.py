@@ -1,4 +1,5 @@
 from datetime import datetime
+import threading
 import typing as t
 from typing import Optional
 
@@ -65,7 +66,13 @@ def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequenc
                     else:
                         continue
                 flare.revert_configs()
-                flare.send(flare_action)
+                # Avoid synchronous dispatching with the rust RC fetcher
+                threading.Thread(
+                    target=flare.send,
+                    args=(flare_action,),
+                    name="tracer-flare-send",
+                    daemon=True,
+                ).start()
                 state.current_request_start = None
             elif flare_action.is_unset():
                 flare.revert_configs()
