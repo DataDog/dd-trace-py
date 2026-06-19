@@ -52,11 +52,14 @@ def test_data_streams_payload_size(
         producer.produce(empty_kafka_topic, payload, key=key, headers=test_headers)
         producer.flush()
 
-        # Poll until the produced message arrives (topic is empty, so first message = ours).
+        # Poll until the produced message arrives (topic is empty, so first non-error message = ours).
         message = None
         deadline = time.monotonic() + 10
-        while message is None and time.monotonic() < deadline:
-            message = fresh_consumer.poll(timeout=1.0)
+        while time.monotonic() < deadline:
+            polled = fresh_consumer.poll(timeout=1.0)
+            if polled is not None and polled.error() is None:
+                message = polled
+                break
     assert message is not None, "Consumer did not receive the produced message within 10s"
 
     # DSM aggregates into 10s wall-clock buckets; produce and consume checkpoints
