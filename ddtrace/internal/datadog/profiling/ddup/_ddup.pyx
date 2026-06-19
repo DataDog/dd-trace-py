@@ -75,7 +75,8 @@ cdef extern from "ddup_interface.hpp":
     void ddup_start_gc_monitor(uint64_t interval_ms,
                                int survivor_threshold,
                                int top_n,
-                               bint referrers_enabled)
+                               bint referrers_enabled,
+                               int stability_threshold)
     void ddup_stop_gc_monitor()
 
     Sample *ddup_start_sample()
@@ -415,12 +416,14 @@ def set_profiler_settings_json(settings_json: StringType) -> None:
 def start_gc_monitor(interval_ms: int,
                      survivor_threshold: int,
                      top_n: int,
-                     referrers_enabled: bool) -> None:
+                     referrers_enabled: bool,
+                     stability_threshold: int) -> None:
     ddup_start_gc_monitor(
         clamp_to_uint64_unsigned(interval_ms),
         survivor_threshold,
         top_n,
         referrers_enabled,
+        stability_threshold,
     )
 
 

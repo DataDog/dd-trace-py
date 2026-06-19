@@ -62,6 +62,7 @@ class ProfilingConfigGC(DDConfig):
     top_n: int
     survivor_threshold: int
     referrers_enabled: bool
+    stability_threshold: int
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]

@@ -519,6 +519,21 @@ class ProfilingConfigGC(DDConfig):
         ),
     )
 
+    stability_threshold = DDConfig.v(
+        int,
+        "stability_threshold",
+        default=3,
+        validator=_validate_positive_int,
+        help_type="Integer",
+        help=(
+            "Number of consecutive GC snapshots in which a type's instance count must be "
+            "non-increasing before objects of that type are excluded from the suspect list. "
+            "This filters out stable pools and caches (e.g. re.Pattern, module-level "
+            "singletons) that survive indefinitely but are not growing leaks. "
+            "Set to 0 to disable plateau filtering."
+        ),
+    )
+
 
 # Include all the sub-configs
 ProfilingConfig.include(ProfilingConfigStack, namespace="stack")

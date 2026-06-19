@@ -89,6 +89,13 @@ type_name_of(PyObject* obj)
 //
 // cur_objs supplies pre-computed (type_idx, size) for every GC-tracked object,
 // avoiding redundant sys.getsizeof calls on intermediate nodes.
+//
+// snapshot_objs is the list returned by gc.get_objects().  It is still alive
+// during the walk and references every GC-tracked object, so it would appear
+// as a referrer for every suspect and be mistakenly classified as 'O' (not in
+// gc_id_set because it was created after the gc.get_objects() call).  We skip
+// it explicitly the same way we skip the get_referrers() result list.
+//
 // GIL must be held.
 RootNode
 find_root(PyObject* obj,
@@ -99,6 +106,7 @@ find_root(PyObject* obj,
           const std::unordered_map<uintptr_t, std::pair<uint32_t, uint64_t>>& cur_objs,
           std::vector<std::string>& type_table,
           std::unordered_map<std::string, uint32_t>& type_table_index,
+          PyObject* snapshot_objs,
           std::vector<std::pair<uint32_t, uint64_t>>& out_path)
 {
     // Look up (type_idx, size) for any GC-tracked object via cur_objs.
@@ -164,9 +172,11 @@ find_root(PyObject* obj,
         for (Py_ssize_t i = 0; i < nref; ++i) {
             PyObject* ref = PyList_GET_ITEM(referrers, i); // borrowed
 
-            // Skip the referrers list itself and any already-visited node
-            // (including the original suspect and the current prev_obj).
-            if (ref == referrers) {
+            // Skip the referrers list itself, the snapshot objs list (which
+            // references every GC-tracked object and was created after
+            // gc_id_set was built so it looks like a non-GC referrer), and
+            // any already-visited node.
+            if (ref == referrers || ref == snapshot_objs) {
                 continue;
             }
             const uintptr_t ref_id = reinterpret_cast<uintptr_t>(ref);
@@ -433,7 +443,11 @@ GCMonitor::get()
 }
 
 void
-GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled)
+GCMonitor::start(uint64_t interval_ms,
+                 int survivor_threshold,
+                 int top_n,
+                 bool referrers_enabled,
+                 int stability_threshold)
 {
     std::unique_lock<std::mutex> lock(_mutex);
     if (_started) {
@@ -443,6 +457,7 @@ GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool r
     _survivor_threshold = survivor_threshold;
     _top_n = top_n;
     _referrers_enabled = referrers_enabled;
+    _stability_threshold = stability_threshold;
     _started = true;
     _stop_flag = false;
     lock.unlock();
@@ -649,6 +664,34 @@ GCMonitor::take_snapshot()
     timing.type_scan_us = elapsed_us(t_type_scan_start, t_survivor_start);
 
     // ------------------------------------------------------------------
+    // 3a. Update plateau-detection streaks (per type name)
+    // ------------------------------------------------------------------
+    // For each type seen this snapshot, compare its count against the
+    // previous snapshot.  If the count did not grow, increment the stable
+    // streak; if it grew, reset to zero.  Types whose streak reaches
+    // _stability_threshold are excluded from the suspect list below.
+    // A threshold of 0 disables this filter entirely.
+    if (_stability_threshold > 0) {
+        for (size_t ti = 0; ti < type_table.size(); ++ti) {
+            const std::string& tname = type_table[ti];
+            const uint32_t cur_count = (ti < type_counts.size()) ? type_counts[ti] : 0;
+            if (cur_count == 0) {
+                continue;
+            }
+            const auto prev_it = _prev_type_counts.find(tname);
+            const uint32_t prev_count = (prev_it != _prev_type_counts.end()) ? prev_it->second : 0;
+            auto& streak = _type_stable_streak[tname];
+            if (cur_count > prev_count) {
+                // Count grew -- type is (re)gaining momentum, reset streak.
+                streak = 0;
+            } else {
+                ++streak;
+            }
+            _prev_type_counts[tname] = cur_count;
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 3. Update survivor counts
     // ------------------------------------------------------------------
     std::unordered_map<uintptr_t, int> new_survivor_counts;
@@ -687,9 +730,22 @@ GCMonitor::take_snapshot()
     for (const auto& [oid, sc] : _survivor_counts) {
         if (sc >= _survivor_threshold) {
             auto it = cur_objs.find(oid);
-            if (it != cur_objs.end() && !is_excluded_type(type_table[it->second.first])) {
-                suspects.push_back({ oid, it->second.first, it->second.second, sc });
+            if (it == cur_objs.end()) {
+                continue;
             }
+            const std::string& tname = type_table[it->second.first];
+            if (is_excluded_type(tname)) {
+                continue;
+            }
+            // Skip types whose instance count has plateaued: they represent
+            // stable pools (caches, singletons) rather than growing leaks.
+            if (_stability_threshold > 0) {
+                const auto streak_it = _type_stable_streak.find(tname);
+                if (streak_it != _type_stable_streak.end() && streak_it->second >= _stability_threshold) {
+                    continue;
+                }
+            }
+            suspects.push_back({ oid, it->second.first, it->second.second, sc });
         }
     }
 
@@ -719,8 +775,16 @@ GCMonitor::take_snapshot()
             }
 
             std::vector<std::pair<uint32_t, uint64_t>> out_path;
-            RootNode root = find_root(
-              obj, suspect.type_idx, suspect.size, 20, gc_id_set, cur_objs, type_table, type_table_index, out_path);
+            RootNode root = find_root(obj,
+                                      suspect.type_idx,
+                                      suspect.size,
+                                      20,
+                                      gc_id_set,
+                                      cur_objs,
+                                      type_table,
+                                      type_table_index,
+                                      objs,
+                                      out_path);
 
             // Merge into existing roots with same category + fn + type_idx.
             // root.ic / root.ts carry the suspect's count / size so that the

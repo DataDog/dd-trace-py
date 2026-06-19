@@ -338,6 +338,7 @@ class _ProfilerInstance(service.Service):
                     survivor_threshold=profiling_config.gc.survivor_threshold,
                     top_n=profiling_config.gc.top_n,
                     referrers_enabled=profiling_config.gc.referrers_enabled,
+                    stability_threshold=profiling_config.gc.stability_threshold,
                 )
                 LOG.debug("GC monitor started (interval=%ds)", profiling_config.gc.interval_s)
             except Exception:

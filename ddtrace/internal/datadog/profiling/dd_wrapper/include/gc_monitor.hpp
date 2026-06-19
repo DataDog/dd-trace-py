@@ -46,7 +46,11 @@ class GCMonitor
 
     // Start the background thread with the given configuration.
     // Calling start() when already running is a no-op.
-    void start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled);
+    void start(uint64_t interval_ms,
+               int survivor_threshold,
+               int top_n,
+               bool referrers_enabled,
+               int stability_threshold);
 
     // Signal the background thread to stop and return immediately.
     // No final snapshot is taken. Safe to call from any thread.
@@ -85,6 +89,10 @@ class GCMonitor
     int _survivor_threshold{ 3 };
     int _top_n{ 20 };
     bool _referrers_enabled{ false };
+    // Number of consecutive snapshots a type's instance count must be
+    // non-increasing before that type is excluded from the suspect list.
+    // 0 disables plateau filtering.
+    int _stability_threshold{ 3 };
 
     // Cross-snapshot state (only accessed from the background thread)
     std::array<GCGenStats, 3> _prev_gen_stats{};
@@ -92,6 +100,11 @@ class GCMonitor
     std::unordered_map<uintptr_t, int> _survivor_counts;
     // object id -> (type_idx, shallow_size) from the previous snapshot
     std::unordered_map<uintptr_t, std::pair<uint32_t, uint64_t>> _prev_objs;
+    // Plateau-detection state (keyed by type name, stable across snapshots)
+    // type name -> instance count from the previous snapshot
+    std::unordered_map<std::string, uint32_t> _prev_type_counts;
+    // type name -> consecutive snapshots where count did not grow
+    std::unordered_map<std::string, int> _type_stable_streak;
 
     std::string _latest_json; // protected by _mutex
 };
