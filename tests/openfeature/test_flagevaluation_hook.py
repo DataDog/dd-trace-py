@@ -15,6 +15,7 @@ import typing
 from unittest import mock
 
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import FlagType
 from openfeature.flag_evaluation import Reason
@@ -43,6 +44,7 @@ def _make_details(
     reason: typing.Optional[Reason] = Reason.TARGETING_MATCH,
     flag_metadata: dict = None,
     error_message: str = None,
+    error_code: typing.Optional[ErrorCode] = None,
 ) -> FlagEvaluationDetails:
     return FlagEvaluationDetails(
         flag_key=flag_key,
@@ -51,6 +53,7 @@ def _make_details(
         reason=reason,
         flag_metadata=flag_metadata or {},
         error_message=error_message,
+        error_code=error_code,
     )
 
 
@@ -156,6 +159,17 @@ class TestFlagEvaluationHook:
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.allocation_key == "alloc-xyz"
+
+    def test_finally_after_falls_back_to_error_code_when_message_absent(self, hook, writer):
+        hc = _make_hook_context()
+        details = _make_details(
+            variant=None,
+            reason=Reason.ERROR,
+            error_code=ErrorCode.FLAG_NOT_FOUND,
+        )
+        hook.finally_after(hc, details, {})
+        event = writer.enqueue.call_args[0][0]
+        assert event.error_message == ErrorCode.FLAG_NOT_FOUND.value
 
     def test_finally_after_does_no_aggregation_on_hook_thread(self, hook, writer):
         """The hook must call enqueue only — not build payloads or aggregate."""

@@ -39,7 +39,7 @@ from ddtrace.internal.utils.http import get_connection
 logger = get_logger(__name__)
 
 # EVP endpoint for flag evaluation events.
-FLAGEVALUATIONS_ENDPOINT = "/evp_proxy/v2/api/v2/flagevaluations"
+FLAGEVALUATIONS_ENDPOINT = "/evp_proxy/v2/api/v2/flagevaluation"
 EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 EVP_SUBDOMAIN_VALUE = "event-platform-intake"
 
@@ -47,9 +47,17 @@ EVP_SUBDOMAIN_VALUE = "event-platform-intake"
 MAX_CONTEXT_FIELDS = 256
 MAX_FIELD_LENGTH = 256
 
-# Aggregation caps (sized for a ≥2,500-flag scale target).
+# Aggregation caps (sized for a >=2,500-flag scale target).
+EVAL_SCALE_TARGET_FLAGS = 2_500
+EVAL_SCALE_FULL_BUCKETS_PER_FLAG = 50
+EVAL_SCALE_USERS_PER_FLAG = 1_000
+EVAL_SCALE_PER_FLAG_HEADROOM_MULTIPLIER = 10
+EVAL_SCALE_DEGRADED_BUCKETS_PER_FLAG = 10
+EVAL_SCALE_FULL_BUCKET_TARGET = EVAL_SCALE_TARGET_FLAGS * EVAL_SCALE_FULL_BUCKETS_PER_FLAG
+EVAL_SCALE_PER_FLAG_BUCKET_TARGET = EVAL_SCALE_PER_FLAG_HEADROOM_MULTIPLIER * EVAL_SCALE_USERS_PER_FLAG
+EVAL_SCALE_DEGRADED_BUCKET_TARGET = EVAL_SCALE_TARGET_FLAGS * EVAL_SCALE_DEGRADED_BUCKETS_PER_FLAG
 GLOBAL_CAP = 131_072  # bounds full-tier buckets
-PER_FLAG_CAP = 10_000  # bounds full-tier buckets per flag
+PER_FLAG_CAP = EVAL_SCALE_PER_FLAG_BUCKET_TARGET  # bounds full-tier buckets per flag
 DEGRADED_CAP = 32_768  # bounds degraded-tier buckets; overflow is drop-counted
 
 # Async hand-off queue size.
@@ -205,28 +213,28 @@ class _Entry:
 
     def __init__(
         self,
-        now_ms: int,
+        eval_time_ms: int,
         runtime_default: bool,
         targeting_key: str,
         context_attrs: dict[str, typing.Any],
         error_message: str,
     ) -> None:
         self.count: int = 1
-        self.first_evaluation: int = now_ms
-        self.last_evaluation: int = now_ms
+        self.first_evaluation: int = eval_time_ms
+        self.last_evaluation: int = eval_time_ms
         self.runtime_default: bool = runtime_default
         # Full-tier only:
         self.targeting_key: str = targeting_key
         self.context_attrs: dict[str, typing.Any] = context_attrs
         self.error_message: str = error_message
 
-    def observe(self, now_ms: int) -> None:
+    def observe(self, eval_time_ms: int) -> None:
         """Update count and first/last bounds for a repeated evaluation."""
         self.count += 1
-        if now_ms < self.first_evaluation:
-            self.first_evaluation = now_ms
-        if now_ms > self.last_evaluation:
-            self.last_evaluation = now_ms
+        if eval_time_ms < self.first_evaluation:
+            self.first_evaluation = eval_time_ms
+        if eval_time_ms > self.last_evaluation:
+            self.last_evaluation = eval_time_ms
 
 
 class _EvalEvent(typing.NamedTuple):
@@ -395,7 +403,7 @@ class FlagEvaluationWriter(PeriodicService):
             )
 
         # 3. Build payload.
-        now_ms = int(time.time() * 1000)
+        flush_time_ms = int(time.time() * 1000)
         events = []
 
         # Full-tier events: all optional fields present.
@@ -403,7 +411,7 @@ class FlagEvaluationWriter(PeriodicService):
             flag_key = key[0]
             variant = key[1]
             allocation_key = key[2]
-            ev = _base_event(flag_key, entry, now_ms)
+            ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
             if entry.targeting_key:
@@ -423,7 +431,7 @@ class FlagEvaluationWriter(PeriodicService):
             flag_key = key[0]
             variant = key[1]
             allocation_key = key[2]
-            ev = _base_event(flag_key, entry, now_ms)
+            ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
             if variant:
@@ -528,7 +536,7 @@ class FlagEvaluationWriter(PeriodicService):
 
             # New full-tier bucket.
             self._full[full_key] = _Entry(
-                now_ms=event.eval_time_ms,
+                eval_time_ms=event.eval_time_ms,
                 runtime_default=event.runtime_default,
                 targeting_key=event.targeting_key,
                 context_attrs=context_attrs,
@@ -557,7 +565,7 @@ class FlagEvaluationWriter(PeriodicService):
             return
 
         self._degraded[deg_key] = _Entry(
-            now_ms=event.eval_time_ms,
+            eval_time_ms=event.eval_time_ms,
             runtime_default=event.runtime_default,
             targeting_key="",
             context_attrs={},
@@ -600,10 +608,10 @@ class FlagEvaluationWriter(PeriodicService):
 # ---------------------------------------------------------------------------
 
 
-def _base_event(flag_key: str, entry: "_Entry", now_ms: int) -> dict[str, typing.Any]:
+def _base_event(flag_key: str, entry: "_Entry", flush_time_ms: int) -> dict[str, typing.Any]:
     """Build the required-fields-only event dict for a single aggregation entry."""
     return {
-        "timestamp": now_ms,
+        "timestamp": flush_time_ms,
         "flag": {"key": flag_key},
         "first_evaluation": entry.first_evaluation,
         "last_evaluation": entry.last_evaluation,

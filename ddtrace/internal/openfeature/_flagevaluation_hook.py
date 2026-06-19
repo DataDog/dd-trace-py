@@ -95,6 +95,10 @@ class FlagEvaluationHook(Hook):
             error_message = ""
             if details.error_message:
                 error_message = str(details.error_message)
+            elif details.error_code:
+                error_message = (
+                    str(details.error_code.value) if hasattr(details.error_code, "value") else str(details.error_code)
+                )
 
             event = _EvalEvent(
                 flag_key=flag_key,

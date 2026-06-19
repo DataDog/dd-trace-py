@@ -8,7 +8,7 @@ Tests validate the two-tier aggregation spec:
 - 256-field / 256-char context pruning
 - runtime_default_used from absent/None variant
 - Non-blocking enqueue with drop-and-count on queue.Full
-- EVP POST to /evp_proxy/v2/api/v2/flagevaluations with correct headers
+- EVP POST to /evp_proxy/v2/api/v2/flagevaluation with correct headers
 """
 
 import json
@@ -22,6 +22,9 @@ import pytest
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
 from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIELDS
@@ -341,7 +344,7 @@ class TestPeriodicFlush:
 
     @mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.get_connection")
     def test_post_to_correct_endpoint_with_evp_header(self, mock_get_conn, writer):
-        """Payload goes to /evp_proxy/v2/api/v2/flagevaluations with EVP subdomain header."""
+        """Payload goes to /evp_proxy/v2/api/v2/flagevaluation with EVP subdomain header."""
         mock_conn = mock.Mock()
         mock_resp = mock.Mock()
         mock_resp.status = 200
@@ -428,7 +431,15 @@ class TestPeriodicFlush:
         assert "context" not in ev
 
     def test_writer_endpoint_constant(self):
-        assert FLAGEVALUATIONS_ENDPOINT == "/evp_proxy/v2/api/v2/flagevaluations"
+        assert FLAGEVALUATIONS_ENDPOINT == "/evp_proxy/v2/api/v2/flagevaluation"
+
+    def test_cap_sizing_constants(self):
+        assert EVAL_SCALE_FULL_BUCKET_TARGET == 125_000
+        assert EVAL_SCALE_PER_FLAG_BUCKET_TARGET == 10_000
+        assert EVAL_SCALE_DEGRADED_BUCKET_TARGET == 25_000
+        assert GLOBAL_CAP == 131_072
+        assert PER_FLAG_CAP == 10_000
+        assert DEGRADED_CAP == 32_768
 
     def test_class_exists_and_inherits_periodic_service(self):
         from ddtrace.internal.periodic import PeriodicService
