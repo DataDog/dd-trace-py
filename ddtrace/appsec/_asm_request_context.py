@@ -13,6 +13,7 @@ from urllib import parse
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
 from ddtrace.appsec._metrics import UNKNOWN_VERSION
@@ -186,6 +187,61 @@ def should_analyze_body_response(env: ASM_Environment) -> bool:
         env.downstream_requests < asm_config._dr_body_limit_per_request
         and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
     )
+
+
+# SSRF shares one subcontext across an outgoing request's SSRF_REQ + SSRF_RES calls, which may run
+# in different core contexts (e.g. httpx: request on the inner send context, final response on the
+# outer). A mutable holder is stored on the owning context; both calls resolve it via find_item
+# (which walks up the context tree), and it is released when that scope ends.
+
+_RASP_SUBCONTEXT = "asm::rasp_subcontext"
+
+_SSRF_RULE_TYPES = frozenset(
+    (
+        EXPLOIT_PREVENTION.TYPE.SSRF,
+        EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
+)
+
+
+class _RaspSubcontextHolder:
+    __slots__ = ("subctx",)
+
+    def __init__(self) -> None:
+        self.subctx: Optional[Any] = None
+
+
+def open_rasp_subcontext_scope() -> None:
+    """Establish the current core context as the owner of an SSRF subcontext.
+
+    Called by SSRF integrations from the per-outgoing-request core context (``url_open_analysis``,
+    httpx's request context, or urllib3's own ``context_with_data``) so the request's SSRF_REQ and
+    SSRF_RES WAF calls share one subcontext, created lazily on the first RASP call within the scope.
+    Because the holder lives on that per-request context, concurrent outgoing requests (each in its
+    own context) get distinct subcontexts, and dropping the context releases the holder.
+
+    Reentrant: if an enclosing scope already owns a holder (e.g. ``requests`` driving ``urllib3``),
+    this is a no-op and the inner operation shares the outer subcontext.
+    """
+    if core.find_item(_RASP_SUBCONTEXT) is None:
+        core.set_item(_RASP_SUBCONTEXT, _RaspSubcontextHolder())
+
+
+def get_or_create_rasp_subcontext(ddwaf: Any, ctx: Any, rule_type: Optional[str]) -> Optional[Any]:
+    """Return the subcontext to use for a RASP WAF call.
+
+    SSRF calls reuse the subcontext stored on the owning scope (created lazily on first use);
+    other RASP types (LFI/CMDI/SHI/SQLI) get a fresh subcontext per call. Returns None when no
+    subcontext could be created, in which case the caller bypasses the RASP check.
+    """
+    if rule_type in _SSRF_RULE_TYPES:
+        holder = core.find_item(_RASP_SUBCONTEXT)
+        if holder is not None:
+            if holder.subctx is None:
+                holder.subctx = ddwaf.new_subcontext(ctx)
+            return holder.subctx
+    return ddwaf.new_subcontext(ctx)
 
 
 def get_framework() -> str:

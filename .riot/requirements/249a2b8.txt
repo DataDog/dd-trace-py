@@ -5,7 +5,7 @@
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/249a2b8.in
 #
 aiohappyeyeballs==2.6.2
-aiohttp==3.14.0
+aiohttp==3.14.1
 aiosignal==1.4.0
 async-timeout==5.0.1
 attrs==26.1.0
