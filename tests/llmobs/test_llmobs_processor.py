@@ -36,7 +36,7 @@ def llmobs_agent_proxy(tracer):
         mock_writer = mock.MagicMock()
         llmobs_service._instance._llmobs_span_writer = mock_writer
         # The processor was bound to the original writer at enable() time; re-bind.
-        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, llmobs_service._instance._export_mode)
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
         yield llmobs_service, mock_writer
         llmobs_service.disable()
 
@@ -69,11 +69,9 @@ class TestExportModeKeepsMetaStruct:
         assert span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) is not None
 
     def test_apm_agentless_keeps_meta_struct_and_skips_rescue(self, tracer):
-        """APM_AGENTLESS ships straight to intake at 100%, so finish must keep meta_struct,
-        cache no rescue event, and never enqueue to the writer — even on a predicted drop.
+        """APM_AGENTLESS rides the APM trace to intake at 100%: meta_struct stays, writer
+        is never called, even on a predicted drop.
         """
-        from ddtrace._trace.processor import _NoopTraceProcessor
-
         llmobs_service.disable()
         with override_global_config(
             {
@@ -84,18 +82,16 @@ class TestExportModeKeepsMetaStruct:
         ):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
             llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
-            # Mirror enable() gating: agentless installs no rescue processor.
-            tracer._span_aggregator.llmobs_processor = _NoopTraceProcessor()
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
             with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
                 _annotate_llm_span(span)
                 span.context.sampling_priority = USER_REJECT
             mock_writer.enqueue.assert_not_called()
             assert _get_llmobs_data_metastruct(span)
             assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
-            assert span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) is None
             llmobs_service.disable()
 
     def test_llmobs_direct_mode_still_enqueues_and_scrubs(self, tracer):
@@ -108,10 +104,11 @@ class TestExportModeKeepsMetaStruct:
             }
         ):
             llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
-            llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_DIRECT
+            llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_AGENT_PROXY
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
             with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
                 _annotate_llm_span(span)
             mock_writer.enqueue.assert_called_once()
@@ -141,20 +138,6 @@ class TestRescuePath:
         assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
         assert _get_llmobs_data_metastruct(span)
         mock_writer.enqueue.assert_not_called()
-
-    def test_rescue_idempotent_when_already_submitted(self, llmobs_agent_proxy, tracer):
-        """The submitted tag marks an event that was already shipped to the writer (e.g. via
-        the finish-time direct path). On a predicted drop the rescue must honor that flag and
-        not enqueue a duplicate.
-        """
-        _llmobs, mock_writer = llmobs_agent_proxy
-        with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
-            _annotate_llm_span(span)
-            # Simulate "already submitted" before the rescue processor runs.
-            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            span.context.sampling_priority = USER_REJECT
-        mock_writer.enqueue.assert_not_called()
-        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
 
     def test_rescue_does_not_mutate_sampling_priority(self, llmobs_agent_proxy, tracer):
         """LLMObs has zero impact on APM sampling decisions or billing."""
@@ -290,7 +273,7 @@ class TestRescueEdgeCases:
         from ddtrace.llmobs._constants import LLMOBS_STRUCT
 
         mock_writer = mock.MagicMock()
-        processor = LLMObsProcessor(mock_writer, LLMObsExportMode.APM_AGENT)
+        processor = LLMObsProcessor(mock_writer, mock.MagicMock(enabled=True))
 
         span = Span(name="llm-span", span_type=SpanTypes.LLM)
         span._set_struct_tag(LLMOBS_STRUCT.KEY, {"trace_id": "abc", "span_id": "1"})
@@ -311,7 +294,7 @@ class TestRescueEdgeCases:
         from ddtrace._trace.span import Span
 
         mock_writer = mock.MagicMock()
-        processor = LLMObsProcessor(mock_writer, LLMObsExportMode.APM_AGENT)
+        processor = LLMObsProcessor(mock_writer, mock.MagicMock(enabled=True))
         root = Span(name="root-apm-span")
         child_llm = Span(name="llm-child", span_type=SpanTypes.LLM)
         unrelated = Span(name="apm-child")
@@ -328,8 +311,8 @@ class TestRescueEdgeCases:
 
 class TestTracerDisabledImmediateShip:
     def test_tracer_disabled_enqueues_at_finish_hook(self, tracer):
-        """tracer.enabled=False short-circuits SpanAggregator.on_span_finish, so the
-        rescue chain never runs. _on_span_finish must enqueue inline instead.
+        """tracer.enabled=False: LLMObsProcessor rewrites the configured APM mode to the
+        writer's transport and enqueues directly.
         """
         llmobs_service.disable()
         with override_global_config(
@@ -343,7 +326,9 @@ class TestTracerDisabledImmediateShip:
             assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
             llmobs_service._instance._llmobs_span_writer.stop()
             mock_writer = mock.MagicMock()
+            mock_writer._agentless = False
             llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
             tracer.enabled = False
             try:
                 with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:

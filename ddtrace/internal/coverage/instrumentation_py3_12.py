@@ -51,18 +51,49 @@ _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false"))
 
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
+# NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
+# Slot 4 is preferred; slot 1 (COVERAGE_ID) is a last resort since other coverage tools may use it.
+# _DD_TOOL_ID is None until register_coverage() succeeds; instrument_all_lines() is a no-op
+# while it remains None.
+_DD_TOOL_ID: t.Optional[int] = None  # noqa: UP006
+_DD_CANDIDATE_SLOTS = (4, 3, 1)
+
 # Store: (hook, path, import_names_by_line)
 # IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
 
 
+def _ensure_registered() -> bool:
+    """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
+    global _DD_TOOL_ID
+
+    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+        return True
+
+    for slot in _DD_CANDIDATE_SLOTS:
+        try:
+            sys.monitoring.use_tool_id(slot, "datadog")
+            _DD_TOOL_ID = slot
+            break
+        except ValueError:
+            continue
+    else:
+        log.warning(
+            "No sys.monitoring tool slot available (tried slots %s), not gathering coverage",
+            _DD_CANDIDATE_SLOTS,
+        )
+        return False
+
+    mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
+    log.debug("Registered %s coverage tool (tool_id=%d)", mode, _DD_TOOL_ID)
+    sys.monitoring.register_callback(_DD_TOOL_ID, EVENT, _event_handler)
+    return True
+
+
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
-
-    Only instruments when ddtrace owns COVERAGE_ID (registered via register_coverage()).
-    If another tool holds the slot — or nobody has registered yet — returns empty coverage.
 
     This function supports two modes based on _DD_COVERAGE_FILE_LEVEL:
     - Line-level (default): Uses LINE events for detailed line-by-line coverage
@@ -80,7 +111,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Note: Both modes use an optimized approach where callbacks return DISABLE
     after recording, meaning each line/function is only reported once per coverage context.
     """
-    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) != "datadog":
+    if not _ensure_registered():
         return code, CoverageLines()
 
     return _instrument_with_monitoring(code, hook, path, package)
@@ -116,68 +147,6 @@ def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABL
     return sys.monitoring.DISABLE
 
 
-def register_coverage() -> bool:
-    """Claim sys.monitoring.COVERAGE_ID for ddtrace.
-
-    Called from the coverage installer before the import hook is set up, and
-    again after yielding in pytest hooks to reclaim the slot if it was
-    temporarily released for another tool.
-
-    When reclaiming, re-enables set_local_events() for all previously-
-    instrumented code objects so that per-test coverage continues to work.
-
-    Returns True if we now own the slot, False otherwise.
-    """
-    current_tool = sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID)
-    if current_tool == "datadog":
-        return True  # Already ours
-    if current_tool is not None:
-        log.warning(
-            "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
-            "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
-            current_tool,
-        )
-        return False
-    try:
-        sys.monitoring.use_tool_id(sys.monitoring.COVERAGE_ID, "datadog")
-    except ValueError:
-        # Race: another tool claimed COVERAGE_ID between our check and our claim
-        log.warning(
-            "ddtrace coverage instrumentation is disabled: sys.monitoring.COVERAGE_ID is already "
-            "in use by '%s'. Datadog's ITR per-test coverage will not be collected for this session.",
-            sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID),
-        )
-        return False
-    mode = "file-level" if _USE_FILE_LEVEL_COVERAGE else "line-level"
-    log.debug("Registering %s coverage tool", mode)
-    sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, _event_handler)
-    # Re-enable LINE/PY_START events for all previously-instrumented code objects.
-    # This is needed after an unregister/register cycle because free_tool_id()
-    # clears all set_local_events() state in CPython.
-    for code in _CODE_HOOKS:
-        sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, EVENT)
-    return True
-
-
-def unregister_coverage() -> bool:
-    """Release sys.monitoring.COVERAGE_ID if currently held by datadog.
-
-    Called before yielding in pytest hooks so that another coverage tool
-    (e.g. pytest-cov) can claim the slot without hitting
-    "ValueError: tool 1 is already in use".
-
-    Preserves _CODE_HOOKS so that register_coverage() can re-enable
-    set_local_events() for all known code objects if we reclaim the slot.
-
-    Returns True if the slot was released, False if we didn't hold it.
-    """
-    if sys.monitoring.get_tool(sys.monitoring.COVERAGE_ID) == "datadog":
-        sys.monitoring.register_callback(sys.monitoring.COVERAGE_ID, EVENT, None)
-        sys.monitoring.free_tool_id(sys.monitoring.COVERAGE_ID)
-        return True
-    return False
-
-
 def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
 ) -> tuple[CodeType, CoverageLines]:
@@ -185,7 +154,7 @@ def _instrument_with_monitoring(
     Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
     """
     # Enable local line/py_start events for the code object
-    sys.monitoring.set_local_events(sys.monitoring.COVERAGE_ID, code, EVENT)  # noqa
+    sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)  # noqa
 
     track_lines = not _USE_FILE_LEVEL_COVERAGE
     # Extract import names and collect line numbers
