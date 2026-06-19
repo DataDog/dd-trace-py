@@ -4252,15 +4252,15 @@
           "python_version": "3.11"
         },
         {
-          "version": "5.2.0",
+          "version": "8.0.0",
           "python_version": "3.12"
         },
         {
-          "version": "5.1.1",
+          "version": "8.0.0",
           "python_version": "3.13"
         },
         {
-          "version": "6.4.0",
+          "version": "8.0.0",
           "python_version": "3.14"
         }
       ]
