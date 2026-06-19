@@ -73,41 +73,66 @@ type_name_of(PyObject* obj)
     return mod_s + "." + qname_s;
 }
 
-// Walk up the referrer chain (up to max_depth steps) to find a recognizable
-// GC root.  Returns a filled RootNode whose type_idx points into type_table
-// (inserting if needed), and whose fn is set for S/K roots.
+// Walk the referrer chain from `obj` (up to max_depth steps) to find a
+// recognizable GC root (Frame -> K, Module -> S, non-GC referrer -> O).
+//
+// Returns a RootNode where:
+//   category / fn   -- anchor type and location
+//   type_idx        -- type of the object at the *root* end of the chain
+//                      (the object directly held by the Frame/Module/C-ext);
+//                      equals obj's type when obj is anchored directly
+//   ic / ts         -- always 1 / obj_size (caller aggregates multiple suspects)
+//
+// out_path receives the chain of (type_idx, size) pairs from the root-holder
+// down to the suspect (exclusive of the root-holder, inclusive of the suspect).
+// It is empty when obj is directly held by the anchor.
+//
+// cur_objs supplies pre-computed (type_idx, size) for every GC-tracked object,
+// avoiding redundant sys.getsizeof calls on intermediate nodes.
 // GIL must be held.
 RootNode
 find_root(PyObject* obj,
+          uint32_t obj_type_idx,
+          uint64_t obj_size,
           int max_depth,
           const std::unordered_set<uintptr_t>& gc_id_set,
+          const std::unordered_map<uintptr_t, std::pair<uint32_t, uint64_t>>& cur_objs,
           std::vector<std::string>& type_table,
-          std::unordered_map<std::string, uint32_t>& type_table_index)
+          std::unordered_map<std::string, uint32_t>& type_table_index,
+          std::vector<std::pair<uint32_t, uint64_t>>& out_path)
 {
+    // Look up (type_idx, size) for any GC-tracked object via cur_objs.
+    // Falls back to computing the type name when the object is not in cur_objs
+    // (e.g. allocated after gc.get_objects was called).
+    auto get_info = [&](PyObject* o) -> std::pair<uint32_t, uint64_t> {
+        const uintptr_t oid = reinterpret_cast<uintptr_t>(o);
+        const auto it = cur_objs.find(oid);
+        if (it != cur_objs.end()) {
+            return it->second;
+        }
+        std::string tname = type_name_of(o);
+        const auto tit = type_table_index.find(tname);
+        if (tit != type_table_index.end()) {
+            return { tit->second, 0 };
+        }
+        const auto idx = static_cast<uint32_t>(type_table.size());
+        type_table.push_back(tname);
+        type_table_index[tname] = idx;
+        return { idx, 0 };
+    };
+
     RootNode root;
     root.category = '?';
     root.ic = 1;
+    // ts holds the suspect's size so that the caller can aggregate suspect sizes
+    // across merged roots (useful for ranking by retained bytes).
+    root.ts = obj_size;
 
-    // Shallow size of the suspect itself
-    PyObject* size_res =
-      PyObject_CallMethod(reinterpret_cast<PyObject*>(PyImport_AddModule("sys")), "getsizeof", "O", obj);
-    if (size_res != nullptr && PyLong_Check(size_res)) {
-        root.ts = static_cast<uint64_t>(PyLong_AsLongLong(size_res));
-    }
-    Py_XDECREF(size_res);
-    PyErr_Clear();
-
-    // Type of the suspect object
-    std::string tname = type_name_of(obj);
-    auto it = type_table_index.find(tname);
-    if (it == type_table_index.end()) {
-        auto idx = static_cast<uint32_t>(type_table.size());
-        type_table.push_back(tname);
-        type_table_index[tname] = idx;
-        root.type_idx = idx;
-    } else {
-        root.type_idx = it->second;
-    }
+    // chain is built upward: chain[0] = suspect, chain[i>0] = intermediate
+    // nodes walked toward the anchor.  Reversed at the end so that chain[0]
+    // is the object directly held by the anchor.
+    std::vector<std::pair<uint32_t, uint64_t>> chain;
+    chain.push_back({ obj_type_idx, obj_size });
 
     // prev_obj is the object whose referrers we want to look up at each step.
     // We keep a borrowed reference -- the object stays alive because it is in
@@ -134,7 +159,7 @@ find_root(PyObject* obj,
         // so that a Frame or Module anywhere in the list is preferred over an
         // arbitrary GC container that happens to appear earlier.
         PyObject* next_obj = nullptr;
-        Py_ssize_t nref = PyList_GET_SIZE(referrers);
+        const Py_ssize_t nref = PyList_GET_SIZE(referrers);
 
         for (Py_ssize_t i = 0; i < nref; ++i) {
             PyObject* ref = PyList_GET_ITEM(referrers, i); // borrowed
@@ -144,7 +169,7 @@ find_root(PyObject* obj,
             if (ref == referrers) {
                 continue;
             }
-            uintptr_t ref_id = reinterpret_cast<uintptr_t>(ref);
+            const uintptr_t ref_id = reinterpret_cast<uintptr_t>(ref);
             if (visited.count(ref_id)) {
                 continue;
             }
@@ -238,10 +263,23 @@ find_root(PyObject* obj,
             break;
         }
 
-        // No terminal root at this depth; walk up through next_obj.
+        // No terminal root at this depth; record this intermediate node and
+        // walk up through it.
         visited.insert(reinterpret_cast<uintptr_t>(next_obj));
+        chain.push_back(get_info(next_obj));
         prev_obj = next_obj;
     }
+
+    // Reverse: chain[0] is now the object at the root end (directly held by
+    // the Frame/Module/C-ext anchor), chain[last] is the original suspect.
+    std::reverse(chain.begin(), chain.end());
+
+    // Root node's type represents the object at the root end of the chain.
+    root.type_idx = chain[0].first;
+
+    // out_path = everything from the root-holder's immediate children down to
+    // the suspect; empty when the suspect is directly held by the anchor.
+    out_path.assign(chain.begin() + 1, chain.end());
 
     return root;
 }
@@ -291,6 +329,32 @@ serialize_node(std::ostringstream& out, const TreeNode& node, int indent)
         out << "]";
     }
     out << "}";
+}
+
+// Insert a path of (type_idx, size) pairs as children into `parent`.
+// Existing children with the same type_idx at the same depth are merged
+// (ic and ts accumulated); new type entries create new child nodes.
+void
+insert_into_tree(TreeNode& parent, const std::vector<std::pair<uint32_t, uint64_t>>& path, size_t depth)
+{
+    if (depth >= path.size()) {
+        return;
+    }
+    const uint32_t tidx = path[depth].first;
+    const uint64_t sz = path[depth].second;
+    for (auto& child : parent.children) {
+        if (child.type_idx == tidx) {
+            child.add(1, sz);
+            insert_into_tree(child, path, depth + 1);
+            return;
+        }
+    }
+    TreeNode node;
+    node.type_idx = tidx;
+    node.ic = 1;
+    node.ts = sz;
+    parent.children.push_back(std::move(node));
+    insert_into_tree(parent.children.back(), path, depth + 1);
 }
 
 // Returns true when the type name matches a pattern that is known to produce
@@ -644,7 +708,7 @@ GCMonitor::take_snapshot()
     std::vector<RootNode> roots;
 
     if (_referrers_enabled && !suspects.empty()) {
-        // Walk referrer chains to find roots and build the tree
+        // Walk referrer chains to find roots and build the reference tree.
         for (const auto& suspect : suspects) {
             // NOLINTNEXTLINE(performance-no-int-to-ptr)
             PyObject* obj = reinterpret_cast<PyObject*>(suspect.oid);
@@ -654,19 +718,27 @@ GCMonitor::take_snapshot()
                 continue;
             }
 
-            RootNode root = find_root(obj, 20, gc_id_set, type_table, type_table_index);
+            std::vector<std::pair<uint32_t, uint64_t>> out_path;
+            RootNode root = find_root(
+              obj, suspect.type_idx, suspect.size, 20, gc_id_set, cur_objs, type_table, type_table_index, out_path);
 
-            // Merge into existing roots with same category + fn + type_idx
+            // Merge into existing roots with same category + fn + type_idx.
+            // root.ic / root.ts carry the suspect's count / size so that the
+            // root node's aggregates reflect all suspects anchored here.
             bool merged = false;
             for (auto& existing : roots) {
                 if (existing.category == root.category && existing.fn == root.fn &&
                     existing.type_idx == root.type_idx) {
                     existing.add(root.ic, root.ts);
+                    insert_into_tree(existing, out_path, 0);
                     merged = true;
                     break;
                 }
             }
             if (!merged) {
+                if (!out_path.empty()) {
+                    insert_into_tree(root, out_path, 0);
+                }
                 roots.push_back(std::move(root));
             }
         }
@@ -693,6 +765,11 @@ GCMonitor::take_snapshot()
             roots.push_back(std::move(rnode));
         }
     }
+
+    // find_root may insert new entries into type_table for intermediate objects
+    // allocated after gc.get_objects was called.  Pad type_counts so that the
+    // parallel arrays tt and tc stay the same length in the output JSON.
+    type_counts.resize(type_table.size(), 0);
 
     Py_DECREF(objs);
     Py_DECREF(gc_mod);
