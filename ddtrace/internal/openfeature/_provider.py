@@ -144,9 +144,7 @@ class DataDogProvider(AbstractProvider):
         evp_config = OpenFeatureConfig()
         evp_counts_enabled = evp_config.flagging_evaluation_counts_enabled
         if self._enabled and evp_counts_enabled:
-            self._flagevaluation_writer = FlagEvaluationWriter(
-                interval=evp_config.flagging_evaluation_counts_flush_interval
-            )
+            self._flagevaluation_writer = FlagEvaluationWriter()
             self._flagevaluation_hook = FlagEvaluationHook(self._flagevaluation_writer)
 
     def get_metadata(self) -> Metadata:
