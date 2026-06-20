@@ -20,11 +20,11 @@ from jsonschema import Draft7Validator
 import pytest
 
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
-from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
-from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
+from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
 from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIELDS
