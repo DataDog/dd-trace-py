@@ -12,7 +12,9 @@ include:
     # `libclang` wheel from PyPI (distro-independent, >= 18) and point LIBCLANG_PATH at its bundled lib.
     - |
       target="${CI_PROJECT_DIR:-/tmp}/.libclang_pkg"
-      python3 -m pip install --quiet --disable-pip-version-check --target "${target}" libclang || true
+      (command -v uv >/dev/null 2>&1 && uv pip install --target "${target}" libclang) \
+        || python3 -m pip install --quiet --disable-pip-version-check --target "${target}" libclang \
+        || true
       if ls "${target}"/clang/native/libclang.so* >/dev/null 2>&1; then
         export LIBCLANG_PATH="${target}/clang/native"
         echo "LIBCLANG_PATH=${LIBCLANG_PATH}"

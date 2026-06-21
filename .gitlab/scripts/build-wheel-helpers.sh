@@ -139,16 +139,25 @@ _find_libclang_dir() {
 }
 
 # Install the self-contained `libclang` wheel from PyPI and, on success, echo the directory that
-# holds its bundled shared library. This ships a modern libclang (>= 18) and is distro-independent,
-# which sidesteps the ancient clang (3.4) on manylinux2014's CentOS base.
+# holds its bundled shared library. This ships a modern libclang (>= 18), is distro-independent, and
+# is fully self-contained (no sibling .so dependencies on the loader path), which sidesteps both the
+# ancient clang (3.4) and the broken SCL clang-7 (missing libclangAST.so.7) on manylinux2014's
+# CentOS base. We prefer `uv` because the build env configures it with the right package index;
+# raw `pip` may not be able to reach the index.
 _install_libclang_via_pip() {
-  local pybin="${UV_PYTHON:-}"
-  if [[ -z "${pybin}" || "${pybin}" != /* ]]; then
-    pybin="$(command -v python3 || command -v python || true)"
-  fi
-  [[ -n "${pybin}" ]] || return 1
   local target="${WORK_DIR:-/tmp}/libclang_pkg"
-  "${pybin}" -m pip install --quiet --disable-pip-version-check --target "${target}" libclang &> /dev/null || return 1
+  local installed=""
+  if command -v uv &> /dev/null; then
+    uv pip install --target "${target}" libclang &> /dev/null && installed="1"
+  fi
+  if [[ -z "${installed}" ]]; then
+    local pybin="${UV_PYTHON:-}"
+    if [[ -z "${pybin}" || "${pybin}" != /* ]]; then
+      pybin="$(command -v python3 || command -v python || true)"
+    fi
+    [[ -n "${pybin}" ]] && "${pybin}" -m pip install --quiet --disable-pip-version-check --target "${target}" libclang &> /dev/null && installed="1"
+  fi
+  [[ -n "${installed}" ]] || return 1
   local dir="${target}/clang/native"
   ls "${dir}"/libclang.so* "${dir}"/libclang.dylib* &> /dev/null || return 1
   echo "${dir}"
@@ -194,6 +203,11 @@ ensure_libclang() {
 
   if [[ -n "${dir}" ]]; then
     export LIBCLANG_PATH="${dir}"
+    # SCL (RH llvm-toolset) libclang depends on sibling .so files (libclangAST.so.N, ...) that are
+    # not on the default loader path unless the SCL is enabled. Add the lib dir so dlopen resolves them.
+    if [[ "${dir}" == /opt/rh/* ]]; then
+      export LD_LIBRARY_PATH="${dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    fi
     echo "LIBCLANG_PATH=${LIBCLANG_PATH}"
   else
     echo "WARNING: libclang not found after install attempt; bindgen (libddwaf-sys) will fail" >&2
