@@ -1,313 +1,263 @@
-//! `ddwaf_object` bindings: a one-for-one mirror of the libddwaf C object API that the
-//! previous ctypes layer (`ddtrace/appsec/_ddwaf/ddwaf_types.py`) declared.
+//! Marshalling between Python values and the high-level `libddwaf` object model.
 //!
-//! The Python side keeps ALL of the recursive build/read logic; this module only exposes:
-//!   * [`DDWafObject`] — an opaque wrapper around a raw `*mut ddwaf_object` (either an owned
-//!     16-byte struct we allocated, or a non-owning *slot* view into a parent container), and
-//!   * thin module-level functions mirroring `ddwaf_object_set_*` / `ddwaf_object_insert*` /
-//!     `ddwaf_object_from_json` / `ddwaf_object_destroy`, plus read accessors used by the Python
-//!     `.struct` reader (which can no longer read the union memory directly).
-//!
-//! AIDEV-NOTE: ownership mirrors the old ctypes layout exactly. An owned `DDWafObject` owns only
-//! its 16-byte struct box; the *inner* heap data (string buffers, array/map storage) is freed
-//! explicitly by the Python side via `ddwaf_object_destroy` — never automatically on Drop. This is
-//! required because on `DDWAF_OK`/`DDWAF_MATCH` the WAF takes ownership of the input object's inner
-//! data, so auto-destroying it on Drop would double-free. Borrowed slots never free anything.
-//! Borrowed slots are only valid while the owning root is alive AND its containers are not regrown
-//! (the Python builder pre-reserves capacity, so no reallocation occurs — same invariant the ctypes
-//! code relied on).
+//! This replaces the previous raw `*mut ddwaf_object` slot wrapper: building a Python value produces
+//! an owned [`WafObject`]/[`WafMap`] (whose lifetime and ownership are managed by the `libddwaf`
+//! crate), and reading converts a [`WafObject`] back into Python objects. Nothing here touches
+//! `libddwaf-sys` directly.
 
-use std::ffi::c_char;
-
-use libddwaf_sys as sys;
+use libddwaf::object::{Keyed, WafArray, WafMap, WafObject, WafObjectType, WafString};
 use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::types::{
+    PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyMapping, PySequence, PyString,
+};
 
-/// Opaque wrapper around the libddwaf default allocator.
-///
-/// The default allocator is a process-wide singleton pointer: always valid and never destroyed.
-#[pyclass(
-    name = "DDWafAllocator",
-    module = "ddtrace.internal.native._native.ddwaf",
-    frozen
-)]
-pub struct DDWafAllocator {
-    pub(crate) raw: sys::ddwaf_allocator,
+// Containers store their size/capacity in a uint16, so they cannot hold more than this.
+const DDWAF_OBJ_MAX_CAPACITY: usize = 0xFFFF;
+// Value recorded as the "depth" truncation marker, matching the Python DDWAF_MAX_CONTAINER_DEPTH
+// constant (the previous ctypes builder recorded this constant, not the actual depth).
+// AIDEV-NOTE: keep in sync with DDWAF_MAX_CONTAINER_DEPTH in ddtrace/appsec/_ddwaf/ddwaf_types.py.
+const DDWAF_MAX_CONTAINER_DEPTH: u64 = 20;
+
+/// Tracks truncations performed while building a [`WafObject`], mirroring the Python `_observator`
+/// (max-tracking of the largest string length / container size / nesting depth seen).
+#[derive(Default, Clone, Copy)]
+pub(crate) struct Truncation {
+    pub string_length: Option<u64>,
+    pub container_size: Option<u64>,
+    pub container_depth: Option<u64>,
 }
-// SAFETY: the default allocator is an immutable, process-wide singleton.
-unsafe impl Send for DDWafAllocator {}
-unsafe impl Sync for DDWafAllocator {}
 
-/// Wrapper around a raw `ddwaf_object`. See the module-level note for the ownership model.
-#[pyclass(name = "DDWafObject", module = "ddtrace.internal.native._native.ddwaf")]
-pub struct DDWafObject {
-    pub(crate) ptr: *mut sys::ddwaf_object,
-    /// True only for the top-level struct box we allocated; false for slot views into a parent.
-    owned: bool,
-}
-// SAFETY: all access is serialized by the GIL and, for contexts, by the Python-side capsule lock.
-unsafe impl Send for DDWafObject {}
-unsafe impl Sync for DDWafObject {}
-
-impl DDWafObject {
-    /// Wraps a non-owning slot pointer returned by libddwaf (insert / array / map element).
-    fn borrowed(ptr: *mut sys::ddwaf_object) -> Self {
-        DDWafObject { ptr, owned: false }
+impl Truncation {
+    fn set_string_length(&mut self, length: u64) {
+        self.string_length = Some(self.string_length.map_or(length, |v| v.max(length)));
     }
-}
-
-#[pymethods]
-impl DDWafObject {
-    /// Allocates a new, owned, zero-initialised (INVALID) object.
-    #[new]
-    fn new() -> Self {
-        let boxed = Box::new(sys::ddwaf_object::default());
-        DDWafObject {
-            ptr: Box::into_raw(boxed),
-            owned: true,
-        }
+    fn set_container_size(&mut self, size: u64) {
+        self.container_size = Some(self.container_size.map_or(size, |v| v.max(size)));
+    }
+    fn set_container_depth(&mut self, depth: u64) {
+        self.container_depth = Some(self.container_depth.map_or(depth, |v| v.max(depth)));
     }
 
-    /// Raw libddwaf type tag (the `DDWAF_OBJ_TYPE` discriminant, e.g. 0x10/0x12/0x14 for the three
-    /// string variants). Kept raw so the Python `DDWAF_OBJ_TYPE` IntEnum comparisons are unchanged.
-    #[getter]
-    fn r#type(&self) -> u8 {
-        // SAFETY: `ptr` is valid for the lifetime of this wrapper / its owning root.
-        unsafe { (*self.ptr).type_ }
-    }
-
-    fn __bool__(&self) -> bool {
-        !self.ptr.is_null()
-    }
-}
-
-impl Drop for DDWafObject {
-    fn drop(&mut self) {
-        // Free only the 16-byte struct box for owned objects. Inner heap data is freed explicitly
-        // by the Python side via `ddwaf_object_destroy` (see module note); slots free nothing.
-        if self.owned && !self.ptr.is_null() {
-            // SAFETY: `ptr` came from `Box::into_raw` in `new`.
-            unsafe { drop(Box::from_raw(self.ptr)) };
-        }
-    }
-}
-
-#[pyfunction]
-pub fn ddwaf_get_default_allocator() -> DDWafAllocator {
-    DDWafAllocator {
-        raw: unsafe { sys::ddwaf_get_default_allocator() },
-    }
-}
-
-//
-// Builders (mirror the libddwaf 2.0 set_* / insert API). Each is a thin, GIL-held wrapper; the
-// per-element calls are tiny so we do not release the GIL here.
-//
-
-#[pyfunction]
-pub fn ddwaf_object_set_string(
-    obj: &DDWafObject,
-    string: &[u8],
-    length: u32,
-    alloc: &DDWafAllocator,
-) {
-    unsafe {
-        sys::ddwaf_object_set_string(obj.ptr, string.as_ptr() as *const c_char, length, alloc.raw)
-    };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_signed(obj: &DDWafObject, value: i64) {
-    unsafe { sys::ddwaf_object_set_signed(obj.ptr, value) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_unsigned(obj: &DDWafObject, value: u64) {
-    unsafe { sys::ddwaf_object_set_unsigned(obj.ptr, value) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_bool(obj: &DDWafObject, value: bool) {
-    unsafe { sys::ddwaf_object_set_bool(obj.ptr, value) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_float(obj: &DDWafObject, value: f64) {
-    unsafe { sys::ddwaf_object_set_float(obj.ptr, value) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_null(obj: &DDWafObject) {
-    unsafe { sys::ddwaf_object_set_null(obj.ptr) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_array(obj: &DDWafObject, capacity: u16, alloc: &DDWafAllocator) {
-    unsafe { sys::ddwaf_object_set_array(obj.ptr, capacity, alloc.raw) };
-}
-
-#[pyfunction]
-pub fn ddwaf_object_set_map(obj: &DDWafObject, capacity: u16, alloc: &DDWafAllocator) {
-    unsafe { sys::ddwaf_object_set_map(obj.ptr, capacity, alloc.raw) };
-}
-
-/// Inserts a new (uninitialised) element into an array, returning a non-owning view of the slot.
-#[pyfunction]
-pub fn ddwaf_object_insert(obj: &DDWafObject, alloc: &DDWafAllocator) -> DDWafObject {
-    let slot = unsafe { sys::ddwaf_object_insert(obj.ptr, alloc.raw) };
-    DDWafObject::borrowed(slot)
-}
-
-/// Inserts a new keyed (uninitialised) element into a map, returning a non-owning view of the slot.
-#[pyfunction]
-pub fn ddwaf_object_insert_key(
-    obj: &DDWafObject,
-    key: &[u8],
-    length: u32,
-    alloc: &DDWafAllocator,
-) -> DDWafObject {
-    let slot = unsafe {
-        sys::ddwaf_object_insert_key(obj.ptr, key.as_ptr() as *const c_char, length, alloc.raw)
-    };
-    DDWafObject::borrowed(slot)
-}
-
-/// Parses a JSON document into `obj`. Releases the GIL (ruleset parsing can be expensive).
-#[pyfunction]
-pub fn ddwaf_object_from_json(
-    py: Python<'_>,
-    obj: &DDWafObject,
-    json: &[u8],
-    length: u32,
-    alloc: &DDWafAllocator,
-) -> bool {
-    let out = obj.ptr as usize;
-    let alloc = alloc.raw as usize;
-    // Copy the JSON bytes so we don't hold a GIL-bound borrow across the detached call.
-    let data = json.to_vec();
-    py.detach(move || unsafe {
-        sys::ddwaf_object_from_json(
-            out as *mut sys::ddwaf_object,
-            data.as_ptr() as *const c_char,
-            length,
-            alloc as sys::ddwaf_allocator,
+    /// Convert to the `(string_length, container_size, container_depth)` tuple the Python side uses
+    /// to rebuild an `_observator`.
+    pub(crate) fn into_py<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok((
+            self.string_length,
+            self.container_size,
+            self.container_depth,
         )
-    })
-}
-
-/// Frees the *inner* heap data of `obj` (mirrors the old `ddwaf_object_free`). The 16-byte struct
-/// box itself is freed when the wrapper is garbage-collected (see module note).
-#[pyfunction]
-pub fn ddwaf_object_destroy(obj: &DDWafObject, alloc: &DDWafAllocator) {
-    if obj.ptr.is_null() {
-        return;
+            .into_pyobject(py)?
+            .into_any())
     }
-    unsafe { sys::ddwaf_object_destroy(obj.ptr, alloc.raw) };
 }
 
-//
-// Read accessors used by the Python `.struct` reader. The dispatch tree stays in Python; these are
-// the leaves that replace the previous direct ctypes union reads.
-//
-
-#[pyfunction]
-pub fn ddwaf_object_get_signed(obj: &DDWafObject) -> i64 {
-    unsafe { (*obj.ptr).via.i64_.val }
+/// Limits applied while building, matching the Python builder's parameters.
+#[derive(Clone, Copy)]
+pub(crate) struct Limits {
+    pub max_objects: usize,
+    pub max_depth: i64,
+    pub max_string_length: usize,
 }
 
-#[pyfunction]
-pub fn ddwaf_object_get_unsigned(obj: &DDWafObject) -> u64 {
-    unsafe { (*obj.ptr).via.u64_.val }
+/// Returns the UTF-8 bytes of a Python `str`, dropping anything that isn't valid UTF-8 (matching the
+/// previous `str.encode("UTF-8", errors="ignore")`). The common (no surrogate) case is zero-copy.
+fn str_bytes(value: &Bound<'_, PyString>) -> PyResult<Vec<u8>> {
+    match value.to_str() {
+        Ok(s) => Ok(s.as_bytes().to_vec()),
+        Err(_) => value
+            .call_method1("encode", ("utf-8", "ignore"))?
+            .extract::<Vec<u8>>(),
+    }
 }
 
-#[pyfunction]
-pub fn ddwaf_object_get_bool(obj: &DDWafObject) -> bool {
-    unsafe { (*obj.ptr).via.b8.val }
+/// Truncates a byte string to `max_string_length`, recording the original length on truncation.
+fn truncate_bytes<'a>(bytes: &'a [u8], limits: &Limits, trunc: &mut Truncation) -> &'a [u8] {
+    if bytes.len() > limits.max_string_length {
+        trunc.set_string_length(bytes.len() as u64);
+        &bytes[..limits.max_string_length]
+    } else {
+        bytes
+    }
 }
 
-#[pyfunction]
-pub fn ddwaf_object_get_float(obj: &DDWafObject) -> f64 {
-    unsafe { (*obj.ptr).via.f64_.val }
+fn waf_string(bytes: &[u8]) -> WafObject {
+    WafString::new(bytes).map_or_else(WafObject::default, Into::into)
 }
 
-/// Returns the raw bytes of a string object, transparently handling the heap, literal, and inline
-/// "small" string variants (collapses the three previous ctypes branches into one). Decoding to
-/// `str` stays on the Python side.
-#[pyfunction]
-pub fn ddwaf_object_get_bytes<'py>(py: Python<'py>, obj: &DDWafObject) -> Bound<'py, PyBytes> {
-    let bytes: &[u8] = unsafe {
-        let o = &*obj.ptr;
-        let t = o.type_ as u32;
-        if t == sys::DDWAF_OBJ_SMALL_STRING {
-            let ss = &o.via.sstr;
-            std::slice::from_raw_parts(ss.data.as_ptr() as *const u8, ss.size as usize)
-        } else {
-            // DDWAF_OBJ_STRING / DDWAF_OBJ_LITERAL_STRING
-            let s = o.via.str_;
-            if s.ptr.is_null() || s.size == 0 {
-                &[]
-            } else {
-                std::slice::from_raw_parts(s.ptr as *const u8, s.size as usize)
-            }
+/// Effective per-container element cap for the current depth, applying the uint16 ceiling and the
+/// depth limit. Returns 0 (and records the depth truncation) once the depth budget is exhausted.
+fn container_cap(limits: &Limits, trunc: &mut Truncation) -> usize {
+    if limits.max_depth <= 0 {
+        trunc.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH);
+        0
+    } else {
+        limits.max_objects.min(DDWAF_OBJ_MAX_CAPACITY)
+    }
+}
+
+/// Recursively builds a [`WafObject`] from a Python value, mirroring the previous Python builder's
+/// type dispatch, limits, and truncation tracking.
+pub(crate) fn build_object(
+    value: &Bound<'_, PyAny>,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafObject> {
+    // Order matters: bytes/bool before int (bool is an int subclass), containers last.
+    if let Ok(dict) = value.cast::<PyDict>() {
+        return build_map(dict.iter(), dict.len(), limits, trunc);
+    }
+    if let Ok(s) = value.cast::<PyString>() {
+        let bytes = str_bytes(s)?;
+        return Ok(waf_string(truncate_bytes(&bytes, &limits, trunc)));
+    }
+    if let Ok(b) = value.cast::<PyBytes>() {
+        return Ok(waf_string(truncate_bytes(b.as_bytes(), &limits, trunc)));
+    }
+    if let Ok(b) = value.cast::<PyBool>() {
+        return Ok(WafObject::from(b.is_true()));
+    }
+    if let Ok(i) = value.cast::<PyInt>() {
+        // libddwaf stores a signed 64-bit int; mask to the low 64 bits (two's complement) like the
+        // old ctypes c_int64 did, so arbitrarily large Python ints don't overflow.
+        let v = unsafe { pyo3::ffi::PyLong_AsUnsignedLongLongMask(i.as_ptr()) } as i64;
+        return Ok(WafObject::from(v));
+    }
+    if let Ok(f) = value.cast::<PyFloat>() {
+        return Ok(WafObject::from(f.value()));
+    }
+    if value.is_none() {
+        return Ok(WafObject::from(()));
+    }
+    if let Ok(list) = value.cast::<PyList>() {
+        return build_array(list.iter(), list.len(), limits, trunc);
+    }
+    if let Ok(map) = value.cast::<PyMapping>() {
+        // Mapping subclasses (e.g. CaseInsensitiveDict). Collect (key, value) pairs first.
+        let mut pairs: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = Vec::new();
+        for pair in map.items()?.try_iter()? {
+            let pair = pair?;
+            let seq = pair.cast::<PySequence>()?;
+            pairs.push((seq.get_item(0)?, seq.get_item(1)?));
         }
+        let len = pairs.len();
+        return build_map(pairs.into_iter(), len, limits, trunc);
+    }
+    if let Ok(seq) = value.cast::<PySequence>() {
+        // Sequence subclasses (tuple, range, ...).
+        let len = seq.len().unwrap_or(0);
+        let items: Vec<Bound<'_, PyAny>> = seq.try_iter()?.collect::<PyResult<_>>()?;
+        return build_array(items.into_iter(), len, limits, trunc);
+    }
+    // Fallback: stringify, like the Python builder's final `str(struct)` branch.
+    let s = value.str()?;
+    let bytes = str_bytes(&s)?;
+    Ok(waf_string(truncate_bytes(&bytes, &limits, trunc)))
+}
+
+fn build_array<'py>(
+    items: impl Iterator<Item = Bound<'py, PyAny>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafObject> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    let mut array = WafArray::new(reserve as u16);
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
     };
-    PyBytes::new(py, bytes)
+    let mut idx = 0usize;
+    for elt in items {
+        if idx >= cap {
+            trunc.set_container_size(len as u64);
+            break;
+        }
+        array[idx] = build_object(&elt, child_limits, trunc)?;
+        idx += 1;
+    }
+    array.truncate(idx as u16);
+    Ok(array.into())
 }
 
-#[pyfunction]
-pub fn ddwaf_object_array_len(obj: &DDWafObject) -> usize {
-    unsafe { (*obj.ptr).via.array.size as usize }
+fn build_map<'py>(
+    items: impl Iterator<Item = (Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafObject> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    let mut map = WafMap::new(reserve as u16);
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for (key, val) in items {
+        // Only string/bytes keys are kept (others are silently discarded, as before).
+        let key_bytes = if let Ok(s) = key.cast::<PyString>() {
+            str_bytes(s)?
+        } else if let Ok(b) = key.cast::<PyBytes>() {
+            b.as_bytes().to_vec()
+        } else {
+            continue;
+        };
+        if idx >= cap {
+            trunc.set_container_size(len as u64);
+            break;
+        }
+        let key_bytes = truncate_bytes(&key_bytes, &limits, trunc);
+        let key_obj = WafString::new(key_bytes).unwrap_or_default();
+        let value_obj = build_object(&val, child_limits, trunc)?;
+        map[idx] = Keyed::new(key_obj, value_obj);
+        idx += 1;
+    }
+    map.truncate(idx as u16);
+    Ok(map.into())
 }
 
-#[pyfunction]
-pub fn ddwaf_object_array_get(obj: &DDWafObject, index: usize) -> DDWafObject {
-    let elem = unsafe { (*obj.ptr).via.array.ptr.add(index) };
-    DDWafObject::borrowed(elem)
+/// Recursively converts a [`WafObject`] into a Python value (replaces the old `.struct` reader).
+pub(crate) fn read_object<'py>(py: Python<'py>, obj: &WafObject) -> PyResult<Bound<'py, PyAny>> {
+    match obj.object_type() {
+        WafObjectType::Bool => Ok(obj
+            .to_bool()
+            .unwrap_or(false)
+            .into_pyobject(py)?
+            .to_owned()
+            .into_any()),
+        WafObjectType::Signed => Ok(obj.to_i64().unwrap_or(0).into_pyobject(py)?.into_any()),
+        WafObjectType::Unsigned => Ok(obj.to_u64().unwrap_or(0).into_pyobject(py)?.into_any()),
+        WafObjectType::Float => Ok(obj.to_f64().unwrap_or(0.0).into_pyobject(py)?.into_any()),
+        WafObjectType::String => {
+            let bytes = obj
+                .as_type::<WafString>()
+                .map(WafString::as_bytes)
+                .unwrap_or(b"");
+            Ok(PyString::new(py, &String::from_utf8_lossy(bytes)).into_any())
+        }
+        WafObjectType::Array => {
+            let list = PyList::empty(py);
+            if let Some(arr) = obj.as_type::<WafArray>() {
+                for elt in arr.iter() {
+                    list.append(read_object(py, elt)?)?;
+                }
+            }
+            Ok(list.into_any())
+        }
+        WafObjectType::Map => read_map(py, obj.as_type::<WafMap>()),
+        // Invalid/Null and any future (non_exhaustive) variant map to None.
+        _ => Ok(py.None().into_bound(py)),
+    }
 }
 
-#[pyfunction]
-pub fn ddwaf_object_map_len(obj: &DDWafObject) -> usize {
-    unsafe { (*obj.ptr).via.map.size as usize }
-}
-
-#[pyfunction]
-pub fn ddwaf_object_map_key(obj: &DDWafObject, index: usize) -> DDWafObject {
-    let kv = unsafe { (*obj.ptr).via.map.ptr.add(index) };
-    DDWafObject::borrowed(unsafe { &mut (*kv).key as *mut sys::ddwaf_object })
-}
-
-#[pyfunction]
-pub fn ddwaf_object_map_value(obj: &DDWafObject, index: usize) -> DDWafObject {
-    let kv = unsafe { (*obj.ptr).via.map.ptr.add(index) };
-    DDWafObject::borrowed(unsafe { &mut (*kv).val as *mut sys::ddwaf_object })
-}
-
-/// Registers the object types and functions on the `ddwaf` submodule.
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<DDWafAllocator>()?;
-    m.add_class::<DDWafObject>()?;
-    m.add_function(wrap_pyfunction!(ddwaf_get_default_allocator, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_string, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_signed, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_unsigned, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_bool, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_float, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_null, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_array, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_set_map, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_insert, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_insert_key, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_from_json, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_destroy, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_get_signed, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_get_unsigned, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_get_bool, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_get_float, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_get_bytes, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_array_len, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_array_get, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_map_len, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_map_key, m)?)?;
-    m.add_function(wrap_pyfunction!(ddwaf_object_map_value, m)?)?;
-    Ok(())
+/// Converts a [`WafMap`] into a Python `dict` (keys read recursively, like the old reader).
+pub(crate) fn read_map<'py>(py: Python<'py>, map: Option<&WafMap>) -> PyResult<Bound<'py, PyAny>> {
+    let dict = PyDict::new(py);
+    if let Some(map) = map {
+        for kv in map.iter() {
+            dict.set_item(read_object(py, kv.key())?, read_object(py, kv.value())?)?;
+        }
+    }
+    Ok(dict.into_any())
 }

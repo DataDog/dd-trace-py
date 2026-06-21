@@ -1,5 +1,6 @@
 import os
 from time import sleep
+from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import ANY
 
@@ -8,7 +9,6 @@ import pytest
 import ddtrace.appsec._asm_request_context as asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-import ddtrace.appsec._ddwaf.ddwaf_types
 import ddtrace.appsec._ddwaf.waf
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -296,15 +296,16 @@ def test_log_metric_error_ddwaf_update(telemetry_writer):
         assert "waf_version:{}".format(asm_config._ddwaf_version) in list_metrics_logs[0]["tags"]
 
 
-unpatched_run = ddtrace.appsec._ddwaf.ddwaf_types.ddwaf_context_eval
+unpatched_run = ddtrace.appsec._ddwaf.waf._run_eval
 
 
 def _wrapped_run(*args, **kwargs):
     unpatched_run(*args, **kwargs)
-    return -3
+    # Force an internal-error return code; DDWaf.run only reads return_code on the error path.
+    return SimpleNamespace(return_code=-3)
 
 
-@mock.patch.object(ddtrace.appsec._ddwaf.waf, "ddwaf_context_eval", new=_wrapped_run)
+@mock.patch.object(ddtrace.appsec._ddwaf.waf, "_run_eval", new=_wrapped_run)
 def test_log_metric_error_ddwaf_internal_error(telemetry_writer):
     """Test that an internal error is logged when the WAF returns an internal error."""
 

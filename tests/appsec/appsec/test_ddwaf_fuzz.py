@@ -6,10 +6,38 @@ import pytest
 from requests.structures import CaseInsensitiveDict
 
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_DEPTH_NO_LIMIT
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_CONTAINER_DEPTH
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_CONTAINER_SIZE
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_STRING_LENGTH
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_NO_LIMIT
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_OBJ_MAX_CAPACITY
 from ddtrace.appsec._ddwaf.ddwaf_types import _observator
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
+from ddtrace.internal.native._native import ddwaf as _native_ddwaf
+
+
+class ddwaf_object:
+    """Test shim: object build+read now live in Rust. This builds a value into a native WafObject
+    and reads it back (via ``ddwaf_object_roundtrip``), exposing the round-tripped value as
+    ``.struct`` and filling the optional ``observator`` from the returned truncation markers, so the
+    existing marshalling assertions still apply.
+    """
+
+    def __init__(
+        self,
+        struct=None,
+        observator=None,
+        max_objects=DDWAF_MAX_CONTAINER_SIZE,
+        max_depth=DDWAF_MAX_CONTAINER_DEPTH,
+        max_string_length=DDWAF_MAX_STRING_LENGTH,
+    ):
+        value, truncation = _native_ddwaf.ddwaf_object_roundtrip(struct, max_objects, max_depth, max_string_length)
+        self._value = value
+        if observator is not None:
+            observator.string_length, observator.container_size, observator.container_depth = truncation
+
+    @property
+    def struct(self):
+        return self._value
 
 
 SCALAR_OBJECTS = st.one_of(st.none(), st.booleans(), st.integers(), st.floats(), st.characters())

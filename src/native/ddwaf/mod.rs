@@ -6,14 +6,13 @@
 //! statically linked into the extension (no external `.so` is downloaded by setup.py or loaded at
 //! runtime).
 
-pub mod object;
+mod object;
 pub mod waf;
 
 use pyo3::prelude::*;
 
 #[pymodule]
 pub fn ddwaf(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    object::register(m)?;
     waf::register(m)?;
     Ok(())
 }

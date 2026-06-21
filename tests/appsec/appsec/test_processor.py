@@ -399,7 +399,7 @@ def test_appsec_abort_on_waf_failure():
 
     with (
         mock.patch(
-            "ddtrace.internal.native._native.ddwaf.ddwaf_get_version",
+            "ddtrace.internal.native._native.ddwaf.version",
             side_effect=OSError("mock libddwaf load failure"),
         ),
     ):
@@ -624,7 +624,7 @@ def test_ddwaf_run_contained_typeerror(tracer, caplog):
     with (
         caplog.at_level(logging.DEBUG),
         mock.patch(
-            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            "ddtrace.appsec._ddwaf.waf._run_eval",
             side_effect=TypeError("expected c_long instead of int"),
         ),
     ):
@@ -663,7 +663,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
+        mock.patch("ddtrace.appsec._ddwaf.waf._run_eval", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
