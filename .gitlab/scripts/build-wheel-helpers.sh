@@ -124,14 +124,13 @@ repair_wheel() {
   section_end "repair_wheel"
 }
 
-# Print the directory containing a libclang shared object, if one can be found.
+# Print the directory containing the NEWEST system libclang shared object, if one can be found.
 _find_libclang_dir() {
-  if [[ -n "${LIBCLANG_PATH:-}" ]] && ls "${LIBCLANG_PATH}"/libclang.{so,dylib}* &> /dev/null; then
-    echo "${LIBCLANG_PATH}"
-    return 0
-  fi
   local hit
-  hit="$(find /usr /opt -name 'libclang.so*' -print 2>/dev/null | head -n1 || true)"
+  # Sort candidates by their basename version (e.g. libclang.so.17 > libclang.so.7 > libclang.so.3.4),
+  # independent of the directory prefix, and pick the highest.
+  hit="$( { find /usr /opt -name 'libclang.so*' -o -name 'libclang.dylib*'; } 2>/dev/null \
+          | awk -F/ '{print $NF"\t"$0}' | sort -V | tail -n1 | cut -f2- || true)"
   if [[ -n "${hit}" ]]; then
     dirname "${hit}"
     return 0
@@ -139,9 +138,24 @@ _find_libclang_dir() {
   return 1
 }
 
-# Ensure libclang is available for bindgen, which libddwaf-sys runs at build time to generate the
-# libddwaf FFI bindings. The CI build images don't ship libclang, so we install/locate it here and
-# export LIBCLANG_PATH. Idempotent: a no-op when libclang is already discoverable.
+# Install the self-contained `libclang` wheel from PyPI and, on success, echo the directory that
+# holds its bundled shared library. This ships a modern libclang (>= 18) and is distro-independent,
+# which sidesteps the ancient clang (3.4) on manylinux2014's CentOS base.
+_install_libclang_via_pip() {
+  local pybin="${UV_PYTHON:-}"
+  if [[ -z "${pybin}" || "${pybin}" != /* ]]; then
+    pybin="$(command -v python3 || command -v python || true)"
+  fi
+  [[ -n "${pybin}" ]] || return 1
+  local target="${WORK_DIR:-/tmp}/libclang_pkg"
+  "${pybin}" -m pip install --quiet --disable-pip-version-check --target "${target}" libclang &> /dev/null || return 1
+  local dir="${target}/clang/native"
+  ls "${dir}"/libclang.so* "${dir}"/libclang.dylib* &> /dev/null || return 1
+  echo "${dir}"
+}
+
+# Ensure a libclang new enough for bindgen is available; libddwaf-sys runs bindgen at build time to
+# generate the libddwaf FFI bindings, and the CI build images lack a usable libclang.
 ensure_libclang() {
   section_start "ensure_libclang" "Ensuring libclang (for bindgen)"
 
@@ -150,32 +164,34 @@ ensure_libclang() {
     if [[ -z "${LIBCLANG_PATH:-}" ]]; then
       local xcode_dir
       xcode_dir="$(xcode-select -p 2>/dev/null || true)"
-      if [[ -n "${xcode_dir}" ]]; then
-        export LIBCLANG_PATH="${xcode_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib"
-      fi
+      [[ -n "${xcode_dir}" ]] && export LIBCLANG_PATH="${xcode_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib"
     fi
     echo "LIBCLANG_PATH=${LIBCLANG_PATH:-<bindgen auto-detect>}"
     section_end "ensure_libclang"
     return 0
   fi
 
-  # Linux: install libclang only if it isn't already discoverable.
-  if ! _find_libclang_dir > /dev/null; then
-    if command -v apk &> /dev/null; then
-      # musllinux (Alpine)
-      apk add --no-cache clang-dev llvm-dev || apk add --no-cache clang-libs llvm-libs || true
-    elif command -v dnf &> /dev/null; then
-      dnf install -y clang-devel llvm-libs || dnf install -y clang llvm || true
-    elif command -v yum &> /dev/null; then
-      # manylinux2014: AlmaLinux/CentOS 8+ provide clang-devel; CentOS 7 falls back to SCL.
-      yum install -y clang-devel llvm-libs \
-        || yum install -y llvm-toolset-7.0-clang llvm-toolset-7.0-llvm-libs \
-        || yum install -y clang llvm || true
+  local dir=""
+  if command -v apk &> /dev/null; then
+    # musllinux (Alpine) ships a modern clang natively; the PyPI wheel has no musllinux build.
+    apk add --no-cache clang-dev llvm-dev || apk add --no-cache clang-libs llvm-libs || true
+    dir="$(_find_libclang_dir || true)"
+  else
+    # glibc (manylinux / testrunner): prefer the self-contained modern libclang from PyPI; its CentOS
+    # base only has clang 3.4 which is too old for bindgen.
+    dir="$(_install_libclang_via_pip || true)"
+    if [[ -z "${dir}" ]]; then
+      # Fallbacks if pip is unavailable.
+      if command -v dnf &> /dev/null; then
+        dnf install -y clang-devel llvm-libs || true
+      elif command -v yum &> /dev/null; then
+        yum install -y clang-devel llvm-libs || true
+        yum install -y llvm-toolset-7.0 || true
+      fi
+      dir="$(_find_libclang_dir || true)"
     fi
   fi
 
-  local dir
-  dir="$(_find_libclang_dir || true)"
   if [[ -n "${dir}" ]]; then
     export LIBCLANG_PATH="${dir}"
     echo "LIBCLANG_PATH=${LIBCLANG_PATH}"
