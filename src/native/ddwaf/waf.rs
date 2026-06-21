@@ -14,7 +14,9 @@ use libddwaf::{
 use pyo3::prelude::*;
 use std::time::Duration;
 
-use crate::ddwaf::object::{build_object, read_map, read_object, Limits, Truncation};
+use crate::ddwaf::object::{
+    build_object, build_owned_map, read_map, read_object, Limits, Truncation,
+};
 
 /// No-limit build settings used for rulesets/configs (which are not truncated). `container_cap`
 /// still applies the uint16 ceiling; `max_string_length` of `usize::MAX` disables truncation.
@@ -238,13 +240,12 @@ fn run_eval<'py, C: RunnableContext + Send>(
         max_string_length,
     };
     let mut trunc = Truncation::default();
-    let obj = build_object(data, limits, &mut trunc)?;
-    let map = WafMap::try_from(obj).unwrap_or_else(|_| WafMap::new(0));
+    let map = build_owned_map(data, limits, &mut trunc)?;
     let timeout = Duration::from_micros(timeout_us);
 
     // Move the (non-Send) input map into the detached closure and the (non-Send) result back out.
     let input = Ungil(map);
-    let outcome = py.detach(move || Ungil(ctx.run(input.0, timeout))).0;
+    let outcome = py.detach(move || Ungil(ctx.run_owned(input.0, timeout))).0;
 
     let truncation = trunc.into_py(py)?;
     build_result(py, outcome, truncation)

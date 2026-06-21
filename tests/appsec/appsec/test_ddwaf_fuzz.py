@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 import sys
 
 from hypothesis import given
@@ -66,6 +67,30 @@ class _AnyObject:
         return self.cst
 
 
+class _ItemsPreferredMapping(Mapping):
+    def __iter__(self):
+        return iter(("secret",))
+
+    def __len__(self):
+        return 1
+
+    def __getitem__(self, key):
+        if key == "secret":
+            return ["aBcDeF"]
+        raise KeyError(key)
+
+    def items(self):
+        return (("secret", "aBcDeF"),)
+
+
+class _ItemsPreferredDict(dict):
+    def __init__(self):
+        super().__init__({"secret": ["aBcDeF"]})
+
+    def items(self):
+        return (("secret", "aBcDeF"),)
+
+
 @pytest.mark.parametrize(
     "obj, res",
     [
@@ -93,6 +118,8 @@ def test_small_objects(obj, res):
     ["obj", "res"],
     [
         (CaseInsensitiveDict({"SomeHeader": "SomeValue"}), {"SomeHeader": "SomeValue"}),
+        (_ItemsPreferredMapping(), {"secret": "aBcDeF"}),
+        (_ItemsPreferredDict(), {"secret": "aBcDeF"}),
         (range(1, 4), [1, 2, 3]),
         ((1, 2, 3), [1, 2, 3]),
     ],

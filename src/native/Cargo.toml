@@ -34,7 +34,7 @@ url = "2"
 # AIDEV-NOTE: temporarily points at a fork branch that vendors the bindgen output
 # (crates/libddwaf-sys/src/bindings_prebuilt*.rs) so the build needs NO libclang/bindgen. Repoint to
 # DataDog/libddwaf-rust once that change is upstreamed (it branches off PR #25 / glopes/2.0.0).
-libddwaf = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings", features = ["dynamic"] }
+libddwaf = { git = "https://github.com/florentinl/libddwaf-rust", rev = "4680300e137fe1fda20fc727df7f565bbad1b36e", features = ["dynamic"] }
 libc = { version = "0.2", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"

@@ -5,7 +5,12 @@
 //! crate), and reading converts a [`WafObject`] back into Python objects. Nothing here touches
 //! `libddwaf-sys` directly.
 
-use libddwaf::object::{Keyed, WafArray, WafMap, WafObject, WafObjectType, WafString};
+use std::borrow::Cow;
+
+use libddwaf::object::{
+    AllocatorType, Keyed, LibddwafDefaultAllocator, WafArray, WafMap, WafObject, WafObjectType,
+    WafOwnedDefaultAllocator, WafString,
+};
 use pyo3::prelude::*;
 use pyo3::types::{
     PyBool, PyBytes, PyDict, PyFloat, PyInt, PyList, PyMapping, PySequence, PyString,
@@ -59,14 +64,19 @@ pub(crate) struct Limits {
     pub max_string_length: usize,
 }
 
+fn allocation_error() -> PyErr {
+    pyo3::exceptions::PyMemoryError::new_err("failed to allocate libddwaf object")
+}
+
 /// Returns the UTF-8 bytes of a Python `str`, dropping anything that isn't valid UTF-8 (matching the
 /// previous `str.encode("UTF-8", errors="ignore")`). The common (no surrogate) case is zero-copy.
-fn str_bytes(value: &Bound<'_, PyString>) -> PyResult<Vec<u8>> {
+fn str_bytes<'py>(value: &'py Bound<'py, PyString>) -> PyResult<Cow<'py, [u8]>> {
     match value.to_str() {
-        Ok(s) => Ok(s.as_bytes().to_vec()),
+        Ok(s) => Ok(Cow::Borrowed(s.as_bytes())),
         Err(_) => value
             .call_method1("encode", ("utf-8", "ignore"))?
-            .extract::<Vec<u8>>(),
+            .extract::<Vec<u8>>()
+            .map(Cow::Owned),
     }
 }
 
@@ -95,6 +105,19 @@ fn container_cap(limits: &Limits, trunc: &mut Truncation) -> usize {
     }
 }
 
+fn stream_reserve_exhausted(
+    idx: usize,
+    reserve: usize,
+    reported_len: usize,
+    trunc: &mut Truncation,
+) -> bool {
+    if idx < reserve {
+        return false;
+    }
+    trunc.set_container_size(reported_len.max(idx + 1) as u64);
+    true
+}
+
 /// Recursively builds a [`WafObject`] from a Python value, mirroring the previous Python builder's
 /// type dispatch, limits, and truncation tracking.
 pub(crate) fn build_object(
@@ -103,12 +126,12 @@ pub(crate) fn build_object(
     trunc: &mut Truncation,
 ) -> PyResult<WafObject> {
     // Order matters: bytes/bool before int (bool is an int subclass), containers last.
-    if let Ok(dict) = value.cast::<PyDict>() {
+    if let Ok(dict) = value.cast_exact::<PyDict>() {
         return build_map(dict.iter(), dict.len(), limits, trunc);
     }
     if let Ok(s) = value.cast::<PyString>() {
         let bytes = str_bytes(s)?;
-        return Ok(waf_string(truncate_bytes(&bytes, &limits, trunc)));
+        return Ok(waf_string(truncate_bytes(bytes.as_ref(), &limits, trunc)));
     }
     if let Ok(b) = value.cast::<PyBytes>() {
         return Ok(waf_string(truncate_bytes(b.as_bytes(), &limits, trunc)));
@@ -128,30 +151,109 @@ pub(crate) fn build_object(
     if value.is_none() {
         return Ok(WafObject::from(()));
     }
-    if let Ok(list) = value.cast::<PyList>() {
+    if let Ok(list) = value.cast_exact::<PyList>() {
         return build_array(list.iter(), list.len(), limits, trunc);
     }
-    if let Ok(map) = value.cast::<PyMapping>() {
-        // Mapping subclasses (e.g. CaseInsensitiveDict). Collect (key, value) pairs first.
-        let mut pairs: Vec<(Bound<'_, PyAny>, Bound<'_, PyAny>)> = Vec::new();
-        for pair in map.items()?.try_iter()? {
-            let pair = pair?;
-            let seq = pair.cast::<PySequence>()?;
-            pairs.push((seq.get_item(0)?, seq.get_item(1)?));
-        }
-        let len = pairs.len();
-        return build_map(pairs.into_iter(), len, limits, trunc);
+    if value.cast::<PyMapping>().is_ok() {
+        // Mapping subclasses (e.g. CaseInsensitiveDict, Werkzeug MultiDict). Match the old Python
+        // builder by calling the object's .items(); PyMapping_Items may use keys + __getitem__,
+        // which changes MultiDict-like values into lists.
+        let items = value.call_method0("items")?;
+        let len = value.len().unwrap_or(0);
+        return build_map_items(items.try_iter()?, len, limits, trunc);
     }
     if let Ok(seq) = value.cast::<PySequence>() {
         // Sequence subclasses (tuple, range, ...).
         let len = seq.len().unwrap_or(0);
-        let items: Vec<Bound<'_, PyAny>> = seq.try_iter()?.collect::<PyResult<_>>()?;
-        return build_array(items.into_iter(), len, limits, trunc);
+        return build_array_items(seq.try_iter()?, len, limits, trunc);
     }
     // Fallback: stringify, like the Python builder's final `str(struct)` branch.
     let s = value.str()?;
     let bytes = str_bytes(&s)?;
-    Ok(waf_string(truncate_bytes(&bytes, &limits, trunc)))
+    Ok(waf_string(truncate_bytes(bytes.as_ref(), &limits, trunc)))
+}
+
+pub(crate) fn build_owned_object(
+    value: &Bound<'_, PyAny>,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafOwnedDefaultAllocator<WafObject>> {
+    let mut obj = WafOwnedDefaultAllocator::<WafObject>::default();
+    build_object_into::<LibddwafDefaultAllocator>(&mut obj, value, limits, trunc)?;
+    Ok(obj)
+}
+
+pub(crate) fn build_owned_map(
+    value: &Bound<'_, PyAny>,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafOwnedDefaultAllocator<WafObject>> {
+    let mut obj = build_owned_object(value, limits, trunc)?;
+    if obj.object_type() != WafObjectType::Map {
+        obj = WafOwnedDefaultAllocator::<WafObject>::default();
+        obj.set_map::<LibddwafDefaultAllocator>(0)
+            .ok_or_else(allocation_error)?;
+    }
+    Ok(obj)
+}
+
+fn build_object_into<A: AllocatorType>(
+    slot: &mut WafObject,
+    value: &Bound<'_, PyAny>,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<()> {
+    // Order matters: bytes/bool before int (bool is an int subclass), containers last.
+    if let Ok(dict) = value.cast_exact::<PyDict>() {
+        return build_map_into::<A>(slot, dict.iter(), dict.len(), limits, trunc);
+    }
+    if let Ok(s) = value.cast::<PyString>() {
+        let bytes = str_bytes(s)?;
+        slot.set_string::<A>(truncate_bytes(bytes.as_ref(), &limits, trunc))
+            .ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if let Ok(b) = value.cast::<PyBytes>() {
+        slot.set_string::<A>(truncate_bytes(b.as_bytes(), &limits, trunc))
+            .ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if let Ok(b) = value.cast::<PyBool>() {
+        slot.set_bool(b.is_true()).ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if let Ok(i) = value.cast::<PyInt>() {
+        // libddwaf stores a signed 64-bit int; mask to the low 64 bits (two's complement) like the
+        // old ctypes c_int64 did, so arbitrarily large Python ints don't overflow.
+        let v = unsafe { pyo3::ffi::PyLong_AsUnsignedLongLongMask(i.as_ptr()) } as i64;
+        slot.set_signed(v).ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if let Ok(f) = value.cast::<PyFloat>() {
+        slot.set_float(f.value()).ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if value.is_none() {
+        slot.set_null().ok_or_else(allocation_error)?;
+        return Ok(());
+    }
+    if let Ok(list) = value.cast_exact::<PyList>() {
+        return build_array_into::<A>(slot, list.iter(), list.len(), limits, trunc);
+    }
+    if value.cast::<PyMapping>().is_ok() {
+        let items = value.call_method0("items")?;
+        let len = value.len().unwrap_or(0);
+        return build_map_items_into::<A>(slot, items.try_iter()?, len, limits, trunc);
+    }
+    if let Ok(seq) = value.cast::<PySequence>() {
+        let len = seq.len().unwrap_or(0);
+        return build_array_items_into::<A>(slot, seq.try_iter()?, len, limits, trunc);
+    }
+    let s = value.str()?;
+    let bytes = str_bytes(&s)?;
+    slot.set_string::<A>(truncate_bytes(bytes.as_ref(), &limits, trunc))
+        .ok_or_else(allocation_error)?;
+    Ok(())
 }
 
 fn build_array<'py>(
@@ -180,6 +282,85 @@ fn build_array<'py>(
     Ok(array.into())
 }
 
+fn build_array_items<'py>(
+    items: impl Iterator<Item = PyResult<Bound<'py, PyAny>>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafObject> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    let mut array = WafArray::new(reserve as u16);
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for elt in items {
+        if stream_reserve_exhausted(idx, reserve, len, trunc) {
+            break;
+        }
+        array[idx] = build_object(&elt?, child_limits, trunc)?;
+        idx += 1;
+    }
+    array.truncate(idx as u16);
+    Ok(array.into())
+}
+
+fn build_array_into<'py, A: AllocatorType>(
+    slot: &mut WafObject,
+    items: impl Iterator<Item = Bound<'py, PyAny>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<()> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    slot.set_array::<A>(reserve as u16)
+        .ok_or_else(allocation_error)?;
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for elt in items {
+        if stream_reserve_exhausted(idx, reserve, len, trunc) {
+            break;
+        }
+        let child = slot.insert::<A>().ok_or_else(allocation_error)?;
+        build_object_into::<A>(child, &elt, child_limits, trunc)?;
+        idx += 1;
+    }
+    Ok(())
+}
+
+fn build_array_items_into<'py, A: AllocatorType>(
+    slot: &mut WafObject,
+    items: impl Iterator<Item = PyResult<Bound<'py, PyAny>>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<()> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    slot.set_array::<A>(reserve as u16)
+        .ok_or_else(allocation_error)?;
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for elt in items {
+        if stream_reserve_exhausted(idx, reserve, len, trunc) {
+            break;
+        }
+        let child = slot.insert::<A>().ok_or_else(allocation_error)?;
+        build_object_into::<A>(child, &elt?, child_limits, trunc)?;
+        idx += 1;
+    }
+    Ok(())
+}
+
 fn build_map<'py>(
     items: impl Iterator<Item = (Bound<'py, PyAny>, Bound<'py, PyAny>)>,
     len: usize,
@@ -199,7 +380,7 @@ fn build_map<'py>(
         let key_bytes = if let Ok(s) = key.cast::<PyString>() {
             str_bytes(s)?
         } else if let Ok(b) = key.cast::<PyBytes>() {
-            b.as_bytes().to_vec()
+            Cow::Borrowed(b.as_bytes())
         } else {
             continue;
         };
@@ -207,7 +388,7 @@ fn build_map<'py>(
             trunc.set_container_size(len as u64);
             break;
         }
-        let key_bytes = truncate_bytes(&key_bytes, &limits, trunc);
+        let key_bytes = truncate_bytes(key_bytes.as_ref(), &limits, trunc);
         let key_obj = WafString::new(key_bytes).unwrap_or_default();
         let value_obj = build_object(&val, child_limits, trunc)?;
         map[idx] = Keyed::new(key_obj, value_obj);
@@ -215,6 +396,127 @@ fn build_map<'py>(
     }
     map.truncate(idx as u16);
     Ok(map.into())
+}
+
+fn build_map_into<'py, A: AllocatorType>(
+    slot: &mut WafObject,
+    items: impl Iterator<Item = (Bound<'py, PyAny>, Bound<'py, PyAny>)>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<()> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    slot.set_map::<A>(reserve as u16)
+        .ok_or_else(allocation_error)?;
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for (key, val) in items {
+        // Only string/bytes keys are kept (others are silently discarded, as before).
+        let key_bytes = if let Ok(s) = key.cast::<PyString>() {
+            str_bytes(s)?
+        } else if let Ok(b) = key.cast::<PyBytes>() {
+            Cow::Borrowed(b.as_bytes())
+        } else {
+            continue;
+        };
+        if idx >= cap {
+            trunc.set_container_size(len as u64);
+            break;
+        }
+        let key_bytes = truncate_bytes(key_bytes.as_ref(), &limits, trunc);
+        let child = slot
+            .insert_key::<A>(key_bytes)
+            .ok_or_else(allocation_error)?;
+        build_object_into::<A>(child, &val, child_limits, trunc)?;
+        idx += 1;
+    }
+    Ok(())
+}
+
+fn build_map_items<'py>(
+    items: impl Iterator<Item = PyResult<Bound<'py, PyAny>>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<WafObject> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    let mut map = WafMap::new(reserve as u16);
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for pair in items {
+        let pair = pair?;
+        let seq = pair.cast::<PySequence>()?;
+        let key = seq.get_item(0)?;
+        let val = seq.get_item(1)?;
+        // Only string/bytes keys are kept (others are silently discarded, as before).
+        let key_bytes = if let Ok(s) = key.cast::<PyString>() {
+            str_bytes(s)?
+        } else if let Ok(b) = key.cast::<PyBytes>() {
+            Cow::Borrowed(b.as_bytes())
+        } else {
+            continue;
+        };
+        if stream_reserve_exhausted(idx, reserve, len, trunc) {
+            break;
+        }
+        let key_bytes = truncate_bytes(key_bytes.as_ref(), &limits, trunc);
+        let key_obj = WafString::new(key_bytes).unwrap_or_default();
+        let value_obj = build_object(&val, child_limits, trunc)?;
+        map[idx] = Keyed::new(key_obj, value_obj);
+        idx += 1;
+    }
+    map.truncate(idx as u16);
+    Ok(map.into())
+}
+
+fn build_map_items_into<'py, A: AllocatorType>(
+    slot: &mut WafObject,
+    items: impl Iterator<Item = PyResult<Bound<'py, PyAny>>>,
+    len: usize,
+    limits: Limits,
+    trunc: &mut Truncation,
+) -> PyResult<()> {
+    let cap = container_cap(&limits, trunc);
+    let reserve = len.min(cap);
+    slot.set_map::<A>(reserve as u16)
+        .ok_or_else(allocation_error)?;
+    let child_limits = Limits {
+        max_depth: limits.max_depth - 1,
+        ..limits
+    };
+    let mut idx = 0usize;
+    for pair in items {
+        let pair = pair?;
+        let seq = pair.cast::<PySequence>()?;
+        let key = seq.get_item(0)?;
+        let val = seq.get_item(1)?;
+        // Only string/bytes keys are kept (others are silently discarded, as before).
+        let key_bytes = if let Ok(s) = key.cast::<PyString>() {
+            str_bytes(s)?
+        } else if let Ok(b) = key.cast::<PyBytes>() {
+            Cow::Borrowed(b.as_bytes())
+        } else {
+            continue;
+        };
+        if stream_reserve_exhausted(idx, reserve, len, trunc) {
+            break;
+        }
+        let key_bytes = truncate_bytes(key_bytes.as_ref(), &limits, trunc);
+        let child = slot
+            .insert_key::<A>(key_bytes)
+            .ok_or_else(allocation_error)?;
+        build_object_into::<A>(child, &val, child_limits, trunc)?;
+        idx += 1;
+    }
+    Ok(())
 }
 
 /// Recursively converts a [`WafObject`] into a Python value (replaces the old `.struct` reader).
