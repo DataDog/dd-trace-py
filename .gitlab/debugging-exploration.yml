@@ -25,23 +25,24 @@
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp310-cp310"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp313-cp313"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
 
 ".debugging/exploration":
   stage: tests
   extends: .testrunner
+  retry: 2
   timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${CI_PROJECT_DIR}/debugger-expl.txt"

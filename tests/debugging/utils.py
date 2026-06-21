@@ -38,17 +38,8 @@ def compile_template(*args):
     return {"template": template, "segments": segments}
 
 
-def compile_capture_expressions(exprs, capture=None):
-    return {
-        "capture_expressions": [
-            CaptureExpression(
-                name=expr["name"],
-                expr=DDRedactedExpression.compile(expr["expr"]),
-                capture=capture if capture is not None else DEFAULT_CAPTURE_LIMITS,
-            )
-            for expr in exprs
-        ],
-    }
+def compile_capture_expressions(exprs):
+    return {"capture_expressions": [CaptureExpression.parse(expr) for expr in exprs]}
 
 
 def ddexpr(json, dsl="test"):

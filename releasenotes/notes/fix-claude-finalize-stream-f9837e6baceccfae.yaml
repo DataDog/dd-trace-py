@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue in the Claude Agent SDK integration where sequential 
+    ``ClaudeSDKClient.query()`` calls produced nested agent spans instead of separate root traces. 
+    Agent spans are now finalized eagerly when a ``ResultMessage`` is observed, rather than relying 
+    on the wrapping async generator's ``finally`` block to execute.

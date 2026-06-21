@@ -1,0 +1,20 @@
+#!/bin/sh
+# Verify supported-configurations.json and _supported_configurations.py are in sync,
+# and that every DD_*/OTEL_* env var in ddtrace/ is registered.
+#
+# Triggers when staged files touch config definitions, the JSON registry, or the
+# generated module. Catches missing config registrations before they break
+# system-tests telemetry checks in CI.
+
+LINT_CMD="${LINT_CMD:-scripts/lint}"
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR)
+
+should_run=false
+echo "$staged_files" | grep -qE '(supported-configurations\.json|ddtrace/internal/settings/)' && should_run=true
+
+if [ "$should_run" = true ]; then
+    echo "Checking supported-configurations registry..."
+    "$LINT_CMD" supported-config-check || exit 1
+else
+    echo 'Supported-config check skipped: no config-related files staged'
+fi

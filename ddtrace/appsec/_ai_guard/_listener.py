@@ -1,10 +1,13 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from functools import partial
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
@@ -30,6 +33,7 @@ def ai_guard_listen():
     client = new_ai_guard_client()
     _langchain_listen(client)
     _openai_listen(client)
+    _anthropic_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
@@ -76,6 +80,11 @@ def _openai_listen(client: AIGuardClient):
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
 
 
+def _anthropic_listen(client: AIGuardClient):
+    core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
+    core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
+
+
 def _on_set_http_meta_for_ai_guard(
     span: Span,
     request_ip: Optional[str],
@@ -85,7 +94,7 @@ def _on_set_http_meta_for_ai_guard(
     request_headers: Optional[Mapping[str, str]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, str]],

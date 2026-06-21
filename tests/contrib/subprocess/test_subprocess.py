@@ -113,6 +113,25 @@ for allowed in SubprocessCmdLine.ENV_VARS_ALLOWLIST:
             "lower=baz",
             ["dir", "-li", "/", "OTHER=any"],
         ),
+        # Regression: a value containing ``=`` (legal shell, e.g. base64 with
+        # padding, ``URL=...?k=v``, or just two ``=`` chained) made
+        # ``token.split("=")`` return 3 items, raising ``ValueError`` on the
+        # two-name unpack. The outer ``except Exception`` swallowed it and
+        # the subprocess span was dropped.
+        (
+            SubprocessCmdLine(["FOO=key=value", "BAR=baz", "dir", "-li", "/"], shell=True),
+            ["FOO=?", "BAR=?", "dir", "-li", "/"],
+            ["FOO=?", "BAR=?"],
+            "dir",
+            ["-li", "/"],
+        ),
+        (
+            SubprocessCmdLine(["BASE64=YWJjPT0=", "dir", "-li", "/"], shell=True),
+            ["BASE64=?", "dir", "-li", "/"],
+            ["BASE64=?"],
+            "dir",
+            ["-li", "/"],
+        ),
     ]
     + allowed_envvars_fixture_list,
 )
@@ -121,6 +140,27 @@ def test_shellcmdline(cmdline_obj, full_list, env_vars, binary, arguments):
     assert cmdline_obj.env_vars == env_vars
     assert cmdline_obj.binary == binary
     assert cmdline_obj.arguments == arguments
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "BASE64",  # digit in the middle
+        "HTTP2",  # digit at the end
+        "S3_BUCKET",  # digit right after underscore
+        "A1B2C3",  # alternating letters and digits
+    ],
+)
+def test_shellcmdline_scrubs_env_var_names_with_digits(name: str) -> None:
+    """Env var names containing digits must be recognised and their values scrubbed.
+
+    Regression: _COMPILED_ENV_VAR_REGEXP used [A-Z_]+ which excludes digits,
+    so names like BASE64 were not matched and values were never redacted.
+    """
+    token = f"{name}=secret"
+    cmdline = SubprocessCmdLine([token, "ls"], shell=True)
+    assert cmdline.env_vars == [f"{name}=?"], f"value of {name} was not scrubbed"
+    assert cmdline.binary == "ls"
 
 
 denied_binaries_fixture_list = []

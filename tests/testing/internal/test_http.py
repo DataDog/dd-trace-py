@@ -1,6 +1,7 @@
 """Tests for ddtrace.testing.internal.http module."""
 
 import http.client
+import logging
 import os
 from unittest.mock import Mock
 from unittest.mock import call
@@ -9,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.errors import SetupError
+import ddtrace.testing.internal.http as _http_module
 from ddtrace.testing.internal.http import DEFAULT_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import MAX_RETRY_AFTER_SECONDS
 from ddtrace.testing.internal.http import BackendConnector
@@ -27,7 +29,7 @@ class TestBackendConnector:
 
     def test_constants(self) -> None:
         """Test module constants."""
-        assert DEFAULT_TIMEOUT_SECONDS == 15.0
+        assert DEFAULT_TIMEOUT_SECONDS == 30.0
 
     @patch("http.client.HTTPSConnection")
     def test_init_default_parameters(self, mock_https_connection: Mock) -> None:
@@ -1082,6 +1084,84 @@ class TestBackendConnectorSetup:
         assert connector.use_gzip is True
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
+    # --- detect_standard_setup: public env vars only ---
+
+    def test_detect_standard_setup_agentless_reads_public_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(os, "environ", {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "public-key"})
+
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
+        assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
+
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "public-key"
+
+    def test_detect_standard_setup_agentless_ignores_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_standard_setup must not fall back to _CI_DD_API_KEY."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "_CI_DD_API_KEY": "internal-key",
+                "DD_API_KEY": "public-key",
+            },
+        )
+
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "public-key"
+
+    def test_detect_standard_setup_agentless_raises_when_only_internal_key_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """detect_standard_setup must raise if DD_API_KEY is absent, even if _CI_DD_API_KEY is set."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
+        )
+
+        with pytest.raises(SetupError, match="DD_API_KEY"):
+            BackendConnectorSetup.detect_standard_setup()
+
+    def test_detect_setup_still_reads_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_setup (internal path) must still honour _CI_DD_API_KEY."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
+        )
+
+        connector_setup = BackendConnectorSetup.detect_setup()
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "internal-key"
+
+    def test_detect_setup_still_reads_internal_agent_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_setup (internal path) must still honour _CI_DD_AGENT_URL."""
+        monkeypatch.setattr(os, "environ", {"_CI_DD_AGENT_URL": "http://internal-agent:8126"})
+
+        backend_connector_mock = (
+            mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
+        )
+        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+            connector_setup = BackendConnectorSetup.detect_setup()
+
+        assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
+        assert connector_setup.url == "http://internal-agent:8126"
+
+    def test_detect_standard_setup_evp_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_URL": "http://my-agent:8126"})
+
+        backend_connector_mock = (
+            mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
+        )
+        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+            connector_setup = BackendConnectorSetup.detect_standard_setup()
+
+        assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
+        assert connector_setup.url == "http://my-agent:8126"
+        assert connector_setup.base_path == "/evp_proxy/v4"
+
 
 class TestUnixDomainSocketTimeout:
     """Regression test: Unix domain socket must respect the configured timeout."""
@@ -1095,6 +1175,43 @@ class TestUnixDomainSocketTimeout:
 
             mock_sock.settimeout.assert_called_once_with(3.5)
             mock_sock.connect.assert_called_once_with("/tmp/nonexistent.sock")
+
+
+class TestBackendTimeoutEnvVar:
+    """Tests for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS parsing via _parse_timeout_millis."""
+
+    # AIDEV-NOTE: Tests call _parse_timeout_millis() directly to avoid importlib.reload, which
+    # mutates the module's __dict__ in place and breaks isinstance checks in other test classes
+    # (old imported class objects see new reloaded classes via shared __globals__).
+
+    def test_default_when_unset(self) -> None:
+        assert _http_module._parse_timeout_millis(None) == 30.0
+
+    def test_default_when_empty_string(self) -> None:
+        assert _http_module._parse_timeout_millis("") == 30.0
+
+    def test_integer_string_is_accepted(self) -> None:
+        assert _http_module._parse_timeout_millis("60000") == 60.0
+
+    def test_float_string_is_accepted(self) -> None:
+        assert _http_module._parse_timeout_millis("30500") == 30.5
+
+    def test_non_numeric_value_falls_back_to_default(self) -> None:
+        http_logger = logging.getLogger("ddtrace.testing.internal.http")
+        with patch.object(http_logger, "warning") as mock_warning:
+            result = _http_module._parse_timeout_millis("fast")
+        assert result == 30.0
+        mock_warning.assert_called_once()
+        fmt_string, bad_value = mock_warning.call_args[0][0], mock_warning.call_args[0][1]
+        assert "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS" in fmt_string
+        assert bad_value == "fast"
+
+    def test_non_numeric_value_does_not_raise(self) -> None:
+        assert _http_module._parse_timeout_millis("not-a-number") == 30.0
+
+    @pytest.mark.parametrize("bad_value", ["0", "-5000", "inf", "-inf", "nan", "300001"])
+    def test_non_positive_or_out_of_range_falls_back_to_default(self, bad_value: str) -> None:
+        assert _http_module._parse_timeout_millis(bad_value) == 30.0
 
 
 class TestRequestFailureWarning:

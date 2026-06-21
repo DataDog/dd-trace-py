@@ -11,6 +11,7 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.snapshot import Snapshot
+from ddtrace.internal._encoding import BufferFull
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
 
@@ -92,3 +93,44 @@ def test_collector_push_enqueue():
         collector.push(snapshot)
 
     assert len(encoder.put.mock_calls) == 10
+
+
+def test_collector_push_buffer_full():
+    """_enqueue should silently swallow BufferFull and increment the metric."""
+    encoder, _ = mock_encoder()
+    encoder.put.side_effect = BufferFull
+
+    collector = SignalCollector(tracks={SignalTrack.LOGS: encoder, SignalTrack.SNAPSHOT: encoder})
+    frame = inspect.currentframe()
+    assert frame is not None
+
+    snapshot = Snapshot(
+        probe=create_snapshot_line_probe(probe_id=uuid4(), source_file="file.py", line=1),
+        frame=frame,
+        thread=threading.current_thread(),
+    )
+    snapshot.line({})
+    snapshot.state = SignalState.DONE
+
+    # Should not raise despite BufferFull
+    collector.push(snapshot)
+    encoder.put.assert_called_once()
+
+
+def test_collector_push_unknown_track():
+    """_enqueue should log an error when the signal track has no registered encoder."""
+    # Provide an empty tracks dict so any track raises KeyError
+    collector = SignalCollector(tracks={})
+    frame = inspect.currentframe()
+    assert frame is not None
+
+    snapshot = Snapshot(
+        probe=create_snapshot_line_probe(probe_id=uuid4(), source_file="file.py", line=1),
+        frame=frame,
+        thread=threading.current_thread(),
+    )
+    snapshot.line({})
+    snapshot.state = SignalState.DONE
+
+    # Should not raise despite missing track
+    collector.push(snapshot)

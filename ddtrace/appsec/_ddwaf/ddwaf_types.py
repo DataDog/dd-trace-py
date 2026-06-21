@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
@@ -12,6 +11,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_subcontext_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
@@ -43,25 +43,43 @@ DDWAF_MAX_CONTAINER_SIZE = 256
 DDWAF_NO_LIMIT = 1 << 31
 DDWAF_DEPTH_NO_LIMIT = 1000
 
+# Containers store their size/capacity in a uint16, so they cannot hold more than this.
+DDWAF_OBJ_MAX_CAPACITY = 0xFFFF
 
+
+# Type tags are not a bitfield: UNSIGNED (0x06) overlaps BOOL (0x02) | SIGNED (0x04), so compare
+# with exact equality, never bitmasks. Strings have 3 variants (heap, literal, inline "small").
 class DDWAF_OBJ_TYPE(IntEnum):
     DDWAF_OBJ_INVALID = 0
-    # Value shall be decoded as a int64_t (or int32_t on 32bits platforms).
-    DDWAF_OBJ_SIGNED = 1 << 0
-    # Value shall be decoded as a uint64_t (or uint32_t on 32bits platforms).
-    DDWAF_OBJ_UNSIGNED = 1 << 1
-    # Value shall be decoded as a UTF-8 string of length nbEntries.
-    DDWAF_OBJ_STRING = 1 << 2
-    # Value shall be decoded as an array of ddwaf_object of length nbEntries, each item having no parameterName.
-    DDWAF_OBJ_ARRAY = 1 << 3
-    # Value shall be decoded as an array of ddwaf_object of length nbEntries, each item having a parameterName.
-    DDWAF_OBJ_MAP = 1 << 4
-    # Value shall be decode as bool
-    DDWAF_OBJ_BOOL = 1 << 5
-    # 64-bit float (or double) type
-    DDWAF_OBJ_FLOAT = 1 << 6
     # Null type, only used for its semantical value
-    DDWAF_OBJ_NULL = 1 << 7
+    DDWAF_OBJ_NULL = 0x01
+    # Value shall be decoded as a bool
+    DDWAF_OBJ_BOOL = 0x02
+    # Value shall be decoded as an int64_t
+    DDWAF_OBJ_SIGNED = 0x04
+    # Value shall be decoded as a uint64_t
+    DDWAF_OBJ_UNSIGNED = 0x06
+    # 64-bit float (or double) type
+    DDWAF_OBJ_FLOAT = 0x08
+    # Value shall be decoded as a UTF-8 string of length size, stored on the heap
+    DDWAF_OBJ_STRING = 0x10
+    # Read-only C string that is never freed on destruction
+    DDWAF_OBJ_LITERAL_STRING = 0x12
+    # UTF-8 string of at most 14 bytes stored inline in the object (no allocation)
+    DDWAF_OBJ_SMALL_STRING = 0x14
+    # Array of ddwaf_object of length size
+    DDWAF_OBJ_ARRAY = 0x20
+    # Map: array of ddwaf_object_kv of length size
+    DDWAF_OBJ_MAP = 0x40
+
+
+# Set of all the string variants for quick membership tests
+_STRING_TYPES = frozenset(
+    (
+        DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING,
+        DDWAF_OBJ_TYPE.DDWAF_OBJ_LITERAL_STRING,
+    )
+)
 
 
 class DDWAF_RET_CODE(IntEnum):
@@ -81,13 +99,186 @@ class DDWAF_LOG_LEVEL(IntEnum):
     DDWAF_LOG_OFF = 5
 
 
+# An allocator is an opaque pointer (`typedef struct _ddwaf_allocator *ddwaf_allocator;`)
+ddwaf_allocator = ctypes.c_void_p
+ddwaf_handle = ctypes.c_void_p  # mainly an abstract type in the interface
+ddwaf_context = ctypes.c_void_p  # mainly an abstract type in the interface
+ddwaf_subcontext = ctypes.c_void_p  # mainly an abstract type in the interface
+ddwaf_builder = ctypes.c_void_p  # mainly an abstract type in the interface
+
+
 #
 # Objects Definitions
 #
 
 
+# The ddwaf_object is a 16-byte tagged union. Field definitions are wired up after the
+# class bodies to allow the cyclic references (array -> object, map -> object_kv -> object).
+class ddwaf_object(ctypes.Union):
+    """ctypes view of the libddwaf 2.0 ``ddwaf_object`` 16-byte tagged union."""
+
+    def __init__(
+        self,
+        struct: Optional[DDWafRulesType] = None,
+        observator: Optional[_observator] = None,
+        max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
+        max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
+        max_string_length: int = DDWAF_MAX_STRING_LENGTH,
+    ) -> None:
+        if observator is None:
+            observator = _observator()
+        # Build through a pointer (uniform with the slots returned by insert/insert_key).
+        _build_ddwaf_object(ctypes.pointer(self), struct, observator, max_objects, max_depth, max_string_length)
+
+    @classmethod
+    def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
+        return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
+
+    @classmethod
+    def from_json_bytes(cls, data: bytes) -> Optional["ddwaf_object"]:
+        """Create a ddwaf_object from a JSON string as bytes."""
+        obj = cls.__new__(cls)
+        if not ddwaf_object_from_json(obj, data, len(data), DEFAULT_ALLOCATOR):
+            log.debug("Failed to create ddwaf_object from JSON: %s", data)
+            # Free any partial allocation (no-op on the zero-initialised INVALID object).
+            ddwaf_object_destroy(obj, DEFAULT_ALLOCATOR)
+            return None
+        return obj
+
+    @property
+    def struct(self) -> DDWafRulesType:
+        """Generate a python structure from ddwaf_object"""
+        t = self.type
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_SMALL_STRING:
+            sstr = self.value.sstr
+            if not sstr.size:
+                return ""
+            # Length-based read: slicing the c_char array would truncate at an embedded NUL.
+            return ctypes.string_at(ctypes.addressof(sstr) + _SMALL_STRING_DATA_OFFSET, sstr.size).decode(
+                "UTF-8", errors="ignore"
+            )
+        if t in _STRING_TYPES:
+            s = self.value.str
+            if not s.ptr or not s.size:
+                return ""
+            return ctypes.string_at(s.ptr, s.size).decode("UTF-8", errors="ignore")
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
+            m = self.value.map
+            return {m.ptr[i].key.struct: m.ptr[i].val.struct for i in range(m.size)}
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
+            a = self.value.array
+            return [a.ptr[i].struct for i in range(a.size)]
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
+            return self.value.i64.val
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
+            return self.value.u64.val
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
+            return self.value.b8.val
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
+            return self.value.f64.val
+        if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL or t == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
+            return None
+        log.debug("ddwaf_object struct: unknown object type: %s", repr(t))
+        return None
+
+    def __repr__(self) -> str:
+        return repr(self.struct)
+
+
+ddwaf_object_p = ctypes.POINTER(ddwaf_object)
+
+
+class ddwaf_object_kv(ctypes.Structure):
+    """A key/value pair stored in a ddwaf_object map. Fields are wired up below."""
+
+
+ddwaf_object_kv_p = ctypes.POINTER(ddwaf_object_kv)
+
+
+class _ddwaf_object_bool(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_bool)]
+
+
+class _ddwaf_object_signed(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_int64)]
+
+
+class _ddwaf_object_unsigned(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_uint64)]
+
+
+class _ddwaf_object_float(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint8), ("val", ctypes.c_double)]
+
+
+class _ddwaf_object_string(ctypes.Structure):
+    # ``ptr`` is a raw pointer read with ctypes.string_at using the explicit size
+    # (the buffer is not necessarily NUL-terminated in libddwaf 2.0).
+    _fields_ = [("type", ctypes.c_uint8), ("size", ctypes.c_uint32), ("ptr", ctypes.c_void_p)]
+
+
+class _ddwaf_object_small_string(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_uint8), ("size", ctypes.c_uint8), ("data", ctypes.c_char * 14)]
+
+
+# Byte offset of the inline data buffer within a small string, used for length-based reads.
+_SMALL_STRING_DATA_OFFSET = _ddwaf_object_small_string.data.offset
+
+
+class _ddwaf_object_array(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_uint8),
+        ("size", ctypes.c_uint16),
+        ("capacity", ctypes.c_uint16),
+        ("ptr", ddwaf_object_p),
+    ]
+
+
+class _ddwaf_object_map(ctypes.Structure):
+    _fields_ = [
+        ("type", ctypes.c_uint8),
+        ("size", ctypes.c_uint16),
+        ("capacity", ctypes.c_uint16),
+        ("ptr", ddwaf_object_kv_p),
+    ]
+
+
+class _ddwaf_object_value(ctypes.Union):
+    _fields_ = [
+        ("b8", _ddwaf_object_bool),
+        ("i64", _ddwaf_object_signed),
+        ("u64", _ddwaf_object_unsigned),
+        ("f64", _ddwaf_object_float),
+        ("str", _ddwaf_object_string),
+        ("sstr", _ddwaf_object_small_string),
+        ("array", _ddwaf_object_array),
+        ("map", _ddwaf_object_map),
+    ]
+
+
+ddwaf_object._fields_ = [
+    ("type", ctypes.c_uint8),
+    ("value", _ddwaf_object_value),
+]
+
+ddwaf_object_kv._fields_ = [
+    ("key", ddwaf_object),
+    ("val", ddwaf_object),
+]
+
+
+#
+# Recursive builder for ddwaf_object (serialization of python structures).
+#
+# Each ``self`` is either a freshly allocated ``ddwaf_object`` (top level) or a pointer to a
+# slot inside a parent container (returned by ddwaf_object_insert / ddwaf_object_insert_key).
+# ``self`` is always a pointer to the ddwaf_object being filled (ctypes.pointer(top_level) or a
+# slot from ddwaf_object_insert/insert_key); it is only forwarded to the set_*/insert C functions.
+#
+
+
 def _build_sequence(
-    self: "ddwaf_object",
+    self: "ctypes._Pointer[ddwaf_object]",
     struct: Any,
     observator: _observator,
     max_objects: int,
@@ -97,18 +288,21 @@ def _build_sequence(
     if max_depth <= 0:
         observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
         max_objects = 0
-    array = ddwaf_object_array(self)
+    elif max_objects > DDWAF_OBJ_MAX_CAPACITY:
+        # Container size is a uint16; cap inserts (even on the no-limit path) so it can't wrap.
+        max_objects = DDWAF_OBJ_MAX_CAPACITY
+    # Reserve only what we will actually insert (bounded by max_objects, always <= uint16 max).
+    ddwaf_object_set_array(self, min(len(struct), max_objects), DEFAULT_ALLOCATOR)
     for counter_object, elt in enumerate(struct):
         if counter_object >= max_objects:
             observator.set_container_size(len(struct))
             break
-        obj = ddwaf_object.__new__(ddwaf_object)
-        _build_ddwaf_object(obj, elt, observator, max_objects, max_depth - 1, max_string_length)
-        ddwaf_object_array_add(array, obj)
+        slot = ddwaf_object_insert(self, DEFAULT_ALLOCATOR)
+        _build_ddwaf_object(slot, elt, observator, max_objects, max_depth - 1, max_string_length)
 
 
 def _build_mapping(
-    self: "ddwaf_object",
+    self: "ctypes._Pointer[ddwaf_object]",
     struct: Any,
     observator: _observator,
     max_objects: int,
@@ -118,7 +312,11 @@ def _build_mapping(
     if max_depth <= 0:
         observator.set_container_depth(DDWAF_MAX_CONTAINER_DEPTH)
         max_objects = 0
-    map_o = ddwaf_object_map(self)
+    elif max_objects > DDWAF_OBJ_MAX_CAPACITY:
+        # Container size is a uint16; cap inserts (even on the no-limit path) so it can't wrap.
+        max_objects = DDWAF_OBJ_MAX_CAPACITY
+    # Reserve only what we will actually insert (bounded by max_objects, always <= uint16 max).
+    ddwaf_object_set_map(self, min(len(struct), max_objects), DEFAULT_ALLOCATOR)
     # order is unspecified and could lead to problems if max_objects is reached
     counter_object = 0
     for key, val in struct.items():
@@ -135,14 +333,13 @@ def _build_mapping(
         if len(res_key) > max_string_length:
             observator.set_string_length(len(res_key))
             res_key = res_key[:max_string_length]
-        obj = ddwaf_object.__new__(ddwaf_object)
-        _build_ddwaf_object(obj, val, observator, max_objects, max_depth - 1, max_string_length)
-        ddwaf_object_map_add(map_o, res_key, obj)
+        slot = ddwaf_object_insert_key(self, res_key, len(res_key), DEFAULT_ALLOCATOR)
+        _build_ddwaf_object(slot, val, observator, max_objects, max_depth - 1, max_string_length)
         counter_object += 1
 
 
 def _build_ddwaf_object(
-    self: "ddwaf_object",
+    self: "ctypes._Pointer[ddwaf_object]",
     struct: Any,
     observator: _observator,
     max_objects: int,
@@ -164,22 +361,22 @@ def _build_ddwaf_object(
         if len(encoded) > max_string_length:
             observator.set_string_length(len(encoded))
             encoded = encoded[:max_string_length]
-        ddwaf_object_string(self, encoded)
+        ddwaf_object_set_string(self, encoded, len(encoded), DEFAULT_ALLOCATOR)
     elif t is list:
         _build_sequence(self, struct, observator, max_objects, max_depth, max_string_length)
     elif t is int:
-        ddwaf_object_signed(self, struct)
+        ddwaf_object_set_signed(self, struct)
     elif t is bool:
-        ddwaf_object_bool(self, struct)
+        ddwaf_object_set_bool(self, struct)
     elif t is float:
-        ddwaf_object_float(self, struct)
+        ddwaf_object_set_float(self, struct)
     elif t is bytes:
         if len(struct) > max_string_length:
             observator.set_string_length(len(struct))
             struct = struct[:max_string_length]
-        ddwaf_object_string(self, struct)
+        ddwaf_object_set_string(self, struct, len(struct), DEFAULT_ALLOCATOR)
     elif struct is None:
-        ddwaf_object_null(self)
+        ddwaf_object_set_null(self)
     elif isinstance(struct, Sequence):
         _build_sequence(self, struct, observator, max_objects, max_depth, max_string_length)
     elif isinstance(struct, Mapping):
@@ -189,149 +386,7 @@ def _build_ddwaf_object(
         if len(encoded) > max_string_length:
             observator.set_string_length(len(encoded))
             encoded = encoded[:max_string_length]
-        ddwaf_object_string(self, encoded)
-
-
-# to allow cyclic references, ddwaf_object fields are defined later
-class ddwaf_object(ctypes.Structure):
-    # "type" define how to read the "value" union field
-    # defined in ddwaf.h
-    #  1 is intValue
-    #  2 is uintValue
-    #  4 is stringValue as UTF-8 encoded
-    #  8 is array of length "nbEntries" without parameterName
-    # 16 is a map : array of length "nbEntries" with parameterName
-    # 32 is boolean
-
-    def __init__(
-        self,
-        struct: Optional[DDWafRulesType] = None,
-        observator: Optional[_observator] = None,
-        max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
-        max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
-        max_string_length: int = DDWAF_MAX_STRING_LENGTH,
-    ) -> None:
-        if observator is None:
-            observator = _observator()
-        _build_ddwaf_object(self, struct, observator, max_objects, max_depth, max_string_length)
-
-    @classmethod
-    def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
-        return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
-
-    @classmethod
-    def from_json_bytes(cls, data: bytes) -> Optional["ddwaf_object"]:
-        """Create a ddwaf_object from a JSON string as bytes."""
-        obj = cls.__new__(cls)
-        if not ddwaf_object_from_json(obj, data, len(data)):
-            log.debug("Failed to create ddwaf_object from JSON: %s", data)
-            return None
-        return obj
-
-    @property
-    def struct(self) -> DDWafRulesType:
-        """Generate a python structure from ddwaf_object"""
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_STRING:
-            return self.value.stringValue[: self.nbEntries].decode("UTF-8", errors="ignore")
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_MAP:
-            return {
-                obj.parameterName[: obj.parameterNameLength].decode("UTF-8", errors="ignore"): obj.struct
-                for obj in self.value.array[: self.nbEntries]
-            }
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_ARRAY:
-            return [self.value.array[i].struct for i in range(self.nbEntries)]
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_SIGNED:
-            return self.value.intValue
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_UNSIGNED:
-            return self.value.uintValue
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_BOOL:
-            return self.value.boolean
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_FLOAT:
-            return self.value.f64
-        if self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_NULL or self.type == DDWAF_OBJ_TYPE.DDWAF_OBJ_INVALID:
-            return None
-        log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
-        return None
-
-    def __repr__(self) -> str:
-        return repr(self.struct)
-
-
-ddwaf_object_p = ctypes.POINTER(ddwaf_object)
-
-
-class ddwaf_value(ctypes.Union):
-    _fields_ = [
-        ("stringValue", ctypes.POINTER(ctypes.c_char)),
-        ("uintValue", ctypes.c_ulonglong),
-        ("intValue", ctypes.c_longlong),
-        ("array", ddwaf_object_p),
-        ("boolean", ctypes.c_bool),
-        ("f64", ctypes.c_double),
-    ]
-
-
-ddwaf_object._fields_ = [
-    ("parameterName", ctypes.POINTER(ctypes.c_char)),
-    ("parameterNameLength", ctypes.c_uint64),
-    ("value", ddwaf_value),
-    ("nbEntries", ctypes.c_uint64),
-    ("type", ctypes.c_int),
-]
-
-
-ddwaf_object_free_fn = ctypes.CFUNCTYPE(None, ddwaf_object_p)
-ddwaf_object_free = ddwaf_object_free_fn(
-    ("ddwaf_object_free", ddwaf),
-    ((1, "object"),),
-)
-
-
-class ddwaf_config_limits(ctypes.Structure):
-    _fields_ = [
-        ("max_container_size", ctypes.c_uint32),
-        ("max_container_depth", ctypes.c_uint32),
-        ("max_string_length", ctypes.c_uint32),
-    ]
-
-
-class ddwaf_config_obfuscator(ctypes.Structure):
-    _fields_ = [
-        ("key_regex", ctypes.c_char_p),
-        ("value_regex", ctypes.c_char_p),
-    ]
-
-
-class ddwaf_config(ctypes.Structure):
-    _fields_ = [
-        ("limits", ddwaf_config_limits),
-        ("obfuscator", ddwaf_config_obfuscator),
-        ("free_fn", ddwaf_object_free_fn),
-    ]
-    # TODO : initial value of free_fn
-
-    def __init__(
-        self,
-        max_container_size: int = 0,
-        max_container_depth: int = 0,
-        max_string_length: int = 0,
-        key_regex: bytes = b"",
-        value_regex: bytes = b"",
-        free_fn: Callable[[ddwaf_object], None] = ddwaf_object_free,
-    ) -> None:
-        self.limits.max_container_size = max_container_size
-        self.limits.max_container_depth = max_container_depth
-        self.limits.max_string_length = max_string_length
-        self.obfuscator.key_regex = key_regex
-        self.obfuscator.value_regex = value_regex
-        self.free_fn = free_fn
-
-
-ddwaf_config_p = ctypes.POINTER(ddwaf_config)
-
-ddwaf_handle = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
-ddwaf_context = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
-ddwaf_builder = ctypes.c_void_p  # may stay as this because it's mainly an abstract type in the interface
+        ddwaf_object_set_string(self, encoded, len(encoded), DEFAULT_ALLOCATOR)
 
 
 ddwaf_log_cb = ctypes.POINTER(
@@ -342,21 +397,48 @@ ddwaf_log_cb = ctypes.POINTER(
 
 
 #
-# Functions Prototypes (creating python counterpart function from C function with )
+# Allocators
 #
 
-ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwaf_object_p)(
+
+ddwaf_get_default_allocator = ctypes.CFUNCTYPE(ddwaf_allocator)(
+    ("ddwaf_get_default_allocator", ddwaf),
+    (),
+)
+
+# The default allocator is a process-wide singleton, always valid and never destroyed.
+DEFAULT_ALLOCATOR = ddwaf_get_default_allocator()
+
+
+ddwaf_object_destroy = ctypes.CFUNCTYPE(None, ddwaf_object_p, ddwaf_allocator)(
+    ("ddwaf_object_destroy", ddwaf),
+    (
+        (1, "object"),
+        (1, "alloc"),
+    ),
+)
+
+
+def ddwaf_object_free(obj: ddwaf_object) -> None:
+    """Compatibility helper: destroy an object using the default allocator."""
+    ddwaf_object_destroy(obj, DEFAULT_ALLOCATOR)
+
+
+#
+# Functions Prototypes (creating python counterpart function from C function)
+#
+
+ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_object_p)(
     ("ddwaf_init", ddwaf),
     (
         (1, "ruleset_map"),
-        (1, "config", None),
         (1, "diagnostics", None),
     ),
 )
 
 
-def py_ddwaf_init(ruleset_map: ddwaf_object, config: ddwaf_config, info: ddwaf_object) -> ddwaf_handle_capsule:
-    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info), ddwaf_destroy)
+def py_ddwaf_init(ruleset_map: ddwaf_object, info: ddwaf_object) -> ddwaf_handle_capsule:
+    return ddwaf_handle_capsule(ddwaf_init(ruleset_map, info), ddwaf_destroy)
 
 
 ddwaf_destroy = ctypes.CFUNCTYPE(None, ddwaf_handle)(
@@ -381,19 +463,31 @@ def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> list[str]:
     return [obj[i].decode("UTF-8") for i in range(size.value)]
 
 
-ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle)(
+ddwaf_context_init = ctypes.CFUNCTYPE(ddwaf_context, ddwaf_handle, ddwaf_allocator)(
     ("ddwaf_context_init", ddwaf),
-    ((1, "handle"),),
+    (
+        (1, "handle"),
+        (1, "output_alloc"),
+    ),
 )
 
 
 def py_ddwaf_context_init(handle: ddwaf_handle_capsule) -> ddwaf_context_capsule:
-    return ddwaf_context_capsule(ddwaf_context_init(handle.handle), ddwaf_context_destroy)
+    return ddwaf_context_capsule(ddwaf_context_init(handle.handle, DEFAULT_ALLOCATOR), ddwaf_context_destroy)
 
 
-ddwaf_run = ctypes.CFUNCTYPE(
-    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64
-)(("ddwaf_run", ddwaf), ((1, "context"), (1, "persistent_data"), (1, "ephemeral_data"), (1, "result"), (1, "timeout")))
+ddwaf_context_eval = ctypes.CFUNCTYPE(
+    ctypes.c_int, ddwaf_context, ddwaf_object_p, ddwaf_allocator, ddwaf_object_p, ctypes.c_uint64
+)(
+    ("ddwaf_context_eval", ddwaf),
+    (
+        (1, "context"),
+        (1, "data"),
+        (1, "alloc"),
+        (1, "result"),
+        (1, "timeout"),
+    ),
+)
 
 ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
     ("ddwaf_context_destroy", ddwaf),
@@ -401,17 +495,49 @@ ddwaf_context_destroy = ctypes.CFUNCTYPE(None, ddwaf_context)(
 )
 
 
-# ddwaf_builder
+# ddwaf_subcontext (libddwaf 2.0 replacement for ephemeral data)
 
 
-ddwaf_builder_init = ctypes.CFUNCTYPE(ddwaf_builder, ddwaf_config_p)(
-    ("ddwaf_builder_init", ddwaf),
-    ((1, "config"),),
+ddwaf_subcontext_init = ctypes.CFUNCTYPE(ddwaf_subcontext, ddwaf_context)(
+    ("ddwaf_subcontext_init", ddwaf),
+    ((1, "context"),),
 )
 
 
-def py_ddwaf_builder_init(config: ddwaf_config) -> ddwaf_builder_capsule:
-    return ddwaf_builder_capsule(ddwaf_builder_init(config), ddwaf_builder_destroy)
+def py_ddwaf_subcontext_init(ctx: ddwaf_context_capsule) -> ddwaf_subcontext_capsule:
+    return ddwaf_subcontext_capsule(ddwaf_subcontext_init(ctx.ctx), ddwaf_subcontext_destroy)
+
+
+ddwaf_subcontext_eval = ctypes.CFUNCTYPE(
+    ctypes.c_int, ddwaf_subcontext, ddwaf_object_p, ddwaf_allocator, ddwaf_object_p, ctypes.c_uint64
+)(
+    ("ddwaf_subcontext_eval", ddwaf),
+    (
+        (1, "subcontext"),
+        (1, "data"),
+        (1, "alloc"),
+        (1, "result"),
+        (1, "timeout"),
+    ),
+)
+
+ddwaf_subcontext_destroy = ctypes.CFUNCTYPE(None, ddwaf_subcontext)(
+    ("ddwaf_subcontext_destroy", ddwaf),
+    ((1, "subcontext"),),
+)
+
+
+# ddwaf_builder
+
+
+ddwaf_builder_init = ctypes.CFUNCTYPE(ddwaf_builder)(
+    ("ddwaf_builder_init", ddwaf),
+    (),
+)
+
+
+def py_ddwaf_builder_init() -> ddwaf_builder_capsule:
+    return ddwaf_builder_capsule(ddwaf_builder_init(), ddwaf_builder_destroy)
 
 
 ddwaf_builder_add_or_update_config = ctypes.CFUNCTYPE(
@@ -483,126 +609,106 @@ ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
 )
 
 
-# ddwaf_object
-
-# Not used in Python code but kept for completeness with the libddwaf API
-ddwaf_object_invalid = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_object_invalid", ddwaf),
-    ((3, "object"),),
-)
+# ddwaf_object creation / serialization (libddwaf 2.0 set_* and insert API)
 
 
-ddwaf_object_string = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p)(
-    ("ddwaf_object_string", ddwaf),
+ddwaf_object_set_string = ctypes.CFUNCTYPE(
+    ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
+)(
+    ("ddwaf_object_set_string", ddwaf),
     (
-        (3, "object"),
+        (1, "object"),
         (1, "string"),
+        (1, "length"),
+        (1, "alloc"),
     ),
 )
 
-# Not used in Python code but kept for completeness with the libddwaf API
-ddwaf_object_string_from_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
-    ("ddwaf_object_string_from_unsigned", ddwaf),
+ddwaf_object_set_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+    ("ddwaf_object_set_signed", ddwaf),
     (
-        (3, "object"),
+        (1, "object"),
         (1, "value"),
     ),
 )
 
-ddwaf_object_string_from_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
-    ("ddwaf_object_string_from_signed", ddwaf),
+ddwaf_object_set_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+    ("ddwaf_object_set_unsigned", ddwaf),
     (
-        (3, "object"),
+        (1, "object"),
         (1, "value"),
     ),
 )
 
-# Not used in Python code but kept for completeness with the libddwaf API
-ddwaf_object_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
-    ("ddwaf_object_unsigned", ddwaf),
+ddwaf_object_set_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
+    ("ddwaf_object_set_bool", ddwaf),
     (
-        (3, "object"),
+        (1, "object"),
         (1, "value"),
     ),
 )
 
-ddwaf_object_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
-    ("ddwaf_object_signed", ddwaf),
+ddwaf_object_set_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
+    ("ddwaf_object_set_float", ddwaf),
     (
-        (3, "object"),
+        (1, "object"),
         (1, "value"),
     ),
 )
 
-# object_(un)signed_forced : not used ?
+ddwaf_object_set_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+    ("ddwaf_object_set_null", ddwaf),
+    ((1, "object"),),
+)
 
-ddwaf_object_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
-    ("ddwaf_object_bool", ddwaf),
+ddwaf_object_set_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+    ("ddwaf_object_set_array", ddwaf),
     (
-        (3, "object"),
-        (1, "value"),
+        (1, "object"),
+        (1, "capacity"),
+        (1, "alloc"),
     ),
 )
 
-
-ddwaf_object_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
-    ("ddwaf_object_float", ddwaf),
+ddwaf_object_set_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+    ("ddwaf_object_set_map", ddwaf),
     (
-        (3, "object"),
-        (1, "value"),
+        (1, "object"),
+        (1, "capacity"),
+        (1, "alloc"),
     ),
 )
 
-ddwaf_object_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_object_null", ddwaf),
-    ((3, "object"),),
-)
-
-ddwaf_object_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_object_array", ddwaf),
-    ((3, "object"),),
-)
-
-ddwaf_object_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_object_map", ddwaf),
-    ((3, "object"),),
-)
-
-ddwaf_object_array_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ddwaf_object_p)(
-    ("ddwaf_object_array_add", ddwaf),
+# Returns a pointer to the newly inserted (uninitialized) element to be built into.
+ddwaf_object_insert = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
+    ("ddwaf_object_insert", ddwaf),
     (
         (1, "array"),
-        (1, "object"),
+        (1, "alloc"),
     ),
 )
 
-ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ddwaf_object_p)(
-    ("ddwaf_object_map_add", ddwaf),
+ddwaf_object_insert_key = ctypes.CFUNCTYPE(
+    ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
+)(
+    ("ddwaf_object_insert_key", ddwaf),
     (
         (1, "map"),
         (1, "key"),
-        (1, "object"),
+        (1, "length"),
+        (1, "alloc"),
     ),
 )
 
-# unused because accessible from python part
-# ddwaf_object_type
-# ddwaf_object_size
-# ddwaf_object_length
-# ddwaf_object_get_key
-# ddwaf_object_get_string
-# ddwaf_object_get_unsigned
-# ddwaf_object_get_signed
-# ddwaf_object_get_index
-# ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
-# ddwaf_object_get_float
-
-ddwaf_object_from_json = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32)(
+ddwaf_object_from_json = ctypes.CFUNCTYPE(
+    ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
+)(
     ("ddwaf_object_from_json", ddwaf),
     (
-        (3, "output"),
+        (1, "output"),
         (1, "json_str"),
         (1, "length"),
+        (1, "alloc"),
     ),
 )
 

@@ -128,11 +128,11 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "1.30.1"
+LIBDDWAF_VERSION = "2.0.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v15.0.0 requires rust 1.78.
-RUST_MINIMUM_VERSION = "1.78"
+# libdatadog v35.0.0 requires rust 1.87.0.
+RUST_MINIMUM_VERSION = "1.87.0"
 
 
 def interpose_sccache():
