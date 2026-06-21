@@ -2005,7 +2005,7 @@ dependencies = [
 [[package]]
 name = "libddwaf"
 version = "2.0.0"
-source = "git+https://github.com/florentinl/libddwaf-rust?branch=florentin.labelle%2Fvendor-bindings#83b67701f3d1dae492cf8982bac96ce4a09cd738"
+source = "git+https://github.com/florentinl/libddwaf-rust?branch=florentin.labelle%2Fvendor-bindings#153505ff00063d19ccf3ff1766f32b024520e749"
 dependencies = [
  "libddwaf-sys",
  "serde",
@@ -2014,7 +2014,7 @@ dependencies = [
 [[package]]
 name = "libddwaf-sys"
 version = "2.0.0"
-source = "git+https://github.com/florentinl/libddwaf-rust?branch=florentin.labelle%2Fvendor-bindings#83b67701f3d1dae492cf8982bac96ce4a09cd738"
+source = "git+https://github.com/florentinl/libddwaf-rust?branch=florentin.labelle%2Fvendor-bindings#153505ff00063d19ccf3ff1766f32b024520e749"
 dependencies = [
  "bindgen",
  "flate2",
