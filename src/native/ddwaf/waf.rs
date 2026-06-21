@@ -60,12 +60,8 @@ ptr_wrapper!(
 );
 
 #[pyfunction]
-pub fn ddwaf_get_version() -> String {
-    let p = unsafe { sys::ddwaf_get_version() };
-    if p.is_null() {
-        return String::new();
-    }
-    unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned()
+pub fn ddwaf_get_version() -> &'static CStr {
+    libddwaf::version()
 }
 
 #[pyfunction]
@@ -185,7 +181,7 @@ pub fn ddwaf_context_eval(
             result as *mut sys::ddwaf_object,
             timeout_us,
         )
-    }) as i32
+    })
 }
 
 #[pyfunction]
@@ -209,7 +205,7 @@ pub fn ddwaf_subcontext_eval(
             result as *mut sys::ddwaf_object,
             timeout_us,
         )
-    }) as i32
+    })
 }
 
 /// Registers the WAF lifecycle types and functions on the `ddwaf` submodule.
