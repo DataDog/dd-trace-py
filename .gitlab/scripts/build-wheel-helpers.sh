@@ -124,10 +124,72 @@ repair_wheel() {
   section_end "repair_wheel"
 }
 
+# Print the directory containing a libclang shared object, if one can be found.
+_find_libclang_dir() {
+  if [[ -n "${LIBCLANG_PATH:-}" ]] && ls "${LIBCLANG_PATH}"/libclang.{so,dylib}* &> /dev/null; then
+    echo "${LIBCLANG_PATH}"
+    return 0
+  fi
+  local hit
+  hit="$(find /usr /opt -name 'libclang.so*' -print 2>/dev/null | head -n1 || true)"
+  if [[ -n "${hit}" ]]; then
+    dirname "${hit}"
+    return 0
+  fi
+  return 1
+}
+
+# Ensure libclang is available for bindgen, which libddwaf-sys runs at build time to generate the
+# libddwaf FFI bindings. The CI build images don't ship libclang, so we install/locate it here and
+# export LIBCLANG_PATH. Idempotent: a no-op when libclang is already discoverable.
+ensure_libclang() {
+  section_start "ensure_libclang" "Ensuring libclang (for bindgen)"
+
+  # macOS: libclang ships with the Xcode command line tools / Xcode toolchain.
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    if [[ -z "${LIBCLANG_PATH:-}" ]]; then
+      local xcode_dir
+      xcode_dir="$(xcode-select -p 2>/dev/null || true)"
+      if [[ -n "${xcode_dir}" ]]; then
+        export LIBCLANG_PATH="${xcode_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+      fi
+    fi
+    echo "LIBCLANG_PATH=${LIBCLANG_PATH:-<bindgen auto-detect>}"
+    section_end "ensure_libclang"
+    return 0
+  fi
+
+  # Linux: install libclang only if it isn't already discoverable.
+  if ! _find_libclang_dir > /dev/null; then
+    if command -v apk &> /dev/null; then
+      # musllinux (Alpine)
+      apk add --no-cache clang-dev llvm-dev || apk add --no-cache clang-libs llvm-libs || true
+    elif command -v dnf &> /dev/null; then
+      dnf install -y clang-devel llvm-libs || dnf install -y clang llvm || true
+    elif command -v yum &> /dev/null; then
+      # manylinux2014: AlmaLinux/CentOS 8+ provide clang-devel; CentOS 7 falls back to SCL.
+      yum install -y clang-devel llvm-libs \
+        || yum install -y llvm-toolset-7.0-clang llvm-toolset-7.0-llvm-libs \
+        || yum install -y clang llvm || true
+    fi
+  fi
+
+  local dir
+  dir="$(_find_libclang_dir || true)"
+  if [[ -n "${dir}" ]]; then
+    export LIBCLANG_PATH="${dir}"
+    echo "LIBCLANG_PATH=${LIBCLANG_PATH}"
+  else
+    echo "WARNING: libclang not found after install attempt; bindgen (libddwaf-sys) will fail" >&2
+  fi
+  section_end "ensure_libclang"
+}
+
 setup() {
   setup_env
   setup_python
   setup_rust
+  ensure_libclang
 }
 
 # Finalize
