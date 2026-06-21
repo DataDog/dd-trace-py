@@ -22,16 +22,19 @@ anyhow = { version = "1.0", optional = true }
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
 url = "2"
-# Low-level libddwaf bindings for the appsec WAF (ddwaf submodule). We bind at the `-sys` level
-# (not the high-level `libddwaf` crate, whose raw pointers are `pub(crate)` and unreachable here);
-# this also mirrors the C ABI the previous ctypes layer used one-for-one. Default features link
-# libddwaf statically into this extension (the `-sys` build script fetches the matching libddwaf
-# release at build time, overridable via LIBDDWAF_PREFIX); nothing is shipped/dlopen'd at runtime.
+# libddwaf bindings for the appsec WAF (ddwaf submodule). The `-sys` build script fetches the
+# matching libddwaf release at build time (overridable via LIBDDWAF_PREFIX).
+#
+# We use the `dynamic` feature: libddwaf is embedded (zstd-compressed) into this extension and
+# extracted + dlopen'd at runtime via libloading. This is fully self-contained — nothing extra to
+# ship or bundle — and avoids static linking, which fails on Linux because the released static
+# archive is the portable musl build whose objects are non-PIC (can't link into a PIC cdylib).
 #
 # AIDEV-NOTE: temporarily points at a fork branch that vendors the bindgen output
-# (crates/libddwaf-sys/src/bindings_prebuilt.rs) so the build needs NO libclang/bindgen. Repoint to
+# (crates/libddwaf-sys/src/bindings_prebuilt*.rs) so the build needs NO libclang/bindgen. Repoint to
 # DataDog/libddwaf-rust once that change is upstreamed (it branches off PR #25 / glopes/2.0.0).
-libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings" }
+libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings", features = ["dynamic"] }
+libddwaf = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings", features = ["dynamic"] }
 libc = { version = "0.2", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"
