@@ -124,102 +124,10 @@ repair_wheel() {
   section_end "repair_wheel"
 }
 
-# Print the directory containing the NEWEST system libclang shared object, if one can be found.
-_find_libclang_dir() {
-  local hit
-  # Sort candidates by their basename version (e.g. libclang.so.17 > libclang.so.7 > libclang.so.3.4),
-  # independent of the directory prefix, and pick the highest.
-  hit="$( { find /usr /opt -name 'libclang.so*' -o -name 'libclang.dylib*'; } 2>/dev/null \
-          | awk -F/ '{print $NF"\t"$0}' | sort -V | tail -n1 | cut -f2- || true)"
-  if [[ -n "${hit}" ]]; then
-    dirname "${hit}"
-    return 0
-  fi
-  return 1
-}
-
-# Install the self-contained `libclang` wheel from PyPI and, on success, echo the directory that
-# holds its bundled shared library. This ships a modern libclang (>= 18), is distro-independent, and
-# is fully self-contained (no sibling .so dependencies on the loader path), which sidesteps both the
-# ancient clang (3.4) and the broken SCL clang-7 (missing libclangAST.so.7) on manylinux2014's
-# CentOS base. We prefer `uv` because the build env configures it with the right package index;
-# raw `pip` may not be able to reach the index.
-_install_libclang_via_pip() {
-  local target="${WORK_DIR:-/tmp}/libclang_pkg"
-  local installed=""
-  if command -v uv &> /dev/null; then
-    uv pip install --target "${target}" libclang &> /dev/null && installed="1"
-  fi
-  if [[ -z "${installed}" ]]; then
-    local pybin="${UV_PYTHON:-}"
-    if [[ -z "${pybin}" || "${pybin}" != /* ]]; then
-      pybin="$(command -v python3 || command -v python || true)"
-    fi
-    [[ -n "${pybin}" ]] && "${pybin}" -m pip install --quiet --disable-pip-version-check --target "${target}" libclang &> /dev/null && installed="1"
-  fi
-  [[ -n "${installed}" ]] || return 1
-  local dir="${target}/clang/native"
-  ls "${dir}"/libclang.so* "${dir}"/libclang.dylib* &> /dev/null || return 1
-  echo "${dir}"
-}
-
-# Ensure a libclang new enough for bindgen is available; libddwaf-sys runs bindgen at build time to
-# generate the libddwaf FFI bindings, and the CI build images lack a usable libclang.
-ensure_libclang() {
-  section_start "ensure_libclang" "Ensuring libclang (for bindgen)"
-
-  # macOS: libclang ships with the Xcode command line tools / Xcode toolchain.
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    if [[ -z "${LIBCLANG_PATH:-}" ]]; then
-      local xcode_dir
-      xcode_dir="$(xcode-select -p 2>/dev/null || true)"
-      [[ -n "${xcode_dir}" ]] && export LIBCLANG_PATH="${xcode_dir}/Toolchains/XcodeDefault.xctoolchain/usr/lib"
-    fi
-    echo "LIBCLANG_PATH=${LIBCLANG_PATH:-<bindgen auto-detect>}"
-    section_end "ensure_libclang"
-    return 0
-  fi
-
-  local dir=""
-  if command -v apk &> /dev/null; then
-    # musllinux (Alpine) ships a modern clang natively; the PyPI wheel has no musllinux build.
-    apk add --no-cache clang-dev llvm-dev || apk add --no-cache clang-libs llvm-libs || true
-    dir="$(_find_libclang_dir || true)"
-  else
-    # glibc (manylinux / testrunner): prefer the self-contained modern libclang from PyPI; its CentOS
-    # base only has clang 3.4 which is too old for bindgen.
-    dir="$(_install_libclang_via_pip || true)"
-    if [[ -z "${dir}" ]]; then
-      # Fallbacks if pip is unavailable.
-      if command -v dnf &> /dev/null; then
-        dnf install -y clang-devel llvm-libs || true
-      elif command -v yum &> /dev/null; then
-        yum install -y clang-devel llvm-libs || true
-        yum install -y llvm-toolset-7.0 || true
-      fi
-      dir="$(_find_libclang_dir || true)"
-    fi
-  fi
-
-  if [[ -n "${dir}" ]]; then
-    export LIBCLANG_PATH="${dir}"
-    # SCL (RH llvm-toolset) libclang depends on sibling .so files (libclangAST.so.N, ...) that are
-    # not on the default loader path unless the SCL is enabled. Add the lib dir so dlopen resolves them.
-    if [[ "${dir}" == /opt/rh/* ]]; then
-      export LD_LIBRARY_PATH="${dir}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-    fi
-    echo "LIBCLANG_PATH=${LIBCLANG_PATH}"
-  else
-    echo "WARNING: libclang not found after install attempt; bindgen (libddwaf-sys) will fail" >&2
-  fi
-  section_end "ensure_libclang"
-}
-
 setup() {
   setup_env
   setup_python
   setup_rust
-  ensure_libclang
 }
 
 # Finalize

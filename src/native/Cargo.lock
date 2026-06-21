@@ -2004,7 +2004,7 @@ dependencies = [
 [[package]]
 name = "libddwaf-sys"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libddwaf-rust?branch=glopes%2F2.0.0#2fc4b6469bd47c7eb20b908ebe4492dd7e78a5f2"
+source = "git+https://github.com/florentinl/libddwaf-rust?branch=florentin.labelle%2Fvendor-bindings#44718d521331929d78414ab68000c44d955b34f4"
 dependencies = [
  "bindgen",
  "flate2",

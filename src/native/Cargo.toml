@@ -27,8 +27,11 @@ url = "2"
 # this also mirrors the C ABI the previous ctypes layer used one-for-one. Default features link
 # libddwaf statically into this extension (the `-sys` build script fetches the matching libddwaf
 # release at build time, overridable via LIBDDWAF_PREFIX); nothing is shipped/dlopen'd at runtime.
-# AIDEV-NOTE: pin to a tag/rev once libddwaf-rust#25 (branch glopes/2.0.0) lands.
-libddwaf-sys = { git = "https://github.com/DataDog/libddwaf-rust", branch = "glopes/2.0.0" }
+#
+# AIDEV-NOTE: temporarily points at a fork branch that vendors the bindgen output
+# (crates/libddwaf-sys/src/bindings_prebuilt.rs) so the build needs NO libclang/bindgen. Repoint to
+# DataDog/libddwaf-rust once that change is upstreamed (it branches off PR #25 / glopes/2.0.0).
+libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings" }
 libc = { version = "0.2", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"

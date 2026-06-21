@@ -7,21 +7,7 @@ include:
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
-  before_script:
-    # libddwaf-sys runs bindgen at build time, which needs a modern libclang. Use the self-contained
-    # `libclang` wheel from PyPI (distro-independent, >= 18) and point LIBCLANG_PATH at its bundled lib.
-    - |
-      target="${CI_PROJECT_DIR:-/tmp}/.libclang_pkg"
-      (command -v uv >/dev/null 2>&1 && uv pip install --target "${target}" libclang) \
-        || python3 -m pip install --quiet --disable-pip-version-check --target "${target}" libclang \
-        || true
-      if ls "${target}"/clang/native/libclang.so* >/dev/null 2>&1; then
-        export LIBCLANG_PATH="${target}/clang/native"
-        echo "LIBCLANG_PATH=${LIBCLANG_PATH}"
-      else
-        echo "WARNING: libclang not found; bindgen (libddwaf-sys) will fail" >&2
-      fi
-    - cd src/native
+  before_script: cd src/native
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:cargo_fmt[collapsed=true]\r\e[0Kcargo fmt"
