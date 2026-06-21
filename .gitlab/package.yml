@@ -280,10 +280,6 @@ variables:
 "build windows":
   stage: package
   tags: ["windows-v2:2022"]
-  # POC: libddwaf-sys has no Windows target (its build.rs only maps Linux/macOS release artifacts and
-  # panics "Unsupported target platform" on *-pc-windows-*). Windows support needs an upstream change
-  # in libddwaf-rust; allow this to fail until then so it doesn't block the POC.
-  allow_failure: true
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
@@ -304,9 +300,6 @@ variables:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
-  # POC: win_arm64 wheels come from GitHub Actions, which also can't build for Windows yet
-  # (libddwaf-sys has no Windows target). Don't block the POC on the missing artifacts.
-  allow_failure: true
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts

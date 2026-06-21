@@ -10,6 +10,7 @@ from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_CONTAINER_DEPTH
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_CONTAINER_SIZE
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWAF_MAX_STRING_LENGTH
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
+from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config_json
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
@@ -56,16 +57,16 @@ class DDWaf:
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
     ) -> None:
-        try:
-            ruleset_map = json.loads(ruleset_json_str)
-        except Exception:
-            raise ValueError("Invalid ruleset provided to DDWaf constructor")
-        if not isinstance(ruleset_map, dict):
-            raise ValueError("Invalid ruleset provided to DDWaf constructor")
         # libddwaf 2.0 has no ddwaf_config: the obfuscator regexes are applied as the builder's base
         # config (both keys are optional, defaults apply when empty).
         self._builder = py_ddwaf_builder_init(obfuscation_parameter_key_regexp, obfuscation_parameter_value_regexp)
-        _, diagnostics = py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map)
+        # Keep the raw JSON and load it through libddwaf's native parser (faster than deserializing
+        # to Python objects and re-marshalling); reused as-is when the default ruleset is re-added.
+        self._default_ruleset = ruleset_json_str
+        try:
+            _, diagnostics = py_add_or_update_config_json(self._builder, ASM_DD_DEFAULT, ruleset_json_str)
+        except Exception:
+            raise ValueError("Invalid ruleset provided to DDWaf constructor")
         self._handle = py_ddwaf_builder_build_instance(self._builder)
         self._cached_version = ""
         self._asm_dd_cache = {ASM_DD_DEFAULT}
@@ -76,11 +77,10 @@ class DDWaf:
             # at the same time some invalid ones are rejected
             LOGGER.debug(
                 "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
-                ruleset_map,
+                ruleset_json_str,
                 info.failed,
                 info.errors,
             )
-        self._default_ruleset = ruleset_map
         self._rc_products: dict[str, set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
@@ -142,8 +142,8 @@ class DDWaf:
             ok &= ok_update
             self._set_info(diagnostics, "update")
         if not self._asm_dd_cache:
-            # we need to add the default ruleset back
-            ok_update, diagnostics = py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset)
+            # we need to add the default ruleset back (kept as raw JSON, parsed natively)
+            ok_update, diagnostics = py_add_or_update_config_json(self._builder, ASM_DD_DEFAULT, self._default_ruleset)
             ok &= ok_update
             self._set_info(diagnostics, "update")
             self._asm_dd_cache.add(ASM_DD_DEFAULT)

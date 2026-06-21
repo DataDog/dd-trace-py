@@ -53,6 +53,14 @@ def py_add_or_update_config(builder: ddwaf_builder_capsule, path: str, ruleset: 
     return builder.builder.add_or_update_config(path, ruleset)
 
 
+def py_add_or_update_config_json(builder: ddwaf_builder_capsule, path: str, ruleset_json: bytes) -> tuple[bool, dict]:
+    """Add/update a config from JSON bytes (parsed natively by libddwaf, no Python intermediate).
+
+    Raises ValueError on invalid JSON. Returns (ok, diagnostics) like ``py_add_or_update_config``.
+    """
+    return builder.builder.add_or_update_config_json(path, ruleset_json)
+
+
 def py_remove_config(builder: ddwaf_builder_capsule, path: str) -> bool:
     return builder.builder.remove_config(path)
 

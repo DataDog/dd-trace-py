@@ -68,6 +68,24 @@ impl PyBuilder {
         Ok((ok, diag))
     }
 
+    /// Like `add_or_update_config`, but parses the ruleset directly from JSON bytes using
+    /// libddwaf's own parser (no Python intermediate). Raises ValueError on invalid JSON.
+    fn add_or_update_config_json<'py>(
+        &mut self,
+        py: Python<'py>,
+        path: &str,
+        json: &[u8],
+    ) -> PyResult<(bool, Bound<'py, PyAny>)> {
+        let obj = WafObject::from_json(json)
+            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("invalid JSON ruleset"))?;
+        let mut diagnostics = WafOwnedDefaultAllocator::<WafMap>::default();
+        let ok = self
+            .inner
+            .add_or_update_config(path, &*obj, Some(&mut diagnostics));
+        let diag = read_map(py, Some(&diagnostics))?;
+        Ok((ok, diag))
+    }
+
     fn remove_config(&mut self, path: &str) -> bool {
         self.inner.remove_config(path)
     }

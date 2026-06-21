@@ -619,7 +619,6 @@ dependencies = [
  "libdd-trace-utils",
  "libdd-tracer-flare",
  "libddwaf",
- "libddwaf-sys",
  "pyo3",
  "pyo3-build-config",
  "pyo3-ffi",

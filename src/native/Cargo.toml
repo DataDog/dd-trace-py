@@ -22,18 +22,18 @@ anyhow = { version = "1.0", optional = true }
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
 url = "2"
-# libddwaf bindings for the appsec WAF (ddwaf submodule). The `-sys` build script fetches the
-# matching libddwaf release at build time (overridable via LIBDDWAF_PREFIX).
+# High-level libddwaf bindings for the appsec WAF (ddwaf submodule). We only use the high-level
+# `libddwaf` crate now; `libddwaf-sys` is pulled in transitively (and its build script fetches the
+# matching libddwaf release at build time, overridable via LIBDDWAF_PREFIX).
 #
-# We use the `dynamic` feature: libddwaf is embedded (zstd-compressed) into this extension and
-# extracted + dlopen'd at runtime via libloading. This is fully self-contained — nothing extra to
-# ship or bundle — and avoids static linking, which fails on Linux because the released static
-# archive is the portable musl build whose objects are non-PIC (can't link into a PIC cdylib).
+# The `dynamic` feature embeds libddwaf (zstd-compressed) into this extension and extracts +
+# dlopen's it at runtime via libloading: fully self-contained — nothing extra to ship or bundle —
+# and it avoids static linking, which fails on Linux because the released static archive is the
+# portable musl build whose objects are non-PIC (can't link into a PIC cdylib).
 #
 # AIDEV-NOTE: temporarily points at a fork branch that vendors the bindgen output
 # (crates/libddwaf-sys/src/bindings_prebuilt*.rs) so the build needs NO libclang/bindgen. Repoint to
 # DataDog/libddwaf-rust once that change is upstreamed (it branches off PR #25 / glopes/2.0.0).
-libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings", features = ["dynamic"] }
 libddwaf = { git = "https://github.com/florentinl/libddwaf-rust", branch = "florentin.labelle/vendor-bindings", features = ["dynamic"] }
 libc = { version = "0.2", optional = true }
 rand = "0.9"

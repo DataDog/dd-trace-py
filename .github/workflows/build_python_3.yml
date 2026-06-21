@@ -42,9 +42,6 @@ jobs:
     needs: ["build-wheels-matrix" ]
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.only }}
-    # POC: Windows isn't supported yet by libddwaf-sys (no Windows release target), so let the
-    # win_arm64 builds fail without blocking the PR until upstream libddwaf-rust adds Windows.
-    continue-on-error: ${{ contains(matrix.only, 'win_arm64') }}
     strategy:
       fail-fast: false
       matrix:
