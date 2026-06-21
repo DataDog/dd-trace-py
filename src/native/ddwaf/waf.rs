@@ -72,8 +72,8 @@ impl PyBuilder {
         self.inner.remove_config(path)
     }
 
-    fn config_paths_count(&mut self, filter: &str) -> u32 {
-        self.inner.config_paths_count(Some(filter))
+    fn config_paths_count(&mut self, filter_re: &str) -> u32 {
+        self.inner.config_paths_count(Some(filter_re))
     }
 
     fn build_instance(&mut self) -> Option<PyHandle> {
@@ -189,6 +189,20 @@ pub struct WafResult {
     /// `(string_length, container_size, container_depth)` truncation markers from building the input.
     #[pyo3(get)]
     truncation: Py<PyAny>,
+}
+
+#[pymethods]
+impl WafResult {
+    // Holds Python references, so participate in the cyclic GC.
+    fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
+        visit.call(&self.events)?;
+        visit.call(&self.actions)?;
+        visit.call(&self.attributes)?;
+        visit.call(&self.truncation)?;
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {}
 }
 
 /// Builds the input map, evaluates it against `ctx` with the GIL released, and converts the result.
