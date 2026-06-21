@@ -7,13 +7,12 @@
 //! across the detached closure inside [`Ungil`] — sound because the closure has exclusive ownership
 //! during the GIL release and `ddwaf_object` data is `Send` at the libddwaf-sys level.
 
-use std::time::Duration;
-
 use libddwaf::object::{WafMap, WafObject, WafOwnedDefaultAllocator};
 use libddwaf::{
     Builder, Config, Context, Handle, Obfuscator, RunError, RunResult, RunnableContext, Subcontext,
 };
 use pyo3::prelude::*;
+use std::time::Duration;
 
 use crate::ddwaf::object::{build_object, read_map, read_object, Limits, Truncation};
 
@@ -76,7 +75,7 @@ impl PyBuilder {
         path: &str,
         json: &[u8],
     ) -> PyResult<(bool, Bound<'py, PyAny>)> {
-        let obj = WafObject::from_json(json)
+        let obj = WafOwnedDefaultAllocator::<WafObject>::from_json(json)
             .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("invalid JSON ruleset"))?;
         let mut diagnostics = WafOwnedDefaultAllocator::<WafMap>::default();
         let ok = self
