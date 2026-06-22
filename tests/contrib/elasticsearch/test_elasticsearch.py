@@ -377,9 +377,13 @@ class ElasticsearchPatchTest(TracerTestCase):
         for module_name, v in versions.items():
             emit_integration_and_version_to_test_agent("elasticsearch", v, module_name=module_name)
 
+    @pytest.mark.skipif(
+        elasticsearch.__version__ >= (8, 0, 0),
+        reason="elastic_transport returns 4xx as a response, not a TransportError",
+    )
     def test_sync_coro_close_on_transport_error(self):
-        """Regression gh #17100. span.finished is always True in CPython (tp_finalize closes
-        generators via refcounting), so we spy on explicit close() calls instead.
+        """Regression gh-17100: coro.close() must be called on TransportError so the
+        span finishes immediately instead of waiting for GC.
         """
         closed = []
         orig = _es_patch._get_perform_request_coro
@@ -398,13 +402,29 @@ class ElasticsearchPatchTest(TracerTestCase):
         finally:
             unpatch()
             patch()
-        if elasticsearch.__version__ < (8, 0, 0):
-            assert closed, "coro.close() not called on TransportError (gh #17100)"
+        assert closed, "coro.close() not called on TransportError (gh-17100)"
+
+    @pytest.mark.skipif(
+        elasticsearch.__version__ >= (8, 0, 0),
+        reason="elastic_transport returns 4xx as a response, not a TransportError",
+    )
+    def test_sync_transport_error_sets_error_tags(self):
+        """Regression gh-17100: when TransportError triggers coro.close(), the span
+        must still carry the correct error flag and HTTP status code.
+        """
+        try:
+            self.es.search(index="nonexistent_zombie_test", body={"query": {"match_all": {}}})
+        except Exception:
+            pass
+        spans = self.get_spans()
+        assert len(spans) == 1
+        span = spans[0]
+        assert span.error == 1
+        assert span.get_tag("http.status_code") is not None
 
     def test_async_coro_close_on_transport_error(self):
-        """Regression gh #17100. async wrapper leaves the generator suspended at yield when
-        the awaited coroutine raises; without coro.close() the span stays open until GC.
-        span.finished is always True in CPython (tp_finalize); spy asserts the explicit call.
+        """Regression gh-17100: async wrapper must call coro.close() on error so the
+        span finishes immediately instead of waiting for GC.
         """
         opensearchpy = pytest.importorskip("opensearchpy")
         if not hasattr(opensearchpy, "AsyncOpenSearch"):
@@ -436,7 +456,34 @@ class ElasticsearchPatchTest(TracerTestCase):
         finally:
             unpatch()
             patch()
-        assert closed, "coro.close() not called on async TransportError (gh #17100)"
+        assert closed, "coro.close() not called on async TransportError (gh-17100)"
+
+    def test_async_transport_error_sets_error_tags(self):
+        """Regression gh-17100: when TransportError triggers coro.close() in the async
+        path, the span must still carry the correct error flag and HTTP status code.
+        """
+        opensearchpy = pytest.importorskip("opensearchpy")
+        if not hasattr(opensearchpy, "AsyncOpenSearch"):
+            pytest.skip("opensearch-py < 2.0")
+        cfg = self._get_es_config()
+        url = "http://%s:%d" % (cfg["host"], cfg["port"])
+
+        async def run():
+            es = opensearchpy.AsyncOpenSearch(hosts=[url])
+            try:
+                await es.search(index="nonexistent_zombie_test", body={"query": {"match_all": {}}})
+            except Exception:
+                pass
+            finally:
+                await es.close()
+
+        asyncio.run(run())
+        spans = self.get_spans()
+        es_spans = [s for s in spans if s.name == "elasticsearch.query"]
+        assert len(es_spans) >= 1
+        span = es_spans[0]
+        assert span.error == 1
+        assert span.get_tag("http.status_code") is not None
 
 
 class _Spy:

@@ -247,7 +247,7 @@ def _get_perform_request(transport):
         coro = _perform_request_coro(func, instance, args, kwargs)
         try:
             result = next(coro)
-        except Exception:
+        except BaseException:
             coro.close()
             raise
         try:
@@ -266,7 +266,7 @@ def _get_perform_request_async(transport):
         coro = _perform_request_coro(func, instance, args, kwargs)
         try:
             result = await next(coro)
-        except Exception:
+        except BaseException:
             coro.close()
             raise
         try:
