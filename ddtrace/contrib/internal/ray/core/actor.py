@@ -15,6 +15,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import _TraceContext
 
 from ..constants import DD_RAY_TRACE_CTX
+from ..constants import RAY_SERVE_REPLICA_METHOD_DENYLIST
 from ..constants import RAY_STATUS_FAILED
 from ..constants import RAY_SUBMISSION_ID
 from .utils import ENTRY_POINT_REGEX
@@ -30,7 +31,8 @@ log = get_logger(__name__)
 RAY_ACTOR_MODULE_DENYLIST = {
     "ray.data._internal",
     "ray.experimental",
-    "ray.data._internal",
+    "ray.serve._private.controller",
+    "ray.serve._private.proxy",
 }
 
 
@@ -52,7 +54,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
     """Trace actor method submission, i.e the Actor.func.remote()
     call
     """
-    actor_name = instance._ray_actor_creation_function_descriptor.class_name
+    descriptor = instance._ray_actor_creation_function_descriptor
+    actor_name = descriptor.class_name
+    actor_module_name = getattr(descriptor, "module_name", None)
     method_name = get_argument_value(args, kwargs, 0, "method_name")
 
     # if _dd_trace_ctx was not injected in the param of the function, it means
@@ -79,6 +83,9 @@ def traced_actor_method_submission(wrapped, instance, args, kwargs):
             is_task_submission=False,
             distributed_context=parent_context,
             use_active_context=parent_context is None,
+            actor_class_name=actor_name,
+            actor_module_name=actor_module_name,
+            actor_method_name=method_name,
         )
     ):
         core.dispatch_event(RayContextInjectionEvent(kwargs=kwargs))
@@ -98,6 +105,10 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
     if context is None:
         context = _extract_tracing_context_from_env()
 
+    actor_class_name = type(self).__name__
+    actor_module_name = getattr(type(self), "__module__", None)
+    actor_method_name = getattr(method, "__name__", None)
+
     with core.context_with_event(
         RayExecutionEvent(
             resource=f"{self.__class__.__name__}.{method.__name__}",
@@ -110,6 +121,9 @@ def _trace_actor_method_execution(self: Any, method: Callable[..., Any], dd_trac
             method_args=args,
             method_kwargs=kwargs,
             is_actor_method=True,
+            actor_class_name=actor_class_name,
+            actor_module_name=actor_module_name,
+            actor_method_name=actor_method_name,
         )
     ) as ctx:
         yield ctx.span
@@ -224,8 +238,14 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
 
     # Determine if the class is a JobSupervisor
     is_job_supervisor = f"{module_name}.{class_name}" == "ray.dashboard.modules.job.job_supervisor.JobSupervisor"
-    # We do not want to instrument ping and polling to remove noise
-    methods_to_ignore = {"ping", "_polling"} if is_job_supervisor else set()
+    is_serve_replica = module_name.startswith("ray.serve._private") and class_name.startswith("ServeReplica:")
+
+    # Build set of methods to ignore based on actor type to reduce noise
+    methods_to_ignore = set()
+    if is_job_supervisor:
+        methods_to_ignore = {"ping", "_polling"}
+    elif is_serve_replica:
+        methods_to_ignore = RAY_SERVE_REPLICA_METHOD_DENYLIST
 
     methods = inspect.getmembers(cls, is_function_or_method)
     for name, method in methods:

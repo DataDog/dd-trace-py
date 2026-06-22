@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.claude_agent_sdk.patch import patch
 from ddtrace.contrib.internal.claude_agent_sdk.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
 from tests.contrib.claude_agent_sdk.utils import MOCK_DOUBLE_ASSISTANT_NO_TOOLS_SEQUENCE
@@ -27,7 +28,6 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def claude_agent_sdk_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {
@@ -136,6 +136,12 @@ def mock_internal_client_with_usage(claude_agent_sdk):
 @pytest.fixture
 def mock_internal_client_assistant_message_error(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_ASSISTANT_MESSAGE_ERROR_SEQUENCE):
+        yield
+
+
+@pytest.fixture
+def mock_internal_client_assistant_message_error_text(claude_agent_sdk):
+    with _create_mock_internal_client(MOCK_ASSISTANT_MESSAGE_ERROR_TEXT_SEQUENCE):
         yield
 
 

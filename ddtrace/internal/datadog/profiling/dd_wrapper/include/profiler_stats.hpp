@@ -28,9 +28,6 @@ class ProfilerStats
     // Number of entries in the echion StringTable
     std::optional<size_t> string_table_count;
 
-    // Number of ephemeral entries in the echion StringTable
-    std::optional<size_t> string_table_ephemeral_count;
-
     // Whether fast_copy_memory (safe_memcpy) is enabled; unset until the sampler starts
     std::optional<bool> fast_copy_memory_enabled;
 
@@ -39,6 +36,9 @@ class ProfilerStats
 
     // Number of currently tracked allocations in the heap tracker
     std::optional<size_t> heap_tracker_size;
+
+    // Samples dropped because the cap was reached (cumulative over tracker lifetime)
+    std::optional<size_t> heap_tracker_cap_drops;
 
     // Number of asyncio tasks seen across sampled threads in the last sampling cycle
     std::optional<size_t> asyncio_task_count;
@@ -65,9 +65,6 @@ class ProfilerStats
     void set_string_table_count(size_t count);
     std::optional<size_t> get_string_table_count() const;
 
-    void set_string_table_ephemeral_count(size_t count);
-    std::optional<size_t> get_string_table_ephemeral_count() const;
-
     void set_fast_copy_memory_enabled(bool enabled);
     std::optional<bool> get_fast_copy_memory_enabled() const;
 
@@ -76,6 +73,9 @@ class ProfilerStats
 
     void set_heap_tracker_size(size_t count);
     std::optional<size_t> get_heap_tracker_size() const;
+
+    void set_heap_tracker_cap_drops(size_t count);
+    std::optional<size_t> get_heap_tracker_cap_drops() const;
 
     void set_asyncio_task_count(size_t count);
     std::optional<size_t> get_asyncio_task_count() const;

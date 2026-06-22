@@ -11,11 +11,17 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
+from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_sample_rate
+from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.trace import Context
 
 
 @pytest.fixture
@@ -464,8 +470,6 @@ _DECIMAL_TRACE_ID = str(int(_HEX_TRACE_ID, 16))
 
 
 def _make_upstream_llmobs_context(trace_id_value, parent_id="987654321"):
-    from ddtrace.trace import Context
-
     ctx = Context(trace_id=123456789, span_id=int(parent_id))
     ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = trace_id_value
     ctx._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
@@ -556,3 +560,152 @@ def test_submitted_event_trace_id_matches_stored_for_ambiguous_hex(llmobs, test_
     assert len(spans) == 1
     assert get_llmobs_trace_id(spans[0]) == _AMBIGUOUS_HEX_TRACE_ID
     assert get_llmobs_trace_id(spans[0]) == stored
+
+
+def test_inject_includes_sample_rate(llmobs):
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "1"
+
+
+def test_inject_forwards_propagated_sample_rate_from_span(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
+
+
+def test_inject_forwards_propagated_sample_rate_from_context(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.25"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs._instance.tracer.trace("non-llmobs") as apm_span:
+        llmobs._inject_llmobs_context(apm_span.context, {})
+    assert apm_span.context._meta.get(PROPAGATED_SAMPLE_RATE) == "0.25"
+
+
+def test_activate_distributed_context_stores_propagated_sample_rate(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert active_ctx._meta.get(PROPAGATED_SAMPLE_RATE) == "0.5"
+
+
+def test_activate_distributed_context_without_sample_rate(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert PROPAGATED_SAMPLE_RATE not in active_ctx._meta
+
+
+def test_propagated_sample_rate_stored_in_meta_struct(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_sample_rate(span) == "0.5"
+
+
+def test_propagated_sample_rate_inherited_by_child_span(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("root"):
+        with llmobs.workflow("child") as child:
+            assert get_llmobs_sample_rate(child) == "0.5"
+
+
+def test_sampling_decision_uses_propagated_rate(llmobs, llmobs_events):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.SAMPLED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "0.5"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
+
+
+def test_no_sampling_decision_when_upstream_context_has_no_tags(llmobs, llmobs_events):
+    # Upstream LLMObs context present but no sampling tags — the root service did not make
+    # a decision, so we do not fabricate one. The span event carries no sampling fields.
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert "sample_rate" not in llmobs_events[0]["_dd"]
+    assert "sampling_decision" not in llmobs_events[0]["_dd"]
+
+
+def test_sampling_decision_defaults_to_sampled_for_root_span(llmobs, llmobs_events):
+    # Root span with no LLMObs parent and no propagated context always samples.
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sample_rate"] == "1"
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.SAMPLED
+
+
+def test_inject_includes_sampling_decision(llmobs):
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.SAMPLED
+
+
+def test_inject_propagates_dropped_decision(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.DROPPED
+
+
+def test_activate_distributed_context_stores_propagated_sampling_decision(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    active_ctx = llmobs._instance._llmobs_context_provider.active()
+    assert active_ctx._meta.get(PROPAGATED_SAMPLING_DECISION) == LLMObsSamplingDecision.DROPPED
+
+
+def test_propagated_sampling_decision_stored_in_meta_struct(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
+
+
+def test_propagated_sampling_decision_inherited_by_child_span(llmobs):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("root"):
+        with llmobs.workflow("child") as child:
+            assert get_llmobs_sampling_decision(child) == LLMObsSamplingDecision.DROPPED
+
+
+def test_propagated_sampling_decision_in_span_event(llmobs, llmobs_events):
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID)
+    ctx._meta[PROPAGATED_SAMPLE_RATE] = "0.5"
+    ctx._meta[PROPAGATED_SAMPLING_DECISION] = LLMObsSamplingDecision.DROPPED
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == LLMObsSamplingDecision.DROPPED

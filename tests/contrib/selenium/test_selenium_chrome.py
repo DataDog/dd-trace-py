@@ -63,8 +63,8 @@ _SELENIUM_DRIVER_SETUP = f"""\
 """
 
 
-@pytest.fixture
-def _http_server(scope="function"):
+@pytest.fixture(scope="session")
+def _http_server():
     """Provides a simple HTTP server that servers the pages to be browser
 
     We use an HTTP server because RUM does not work with file:// URLs (it's unable to establish session storage)
