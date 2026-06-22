@@ -242,10 +242,11 @@ async def test_trace_multiple(snapshot_context):
 async def test_request_with_tuple_headers():
     """
     When headers are passed as a sequence of (key, value) tuples (aiohttp LooseHeaders)
-        The request should succeed without TypeError and distributed tracing headers
-        should be injected.
+        The request should succeed without TypeError, distributed tracing headers should
+        be injected, and duplicate header entries should be preserved.
     """
     async with aiohttp.ClientSession() as session:
+        # Single header: trace context must be injected without TypeError.
         async with session.get("%s/headers" % URL, headers=(("x-custom-header", "value"),)) as resp:
             assert resp.status == 200
             data = await resp.json()
@@ -255,21 +256,13 @@ async def test_request_with_tuple_headers():
             header_val = data["headers"].get("X-Custom-Header") or data["headers"].get("x-custom-header")
             assert header_val in ("value", ["value"]), f"unexpected header value: {header_val!r}"
 
-
-@pytest.mark.asyncio
-async def test_request_with_duplicate_tuple_headers():
-    """
-    When headers contain duplicate keys as a sequence of tuples (e.g. repeated Cookie)
-        Both values should be preserved in the outgoing request.
-    """
-    async with aiohttp.ClientSession() as session:
+        # Duplicate keys: both values must survive the conversion to CIMultiDict.
         async with session.get(
             "%s/headers" % URL,
             headers=(("x-multi", "first"), ("x-multi", "second")),
         ) as resp:
             assert resp.status == 200
             data = await resp.json()
-            # The server should see both values (either as a list or comma-joined).
             raw = data["headers"].get("X-Multi") or data["headers"].get("x-multi")
             assert raw is not None, "x-multi header not forwarded"
             values = raw if isinstance(raw, list) else [v.strip() for v in raw.split(",")]
