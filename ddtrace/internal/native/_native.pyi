@@ -396,7 +396,7 @@ class TraceExporterBuilder:
     def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
         """
         Enable OTel trace semantics, which does not add DD-specific per-span attributes
-        (service.name, operation.name, resource.name, span.type) to the OTLP payload.
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload.
         Use when DD_TRACE_OTEL_SEMANTICS_ENABLED=true.
         """
         ...
