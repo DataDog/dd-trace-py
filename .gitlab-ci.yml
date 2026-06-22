@@ -236,10 +236,7 @@ macrobenchmarks:
 # once with the current commit (candidate). Each downstream pipeline runs the
 # `benchmark-profiling-remote` matrix; results are visible as GitLab job
 # artifacts on those pipelines. Click `doe-sxs-prep` from the GitLab UI to
-# start the workflow. Surfacing results back to this PR is intentionally out
-# of scope here (dd-trace-py is public; we don't currently share these
-# results externally) and will be handled by a follow-up.
-# JIRA: PROF-14016.
+# start the workflow.
 doe-sxs-prep:
   stage: benchmarks
   tags: ["arch:amd64"]
