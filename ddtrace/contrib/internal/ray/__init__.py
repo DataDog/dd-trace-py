@@ -3,6 +3,7 @@ The ray integration traces:
  - Job lifetime (job submit, job run)
  - Task submission and execution
  - Actor method submission and execution
+ - Ray Serve proxy requests, deployment handle calls, and deployment execution
 
 Enabling
 ~~~~~~~~
@@ -22,6 +23,18 @@ You can also do it by starting Ray head with a tracing startup hook::
 
 Note that this method does not provide full tracing capabilities if ``ray.init()`` is not called at the top
 of your job scripts.
+
+Ray Serve tracing is included in the Ray integration. There is no separate
+``ray_serve`` patch flag. Once the Ray integration is enabled, importing
+``ray.serve`` will automatically instrument Ray Serve components.
+
+This traces:
+
+- inbound Ray Serve HTTP and gRPC proxy requests
+- ``DeploymentHandle.remote()`` calls
+- request assignment and replica request handling
+- functions and class methods defined on deployments created with
+  ``serve.deployment``, including ``@serve.ingress`` deployments
 
 Configuration
 ~~~~~~~~~~~~~
@@ -75,4 +88,6 @@ Notes
 - The integration disables Ray's built-in OpenTelemetry tracing to avoid duplicate telemetry.
 - Actor methods like ``ping`` and ``_polling`` are excluded from tracing to reduce noise.
 - Actors whose names start with an underscore (_) are not instrumented.
+- For Ray Serve HTTP requests, resource names use the matched route pattern when
+  available (for example, ``/name/{name}``) to avoid high-cardinality spans.
 """
