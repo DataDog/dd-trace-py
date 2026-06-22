@@ -443,15 +443,26 @@ class TestLLMObsPydanticAI:
         )
 
     async def test_agent_run_with_unserializable_model_settings(
-        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+        self, pydantic_ai, pydantic_ai_llmobs, test_spans
     ):
         """Regression test: agent.model_settings containing non-JSON-serializable provider
         sentinel values must not crash span submission.
+
+        Uses FunctionModel to avoid OpenAI SDK serialization, which would reject the
+        sentinel before our span-tagging code ever runs.
         """
-        model_settings = {"temperature": _UnserializableSentinel(), "max_tokens": 100}
-        with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", model_settings=model_settings)
-            await agent.run("Hello, world!")
+        from pydantic_ai.messages import ModelResponse, TextPart
+        from pydantic_ai.models.function import FunctionModel
+
+        def model_func(messages, info):
+            return ModelResponse(parts=[TextPart(content="Hello!")])
+
+        agent = pydantic_ai.Agent(
+            model=FunctionModel(model_func),
+            name="test_agent",
+            model_settings={"temperature": _UnserializableSentinel(), "max_tokens": 100},
+        )
+        await agent.run("Hello, world!")
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         span_data = _get_llmobs_data_metastruct(spans[0])
