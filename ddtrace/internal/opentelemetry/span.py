@@ -274,15 +274,18 @@ class Span(OtelSpan):
         """
         if not self.is_recording():
             return
-        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
-        module = type(exception).__module__
-        qualname = type(exception).__qualname__
-        exception_type = (
-            f"{module}.{qualname}"
-            if module and module != "builtins"
-            else qualname
-        )
+        if config._otel_trace_semantics_enabled:
+            # Set exception attributes in a manner that is consistent with the opentelemetry sdk
+            # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
+            module = type(exception).__module__
+            qualname = type(exception).__qualname__
+            exception_type = (
+                f"{module}.{qualname}"
+                if module and module != "builtins"
+                else qualname
+            )
+        else:
+            exception_type = "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__)
         attrs = {
             "exception.type": exception_type,
             "exception.message": str(exception),

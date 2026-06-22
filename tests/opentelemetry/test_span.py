@@ -392,3 +392,51 @@ def test_otel_record_exception_adds_stacktrace_to_event_with_otel_trace_semantic
             events = span._ddspan._get_events()
             assert len(events) == 1
             assert "exception.stacktrace" in events[0].attributes
+
+
+class _OuterClass:
+    class _NestedError(Exception):
+        pass
+
+
+def test_otel_record_exception_type_formatting(oteltracer):
+    """exception.type uses module.__name__ (no qualname) when semantics disabled,
+    and module.__qualname__ (skipping 'builtins') when semantics enabled.
+
+    The distinction matters for nested exception classes:
+      __name__     = '_NestedError'          (simple name only)
+      __qualname__ = '_OuterClass._NestedError'  (includes outer class)
+    """
+    nested_exc_cls = _OuterClass._NestedError
+
+    # Scenario 1: semantics disabled — uses __name__, so nested class outer is omitted
+    with patch.object(config, "_otel_trace_semantics_enabled", False):
+        with oteltracer.start_span("test-exc-type-compat") as span:
+            try:
+                raise nested_exc_cls("nested error")
+            except nested_exc_cls as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            # __name__ = '_NestedError', NOT '_OuterClass._NestedError'
+            assert events[0].attributes["exception.type"] == f"{nested_exc_cls.__module__}._NestedError"
+
+    # Scenario 2: semantics enabled — builtin exception omits 'builtins.' prefix
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-type-otel-builtin") as span:
+            try:
+                raise ValueError("builtin error")
+            except ValueError as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            assert events[0].attributes["exception.type"] == "ValueError"
+
+    # Scenario 3: semantics enabled — uses __qualname__, so nested class outer is included
+    with patch.object(config, "_otel_trace_semantics_enabled", True):
+        with oteltracer.start_span("test-exc-type-otel-nested") as span:
+            try:
+                raise nested_exc_cls("nested error")
+            except nested_exc_cls as exc:
+                span.record_exception(exc)
+            events = span._ddspan._get_events()
+            # __qualname__ = '_OuterClass._NestedError'
+            assert events[0].attributes["exception.type"] == f"{nested_exc_cls.__module__}._OuterClass._NestedError"
