@@ -331,7 +331,11 @@ class Tracer(object):
         :param object context_provider: The ``ContextProvider`` that will be used to retrieve
             automatically the current call context. This is an advanced option that usually
             doesn't need to be changed from the default value.
-        :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
+        :param bool appsec_enabled: Reflects the AppSec (ASM) state on the tracer: it updates
+            ``asm_config._asm_enabled`` and forces the trace writer to a payload format compatible
+            with ASM metadata. It does NOT start the WAF span processor on its own. AppSec is
+            activated via ``DD_APPSEC_ENABLED`` (product startup) or remote configuration, both of
+            which register the processor through ``load_appsec()`` before reconfiguring the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
         :param list[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
@@ -599,7 +603,7 @@ class Tracer(object):
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -635,7 +639,7 @@ class Tracer(object):
         core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out:
+        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)

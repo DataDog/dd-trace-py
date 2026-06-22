@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AI Guard: This fix resolves an issue where the Strands integration silently
+    dropped non-text Bedrock content (images, documents, video), which could
+    cause evaluation to be skipped for prompts or tool results with no text.

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    protobuf: This fix resolves an issue where Data Streams Monitoring schema tags were
+    missing from protobuf spans due to incorrect patching of generated message classes.

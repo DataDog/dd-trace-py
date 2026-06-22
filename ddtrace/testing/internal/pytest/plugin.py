@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from io import StringIO
-import json
 import logging
 from pathlib import Path
-import re
+import random
 import traceback
 import typing as t
 
@@ -22,17 +21,21 @@ from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_metho
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import TAG_TRUE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
+from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
 from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
+from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
+from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.telemetry import TelemetryAPI
@@ -82,6 +85,18 @@ TEST_FRAMEWORK = "pytest"
 
 # Mapping of external rerun plugin names to the -p flag that disables them.
 _EXTERNAL_RERUN_PLUGINS = {"rerunfailures": "no:rerunfailures", "flaky": "no:flaky"}
+
+# Out-of-session retries (OSR): after the main run loop finishes (and all fixtures, including session-scoped ones, have
+# been torn down), a randomly-chosen subset (at most _OSR_MAX_TESTS) of the tests that exhausted Auto Test Retries
+# (failed every in-session ATR attempt) is re-run once each, in isolation, with `nextitem=None` so pytest re-creates and
+# tears down their full fixture chain — a "clean slate" for tests that leak state and would therefore fail every
+# in-session ATR retry. Each re-run is recorded as one more TestRun on the existing test (tagged
+# retry_reason=out_of_session), not a separate session. Because OSR targets ATR-exhausted failures, it only does
+# anything when ATR is enabled. Opt-in and disabled by default: set _DD_CIVISIBILITY_OSR_ENABLED=1 to enable it.
+_OSR_ENABLED_ENV = "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED"
+_OSR_MAX_TESTS = 5
+OUT_OF_SESSION_RETRY_REASON = "out_of_session"
+OUT_OF_SESSION_RETRY_PRETTY_NAME = "Out-of-Session Retry"
 
 log = logging.getLogger(__name__)
 
@@ -266,6 +281,11 @@ class TestOptPlugin:
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
+        # Out-of-session retries (OSR) state. See module-level docstring near `_OSR_ENABLED_ENV`.
+        self._osr_enabled = asbool(env.get(_OSR_ENABLED_ENV, "false"))
+        # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
+        self._osr_candidates: list[pytest.Item] = []
+
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
@@ -388,6 +408,22 @@ class TestOptPlugin:
             self._logs_writer = None
 
         self.manager.finish()
+
+    def pytest_collection_modifyitems(
+        self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
+    ) -> None:
+        if not self.manager.atf_all_flaky_tests:
+            return
+        selected = []
+        deselected = []
+        for item in items:
+            if item_to_test_ref(item) in self.manager.test_properties:
+                selected.append(item)
+            else:
+                deselected.append(item)
+        if deselected:
+            config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -621,6 +657,9 @@ class TestOptPlugin:
         for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
 
+        if self._osr_enabled and self._is_osr_candidate(test, retry_handler):
+            self._osr_candidates.append(item)
+
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
         test_run.set_status(status)
@@ -705,6 +744,74 @@ class TestOptPlugin:
                 return handler
 
         return None
+
+    # Out-of-session retries (OSR). See the module-level docstring near `_OSR_ENABLED_ENV`.
+
+    def _is_osr_candidate(self, test: Test, retry_handler: t.Optional[RetryHandler]) -> bool:
+        """Return whether a finished test is eligible to be retried out of session.
+
+        Only ATR-exhausted failures qualify: the test was retried by Auto Test Retries and failed *every* in-session
+        attempt. ATR stops as soon as any attempt passes, so a test that is still failing after ATR is exhausted is
+        failing consistently (not flaky/intermittent within the session) — yet it may still be a state leak that a
+        clean-slate rerun in a fresh session can clear. This is the only "not flaky" signal we can derive: there is no
+        general backend flag for it. Tests we *do* know are special-cased — quarantined, disabled — are excluded, as
+        are tests owned by another retry policy (Early Flake Detection, attempt-to-fix), which is why the handler must
+        be ATR. (ATR being the applicable handler already implies the test is not new/EFD-eligible.)
+        """
+        if (test.get_status() != TestStatus.FAIL) or test.is_quarantined() or test.is_disabled():
+            return False
+        if not isinstance(retry_handler, AutoTestRetriesHandler):
+            return False
+        # Require that ATR actually retried the test (and it still failed), i.e. it is genuinely exhausted rather than,
+        # e.g., configured with zero retries.
+        return len(test.test_runs) > 1
+
+    def _do_out_of_session_run(self, item: pytest.Item) -> None:
+        """Re-run a single ATR-exhausted test once, in isolation, after the main run loop.
+
+        The test runs with ``nextitem=None``, so pytest tears down and re-creates its entire fixture chain (function,
+        class, module and session scopes) for this attempt — a genuine clean slate. Fixture lifecycle is driven by
+        pytest's ``SetupState``, independent of the Datadog session, so we simply record the result as one more
+        ``TestRun`` on the existing test, tagged ``retry_reason=out_of_session`` and marked 'rerun' so it does not
+        change pytest's pass/fail tally. The original in-session failure stands.
+        """
+        with trace_context(self.enable_ddtrace_trace_filter) as context:
+            test_run, _ = self._do_one_test_run(item, nextitem=None, context=context)
+
+        test_run.set_tags({TestTag.IS_RETRY: TAG_TRUE, TestTag.RETRY_REASON: OUT_OF_SESSION_RETRY_REASON})
+        test_run.finish()
+        self.manager.writer.put_item(test_run)
+
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtestloop(self, session: pytest.Session) -> t.Generator[None, None, None]:
+        yield
+        # After the main loop, all fixtures (including session-scoped) have been torn down, so re-running a test now
+        # gives it a clean slate. If the loop raised (e.g. -x stopped the session), the exception propagates through the
+        # yield above and OSR is skipped.
+        try:
+            self._maybe_run_out_of_session_retries()
+        except Exception:
+            log.debug("Error during out-of-session retries", exc_info=True)
+
+    def _maybe_run_out_of_session_retries(self) -> None:
+        if not self._osr_enabled:
+            return
+
+        candidates = self._select_out_of_session_candidates()
+        if not candidates:
+            return
+
+        log.debug("Out-of-session retries: re-running %d ATR-exhausted test(s) in isolation", len(candidates))
+        for item in candidates:
+            self._do_out_of_session_run(item)
+
+    def _select_out_of_session_candidates(self) -> list[pytest.Item]:
+        """Pick up to ``_OSR_MAX_TESTS`` of the ATR-exhausted tests, sampled at random when there are more."""
+        # Candidates are already unique (each test is recorded once), but dedupe defensively.
+        unique = list(dict.fromkeys(self._osr_candidates))
+        if len(unique) <= _OSR_MAX_TESTS:
+            return unique
+        return random.sample(unique, _OSR_MAX_TESTS)
 
     def _extract_longrepr(self, reports: _ReportGroup) -> tuple[t.Any, t.Any]:
         """
@@ -1074,6 +1181,9 @@ def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_test_optimization_disabled_by_kill_switch():
         return False
 
+    if is_discovery_mode_enabled():
+        return False
+
     if _is_option_true("no-ddtrace", early_config, args):
         return False
 
@@ -1136,6 +1246,18 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
 
     if _is_test_optimization_disabled_by_kill_switch():
+        return
+
+    if is_discovery_mode_enabled():
+        # Register hook specs so item_to_test_ref can call the custom name hooks during
+        # discovery, giving the same module/suite/name resolution as a real test run.
+        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # fall back to nodeid-based names rather than feature-file names during discovery.
+        # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
+        import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery
+
+        config.pluginmanager.add_hookspecs(TestOptHooks)
+        config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
     session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
@@ -1243,36 +1365,8 @@ def _get_user_property(report: pytest.TestReport, user_property: str) -> t.Optio
     return None
 
 
-def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
-    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
-
-    if callspec is None:
-        return None
-
-    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
-    for param_name, param_val in item.callspec.params.items():
-        try:
-            parameters["arguments"][param_name] = _encode_test_parameter(param_val)
-        except Exception:
-            parameters["arguments"][param_name] = "Could not encode"
-            log.warning("Failed to encode %r", param_name, exc_info=True)
-
-    try:
-        return json.dumps(parameters, sort_keys=True)
-    except TypeError:
-        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
-        return None
-
-
 def _get_test_original_name(item: pytest.Item) -> t.Optional[str]:
     return getattr(item, "originalname", None)
-
-
-def _encode_test_parameter(parameter: t.Any) -> str:
-    param_repr = repr(parameter)
-    # if the representation includes an id() we'll remove it
-    # because it isn't constant across executions
-    return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
 
 
 def _get_skipif_condition(marker: pytest.Mark) -> t.Any:

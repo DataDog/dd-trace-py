@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    AI Guard: This fix resolves an issue where the Anthropic integration dropped
+    ``document`` content blocks, which could cause evaluation to be skipped for
+    prompts whose only content was a document. Document text is now scanned and
+    binary documents leave a placeholder so evaluation still runs.
