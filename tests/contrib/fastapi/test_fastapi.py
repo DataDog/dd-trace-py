@@ -462,7 +462,6 @@ def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
         assert request_span.get_tag("http.route") == "/v1/items/{item_id}"
 
 
-
 def test_distributed_tracing(client, tracer, test_spans):
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
