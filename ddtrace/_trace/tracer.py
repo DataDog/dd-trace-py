@@ -516,9 +516,6 @@ class Tracer(object):
                 service = parent.service
                 service_source = parent.get_tag(_SERVICE_SOURCE) or ""
             else:
-                import pdb
-
-                # pdb.set_trace()
                 service = config.service
         else:
             if service in config._integration_default_services:

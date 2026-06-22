@@ -395,9 +395,6 @@ def set_service_and_source(
 ) -> None:
     service_source = ""
     mapped_service = config.service_mapping.get(service, service)
-    import pdb
-
-    # pdb.set_trace()
     if service != mapped_service:
         service_source = "opt.service_mapping"
         service = mapped_service
