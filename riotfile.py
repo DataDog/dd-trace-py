@@ -97,6 +97,9 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
+    # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -649,6 +652,7 @@ venv = Venv(
                 "elasticsearch": latest,
                 "pynamodb": "<6.0",
                 "pytest-randomly": latest,
+                "setuptools": "<80",
             },
             venvs=[
                 Venv(
@@ -3151,6 +3155,36 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytorch",
+            command="pytest {cmdargs} tests/contrib/pytorch",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "torch": ["~=2.0.0", "~=2.1.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.2.0", "~=2.3.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.4.0", "~=2.5.0", "~=2.6.0", "~=2.7.0"],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pkgs={
+                        "torch": ["~=2.8.0", "~=2.9.0", "~=2.10.0", "~=2.11.0", "~=2.12.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="vertexai",
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),
@@ -3230,6 +3264,16 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
+            },
+        ),
+        Venv(
+            name="ray_serve",
+            command="pytest {cmdargs} tests/contrib/ray_serve",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "fastapi": latest,
+                "protobuf": "==4.25.8",
+                "ray[serve]": ["~=2.47.1", "~=2.54.1"],
             },
         ),
         Venv(

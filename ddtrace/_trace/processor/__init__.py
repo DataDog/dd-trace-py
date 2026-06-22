@@ -54,6 +54,15 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         pass
 
 
+class _NoopTraceProcessor(TraceProcessor):
+    """Default slot occupant in ``SpanAggregator``'s chain. Lets products (LLMObs, ...)
+    swap in their processor via a single attribute write instead of rebuilding the chain.
+    """
+
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+        return trace
+
+
 class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
@@ -325,6 +334,7 @@ class SpanAggregator(SpanProcessor):
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
         self.service_name_processor = ServiceNameProcessor()
+        self.llmobs_processor: TraceProcessor = _NoopTraceProcessor()
         self.writer = create_trace_writer(
             response_callback=self._agent_response_callback,
             agentless=_resolve_apm_trace_agentless(),
@@ -404,7 +414,12 @@ class SpanAggregator(SpanProcessor):
         for tp in chain(
             self.dd_processors,
             self.user_processors,
-            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+            [
+                self.sampling_processor,
+                self.llmobs_processor,
+                self.tags_processor,
+                self.service_name_processor,
+            ],
         ):
             try:
                 spans = tp.process_trace(spans) or []
@@ -532,6 +547,7 @@ class SpanAggregator(SpanProcessor):
         compute_stats: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
     ) -> None:
         """
@@ -546,7 +562,7 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
