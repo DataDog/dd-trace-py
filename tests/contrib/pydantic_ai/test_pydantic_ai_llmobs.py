@@ -442,16 +442,15 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
-    async def test_agent_run_with_unserializable_model_settings(
-        self, pydantic_ai, pydantic_ai_llmobs, test_spans
-    ):
+    async def test_agent_run_with_unserializable_model_settings(self, pydantic_ai, pydantic_ai_llmobs, test_spans):
         """Regression test: agent.model_settings containing non-JSON-serializable provider
         sentinel values must not crash span submission.
 
         Uses FunctionModel to avoid OpenAI SDK serialization, which would reject the
         sentinel before our span-tagging code ever runs.
         """
-        from pydantic_ai.messages import ModelResponse, TextPart
+        from pydantic_ai.messages import ModelResponse
+        from pydantic_ai.messages import TextPart
         from pydantic_ai.models.function import FunctionModel
 
         def model_func(messages, info):
