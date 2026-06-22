@@ -15,7 +15,6 @@ from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_messages
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_response
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.contrib.internal.anthropic.patch import ANTHROPIC_VERSION
-from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._utils import get_llmobs_output_messages
 from ddtrace.trace import tracer
@@ -1631,39 +1630,22 @@ def _anthropic_output_contents(span):
 
 
 def test_output_recorded_when_ai_guard_blocked():
-    """A blocked span (error=1) WITH the AI Guard marker still records output."""
+    """An errored span (error=1) still records output when a response exists."""
     integration = AnthropicIntegration(integration_config=config.anthropic)
     integration._base_url = None  # normally set during trace(); not needed for this unit test
     kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
     with tracer.trace("anthropic.request", span_type="llm") as span:
         span.error = 1
-        span._set_ctx_item(AI_GUARD_BLOCKED, True)
         integration._llmobs_set_tags(span, [], kwargs, _fake_anthropic_response("blocked body"), "")
         assert _anthropic_output_contents(span) == ["blocked body"]
 
 
 def test_output_suppressed_on_plain_error():
-    """Without the marker, an errored span still blanks output (unchanged)."""
+    """A genuine error leaves no response, so output is blanked."""
     integration = AnthropicIntegration(integration_config=config.anthropic)
     integration._base_url = None  # normally set during trace(); not needed for this unit test
     kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
     with tracer.trace("anthropic.request", span_type="llm") as span:
         span.error = 1
-        integration._llmobs_set_tags(span, [], kwargs, _fake_anthropic_response("should not appear"), "")
+        integration._llmobs_set_tags(span, [], kwargs, None, "")
         assert _anthropic_output_contents(span) == [""]
-
-
-@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_after_block_flags_span_for_output(mock_execute_request, anthropic_client_mock, test_spans):
-    """End-to-end: an after-model block (ALLOW then DENY) flags the anthropic span
-    with AI_GUARD_BLOCKED so LLMObs records the model output (APPSEC-68147).
-    """
-    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
-
-    with pytest.raises(AIGuardAbortError):
-        anthropic_client_mock.messages.create(messages=_user_messages(), **CHAT_PARAMS)
-
-    assert mock_execute_request.call_count == 2
-    llm_span = _find_anthropic_llm_span(test_spans)
-    assert llm_span.error == 1
-    assert llm_span._get_ctx_item(AI_GUARD_BLOCKED) is True

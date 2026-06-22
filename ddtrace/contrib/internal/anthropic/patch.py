@@ -15,7 +15,6 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._integrations import AnthropicIntegration
 
 
@@ -63,19 +62,15 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        # Attach the response to the event before the after-hook so that an AI
+        # Guard block raised by that hook still records the model output in
+        # LLMObs, even though the block errors the span (APPSEC-68147).
+        event.response = resp
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except (DDBlockException, Exception) as e:
-            # An AI Guard block after the model call still has a valid response;
-            # attach it and flag the span so LLMObs records the model output
-            # even though the span is errored by the block (APPSEC-68147).
-            if isinstance(e, DDBlockException):
-                event.response = resp
-                if ctx.span is not None:
-                    ctx.span._set_ctx_item(AI_GUARD_BLOCKED, True)
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        event.response = resp
         ctx.dispatch_ended_event()
         return resp
 
@@ -104,19 +99,15 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        # Attach the response to the event before the after-hook so that an AI
+        # Guard block raised by that hook still records the model output in
+        # LLMObs, even though the block errors the span (APPSEC-68147).
+        event.response = resp
         try:
             core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
-        except (DDBlockException, Exception) as e:
-            # An AI Guard block after the model call still has a valid response;
-            # attach it and flag the span so LLMObs records the model output
-            # even though the span is errored by the block (APPSEC-68147).
-            if isinstance(e, DDBlockException):
-                event.response = resp
-                if ctx.span is not None:
-                    ctx.span._set_ctx_item(AI_GUARD_BLOCKED, True)
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
-        event.response = resp
         ctx.dispatch_ended_event()
         return resp
 

@@ -17,7 +17,6 @@ from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_messages
 from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_response
 from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
-from ddtrace.llmobs._constants import AI_GUARD_BLOCKED
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -1544,30 +1543,28 @@ def _llm_span():
 
 
 def test_chat_output_recorded_when_ai_guard_blocked():
-    """A blocked span (error=1) WITH the AI Guard marker still records output."""
+    """An errored span (error=1) still records output when a response exists."""
     kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
     with _llm_span() as span:
         span.error = 1
-        span._set_ctx_item(AI_GUARD_BLOCKED, True)
         openai_set_meta_tags_from_chat(span, kwargs, _fake_chat_response("blocked body"))
         assert _output_contents(span) == ["blocked body"]
 
 
 def test_chat_output_suppressed_on_plain_error():
-    """Without the marker, an errored span still blanks output (unchanged)."""
+    """A genuine error leaves no response, so output is blanked."""
     kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
     with _llm_span() as span:
         span.error = 1
-        openai_set_meta_tags_from_chat(span, kwargs, _fake_chat_response("should not appear"))
+        openai_set_meta_tags_from_chat(span, kwargs, None)
         assert _output_contents(span) == [""]
 
 
 def test_response_output_recorded_when_ai_guard_blocked():
-    """Responses API: blocked span with the marker still records output."""
+    """Responses API: errored span still records output when a response exists."""
     kwargs = {"input": "hi", "model": CHAT_MODEL}
     with _llm_span() as span:
         span.error = 1
-        span._set_ctx_item(AI_GUARD_BLOCKED, True)
         openai_set_meta_tags_from_response(span, kwargs, _fake_response_api_response("blocked body"), None)
         assert _output_contents(span) == ["blocked body"]
 
@@ -1576,23 +1573,5 @@ def test_response_output_suppressed_on_plain_error():
     kwargs = {"input": "hi", "model": CHAT_MODEL}
     with _llm_span() as span:
         span.error = 1
-        openai_set_meta_tags_from_response(span, kwargs, _fake_response_api_response("nope"), None)
+        openai_set_meta_tags_from_response(span, kwargs, None, None)
         assert _output_contents(span) == [""]
-
-
-@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_chat_after_block_flags_span_for_output(mock_execute_request, openai_client_mock, test_spans):
-    """End-to-end: an after-model block (ALLOW then DENY) flags the openai span
-    with AI_GUARD_BLOCKED so LLMObs records the model output (APPSEC-68147).
-    """
-    import openai
-
-    mock_execute_request.side_effect = [mock_evaluate_response("ALLOW"), mock_evaluate_response("DENY")]
-
-    with pytest.raises(openai.UnprocessableEntityError):
-        openai_client_mock.chat.completions.create(messages=_user_messages(), **CHAT_PARAMS)
-
-    assert mock_execute_request.call_count == 2
-    llm_span = _find_openai_llm_span(test_spans)
-    assert llm_span.error == 1
-    assert llm_span._get_ctx_item(AI_GUARD_BLOCKED) is True
