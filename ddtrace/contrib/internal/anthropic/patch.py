@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import AnthropicIntegration
@@ -54,12 +55,18 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
     # For errors, we must manually dispatch so the span finishes with error info.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
+            core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = func(*args, **kwargs)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        try:
+            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+        except (DDBlockException, Exception):
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         event.response = resp
         ctx.dispatch_ended_event()
         return resp
@@ -82,12 +89,18 @@ async def traced_async_chat_model_generate(func: Callable[..., Any], instance: A
 
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
         try:
+            core.dispatch("anthropic.messages.create.before", (kwargs,), allow_raise=True)
             resp = await func(*args, **kwargs)
-        except Exception:
+        except (DDBlockException, Exception):
             ctx.dispatch_ended_event(*sys.exc_info())
             raise
         if is_streaming_operation(resp):
             return handle_streamed_response(integration, resp, args, kwargs, ctx)
+        try:
+            core.dispatch("anthropic.messages.create.after", (kwargs, resp), allow_raise=True)
+        except (DDBlockException, Exception):
+            ctx.dispatch_ended_event(*sys.exc_info())
+            raise
         event.response = resp
         ctx.dispatch_ended_event()
         return resp
@@ -102,6 +115,11 @@ def patch() -> None:
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
 
+    # AIDEV-NOTE: AI Guard mirrors this wrap-target list in
+    # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
+    # install its outermost streaming buffer. If you add/rename a target or
+    # change the >= (0, 37) beta gate below, update that list too or the new
+    # surface goes unbuffered for stream-response evaluation.
     wrap("anthropic", "resources.messages.Messages.create", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.Messages.stream", traced_chat_model_generate)
     wrap("anthropic", "resources.messages.AsyncMessages.create", traced_async_chat_model_generate)
@@ -118,12 +136,19 @@ def patch() -> None:
         )
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
 
+    # Notify AI Guard (and any other plugin) that wrapping is complete so they
+    # can install their own outermost wrappers on the same targets.
+    core.dispatch("anthropic.patch", tuple())
+
 
 def unpatch() -> None:
     if not getattr(anthropic, "_datadog_patch", False):
         return
 
     anthropic._datadog_patch = False
+    # Notify AI Guard first so it can peel its outermost wrappers before the
+    # contrib's own unwrap calls restore the layer below.
+    core.dispatch("anthropic.unpatch", tuple())
 
     unwrap(anthropic.resources.messages.Messages, "create")
     unwrap(anthropic.resources.messages.Messages, "stream")

@@ -1725,3 +1725,72 @@ def test_debugger_probe_malformed_file_configuration():
     finally:
         if os.path.exists(temp_file_path):
             os.unlink(temp_file_path)
+
+
+# ---------------------------------------------------------------------------
+# Debugger lifecycle idempotency
+# ---------------------------------------------------------------------------
+
+
+def test_enable_is_idempotent():
+    """Calling enable() when already enabled returns early without creating a new instance."""
+    from tests.debugging.mocking import TestDebugger
+
+    with debugger():
+        existing_instance = TestDebugger._instance
+        TestDebugger.enable()  # second call — should be a no-op
+        assert TestDebugger._instance is existing_instance
+
+
+def test_disable_is_noop_when_not_enabled():
+    """Calling disable() when the debugger is not enabled is a no-op."""
+    from tests.debugging.mocking import TestDebugger
+
+    assert TestDebugger._instance is None
+    TestDebugger.disable()  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# _on_configuration event dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_on_configuration_status_update_calls_log_probes_status():
+    """STATUS_UPDATE event triggers log_probes_status() on the registry."""
+    from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
+
+    with debugger() as d:
+        with mock.patch.object(d._probe_registry, "log_probes_status") as mock_log:
+            d._on_configuration(ProbePollerEvent.STATUS_UPDATE, [])
+        mock_log.assert_called_once()
+
+
+def test_on_configuration_unknown_event_raises():
+    """An unrecognised poller event raises ValueError."""
+    with debugger() as d:
+        with pytest.raises(ValueError):
+            d._on_configuration("BOGUS_EVENT", [])
+
+
+# ---------------------------------------------------------------------------
+# _on_run_module: end-to-end subprocess test via `python -m`
+# ---------------------------------------------------------------------------
+
+
+def test_on_run_module_via_m_flag():
+    """_on_run_module fires when a module is started with `python -m`, causing
+    pending probes to be injected into the module before it executes.
+
+    The target module itself bootstraps TestDebugger, registers the probe, and
+    performs the assertions, printing 'OK' on success.
+    """
+    from pathlib import Path
+
+    here = Path(__file__).parent
+    cwd = here / "run_module_on_run_module"
+
+    env = os.environ.copy()
+
+    out, err, status, _ = call_program("ddtrace-run", sys.executable, "-m", "target", cwd=str(cwd), env=env)
+
+    assert out.strip() == b"OK", err.decode()

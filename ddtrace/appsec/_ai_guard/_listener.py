@@ -1,10 +1,13 @@
 from collections.abc import Mapping
+from collections.abc import Sequence
 from functools import partial
 from typing import Any
 from typing import Optional
 from typing import Union
 
 from ddtrace._trace.span import Span
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
+from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_stream_before
 from ddtrace.appsec._ai_guard._langchain import _langchain_generate_finally
@@ -17,19 +20,28 @@ from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_after
 from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_after
 from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_before
+from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardAsyncStream
+from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardStream
+from ddtrace.appsec._ai_guard._streaming import _is_async_traced_stream
+from ddtrace.appsec._ai_guard._streaming import _is_traced_stream
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import new_ai_guard_client
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
+
+
+logger = ddlogger.get_logger(__name__)
 
 
 def ai_guard_listen():
     client = new_ai_guard_client()
     _langchain_listen(client)
     _openai_listen(client)
+    _anthropic_listen(client)
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
@@ -76,6 +88,116 @@ def _openai_listen(client: AIGuardClient):
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
 
 
+def _anthropic_listen(client: AIGuardClient):
+    core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
+    core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
+    core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
+    core.on("anthropic.unpatch", _uninstall_anthropic_wrappers)
+
+
+# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
+# only ever peels OUR layer -- never a contrib wrapper on a target we skipped or
+# that failed mid-install.
+_anthropic_wrapped_targets: list[tuple[Any, str]] = []
+
+
+def _install_anthropic_wrappers(client: AIGuardClient) -> None:
+    """Install outermost streaming buffer wrappers on all Anthropic message methods.
+
+    Called when the Anthropic contrib fires ``anthropic.patch`` (at the end of
+    its own ``patch()``), so our wrappers sit outermost in the chain.  The sync
+    and async paths are separate because ``AsyncMessages.create`` is an
+    ``async def`` — a sync wrapper would capture a coroutine object and never
+    await the contrib's result.
+
+    Wrappers are only installed when
+    ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` so there is zero
+    overhead on the default (flag-off) code path.
+    """
+    if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+        return
+
+    import anthropic
+
+    from ddtrace.appsec._ai_guard._anthropic_streaming import reconstruct_anthropic
+    from ddtrace.contrib.internal.trace_utils import wrap
+    from ddtrace.internal.utils.version import parse_version
+
+    def sync_wrapper(func, instance, args, kwargs):
+        result = func(*args, **kwargs)
+        if not _is_traced_stream(result):
+            return result
+
+        def evaluate(resp):
+            return _anthropic_messages_create_after(client, kwargs, resp)
+
+        if _is_async_traced_stream(result):
+            return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
+        return BufferedAIGuardStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
+
+    async def async_wrapper(func, instance, args, kwargs):
+        result = await func(*args, **kwargs)
+        if not _is_traced_stream(result):
+            return result
+
+        def evaluate(resp):
+            return _anthropic_messages_create_after(client, kwargs, resp)
+
+        return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
+
+    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch(). If the
+    # contrib adds/renames a streaming target or changes the >= (0, 37) beta gate,
+    # that surface silently goes unbuffered here -- a security gap with no failing
+    # test. Keep them aligned. ``_uninstall_anthropic_wrappers`` derives its unwrap
+    # list from ``_anthropic_wrapped_targets`` below, so it stays correct automatically.
+    msgs = anthropic.resources.messages
+    targets = [
+        (msgs.Messages, "create", sync_wrapper),
+        (msgs.Messages, "stream", sync_wrapper),
+        # AsyncMessages.stream is a sync method (returns a manager); the TracedStream it
+        # produces has an AsyncStreamHandler, so sync_wrapper dispatches to BufferedAIGuardAsyncStream.
+        (msgs.AsyncMessages, "stream", sync_wrapper),
+        (msgs.AsyncMessages, "create", async_wrapper),
+    ]
+    if parse_version(getattr(anthropic, "__version__", "0")) >= (0, 37):
+        beta = anthropic.resources.beta.messages.messages
+        targets += [
+            (beta.Messages, "create", sync_wrapper),
+            (beta.Messages, "stream", sync_wrapper),
+            (beta.AsyncMessages, "stream", sync_wrapper),
+            (beta.AsyncMessages, "create", async_wrapper),
+        ]
+
+    for owner, attr, wrapper in targets:
+        try:
+            wrap(owner, attr, wrapper)
+        except Exception:
+            logger.debug("AI Guard anthropic: failed to install streaming wrapper on %s.%s", owner, attr)
+            continue
+        _anthropic_wrapped_targets.append((owner, attr))
+
+
+def _uninstall_anthropic_wrappers() -> None:
+    """Remove AI Guard streaming buffer wrappers from Anthropic message methods.
+
+    Called when the Anthropic contrib fires ``anthropic.unpatch`` (at the start
+    of its own ``unpatch()``, before the contrib does its own unwrap calls).
+    Peeling our outermost layer first lets the contrib's own ``unwrap`` calls
+    correctly reach their inner wrappers.  Only unwraps the targets we recorded
+    in ``_anthropic_wrapped_targets`` -- no-ops if none were installed (e.g. the
+    flag was off at patch time, or a partial install wrapped nothing).
+    """
+    from ddtrace.contrib.internal.trace_utils import unwrap
+
+    while _anthropic_wrapped_targets:
+        owner, attr = _anthropic_wrapped_targets.pop()
+        try:
+            unwrap(owner, attr)
+        except Exception:
+            logger.debug("AI Guard anthropic: failed to uninstall streaming wrapper on %s.%s", owner, attr)
+
+
 def _on_set_http_meta_for_ai_guard(
     span: Span,
     request_ip: Optional[str],
@@ -85,7 +207,7 @@ def _on_set_http_meta_for_ai_guard(
     request_headers: Optional[Mapping[str, str]],
     request_cookies: Optional[dict[str, str]],
     parsed_query: Optional[Mapping[str, Any]],
-    request_path_params: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]],
     request_body: Any,
     status_code: Optional[Union[int, str]],
     response_headers: Optional[Mapping[str, str]],

@@ -28,13 +28,16 @@
 #include <opcode.h>
 #endif // PY_VERSION_HEX >= 0x30b0000
 
+#include <memory>
+#include <utility>
+
 #include <echion/config.h>
 #include <echion/errors.h>
 #include <echion/frame.h>
 #include <echion/mirrors.h>
 #include <echion/stacks.h>
 #include <echion/state.h>
-#include <echion/strings.h>
+#include <echion/task_name.h>
 #include <echion/timing.h>
 
 #include <echion/cpython/tasks.h>
@@ -117,7 +120,7 @@ class TaskInfo
     PyObject* loop = nullptr;
 
     // The name of the Task
-    StringTable::Key name;
+    TaskName name;
 
     // Whether the Task's coroutine (or a coroutine it awaits, transitively) is currently running (on CPU).
     // This will not be true if the Task is currently awaiting another Task, and this other Task is on CPU.
@@ -133,10 +136,10 @@ class TaskInfo
     TaskInfo::Ptr waiter = nullptr;
 
     [[nodiscard]] static Result<TaskInfo::Ptr> create(EchionSampler& echion, TaskObj*);
-    TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, StringTable::Key name, TaskInfo::Ptr waiter)
+    TaskInfo(PyObject* origin, PyObject* loop, GenInfo::Ptr coro, TaskName name, TaskInfo::Ptr waiter)
       : origin(origin)
       , loop(loop)
-      , name(name)
+      , name(std::move(name))
       , is_on_cpu(coro && coro->is_running)
       , coro(std::move(coro))
       , waiter(std::move(waiter))

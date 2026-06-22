@@ -46,6 +46,7 @@ def get_locals(frame: FrameType) -> Iterator[tuple[str, Any]]:
 
 
 def get_globals(frame: FrameType) -> Iterator[tuple[str, Any]]:
+    """Get global variables referenced by the frame's code object."""
     nonlocal_names = frame.f_code.co_names
     _globals = frame.f_globals
 

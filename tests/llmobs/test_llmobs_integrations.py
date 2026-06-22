@@ -31,18 +31,6 @@ def test_integration_llmobs_enabled(mock_llmobs, mock_integration_config):
     assert integration.llmobs_enabled is False
 
 
-@mock.patch("ddtrace.llmobs._integrations.base.LLMObs")
-def test_pc_span_sampling_llmobs(mock_llmobs, mock_integration_config, tracer):
-    mock_llmobs.enabled = True
-    integration = BaseLLMIntegration(mock_integration_config)
-    with tracer.trace("Dummy span") as mock_span:
-        assert integration.is_pc_sampled_llmobs(mock_span) is True
-    mock_llmobs.enabled = False
-    integration = BaseLLMIntegration(mock_integration_config)
-    with tracer.trace("Dummy span") as mock_span:
-        assert integration.is_pc_sampled_llmobs(mock_span) is False
-
-
 def test_integration_trace(mock_integration_config, test_spans):
     integration = BaseLLMIntegration(mock_integration_config)
     mock_set_base_span_tags = mock.Mock()

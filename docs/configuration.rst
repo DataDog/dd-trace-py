@@ -404,6 +404,23 @@ Traces
          mode is enabled (``DD_LLMOBS_AGENTLESS_ENABLED=true``). In agent mode, this value should not
          exceed the EVP proxy max event size configured in the Datadog Agent.
 
+   DD_LLMOBS_SAMPLE_RATE:
+     type: Float
+     default: 1.0
+
+     description: |
+         The proportion of LLM Observability spans (between ``0.0`` and ``1.0``) that Datadog retains
+         after intake. 100% of LLM Observability spans are always submitted; this rate controls how
+         many are retained in full. For example, ``0.1`` keeps roughly 10% of your LLM Observability
+         spans with their complete input/output data.
+
+         This only affects LLM Observability span retention. It does **not** affect APM span
+         retention, and it does **not** affect metrics: token usage, cost, and other LLM Observability
+         metrics are always computed from 100% of traffic regardless of the configured rate.
+
+     version_added:
+        v4.11.0:
+
 Trace Context propagation
 -------------------------
 
@@ -594,6 +611,20 @@ AI Guard
 --------
 
 .. ddtrace-configuration-options::
+
+   DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED:
+     type: Boolean
+     default: False
+     description: |
+       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic
+       are fully buffered before any chunk is returned to the caller. The complete response is
+       evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
+       and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
+       are evaluated and streamed chunks are forwarded live.
+
+       **Trade-offs**: enabling this flag increases time-to-first-token (all chunks must be
+       received before the first one is delivered) and increases peak memory usage proportional
+       to the response size.
 
    DD_AI_GUARD_BLOCK:
      type: Boolean

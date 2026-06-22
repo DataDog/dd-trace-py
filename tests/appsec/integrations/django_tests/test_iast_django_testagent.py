@@ -321,10 +321,28 @@ def test_iast_header_injection(iast_test_token):
 
         response = django_client.post("/appsec/header-injection/", data="master\r\nInjected-Header: 1234")
 
-        assert response.status_code == 200
-        assert response.content == b"OK:master\r\nInjected-Header: 1234", f"Content is {response.content}"
-        assert response.headers["Header-Injection"] == "master"
-        assert response.headers["Injected-Header"] == "1234"
+        # AIDEV-NOTE: This test verifies IAST *detection* of header injection, not that the injected
+        # header reaches the wire. The CPython security backport gh-144370 (CVE) makes
+        # wsgiref.headers.Headers reject control characters (CR/LF) in response header values, raising
+        # ValueError("Control characters not allowed in headers"). Django's `runserver` dev server
+        # (used by django_server) routes response headers through wsgiref start_response ->
+        # Headers.__init__, so on patched interpreters emitting the injected
+        # "master\r\nInjected-Header: 1234" value yields HTTP 500 instead of 200. The IAST
+        # vulnerability is still detected in the view (HeaderInjectionDict.__setitem__) *before*
+        # serialization, so we assert the vulnerability report below and only sanity-check that the
+        # request was handled. We accept either status: 500 on patched interpreters (header rejected),
+        # or 200 on pre-fix interpreters (header emitted). Wire-level assertions on the split header
+        # were removed because response splitting is no longer possible by design.
+        log.debug(
+            "header_injection response: status=%s content=%r headers=%s",
+            response.status_code,
+            response.content,
+            dict(response.headers),
+        )
+        assert response.status_code in (200, 500), (
+            f"Expected 200 or 500, got {response.status_code}. "
+            f"content={response.content!r} headers={dict(response.headers)}"
+        )
 
     response_tracer = _get_span(iast_test_token)
     spans_with_iast = []

@@ -46,10 +46,6 @@ def vllm():
 
 @pytest.fixture
 def vllm_llmobs(tracer, monkeypatch):
-    # Preserve meta_struct["_llmobs"] on spans so tests can assert against
-    # LLMObsSpanData via _get_llmobs_data_metastruct; production scrubs it after
-    # enqueueing to LLMObsSpanWriter.
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {
