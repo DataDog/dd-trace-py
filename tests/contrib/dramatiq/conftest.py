@@ -6,12 +6,16 @@ import pytest
 
 @pytest.fixture()
 def stub_broker():
+    previous_broker = dramatiq.get_broker()
     broker = StubBroker()
     broker.emit_after("process_boot")
     dramatiq.set_broker(broker)
-    yield broker
-    broker.flush_all()
-    broker.close()
+    try:
+        yield broker
+    finally:
+        dramatiq.set_broker(previous_broker)
+        broker.flush_all()
+        broker.close()
 
 
 @pytest.fixture()
