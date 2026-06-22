@@ -12,11 +12,9 @@ Tests validate the two-tier aggregation spec:
 """
 
 import json
-from pathlib import Path
 import time
 from unittest import mock
 
-from jsonschema import Draft7Validator
 import pytest
 
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
@@ -158,6 +156,11 @@ class TestFlattenAndPruneContext:
         assert "user.id" in result
         assert "user.tier" in result
         assert result["user.id"] == "u1"
+
+    def test_dedicated_targeting_key_aliases_are_not_context_attrs(self):
+        attrs = {"targetingKey": "user-1", "targeting_key": "user-1", "tier": "premium"}
+        result = flatten_and_prune_context(attrs)
+        assert result == {"tier": "premium"}
 
     def test_prune_beyond_256_fields(self):
         attrs = {str(i): str(i) for i in range(300)}
@@ -430,6 +433,22 @@ class TestPeriodicFlush:
         assert "targeting_key" not in ev
         assert "context" not in ev
 
+    def test_targeting_key_is_not_duplicated_in_context_evaluation(self, writer):
+        writer.enqueue(
+            _make_event(
+                targeting_key="user-1",
+                attrs={"targetingKey": "user-1", "targeting_key": "user-1", "tier": "premium"},
+            )
+        )
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        decoded = json.loads(mock_send.call_args[0][0])
+        ev = decoded["flagEvaluations"][0]
+        assert ev["targeting_key"] == "user-1"
+        assert ev["context"]["evaluation"] == {"tier": "premium"}
+
     def test_writer_endpoint_constant(self):
         assert FLAGEVALUATIONS_ENDPOINT == "/evp_proxy/v2/api/v2/flagevaluation"
 
@@ -448,13 +467,8 @@ class TestPeriodicFlush:
 
 
 # ---------------------------------------------------------------------------
-# Schema conformance of the emitted payload (full + degraded rows)
+# Stable payload contract for emitted rows (full + degraded)
 # ---------------------------------------------------------------------------
-
-# The copied flageval-worker schema is the contract surface for these tests.
-_SCHEMA_PATH = Path(__file__).parent / "testdata" / "flageval-worker" / "batchedflagevaluations.json"
-_BATCHED_FLAGEVALUATIONS_SCHEMA = json.loads(_SCHEMA_PATH.read_text())
-_BATCHED_FLAGEVALUATIONS_VALIDATOR = Draft7Validator(_BATCHED_FLAGEVALUATIONS_SCHEMA)
 
 # Required fields that EVERY flagevaluation row (full or degraded) must carry.
 _REQUIRED_EVENT_FIELDS = {
@@ -464,10 +478,26 @@ _REQUIRED_EVENT_FIELDS = {
     "last_evaluation": int,
     "evaluation_count": int,
 }
+_OPTIONAL_EVENT_FIELDS = {
+    "runtime_default_used",
+    "targeting_key",
+    "context",
+    "variant",
+    "allocation",
+    "targeting_rule",
+    "error",
+}
+_ALLOWED_EVENT_FIELDS = set(_REQUIRED_EVENT_FIELDS).union(_OPTIONAL_EVENT_FIELDS)
+_ALLOWED_BATCH_FIELDS = {"flagEvaluations", "context"}
+_ALLOWED_BATCH_CONTEXT_FIELDS = {"service", "env", "version"}
+_ALLOWED_ROW_CONTEXT_FIELDS = {"evaluation", "dd"}
 
 
-def _assert_row_schema_valid(ev: dict) -> None:
-    """Assert one flagevaluation row conforms to the worker contract (mechanical)."""
+def _assert_row_contract_valid(ev: dict) -> None:
+    """Assert one flagevaluation row uses only the SDK-owned stable EVP fields."""
+    extra_fields = set(ev) - _ALLOWED_EVENT_FIELDS
+    assert not extra_fields, f"unknown flagevaluation row fields: {sorted(extra_fields)}"
+
     # Required fields present with the right scalar types.
     for field, typ in _REQUIRED_EVENT_FIELDS.items():
         assert field in ev, f"required field {field!r} missing from row: {ev}"
@@ -495,6 +525,8 @@ def _assert_row_schema_valid(ev: dict) -> None:
     # context, when present, nests an "evaluation" map.
     if "context" in ev:
         assert isinstance(ev["context"], dict)
+        extra_context_fields = set(ev["context"]) - _ALLOWED_ROW_CONTEXT_FIELDS
+        assert not extra_context_fields, f"unknown row context fields: {sorted(extra_context_fields)}"
         assert "evaluation" in ev["context"]
         assert isinstance(ev["context"]["evaluation"], dict)
 
@@ -503,13 +535,24 @@ def _assert_row_schema_valid(ev: dict) -> None:
         assert isinstance(ev["runtime_default_used"], bool)
 
 
-def _assert_batch_schema_valid(payload: dict) -> None:
-    errors = sorted(_BATCHED_FLAGEVALUATIONS_VALIDATOR.iter_errors(payload), key=lambda e: e.path)
-    assert not errors, [f"{list(error.path)}: {error.message}" for error in errors]
+def _assert_batch_contract_valid(payload: dict) -> None:
+    """Assert the batch envelope uses only the stable fields this SDK emits."""
+    extra_fields = set(payload) - _ALLOWED_BATCH_FIELDS
+    assert not extra_fields, f"unknown flagevaluation batch fields: {sorted(extra_fields)}"
+    assert "flagEvaluations" in payload
+    assert isinstance(payload["flagEvaluations"], list)
+    if "context" in payload:
+        assert isinstance(payload["context"], dict)
+        extra_context_fields = set(payload["context"]) - _ALLOWED_BATCH_CONTEXT_FIELDS
+        assert not extra_context_fields, f"unknown batch context fields: {sorted(extra_context_fields)}"
+        for value in payload["context"].values():
+            assert isinstance(value, str)
+    for row in payload["flagEvaluations"]:
+        _assert_row_contract_valid(row)
 
 
-class TestPayloadSchemaConformance:
-    def test_full_tier_row_is_schema_valid_with_object_variant_and_allocation(self, writer):
+class TestPayloadContractConformance:
+    def test_full_tier_row_uses_stable_contract_with_object_variant_and_allocation(self, writer):
         """A full-tier row carries variant/allocation as {key} objects + context.evaluation."""
         writer.enqueue(
             _make_event(
@@ -522,17 +565,17 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
-        _assert_batch_schema_valid(decoded)
+        _assert_batch_contract_valid(decoded)
         assert "flagEvaluations" in decoded
         row = decoded["flagEvaluations"][0]
-        _assert_row_schema_valid(row)
+        _assert_row_contract_valid(row)
         # Specifically the {key} object shape (NOT bare strings).
         assert row["variant"] == {"key": "on"}
         assert row["allocation"] == {"key": "alloc-1"}
         assert row["context"]["evaluation"]["tier"] == "premium"
 
-    def test_degraded_tier_row_is_schema_valid_and_omits_context(self, writer):
-        """A degraded-tier row is schema-valid with variant/allocation objects, no context."""
+    def test_degraded_tier_row_uses_stable_contract_and_omits_context(self, writer):
+        """A degraded-tier row uses variant/allocation objects, no context."""
         writer._per_flag_count["my-flag"] = PER_FLAG_CAP  # force degraded
         writer.enqueue(
             _make_event(
@@ -546,16 +589,16 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
-        _assert_batch_schema_valid(decoded)
+        _assert_batch_contract_valid(decoded)
         row = decoded["flagEvaluations"][0]
-        _assert_row_schema_valid(row)
+        _assert_row_contract_valid(row)
         assert row["variant"] == {"key": "on"}
         assert row["error"] == {"message": "degraded failure"}
         assert "context" not in row
         assert "targeting_key" not in row
 
     def test_error_row_carries_error_message_object(self, writer):
-        """An error evaluation produces a schema-valid row with error.message."""
+        """An error evaluation produces a stable row with error.message."""
         writer.enqueue(
             _make_event(
                 variant="",
@@ -567,16 +610,16 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
-        _assert_batch_schema_valid(decoded)
+        _assert_batch_contract_valid(decoded)
         row = decoded["flagEvaluations"][0]
-        _assert_row_schema_valid(row)
+        _assert_row_contract_valid(row)
         assert row["error"] == {"message": "Flag not found"}
         # Absent variant -> runtime_default_used True, no variant object emitted.
         assert row["runtime_default_used"] is True
         assert "variant" not in row
 
     def test_batch_payload_validates_full_and_degraded_rows_together(self, writer):
-        """A single flush emits BOTH a full row and a degraded row, both schema-valid."""
+        """A single flush emits BOTH a full row and a degraded row under the stable contract."""
         # Full-tier event.
         writer.enqueue(_make_event(flag_key="full-flag", variant="on", attrs={"a": "b"}))
         # Degraded-tier event (different flag forced to degraded).
@@ -587,15 +630,15 @@ class TestPayloadSchemaConformance:
             writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
-        _assert_batch_schema_valid(decoded)
+        _assert_batch_contract_valid(decoded)
         rows = decoded["flagEvaluations"]
         assert len(rows) == 2
         for row in rows:
-            _assert_row_schema_valid(row)
+            _assert_row_contract_valid(row)
         flags = {r["flag"]["key"] for r in rows}
         assert flags == {"full-flag", "deg-flag"}
 
-    def test_worker_schema_rejects_top_level_reason(self):
+    def test_contract_rejects_top_level_reason(self):
         bad = {
             "flagEvaluations": [
                 {
@@ -608,9 +651,8 @@ class TestPayloadSchemaConformance:
                 }
             ]
         }
-        errors = list(_BATCHED_FLAGEVALUATIONS_VALIDATOR.iter_errors(bad))
-        assert errors
-        assert any("Additional properties" in error.message and "reason" in error.message for error in errors)
+        with pytest.raises(AssertionError, match="reason"):
+            _assert_batch_contract_valid(bad)
 
 
 # ---------------------------------------------------------------------------

@@ -330,12 +330,18 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
+        # AIDEV-NOTE: Stamp eval-time at provider entry so every OpenFeature exit path
+        # can feed the EVP flagevaluation hook first_evaluation/last_evaluation from
+        # evaluation time, not the later hook/flush time.
+        flag_metadata: dict[str, typing.Any] = {EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000)}
+
         # If provider is not enabled, return default value
         if not self._enabled:
             return FlagResolutionDetails(
                 value=default_value,
                 reason=Reason.DISABLED,
                 variant=None,
+                flag_metadata=flag_metadata,
             )
 
         try:
@@ -358,6 +364,7 @@ class DataDogProvider(AbstractProvider):
                     reason=Reason.ERROR,
                     error_code=ErrorCode.PROVIDER_NOT_READY,
                     error_message="No FFE configuration loaded",
+                    flag_metadata=flag_metadata,
                 )
 
             # Handle errors from native evaluation
@@ -380,6 +387,7 @@ class DataDogProvider(AbstractProvider):
                         reason=Reason.ERROR,
                         error_code=openfeature_error_code,
                         error_message="Flag not found",
+                        flag_metadata=flag_metadata,
                     )
 
                 # Other errors - return default with ERROR reason
@@ -388,6 +396,7 @@ class DataDogProvider(AbstractProvider):
                     reason=Reason.ERROR,
                     error_code=openfeature_error_code,
                     error_message=details.error_message or "Unknown error",
+                    flag_metadata=flag_metadata,
                 )
 
             # Map native ffe.Reason to OpenFeature Reason
@@ -402,18 +411,9 @@ class DataDogProvider(AbstractProvider):
                     evaluation_context=evaluation_context,
                 )
 
-            # Build flag_metadata with allocation_key and eval timestamp.
-            # The timestamp (milliseconds since epoch) is stamped here — at the provider
-            # resolution boundary — so the finally_after hook receives the most-accurate
-            # eval-time rather than the (later) hook-fire time. The hook falls back to
-            # hook-fire time when the metadata key is absent.
-            # AIDEV-NOTE: This mirrors the Go reference design (metadataEvalTimeKey in
-            # flagevaluation.go). Python's time.time() * 1000 is sufficient; the native
-            # PyO3 bridge does not surface a mutable metadata map, so we stamp it here.
-            flag_metadata: dict[str, typing.Any] = {}
+            # Add allocation_key to the provider-entry timestamp metadata when present.
             if details.allocation_key:
                 flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
-            flag_metadata[EVAL_TIMESTAMP_METADATA_KEY] = int(time.time() * 1000)
 
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.
@@ -441,6 +441,7 @@ class DataDogProvider(AbstractProvider):
                 reason=Reason.ERROR,
                 error_code=ErrorCode.GENERAL,
                 error_message=f"Unexpected error during flag evaluation: {str(e)}",
+                flag_metadata=flag_metadata,
             )
 
     def _report_exposure(

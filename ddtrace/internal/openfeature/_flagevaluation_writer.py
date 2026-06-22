@@ -29,6 +29,8 @@ import time
 import typing
 
 from ddtrace import config as ddconfig
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
@@ -39,13 +41,13 @@ from ddtrace.internal.utils.http import get_connection
 logger = get_logger(__name__)
 
 # EVP endpoint for flag evaluation events.
-FLAGEVALUATIONS_ENDPOINT = "/evp_proxy/v2/api/v2/flagevaluation"
-EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
+FLAGEVALUATIONS_ENDPOINT = f"{EVP_PROXY_AGENT_BASE_PATH}/api/v2/flagevaluation"
 EVP_SUBDOMAIN_VALUE = "event-platform-intake"
 
 # Context pruning limits — mirror worker.ts MAX_EVALUATION_CONTEXT_FIELDS / MAX_FIELD_LENGTH.
 MAX_CONTEXT_FIELDS = 256
 MAX_FIELD_LENGTH = 256
+DEDICATED_TARGETING_KEY_CONTEXT_FIELDS = frozenset(("targetingKey", "targeting_key"))
 
 # Aggregation caps (sized for a >=2,500-flag scale target).
 EVAL_SCALE_TARGET_FLAGS = 2_500
@@ -186,6 +188,8 @@ def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any
             out[prefix] = attrs
         return
     for k, v in attrs.items():
+        if not prefix and k in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
+            continue
         full_key = f"{prefix}.{k}" if prefix else k
         if isinstance(v, dict):
             _flatten_recursive(full_key, v, out)

@@ -18,6 +18,7 @@ from openfeature.evaluation_context import EvaluationContext
 import pytest
 
 from ddtrace.internal.openfeature._config import _set_ffe_config
+from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
@@ -143,12 +144,15 @@ class TestEVPExitPathsCovered:
         process_ffe_configuration(config)
 
         # Evaluate a string flag as boolean -> type mismatch ERROR.
-        assert client.get_boolean_value("str-flag", False) is False
+        details = client.get_boolean_details("str-flag", False)
+        assert details.value is False
 
         rows = _drain(provider)
         row = next((r for r in rows if r["flag"]["key"] == "str-flag"), None)
         assert row is not None, "type-mismatch eval must still emit a flagevaluation row"
         assert row.get("runtime_default_used") is True
+        assert row["first_evaluation"] == details.flag_metadata[EVAL_TIMESTAMP_METADATA_KEY]
+        assert row["last_evaluation"] == details.flag_metadata[EVAL_TIMESTAMP_METADATA_KEY]
 
     def test_disabled_flag_path(self, provider_and_client):
         provider, client = provider_and_client

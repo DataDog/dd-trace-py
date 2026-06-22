@@ -109,6 +109,14 @@ class TestFlagEvaluationHook:
         event = writer.enqueue.call_args[0][0]
         assert event.runtime_default is False
 
+    def test_finally_after_type_mismatch_sets_runtime_default(self, hook, writer):
+        hc = _make_hook_context()
+        details = _make_details(variant="wrong-type", error_code=ErrorCode.TYPE_MISMATCH)
+        hook.finally_after(hc, details, {})
+        event = writer.enqueue.call_args[0][0]
+        assert event.runtime_default is True
+        assert event.variant == ""
+
     def test_finally_after_does_not_enqueue_openfeature_reason(self, hook, writer):
         """OpenFeature reason is not an EVP field and must not enter the event snapshot."""
         hc = _make_hook_context()

@@ -12,6 +12,7 @@ Hook design:
 import time
 import typing
 
+from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.hook import Hook
 from openfeature.hook import HookContext
@@ -77,9 +78,9 @@ class FlagEvaluationHook(Hook):
             else:
                 eval_time_ms = int(time.time() * 1000)
 
-            # Variant: None/absent signals a runtime default.
-            variant = details.variant or ""
-            runtime_default = details.variant is None
+            # Variant: absent or type mismatch signals a runtime default.
+            runtime_default = not details.variant or details.error_code == ErrorCode.TYPE_MISMATCH
+            variant = "" if runtime_default else details.variant
 
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
