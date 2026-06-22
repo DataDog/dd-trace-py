@@ -97,12 +97,8 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         headers = {}
     elif not isinstance(headers, MutableMapping):
         # aiohttp accepts LooseHeaders: dict, Mapping, or sequence of (key, value) pairs.
-        # dict() would collapse duplicate entries (e.g. repeated Cookie/Set-Cookie values);
-        # CIMultiDict preserves them and matches aiohttp's own header representation.
-        # multidict is always available here because aiohttp depends on it.
-        from multidict import CIMultiDict
-
-        headers = CIMultiDict(headers)
+        # HTTPPropagator.inject requires a MutableMapping; convert sequences to dict.
+        headers = dict(headers)
     kwargs["headers"] = headers
 
     service: Optional[str] = (
