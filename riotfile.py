@@ -873,11 +873,19 @@ venv = Venv(
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
                     },
                     pkgs={
-                        "celery": [
-                            "~=5.2",
+                        "celery[redis]": "~=5.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9"],
+                    env={
+                        # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
+                        "PYTEST_PLUGINS": "celery.contrib.pytest",
+                    },
+                    pkgs={
+                        "celery[redis]": [
                             latest,
                         ],
-                        "redis": "~=3.5",
                     },
                 ),
                 Venv(
