@@ -1,16 +1,4 @@
 ---
 fixes:
   - |
-    fastapi: This fix resolves an issue where upgrading to FastAPI >= 0.137 caused span resource
-    names to be truncated or missing path prefixes when using nested ``include_router`` calls
-    (e.g. ``GET `` instead of ``GET /v1/items``). FastAPI 0.137 introduced a lazy
-    ``_IncludedRouter`` that no longer flattens nested router prefixes onto the leaf
-    ``APIRoute``, leaving ``scope["route"].path_format`` with only the relative path segment.
-    The integration now reads the fully-composed path from
-    ``scope["fastapi"]["effective_route_context"]`` when available.
-  - |
-    starlette: This fix resolves an issue where span resource names were duplicated
-    (e.g. ``GET /items/items``) when both the starlette and fastapi patches were active
-    simultaneously with FastAPI >= 0.137. FastAPI 0.137 changed ``APIRoute.handle`` to call
-    ``super().handle()`` (starlette ``Route.handle``) in certain code paths, causing the
-    tracing handler to fire twice for the same route instance within a single request.
+    fastapi: Fixes span resource names for FastAPI >= 0.137.

@@ -170,6 +170,11 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
     FastAPI >= 0.137 changed APIRoute.handle to call super().handle() (starlette Route.handle)
     when effective_route_context is absent. When both the fastapi and starlette patches are
     active, traced_handler fires twice for the same route instance, doubling resource_paths.
+
+    AIDEV-NOTE: We use id(instance) as the dedup key. Route objects are app-lifetime singletons
+    registered at startup and never GC'd during a request, so id() is stable for the duration.
+    Edge case: if FastAPI ever internally re-dispatches the same route instance within a single
+    request (e.g. error recovery), the second invocation will be silently skipped.
     """
     seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
     if id(instance) in seen_routes:
@@ -209,16 +214,20 @@ def traced_handler(wrapped, instance, args, kwargs):
     if _is_duplicate_route_call(scope, instance):
         return wrapped(*args, **kwargs)
 
-    # Add the path to the resource_paths list
-    if "resource_paths" not in scope["datadog"]:
-        scope["datadog"]["resource_paths"] = [instance.path]
-    else:
-        scope["datadog"]["resource_paths"].append(instance.path)
-
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
-    resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
     full_path = _get_fastapi_effective_path(scope)
+
+    # Only accumulate resource_paths for the pre-0.137 path; when full_path is available,
+    # the composed path is read directly from effective_route_context and resource_paths
+    # is never consumed.
+    if full_path is None:
+        if "resource_paths" not in scope["datadog"]:
+            scope["datadog"]["resource_paths"] = [instance.path]
+        else:
+            scope["datadog"]["resource_paths"].append(instance.path)
+
+    resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
     if full_path is not None:
         if request_spans:
