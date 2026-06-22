@@ -231,6 +231,8 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     PAYMENT_CANCELLATION: Literal["server.business_logic.payment.cancellation"] = (
         "server.business_logic.payment.cancellation"
     )
+    # Persistent: WAF deduplicates, so only the first LLM call per request is surfaced (by design).
+    LLM_EVENT: Literal["server.business_logic.llm.event"] = "server.business_logic.llm.event"
     PERSISTENT_ADDRESSES = frozenset(
         (
             REQUEST_BODY,
@@ -251,10 +253,12 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             PAYMENT_SUCCESS,
             PAYMENT_FAILURE,
             PAYMENT_CANCELLATION,
+            LLM_EVENT,
         )
     )
 
-    # EPHEMERAL ADDRESSES
+    # Non-persistent addresses: RASP addresses run in a subcontext; the others (extract-schema,
+    # login/payment business logic) run on the main context with rule_type=None.
     PROCESSOR_SETTINGS: Literal["waf.context.processor"] = "waf.context.processor"
     CMDI_ADDRESS: Literal["server.sys.exec.cmd"] = "server.sys.exec.cmd"
     SHI_ADDRESS: Literal["server.sys.shell.cmd"] = "server.sys.shell.cmd"

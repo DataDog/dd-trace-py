@@ -250,8 +250,8 @@ _MAX_NESTED_META_DEPTH = 12
 
 def _sanitize_span_event_depth(obj: Any) -> Any:
     """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation.
-    The original structure is never mutated.
+    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
+    and every mapping key stringified. The original structure is never mutated.
     A warning is logged for each stringified field, including its dotted path.
     """
 
@@ -267,7 +267,7 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
             )
             return safe_json(node)
         if isinstance(node, dict):
-            return {k: _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
+            return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
         return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
 
     return _walk(obj, 0, "")
@@ -398,6 +398,16 @@ def get_llmobs_trace_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
+
+
+def get_llmobs_sample_rate(span: Span) -> Optional[str]:
+    """Return the LLMObs sample rate stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLE_RATE)
+
+
+def get_llmobs_sampling_decision(span: Span) -> Optional[str]:
+    """Return the LLMObs sampling decision stored on a span's meta_struct _dd dict."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SAMPLING_DECISION)
 
 
 _HEX_TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
@@ -562,6 +572,8 @@ def _annotate_llmobs_span_data(
     parent_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     dd_scope: Optional[str] = None,
+    dd_sample_rate: Optional[str] = None,
+    dd_sampling_decision: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -600,7 +612,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            meta[LLMOBS_STRUCT.METADATA].update(metadata)
+            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
             metadata_dd = meta[LLMOBS_STRUCT.METADATA].setdefault(LLMOBS_STRUCT.METADATA_DD, {})
@@ -663,6 +676,10 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.INTENT] = intent
         if dd_scope is not None:
             llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SCOPE] = dd_scope
+        if dd_sample_rate is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLE_RATE] = dd_sample_rate
+        if dd_sampling_decision is not None:
+            llmobs_span_data[LLMOBS_STRUCT.DD][LLMOBS_STRUCT.SAMPLING_DECISION] = dd_sampling_decision
     except Exception as e:
         log.warning("Error auto-annotating llmobs data: %s", e)
     finally:
