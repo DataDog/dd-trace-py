@@ -171,6 +171,7 @@ suites:
       - '@mistralai'
       - '@llmobs'
       - tests/contrib/mistralai/*
+      - tests/cassettes/mistral/*
       - tests/snapshots/tests.contrib.mistralai.*
     snapshot: true
   openai:

@@ -4,7 +4,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import MistralAIIntegration
-from ddtrace.llmobs._integrations.mistralai import _extract_provider
+from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 
 config._add("mistralai", {})
@@ -21,7 +21,10 @@ def get_version() -> str:
 def _kwargs_with_server_url(instance, kwargs):
     if "server_url" in kwargs:
         return kwargs
-    instance_url = getattr(getattr(instance, "sdk_configuration", None), "server_url", None)
+    sdk_configuration = getattr(instance, "sdk_configuration", None)
+    if sdk_configuration is None:
+        return kwargs
+    instance_url = getattr(sdk_configuration, "server_url", None)
     if instance_url:
         kwargs = dict(kwargs, server_url=instance_url)
     return kwargs
@@ -30,7 +33,7 @@ def _kwargs_with_server_url(instance, kwargs):
 def traced_chat_generate(func, instance, args, kwargs):
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = _extract_provider(enriched_kwargs)
+    provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
 
     with integration.trace(
@@ -50,7 +53,7 @@ def traced_chat_generate(func, instance, args, kwargs):
 async def traced_async_chat_generate(func, instance, args, kwargs):
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = _extract_provider(enriched_kwargs)
+    provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
 
     with integration.trace(
@@ -70,7 +73,7 @@ async def traced_async_chat_generate(func, instance, args, kwargs):
 def traced_embed_generate(func, instance, args, kwargs):
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = _extract_provider(enriched_kwargs)
+    provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
 
     with integration.trace(
@@ -90,7 +93,7 @@ def traced_embed_generate(func, instance, args, kwargs):
 async def async_traced_embed_generate(func, instance, args, kwargs):
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
-    provider_name = _extract_provider(enriched_kwargs)
+    provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
 
     with integration.trace(

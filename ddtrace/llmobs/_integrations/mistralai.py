@@ -6,8 +6,8 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Document
@@ -64,7 +64,7 @@ class MistralAIIntegration(BaseLLMIntegration):
         model_name = kwargs.get("model", "")
         if response is not None:
             model_name = getattr(response, "model", "") or model_name
-        provider = _extract_provider(kwargs)
+        provider = extract_provider(kwargs)
         _annotate_llmobs_span_data(
             span,
             kind=operation,
@@ -95,11 +95,6 @@ class MistralAIIntegration(BaseLLMIntegration):
             output_value=_extract_embedding_output_value(response),
             metrics=_extract_metrics(response),
         )
-
-
-def _extract_provider(kwargs) -> str:
-    server_url = kwargs.get("server_url") or ""
-    return "mistral" if not server_url or "mistral" in server_url.lower() else UNKNOWN_MODEL_PROVIDER
 
 
 def _extract_metadata(kwargs, params):
