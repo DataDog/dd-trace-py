@@ -445,7 +445,7 @@ class TestLLMObsOpenaiV1:
         )
 
     def test_chat_completion_multimodal_content(self, openai, openai_llmobs, test_spans):
-        """Test that multimodal content (text + image_url + audio) is rendered as readable text."""
+        """Multimodal content renders as readable text, and input audio is captured as audio_parts."""
         image_url = (
             "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
             ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
@@ -473,7 +473,13 @@ class TestLLMObsOpenaiV1:
             name="OpenAI.createChatCompletion",
             model_name=resp.model,
             model_provider="openai",
-            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What\u2019s in this image?\n[image]\n[audio]",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
+                }
+            ],
             output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
             metadata={},
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
@@ -525,10 +531,51 @@ class TestLLMObsOpenaiV1:
             name="OpenAI.createChatCompletion",
             model_name=resp.model,
             model_provider="openai",
-            input_messages=[{"role": "user", "content": "What\u2019s in this image?\n[image]\n[audio]"}],
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What\u2019s in this image?\n[image]\n[audio]",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
+                }
+            ],
             output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
             metadata={},
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 45),
+        reason="audio output (ChatCompletionAudio) not supported before openai 1.45",
+    )
+    def test_chat_completion_audio_output(self, openai, openai_llmobs, test_spans):
+        """Assistant audio output is captured as audio_parts, with the transcript surfaced as content."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_audio_output.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4o-audio-preview",
+                modalities=["text", "audio"],
+                audio={"voice": "alloy", "format": "wav"},
+                messages=[{"role": "user", "content": "Say hello."}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[{"role": "user", "content": "Say hello."}],
+            output_messages=[
+                {
+                    "role": "assistant",
+                    "content": "Hello! How can I help you today?",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "QUJDRA=="}],
+                }
+            ],
+            metadata={},
+            metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 

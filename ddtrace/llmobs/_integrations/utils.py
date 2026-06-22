@@ -11,6 +11,7 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
@@ -340,20 +341,40 @@ def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
     return AudioPart(mime_type=mime_type, content=content)
 
 
-def _extract_content_parts(parts: list) -> str:
-    """Extract readable text from multimodal content parts (e.g., text + image)."""
+# OpenAI audio ``format`` values that don't map to ``audio/<format>``.
+_OPENAI_AUDIO_MIME_TYPES = {
+    "mp3": "audio/mpeg",
+    "pcm16": "audio/pcm",
+}
+
+
+def audio_mime_type_from_format(fmt: str) -> str:
+    """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
+    fmt = (fmt or "").lower()
+    return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
+
+
+def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
+    """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
     extracted = []
+    audio_parts: list[AudioPart] = []
     for part in parts:
         part_type = _get_attr(part, "type", "")
         if part_type == "text":
             extracted.append(str(_get_attr(part, "text", "")))
         elif part_type == "image_url":
-            extracted.append("[image]")
+            extracted.append(IMAGE_FALLBACK_MARKER)
         elif part_type == "input_audio":
-            extracted.append("[audio]")
+            input_audio = _get_attr(part, "input_audio", {}) or {}
+            data = _get_attr(input_audio, "data", "")
+            if data:
+                audio_parts.append(
+                    format_audio_part(data, audio_mime_type_from_format(_get_attr(input_audio, "format", "")))
+                )
+            extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
-    return "\n".join(extracted)
+    return "\n".join(extracted), audio_parts
 
 
 def openai_set_meta_tags_from_chat(
@@ -363,14 +384,17 @@ def openai_set_meta_tags_from_chat(
     input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
         raw_content = _get_attr(m, "content", "")
+        audio_parts: list[AudioPart] = []
         if isinstance(raw_content, list):
-            content = _extract_content_parts(raw_content)
+            content, audio_parts = _extract_content_parts(raw_content)
         elif raw_content is None:
             content = ""
         else:
             content = str(raw_content)
         role = str(_get_attr(m, "role", ""))
         processed_message: Message = Message(content=content, role=role)
+        if audio_parts:
+            processed_message["audio_parts"] = audio_parts
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -430,6 +454,7 @@ def openai_set_meta_tags_from_chat(
                 message["tool_calls"] = extracted_tool_calls
             output_messages.append(message)
     else:
+        output_audio_format = _get_attr(kwargs.get("audio") or {}, "format", "")
         choices = _get_attr(messages, "choices", [])
         for idx, choice in enumerate(choices):
             choice_message = _get_attr(choice, "message", {})
@@ -445,7 +470,21 @@ def openai_set_meta_tags_from_chat(
             )
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
+            audio = _get_attr(choice_message, "audio", None)
+            output_audio_parts: list[AudioPart] = []
+            if audio is not None:
+                audio_data = _get_attr(audio, "data", "")
+                if audio_data:
+                    output_audio_parts.append(
+                        format_audio_part(audio_data, audio_mime_type_from_format(output_audio_format))
+                    )
+                # gpt-4o-audio-preview returns null content; surface the transcript as readable text
+                if not content:
+                    content = _get_attr(audio, "transcript", "") or ""
+
             message = Message(content=str(content), role=str(role))
+            if output_audio_parts:
+                message["audio_parts"] = output_audio_parts
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
             if extracted_tool_results:

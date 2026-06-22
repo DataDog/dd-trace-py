@@ -2,8 +2,10 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
+from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 
@@ -19,6 +21,40 @@ def test_format_audio_part_from_base64_string():
     """An already-encoded base64 string is passed through unchanged."""
     part = format_audio_part("AAECAw==", "audio/mp3")
     assert part == {"mime_type": "audio/mp3", "content": "AAECAw=="}
+
+
+def test_audio_mime_type_from_format():
+    """OpenAI audio formats map to MIME types, falling back to audio/<format>."""
+    assert audio_mime_type_from_format("wav") == "audio/wav"
+    assert audio_mime_type_from_format("mp3") == "audio/mpeg"
+    assert audio_mime_type_from_format("pcm16") == "audio/pcm"
+    assert audio_mime_type_from_format("FLAC") == "audio/flac"
+    assert audio_mime_type_from_format("opus") == "audio/opus"
+    assert audio_mime_type_from_format("") == "audio/wav"
+
+
+def test_extract_content_parts_collects_audio():
+    """input_audio parts produce AudioParts alongside the readable text marker."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "what is said here?"},
+            {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
+        ]
+    )
+    assert text == "what is said here?\n[audio]"
+    assert audio_parts == [{"mime_type": "audio/mpeg", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_no_audio():
+    """Text/image-only content yields no audio parts."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "image_url": "http://example.com/x.png"},
+        ]
+    )
+    assert text == "hello\n[image]"
+    assert audio_parts == []
 
 
 def test_basic_functionality():
