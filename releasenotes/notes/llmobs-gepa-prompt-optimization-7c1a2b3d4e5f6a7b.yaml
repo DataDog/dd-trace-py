@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: This adds a ``method`` parameter to prompt optimization, allowing selection
+    between the built-in ``"metaprompting"`` loop (default) and the ``"gepa"`` evolutionary optimizer
+    (requires ``pip install ddtrace[gepa]``). A ``gepa_config`` parameter forwards GEPA-specific
+    options such as ``max_metric_calls`` and ``candidate_selection_strategy``, and a
+    ``dataset_split_seed`` parameter controls the train/valid/test partition when dataset splitting
+    is enabled.
