@@ -15,6 +15,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+static const constexpr bool memory_leak_detection = false;
+
 namespace Datadog {
 
 namespace {
@@ -581,116 +583,120 @@ GCMonitor::take_snapshot()
         type_counts[info.first]++;
     }
 
-    const auto t_survivor_start = Clock::now();
-    timing.type_scan_us = elapsed_us(t_type_scan_start, t_survivor_start);
+    auto t_referrers_start = Clock::now();
+    if (memory_leak_detection) {
 
-    // ------------------------------------------------------------------
-    // 3. Update survivor counts
-    // ------------------------------------------------------------------
-    std::unordered_map<uintptr_t, int> new_survivor_counts;
-    new_survivor_counts.reserve(_survivor_counts.size());
+        const auto t_survivor_start = Clock::now();
+        timing.type_scan_us = elapsed_us(t_type_scan_start, t_survivor_start);
 
-    for (const auto& [oid, info] : cur_objs) {
-        auto prev_it = _prev_objs.find(oid);
-        if (prev_it != _prev_objs.end()) {
-            // Object was present in the previous snapshot: increment survivor count
-            auto sc_it = _survivor_counts.find(oid);
-            int count = (sc_it != _survivor_counts.end()) ? sc_it->second + 1 : 1;
-            new_survivor_counts[oid] = count;
-        }
-        // Objects not in _prev_objs start fresh (count = 0) -- not added to new_survivor_counts
-    }
-    _survivor_counts = std::move(new_survivor_counts);
-    _prev_objs = cur_objs;
+        // ------------------------------------------------------------------
+        // 3. Update survivor counts
+        // ------------------------------------------------------------------
+        std::unordered_map<uintptr_t, int> new_survivor_counts;
+        new_survivor_counts.reserve(_survivor_counts.size());
 
-    const auto t_referrers_start = Clock::now();
-    timing.survivor_update_us = elapsed_us(t_survivor_start, t_referrers_start);
-
-    // ------------------------------------------------------------------
-    // 4. Build reference tree for suspects (if referrers are enabled)
-    // ------------------------------------------------------------------
-    // Collect suspects: objects whose survivor count >= threshold
-    struct Suspect
-    {
-        uintptr_t oid;
-        uint32_t type_idx;
-        uint64_t size;
-        int survived;
-    };
-    std::vector<Suspect> suspects;
-    suspects.reserve(static_cast<size_t>(_top_n));
-
-    for (const auto& [oid, sc] : _survivor_counts) {
-        if (sc >= _survivor_threshold) {
-            auto it = cur_objs.find(oid);
-            if (it != cur_objs.end() && !is_excluded_type(type_table[it->second.first])) {
-                suspects.push_back({ oid, it->second.first, it->second.second, sc });
+        for (const auto& [oid, info] : cur_objs) {
+            auto prev_it = _prev_objs.find(oid);
+            if (prev_it != _prev_objs.end()) {
+                // Object was present in the previous snapshot: increment survivor count
+                auto sc_it = _survivor_counts.find(oid);
+                int count = (sc_it != _survivor_counts.end()) ? sc_it->second + 1 : 1;
+                new_survivor_counts[oid] = count;
             }
+            // Objects not in _prev_objs start fresh (count = 0) -- not added to new_survivor_counts
         }
-    }
+        _survivor_counts = std::move(new_survivor_counts);
+        _prev_objs = cur_objs;
 
-    // Sort suspects by survived count (descending), then size (descending)
-    std::sort(suspects.begin(), suspects.end(), [](const Suspect& a, const Suspect& b) {
-        if (a.survived != b.survived) {
-            return a.survived > b.survived;
-        }
-        return a.size > b.size;
-    });
+        t_referrers_start = Clock::now();
+        timing.survivor_update_us = elapsed_us(t_survivor_start, t_referrers_start);
 
-    if (static_cast<int>(suspects.size()) > _top_n) {
-        suspects.resize(static_cast<size_t>(_top_n));
-    }
+        // ------------------------------------------------------------------
+        // 4. Build reference tree for suspects (if referrers are enabled)
+        // ------------------------------------------------------------------
+        // Collect suspects: objects whose survivor count >= threshold
+        struct Suspect
+        {
+            uintptr_t oid;
+            uint32_t type_idx;
+            uint64_t size;
+            int survived;
+        };
+        std::vector<Suspect> suspects;
+        suspects.reserve(static_cast<size_t>(_top_n));
 
-    std::vector<RootNode> roots;
-
-    if (_referrers_enabled && !suspects.empty()) {
-        // Walk referrer chains to find roots and build the tree
-        for (const auto& suspect : suspects) {
-            // NOLINTNEXTLINE(performance-no-int-to-ptr)
-            PyObject* obj = reinterpret_cast<PyObject*>(suspect.oid);
-            // Verify the object is still in the list before walking
-            // (the gc_id_set was built from the same objs list, so this is safe)
-            if (gc_id_set.find(suspect.oid) == gc_id_set.end()) {
-                continue;
-            }
-
-            RootNode root = find_root(obj, 20, gc_id_set, type_table, type_table_index);
-
-            // Merge into existing roots with same category + fn + type_idx
-            bool merged = false;
-            for (auto& existing : roots) {
-                if (existing.category == root.category && existing.fn == root.fn &&
-                    existing.type_idx == root.type_idx) {
-                    existing.add(root.ic, root.ts);
-                    merged = true;
-                    break;
+        for (const auto& [oid, sc] : _survivor_counts) {
+            if (sc >= _survivor_threshold) {
+                auto it = cur_objs.find(oid);
+                if (it != cur_objs.end() && !is_excluded_type(type_table[it->second.first])) {
+                    suspects.push_back({ oid, it->second.first, it->second.second, sc });
                 }
             }
-            if (!merged) {
-                roots.push_back(std::move(root));
-            }
         }
-    } else {
-        // Without referrer walking: emit one '?' root per suspect type
-        // aggregating all suspects of the same type
-        std::unordered_map<uint32_t, RootNode> by_type;
-        for (const auto& suspect : suspects) {
-            auto it = by_type.find(suspect.type_idx);
-            if (it == by_type.end()) {
-                RootNode r;
-                r.type_idx = suspect.type_idx;
-                r.category = '?';
-                r.ic = 1;
-                r.ts = suspect.size;
-                by_type[suspect.type_idx] = std::move(r);
-            } else {
-                it->second.ic++;
-                it->second.ts += suspect.size;
+
+        // Sort suspects by survived count (descending), then size (descending)
+        std::sort(suspects.begin(), suspects.end(), [](const Suspect& a, const Suspect& b) {
+            if (a.survived != b.survived) {
+                return a.survived > b.survived;
             }
+            return a.size > b.size;
+        });
+
+        if (static_cast<int>(suspects.size()) > _top_n) {
+            suspects.resize(static_cast<size_t>(_top_n));
         }
-        roots.reserve(by_type.size());
-        for (auto& [tidx, rnode] : by_type) {
-            roots.push_back(std::move(rnode));
+
+        std::vector<RootNode> roots;
+
+        if (_referrers_enabled && !suspects.empty()) {
+            // Walk referrer chains to find roots and build the tree
+            for (const auto& suspect : suspects) {
+                // NOLINTNEXTLINE(performance-no-int-to-ptr)
+                PyObject* obj = reinterpret_cast<PyObject*>(suspect.oid);
+                // Verify the object is still in the list before walking
+                // (the gc_id_set was built from the same objs list, so this is safe)
+                if (gc_id_set.find(suspect.oid) == gc_id_set.end()) {
+                    continue;
+                }
+
+                RootNode root = find_root(obj, 20, gc_id_set, type_table, type_table_index);
+
+                // Merge into existing roots with same category + fn + type_idx
+                bool merged = false;
+                for (auto& existing : roots) {
+                    if (existing.category == root.category && existing.fn == root.fn &&
+                        existing.type_idx == root.type_idx) {
+                        existing.add(root.ic, root.ts);
+                        merged = true;
+                        break;
+                    }
+                }
+                if (!merged) {
+                    roots.push_back(std::move(root));
+                }
+            }
+        } else {
+            // Without referrer walking: emit one '?' root per suspect type
+            // aggregating all suspects of the same type
+            std::unordered_map<uint32_t, RootNode> by_type;
+            for (const auto& suspect : suspects) {
+                auto it = by_type.find(suspect.type_idx);
+                if (it == by_type.end()) {
+                    RootNode r;
+                    r.type_idx = suspect.type_idx;
+                    r.category = '?';
+                    r.ic = 1;
+                    r.ts = suspect.size;
+                    by_type[suspect.type_idx] = std::move(r);
+                } else {
+                    it->second.ic++;
+                    it->second.ts += suspect.size;
+                }
+            }
+            roots.reserve(by_type.size());
+            for (auto& [tidx, rnode] : by_type) {
+                roots.push_back(std::move(rnode));
+            }
         }
     }
 
