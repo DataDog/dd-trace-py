@@ -2,6 +2,16 @@
 
 Follow the **apm-integrations** skill's [Implementation Guide](../../apm-integrations/references/implementation-guide.md) for the full step-by-step. This guide expands on the LLM-specific steps.
 
+## Design: Two-Layer Architecture
+
+LLM integrations use `BaseLLMIntegration` as a second layer on top of a standard APM integration:
+- Patch code creates a subclass instance and stores it on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
+- `integration.trace()` creates spans; patch code manages span lifecycle via `span.set_exc_info()` and `span.finish()`
+- `integration.llmobs_set_tags(span, ...)` handles all LLMObs tag extraction in the **finally** block
+- The `BaseLLMIntegration` subclass in `ddtrace/llmobs/_integrations/` handles message/token/tool extraction
+
+This separation keeps APM patching decoupled from LLMObs data extraction.
+
 ## Overview
 
 An LLM integration is an APM integration with an extra layer. You do everything in the apm-integrations guide, but:

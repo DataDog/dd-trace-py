@@ -46,12 +46,8 @@ spans directly. Still used by redis, kafka, grpc, graphql, requests, celery, etc
 
 ## LLM Integration Pattern
 
-LLM integrations use `BaseLLMIntegration` (in `ddtrace/llmobs/_integrations/base.py`):
-- Patch code creates a subclass instance and stores it on the module
-- `integration.trace()` creates spans via `tracer.start_span()`
-- Patch code directly manages span lifecycle: `span.set_exc_info()`, `span.finish()`
-- `integration.llmobs_set_tags(span, ...)` handles LLMObs tag extraction
-- LLMObs subclasses in `ddtrace/llmobs/_integrations/` handle message/token extraction
+See the `llmobs-integrations` skill for LLM/AI integration architecture. LLM integrations
+layer on top of APM integrations using `BaseLLMIntegration` -- use both skills together.
 
 ## Key Files
 
@@ -64,5 +60,4 @@ LLM integrations use `BaseLLMIntegration` (in `ddtrace/llmobs/_integrations/base
 | `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |
 | `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
-| `ddtrace/llmobs/_integrations/base.py` | BaseLLMIntegration |
 | `riotfile.py` | Test environment matrix |

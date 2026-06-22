@@ -16,6 +16,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
+13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 
 ## Key Architecture
 

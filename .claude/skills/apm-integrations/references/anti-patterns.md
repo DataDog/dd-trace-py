@@ -35,30 +35,20 @@ decoupling. Infrastructure: `ddtrace/_trace/events.py`, `ddtrace/_trace/subscrib
 
 ## Span Lifecycle
 
-**Forgetting `span.finish()` in non-streaming paths** -- LLM integrations must
-call `span.finish()` in the `finally` block for non-streaming responses.
-Streaming responses finish the span when the iterator is exhausted.
-
 **Not calling `span.set_exc_info()` on exceptions** -- Without this, error spans
 won't have exception details. Always use `span.set_exc_info(*sys.exc_info())`
 in except blocks.
 
-**Missing `integration.llmobs_set_tags()` in finally block** -- Without this,
-LLMObs won't capture response data. Must be called before `span.finish()`.
-
 **Setting items on context after it exits** -- `ctx.set_item()` calls after the
 `with core.context_with_data(...)` block exits are silently dropped.
+
+For LLM/AI integrations, see the `llmobs-integrations` skill for LLMObs-specific
+span lifecycle anti-patterns (span.finish placement, llmobs_set_tags, streaming).
 
 ## Testing
 
 **Not adding to component AND suite in suitespec, or forgetting riotfile suite.** -- All entries required;
 missing either means CI won't run tests or detect source changes.
 
-**Using the wrong suitespec file** -- LLM/AI: `tests/llmobs/suitespec.yml`.
-Standard: `tests/contrib/suitespec.yml`.
-
-**For LLM/AI Integrations, prefer VCR cassettes over mocking/stubbing** -- Mocking / stubbing does not 
-guarantee our integrations work, instead use VCR cassettes which cache HTTP request data to re run.
-
-**VCR cassettes containing real API keys** -- Ensure `filter_headers` includes
-the library's auth header name.
+For LLM/AI integrations, see the `llmobs-integrations` skill for VCR cassette anti-patterns
+and the correct suitespec file (`tests/llmobs/suitespec.yml`).
