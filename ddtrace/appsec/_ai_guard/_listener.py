@@ -95,7 +95,10 @@ def _anthropic_listen(client: AIGuardClient):
     core.on("anthropic.unpatch", _uninstall_anthropic_wrappers)
 
 
-_anthropic_wrappers_installed: bool = False
+# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
+# only ever peels OUR layer -- never a contrib wrapper on a target we skipped or
+# that failed mid-install.
+_anthropic_wrapped_targets: list[tuple[Any, str]] = []
 
 
 def _install_anthropic_wrappers(client: AIGuardClient) -> None:
@@ -111,7 +114,6 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` so there is zero
     overhead on the default (flag-off) code path.
     """
-    global _anthropic_wrappers_installed
     if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
         return
 
@@ -143,29 +145,37 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
-    # Mark before try so _uninstall_anthropic_wrappers can clean up partial installs on failure.
-    _anthropic_wrappers_installed = True
     # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
-    # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch() (and
-    # the unwrap list in _uninstall_anthropic_wrappers below). If the contrib
-    # adds/renames a streaming target or changes the >= (0, 37) beta gate, that
-    # surface silently goes unbuffered here -- a security gap with no failing
-    # test. Keep all three lists aligned.
-    try:
-        wrap("anthropic", "resources.messages.Messages.create", sync_wrapper)
-        wrap("anthropic", "resources.messages.Messages.stream", sync_wrapper)
+    # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch(). If the
+    # contrib adds/renames a streaming target or changes the >= (0, 37) beta gate,
+    # that surface silently goes unbuffered here -- a security gap with no failing
+    # test. Keep them aligned. ``_uninstall_anthropic_wrappers`` derives its unwrap
+    # list from ``_anthropic_wrapped_targets`` below, so it stays correct automatically.
+    msgs = anthropic.resources.messages
+    targets = [
+        (msgs.Messages, "create", sync_wrapper),
+        (msgs.Messages, "stream", sync_wrapper),
         # AsyncMessages.stream is a sync method (returns a manager); the TracedStream it
         # produces has an AsyncStreamHandler, so sync_wrapper dispatches to BufferedAIGuardAsyncStream.
-        wrap("anthropic", "resources.messages.AsyncMessages.stream", sync_wrapper)
-        wrap("anthropic", "resources.messages.AsyncMessages.create", async_wrapper)
-        if parse_version(getattr(anthropic, "__version__", "0")) >= (0, 37):
-            wrap("anthropic", "resources.beta.messages.messages.Messages.create", sync_wrapper)
-            wrap("anthropic", "resources.beta.messages.messages.Messages.stream", sync_wrapper)
-            wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", sync_wrapper)
-            wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.create", async_wrapper)
-    except Exception:
-        _uninstall_anthropic_wrappers()
-        logger.debug("AI Guard anthropic: failed to install streaming wrappers", exc_info=True)
+        (msgs.AsyncMessages, "stream", sync_wrapper),
+        (msgs.AsyncMessages, "create", async_wrapper),
+    ]
+    if parse_version(getattr(anthropic, "__version__", "0")) >= (0, 37):
+        beta = anthropic.resources.beta.messages.messages
+        targets += [
+            (beta.Messages, "create", sync_wrapper),
+            (beta.Messages, "stream", sync_wrapper),
+            (beta.AsyncMessages, "stream", sync_wrapper),
+            (beta.AsyncMessages, "create", async_wrapper),
+        ]
+
+    for owner, attr, wrapper in targets:
+        try:
+            wrap(owner, attr, wrapper)
+        except Exception:
+            logger.debug("AI Guard anthropic: failed to install streaming wrapper on %s.%s", owner, attr)
+            continue
+        _anthropic_wrapped_targets.append((owner, attr))
 
 
 def _uninstall_anthropic_wrappers() -> None:
@@ -174,31 +184,18 @@ def _uninstall_anthropic_wrappers() -> None:
     Called when the Anthropic contrib fires ``anthropic.unpatch`` (at the start
     of its own ``unpatch()``, before the contrib does its own unwrap calls).
     Peeling our outermost layer first lets the contrib's own ``unwrap`` calls
-    correctly reach their inner wrappers.  No-ops if wrappers were never
-    installed (e.g. the flag was off at patch time).
+    correctly reach their inner wrappers.  Only unwraps the targets we recorded
+    in ``_anthropic_wrapped_targets`` -- no-ops if none were installed (e.g. the
+    flag was off at patch time, or a partial install wrapped nothing).
     """
-    global _anthropic_wrappers_installed
-    if not _anthropic_wrappers_installed:
-        return
-    _anthropic_wrappers_installed = False
-
-    import anthropic
-
     from ddtrace.contrib.internal.trace_utils import unwrap
-    from ddtrace.internal.utils.version import parse_version
 
-    try:
-        unwrap(anthropic.resources.messages.Messages, "create")
-        unwrap(anthropic.resources.messages.Messages, "stream")
-        unwrap(anthropic.resources.messages.AsyncMessages, "stream")
-        unwrap(anthropic.resources.messages.AsyncMessages, "create")
-        if parse_version(getattr(anthropic, "__version__", "0")) >= (0, 37):
-            unwrap(anthropic.resources.beta.messages.messages.Messages, "create")
-            unwrap(anthropic.resources.beta.messages.messages.Messages, "stream")
-            unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "stream")
-            unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "create")
-    except Exception:
-        logger.debug("AI Guard anthropic: failed to uninstall streaming wrappers", exc_info=True)
+    while _anthropic_wrapped_targets:
+        owner, attr = _anthropic_wrapped_targets.pop()
+        try:
+            unwrap(owner, attr)
+        except Exception:
+            logger.debug("AI Guard anthropic: failed to uninstall streaming wrapper on %s.%s", owner, attr)
 
 
 def _on_set_http_meta_for_ai_guard(

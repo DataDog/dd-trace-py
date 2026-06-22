@@ -302,3 +302,61 @@ def test_stream_collision_short_circuit(mock_execute_request, anthropic_client_s
 
     assert "".join(chunks) == "ok"
     mock_execute_request.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Install / uninstall safety
+# ---------------------------------------------------------------------------
+
+
+def test_partial_install_failure_does_not_strip_contrib_wrappers(anthropic_sdk_buffered, monkeypatch):
+    """A wrap() failure mid-install must not leave us unwrapping targets we never
+    wrapped — otherwise uninstall would peel the contrib's tracing wrapper.
+
+    We reset our wrappers to the contrib-only baseline, force ``wrap`` to fail on
+    one target, re-install, and assert the failed target is never recorded and
+    its contrib wrapper survives a subsequent uninstall.
+    """
+    import inspect
+
+    import anthropic
+
+    from ddtrace.appsec._ai_guard import _listener
+    import ddtrace.contrib.internal.trace_utils as trace_utils
+
+    target_cls = anthropic.resources.messages.AsyncMessages
+    other_cls = anthropic.resources.messages.Messages
+
+    # ``getattr_static`` returns the stored FunctionWrapper without invoking the
+    # descriptor, so its identity is stable (``target_cls.create`` would mint a
+    # fresh BoundFunctionWrapper on every access).
+    def stored(cls, attr):
+        return inspect.getattr_static(cls, attr)
+
+    # Peel our buffer layer installed by the fixture's patch(), back to contrib-only.
+    _listener._uninstall_anthropic_wrappers()
+    contrib_create = stored(target_cls, "create")
+    assert hasattr(contrib_create, "__wrapped__"), "contrib wrapper expected after uninstall"
+
+    real_wrap = trace_utils.wrap
+
+    def flaky_wrap(owner, attr, wrapper):
+        if owner is target_cls and attr == "create":
+            raise RuntimeError("boom")
+        return real_wrap(owner, attr, wrapper)
+
+    monkeypatch.setattr(trace_utils, "wrap", flaky_wrap)
+    _listener._install_anthropic_wrappers(object())
+
+    # The failed target was never recorded, and our buffer layer was not applied
+    # to it (still the exact contrib wrapper object).
+    assert (target_cls, "create") not in _listener._anthropic_wrapped_targets
+    assert stored(target_cls, "create") is contrib_create
+    # A sibling target that did NOT fail was wrapped by us and recorded.
+    assert (other_cls, "create") in _listener._anthropic_wrapped_targets
+    assert stored(other_cls, "create") is not contrib_create
+
+    # Uninstall must leave the contrib wrapper on the never-wrapped target intact.
+    _listener._uninstall_anthropic_wrappers()
+    assert stored(target_cls, "create") is contrib_create
+    assert not _listener._anthropic_wrapped_targets
