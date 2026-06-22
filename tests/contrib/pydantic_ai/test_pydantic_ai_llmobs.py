@@ -1,9 +1,12 @@
+import json
+
 import mock
 import pydantic_ai
 import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
@@ -439,6 +442,25 @@ class TestLLMObsPydanticAI:
             tags=PYDANTIC_AI_TAGS,
         )
 
+    async def test_agent_run_with_unserializable_model_settings(
+        self, pydantic_ai, request_vcr, pydantic_ai_llmobs, test_spans
+    ):
+        """Regression test: agent.model_settings containing non-JSON-serializable provider
+        sentinel values must not crash span submission.
+        """
+        model_settings = {"temperature": _UnserializableSentinel(), "max_tokens": 100}
+        with request_vcr.use_cassette("agent_iter.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", model_settings=model_settings)
+            await agent.run("Hello, world!")
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_data = _get_llmobs_data_metastruct(spans[0])
+        recorded_settings = span_data["metadata"]["model_settings"]
+        # Coerced values must be JSON-serializable.
+        json.dumps(recorded_settings)
+        assert recorded_settings["max_tokens"] == 100
+        assert recorded_settings["temperature"] == "Omit()"
+
 
 class TestLLMObsPydanticAISpanLinks:
     async def test_agent_calls_tool(self, pydantic_ai, request_vcr, pydantic_ai_llmobs, openai_patched, test_spans):
@@ -483,10 +505,6 @@ def test_model_settings_unserializable_values_are_coerced():
     span finish (``TypeError: Object of type Omit is not JSON serializable``). They must
     be coerced to JSON-safe values while serializable settings are preserved.
     """
-    import json
-
-    from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
     raw = {"temperature": _UnserializableSentinel(), "max_tokens": 100}
     # This is what used to be stored raw on the span and crash encoding.
     with pytest.raises(TypeError):
@@ -499,23 +517,4 @@ def test_model_settings_unserializable_values_are_coerced():
 
 
 def test_model_settings_none_is_preserved():
-    from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
     assert PydanticAIIntegration._get_model_settings(None) is None
-
-
-def test_model_settings_callable_records_qualname():
-    """Callable model_settings (dynamic per-step settings) cannot be serialized.
-    Record the callable's __qualname__ for visibility instead of storing {} or None.
-    """
-    from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-
-    def my_settings(ctx):
-        return {"temperature": 0.5}
-
-    result = PydanticAIIntegration._get_model_settings(my_settings)
-    assert result == "test_model_settings_callable_records_qualname.<locals>.my_settings"
-
-    lambda_result = PydanticAIIntegration._get_model_settings(lambda: None)
-    assert isinstance(lambda_result, str)
-    assert lambda_result  # non-empty

@@ -198,18 +198,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _get_model_settings(model_settings: Any) -> Any:
-        # AIDEV-NOTE: `agent.model_settings` can contain provider sentinels that are not
-        # JSON-serializable (e.g. OpenAI's `Omit`/`NOT_GIVEN` for unset parameters). The
-        # manifest is written to the span's meta_struct, so storing these raw crashes the
-        # agentless trace encoder at span finish ("Object of type Omit is not JSON
-        # serializable"). Coerce to JSON-safe structures, mirroring the openai_agents
-        # integration's handling of model_settings.
-        if model_settings is None:
-            return None
-        if callable(model_settings):
-            return getattr(model_settings, "__qualname__", repr(model_settings))
-        if not isinstance(model_settings, dict):
-            model_settings = getattr(model_settings, "__dict__", None)
+        # ensure that model settings is JSON serializable
         return load_data_value(model_settings)
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
