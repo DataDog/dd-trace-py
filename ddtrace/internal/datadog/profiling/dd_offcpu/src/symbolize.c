@@ -1,5 +1,7 @@
 #include "symbolize.h"
 
+#include "symbolize_internal.h"
+
 #include <fcntl.h>
 #include <gelf.h>
 #include <libelf.h>
@@ -78,9 +80,10 @@ sym_cmp(const void* a, const void* b)
 }
 
 /* Map a symbol's virtual address to a file offset via the PT_LOAD segment that
- * contains it. Returns UINT64_MAX if no segment matches. */
-static uint64_t
-vaddr_to_foff(const GElf_Phdr* loads, size_t nloads, uint64_t vaddr)
+ * contains it. Returns UINT64_MAX if no segment matches. Exposed (non-static)
+ * for unit testing via symbolize_internal.h. */
+uint64_t
+ddoffcpu_vaddr_to_foff(const GElf_Phdr* loads, size_t nloads, uint64_t vaddr)
 {
     for (size_t i = 0; i < nloads; i++) {
         const GElf_Phdr* p = &loads[i];
@@ -164,7 +167,7 @@ obj_load(struct elf_obj* o)
             const char* name = elf_strptr(elf, sh.sh_link, sym.st_name);
             if (name == NULL || name[0] == '\0')
                 continue;
-            uint64_t foff = vaddr_to_foff(loads, nloads, sym.st_value);
+            uint64_t foff = ddoffcpu_vaddr_to_foff(loads, nloads, sym.st_value);
             if (foff == UINT64_MAX)
                 continue;
             obj_add_sym(o, &cap, foff, sym.st_size, name);
@@ -225,6 +228,40 @@ sym_add_map(struct symbolizer* s, uint64_t start, uint64_t end, uint64_t offset,
     s->nmaps++;
 }
 
+/* Parse one /proc/<pid>/maps line. Exposed (non-static) for unit testing via
+ * symbolize_internal.h. See that header for the contract. */
+int
+ddoffcpu_parse_maps_line(const char* line, uint64_t* start, uint64_t* end, uint64_t* offset, char* path,
+                         size_t pathcap)
+{
+    unsigned long s, e, off;
+    char perms[8];
+    int pathpos = 0;
+    /* "start-end perms offset dev:dev inode pathname" */
+    if (sscanf(line, "%lx-%lx %7s %lx %*x:%*x %*u %n", &s, &e, perms, &off, &pathpos) < 4)
+        return 0;
+    if (strlen(perms) < 3 || perms[2] != 'x') /* executable mappings only */
+        return 0;
+
+    const char* p = line + pathpos;
+    while (*p == ' ')
+        p++;
+    if (*p != '/') /* file-backed, real path only (skips "", "[heap]", ...) */
+        return 0;
+    if (path == NULL || pathcap == 0)
+        return 0;
+
+    size_t i = 0;
+    for (; p[i] != '\0' && p[i] != '\n' && i + 1 < pathcap; i++)
+        path[i] = p[i];
+    path[i] = '\0';
+
+    *start = s;
+    *end = e;
+    *offset = off;
+    return 1;
+}
+
 /* ------------------------------------------------------------------- public */
 
 struct symbolizer*
@@ -246,25 +283,12 @@ symbolizer_new(pid_t pid)
 
     char line[4096];
     while (fgets(line, sizeof(line), f) != NULL) {
-        unsigned long start, end, offset;
-        char perms[8];
-        int pathpos = 0;
-        /* "start-end perms offset dev:dev inode pathname" */
-        if (sscanf(line, "%lx-%lx %7s %lx %*x:%*x %*u %n", &start, &end, perms, &offset, &pathpos) < 4)
-            continue;
-        if (strlen(perms) < 3 || perms[2] != 'x') /* executable mappings only */
-            continue;
-        const char* p = line + pathpos;
-        while (*p == ' ')
-            p++;
-        if (*p != '/') /* file-backed, real path only */
+        uint64_t start, end, offset;
+        char path[4096];
+        if (!ddoffcpu_parse_maps_line(line, &start, &end, &offset, path, sizeof(path)))
             continue;
 
-        char* nl = strchr(p, '\n');
-        if (nl != NULL)
-            *nl = '\0';
-
-        struct elf_obj* obj = sym_get_obj(s, p);
+        struct elf_obj* obj = sym_get_obj(s, path);
         if (obj != NULL)
             sym_add_map(s, start, end, offset, obj);
     }

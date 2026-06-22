@@ -13,6 +13,23 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# The eBPF daemon needs the BPF toolchain (clang/bpftool) and a live kernel's
+# BTF; the symbolizer unit tests need none of that. Turn the daemon off to build
+# and run the unit tests on a plain CI runner: -DDDOFFCPU_BUILD_DAEMON=OFF.
+option(DDOFFCPU_BUILD_DAEMON "Build the eBPF off-CPU daemon (needs clang/bpftool + kernel BTF)" ON)
+
+# Match the sibling profiling components: tests are opt-in via BUILD_TESTING.
+if(NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING
+        OFF
+        CACHE BOOL "Build the testing tree")
+endif()
+
+# libelf is required by both the daemon (transitive dep of statically linked
+# libbpf) and the symbolizer unit tests, so it is always discovered.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBELF REQUIRED libelf)
+
 # ------------------------------------------------------------------------------
 # Toolchain: clang (BPF target), bpftool (vmlinux.h + skeleton), libelf, zlib.
 #
@@ -22,12 +39,13 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # — it fails at load with "failed to find valid kernel BTF". Pinning libbpf also
 # keeps it in lockstep with the bpftool-generated skeleton. libelf and zlib are
 # transitive dependencies of a statically linked libbpf.
+#
+# Everything from here to the daemon install is gated on DDOFFCPU_BUILD_DAEMON.
 # ------------------------------------------------------------------------------
+if(DDOFFCPU_BUILD_DAEMON)
+
 find_program(CLANG_EXE clang REQUIRED)
 find_program(BPFTOOL_EXE bpftool REQUIRED)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBELF REQUIRED libelf)
 find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -131,4 +149,21 @@ target_link_directories(dd_offcpu PRIVATE ${LIBELF_LIBRARY_DIRS})
 
 if(LIB_INSTALL_DIR)
     install(TARGETS dd_offcpu RUNTIME DESTINATION ${LIB_INSTALL_DIR})
+endif()
+
+endif() # DDOFFCPU_BUILD_DAEMON
+
+# ------------------------------------------------------------------------------
+# Tests: symbolizer unit tests (libelf only, no kernel) plus a gated end-to-end
+# smoke test that is only registered when the daemon is built.
+# ------------------------------------------------------------------------------
+if(BUILD_TESTING)
+    # The daemon is pure C; GoogleTest (and the C++ test files) need CXX, which
+    # is enabled here rather than at the project() level so non-test builds stay
+    # C-only.
+    enable_language(CXX)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    enable_testing()
+    add_subdirectory(test)
 endif()

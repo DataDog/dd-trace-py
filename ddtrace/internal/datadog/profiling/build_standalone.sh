@@ -84,6 +84,7 @@ declare -A target_dirs
 target_dirs["ddup"]="ddup"
 target_dirs["stack"]="stack"
 target_dirs["dd_wrapper"]="dd_wrapper"
+target_dirs["dd_offcpu"]="dd_offcpu"
 
 # Compiler options
 declare -A compiler_args
@@ -243,6 +244,8 @@ print_help() {
   echo "  stack_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
+  echo "  dd_offcpu (standalone eBPF daemon; needs clang/bpftool + kernel BTF)"
+  echo "  dd_offcpu_test (standalone symbolizer unit tests; daemon off, no kernel needed)"
 }
 
 print_cmake_args() {
@@ -374,6 +377,16 @@ add_target() {
     ddup)
       targets+=("ddup")
       ;;
+    dd_offcpu)
+      targets+=("dd_offcpu")
+      # The eBPF daemon requires clang(bpf target) + bpftool + a live kernel's
+      # BTF at configure time, none of which ordinary CI runners have. The unit
+      # path (dd_offcpu_test) builds only the libelf-based symbolizer tests, so
+      # turn the daemon (and the gated smoke test) off there.
+      if [[ "${arg}" =~ _test$ ]]; then
+        cmake_args+=(-DDDOFFCPU_BUILD_DAEMON=OFF)
+      fi
+      ;;
     *)
       echo "Unknown target: $1"
       exit 1
@@ -411,14 +424,24 @@ print_cmake_args
 
 print_ctest_args
 
-build_rust
+# dd_offcpu is self-contained (its own vendored libbpf + libelf) and depends on
+# neither dd_wrapper nor the Rust extensions, so skip those prebuild steps when
+# it is the only requested target. This keeps the unit-only CI path lightweight.
+needs_dd_wrapper=1
+if [[ "${#targets[@]}" -eq 1 && "${targets[0]}" == "dd_offcpu" ]]; then
+  needs_dd_wrapper=0
+fi
 
-run_cmake "dd_wrapper"
+if [[ "${needs_dd_wrapper}" -eq 1 ]]; then
+  build_rust
 
-# Install dd_wrapper to the expected location so other targets can find it
-pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
-cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
-popd
+  run_cmake "dd_wrapper"
+
+  # Install dd_wrapper to the expected location so other targets can find it
+  pushd ${BUILD_DIR}/dd_wrapper || { echo "Failed to enter dd_wrapper build directory"; exit 1; }
+  cmake --build . --target install || { echo "dd_wrapper install failed"; exit 1; }
+  popd
+fi
 
 # Run cmake
 for target in "${targets[@]}"; do

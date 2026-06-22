@@ -7,8 +7,7 @@ Python process and emits a pprof profile with Python frames. It replaces the use
 > **Status:** spike. Kernel off-CPU measurement, native ELF symbolization, out-of-process
 > Python frame walking (CPython 3.12), and gzipped pprof output (openable in `go tool
 > pprof`) are working. A production build would export via libdatadog instead of the
-> bundled minimal pprof writer. See the design doc (`ebpf-offcpu-profiler-design.md`) for
-> scope and milestones.
+> bundled minimal pprof writer.
 
 This component is **Linux-only** (eBPF). It will not build on macOS — the CMake configure
 step fails fast there.
@@ -94,10 +93,6 @@ go tool pprof -top offcpu.pb.gz          # text summary
 go tool pprof -traces offcpu.pb.gz       # per-sample stacks
 ```
 
-A quick end-to-end target is `scripts/demo_offcpu_approximation.py`, which spawns threads
-that block on sleep / locks / I/O — useful for eyeballing the off-CPU output and comparing
-against the existing approximation (spike milestone 6).
-
 ### PID namespaces / containers
 
 `--pid` is the pid **as seen from where you launch `dd_offcpu`** — i.e. the value the target
@@ -109,16 +104,36 @@ namespace rather than by the global init-namespace pid. Reported thread ids are 
 namespace-local, so they line up with the `/proc` the daemon sees for frame walking. This
 works whether or not the target is containerized.
 
+## Tests
+
+Tests are opt-in via `BUILD_TESTING`. The ELF symbolizer is pure logic, so its tests
+(`test/test_symbolize.cpp`, GoogleTest) compile `symbolize.c` and link only `libelf`.
+They cover `/proc/<pid>/maps` parsing, `vaddr→file-offset` mapping, an end-to-end
+self-resolve of a known function in the test binary, and the out-of-mapping guard.
+Run them on an ordinary machine — no `clang`(bpf)/`bpftool`/BTF required:
+
+```bash
+# from ddtrace/internal/datadog/profiling/ — sets -DDDOFFCPU_BUILD_DAEMON=OFF
+./build_standalone.sh -- RelWithDebInfo dd_offcpu_test
+```
+
+(or directly: `cmake -S dd_offcpu -B build/dd_offcpu -DDDOFFCPU_BUILD_DAEMON=OFF
+-DBUILD_TESTING=ON && cmake --build build/dd_offcpu && ctest --test-dir build/dd_offcpu`.)
+
 ## Layout
 
 ```
 dd_offcpu/
-├── CMakeLists.txt        # vmlinux.h -> BPF object -> skeleton -> dd_offcpu
+├── CMakeLists.txt        # vmlinux.h -> BPF object -> skeleton -> dd_offcpu (+ tests)
 ├── bpf/offcpu.bpf.c      # CO-RE tp_btf/sched_switch off-CPU accumulation + ringbuf
 ├── shared/offcpu.h       # shared BPF<->userspace event struct (wire contract)
-└── src/
-    ├── main.c            # arg parse, skeleton load/attach, ring buffer poll loop
-    ├── symbolize.{c,h}   # native ELF symbolizer
-    ├── pysym.{c,h}       # out-of-process CPython frame walker (3.12)
-    └── pprof.{c,h}       # minimal gzipped pprof writer (off-CPU samples)
+├── src/
+│   ├── main.c                  # arg parse, skeleton load/attach, ring buffer poll loop
+│   ├── symbolize.{c,h}         # native ELF symbolizer
+│   ├── symbolize_internal.h    # internal symbolizer seams exposed for unit tests
+│   ├── pysym.{c,h}             # out-of-process CPython frame walker (3.12)
+│   └── pprof.{c,h}             # minimal gzipped pprof writer (off-CPU samples)
+└── test/
+    ├── CMakeLists.txt    # googletest (FetchContent) + gtest_discover_tests
+    └── test_symbolize.cpp      # symbolizer unit tests (libelf only)
 ```
