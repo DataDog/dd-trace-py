@@ -1,8 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: The OpenAI integration now captures audio on chat completions. Audio sent to
-    ``gpt-4o-audio-preview`` (``input_audio`` message parts) and audio returned by the model are
-    collected as ``audio_parts`` on the corresponding LLM span messages, and the assistant's audio
-    transcript is surfaced as the output message content. Previously audio was rendered only as an
-    ``[audio]`` placeholder.
+    LLM Observability: The OpenAI integration now captures input and output audio on
+    ``gpt-4o-audio-preview`` chat completions as ``audio_parts`` on LLM span messages.
