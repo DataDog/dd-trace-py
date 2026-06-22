@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    litellm: Fix ``AttributeError`` when ``metadata=None`` is passed to traced ``litellm.completion()`` calls.
+    litellm: Fix ``AttributeError`` when ``metadata=None`` is passed to traced ``litellm.completion()`` calls. #18033 
