@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    anthropic: Fixes missing APM and LLM Observability spans for ``AnthropicBedrock`` / ``AsyncAnthropicBedrock`` clients when calling the beta messages API.
+    ``anthropic.lib.bedrock._beta_messages`` defines its own ``Messages`` / ``AsyncMessages`` classes whose ``create`` attribute is bound to the first-party
+    function at import time, before the integration's ``patch()`` runs, so wrapping only the first-party class left Bedrock callers untraced.
