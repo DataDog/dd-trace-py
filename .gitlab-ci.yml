@@ -75,10 +75,8 @@ include:
       ref: nccatoni/gitlab
 
 system-tests-param:
+  extends: .system_tests_param_base
   stage: tests
-  image: registry.ddbuild.io/images/mirror/alpine:latest
-  tags:
-    - arch:amd64
   needs:
     - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: false
@@ -88,19 +86,13 @@ system-tests-param:
       artifacts: false
     - job: "build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: false
-  script:
-    - |
-      {
-        echo 'LIBRARIES=python'
-        echo 'SCENARIO_GROUPS=tracer_release'
-        echo 'EXCLUDED_SCENARIOS=DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E'
-        echo 'SYSTEM_TESTS_PUSH_TO_TEST_OPTIMIZATION=true'
-        echo 'BINARIES_ARTIFACT_PATH=pywheels'
-        echo 'BINARIES_ARTIFACTS=build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]'
-      } > param.env
-  artifacts:
-    reports:
-      dotenv: param.env
+  variables:
+    LIBRARIES: python
+    SCENARIO_GROUPS: tracer_release
+    EXCLUDED_SCENARIOS: DEBUGGER_EXPRESSION_LANGUAGE,APM_TRACING_E2E_SINGLE_SPAN,APM_TRACING_E2E_OTEL,OTEL_COLLECTOR_E2E
+    SYSTEM_TESTS_PUSH_TO_TEST_OPTIMIZATION: "true"
+    BINARIES_ARTIFACT_PATH: pywheels
+    BINARIES_ARTIFACTS: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp312-cp312, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp313-cp313, v113741238-d2b8243-manylinux2014_x86_64];build linux: [amd64, cp314-cp314, v113741238-d2b8243-manylinux2014_x86_64]"
 
 "pipeline variables":
   stage: .pre
