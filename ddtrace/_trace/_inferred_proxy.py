@@ -57,6 +57,7 @@ supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
     "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
+    "azure-frontdoor": ProxyInfo("azure.frontdoor", "azure-frontdoor"),
 }
 
 # Span names for supported proxy systems (API Gateway, etc.).

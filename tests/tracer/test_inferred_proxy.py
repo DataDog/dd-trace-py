@@ -95,3 +95,34 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
     assert span.get_metric("_dd.inferred_span") == 1
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
+
+def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "azure-frontdoor",
+        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy-path": "/api/my-function",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "my-app.azurefd.net",
+        "x-dd-proxy-resource-path": "/api/{resource}",
+        "user-agent": "custom-client/1.0",
+    }
+
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert span.name == "azure.frontdoor"
+    assert span.name in INFERRED_SPAN_NAMES
+    assert span.span_type == "web"
+    assert span.get_tag("span.kind") == "server"
+    assert span.resource == "GET /api/{resource}"
+    assert span.service == "my-app.azurefd.net"
+    assert span.start_ns == 1736973768000 * 1000000
+    assert span.get_tag("component") == "azure-frontdoor"
+    assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("http.url") == "https://my-app.azurefd.net/api/my-function"
+    assert span.get_tag("http.route") == "/api/{resource}"
+    assert span.get_metric("_dd.inferred_span") == 1
+
+    assert ctx.get_item("inferred_proxy_finish_callback") is not None
