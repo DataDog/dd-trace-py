@@ -2876,6 +2876,37 @@ async def test_async_function_middleware_cancellation_does_not_tag_span_errored(
     )
 
 
+@pytest.mark.skipif(django.VERSION < (3, 1, 0), reason="async middleware require Django 3.1+")
+def test_traced_middleware_factory_preserves_process_exception_on_async():
+    """traced_middleware_factory must preserve process_exception on async
+    function-based middleware so Django's load_middleware can register it
+    in _exception_middleware.
+
+    Regression test for #18696: allauth's AccountMiddleware (and any
+    @sync_and_async_middleware that attaches process_exception) had its
+    exception handler silently dropped under ASGI.
+    """
+    from ddtrace.contrib.internal.django.middleware import traced_middleware_factory
+
+    def process_exception(request, exception):
+        pass
+
+    async def async_inner(request):
+        pass
+
+    def factory(get_response):
+        async_inner.process_exception = process_exception
+        return async_inner
+
+    wrapped = traced_middleware_factory(factory, (lambda r: r,), {})
+
+    assert hasattr(wrapped, "process_exception"), (
+        "traced_middleware_factory dropped process_exception from async middleware; "
+        "Django will not register the exception handler under ASGI (#18696)"
+    )
+    assert wrapped.process_exception is process_exception
+
+
 @pytest.mark.skipif(django.VERSION < (4, 1, 0), reason="async middleware require Django 4.1+")
 def test_wrap_middleware_class_async_hooks():
     """wrap_middleware_class should use wrapt wrapping (not bytecode wrapping)

@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from inspect import iscoroutinefunction
 from inspect import isfunction
 from types import FunctionType
@@ -158,6 +159,13 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
                 # Don't flag the span as errored on routine ASGI cancellation (#17728).
                 ctx.span._ignore_exception(asyncio.CancelledError)
                 return await middleware(*args, **kwargs)
+
+        # Preserve __dict__ (which holds process_exception, process_view,
+        # etc.) so Django's load_middleware can discover middleware hooks on
+        # the wrapper.  The sync branch uses wrapt's wrap() which does this
+        # automatically; the async branch uses functools.wraps because
+        # bytecode wrappers cannot be used for coroutine functions (#17728).
+        functools.update_wrapper(traced_async_middleware_func, middleware)
 
         return traced_async_middleware_func
     else:

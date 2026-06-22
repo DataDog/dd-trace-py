@@ -119,6 +119,38 @@ class AsyncCallMiddleware:
 
 
 try:
+    from django.utils.decorators import sync_and_async_middleware
+
+    @sync_and_async_middleware
+    def fn_middleware_with_process_exception(get_response):
+        """Function-based middleware with process_exception attribute.
+
+        Mimics allauth's AccountMiddleware pattern: the factory attaches
+        process_exception to the inner function so Django can discover it
+        via hasattr() in load_middleware.
+        """
+        from asgiref.sync import iscoroutinefunction as _iscoro
+
+        if _iscoro(get_response):
+
+            async def middleware(request):
+                return await get_response(request)
+        else:
+
+            def middleware(request):
+                return get_response(request)
+
+        def process_exception(request, exception):
+            return HttpResponse("caught", status=200)
+
+        middleware.process_exception = process_exception
+        return middleware
+
+except ImportError:
+    pass
+
+
+try:
     from django.utils.decorators import async_only_middleware
 
     @async_only_middleware
