@@ -1073,8 +1073,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     def setUp(self):
-        # Keep meta_struct["_llmobs"] on spans after enqueue so we can assert against it.
-        os.environ["_DD_LLMOBS_TEST_KEEP_META_STRUCT"] = "1"
         # Install a DummyWriter so we can pop spans off the global tracer in-process.
         ddtrace.tracer._span_aggregator.writer = DummyWriter()
         # Mock LLMObsSpanWriter to avoid real network calls; we no longer assert against it.

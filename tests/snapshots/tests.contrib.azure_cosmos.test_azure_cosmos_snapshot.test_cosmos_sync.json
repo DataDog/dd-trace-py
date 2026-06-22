@@ -102,7 +102,7 @@
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/?/",
     "trace_id": 3,
     "span_id": 1,
     "parent_id": 0,
@@ -204,7 +204,7 @@
   {
     "name": "cosmosdb.query",
     "service": "tests.contrib.azure_cosmos",
-    "resource": "Delete /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+    "resource": "Delete /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/?/",
     "trace_id": 6,
     "span_id": 1,
     "parent_id": 0,

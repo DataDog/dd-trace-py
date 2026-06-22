@@ -1084,6 +1084,84 @@ class TestBackendConnectorSetup:
         assert connector.use_gzip is True
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
+    # --- detect_standard_setup: public env vars only ---
+
+    def test_detect_standard_setup_agentless_reads_public_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(os, "environ", {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "public-key"})
+
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
+        assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
+
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "public-key"
+
+    def test_detect_standard_setup_agentless_ignores_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_standard_setup must not fall back to _CI_DD_API_KEY."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {
+                "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
+                "_CI_DD_API_KEY": "internal-key",
+                "DD_API_KEY": "public-key",
+            },
+        )
+
+        connector_setup = BackendConnectorSetup.detect_standard_setup()
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "public-key"
+
+    def test_detect_standard_setup_agentless_raises_when_only_internal_key_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """detect_standard_setup must raise if DD_API_KEY is absent, even if _CI_DD_API_KEY is set."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
+        )
+
+        with pytest.raises(SetupError, match="DD_API_KEY"):
+            BackendConnectorSetup.detect_standard_setup()
+
+    def test_detect_setup_still_reads_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_setup (internal path) must still honour _CI_DD_API_KEY."""
+        monkeypatch.setattr(
+            os,
+            "environ",
+            {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
+        )
+
+        connector_setup = BackendConnectorSetup.detect_setup()
+        connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        assert connector.default_headers["dd-api-key"] == "internal-key"
+
+    def test_detect_setup_still_reads_internal_agent_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """detect_setup (internal path) must still honour _CI_DD_AGENT_URL."""
+        monkeypatch.setattr(os, "environ", {"_CI_DD_AGENT_URL": "http://internal-agent:8126"})
+
+        backend_connector_mock = (
+            mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
+        )
+        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+            connector_setup = BackendConnectorSetup.detect_setup()
+
+        assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
+        assert connector_setup.url == "http://internal-agent:8126"
+
+    def test_detect_standard_setup_evp_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_URL": "http://my-agent:8126"})
+
+        backend_connector_mock = (
+            mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
+        )
+        with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
+            connector_setup = BackendConnectorSetup.detect_standard_setup()
+
+        assert isinstance(connector_setup, BackendConnectorEVPProxySetup)
+        assert connector_setup.url == "http://my-agent:8126"
+        assert connector_setup.base_path == "/evp_proxy/v4"
+
 
 class TestUnixDomainSocketTimeout:
     """Regression test: Unix domain socket must respect the configured timeout."""

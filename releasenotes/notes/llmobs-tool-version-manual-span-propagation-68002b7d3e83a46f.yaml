@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: When a tool definition with a ``version`` field is set on a parent LLM span
+    via ``tool_definitions``, the resolved tool version is now also written onto manually-started
+    child tool spans (created via ``LLMObs.tool()``) as ``meta.tool.version``. Previously, this
+    propagation only occurred for tool spans produced by auto-instrumented integrations (OpenAI,
+    LangChain, OpenAI Agents, ReAct) through the ``LinkTracker`` dispatch mechanism.

@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "buffered-before-fork",
+    "service": "fork-test",
+    "resource": "buffered-before-fork",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a27e37000000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpfe9lhcj6,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:ddtrace_subprocess_dir",
+      "language": "python",
+      "runtime-id": "47d2ebc065d54d29881077fd2cb54d21"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 91747.0
+    },
+    "duration": 2233000,
+    "start": 1780999024913878000
+  }]]

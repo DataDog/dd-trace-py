@@ -7,20 +7,19 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "llm",
-    "error": 0,
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.llmobs.model_provider": "bedrock",
       "_dd.llmobs.span_kind": "agent",
       "_dd.llmobs.submitted": "1",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69f9fc8100000000",
+      "_dd.p.tid": "6a13b2f000000000",
       "_dd.svc_src": "botocore",
-      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:dd-trace-py,svc.auto:tests.contrib.botocore",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.botocore",
       "language": "python",
-      "llmobs_parent_id": "539914402737329314",
-      "llmobs_trace_id": "69f9fc8100000000a5c01015da122cd8",
-      "runtime-id": "826e7b3996074025a3b94a51ad8f1a57"
+      "llmobs_parent_id": "13133186153588773034",
+      "llmobs_trace_id": "6a13b2f000000000c315238868820179",
+      "runtime-id": "58553d6d949c492e831921f99a7b5d1c"
     },
     "metrics": {
       "_dd.llmobs.enabled": 1.0,
@@ -28,7 +27,7 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 27635.0
+      "process_id": 605.0
     },
     "duration": 29364696349408000,
     "start": 1748626088886678016
@@ -41,7 +40,6 @@
        "span_id": 2,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -58,7 +56,6 @@
           "span_id": 8,
           "parent_id": 2,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -75,7 +72,6 @@
        "span_id": 3,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -92,7 +88,6 @@
           "span_id": 9,
           "parent_id": 3,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -109,7 +104,6 @@
           "span_id": 10,
           "parent_id": 3,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -126,7 +120,6 @@
           "span_id": 11,
           "parent_id": 3,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -143,7 +136,6 @@
        "span_id": 4,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -160,7 +152,6 @@
           "span_id": 12,
           "parent_id": 4,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -177,7 +168,6 @@
           "span_id": 13,
           "parent_id": 4,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -194,7 +184,6 @@
           "span_id": 14,
           "parent_id": 4,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -211,7 +200,6 @@
        "span_id": 5,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -228,7 +216,6 @@
           "span_id": 15,
           "parent_id": 5,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -245,7 +232,6 @@
           "span_id": 16,
           "parent_id": 5,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -262,7 +248,6 @@
           "span_id": 17,
           "parent_id": 5,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -279,7 +264,6 @@
        "span_id": 6,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -296,7 +280,6 @@
           "span_id": 18,
           "parent_id": 6,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -313,7 +296,6 @@
           "span_id": 19,
           "parent_id": 6,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",
@@ -330,7 +312,6 @@
        "span_id": 7,
        "parent_id": 1,
        "type": "llm",
-       "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.botocore",
          "_dd.llmobs.submitted": "1",
@@ -347,7 +328,6 @@
           "span_id": 20,
           "parent_id": 7,
           "type": "llm",
-          "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.botocore",
             "_dd.llmobs.submitted": "1",

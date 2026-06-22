@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    aws_durable_execution_sdk_python: Adds distributed tracing for durable
+    workflows across suspend/resume cycles, so a workflow that pauses and
+    resumes in a later invocation appears as a single connected trace. See
+    :ref:`aws_durable_execution_sdk_python` for details and opt-out
+    configuration.
