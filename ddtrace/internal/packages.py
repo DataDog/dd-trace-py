@@ -10,6 +10,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
 
@@ -21,7 +22,7 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
-# AIDEV-NOTE: dist.metadata access is per-dist defensive — malformed METADATA
+# AIDEV-NOTE: dist.metadata access is per-dist defensive -- malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
 
@@ -186,6 +187,228 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
+def _relative_to_known_root(path: Path) -> t.Optional[Path]:
+    """Return ``path`` relative to the site-packages-like root that contains it.
+
+    Shares root resolution with ``_root_module`` (purelib/platlib, then
+    ``sys.path``, then the Bazel ``*/site-packages`` heuristic) but yields the
+    *full* relative path instead of a fixed-depth key. ``filename_to_package``
+    uses it to do longest-prefix matching against the mapping, which is what
+    lets namespace distributions sharing an intermediate level resolve
+    correctly: ``google-cloud-storage`` (``google/cloud/storage``) and
+    ``google-cloud-bigquery`` (``google/cloud/bigquery``) both reduce to the
+    ``google/cloud`` key under ``_root_module``, so it cannot tell them apart.
+
+    Only *dependency* roots are considered: ``purelib``/``platlib`` and
+    ``site-packages`` dirs (the latter is where Bazel isolates each no-RECORD
+    dependency). Generic ``sys.path`` source/workspace roots are deliberately
+    excluded -- a Bazel binary puts its own source roots on ``sys.path`` too,
+    and applying dependency namespace keys to them would misclassify user code
+    (e.g. a workspace ``google/cloud/...`` file while ``google-cloud-*`` is in
+    runfiles) as third-party. Those paths fall back to ``_root_module``.
+
+    Returns ``None`` when ``path`` is not under such a root.
+    """
+    for parent_path in (purelib_path, platlib_path):
+        try:
+            return path.resolve().relative_to(parent_path)
+        except ValueError:
+            pass
+
+    min_relative_path: t.Optional[Path] = None
+    for parent_path in resolve_sys_path():
+        if parent_path.name != "site-packages":
+            continue
+        try:
+            relative = path.relative_to(parent_path)
+        except ValueError:
+            continue
+        if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
+            min_relative_path = relative
+    if min_relative_path is not None:
+        return min_relative_path
+
+    for s in path.parents:
+        if s.parent.name == "site-packages":
+            try:
+                return path.relative_to(s.parent)
+            except ValueError:
+                pass
+    return None
+
+
+def _in_bazel() -> bool:
+    """Whether the process is running under Bazel runfiles (dir or manifest mode)."""
+    return bool(env.get("RUNFILES_DIR") or env.get("RUNFILES_MANIFEST_FILE"))
+
+
+def _manifest_real_path(line: str) -> t.Optional[str]:
+    r"""The real (target) path from one Bazel runfiles MANIFEST line.
+
+    Two formats exist (see the Bazel runfiles manifest spec):
+      - plain ``<runfiles_path> <real_path>`` (split on the first space), and
+      - an escaped form used when either path contains a space, newline, or
+        backslash: the line starts with a space and both fields escape ``\\s``
+        (space), ``\\n`` (newline) and ``\\b`` (backslash). The latter is common
+        on Windows output paths.
+
+    Returns ``None`` for lines without a separate real path (relative to
+    ``RUNFILES_DIR``, not useful in manifest-only mode).
+    """
+    if line.startswith(" "):
+        parts = line[1:].split(" ", 1)
+        if len(parts) != 2:
+            return None
+        # Unescape in the same order Bazel does; \b last so a literal backslash
+        # written as \b is not mistaken for another escape.
+        return parts[1].replace(r"\s", " ").replace(r"\n", "\n").replace(r"\b", "\\")
+    parts = line.split(" ", 1)
+    if len(parts) != 2:
+        return None
+    return parts[1]
+
+
+@callonce
+def _bazel_manifest_site_packages() -> frozenset[str]:
+    """Resolved ``site-packages`` dirs referenced by ``RUNFILES_MANIFEST_FILE``.
+
+    In manifest mode (``RUNFILES_MANIFEST_FILE`` set, ``RUNFILES_DIR`` unset) the
+    dependency dirs are real filesystem paths that need not live under a
+    ``*.runfiles`` tree, so the ``.runfiles`` ancestor heuristic misses them.
+    Parse the manifest's real-path column for ``site-packages`` components and
+    collect those dirs so they can be recognized as genuine runfiles roots.
+    """
+    manifest = env.get("RUNFILES_MANIFEST_FILE")
+    if not manifest:
+        return frozenset()
+    marker = "/site-packages/"
+    raw_roots: set[str] = set()
+    try:
+        with open(manifest, encoding="utf-8", errors="surrogateescape") as f:
+            for raw in f:
+                real = _manifest_real_path(raw.rstrip("\n"))
+                if real is None:
+                    continue
+
+                # On Windows the manifest real path uses backslash separators,
+                # so normalize before searching for the site-packages marker.
+                real = real.replace("\\", "/")
+                idx = real.find(marker)
+                if idx != -1:
+                    raw_roots.add(real[: idx + len(marker) - 1])
+    except OSError:
+        return frozenset()
+
+    resolved: set[str] = set()
+    for r in raw_roots:
+        try:
+            resolved.add(str(Path(r).resolve()))
+        except OSError:
+            resolved.add(r)
+    return frozenset(resolved)
+
+
+def _is_bazel_runfiles_dir(path: Path) -> bool:
+    """Whether ``path`` is a dependency dir inside the Bazel runfiles tree.
+
+    Returns ``False`` when not running under Bazel so the Bazel-only directory
+    scan never runs against an arbitrary (possibly shared) dir whose lone
+    ``.dist-info`` would otherwise capture unrelated sibling modules. Under
+    Bazel a dir qualifies if it is below ``RUNFILES_DIR``, has a ``*.runfiles``
+    ancestor, or is a manifest-listed ``site-packages`` real path.
+    """
+    if not _in_bazel():
+        return False
+    runfiles_dir = env.get("RUNFILES_DIR")
+    if runfiles_dir:
+        try:
+            path.relative_to(runfiles_dir)
+            return True
+        except ValueError:
+            pass
+    if any(parent.suffix == ".runfiles" for parent in path.parents):
+        return True
+    manifest_roots = _bazel_manifest_site_packages()
+    if not manifest_roots:
+        return False
+    try:
+        resolved = str(path.resolve())
+    except OSError:
+        resolved = str(path)
+    return resolved in manifest_roots
+
+
+def _is_namespace_module(base: Path, module_name: str) -> bool:
+    """Whether ``base/module_name`` is a namespace package (dir, no __init__.py).
+
+    Used by the no-RECORD fallback to avoid pinning a shared namespace
+    top-level (e.g. ``google``) to a single distribution. A regular package
+    (has ``__init__.py``) or a single-file module is not a namespace.
+    """
+    pkg_dir = base / module_name
+    try:
+        return pkg_dir.is_dir() and not (pkg_dir / "__init__.py").exists()
+    except OSError:
+        return False
+
+
+# Bound the recursion that walks nested no-RECORD namespace packages, so a
+# pathological/deep tree (or symlink loop) cannot stall the mapping build.
+_NAMESPACE_SCAN_MAX_DEPTH = 16
+
+
+def _add_namespace_subentries(
+    ns_dir: Path,
+    prefix: str,
+    dist: Distribution,
+    mapping: dict[str, Distribution],
+    depth: int = 0,
+) -> None:
+    """Recursively map sub-entries of a no-RECORD namespace package.
+
+    Two distributions can share intermediate namespace levels: e.g.
+    ``google-cloud-storage`` ships ``google/cloud/storage`` and
+    ``google-cloud-bigquery`` ships ``google/cloud/bigquery``, both under the
+    ``google/cloud`` namespace. Keying only one level deep collapses both to
+    ``google/cloud`` and drops the second dist, so ``CodeProvenance`` records
+    only the first runfiles path and the other dependency's frames stay
+    classified as user code. We descend through nested namespace dirs (those
+    without ``__init__.py``) until we reach a concrete package (has
+    ``__init__.py``) or a module file, mapping a key at each level so every
+    distribution keeps at least one distinct entry and its path is recorded.
+
+    A nested namespace level (a directory without ``__init__.py``) is itself
+    shareable, so it is NOT mapped to ``dist``; only concrete packages (with
+    ``__init__.py``) and module files are. We descend through the bare
+    namespace dirs so each distribution's concrete leaf gets its own
+    dist-specific key, and ``filename_to_package`` then resolves files by the
+    deepest matching prefix.
+    """
+    if depth >= _NAMESPACE_SCAN_MAX_DEPTH:
+        return
+    try:
+        children = list(ns_dir.iterdir())
+    except OSError:
+        return
+    for child in children:
+        name = child.name
+        if name.startswith("__"):
+            continue
+        is_dir = child.is_dir()
+        is_module_file = child.suffix == ".py" and not is_dir
+        if not (is_dir or is_module_file):
+            continue
+        key = f"{prefix}/{name}"
+        if is_dir and not (child / "__init__.py").exists():
+            # Shared intermediate namespace level: never pin it to a single
+            # dist (that misattributes a sibling dist's files to whichever was
+            # scanned first). Recurse so the concrete leaf below gets a
+            # dist-specific key instead.
+            _add_namespace_subentries(child, key, dist, mapping, depth + 1)
+        elif key not in mapping:
+            mapping[key] = dist
+
+
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
@@ -222,6 +445,8 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
+    # AIDEV-NOTE: per-dist try/except -- one bad dist used to collapse the whole
+    # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
     no_files_dists: list[importlib_metadata.Distribution] = []
 
@@ -258,15 +483,48 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     #   normal shared site-packages where multiple dists share one directory).
     if no_files_dists:
         # Strategy 1: packages_distributions maps module_name -> [dist_name, ...]
-        pkg_dists = get_package_distributions()
-        # Invert to dist_name_lower -> Distribution (lazily, only for no-files dists)
+        # A single no-RECORD / malformed dist can make packages_distributions()
+        # raise; that must not abort the whole fallback and leave good packages
+        # unresolved (breaking is_third_party / code provenance). Degrade to an
+        # empty Strategy 1 result and let the directory scan (Strategy 2) run.
+        try:
+            pkg_dists = get_package_distributions()
+        except Exception:
+            LOG.debug("packages_distributions() failed; falling back to directory scan", exc_info=True)
+            pkg_dists = {}
+        # Top-level roots that the directory scan sees as namespace packages
+        # (no __init__.py) in any no-RECORD dist. A bare namespace root is
+        # inherently shareable across dists, so it must never be mapped to a
+        # single dist -- even when packages_distributions() resolves only one
+        # (the other dist may omit top_level.txt and so be invisible to it).
+        # Collected during Strategy 2 and stripped from the mapping afterwards.
+        namespace_roots: set[str] = set()
+
+        # Roots that some no-RECORD dist regularly owns (has __init__.py or a
+        # top-level module file). A regular owner always wins the bare root over
+        # a shared namespace.
+        regular_owners: dict[str, Distribution] = {}
+
+        # Roots that the packages_distributions() fallback (Strategy 1) added.
+        # Only these may be stripped as shared namespace roots; a RECORD-backed
+        # or regular-package owner of the same root must be preserved.
+        strategy1_added: set[str] = set()
+
+        # Invert to dist_name_lower -> Distribution and its base dir (lazily,
+        # only for no-files dists). The base dir lets Strategy 1 tell a bare
+        # namespace top-level from a regular package on its own.
         name_to_dist_obj: dict[str, Distribution] = {}
+        name_to_base: dict[str, Path] = {}
         for _dist in no_files_dists:
             try:
                 _n = _dist.metadata["name"]
                 _v = _dist.metadata["version"]
                 if _n and _v:
                     name_to_dist_obj[_n.lower()] = Distribution(name=_n, version=_v)
+                    try:
+                        name_to_base[_n.lower()] = t.cast(Path, _dist.locate_file(""))
+                    except Exception:  # nosec - base dir is best-effort
+                        pass
             except Exception as exc:
                 _warn_bad_dist(_dist, exc)
 
@@ -274,21 +532,54 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
             if module_name in mapping:
                 continue
 
+            resolved: list[Distribution] = []
             for dist_name in dist_names:
+                if not dist_name:
+                    continue
                 d = name_to_dist_obj.get(dist_name.lower())
-                if d is not None:
-                    mapping[module_name] = d
-                    break
+                if d is not None and d not in resolved:
+                    resolved.append(d)
 
-        # Strategy 2: directory scan for dists still not covered
-        covered_dist_names = {d.name.lower() for d in mapping.values()}
+            # Skip ambiguous namespace roots: when a top-level module (e.g.
+            # "google") is provided by more than one no-RECORD distribution,
+            # mapping it to a single dist would let code provenance attribute
+            # another dist's files to the chosen one (it resolves the root via
+            # the first matching sys.path entry). Rely on the path-aware
+            # sub-entries added by the directory scan (Strategy 2) instead.
+            if len(resolved) != 1:
+                continue
+            # Also skip a bare namespace top-level even when a single dist
+            # reports it: a sibling namespace dist may omit top_level.txt (and
+            # so be invisible here), and the Strategy 2 scan that would strip
+            # this root is skipped outside Bazel. Pinning it would make the
+            # longest-prefix lookup attribute the sibling's "google/<other>/..."
+            # files to this dist. The directory scan still adds the path-aware
+            # sub-entries (e.g. "google/cloud") when it does run.
+            base = name_to_base.get(resolved[0].name.lower())
+            if base is not None and _is_namespace_module(base, module_name):
+                continue
+            mapping[module_name] = resolved[0]
+            strategy1_added.add(module_name)
+
+        # Strategy 2: directory scan. We do NOT skip dists already covered by
+        # Strategy 1: namespace packages get only their top-level module mapped
+        # there (e.g. "google"), but _root_module returns sub-entries like
+        # "google/cloud", which only the directory scan below can add.
         for _dist in no_files_dists:
             try:
                 _n = _dist.metadata["name"]
                 _v = _dist.metadata["version"]
-                if not (_n and _v) or _n.lower() in covered_dist_names:
+                if not (_n and _v):
                     continue
                 site_packages = t.cast(Path, _dist.locate_file(""))
+                # Gate the scan to verified Bazel runfiles dependency dirs. The
+                # heuristic below assumes Bazel's per-package isolated layout
+                # (one dist owning the whole dir); outside runfiles a minimal or
+                # layered site-packages can hold this dist's lone .dist-info plus
+                # *unrelated* top-level code, which the scan would then wrongly
+                # attribute to this dist (marking those app frames third-party).
+                if not _is_bazel_runfiles_dir(site_packages):
+                    continue
                 # Safety guard: only treat this as an isolated site-packages if it
                 # contains exactly one .dist-info directory (Bazel's per-package
                 # layout guarantee). A shared site-packages has many .dist-info dirs
@@ -300,29 +591,56 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                 )
                 if len(dist_infos) != 1:
                     continue
+                # The lone .dist-info must be _dist's own metadata, not an
+                # unrelated dist that merely happens to be alone in a minimal
+                # shared dir (e.g. _dist is an .egg-info/editable install).
+                # Otherwise we would attribute that dir's unrelated modules to
+                # _dist. Compare against _dist's metadata dir name.
+                own_meta = getattr(_dist, "_path", None)
+                if own_meta is None or dist_infos[0].name != Path(own_meta).name:
+                    continue
                 d = Distribution(name=_n, version=_v)
                 for child in site_packages.iterdir():
                     root = child.name
                     if child.suffix in (".dist-info", ".egg-info") or root == ".." or root.startswith("__"):
                         continue
-                    if root not in mapping:
-                        mapping[root] = d
-                    # Namespace packages (no __init__.py) need sub-entries so
-                    # that _root_module's sys.path loop, which returns keys
-                    # like "google/cloud", can find a match in the mapping.
-                    # Mirror the one-level depth used by the RECORD-based path.
-                    if child.is_dir() and not (child / "__init__.py").exists():
-                        try:
-                            for subchild in child.iterdir():
-                                if subchild.is_dir() and not subchild.name.startswith("__"):
-                                    ns_root = f"{root}/{subchild.name}"
-                                    if ns_root not in mapping:
-                                        mapping[ns_root] = d
-                        except OSError:
-                            pass
-                covered_dist_names.add(_n.lower())
+                    is_namespace_pkg = child.is_dir() and not (child / "__init__.py").exists()
+                    if not is_namespace_pkg:
+                        # Regular package/module (has __init__.py, or a module
+                        # file): the whole top-level dir/file belongs to this
+                        # dist, so it is the legitimate owner of the bare root.
+                        regular_owners.setdefault(root, d)
+                        if root not in mapping:
+                            mapping[root] = d
+                        continue
+                    # Namespace packages (no __init__.py) must NOT map their bare
+                    # top-level root (e.g. "google"): it is shared across dists,
+                    # so attributing it to one would misclassify another dist's
+                    # files. Add the path-aware sub-entries instead, descending
+                    # through nested namespace levels so that dists sharing an
+                    # intermediate level (e.g. "google/cloud") still each get a
+                    # distinct, recorded key.
+                    namespace_roots.add(root)
+                    _add_namespace_subentries(child, root, d, mapping)
             except Exception as exc:
                 _warn_bad_dist(_dist, exc)
+
+        # Reconcile bare namespace roots that Strategy 1 mapped to a single
+        # dist. The directory scan is authoritative about ownership:
+        #   - If some dist regularly owns the root (has __init__.py or a module
+        #     file), the bare root belongs to that regular owner; point the
+        #     Strategy 1 entry at it (it may have guessed a namespace dist).
+        #   - Otherwise the root is purely a shared namespace; drop the bare
+        #     entry so only the path-aware sub-entries (e.g. "google/cloud")
+        #     remain and no dist's "google" dir is recorded under another.
+        # We only touch Strategy 1's own additions, so a RECORD-backed owner
+        # (mapped by the main loop) is never disturbed.
+        for ns_root_name in namespace_roots & strategy1_added:
+            owner = regular_owners.get(ns_root_name)
+            if owner is not None:
+                mapping[ns_root_name] = owner
+            else:
+                mapping.pop(ns_root_name, None)
 
     return mapping
 
@@ -346,6 +664,22 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
+
+        # Longest-prefix match against the mapping. Namespace distributions can
+        # share an intermediate level (google/cloud/storage vs
+        # google/cloud/bigquery), so the most specific (deepest) mapped prefix
+        # must win; _root_module only yields a fixed 2-level key and cannot tell
+        # the siblings apart. The probe is anchored at the site-packages-relative
+        # root, so a subpackage that happens to share a name with another
+        # top-level dist cannot mismatch.
+        relative = _relative_to_known_root(path)
+        if relative is not None:
+            parts = relative.parts
+            for end in range(len(parts), 0, -1):
+                hit = mapping.get("/".join(parts[:end]))
+                if hit is not None:
+                    return hit
+
         # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
         root_module_path = _root_module(path)
         if root_module_path in mapping:
