@@ -41,6 +41,8 @@ dd-trace-py/
 │   │   ├── _iast/            # Interactive Application Security Testing
 │   │   ├── _ddwaf/          # Datadog Web Application Firewall
 │   │   ├── _exploit_prevention/ # Runtime exploit prevention
+│   │   ├── ai_guard/         # AI Guard PUBLIC SDK (client + framework plugins)
+│   │   ├── _ai_guard/        # AI Guard internals (core.on listeners + converters)
 │   │   └── trace_utils.py    # AppSec trace enrichment
 │   │
 │   ├── internal/             # Core implementation utilities (private)
@@ -143,7 +145,7 @@ dd-trace-py/
 ### Core Library (`ddtrace/`)
 - **Main Package**: Contains the primary tracing functionality and public APIs
 - **Contrib**: 100+ integrations with popular Python libraries (Django, Flask, Redis, etc.)
-- **AppSec**: Application security features including IAST and WAF protection
+- **AppSec**: Application security features including IAST, WAF protection, and AI Guard (LLM/agentic workflow safety). See `.cursor/rules/ai-guard.mdc`. Security products stay decoupled from `contrib/` integrations via core events — see `.cursor/rules/isolated-responsibility.mdc`.
 - **Profiling**: Continuous profiling capabilities for CPU, memory, and I/O
 - **Internal**: Implementation details not part of the public API
 

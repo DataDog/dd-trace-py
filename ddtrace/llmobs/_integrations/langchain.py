@@ -28,6 +28,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -574,6 +575,7 @@ class LangChainIntegration(BaseLLMIntegration):
                                     "trace_id": format_trace_id(span.trace_id),
                                     "span_id": str(span.span_id),
                                 },
+                                get_tool_version_from_llm_span(span, tool_call.get("name", "")),
                             ),
                         )
                     if tool_calls_info:

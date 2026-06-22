@@ -15,9 +15,11 @@ import django
 from django.urls import include
 
 from tests.appsec.contrib_appsec.django_app.urls import exception_group_block
+from tests.appsec.contrib_appsec.django_app.urls import files_catch_all
 from tests.appsec.contrib_appsec.django_app.urls import healthcheck
 from tests.appsec.contrib_appsec.django_app.urls import login_user
 from tests.appsec.contrib_appsec.django_app.urls import login_user_sdk
+from tests.appsec.contrib_appsec.django_app.urls import multi_param_segment
 from tests.appsec.contrib_appsec.django_app.urls import multi_view
 from tests.appsec.contrib_appsec.django_app.urls import new_service
 from tests.appsec.contrib_appsec.django_app.urls import rasp
@@ -81,6 +83,13 @@ login_sdk_urls = [
     path("", login_user_sdk, name="login_sdk"),
 ]
 
+# --- /files sub-app ---
+# Mount the RFC-1103 catch-all route under include() so the runtime resolver exercises Django's parent+child route
+# joining (URLResolver._join_route) on the normalization path, not only via the unit-test fixture.
+files_urls = [
+    path("<path:file_path>", files_catch_all, name="files_catch_all"),
+]
+
 
 urlpatterns = [
     handler(r"^$", healthcheck),
@@ -105,4 +114,9 @@ if django.VERSION >= (2, 0, 0):
         path("login/", include(login_urls)),
         path("login_sdk/", include(login_sdk_urls)),
         path("exception-group-block", exception_group_block, name="exception_group_block"),
+        # RFC-1103 normalized-route coverage. ``multi-param`` is kept at the root so its declaration shape matches the
+        # flat variant verbatim; ``files`` is mounted via include() so the runtime resolver exercises parent+child
+        # route joining on the catch-all normalization path.
+        path("multi-param/<str:first>.<str:last>/", multi_param_segment, name="multi_param_segment"),
+        path("files/", include(files_urls)),
     ]

@@ -2,8 +2,8 @@
 //
 // Exercises the asyncio task/coroutine introspection pipeline.
 // GenInfo::create recursively walks coroutine await chains via PyGenObject
-// and PyAsyncGenASend; TaskInfo::create walks TaskObj headers, resolves
-// task names through StringTable, and follows task_fut_waiter chains.
+// and PyAsyncGenASend; TaskInfo::create walks TaskObj headers, snapshots
+// task labels, and follows task_fut_waiter chains.
 
 #include "fuzz_common.h"
 
@@ -29,8 +29,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     (void)GenInfo::create(reinterpret_cast<PyObject*>(p0));
 
     // TaskInfo::create — reads TaskObj header, resolves task_coro via
-    // GenInfo::create, task_name via StringTable, and follows
-    // task_fut_waiter chain recursively.
+    // GenInfo::create, snapshots task_name, and follows task_fut_waiter chain
+    // recursively.
     {
         EchionSampler echion_sampler;
         (void)TaskInfo::create(echion_sampler, reinterpret_cast<TaskObj*>(p1));
