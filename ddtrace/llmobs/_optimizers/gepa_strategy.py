@@ -28,10 +28,10 @@ log = get_logger(__name__)
 class TrajectoryRecord(TypedDict):
     """A single task execution record for reflection."""
 
-    input_data: dict
+    input_data: dict[str, Any]
     expected_output: Any
     output: Any
-    evaluations: dict
+    evaluations: dict[str, Any]
     score: float
 
 
@@ -47,12 +47,12 @@ class LLMObsGEPAAdapter:
 
     def __init__(
         self,
-        task: Callable,
+        task: Callable[..., Any],
         evaluators: Sequence[EvaluatorType],
         optimization_task: Callable[[str, str, ConfigType], str],
         config: ConfigType,
         labelization_function: Optional[Callable[[dict[str, Any]], str]] = None,
-        compute_score: Optional[Callable[[dict], float]] = None,
+        compute_score: Optional[Callable[[dict[str, Any]], float]] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
     ) -> None:
         self._task = task
@@ -71,7 +71,7 @@ class LLMObsGEPAAdapter:
     # GEPAAdapter protocol
     # ------------------------------------------------------------------
 
-    def evaluate(self, batch: list, candidate: dict, capture_traces: bool = False) -> Any:
+    def evaluate(self, batch: list[dict[str, Any]], candidate: dict[str, Any], capture_traces: bool = False) -> Any:
         """Run the user's task and evaluators on *batch* with *candidate* prompt.
 
         :param batch: List of dataset record dicts (``input_data``, ``expected_output``, …).
@@ -81,10 +81,10 @@ class LLMObsGEPAAdapter:
         """
         from gepa import EvaluationBatch
 
-        outputs: list = []
-        all_evaluations: list[dict] = []
-        all_inputs: list = []
-        all_expected: list = []
+        outputs: list[Any] = []
+        all_evaluations: list[dict[str, Any]] = []
+        all_inputs: list[Any] = []
+        all_expected: list[Any] = []
         per_record_scores: list[float] = []
         trajectories: list[TrajectoryRecord] | None = [] if capture_traces else None
 
@@ -109,7 +109,7 @@ class LLMObsGEPAAdapter:
             all_expected.append(expected_output)
 
             # Run per-record evaluators
-            evaluations: dict = {}
+            evaluations: dict[str, Any] = {}
             numeric_scores: list[float] = []
             for evaluator in self._evaluators:
                 try:
@@ -126,12 +126,12 @@ class LLMObsGEPAAdapter:
                         )
                         result = evaluator.evaluate(ctx)
                     else:
-                        result = evaluator(
+                        result = evaluator(  # type: ignore[call-arg, operator]
                             input_data=input_data,
                             output_data=output,
                             expected_output=expected_output,
                         )
-                    eval_name = getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "evaluator")
+                    eval_name = str(getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "evaluator"))
                     evaluations[eval_name] = result
                     numeric_scores.append(self._to_numeric_score(result))
                 except Exception:
@@ -170,8 +170,8 @@ class LLMObsGEPAAdapter:
         return EvaluationBatch(outputs=outputs, scores=scores, trajectories=trajectories)
 
     def make_reflective_dataset(
-        self, candidate: dict, eval_batch: Any, components_to_update: list
-    ) -> Mapping[str, list]:
+        self, candidate: dict[str, Any], eval_batch: Any, components_to_update: list[str]
+    ) -> Mapping[str, list[Any]]:
         """Convert trajectories into the standard reflective format for GEPA.
 
         :param candidate: Current candidate dict.
@@ -179,7 +179,7 @@ class LLMObsGEPAAdapter:
         :param components_to_update: List of component names to update.
         :returns: Mapping of component name to list of reflective entries.
         """
-        items: list[dict] = []
+        items: list[dict[str, Any]] = []
         trajectories = eval_batch.trajectories
         if not trajectories:
             log.warning(
@@ -200,7 +200,7 @@ class LLMObsGEPAAdapter:
         return {"system_prompt": items}
 
     def _propose_new_texts_impl(
-        self, candidate: dict, reflective_dataset: Mapping, components_to_update: list
+        self, candidate: dict[str, Any], reflective_dataset: Mapping[str, Any], components_to_update: list[str]
     ) -> dict[str, str]:
         """Generate an improved prompt using the user's optimization_task.
 
@@ -225,7 +225,7 @@ class LLMObsGEPAAdapter:
 
         # Step 3: Call the user's optimization_task
         try:
-            new_prompt = self._optimization_task(
+            new_prompt = self._optimization_task(  # type: ignore[call-arg]
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 config=self._config,
@@ -242,7 +242,7 @@ class LLMObsGEPAAdapter:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _build_user_prompt_from_reflective(self, current_prompt: str, entries: list[dict]) -> str:
+    def _build_user_prompt_from_reflective(self, current_prompt: str, entries: list[dict[str, Any]]) -> str:
         """Build a user prompt from reflective dataset entries.
 
         Follows a structure similar to ``OptimizationIteration._build_user_prompt()``.
@@ -333,11 +333,11 @@ class LLMObsGEPAAdapter:
 
     def _run_summary_evaluators(
         self,
-        inputs: list,
-        outputs: list,
-        expected_outputs: list,
-        all_evaluations: list[dict],
-    ) -> dict:
+        inputs: list[Any],
+        outputs: list[Any],
+        expected_outputs: list[Any],
+        all_evaluations: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Run summary evaluators and return aggregated results in LLMObs summary format.
 
         :param inputs: Per-record input_data values.
@@ -348,14 +348,14 @@ class LLMObsGEPAAdapter:
         """
         from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 
-        evaluators_results: dict[str, list] = {}
+        evaluators_results: dict[str, list[Any]] = {}
         for record_evals in all_evaluations:
             for eval_name, eval_result in record_evals.items():
                 evaluators_results.setdefault(eval_name, []).append(eval_result)
 
-        summary: dict = {}
+        summary: dict[str, Any] = {}
         for evaluator in self._summary_evaluators:
-            eval_name = getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "summary_evaluator")
+            eval_name = str(getattr(evaluator, "name", None) or getattr(evaluator, "__name__", "summary_evaluator"))
             try:
                 if isinstance(evaluator, BaseSummaryEvaluator):
                     ctx = SummaryEvaluatorContext(
@@ -363,11 +363,11 @@ class LLMObsGEPAAdapter:
                         outputs=outputs,
                         expected_outputs=expected_outputs,
                         evaluation_results=evaluators_results,
-                        metadata={},
+                        metadata=[],
                     )
                     result = evaluator.evaluate(ctx)
                 else:
-                    result = evaluator(inputs, outputs, expected_outputs, evaluators_results)
+                    result = evaluator(inputs, outputs, expected_outputs, evaluators_results)  # type: ignore[arg-type]
                 summary[eval_name] = {"value": result, "error": None}
             except Exception:
                 log.debug("Summary evaluator %s failed", eval_name, exc_info=True)
@@ -375,7 +375,7 @@ class LLMObsGEPAAdapter:
         return summary
 
     @staticmethod
-    def _dataset_to_gepa_format(dataset: Dataset) -> list[dict]:
+    def _dataset_to_gepa_format(dataset: Dataset) -> list[dict[str, Any]]:
         """Convert a Dataset to the list-of-dicts format expected by GEPA.
 
         :param dataset: An LLMObs ``Dataset``.
