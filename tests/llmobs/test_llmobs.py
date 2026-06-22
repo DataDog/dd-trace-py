@@ -478,6 +478,16 @@ class TestLLMIOProcessing:
         assert get_llmobs_metadata(span) == {"keep": "ok"}
         assert mock_log.warning.called
 
+    def _replacement_drops_unset_metadata(span: LLMObsSpan):
+        return LLMObsSpan(input=[{"content": "scrubbed"}])
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_drops_unset_metadata)])
+    def test_metadata_processor_replacement_object_drops_unset_metadata(self, llmobs, llmobs_enable_opts):
+        """A processor returning a new LLMObsSpan keeps only the fields it populates (regression guard)."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {}
+
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
         env = os.environ.copy()

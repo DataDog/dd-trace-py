@@ -336,8 +336,8 @@ class LLMObsSpan:
             span.metadata.pop("tool_config", None)
             return span
 
-    ``metadata`` exposes the span's top-level metadata for redaction. Fields under
-    ``_dd`` (such as cost and agent manifest data) are never included and cannot be
+    ``metadata`` exposes the span's top-level metadata for redaction. Internal Datadog
+    fields (such as cost and agent manifest data) are never included and cannot be
     modified through this object.
     """
 
