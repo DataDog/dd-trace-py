@@ -264,7 +264,7 @@ class TestMetadataSourceMatchesOTelHook:
         # Same metadata key constant in both modules.
         assert _flagevaluation_writer.METADATA_ALLOCATION_KEY == _flageval_metrics.METADATA_ALLOCATION_KEY
 
-    def test_evp_hook_reads_allocation_from_details_flag_metadata(self, hook, writer):
+    def test_logging_hook_reads_allocation_from_details_flag_metadata(self, hook, writer):
         """logging hook reads allocation_key from details.flag_metadata (not hook_context)."""
         from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 
@@ -274,7 +274,7 @@ class TestMetadataSourceMatchesOTelHook:
         event = writer.enqueue.call_args[0][0]
         assert event.allocation_key == "alloc-from-details"
 
-    def test_otel_and_evp_hooks_extract_same_allocation_key(self):
+    def test_metrics_and_logging_hooks_extract_same_allocation_key(self):
         """Drive both hooks with identical details; both must surface the same allocation key."""
         from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
         from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -291,17 +291,17 @@ class TestMetadataSourceMatchesOTelHook:
         otel_hook.finally_after(hc, details, {})
         otel_alloc = metrics.record.call_args.kwargs["allocation_key"]
 
-        # EVP side: capture what the logging hook enqueued as allocation_key.
-        evp_writer = mock.MagicMock(spec=FlagEvaluationWriter)
-        evp_hook = FlagEvalLoggingHook(evp_writer)
-        evp_hook.finally_after(hc, details, {})
-        evp_alloc = evp_writer.enqueue.call_args[0][0].allocation_key
+        # Logging side: capture what the logging hook enqueued as allocation_key.
+        logging_writer = mock.MagicMock(spec=FlagEvaluationWriter)
+        logging_hook = FlagEvalLoggingHook(logging_writer)
+        logging_hook.finally_after(hc, details, {})
+        logging_alloc = logging_writer.enqueue.call_args[0][0].allocation_key
 
-        assert otel_alloc == evp_alloc == "shared-alloc"
+        assert otel_alloc == logging_alloc == "shared-alloc"
 
 
 class TestKillswitchGating:
-    def test_default_enabled_registers_evp_hook(self):
+    def test_default_enabled_registers_logging_hook(self):
         """Default (no env var set) must register the logging hook + writer."""
         from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
 
@@ -318,7 +318,7 @@ class TestKillswitchGating:
                 assert provider._flag_eval_logging_hook is not None
                 assert isinstance(provider._flag_eval_logging_hook, FlagEvalLoggingHook)
 
-    def test_killswitch_false_does_not_register_evp_hook(self):
+    def test_killswitch_false_does_not_register_logging_hook(self):
         """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false must suppress logging hook (killswitch)."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):
             from tests.utils import override_global_config
@@ -350,7 +350,7 @@ class TestKillswitchGating:
                 assert len(hooks) == 1
                 assert hooks[0] is provider._flag_eval_metrics_hook
 
-    def test_provider_shutdown_joins_evp_writer_final_flush(self):
+    def test_provider_shutdown_joins_logging_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
         from tests.utils import override_global_config
 
@@ -368,7 +368,7 @@ class TestKillswitchGating:
         writer.join.assert_called_once()
         assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(mock.call.join())
 
-    def test_killswitch_enabled_true_registers_evp_hook(self):
+    def test_killswitch_enabled_true_registers_logging_hook(self):
         """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the logging hook."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "true"}):
             from tests.utils import override_global_config

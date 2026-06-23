@@ -68,10 +68,10 @@ def _drain(provider):
     return decoded.get("flagEvaluations", [])
 
 
-class TestEVPHookFiresOnRealEvalPath:
+class TestFlagEvalLoggingHookFiresOnRealEvalPath:
     """The logging hook fires on the provider's real evaluation entrypoint."""
 
-    def test_evp_hook_registered_in_provider_hooks(self, provider_and_client):
+    def test_logging_hook_registered_in_provider_hooks(self, provider_and_client):
         provider, _ = provider_and_client
         from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
 
@@ -109,7 +109,7 @@ class TestEVPHookFiresOnRealEvalPath:
         assert row["variant"]["key"] == details.variant
 
 
-class TestEVPExitPathsCovered:
+class TestFlagEvalLoggingExitPathsCovered:
     """success / engine-error / runtime-default / disabled exit paths are all captured."""
 
     def test_flag_not_found_runtime_default_path(self, provider_and_client):
@@ -180,10 +180,10 @@ class TestEVPExitPathsCovered:
         assert row["context"]["evaluation"]["tier"] == "gold"
 
 
-class TestOTelNonRegressionAlongsideEVP:
-    """The EVP path must NOT change which hooks the provider registers for OTel (non-regression)."""
+class TestOTelNonRegressionAlongsideFlagEvalLogging:
+    """The logging path must NOT change which hooks the provider registers for OTel."""
 
-    def test_both_otel_and_evp_hooks_registered(self, provider_and_client):
+    def test_both_metrics_and_logging_hooks_registered(self, provider_and_client):
         provider, _ = provider_and_client
         from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
         from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -192,7 +192,7 @@ class TestOTelNonRegressionAlongsideEVP:
         assert any(isinstance(h, FlagEvalMetricsHook) for h in hooks), "OTel hook must remain registered"
         assert any(isinstance(h, FlagEvalLoggingHook) for h in hooks), "logging hook must be registered"
 
-    def test_eval_drives_otel_record_and_evp_enqueue_together(self, provider_and_client):
+    def test_eval_drives_otel_record_and_logging_enqueue_together(self, provider_and_client):
         """A single eval feeds BOTH the OTel metric record and the EVP enqueue."""
         provider, client = provider_and_client
         config = create_config(create_boolean_flag("dual-flag", enabled=True, default_value=True))
