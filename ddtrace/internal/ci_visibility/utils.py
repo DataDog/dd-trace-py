@@ -1,3 +1,5 @@
+from dis import findlinestarts
+from functools import lru_cache
 from functools import wraps
 import inspect
 import logging
@@ -40,15 +42,33 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
     return get_relative_or_absolute_path_for_path(file_object, repo_directory)
 
 
+@lru_cache(maxsize=512)
 def get_source_lines_for_test_method(
     test_method_object,
 ) -> t.Union[tuple[int, int], tuple[None, None]]:
     """
     Get the start and end line numbers for a test method.
 
+    Cached by test method object: parametrized tests and ATF retries reuse the same
+    function object across variants/attempts, so only the first call pays the cost.
+
     Returns:
         Tuple of (start_line, end_line), with None indicating unavailable information
     """
+    # Fast path: derive line numbers from the bytecode rather than tokenizing source.
+    # co_firstlineno gives the start; findlinestarts gives all executed lines so the
+    # max is the last line with a bytecode instruction — a good approximation of end.
+    try:
+        code = test_method_object.__code__
+        start_line = code.co_firstlineno
+        end_line = max((ln for _, ln in findlinestarts(code) if ln is not None), default=start_line)
+        return start_line, end_line
+    except AttributeError:
+        pass  # not a plain function; fall through to inspect
+    except Exception:
+        return None, None
+
+    # Fallback for class-based callables and other non-function objects
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
     except (TypeError, OSError):
