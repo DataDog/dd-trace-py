@@ -611,93 +611,52 @@ ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
 
 # ddwaf_object creation / serialization (libddwaf 2.0 set_* and insert API)
 
+# To avoid one extra python object serialization we declare the return type as None
+# and reuse the input (same object) instead.
+# To avoid needlessly handing off to another thread, we use PYFUNCTYPE instead of CFUNCTYPE
+# to avoid releasing the GIL for these short calls.
 
-ddwaf_object_set_string = ctypes.CFUNCTYPE(
-    ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
-)(
+ddwaf_object_set_string = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator)(
     ("ddwaf_object_set_string", ddwaf),
-    (
-        (1, "object"),
-        (1, "string"),
-        (1, "length"),
-        (1, "alloc"),
-    ),
 )
 
-ddwaf_object_set_signed = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_int64)(
+ddwaf_object_set_signed = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_int64)(
     ("ddwaf_object_set_signed", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
 )
 
-ddwaf_object_set_unsigned = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint64)(
+ddwaf_object_set_unsigned = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_uint64)(
     ("ddwaf_object_set_unsigned", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
 )
 
-ddwaf_object_set_bool = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_bool)(
+ddwaf_object_set_bool = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_bool)(
     ("ddwaf_object_set_bool", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
 )
 
-ddwaf_object_set_float = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_double)(
+ddwaf_object_set_float = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_double)(
     ("ddwaf_object_set_float", ddwaf),
-    (
-        (1, "object"),
-        (1, "value"),
-    ),
 )
 
-ddwaf_object_set_null = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p)(
+ddwaf_object_set_null = ctypes.PYFUNCTYPE(None, ddwaf_object_p)(
     ("ddwaf_object_set_null", ddwaf),
-    ((1, "object"),),
 )
 
-ddwaf_object_set_array = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+ddwaf_object_set_array = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
     ("ddwaf_object_set_array", ddwaf),
-    (
-        (1, "object"),
-        (1, "capacity"),
-        (1, "alloc"),
-    ),
 )
 
-ddwaf_object_set_map = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
+ddwaf_object_set_map = ctypes.PYFUNCTYPE(None, ddwaf_object_p, ctypes.c_uint16, ddwaf_allocator)(
     ("ddwaf_object_set_map", ddwaf),
-    (
-        (1, "object"),
-        (1, "capacity"),
-        (1, "alloc"),
-    ),
 )
 
 # Returns a pointer to the newly inserted (uninitialized) element to be built into.
-ddwaf_object_insert = ctypes.CFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
+ddwaf_object_insert = ctypes.PYFUNCTYPE(ddwaf_object_p, ddwaf_object_p, ddwaf_allocator)(
     ("ddwaf_object_insert", ddwaf),
-    (
-        (1, "array"),
-        (1, "alloc"),
-    ),
 )
 
-ddwaf_object_insert_key = ctypes.CFUNCTYPE(
+ddwaf_object_insert_key = ctypes.PYFUNCTYPE(
     ddwaf_object_p, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32, ddwaf_allocator
 )(
     ("ddwaf_object_insert_key", ddwaf),
-    (
-        (1, "map"),
-        (1, "key"),
-        (1, "length"),
-        (1, "alloc"),
-    ),
 )
 
 ddwaf_object_from_json = ctypes.CFUNCTYPE(
