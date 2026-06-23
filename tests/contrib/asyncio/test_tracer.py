@@ -352,3 +352,74 @@ async def test_wrapped_async_gen_send(tracer, test_spans):
     await gen.aclose()
 
     assert received == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_classmethod_asynccontextmanager(tracer, test_spans):
+    # The exact shape that triggered the original bug: a classmethod async
+    # context manager whose body raises must propagate the exception AND run
+    # the wrapped generator's ``finally``.
+    events = []
+
+    class Model:
+        @classmethod
+        @asynccontextmanager
+        @tracer.wrap("model.conn")
+        async def get_conn(cls):
+            events.append("enter")
+            try:
+                yield "conn"
+            finally:
+                events.append("cleanup")
+
+    with pytest.raises(ValueError):
+        async with Model.get_conn() as conn:
+            assert conn == "conn"
+            events.append("body")
+            raise ValueError("boom")
+
+    assert events == ["enter", "body", "cleanup"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_cancelled_error(tracer, test_spans):
+    # asyncio.CancelledError (a BaseException, not Exception) must still
+    # propagate and run the wrapped generator's ``finally``.
+    events = []
+
+    @asynccontextmanager
+    @tracer.wrap("managed")
+    async def managed():
+        try:
+            yield "resource"
+        finally:
+            events.append("cleanup")
+
+    with pytest.raises(asyncio.CancelledError):
+        async with managed():
+            raise asyncio.CancelledError()
+
+    assert events == ["cleanup"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_athrow_yields(tracer, test_spans):
+    """Inner gen catches the thrown exception and yields a recovery value."""
+
+    @tracer.wrap("resilient")
+    async def resilient():
+        value = 0
+        while True:
+            try:
+                yield value
+            except ValueError:
+                yield -1  # recovery yield, then loop continues
+            value += 1
+
+    gen = resilient()
+    assert await gen.asend(None) == 0
+    assert await gen.asend(None) == 1
+    recovery = await gen.athrow(ValueError("oops"))  # should yield -1, not raise
+    assert recovery == -1
+    assert await gen.asend(None) == 2  # resumes normally after recovery
+    await gen.aclose()
