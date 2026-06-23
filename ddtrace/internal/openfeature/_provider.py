@@ -25,7 +25,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
-from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -148,12 +148,12 @@ class DataDogProvider(AbstractProvider):
         # environment via the DDConfig var system), which keeps the killswitch overridable
         # per-instance in tests.
         self._flag_eval_evp_writer: typing.Optional[FlagEvaluationWriter] = None
-        self._flag_eval_logging_hook: typing.Optional[FlagEvalLoggingHook] = None
+        self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
         evp_config = OpenFeatureConfig()
         evp_counts_enabled = evp_config.flagging_evaluation_counts_enabled
         if self._enabled and evp_counts_enabled:
             self._flag_eval_evp_writer = FlagEvaluationWriter()
-            self._flag_eval_logging_hook = FlagEvalLoggingHook(self._flag_eval_evp_writer)
+            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
@@ -175,15 +175,15 @@ class DataDogProvider(AbstractProvider):
         Hook ordering:
         1. OTel FlagEvalMetricsHook (_flageval_metrics.py) — always registered when the provider
            is enabled; emits the feature_flag.evaluations OTel counter (preserved unchanged).
-        2. FlagEvalLoggingHook (_flag_eval_logging_hook.py) — registered only when
+        2. FlagEvalEVPHook (_flag_eval_evp_hook.py) — registered only when
            DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
            snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
         """
         hooks: list[typing.Any] = []
         if self._flag_eval_metrics_hook is not None:
             hooks.append(self._flag_eval_metrics_hook)
-        if self._flag_eval_logging_hook is not None:
-            hooks.append(self._flag_eval_logging_hook)
+        if self._flag_eval_evp_hook is not None:
+            hooks.append(self._flag_eval_evp_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -265,7 +265,7 @@ class DataDogProvider(AbstractProvider):
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
             self._flag_eval_evp_writer = None
-            self._flag_eval_logging_hook = None
+            self._flag_eval_evp_hook = None
 
         # Shutdown flag evaluation metrics
         if self._flag_eval_metrics is not None:

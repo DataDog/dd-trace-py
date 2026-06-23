@@ -1,5 +1,5 @@
 """
-Tests for FlagEvalLoggingHook — finally_after cheap capture + non-blocking enqueue.
+Tests for FlagEvalEVPHook — finally_after cheap capture + non-blocking enqueue.
 
 Validates the hook design:
 - finally_after does cheap capture only (no aggregation, no I/O)
@@ -66,12 +66,12 @@ def writer():
 
 @pytest.fixture
 def hook(writer):
-    from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+    from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
-    return FlagEvalLoggingHook(writer=writer)
+    return FlagEvalEVPHook(writer=writer)
 
 
-class TestFlagEvalLoggingHook:
+class TestFlagEvalEVPHook:
     def test_finally_after_calls_writer_enqueue_once(self, hook, writer):
         """finally_after must call writer.enqueue exactly once per evaluation."""
         hc = _make_hook_context()
@@ -109,13 +109,13 @@ class TestFlagEvalLoggingHook:
         event = writer.enqueue.call_args[0][0]
         assert event.runtime_default is False
 
-    def test_finally_after_type_mismatch_sets_runtime_default(self, hook, writer):
+    def test_finally_after_present_variant_with_type_mismatch_uses_variant(self, hook, writer):
         hc = _make_hook_context()
         details = _make_details(variant="wrong-type", error_code=ErrorCode.TYPE_MISMATCH)
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
-        assert event.runtime_default is True
-        assert event.variant == ""
+        assert event.runtime_default is False
+        assert event.variant == "wrong-type"
 
     def test_finally_after_does_not_enqueue_openfeature_reason(self, hook, writer):
         """OpenFeature reason is not an EVP field and must not enter the event snapshot."""
@@ -207,11 +207,11 @@ class TestAsyncBoundary:
 
     def test_aggregate_not_called_on_hook_path(self):
         """Spy on the REAL writer's _aggregate — it must NOT run during finally_after."""
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         real_writer = FlagEvaluationWriter(interval=10.0)
-        hook = FlagEvalLoggingHook(writer=real_writer)
+        hook = FlagEvalEVPHook(writer=real_writer)
 
         with mock.patch.object(real_writer, "_aggregate", wraps=real_writer._aggregate) as spy_aggregate:
             hc = _make_hook_context(attrs={"tier": "premium", "region": "us"})
@@ -236,12 +236,12 @@ class TestAsyncBoundary:
 
     def test_canonical_key_not_computed_on_hook_path(self):
         """canonical_context_key (the keying cost) must not run during finally_after."""
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         import ddtrace.internal.openfeature._flagevaluation_writer as writer_mod
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         real_writer = FlagEvaluationWriter(interval=10.0)
-        hook = FlagEvalLoggingHook(writer=real_writer)
+        hook = FlagEvalEVPHook(writer=real_writer)
 
         with mock.patch.object(writer_mod, "canonical_context_key", wraps=writer_mod.canonical_context_key) as spy_key:
             hc = _make_hook_context(attrs={"a": "b"})
@@ -250,10 +250,10 @@ class TestAsyncBoundary:
 
 
 class TestMetadataSourceMatchesOTelHook:
-    """logging hook reads allocation-key/eval metadata from the SAME source as the OTel hook.
+    """EVP hook reads allocation-key/eval metadata from the SAME source as the OTel hook.
 
     The existing OTel FlagEvalMetricsHook reads allocation_key from
-    ``details.flag_metadata[METADATA_ALLOCATION_KEY]``. The logging hook must read from the
+    ``details.flag_metadata[METADATA_ALLOCATION_KEY]``. The EVP hook must read from the
     identical source so the two paths agree byte-for-byte on metadata.
     """
 
@@ -264,8 +264,8 @@ class TestMetadataSourceMatchesOTelHook:
         # Same metadata key constant in both modules.
         assert _flagevaluation_writer.METADATA_ALLOCATION_KEY == _flageval_metrics.METADATA_ALLOCATION_KEY
 
-    def test_logging_hook_reads_allocation_from_details_flag_metadata(self, hook, writer):
-        """logging hook reads allocation_key from details.flag_metadata (not hook_context)."""
+    def test_evp_hook_reads_allocation_from_details_flag_metadata(self, hook, writer):
+        """EVP hook reads allocation_key from details.flag_metadata (not hook_context)."""
         from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 
         hc = _make_hook_context()
@@ -274,9 +274,9 @@ class TestMetadataSourceMatchesOTelHook:
         event = writer.enqueue.call_args[0][0]
         assert event.allocation_key == "alloc-from-details"
 
-    def test_metrics_and_logging_hooks_extract_same_allocation_key(self):
+    def test_metrics_and_evp_hooks_extract_same_allocation_key(self):
         """Drive both hooks with identical details; both must surface the same allocation key."""
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
         from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
         from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
@@ -291,19 +291,19 @@ class TestMetadataSourceMatchesOTelHook:
         otel_hook.finally_after(hc, details, {})
         otel_alloc = metrics.record.call_args.kwargs["allocation_key"]
 
-        # Logging side: capture what the logging hook enqueued as allocation_key.
-        logging_writer = mock.MagicMock(spec=FlagEvaluationWriter)
-        logging_hook = FlagEvalLoggingHook(logging_writer)
-        logging_hook.finally_after(hc, details, {})
-        logging_alloc = logging_writer.enqueue.call_args[0][0].allocation_key
+        # EVP side: capture what the EVP hook enqueued as allocation_key.
+        evp_writer = mock.MagicMock(spec=FlagEvaluationWriter)
+        evp_hook = FlagEvalEVPHook(evp_writer)
+        evp_hook.finally_after(hc, details, {})
+        evp_alloc = evp_writer.enqueue.call_args[0][0].allocation_key
 
-        assert otel_alloc == logging_alloc == "shared-alloc"
+        assert otel_alloc == evp_alloc == "shared-alloc"
 
 
 class TestKillswitchGating:
-    def test_default_enabled_registers_logging_hook(self):
-        """Default (no env var set) must register the logging hook + writer."""
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+    def test_default_enabled_registers_evp_hook(self):
+        """Default (no env var set) must register the EVP hook + writer."""
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
         env = {k: v for k, v in os.environ.items() if k != "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"}
         # No env var → enabled by default.
@@ -315,11 +315,11 @@ class TestKillswitchGating:
 
                 provider = DataDogProvider()
                 assert provider._flag_eval_evp_writer is not None
-                assert provider._flag_eval_logging_hook is not None
-                assert isinstance(provider._flag_eval_logging_hook, FlagEvalLoggingHook)
+                assert provider._flag_eval_evp_hook is not None
+                assert isinstance(provider._flag_eval_evp_hook, FlagEvalEVPHook)
 
-    def test_killswitch_false_does_not_register_logging_hook(self):
-        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false must suppress logging hook (killswitch)."""
+    def test_killswitch_false_does_not_register_evp_hook(self):
+        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false must suppress EVP hook (killswitch)."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):
             from tests.utils import override_global_config
 
@@ -328,7 +328,7 @@ class TestKillswitchGating:
 
                 provider = DataDogProvider()
                 assert provider._flag_eval_evp_writer is None
-                assert provider._flag_eval_logging_hook is None
+                assert provider._flag_eval_evp_hook is None
 
     def test_killswitch_false_does_not_affect_otel_hook(self):
         """Killswitch must not suppress the OTel FlagEvalMetricsHook (OTel non-regression)."""
@@ -343,14 +343,14 @@ class TestKillswitchGating:
                 provider = DataDogProvider()
                 # OTel hook still present.
                 assert provider._flag_eval_metrics_hook is not None
-                # logging hook absent.
-                assert provider._flag_eval_logging_hook is None
+                # EVP hook absent.
+                assert provider._flag_eval_evp_hook is None
                 # get_provider_hooks still returns the OTel hook.
                 hooks = provider.get_provider_hooks()
                 assert len(hooks) == 1
                 assert hooks[0] is provider._flag_eval_metrics_hook
 
-    def test_provider_shutdown_joins_logging_writer_final_flush(self):
+    def test_provider_shutdown_joins_evp_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
         from tests.utils import override_global_config
 
@@ -368,8 +368,8 @@ class TestKillswitchGating:
         writer.join.assert_called_once()
         assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(mock.call.join())
 
-    def test_killswitch_enabled_true_registers_logging_hook(self):
-        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the logging hook."""
+    def test_killswitch_enabled_true_registers_evp_hook(self):
+        """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the EVP hook."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "true"}):
             from tests.utils import override_global_config
 
@@ -378,4 +378,4 @@ class TestKillswitchGating:
 
                 provider = DataDogProvider()
                 assert provider._flag_eval_evp_writer is not None
-                assert provider._flag_eval_logging_hook is not None
+                assert provider._flag_eval_evp_hook is not None

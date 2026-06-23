@@ -371,7 +371,7 @@ class FlagEvaluationWriter(PeriodicService):
         self._drain_worker: typing.Optional[PeriodicThread] = None
 
     # ------------------------------------------------------------------
-    # Public API used by FlagEvalLoggingHook
+    # Public API used by FlagEvalEVPHook
     # ------------------------------------------------------------------
 
     def enqueue(self, event: _EvalEvent) -> None:

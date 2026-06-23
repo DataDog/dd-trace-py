@@ -4,7 +4,7 @@ End-to-end tests for the EVP `flagevaluation` path through the real provider eva
 These cover the lifecycle/exit paths that unit tests of the hook/writer in isolation
 cannot prove:
 
-- The logging hook actually fires on the provider's REAL OpenFeature evaluation entrypoint
+- The EVP hook actually fires on the provider's REAL OpenFeature evaluation entrypoint
   (driven through the OpenFeature client, not by calling the hook directly).
 - ALL evaluation exit paths are covered — success, native engine error, runtime default
   (flag-not-found / no-config), and disabled.
@@ -45,7 +45,7 @@ def provider_and_client():
         provider = DataDogProvider()
     # Sanity: the EVP writer/hook are wired (killswitch default on).
     assert provider._flag_eval_evp_writer is not None
-    assert provider._flag_eval_logging_hook is not None
+    assert provider._flag_eval_evp_hook is not None
 
     api.set_provider(provider)
     client = api.get_client()
@@ -68,15 +68,15 @@ def _drain(provider):
     return decoded.get("flagEvaluations", [])
 
 
-class TestFlagEvalLoggingHookFiresOnRealEvalPath:
-    """The logging hook fires on the provider's real evaluation entrypoint."""
+class TestFlagEvalEVPHookFiresOnRealEvalPath:
+    """The EVP hook fires on the provider's real evaluation entrypoint."""
 
-    def test_logging_hook_registered_in_provider_hooks(self, provider_and_client):
+    def test_evp_hook_registered_in_provider_hooks(self, provider_and_client):
         provider, _ = provider_and_client
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
         hooks = provider.get_provider_hooks()
-        assert any(isinstance(h, FlagEvalLoggingHook) for h in hooks)
+        assert any(isinstance(h, FlagEvalEVPHook) for h in hooks)
 
     def test_success_eval_enqueues_and_emits_row(self, provider_and_client):
         provider, client = provider_and_client
@@ -180,19 +180,19 @@ class TestFlagEvalLoggingExitPathsCovered:
         assert row["context"]["evaluation"]["tier"] == "gold"
 
 
-class TestOTelNonRegressionAlongsideFlagEvalLogging:
-    """The logging path must NOT change which hooks the provider registers for OTel."""
+class TestOTelNonRegressionAlongsideFlagEvalEVP:
+    """The EVP path must NOT change which hooks the provider registers for OTel."""
 
-    def test_both_metrics_and_logging_hooks_registered(self, provider_and_client):
+    def test_both_metrics_and_evp_hooks_registered(self, provider_and_client):
         provider, _ = provider_and_client
-        from ddtrace.internal.openfeature._flag_eval_logging_hook import FlagEvalLoggingHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 
         hooks = provider.get_provider_hooks()
         assert any(isinstance(h, FlagEvalMetricsHook) for h in hooks), "OTel hook must remain registered"
-        assert any(isinstance(h, FlagEvalLoggingHook) for h in hooks), "logging hook must be registered"
+        assert any(isinstance(h, FlagEvalEVPHook) for h in hooks), "EVP hook must be registered"
 
-    def test_eval_drives_otel_record_and_logging_enqueue_together(self, provider_and_client):
+    def test_eval_drives_otel_record_and_evp_enqueue_together(self, provider_and_client):
         """A single eval feeds BOTH the OTel metric record and the EVP enqueue."""
         provider, client = provider_and_client
         config = create_config(create_boolean_flag("dual-flag", enabled=True, default_value=True))
