@@ -3,8 +3,8 @@ from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
-from time import time_ns
 import threading
+from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Optional
 
@@ -18,6 +18,7 @@ from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import INVALID_SPAN
 
+from ddtrace._trace.processor import SpanProcessor as DDSpanProcessor
 from ddtrace._trace.provider import ActiveTrace as DDActiveTrace
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
@@ -96,6 +97,29 @@ class SynchronousMultiSpanProcessor:
         return True
 
 
+class _OtelBridgeSpanProcessor(DDSpanProcessor):
+    """Routes OTel SpanProcessor hooks through ddtrace's span lifecycle."""
+
+    def __init__(self, multi_processor: SynchronousMultiSpanProcessor) -> None:
+        self._multi_processor = multi_processor
+        self._span_map: dict = {}  # (trace_id, span_id) → OtelSpan wrapper
+
+    def on_span_created(self, ddspan, otel_span: "OtelSpan", parent_context: Optional[OtelContext] = None) -> None:
+        self._span_map[(ddspan.trace_id, ddspan.span_id)] = otel_span
+        self._multi_processor.on_start(otel_span, parent_context=parent_context)
+
+    def on_span_start(self, span) -> None:
+        pass  # on_start is dispatched from Tracer.start_span with OTel parent_context
+
+    def on_span_finish(self, span) -> None:
+        otel_span = self._span_map.pop((span.trace_id, span.span_id), None)
+        if otel_span is not None:
+            self._multi_processor.on_end(otel_span)
+
+    def shutdown(self, timeout=None) -> None:
+        self._multi_processor.shutdown()
+
+
 try:
     from opentelemetry.util._decorator import _agnosticcontextmanager as contextmanager  # type: ignore[no-redef]
 except ImportError:
@@ -128,6 +152,8 @@ class TracerProvider(OtelTracerProvider):
 
     def __init__(self) -> None:
         self._active_span_processor = SynchronousMultiSpanProcessor()
+        self._bridge = _OtelBridgeSpanProcessor(self._active_span_processor)
+        self._bridge.register()
 
     def add_span_processor(self, span_processor: SpanProcessor) -> None:
         """Registers a :class:`SpanProcessor` with this ``TracerProvider``.
@@ -136,6 +162,11 @@ class TracerProvider(OtelTracerProvider):
         Mirrors ``opentelemetry.sdk.trace.TracerProvider.add_span_processor``.
         """
         self._active_span_processor.add_span_processor(span_processor)
+
+    def shutdown(self) -> None:
+        """Shuts down all registered span processors and deregisters the ddtrace bridge."""
+        self._bridge.unregister()
+        self._active_span_processor.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Flushes all registered span processors.
@@ -156,7 +187,7 @@ class TracerProvider(OtelTracerProvider):
             attributes: Optional[dict] = None,
         ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._active_span_processor)
+            return Tracer(self._bridge)
 
     else:
 
@@ -167,14 +198,14 @@ class TracerProvider(OtelTracerProvider):
             schema_url: Optional[str] = None,
         ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._active_span_processor)
+            return Tracer(self._bridge)
 
 
 class Tracer(OtelTracer):
     """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
 
-    def __init__(self, active_span_processor: Optional[SynchronousMultiSpanProcessor] = None) -> None:
-        self._active_span_processor = active_span_processor
+    def __init__(self, bridge: Optional["_OtelBridgeSpanProcessor"] = None) -> None:
+        self._bridge = bridge
 
     def start_span(
         self,
@@ -213,16 +244,17 @@ class Tracer(OtelTracer):
                     link.context.trace_flags,
                     link.attributes,
                 )
-        return Span(
+        otel_span = Span(
             dd_span,
             kind=kind,
             attributes=attributes,
             start_time=start_time,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
-            span_processor=self._active_span_processor,
-            parent_context=context,
         )
+        if self._bridge is not None:
+            self._bridge.on_span_created(dd_span, otel_span, parent_context=context)
+        return otel_span
 
     @contextmanager
     def start_as_current_span(

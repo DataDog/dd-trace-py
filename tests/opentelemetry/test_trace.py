@@ -6,7 +6,6 @@ import pytest
 
 from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 from ddtrace.opentelemetry import SpanProcessor
-from ddtrace.opentelemetry import SynchronousMultiSpanProcessor
 from ddtrace.opentelemetry import TracerProvider
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
@@ -430,18 +429,17 @@ def test_force_flush_no_processors_returns_true():
 
 
 def test_synchronous_multi_span_processor_add_and_call():
-    multi = SynchronousMultiSpanProcessor()
     p1 = _RecordingProcessor()
     p2 = _RecordingProcessor()
-    multi.add_span_processor(p1)
-    multi.add_span_processor(p2)
-
     provider = TracerProvider()
-    provider._active_span_processor = multi
+    provider.add_span_processor(p1)
+    provider.add_span_processor(p2)
     tracer = provider.get_tracer(__name__)
 
     with tracer.start_as_current_span("multi-direct"):
         pass
+
+    provider.shutdown()
 
     assert len(p1.started) == 1
     assert len(p2.started) == 1
@@ -461,3 +459,43 @@ def test_span_processor_base_class_defaults():
     proc.shutdown()
     assert proc.force_flush() is True
     assert proc.force_flush(timeout_millis=100) is True
+
+
+def test_provider_shutdown_calls_processor_shutdown():
+    processor = _RecordingProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(processor)
+
+    assert not processor.shutdown_called
+    provider.shutdown()
+    assert processor.shutdown_called
+
+
+def test_non_otel_span_does_not_trigger_processor():
+    """Plain ddtrace spans must not be routed to OTel processors."""
+    import ddtrace
+
+    processor = _RecordingProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(processor)
+
+    with ddtrace.tracer.trace("non-otel-span"):
+        pass
+
+    provider.shutdown()
+    assert len(processor.started) == 0
+    assert len(processor.ended) == 0
+
+
+def test_multi_span_trace_all_spans_get_on_end():
+    processor = _RecordingProcessor()
+    provider = _make_provider_with_processor(processor)
+    tracer = provider.get_tracer(__name__)
+
+    with tracer.start_as_current_span("parent"):
+        with tracer.start_as_current_span("child"):
+            pass
+
+    provider.shutdown()
+    assert len(processor.started) == 2
+    assert len(processor.ended) == 2
