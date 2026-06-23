@@ -133,7 +133,15 @@ def _loop_handler(span, chunk, streamed_chunks):
     for choice in getattr(chunk, "choices", []):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
-        streamed_chunks[0].insert(0, chunk)
+        # OpenAI emits a single trailing usage chunk, but some OpenAI-compatible providers emit a
+        # cumulative usage object on every chunk (a running token count that only reaches the true
+        # total on the last chunk). Keep only the most-recent usage chunk at the front of the list
+        # rather than accumulating one entry per chunk, so the downstream construct functions read
+        # the final cumulative total.
+        if streamed_chunks[0] and getattr(streamed_chunks[0][0], "usage", None):
+            streamed_chunks[0][0] = chunk
+        else:
+            streamed_chunks[0].insert(0, chunk)
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):

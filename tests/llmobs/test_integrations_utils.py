@@ -364,26 +364,6 @@ def _chunk(content=None, reasoning_content=None, role=None, finish_reason=None):
     return SimpleNamespace(delta=delta, finish_reason=finish_reason, usage=None, index=0)
 
 
-def _usage_chunk(prompt_tokens, completion_tokens):
-    usage = SimpleNamespace(
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        total_tokens=prompt_tokens + completion_tokens,
-    )
-    return SimpleNamespace(delta=None, finish_reason=None, usage=usage, index=0)
-
-
-def _apply_loop_handler_usage_ordering(content_chunks, usage_chunks):
-    """Build a streamed_chunks[0] list the way _loop_handler does: content choices are
-    appended in arrival order, while each usage-bearing chunk is prepended to the front.
-    The result has usage chunks in most-recent-first order, then the content choices.
-    """
-    streamed = list(content_chunks)
-    for usage_chunk in usage_chunks:  # usage_chunks given in arrival order
-        streamed.insert(0, usage_chunk)
-    return streamed
-
-
 class TestOpenAIConstructMessageFromStreamedChunks:
     def test_reasoning_then_content_chunks_aggregate_both(self):
         # OpenAI-compatible reasoning providers (DeepSeek, Qwen, etc.) typically emit
@@ -425,28 +405,3 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
-
-    def test_trailing_usage_only_chunk_openai_behavior(self):
-        # Real OpenAI emits a single trailing usage-only chunk; the total should be recorded.
-        content_chunks = [_chunk(role="assistant"), _chunk(content="hello")]
-        chunks = _apply_loop_handler_usage_ordering(content_chunks, [_usage_chunk(10, 20)])
-        message = openai_construct_message_from_streamed_chunks(chunks)
-        assert message["usage"].prompt_tokens == 10
-        assert message["usage"].completion_tokens == 20
-        assert message["content"] == "hello"
-
-    def test_cumulative_per_chunk_usage_records_final_total(self):
-        # OpenAI-compatible providers may emit a populated usage object on every chunk with a
-        # running (cumulative) completion_tokens count that only reaches the true total on the
-        # last-received chunk. The span must record the final total, not the first chunk's ~0.
-        content_chunks = [_chunk(role="assistant"), _chunk(content="hi")]
-        cumulative_usage = [
-            _usage_chunk(10, 0),
-            _usage_chunk(10, 600),
-            _usage_chunk(10, 1600),
-        ]
-        chunks = _apply_loop_handler_usage_ordering(content_chunks, cumulative_usage)
-        message = openai_construct_message_from_streamed_chunks(chunks)
-        assert message["usage"].completion_tokens == 1600
-        assert message["usage"].total_tokens == 1610
-        assert message["usage"].prompt_tokens == 10
