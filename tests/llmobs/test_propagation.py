@@ -58,6 +58,13 @@ def test_inject_llmobs_ml_app_override(llmobs):
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
 
 
+def test_inject_llmobs_agentic_service_uses_ml_app_key(llmobs):
+    with llmobs.workflow(name="LLMObs span", agentic_service="test-agentic-service") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-agentic-service"
+    assert "_dd.p.llmobs_agentic_service" not in span.context._meta
+
+
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as span:

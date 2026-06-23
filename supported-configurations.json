@@ -47,6 +47,16 @@
         "default": "0"
       }
     ],
+    "DD_AGENTIC_SERVICE": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_LLMOBS_ML_APP"
+        ]
+      }
+    ],
     "DD_AIOBOTOCORE_SERVICE": [
       {
         "implementation": "A",

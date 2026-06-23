@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Added ``agentic_service`` and ``DD_AGENTIC_SERVICE`` as the preferred SDK aliases for
+    configuring the LLMObs application identity. Existing ``ml_app`` and ``DD_LLMOBS_ML_APP`` configuration
+    is deprecated and will be removed in the next major version of ddtrace.

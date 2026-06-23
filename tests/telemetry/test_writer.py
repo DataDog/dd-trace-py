@@ -161,6 +161,7 @@ import opentelemetry
     configurations.sort(key=lambda x: x["name"])
 
     expected = [
+        {"name": "DD_AGENTIC_SERVICE", "origin": "default", "value": None},
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
@@ -292,7 +293,6 @@ import opentelemetry
         {"name": "DD_LLMOBS_EVALUATOR_SAMPLING_RULES", "origin": "env_var", "value": None},
         {"name": "DD_LLMOBS_EVENT_SIZE_BYTES", "origin": "default", "value": 5000000},
         {"name": "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", "origin": "default", "value": None},
-        {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_PAYLOAD_SIZE_BYTES", "origin": "default", "value": 5242880},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},

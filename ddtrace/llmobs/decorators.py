@@ -70,6 +70,7 @@ def _model_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agentic_service: Optional[str] = None,
     ):
         def inner(func):
             if iscoroutinefunction(func) or isasyncgenfunction(func):
@@ -87,6 +88,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        agentic_service=agentic_service,
                         _decorator=True,
                     )
                     return yield_from_async_gen(func, span, args, kwargs)
@@ -104,6 +106,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        agentic_service=agentic_service,
                         _decorator=True,
                     ) as span:
                         resp = await func(*args, **kwargs)
@@ -139,6 +142,7 @@ def _model_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
+                            agentic_service=agentic_service,
                             _decorator=True,
                         )
                         try:
@@ -164,6 +168,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
+                        agentic_service=agentic_service,
                         _decorator=True,
                     ) as span:
                         resp = func(*args, **kwargs)
@@ -198,6 +203,7 @@ def _llmobs_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
+        agentic_service: Optional[str] = None,
         _automatic_io_annotation: bool = True,
     ):
         def inner(func):
@@ -210,7 +216,13 @@ def _llmobs_decorator(operation_kind):
                         return func(*args, **kwargs)
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                    span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True)
+                    span = traced_operation(
+                        name=span_name,
+                        session_id=session_id,
+                        ml_app=ml_app,
+                        agentic_service=agentic_service,
+                        _decorator=True,
+                    )
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
                     if _automatic_io_annotation and bound_args.arguments:
@@ -225,7 +237,11 @@ def _llmobs_decorator(operation_kind):
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
                     with traced_operation(
-                        name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
+                        name=span_name,
+                        session_id=session_id,
+                        ml_app=ml_app,
+                        agentic_service=agentic_service,
+                        _decorator=True,
                     ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
@@ -247,7 +263,13 @@ def _llmobs_decorator(operation_kind):
                     else:
                         _, span_name = _get_llmobs_span_options(name, None, func)
                         traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
-                        span = traced_operation(name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True)
+                        span = traced_operation(
+                            name=span_name,
+                            session_id=session_id,
+                            ml_app=ml_app,
+                            agentic_service=agentic_service,
+                            _decorator=True,
+                        )
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
@@ -271,7 +293,11 @@ def _llmobs_decorator(operation_kind):
                     _, span_name = _get_llmobs_span_options(name, None, func)
                     traced_operation = getattr(LLMObs, operation_kind, LLMObs.workflow)
                     with traced_operation(
-                        name=span_name, session_id=session_id, ml_app=ml_app, _decorator=True
+                        name=span_name,
+                        session_id=session_id,
+                        ml_app=ml_app,
+                        agentic_service=agentic_service,
+                        _decorator=True,
                     ) as span:
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)

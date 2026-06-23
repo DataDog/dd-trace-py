@@ -571,6 +571,51 @@ def test_ml_app_override(llmobs, test_spans):
     )
 
 
+def test_agentic_service_override(llmobs, test_spans):
+    """Test that agentic_service on decorators writes the canonical ml_app tag."""
+    for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
+
+        @decorator(ml_app="legacy_ml_app", agentic_service="test_agentic_service")
+        def f():
+            pass
+
+        f()
+        span = test_spans.pop()[0]
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(span),
+            span_kind=decorator_name,
+            tags={"ml_app": "test_agentic_service", "decorator": "1"},
+        )
+
+    @llm(model_name="test_model", agentic_service="test_agentic_service")
+    def g():
+        pass
+
+    g()
+    span = test_spans.pop()[0]
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="llm",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_agentic_service", "decorator": "1"},
+    )
+
+    @embedding(model_name="test_model", agentic_service="test_agentic_service")
+    def h():
+        pass
+
+    h()
+    span = test_spans.pop()[0]
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(span),
+        span_kind="embedding",
+        model_name="test_model",
+        model_provider=UNKNOWN_MODEL_PROVIDER,
+        tags={"ml_app": "test_agentic_service", "decorator": "1"},
+    )
+
+
 async def test_non_llm_async_decorators(llmobs, test_spans):
     """Test that decorators work with async functions."""
     for decorator_name, decorator in [
