@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    dbm: this fixes an issue with attributing metrics to incorrect services when peer.service is enabled

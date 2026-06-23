@@ -1,3 +1,0 @@
-features:
-  - |
-    profiling: The PyTorch profiler now properly shows nested frames in flame graphs.

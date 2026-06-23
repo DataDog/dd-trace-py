@@ -1,4 +1,0 @@
----
-features:
-  - |
-    aws: Adds span tags for consistency with tags collected by Datadog for AWS metrics and logs.

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    openai: This fix resolves an issue where streamed OpenAI responses raised errors when being used as context managers.
-

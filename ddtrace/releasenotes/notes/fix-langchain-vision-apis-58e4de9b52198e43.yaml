@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    langchain: Ensures langchain vision APIs are correctly instrumented

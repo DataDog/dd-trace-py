@@ -1,4 +1,0 @@
----
-features:
-  - |
-    opentelemetry: Map reserved OpenTelemetry attributes to Datadog span model.

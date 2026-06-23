@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix error in patching functions. ``forbiddenfruit`` package has conflicts with some libraries such as ``asynctest``. 
-    This conflict raises ``AttributeError`` exception. See issue #4484.

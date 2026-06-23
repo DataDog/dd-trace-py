@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Data Streams Monitoring: Fixes a regression introduced in v4.3.0 that prevented DSM from being automatically enabled for Kafka, AioKafka, Kombu, and Botocore integrations.

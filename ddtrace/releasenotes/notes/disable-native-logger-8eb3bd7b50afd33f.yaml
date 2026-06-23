@@ -1,3 +1,0 @@
-fixes:
-  - |
-    flare: disable native logger in tracer flares as it causes deadlocks on fork.

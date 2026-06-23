@@ -1,5 +1,0 @@
----
-features:
-  - |
-    LLM Observability: The OpenAI integration now captures tool calls returned from streamed responses 
-    when making calls to the chat completions endpoint.

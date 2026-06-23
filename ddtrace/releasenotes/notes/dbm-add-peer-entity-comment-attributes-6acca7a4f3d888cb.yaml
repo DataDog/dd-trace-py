@@ -1,4 +1,0 @@
----
-features:
-  - |
-    dbm: adds new `ddh` and `dddb` SQL comment attributes to enable connection with APM when using `peer.service`.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: fix nested web frameworks re-extracting and activating HTTP context propagation headers.

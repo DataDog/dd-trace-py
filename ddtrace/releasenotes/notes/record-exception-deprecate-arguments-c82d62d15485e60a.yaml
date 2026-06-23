@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    tracing: The ``escaped`` and ``timestamp`` arguments in the ``record_exception`` method are deprecated and will be removed in version 4.0.0.

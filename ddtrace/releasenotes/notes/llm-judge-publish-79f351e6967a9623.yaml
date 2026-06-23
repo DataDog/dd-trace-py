@@ -1,5 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds ``LLMObs.publish_evaluator()`` to sync a locally-defined
-        ``LLMJudge`` evaluator to the Datadog UI as a custom LLM-as-Judge evaluation.

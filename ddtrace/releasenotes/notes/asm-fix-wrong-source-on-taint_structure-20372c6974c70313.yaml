@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Code Security: fix setting the wrong source on map elements tainted from `taint_structure`.

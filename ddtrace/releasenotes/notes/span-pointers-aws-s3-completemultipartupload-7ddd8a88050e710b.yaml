@@ -1,4 +1,0 @@
----
-features:
-  - |
-    botocore: Adds span pointers for successful S3 ``CompleteMultipartUpload`` spans.

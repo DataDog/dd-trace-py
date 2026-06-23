@@ -1,4 +1,0 @@
----
-features:
-  - |
-    aiohttp: store request and response headers.

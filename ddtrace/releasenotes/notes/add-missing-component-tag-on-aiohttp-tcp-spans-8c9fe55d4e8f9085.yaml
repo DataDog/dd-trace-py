@@ -1,4 +1,0 @@
----
-features:
-  - |
-    aiohttp: Add missing component meta tag to aiohttp server spans.

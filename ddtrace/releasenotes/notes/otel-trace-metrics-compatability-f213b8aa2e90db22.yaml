@@ -1,4 +1,0 @@
----
-features:
-  - |
-     otel: adds support for generating Datadog trace metrics using OpenTelemetry instrumentations

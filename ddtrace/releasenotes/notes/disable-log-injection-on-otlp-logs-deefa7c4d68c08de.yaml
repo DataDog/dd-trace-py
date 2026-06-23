@@ -1,4 +1,0 @@
----
-features:
-  - |
-    fix: Ensures that ddtrace log injection is disabled when OpenTelemetry logs are enabled (DD_LOGS_OTEL_ENABLED=true).

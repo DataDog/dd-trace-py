@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The `ddtrace.profiling.auto` module will warn users if gevent monkey
-    patching is done after the profiler is auto-instrumented.

@@ -1,5 +1,0 @@
----
-other:
-  - |
-    Documentation on how to use Gunicorn with the ``gevent`` worker class has
-    been added.

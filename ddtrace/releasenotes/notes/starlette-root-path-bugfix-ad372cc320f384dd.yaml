@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    starlette: Ensures correct URL tag is set for starlette v0.34.0 and above.

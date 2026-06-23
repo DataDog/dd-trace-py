@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Support for aiohttp previous to 2.0 has been removed.

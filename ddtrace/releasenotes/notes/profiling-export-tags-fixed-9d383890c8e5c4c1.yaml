@@ -1,5 +1,0 @@
----
-upgrade:
-  - |
-    The profiler will only load tags from the DD_TAGS environment variable
-    once at start.

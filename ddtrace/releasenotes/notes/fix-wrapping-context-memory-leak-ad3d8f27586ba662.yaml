@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    code origin: fixed a potential memory leak when collecting entry span
-    location information.

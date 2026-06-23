@@ -1,8 +1,0 @@
-pytest
-pytest-cov
-requests
-hypothesis
-flask
-asgiref
-botocore
-dnspython

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Introduces a ``decorator`` tag to LLM Observability spans that are traced by a function decorator.

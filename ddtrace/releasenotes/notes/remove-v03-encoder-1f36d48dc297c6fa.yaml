@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    tracing: ``DD_TRACE_API_VERSION=v0.3`` is deprecated. Use ``v0.4`` or ``v0.5`` instead.

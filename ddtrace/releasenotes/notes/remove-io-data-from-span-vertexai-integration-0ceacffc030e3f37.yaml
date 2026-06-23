@@ -1,3 +1,0 @@
-other:
-  - |
-    vertexai: Removes the IO data from the APM spans for VertexAI LLM requests and responses, which is duplicated in the LLM Observability span.

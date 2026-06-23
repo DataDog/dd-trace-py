@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracing: Span and trace sampling rules are case insensitive.

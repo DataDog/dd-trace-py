@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    core: use loose types when encoding.

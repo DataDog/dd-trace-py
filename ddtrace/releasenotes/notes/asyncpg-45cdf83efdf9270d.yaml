@@ -1,4 +1,0 @@
----
-features:
-  - |
-    asyncpg: add integration supporting v0.18.0 and above. See :ref:`the docs<asyncpg>` for more information.

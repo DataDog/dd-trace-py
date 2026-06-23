@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    grpc: Add done callback in streaming response to avoid unfinished spans if a `StopIteration` is never raised, as is found in the Google Cloud libraries.

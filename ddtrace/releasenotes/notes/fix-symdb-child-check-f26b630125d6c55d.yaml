@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    dynamic instrumentation: fixed an issue that prevented autocomplete
-    information to be extracted from the running application.

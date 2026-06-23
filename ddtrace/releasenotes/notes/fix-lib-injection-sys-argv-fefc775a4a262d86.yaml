@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    lib-injection: Fix injection guardrail check when ``sys.argv`` is not available.

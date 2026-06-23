@@ -1,4 +1,0 @@
----
-features:
-  - |
-     database_clients: Adds ``server.address`` tag to  all ``<database>.query`` spans (ex: postgres.query). This tag stores the name of the database host.

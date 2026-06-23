@@ -1,6 +1,0 @@
----
-features:
-  - |
-    aiohttp: add client integration. This integration traces requests made using the aiohttp client and includes support
-    for distributed tracing. See `the documentation <https://ddtrace.readthedocs.io/en/stable/integrations.html#aiohttp>`_
-    for more information.

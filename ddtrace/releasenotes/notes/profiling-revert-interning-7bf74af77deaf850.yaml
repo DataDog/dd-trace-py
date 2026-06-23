@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: This fix resolves a crash occurring when forking while using the memory profiler.

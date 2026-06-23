@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    grpc: handle no package in fully qualified method

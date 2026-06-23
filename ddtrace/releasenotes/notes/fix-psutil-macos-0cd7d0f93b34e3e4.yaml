@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix issue building ``ddtrace`` from source on macOS 12.

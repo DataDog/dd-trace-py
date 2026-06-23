@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    configurations: Removes deprecated attributes from ``ddtrace.config``.

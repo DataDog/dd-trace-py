@@ -1,3 +1,0 @@
-features:
-  - |
-    Code Security: taint strings from gRPC messages.

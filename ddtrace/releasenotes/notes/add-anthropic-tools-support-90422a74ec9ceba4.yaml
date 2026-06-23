@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Anthropic: Adds support for tracing message calls using tools.
-  - |
-    LLM Observability: Adds support for tracing Anthropic messages using tool calls.

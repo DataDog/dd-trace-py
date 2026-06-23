@@ -1,4 +1,0 @@
----
-other:
-  - |
-    span: Increases the traceback limit in ``error.stack`` tags from 20 to 30

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracing: Adds support for 128 bit trace ids for b3 and w3c distributing tracing headers.

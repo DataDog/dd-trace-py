@@ -1,4 +1,0 @@
-features:
-  - |
-    profiling: The Profiler now supports collecting top level native frames, such as calls to ``sort``, ``map``,
-    ``list``, etc.

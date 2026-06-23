@@ -1,3 +1,0 @@
-features:
-  - |
-    profiling: This introduces tracking for the ``asyncio.as_completed`` util in the Profiler.

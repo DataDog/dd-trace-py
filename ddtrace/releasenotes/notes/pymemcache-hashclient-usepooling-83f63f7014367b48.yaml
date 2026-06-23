@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    pymemcache: This fix resolves an issue where overriding span attributes on ``HashClient`` failed when
-    ``use_pooling`` was set.

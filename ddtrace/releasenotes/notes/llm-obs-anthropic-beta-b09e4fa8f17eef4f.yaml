@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    anthropic: Handle empty content field when tracing the beta client.

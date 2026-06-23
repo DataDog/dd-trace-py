@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: avoid calling terminate on the extend and join aspect when an exception is raised.

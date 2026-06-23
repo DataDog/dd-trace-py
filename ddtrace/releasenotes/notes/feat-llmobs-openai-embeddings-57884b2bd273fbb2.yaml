@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: The OpenAI integration now submits embedding spans to LLM Observability.

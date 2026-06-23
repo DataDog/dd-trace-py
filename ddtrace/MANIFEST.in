@@ -1,9 +1,0 @@
-graft cmake
-graft ddtrace
-graft src
-
-recursive-exclude * **/__pycache__/*
-prune .riot/
-prune benchmarks/
-prune releasenotes/
-prune src/native/target*

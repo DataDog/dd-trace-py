@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds Azure OpenAI as a supported provider for the LLM Judge evaluator.

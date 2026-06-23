@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    sanic: use path parameter names instead of parameter values for the resource.

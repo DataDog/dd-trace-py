@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    dynamic instrumentation: handle null literal in conditions and expressions.

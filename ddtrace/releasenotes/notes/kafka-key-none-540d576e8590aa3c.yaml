@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    kafka: This fix resolves an issue where calls to ``confluent_kafka``'s ``produce`` method with ``key=None``
-    would cause an exception to be raised.

@@ -1,8 +1,0 @@
----
-upgrade:
-  - |
-    tracing: The deprecated ``Tracer.on_start_span`` method has been removed.
-  - |
-    tracing: The deprecated ``Tracer.deregister_on_start_span` method has been removed.
-  - |
-    tracing: The deprecated ``ddtrace.trace.Pin`` has been removed.

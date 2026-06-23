@@ -1,4 +1,0 @@
----
-features:
-  - |
-    DSM: Adds base64 format for encoding and decoding DSM context hash. 

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    botocore: inject tracing data to `MessageAttributes`.

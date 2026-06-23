@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: Fixed an issue with the memory collector where a segmentation
-    fault could occur during shutdown.

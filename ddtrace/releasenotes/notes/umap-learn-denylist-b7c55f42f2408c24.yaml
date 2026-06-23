@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: add umap, numba and pynndescent to the Code Security denylist.

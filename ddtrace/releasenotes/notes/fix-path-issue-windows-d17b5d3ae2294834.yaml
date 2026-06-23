@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: Fixes an issue where a ``ValueError`` was raised when using different path drives on Windows

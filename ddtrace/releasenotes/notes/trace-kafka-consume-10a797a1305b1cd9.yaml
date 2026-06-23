@@ -1,4 +1,0 @@
----
-features:
-  - |
-    kafka: Adds tracing and DSM support for ``confluent_kafka.Consumer.consume()``. Previously only `confluent_kafka.Consumer.poll` was instrumented.

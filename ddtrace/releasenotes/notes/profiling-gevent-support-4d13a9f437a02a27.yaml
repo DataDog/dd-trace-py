@@ -1,5 +1,0 @@
----
-features:
-  - |
-    profiling: Add gevent support to the new stack sampling mechanism (stack
-    v2).

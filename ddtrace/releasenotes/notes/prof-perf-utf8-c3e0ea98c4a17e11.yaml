@@ -1,7 +1,0 @@
----
-#instructions:
-fixes:
-  - |
-    profiling: reduces overhead of the v2 stack sampler by removing unnecessary
-    and expensive utf-8 validation
-

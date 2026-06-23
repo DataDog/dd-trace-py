@@ -1,4 +1,0 @@
----
-other:
-  - |
-    profiling: Store memalloc samples as native objects, avoiding calls into the cpython internal.

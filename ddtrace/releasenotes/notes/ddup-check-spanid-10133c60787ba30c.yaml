@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Profiling: improve reliability when parsing an empty span.

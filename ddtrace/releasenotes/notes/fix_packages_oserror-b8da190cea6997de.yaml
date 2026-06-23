@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    internal: fixes an issue where some pathlib functions return OSError on Windows.

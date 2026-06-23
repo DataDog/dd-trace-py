@@ -1,5 +1,0 @@
----
-features:
-  - |
-    AAP: This introduces support for Local File Inclusion (LFI) detection in ``pathlib.Path.open()`` for App and API Protection
-    Exploit Prevention.

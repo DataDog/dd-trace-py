@@ -1,6 +1,0 @@
----
-upgrade:
-  - |
-    tracing: ``Span.finished`` setter was removed, please use ``Span.finish()`` method instead.
-  - |
-    tracing: ``Span.finish_with_ancestors`` was removed with no replacement.

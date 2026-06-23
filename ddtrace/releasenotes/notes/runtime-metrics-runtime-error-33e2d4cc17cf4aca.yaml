@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    core: fix race condition in TracerTagCollector.

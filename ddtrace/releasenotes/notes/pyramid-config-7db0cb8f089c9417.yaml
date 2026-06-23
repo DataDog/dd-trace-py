@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Added `config.pyramid.distributed_tracing` setting to integration config for pyramid.

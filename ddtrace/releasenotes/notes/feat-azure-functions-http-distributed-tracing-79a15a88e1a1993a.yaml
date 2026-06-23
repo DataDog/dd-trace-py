@@ -1,3 +1,0 @@
-features:
-  - |
-    azure_functions: Add distributed tracing support for http triggers.

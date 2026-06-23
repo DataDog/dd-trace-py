@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes error with tagging non-string Flask view args.

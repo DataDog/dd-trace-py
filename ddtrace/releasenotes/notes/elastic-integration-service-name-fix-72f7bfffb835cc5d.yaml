@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Allow the elasticsearch service name to be overridden using the integration config or the DD_SERVICE_MAPPING environment variable.

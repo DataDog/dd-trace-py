@@ -1,4 +1,0 @@
----
-features:
-  - |
-    flask: store response headers.

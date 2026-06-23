@@ -1,3 +1,0 @@
-fixes:
-  - |
-    azure_functions: This fix resolves an issue where spans generated from timer triggers did not include the trigger type in the resource name.

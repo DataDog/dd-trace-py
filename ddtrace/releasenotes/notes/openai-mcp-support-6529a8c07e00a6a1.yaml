@@ -1,4 +1,0 @@
-features:
-  - |
-    openai, LLM Observability: This introduces support for capturing server-side MCP tool calls invoked via the OpenAI Responses API as a separate span.
-  

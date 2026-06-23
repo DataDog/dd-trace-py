@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Set correct service in logs correlation attributes when a span override the service.
-

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix internal import of deprecated ``ddtrace.utils`` module.

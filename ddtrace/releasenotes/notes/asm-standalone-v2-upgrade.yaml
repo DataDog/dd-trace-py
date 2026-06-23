@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    ASM: To align across products, we're replacing ``DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED`` with ``DD_APM_TRACING_ENABLED``. Feature set remains the same.

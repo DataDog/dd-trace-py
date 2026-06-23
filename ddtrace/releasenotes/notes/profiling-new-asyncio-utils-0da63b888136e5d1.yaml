@@ -1,3 +1,0 @@
-features:
-  - |
-    profiling: the Profiler now properly stacks flame graphs for Tasks awaiting and awaited through ``asyncio.shield``.

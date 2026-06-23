@@ -1,4 +1,0 @@
----
-features:
-  - |
-    botocore: Adds support to the bedrock integration for tagging input and output messages.

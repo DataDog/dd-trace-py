@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: An issue where a duplicate key in a cache could lead to inconsistent profiles has been fixed.

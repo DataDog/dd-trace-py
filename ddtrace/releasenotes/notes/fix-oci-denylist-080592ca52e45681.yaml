@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    SSI: This fix ensures injection denylist is included in published OCI package.

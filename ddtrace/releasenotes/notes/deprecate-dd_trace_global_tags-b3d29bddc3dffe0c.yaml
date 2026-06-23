@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    tracing: Deprecates support for DD_TRACE_GLOBAL_TAGS in favor of `DD_TAGS`.

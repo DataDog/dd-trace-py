@@ -1,4 +1,0 @@
----
-features:
-  - |
-    aiokafka: Adds DSM instrumentation support.

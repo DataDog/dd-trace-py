@@ -1,3 +1,0 @@
-fixes:
-  - |
-   CI Visibility: fixes issues with pytest~=8.0 that would case crashes in certain scenarios, and returned different module names 

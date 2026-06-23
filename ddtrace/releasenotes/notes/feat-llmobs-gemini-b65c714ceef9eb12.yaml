@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds support to automatically submit Gemini Python SDK calls to LLM Observability.

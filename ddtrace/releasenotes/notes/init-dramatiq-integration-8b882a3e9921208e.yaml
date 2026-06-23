@@ -1,3 +1,0 @@
-features:
-  - |
-    dramatiq: Adds automatic tracing of the ``dramatiq`` library.

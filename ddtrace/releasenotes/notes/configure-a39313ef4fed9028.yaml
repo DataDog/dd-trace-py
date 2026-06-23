@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Tracer: fix configuring tracer with dogstatsd url.

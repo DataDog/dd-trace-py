@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    telemetry: This fix resolves an issue when we try to fetch ``platform.libc_ver()`` on an unsupported system.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    profiler: Handles potential ``AttributeErrors`` which would arise while collecting frames during stack unwinding in Python 3.11.

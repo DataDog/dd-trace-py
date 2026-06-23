@@ -1,4 +1,0 @@
----
-features:
-  - |
-    kafka: Adds messaging.destination.name tag to kafka ``produce`` and ``consume`` spans.   

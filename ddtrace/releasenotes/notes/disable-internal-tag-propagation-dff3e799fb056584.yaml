@@ -1,4 +1,0 @@
----
-other:
-  - |
-    tracing/internal: disable Datadog internal tag propagation

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    starlette,fastapi: Trace background tasks using span links

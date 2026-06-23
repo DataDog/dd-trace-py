@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    LLM Observability: This fix resolves an issue where LLMObs.enable() did not patch google_generativeai library.

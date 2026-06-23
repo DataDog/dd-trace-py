@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed support for pytest-bdd 6.

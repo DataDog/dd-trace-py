@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Support for psycopg < 2.7 has been removed.

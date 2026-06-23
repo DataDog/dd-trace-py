@@ -1,4 +1,0 @@
-features:
-  - |
-    Crashtracker: This introduces a fallback to capture runtime stack frames when
-    Python's ``_Py_DumpTracebackThreads`` function is not available.

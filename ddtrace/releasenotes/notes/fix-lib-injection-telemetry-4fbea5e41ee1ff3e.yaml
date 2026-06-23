@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    lib-injection: Fix missing lib-injection telemetry for common abort scenarios.

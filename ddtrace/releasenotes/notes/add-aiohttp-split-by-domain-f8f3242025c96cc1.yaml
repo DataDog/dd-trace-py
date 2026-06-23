@@ -1,4 +1,0 @@
----
-features:
-  - |
-    aiohttp: add `split_by_domain` config to split service name by domain

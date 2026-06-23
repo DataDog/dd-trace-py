@@ -1,3 +1,0 @@
-fixes:
-  - |
-    redis: This fix resolves an issue in redis utils where a variable may not be declared within a try/catch

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixed the handling of sanic endpoint paths with non-string arguments.

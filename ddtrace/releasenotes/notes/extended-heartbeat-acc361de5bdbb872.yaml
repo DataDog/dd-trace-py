@@ -1,4 +1,0 @@
----
-features:
-  - |
-    SCA: This add support for extended heartbeat every 24h with dependencies payload.

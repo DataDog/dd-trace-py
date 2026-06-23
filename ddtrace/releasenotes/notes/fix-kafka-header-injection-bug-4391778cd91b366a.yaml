@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    kafka: Fixes ``ArgumentError`` raised when injecting span context into non-existent Kafka message headers.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    openai: This fix resolves an issue where specifying `n=None` for streamed chat completions resulted in a `TypeError`.

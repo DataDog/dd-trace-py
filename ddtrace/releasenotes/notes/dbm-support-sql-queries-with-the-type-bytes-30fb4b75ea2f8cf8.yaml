@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    dbm: Support sql queries with the type ``byte``.

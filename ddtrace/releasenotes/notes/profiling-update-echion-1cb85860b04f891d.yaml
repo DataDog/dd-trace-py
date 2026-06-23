@@ -1,5 +1,0 @@
-upgrade:
-  - |
-    profiling: this updates echion (the Python stack sampler) to the latest version, which introduces an experimental
-    faster memory copy function.
-

@@ -1,4 +1,0 @@
----
-other:
-  - |
-    The tracemalloc memory profiler, which was disabled by default, has been removed.

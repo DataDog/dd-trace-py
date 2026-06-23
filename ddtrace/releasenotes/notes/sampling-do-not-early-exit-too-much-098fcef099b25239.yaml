@@ -1,3 +1,0 @@
-fixes:
-  - |
-    tracer: sampling rules do not early exit anymore if a single rule is missing service and name.

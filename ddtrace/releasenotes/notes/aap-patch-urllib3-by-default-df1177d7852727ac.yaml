@@ -1,4 +1,0 @@
----
-features:
-  - |
-    AAP: AppSec instrumentation for downstream request is now enabled by default for `urllib3` and `requests`. It does not require enabling APM instrumentation for `urllib3` anymore.

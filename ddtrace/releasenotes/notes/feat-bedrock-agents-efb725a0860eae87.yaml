@@ -1,5 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Introduces tracing support for bedrock-agent-runtime ``invoke_agent`` calls.
-    If bedrock agents tracing is enabled, the internal bedrock traces will be converted and submitted as LLM Observability spans.

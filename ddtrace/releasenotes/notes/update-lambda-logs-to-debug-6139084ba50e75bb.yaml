@@ -1,4 +1,0 @@
----
-other:
-  - |
-    aws_lambda: Logs warnings and exceptions on cold start only.

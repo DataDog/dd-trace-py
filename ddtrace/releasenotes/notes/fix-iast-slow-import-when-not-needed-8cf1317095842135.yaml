@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    IAST: fixes import overhead when IAST is disabled.

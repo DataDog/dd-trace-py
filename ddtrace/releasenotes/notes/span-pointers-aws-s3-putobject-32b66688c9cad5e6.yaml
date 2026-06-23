@@ -1,4 +1,0 @@
----
-features:
-  - |
-    botocore: Adds span pointers to some successful AWS botocore spans. Currently only supports S3 PutObject.

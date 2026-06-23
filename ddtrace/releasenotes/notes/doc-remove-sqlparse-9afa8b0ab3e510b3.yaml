@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    Removes the deprecated sqlparse dependency.

@@ -1,6 +1,0 @@
----
-upgrade:
-  - Context.get() has been removed and the functionality has been rolled into
-    Context.close_span().
-  - Tracer.record() has similarly been removed as it is no longer useful with
-    Context.get() removed.

@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    dbapi: ``ddtrace.ext.mongo.ROWS`` is deprecated. Use ``ddtrace.ext.db.ROWCOUNT`` instead.

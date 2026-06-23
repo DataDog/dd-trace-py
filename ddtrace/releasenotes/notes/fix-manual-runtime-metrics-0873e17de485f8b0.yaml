@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue when trying to manually start the runtime metrics worker::
-
-      AttributeError: module 'ddtrace.internal.runtime' has no attribute 'runtime_metrics'

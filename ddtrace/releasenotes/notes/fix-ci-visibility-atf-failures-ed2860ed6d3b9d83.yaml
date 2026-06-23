@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: Fixes an issue where tests marked as attempt-to-fix could have failures hidden when they were also quarantined or disabled.

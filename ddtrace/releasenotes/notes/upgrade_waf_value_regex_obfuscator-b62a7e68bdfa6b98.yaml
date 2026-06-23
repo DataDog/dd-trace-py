@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    AAP: Upgrade the WAF value regex obfuscator.

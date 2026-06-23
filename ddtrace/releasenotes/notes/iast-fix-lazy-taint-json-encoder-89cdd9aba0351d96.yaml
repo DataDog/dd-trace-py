@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    IAST: This fix resolves an issue where JSON encoder would throw an exception while encoding a tainted dict or list.

@@ -1,3 +1,0 @@
-features:
-  - |
-    tracing: Introduces support for Baggage as defined by the `OpenTelemetry specification <https://opentelemetry.io/docs/specs/otel/baggage/api/>`_.

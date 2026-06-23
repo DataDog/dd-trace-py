@@ -1,4 +1,0 @@
----
-features:
-  - |
-    CI Visibility: introduce pytest hooks for modifying the module, suite, and test naming logic

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Only for CI Visibility (``pytest`` integration): Fix calculation of pipeline URL for GitHub Actions.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    profiling: This enables profiling native modules for macOS x86_64.
-

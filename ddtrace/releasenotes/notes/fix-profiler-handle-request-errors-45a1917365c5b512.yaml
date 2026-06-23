@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: Fixed a regression whereby the profile exporter would not handle
-    known request errors and asks the user to report an issue instead.

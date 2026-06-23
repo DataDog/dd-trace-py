@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    AAP: Resolves an incompatibility with gevent>=25.8.1 that would cause a deadlock when starting the waf via remote config.

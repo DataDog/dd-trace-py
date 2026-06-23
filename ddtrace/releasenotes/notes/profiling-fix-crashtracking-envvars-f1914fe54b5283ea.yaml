@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue where crashtracking environment variables for Python were inconsistent with those used by other runtimes.

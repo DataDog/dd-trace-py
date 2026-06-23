@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracer: tag spans that have been sampled due to an Agent sampling configuration.

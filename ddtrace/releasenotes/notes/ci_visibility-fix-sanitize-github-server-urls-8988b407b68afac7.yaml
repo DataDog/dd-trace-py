@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: fixes the fact that the GITHUB_SERVER_URL environment variable was not being sanitized for
-    credentials

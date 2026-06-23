@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: Send WAF metrics over telemetry

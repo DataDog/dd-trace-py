@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Performance of the Celery integration has been improved.

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    logging: Fixed ddtrace internal logging when trace-log correlation is disabled. 
-    Prevents ``ValueError: Formatting field not found in record: 'dd.service'``.

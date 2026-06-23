@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Code Security: add the boto package to the IAST patching denylist.

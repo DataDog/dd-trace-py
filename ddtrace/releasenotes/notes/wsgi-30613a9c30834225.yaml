@@ -1,4 +1,0 @@
----
-features:
-  - |
-    wsgi: add tracing middleware.

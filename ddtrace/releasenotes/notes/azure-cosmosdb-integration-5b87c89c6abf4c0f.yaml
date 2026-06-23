@@ -1,4 +1,0 @@
-features:
-  - |
-    azure_cosmos: Add tracing support for Azure CosmosDB.
-    This integration traces CRUD operations on CosmosDB databases, containers, and items.

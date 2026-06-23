@@ -1,4 +1,0 @@
----
-features:
-  - |
-    django: added ``DD_DJANGO_INSTRUMENT_TEMPLATES=false`` to allow tracing of Django template rendering.

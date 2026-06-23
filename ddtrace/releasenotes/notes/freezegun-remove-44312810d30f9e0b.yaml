@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    freezegun: The deprecated `freezegun` integration is now removed.

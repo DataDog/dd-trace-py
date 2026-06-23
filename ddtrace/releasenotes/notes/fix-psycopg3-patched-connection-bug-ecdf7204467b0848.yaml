@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing(psycopg): Fixes an OperationalError that occurred when patching a closed psycopg3 connection.

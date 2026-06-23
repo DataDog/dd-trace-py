@@ -1,5 +1,0 @@
----
-features:
-  - |
-    botocore: Add the ability to inject trace context into the input field of botocore stepfunction start_execution and 
-    start_sync_execution calls.

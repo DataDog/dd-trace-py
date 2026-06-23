@@ -1,5 +1,0 @@
----
-features:
-  - |
-    ASM: This introduces trusted IPs capabilities in the tracer, to allow specific IPs not to be blocked
-    by ASM but still be monitored.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    DSM: Add support for context extraction for SQS -> Lambda message events.

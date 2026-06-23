@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    The ``wrapt`` and ``psutil`` packages are vendored to help users avoid building these packages if wheels were not available for a given platform. This reverses a change released in v2.0.0.

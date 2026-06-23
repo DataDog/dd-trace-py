@@ -1,6 +1,0 @@
----
-features:
-  - |
-    dynamic instrumentation: [Code Origins for Spans](https://docs.datadoghq.com/tracing/code_origins/) is now
-    automatically enabled when [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/) is turned
-    on.

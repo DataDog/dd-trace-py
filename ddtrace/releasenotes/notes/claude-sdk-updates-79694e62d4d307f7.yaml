@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds support for capturing ``stop_reason`` and ``structured_output`` from the Claude Agent SDK integration.

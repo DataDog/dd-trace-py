@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    otel: Resolves an issue where OpenTelemetry OTLP metrics export requests to the collector were incorrectly traced as spans.

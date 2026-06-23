@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix some modules being unloaded too soon when using pytest + ddtrace + gevent.

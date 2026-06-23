@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    telemetry: fix extended heartbeat payload key from "configurations" to "configuration" to match the telemetry v2 API spec.

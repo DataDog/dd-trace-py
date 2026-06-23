@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    sampling: Removed automatic setting of local trace sampling rule tag (_dd.p.dm=-3) during distributed tracing header extraction.

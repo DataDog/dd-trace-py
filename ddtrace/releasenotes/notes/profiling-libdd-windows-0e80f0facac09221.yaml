@@ -1,4 +1,0 @@
----
-features:
-  - |
-    profiling: add support for native exporter on Windows.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: Ensures health metrics are tagged with the correct values.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: This introduces tracing for system prompts in the OpenAI Agents SDK.

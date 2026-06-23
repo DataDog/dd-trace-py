@@ -1,3 +1,0 @@
-fixes:
-  - |
-    tracing: A crash that occurred when exiting a gevent application with ``DD_TRACE_DEBUG=1`` has been fixed.

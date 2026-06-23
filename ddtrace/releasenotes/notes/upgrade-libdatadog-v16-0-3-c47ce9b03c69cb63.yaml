@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Bumps libdatadog dependency to v16.0.3.

@@ -1,3 +1,0 @@
-other:
-  - |
-    openai: Removes I/O tags, including llm prompts, parameters, and token usage, from APM spans for OpenAI audio, image, and moderation requests.

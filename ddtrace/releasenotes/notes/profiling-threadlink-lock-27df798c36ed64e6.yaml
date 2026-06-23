@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    profiling: fix a possible deadlock due to spans being activated unexpectedly.

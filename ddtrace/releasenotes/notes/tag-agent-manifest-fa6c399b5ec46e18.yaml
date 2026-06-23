@@ -1,3 +1,0 @@
-features:
-  - |
-    LLM Observability: This introduces tagging agent-specific metadata on agent spans when using CrewAI, OpenAI Agents, or PydanticAI.

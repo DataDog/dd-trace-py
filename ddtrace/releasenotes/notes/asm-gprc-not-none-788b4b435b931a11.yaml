@@ -1,3 +1,0 @@
-fixes:
-  - |
-    ASM: protect against potentially returning ``None`` when tainting a gRPC message.

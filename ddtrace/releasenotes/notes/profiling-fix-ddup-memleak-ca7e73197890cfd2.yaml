@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix ``span_id`` conversion and potential invalid references in profiling exporter.

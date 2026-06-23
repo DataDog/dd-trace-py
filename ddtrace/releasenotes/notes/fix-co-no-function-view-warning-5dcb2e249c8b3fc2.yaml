@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    code origin: remove noisy warning messages for non-callable view objects
-    that cannot be instrumented.

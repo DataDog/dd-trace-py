@@ -1,8 +1,0 @@
----
-upgrade:
-  - ".. _remove-config-httpserver:
-
-
-    ``ddtrace.settings.Config.HTTPServerConfig`` is removed.
-
-    "

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracing: This change treats spans that terminated with ``sys.exit(0)`` as successful non-error spans.

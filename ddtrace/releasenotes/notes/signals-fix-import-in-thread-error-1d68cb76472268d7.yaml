@@ -1,3 +1,0 @@
-fixes:
-  - |
-    dsm: This fix resolves an issue where including exit signal handling for message queues caused imports of ddtrace in a thread to fail.

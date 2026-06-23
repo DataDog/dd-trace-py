@@ -1,4 +1,0 @@
-fixes:
-  - |
-    A bug which could prevent Profiling from being enabled when the library is installed through
-    Single Step Instrumentation was fixed.

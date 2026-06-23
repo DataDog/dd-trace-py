@@ -1,6 +1,0 @@
----
-features:
-  - |
-    anthropic: This introduces tracing support for anthropic chat messages.
-      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#anthropic>`_
-      for more information.

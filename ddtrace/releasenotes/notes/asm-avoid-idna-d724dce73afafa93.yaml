@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: add encodings.idna to the IAST patching denylist to avoid problems with gevent.

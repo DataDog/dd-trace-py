@@ -1,5 +1,0 @@
-features:
-  - |
-    azure_servicebus: Add support for Azure Service Bus producers.
-  - |
-    azure_functions: Add distributed tracing support for Service Bus triggers.

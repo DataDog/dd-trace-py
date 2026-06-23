@@ -1,5 +1,0 @@
----
-other:
-  - |
-    The default maximum CPU time used for the stack profiler (CPU time, wall
-    time and exceptions profiling) has been decreased from 2% to 1%.

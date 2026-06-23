@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    django: add legacy resource format of `{handler}`.

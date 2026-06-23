@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    sanic: update instrumentation to support version 21.

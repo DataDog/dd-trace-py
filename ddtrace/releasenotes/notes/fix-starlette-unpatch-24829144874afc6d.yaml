@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    starlette: unpatch calls correctly.

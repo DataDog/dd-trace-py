@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Corrected some typing annotations for PEP 484 compliance

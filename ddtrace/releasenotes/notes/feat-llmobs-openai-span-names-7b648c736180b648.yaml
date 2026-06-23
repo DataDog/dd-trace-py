@@ -1,6 +1,0 @@
----
-features:
-  - |
-    LLM Observability: This changes OpenAI-generated LLM Observability span names from ``openai.request`` to 
-    ``openai.createCompletion``, ``openai.createChatCompletion``, and ``openai.createEmbedding`` 
-    for completions, chat completions, and embeddings spans, respectively.

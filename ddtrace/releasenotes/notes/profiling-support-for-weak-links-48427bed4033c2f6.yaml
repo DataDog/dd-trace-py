@@ -1,4 +1,0 @@
-features:
-  - |
-    profiling: The profiler now supports tracking parent-child relationships between asyncio tasks. This will result in
-    better stacks in flame graphs.

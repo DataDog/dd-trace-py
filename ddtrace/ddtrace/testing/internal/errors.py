@@ -1,2 +1,0 @@
-class SetupError(Exception):
-    pass

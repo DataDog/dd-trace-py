@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: A rare crash occurring when profiling asyncio code with many tasks or deep call stacks has been fixed.

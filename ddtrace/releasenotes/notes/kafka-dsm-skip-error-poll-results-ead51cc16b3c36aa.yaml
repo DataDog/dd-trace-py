@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    kafka: Fixes an issue where Data Streams Monitoring would incorrectly record consume checkpoints
-    for error messages.

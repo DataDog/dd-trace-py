@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: fixed AppVeyor integration not extracting the full commit
-    message.

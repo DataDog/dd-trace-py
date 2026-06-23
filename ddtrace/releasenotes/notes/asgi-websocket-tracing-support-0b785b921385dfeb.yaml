@@ -1,4 +1,0 @@
----
-features:
-  - |
-    asgi: Adds tracing on websocket spans with `DD_TRACE_WEBSOCKET_MESSAGES_ENABLED`, which replaces `DD_TRACE_WEBSOCKET_MESSAGES`.

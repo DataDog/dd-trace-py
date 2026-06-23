@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: Ensure IAST SSRF vulnerability redacts the url query parameters correctly.

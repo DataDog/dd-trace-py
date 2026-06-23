@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix for a potential race condition affecting internal periodic worker
-    threads that could have caused a ``RuntimeError`` during forks.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    The profiler now exports active tasks for CPU and wall time profiles.

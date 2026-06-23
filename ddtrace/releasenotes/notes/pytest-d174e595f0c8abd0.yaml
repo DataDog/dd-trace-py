@@ -1,5 +1,0 @@
----
-features:
-  - |
-    pytest integration.
-    This enables the `pytest <https://pytest.org>`_ runner to trace test executions.

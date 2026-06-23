@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    pytest plugin: fix for potential ``KeyError`` exceptions in test runs when
-    gevent is detected within the environment.

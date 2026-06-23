@@ -1,4 +1,0 @@
----
-other:
-  - |
-    profiling: add support for protobuf >=4.0.

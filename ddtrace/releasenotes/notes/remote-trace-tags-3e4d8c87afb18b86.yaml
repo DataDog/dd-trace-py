@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracer: Add support for remotely configuring trace tags.

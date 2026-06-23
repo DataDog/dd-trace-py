@@ -1,3 +1,0 @@
-other:
-  - |
-    profiling: Moves echion, the Python stack sampler, to the ddtrace-py repository.

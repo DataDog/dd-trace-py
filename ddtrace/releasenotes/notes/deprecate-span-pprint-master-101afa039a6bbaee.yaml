@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    :py:meth:`ddtrace.Span.pprint` is deprecated and will be removed in v1.0.

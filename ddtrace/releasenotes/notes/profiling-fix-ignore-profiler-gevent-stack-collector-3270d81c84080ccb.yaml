@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix CPU time and wall time profiling not ignoring the profiler tasks with
-    gevent.

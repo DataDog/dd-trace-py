@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    openai: Resolves an issue where instantiating an OpenAI client with a non-string API key resulted in parsing issues.

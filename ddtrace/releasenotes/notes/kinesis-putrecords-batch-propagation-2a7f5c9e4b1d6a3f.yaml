@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    botocore: Kinesis ``PutRecords`` now propagates trace context to each record in the batch. This enables trace context propagation to correctly map to each individual record, as well as enabling the correct tracking of messages through Data Streams Monitoring. Previously, only the first record would ever have been tracked.

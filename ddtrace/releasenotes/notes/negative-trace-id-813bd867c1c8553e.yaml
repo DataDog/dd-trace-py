@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    tracing: This fix resolves an issue where negative trace ID values were allowed to propagate via Datadog
-    distributed tracing HTTP headers.

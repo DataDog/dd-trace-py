@@ -1,5 +1,0 @@
----
-features:
-  - |
-    otel: Adds support for the `OpenTelemetry Tracing API <https://opentelemetry.io/docs/reference/specification/trace/api/>`_.
-    Please refer to the  :mod:`docs <ddtrace.opentelemetry>` for more details.

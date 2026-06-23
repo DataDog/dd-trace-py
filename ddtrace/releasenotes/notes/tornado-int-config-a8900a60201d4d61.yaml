@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Added environment variable `DD_TORNADO_DISTRIBUTED_TRACING` to enable distributed tracing for tornado.

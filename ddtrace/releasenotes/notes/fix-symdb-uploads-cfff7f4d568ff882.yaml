@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    dynamic instrumentation: fixes an issue where only module scopes were being uploaded,
-    preventing method probes from being created.

@@ -1,4 +1,0 @@
----
-features:
-  - |
-    httplib: distributed tracing is now enabled by default.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    asgi: Ensures ``error.message`` and ``error.stack`` tags are set when an exception is raised in a route.

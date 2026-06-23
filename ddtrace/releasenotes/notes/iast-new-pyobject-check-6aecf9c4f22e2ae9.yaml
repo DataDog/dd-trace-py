@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: add null pointer checks when creating new objects ids.

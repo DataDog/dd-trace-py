@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    CI Visibility: This fix resolves the compatibility for Gitlab 16.0 deprecated urls

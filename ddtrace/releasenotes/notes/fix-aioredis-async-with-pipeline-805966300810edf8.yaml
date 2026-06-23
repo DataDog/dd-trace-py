@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes incompatibility of wrapped aioredis pipelines in ``async with`` statements.

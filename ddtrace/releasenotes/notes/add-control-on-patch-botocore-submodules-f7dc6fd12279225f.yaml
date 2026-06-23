@@ -1,4 +1,0 @@
----
-features:
-  - |
-    botocore: Adds the ability to control which botocore submodules will be patched.

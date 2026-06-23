@@ -1,3 +1,0 @@
-deprecations:
-  - |
-    Deprecates starting the serverless mini agent from the tracer. Use the datadog-serverless-compat package instead.

@@ -1,6 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds ``EvaluatorResult`` class that evaluator functions can return to provide additional
-    fields beyond just the evaluation value. This enables evaluators to include ``reasoning``, ``assessment``,
-    ``metadata``, and ``tags`` alongside the evaluation result.

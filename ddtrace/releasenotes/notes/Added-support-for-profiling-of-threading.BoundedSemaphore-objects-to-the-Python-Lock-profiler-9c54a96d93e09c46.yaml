@@ -1,6 +1,0 @@
----
-features:
-  - |
-    profiling: Add support for ``threading.BoundedSemaphore`` locking type profiling in Python.
-    The implementation follows the same approach as ``threading.Semaphore``, properly handling 
-    internal lock detection to prevent double-counting of the underlying ``threading.Lock`` object.

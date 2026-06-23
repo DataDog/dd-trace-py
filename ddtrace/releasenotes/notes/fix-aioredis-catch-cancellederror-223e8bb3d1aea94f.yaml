@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    aioredis: added exception handling for `CancelledError` in the aioredis integration.

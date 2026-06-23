@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Prevent exceptions when autoreloading modules that directly or indirectly
-    import ddtrace with the iPython autoreload extension.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: Avoid pickling wrappers in ``ddtrace.internal.wrapping.context.BaseWrappingContext``.

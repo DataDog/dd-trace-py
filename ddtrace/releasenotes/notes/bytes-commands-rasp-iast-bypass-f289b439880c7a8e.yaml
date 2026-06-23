@@ -1,8 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where ``bytes`` commands passed to ``os.system``,
-    ``os.spawn*``, and ``subprocess`` (for example ``os.system(b"...")`` or
-    ``subprocess.run(b"...", shell=True)``) bypassed the Exploit Prevention (RASP) shell
-    and command injection checks. ``bytes`` commands are valid on POSIX systems and are
-    now passed to the security checks like ``str`` commands.

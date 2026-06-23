@@ -1,4 +1,0 @@
-rand64bits:
-  func: rand64bits
-rand128bits:
-  func: rand128bits

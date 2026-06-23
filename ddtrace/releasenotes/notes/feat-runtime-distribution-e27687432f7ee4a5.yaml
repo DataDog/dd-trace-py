@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Submit runtime metrics as distribution metrics instead of gauge metrics.

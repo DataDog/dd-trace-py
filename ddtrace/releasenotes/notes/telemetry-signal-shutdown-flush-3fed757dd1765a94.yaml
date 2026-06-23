@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    telemetry: This fix resolves an issue where telemetry events may not be flushed during the handling of ``SIGTERM`` or ``SIGINT`` signals.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    - Code Security: fix two small memory leaks with Python 3.11 and 3.12.

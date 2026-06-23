@@ -1,4 +1,0 @@
----
-features:
-  - |
-    azure-api-management: This introduces inferred proxy support for Azure API Management.

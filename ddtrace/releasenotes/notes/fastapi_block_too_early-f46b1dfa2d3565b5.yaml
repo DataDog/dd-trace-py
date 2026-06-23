@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where suspicious request blocking on request data was preventing
-    API Security to collect schemas in FastAPI, due to route not being computed.

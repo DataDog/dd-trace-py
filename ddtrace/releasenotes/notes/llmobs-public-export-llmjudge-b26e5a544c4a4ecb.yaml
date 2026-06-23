@@ -1,5 +1,0 @@
----
-other:
-  - |
-    LLM Observability: Exports ``LLMJudge``, ``BooleanStructuredOutput``, ``ScoreStructuredOutput``, and
-    ``CategoricalStructuredOutput`` to the public ``ddtrace.llmobs`` module level.

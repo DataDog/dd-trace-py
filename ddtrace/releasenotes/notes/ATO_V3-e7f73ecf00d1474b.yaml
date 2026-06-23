@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: This introduces full support for Automated user lifecycle tracking for login events (success and failure)

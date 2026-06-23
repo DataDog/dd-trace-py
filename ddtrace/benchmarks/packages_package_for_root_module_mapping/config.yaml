@@ -1,5 +1,0 @@
-cache_on:
-  disable_cache: False
-
-cache_off:
-  disable_cache: True

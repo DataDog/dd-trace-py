@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: Logs warning instead of throwing an exception in the native module if IAST is not enabled by env var.

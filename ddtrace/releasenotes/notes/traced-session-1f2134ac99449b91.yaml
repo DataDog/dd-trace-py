@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    requests: fix TracedSession when patches are not applied.

@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    aws_lambda: Drops support for ``aws_lambda<=6.105.0``.

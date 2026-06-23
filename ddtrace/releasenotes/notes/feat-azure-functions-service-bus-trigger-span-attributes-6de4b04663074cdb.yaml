@@ -1,3 +1,0 @@
-features:
-  - |
-    azure_functions: Add messaging span attributes for service bus triggers

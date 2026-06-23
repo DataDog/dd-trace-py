@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    langchain: This fix resolves an issue where the wrong langchain class name was being used to check for Pinecone vectorstore instances. 

@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    tornado: Deprecated support for Tornado versions older than v6.1. Use Tornado v6.1 or later.

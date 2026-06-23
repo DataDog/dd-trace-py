@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: A bug that would cause missing frames in profiles for off-CPU asyncio Tasks has been resolved.

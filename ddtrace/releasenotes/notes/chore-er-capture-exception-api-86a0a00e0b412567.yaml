@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Exception Replay will capture any exceptions that are manually attached to
-    a span with a call to ``set_exc_info``.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Code Security: Implement the detection of the Stacktrace-Leak vulnerability for 
-    Django, Flask and FastAPI.

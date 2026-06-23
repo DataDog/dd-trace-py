@@ -1,8 +1,0 @@
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "numpy"
-version = "0.1"
-dependencies = []

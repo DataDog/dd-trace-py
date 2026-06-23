@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    32-bit linux is no longer supported. Please contact us if this blocks upgrading dd-trace-py.

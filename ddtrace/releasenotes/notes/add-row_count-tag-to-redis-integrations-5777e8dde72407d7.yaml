@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Adds the `db.row_count` tag to redis and other redis-like integrations. The tag represents the number of returned results.

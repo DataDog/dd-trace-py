@@ -1,3 +1,0 @@
-fixes:
-  - |
-    Fix full stacktrace being sent to the log on remote config connection errors.

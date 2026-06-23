@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    ``ddtrace.propagation.utils`` has been deprecated and will be removed in version 1.0.

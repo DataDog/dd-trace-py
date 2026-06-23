@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Properly labels ``Deepseek`` for the model provider and span name for LLM Observability spans for calls to Deepseek models using the OpenAI SDK.

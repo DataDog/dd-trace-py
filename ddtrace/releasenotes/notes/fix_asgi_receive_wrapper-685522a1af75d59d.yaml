@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where the asgi middleware could crash with a RuntimeError "Unexpected message received".

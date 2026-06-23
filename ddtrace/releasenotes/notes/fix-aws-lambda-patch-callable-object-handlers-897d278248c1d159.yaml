@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    aws_lambda: Fix AttributeError raised when callable handlers are traced.

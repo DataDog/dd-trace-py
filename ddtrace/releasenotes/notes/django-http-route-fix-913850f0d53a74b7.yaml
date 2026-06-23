@@ -1,3 +1,0 @@
-fixes:
-  - |
-    django: Fixes an issue where ``http.route`` was only set if ``use_handler_resource_format`` and ``use_legacy_resource_format`` were set to ``False``.

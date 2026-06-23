@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Adds AWS Bedrock as a supported provider for the LLM Judge evaluator.

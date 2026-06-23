@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ciapp: detect code owners of PyTest tests

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix issue with ``attrs`` and ``contextlib2`` version constraints for Python 2.7.

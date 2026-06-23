@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    pymongo: Changes the mongodb.query span tag to json so it can be parsed by the agent.

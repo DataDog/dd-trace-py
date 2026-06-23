@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    langgraph, LLM Observability: resolves ``ModuleNotFoundError`` errors when patching ``langgraph>=0.6.0``

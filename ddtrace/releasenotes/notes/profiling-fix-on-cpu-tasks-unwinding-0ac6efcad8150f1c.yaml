@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: This fix makes stack sampling more accurate for on-CPU asyncio Tasks.

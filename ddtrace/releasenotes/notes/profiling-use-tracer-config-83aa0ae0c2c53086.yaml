@@ -1,7 +1,0 @@
----
-features:
-  - |
-    The profiler now uses the tracer configuration is no configuration is provided.
-upgrade:
-  - |
-    The profiler now uses the tracer configuration is no configuration is provided.

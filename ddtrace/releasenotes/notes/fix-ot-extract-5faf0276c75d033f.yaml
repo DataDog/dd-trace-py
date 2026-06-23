@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    opentracing: don't raise an exception when distributed tracing headers are
-    not present when attempting to extract.

@@ -1,3 +1,0 @@
-fixes:
-  - |
-    IAST: Don't split AST Assign nodes since it's not needed for propagation to work.

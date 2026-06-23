@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    dynamic instrumentation: fixed an issue that prevented line probes from
-    being injected in some finally blocks.

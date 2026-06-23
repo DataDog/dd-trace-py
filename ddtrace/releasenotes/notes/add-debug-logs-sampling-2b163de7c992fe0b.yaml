@@ -1,4 +1,0 @@
----
-other:
-  - |
-    sampling: Add more debug logs to help debug sampling issues.

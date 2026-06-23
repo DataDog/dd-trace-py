@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Added environment variable `DD_FALCON_DISTRIBUTED_TRACING` to enable distributed tracing for falcon.

@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    tracing: Drops support for multiple Tracer instances in the same process. Use ``ddtrace.trace.tracer`` to access the global tracer instance.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    config: Resolves an issue where accessing ``ddtrace.config.<undefined_attribute>`` would create an IntegrationConfig object instead of raising an AttributeError.

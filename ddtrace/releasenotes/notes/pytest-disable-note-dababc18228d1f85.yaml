@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    pytest: Add note for disabling ddtrace plugin as workaround for side-effects

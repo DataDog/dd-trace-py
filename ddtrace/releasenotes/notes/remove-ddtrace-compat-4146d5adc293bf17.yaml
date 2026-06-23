@@ -1,8 +1,0 @@
----
-upgrade:
-  - ".. _remove-ddtrace-compat:
-
-
-    The deprecated module ``ddtrace.compat`` is removed.
-
-    "

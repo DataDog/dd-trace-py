@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Further lazy loads telemetry_writer so that it is not running when explicitly disabled. Users must explicitly set "DD_INSTRUMENTATION_TELEMETRY_ENABLED=false".

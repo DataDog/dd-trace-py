@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: fixed an issue that causes greenlets to misbehave when
-    ``gevent.joinall`` is called.

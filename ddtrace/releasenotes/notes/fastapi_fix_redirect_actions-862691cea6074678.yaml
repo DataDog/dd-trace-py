@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where ASM custom blocking actions with a redirect action could cause
-    the server to drop the response.

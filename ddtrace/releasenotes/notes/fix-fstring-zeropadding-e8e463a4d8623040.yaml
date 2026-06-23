@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: This fix solves an issue with fstrings where formatting was not applied to int parameters

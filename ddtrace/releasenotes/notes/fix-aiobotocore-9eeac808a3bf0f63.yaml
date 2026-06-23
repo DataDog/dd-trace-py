@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    aiobotocore: set span error for 5xx status codes.

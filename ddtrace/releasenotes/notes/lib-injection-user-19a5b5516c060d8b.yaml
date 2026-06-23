@@ -1,4 +1,0 @@
----
-other:
-  - |
-    Kubernetes library injection: run commands as non-root user.

@@ -1,3 +1,0 @@
-features:
-  - |
-    debugger: Add dynamic log probes to that generate a log message and optionally capture local variables, return value and exceptions

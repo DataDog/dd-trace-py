@@ -1,3 +1,0 @@
-features:
-  - |
-    structlog: Wraps get_logger function in order to add datadog injection processor regardless of configuration

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    ASGI: store the ASGI span in the scope. The span can be retrieved with the
-      ``ddtrace.contrib.asgi.span_from_scope`` function.

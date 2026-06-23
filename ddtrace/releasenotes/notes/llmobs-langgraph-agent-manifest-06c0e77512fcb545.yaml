@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: Records agent manifest information for LangGraph compiled graphs.

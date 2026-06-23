@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracing: Adds support for IPv6 agent hostnames for `DD_AGENT_HOST`.

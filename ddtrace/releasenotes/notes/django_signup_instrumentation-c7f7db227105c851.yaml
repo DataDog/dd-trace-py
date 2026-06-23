@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: This introduces auto instrumentation of signup events for Django.

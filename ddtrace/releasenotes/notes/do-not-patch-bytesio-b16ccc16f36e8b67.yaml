@@ -1,3 +1,0 @@
-fixes:
-  - |
-    IAST: don't patch BytesIO since we don't have any aspects for it.

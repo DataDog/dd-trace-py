@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fix a regression with the support for gevent that could have occurred if
-    some products, like ASM, telemetry, were enabled.

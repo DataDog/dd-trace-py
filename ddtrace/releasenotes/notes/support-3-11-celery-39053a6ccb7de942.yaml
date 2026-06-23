@@ -1,4 +1,0 @@
----
-features:
-  - |
-    celery: Adds Python 3.11 and 3.12 support for the celery integration.

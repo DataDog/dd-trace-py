@@ -1,4 +1,0 @@
----
-features:
-  - |
-    profiling: Add support for ``asyncio.Semaphore`` lock type profiling in Python Lock Profiler.

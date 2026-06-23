@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    lib-injection: Adds support for non-root run applications in containers.

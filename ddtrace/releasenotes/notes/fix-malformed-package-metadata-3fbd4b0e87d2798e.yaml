@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where a malformed package would prevent reporting of other correctly formed packages to Software Composition Analysis

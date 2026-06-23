@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: ip address collection will be enabled if not explicitly disabled and appsec is enabled.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    opentelemetry: Adds support for the ``start_as_current_span`` decorator on asynchronous functions.
-    Requires opentelemetry-api>=1.24.

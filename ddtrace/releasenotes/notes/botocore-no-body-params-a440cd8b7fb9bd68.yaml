@@ -1,5 +1,0 @@
----
-other:
-  - |
-    The botocore integration excludes AWS endpoint call parameters that have a
-    name ending with ``Body`` from the set of span tags.

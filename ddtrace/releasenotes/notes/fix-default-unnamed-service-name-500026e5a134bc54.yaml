@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Use a unique default service name across all the products provided by the
-    library when one is not given via the configuration interface.

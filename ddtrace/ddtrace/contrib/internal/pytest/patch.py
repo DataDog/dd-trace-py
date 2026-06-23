@@ -1,9 +1,0 @@
-# Get version is imported from patch.py in _monkey.py
-def get_version() -> str:
-    import pytest
-
-    return pytest.__version__
-
-
-def _supported_versions() -> dict[str, str]:
-    return {"pytest": ">=6.0"}

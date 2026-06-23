@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: This fix resolves an issue where memory profiler flamegraphs were
-    upside down.

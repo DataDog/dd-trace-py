@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Enables tests of the ``ddtrace-run`` entrypoint with Python 3.13

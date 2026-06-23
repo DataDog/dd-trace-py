@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Code Security: fix potential infinite loop with path traversal when the analyze quota has been exceeded.

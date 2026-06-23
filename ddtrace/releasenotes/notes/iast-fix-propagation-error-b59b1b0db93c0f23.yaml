@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Vulnerability Management for Code-level (IAST): Fix propagation error on ``.format`` string method.

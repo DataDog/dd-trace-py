@@ -1,3 +1,0 @@
-fixes:
-  - |
-    azure_functions: This fix resolves an issue where timer triggers had a span kind of `server` instead of `internal`.

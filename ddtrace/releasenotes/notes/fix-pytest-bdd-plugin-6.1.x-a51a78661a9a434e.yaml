@@ -1,3 +1,0 @@
-fixes:
-  - |
-    CI visibility: fix version and step arguments gathering to enable plugin compatibility with pytest-bdd 6.1.x

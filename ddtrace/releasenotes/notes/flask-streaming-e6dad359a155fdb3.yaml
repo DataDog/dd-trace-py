@@ -1,4 +1,0 @@
----
-features:
-  - |
-    flask: Adds support for streamed responses. Note that two additional spans: ``flask.application`` and ``flask.response`` will be generated.

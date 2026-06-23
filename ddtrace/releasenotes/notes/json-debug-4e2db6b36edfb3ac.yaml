@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    tracing: This fix resolves an issue where unserializable tracer attributes caused crashes when
-    ``DD_TRACE_DEBUG`` was set.

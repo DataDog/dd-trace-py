@@ -1,4 +1,0 @@
----
-features:
-  - |
-    AAP: Add SSRF exploit prevention and OWASP API top 10 security risks analysis for the `httpx` client.

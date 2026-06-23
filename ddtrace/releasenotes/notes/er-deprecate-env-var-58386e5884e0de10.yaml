@@ -1,5 +1,0 @@
----
-upgrade:
-  - |
-    exception replay: removed the deprecated ``DD_EXCEPTION_DEBUGGING_ENABLED``
-    variable.

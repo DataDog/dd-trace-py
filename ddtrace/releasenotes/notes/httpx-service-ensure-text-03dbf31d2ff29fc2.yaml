@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fix issue when ``httpx`` service name is ``bytes``.

@@ -1,5 +1,0 @@
----
-features:
-  - |
-    It is now possible to pass a `url` parameter to the `Profiler` to specify
-    the Datadog agent location.

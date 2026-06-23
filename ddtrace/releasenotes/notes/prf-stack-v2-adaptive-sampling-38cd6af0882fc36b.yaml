@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: reduced the overhead of running the new stack-v2 sampling
-    mechanism via adaptive sampling.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    lib-injection: Ensure any user defined ``sitecustomize.py`` are preserved when auto-injecting.

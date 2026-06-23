@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    profiling: fix SystemError from the memory profiler returning NULL when collecting events

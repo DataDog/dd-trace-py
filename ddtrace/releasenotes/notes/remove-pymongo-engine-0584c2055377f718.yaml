@@ -1,5 +1,0 @@
----
-other:
-  - |
-    mongoengine: Drops support for the ``ddtrace.Pin`` object with mongoengine. With this change, the ddtrace library no longer directly supports mongoengine.
-    Mongoengine will be supported through the ``pymongo`` integration.

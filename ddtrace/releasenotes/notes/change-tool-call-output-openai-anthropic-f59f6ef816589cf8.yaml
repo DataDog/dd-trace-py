@@ -1,5 +1,0 @@
----
-features:
-  - |
-    LLM Observability: This introduces improved support for capturing tool 
-    call responses from the OpenAI and Anthropic integrations.

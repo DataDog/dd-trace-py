@@ -1,8 +1,0 @@
--r requirements_scenario.txt
-
-pyperf
-pyyaml
-attrs
-httpretty==1.1.4
-tenacity~=8.0
-viztracer

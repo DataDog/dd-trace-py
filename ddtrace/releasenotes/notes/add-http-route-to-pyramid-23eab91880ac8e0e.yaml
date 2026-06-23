@@ -1,4 +1,0 @@
----
-features:
-  - |
-    pyramid: Adds http.route tag to ``pyramid.request`` spans.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    AAP: resolves a bug where ASGI middleware would not catch the BlockingException raised by AAP because it was aggregated in an ExceptionGroup

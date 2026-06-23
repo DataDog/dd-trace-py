@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    starlette: Fix a bug that crashed background tasks started from functions without a `__name__` attribute

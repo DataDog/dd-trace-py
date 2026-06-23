@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tornado: Support custom error codes: https://ddtrace.readthedocs.io/en/stable/advanced_usage.html#custom-error-codes.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    Fixes an issue where all Django function middleware will share the same resource name.

@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    openai: This fix resolves an issue where embeddings inputs were always tagged regardless of the
-    configured prompt-completion sample rate.

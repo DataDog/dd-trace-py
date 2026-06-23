@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: Resolves an issue where a ``RuntimeError`` could be raised when iterating over the ``context._meta`` dictionary while creating spans or generating distributed traces.

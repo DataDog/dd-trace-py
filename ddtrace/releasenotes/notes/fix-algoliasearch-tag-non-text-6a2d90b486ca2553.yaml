@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    algoliasearch: This fix resolves an issue where non-text search query arguments caused Type Errors when being
-    added as tags.

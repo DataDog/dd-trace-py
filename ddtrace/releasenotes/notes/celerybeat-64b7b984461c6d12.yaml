@@ -1,3 +1,0 @@
-features:
-  - |
-    celery: Adds automatic tracing of the ``celery.beat`` scheduling service to the ``celery`` integration.

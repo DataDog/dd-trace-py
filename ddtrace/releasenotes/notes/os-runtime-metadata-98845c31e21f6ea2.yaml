@@ -1,5 +1,0 @@
----
-features:
-  - |
-    The CI tagging for the pytest plugin now includes OS and Python Runtime metadata including
-    system architecture, platform, version, and Python runtime name and version.

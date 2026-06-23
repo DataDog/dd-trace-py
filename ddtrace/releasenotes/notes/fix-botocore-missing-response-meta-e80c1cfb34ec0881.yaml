@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    botocore: Do not assume that ResponseMeta exists in the results.

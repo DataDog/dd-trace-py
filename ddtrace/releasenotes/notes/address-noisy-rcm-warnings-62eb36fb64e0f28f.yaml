@@ -1,4 +1,0 @@
----
-other:
-  - |
-    remote_config: Change the level of remote config startup logs to debug.

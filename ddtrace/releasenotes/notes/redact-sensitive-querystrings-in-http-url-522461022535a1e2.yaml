@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: Redact sensitive query strings if sent in http.url.

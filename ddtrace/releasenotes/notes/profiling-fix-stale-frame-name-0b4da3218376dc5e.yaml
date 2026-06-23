@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: A bug that would cause certain function names to be displayed as ``<module>`` in flame graphs has been fixed.

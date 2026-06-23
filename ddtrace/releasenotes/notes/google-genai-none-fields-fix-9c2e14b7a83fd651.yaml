@@ -1,4 +1,0 @@
-fixes:
-  - |
-    google_genai: Fix ``TypeError`` when Google GenAI returns ``None`` for optional
-    response fields (token counts or ``candidates``) introduced in google-genai>=2.6.0.

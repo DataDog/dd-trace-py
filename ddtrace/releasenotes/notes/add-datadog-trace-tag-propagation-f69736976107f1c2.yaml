@@ -1,4 +1,0 @@
----
-features:
-  - |
-    internal: Add support for Datadog trace tag propagation

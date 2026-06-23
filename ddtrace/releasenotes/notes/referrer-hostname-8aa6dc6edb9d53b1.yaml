@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracer: extracts  the referrer hostname from HTTP requests and stored it as `http.referrer_hostname` tag.

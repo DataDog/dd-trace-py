@@ -1,3 +1,0 @@
-features:
-  - |
-    LLM Observability: Adds support for collecting tool definitions, tool calls and tool results in the Amazon Bedrock integration.

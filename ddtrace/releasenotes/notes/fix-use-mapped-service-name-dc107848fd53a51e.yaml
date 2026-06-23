@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    tracing: This fix resolves an issue where the ``DD_SERVICE_MAPPING`` mapped service names were not used
-    when updating span metadata with the ``DD_VERSION`` set version string.

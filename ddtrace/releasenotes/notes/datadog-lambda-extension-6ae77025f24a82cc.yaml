@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Adds support for the Datadog Lambda Extension. The tracer will send traces
-    to the extension by default if it is present.

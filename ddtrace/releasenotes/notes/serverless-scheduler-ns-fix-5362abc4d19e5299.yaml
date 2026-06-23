@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    profiling: the Profiler now correctly flushes profiles at most once per upload
-    interval.

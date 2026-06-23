@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    tracing: make ``ddtrace.context.Context`` serializable which fixes distributed tracing across processes.

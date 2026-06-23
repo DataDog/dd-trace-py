@@ -1,4 +1,0 @@
-features:
-  - |
-    logbook: This introduces log correlation for the logbook library.
-    Refer to :mod:`logbook-docs <ddtrace.contrib.logbook>` for more details.

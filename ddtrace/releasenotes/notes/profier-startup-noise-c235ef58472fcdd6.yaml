@@ -1,3 +1,0 @@
-fixes:
-  - |
-    profiling: Fixes noise caused by the profiler attempting to load its native module even when profiling was disabled,

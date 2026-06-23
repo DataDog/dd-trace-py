@@ -1,4 +1,0 @@
----
-deprecations:
-  - |
-    tracing: The type annotation for ``Span.parent_id`` will change from ``Optional[int]`` to ``int`` in v5.0.0.

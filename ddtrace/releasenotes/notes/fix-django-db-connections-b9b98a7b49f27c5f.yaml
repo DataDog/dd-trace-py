@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    django: fix a bug where multiple database backends would not be instrumented.

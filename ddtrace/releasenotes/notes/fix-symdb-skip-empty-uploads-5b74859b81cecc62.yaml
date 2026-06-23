@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    dynamic instrumentation: fixes an issue where the Symbol Database uploader
-    sends empty payloads on a recurring timer.

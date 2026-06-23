@@ -1,5 +1,0 @@
----
-features:
-  - |
-    aiomysql, asyncpg, mysql, mysqldb, pymysql: Add Database Monitoring (DBM) for remaining
-    mysql and postgres integrations lacking support.

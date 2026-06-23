@@ -1,4 +1,0 @@
----
-features:
-  - |
-    LLM Observability: The LangChain integration now submits vectorstore ``similarity_search`` spans to LLM Observability as retrieval spans.

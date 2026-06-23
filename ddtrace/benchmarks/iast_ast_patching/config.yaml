@@ -1,5 +1,0 @@
-no_iast: &base_variant
-  iast_enabled: 0
-
-iast_enabled: &iast_enabled
-  iast_enabled: 1

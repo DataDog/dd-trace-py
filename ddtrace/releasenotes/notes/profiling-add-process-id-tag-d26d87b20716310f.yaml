@@ -1,3 +1,0 @@
-features:
-  - |
-    profiling: This adds the ``process_id`` tag to profiles. The value of this tag is the current process ID (PID).

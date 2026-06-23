@@ -1,4 +1,0 @@
----
-features:
-  - |
-    ASM: one click activation enabled by default using Remote Configuration Management (RCM). Set ``DD_REMOTE_CONFIGURATION_ENABLED=false`` to disable this feature.

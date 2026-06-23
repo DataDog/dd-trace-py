@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    crashtracker: Fixes missing env variables inheritance for receiver process.

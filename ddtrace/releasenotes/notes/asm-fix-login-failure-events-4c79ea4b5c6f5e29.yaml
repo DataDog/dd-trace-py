@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where django login failure events may send wrong information of user existence.
-

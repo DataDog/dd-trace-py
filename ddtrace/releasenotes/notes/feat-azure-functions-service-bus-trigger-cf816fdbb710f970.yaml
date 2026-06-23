@@ -1,3 +1,0 @@
-features:
-  - |
-    azure_functions: This introduces tracing support for service bus triggers.

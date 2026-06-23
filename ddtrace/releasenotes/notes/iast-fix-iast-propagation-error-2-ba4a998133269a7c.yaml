@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    ASM: This fix resolves an issue where AppSec was using a patched request and builtins functions, 
-    creating telemetry errors.
