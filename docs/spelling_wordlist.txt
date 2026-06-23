@@ -91,6 +91,7 @@ debuggability
 deps
 decompiling
 deprecations
+deregisters
 dereferences
 DES
 deserializing
@@ -237,6 +238,7 @@ opentracer
 opentracing
 OpenTracing
 otel
+OTel
 packfile
 packfiles
 parameterized

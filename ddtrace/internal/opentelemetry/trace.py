@@ -7,6 +7,7 @@ import threading
 from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Optional
+import weakref
 
 from opentelemetry import version
 from opentelemetry.context import Context as OtelContext  # noqa:F401
@@ -102,7 +103,8 @@ class _OtelBridgeSpanProcessor(DDSpanProcessor):
 
     def __init__(self, multi_processor: SynchronousMultiSpanProcessor) -> None:
         self._multi_processor = multi_processor
-        self._span_map: dict = {}  # (trace_id, span_id) → OtelSpan wrapper
+        # WeakValueDictionary: abandoned spans (never ended) are GC'd without accumulating here.
+        self._span_map: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
 
     def on_span_created(self, ddspan, otel_span: "OtelSpan", parent_context: Optional[OtelContext] = None) -> None:
         self._span_map[(ddspan.trace_id, ddspan.span_id)] = otel_span
