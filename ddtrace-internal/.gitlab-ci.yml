@@ -134,4 +134,4 @@ include:
     - "build sdist"
     - "package version"
   script:
-    - .gitlab/validate-ddtraceinternal-package.py pywheels
+    - ddtrace-internal/.gitlab/validate-ddtraceinternal-package.py pywheels

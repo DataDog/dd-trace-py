@@ -18,60 +18,53 @@ Environment:
 
 import argparse
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
-from packaging.utils import parse_sdist_filename
-from packaging.utils import parse_wheel_filename
-
+from packaging.utils import parse_sdist_filename, parse_wheel_filename
 
 # Configuration
-PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
-WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
+PYTHON_TAGS = ["cp314"]
 
 BASE_PLATFORMS = [
-    "macosx_14_0_arm64",
-    "macosx_14_0_x86_64",
-    "manylinux2014_aarch64.manylinux_2_17_aarch64",
     "manylinux2014_x86_64.manylinux_2_17_x86_64",
-    "musllinux_1_2_aarch64",
-    "musllinux_1_2_x86_64",
-    "win32",
-    "win_amd64",
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 
-def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
+def build_expected_set(
+    version: str, args: argparse.Namespace
+) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
-        if args.mode == "serverless":
-            for platform in SERVERLESS_PLATFORMS:
-                expected.add((version, py_tag, platform, "_serverless"))
-        else:
-            for platform in BASE_PLATFORMS:
-                expected.add((version, py_tag, platform, ""))
-            # Add win_arm64 for Python 3.11+
-            if py_tag in WIN_ARM64_PYTHON_TAGS:
-                expected.add((version, py_tag, "win_arm64", ""))
+        for platform in BASE_PLATFORMS:
+            expected.add((version, py_tag, platform, ""))
 
     return expected
 
 
-def reconstruct_wheel_filename(version: str, python_tag: str, platform: str, flavor: str) -> str:
+def reconstruct_wheel_filename(
+    version: str, python_tag: str, platform: str, flavor: str
+) -> str:
     """Reconstruct wheel filename from components."""
     package_name = f"ddtrace{flavor}"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
-def validate_sdist(wheels_dir: str, package_version: str) -> tuple[bool, str, str | None]:
+def validate_sdist(
+    wheels_dir: str, package_version: str
+) -> tuple[bool, str, str | None]:
     """Validate sdist exists and has correct version.
 
     Returns:
         tuple: (success: bool, message: str, sdist_name: str or None)
     """
-    sdists = [a for a in list(Path(wheels_dir).glob("*.tar.gz")) if "ddtrace_internal" not in a.name]
+    sdists = [
+        a
+        for a in list(Path(wheels_dir).glob("*.tar.gz"))
+        if "ddtrace_internal" not in a.name
+    ]
 
     if len(sdists) == 0:
         return False, "No sdist found", None
@@ -107,8 +100,6 @@ def parse_actual_wheels(
     errors: list[str] = []
 
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
-        if "ddtrace_internal" in wheel_file.name:
-            continue
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
             # Extract python tag - all tags should have the same interpreter
@@ -123,7 +114,9 @@ def parse_actual_wheels(
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
-                raise ValueError(f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}")
+                raise ValueError(
+                    f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}"
+                )
 
             flavor = name.replace("ddtrace", "").replace("-", "_")
             actual.add((str(version), py_tag, platform, flavor))
@@ -208,7 +201,6 @@ def main(args: argparse.Namespace) -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
-    print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
     # Phase 5: Set Comparison
