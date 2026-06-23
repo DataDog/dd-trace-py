@@ -1135,9 +1135,15 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) ->
     {"content": "...", "role": "...", "reasoning_content": "...", "tool_calls": [...], "finish_reason": "..."}
     """
     message: dict[str, Any] = {"content": "", "reasoning_content": "", "tool_calls": []}
+    # Usage-bearing chunks are prepended to the front of the list in _loop_handler, so the
+    # most-recent usage chunk is at index 0. Read it directly rather than iterating with
+    # last-write-wins: providers that emit cumulative per-chunk usage send a running
+    # completion_tokens count that only reaches the true total on the last-received chunk,
+    # and last-write-wins would otherwise land on the earliest (smallest) usage chunk.
+    # Mirrors openai_construct_completion_from_streamed_chunks.
+    if streamed_chunks and _get_attr(streamed_chunks[0], "usage", None):
+        message["usage"] = streamed_chunks[0].usage
     for chunk in streamed_chunks:
-        if _get_attr(chunk, "usage", None):
-            message["usage"] = chunk.usage
         if not _get_attr(chunk, "delta", None):
             continue
         if _get_attr(chunk, "index", None) and not message.get("index"):

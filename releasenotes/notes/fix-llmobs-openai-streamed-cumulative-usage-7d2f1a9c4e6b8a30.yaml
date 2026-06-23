@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where streamed chat completion spans
+    under-reported ``output_tokens`` and ``total_tokens`` for OpenAI-compatible
+    providers that emit a cumulative ``usage`` object on every streamed chunk
+    (when using ``stream_options={"include_usage": True}``). The span now records
+    the usage from the final (cumulative total) chunk instead of the first
+    usage-bearing chunk. Spans for OpenAI's own streaming responses, which emit a
+    single trailing usage-only chunk, are unaffected.
