@@ -65,7 +65,7 @@ class FlagEvaluationHook(Hook):
             flag_key: str = hook_context.flag_key or ""
 
             # Extract allocation_key from flag_metadata (same key as METADATA_ALLOCATION_KEY).
-            metadata: dict[str, typing.Any] = details.flag_metadata or {}
+            metadata: typing.Mapping[str, typing.Any] = details.flag_metadata or {}
             allocation_key: str = ""
             ak = metadata.get(METADATA_ALLOCATION_KEY)
             if isinstance(ak, str) and ak:
@@ -79,18 +79,16 @@ class FlagEvaluationHook(Hook):
                 eval_time_ms = int(time.time() * 1000)
 
             # Variant: absent or type mismatch signals a runtime default.
-            runtime_default = not details.variant or details.error_code == ErrorCode.TYPE_MISMATCH
-            variant = "" if runtime_default else details.variant
+            variant = ""
+            if details.variant and details.error_code != ErrorCode.TYPE_MISMATCH:
+                variant = details.variant
+            runtime_default = variant == ""
 
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
-            if eval_ctx is not None:
-                targeting_key = eval_ctx.targeting_key or ""
-                # Shallow copy so we don't hold a reference to the caller's live dict.
-                attrs: dict[str, typing.Any] = dict(eval_ctx.attributes or {})
-            else:
-                targeting_key = ""
-                attrs = {}
+            targeting_key = eval_ctx.targeting_key or ""
+            # Shallow copy so we don't hold a reference to the caller's live dict.
+            attrs: dict[str, typing.Any] = dict(eval_ctx.attributes or {})
 
             # Error message (best-effort; absent on success paths).
             error_message = ""

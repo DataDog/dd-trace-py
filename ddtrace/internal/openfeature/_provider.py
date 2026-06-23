@@ -16,6 +16,7 @@ from openfeature.evaluation_context import EvaluationContext
 from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails
+from openfeature.flag_evaluation import FlagValueType
 from openfeature.flag_evaluation import Reason
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
@@ -51,6 +52,8 @@ else:
 
 
 T = typing.TypeVar("T", covariant=True)
+ResolvedValue = typing.TypeVar("ResolvedValue")
+ObjectFlagValue = typing.Union[typing.Sequence[FlagValueType], typing.Mapping[str, FlagValueType]]
 K = typing.TypeVar("K")
 V = typing.TypeVar("V")
 logger = get_logger(__name__)
@@ -308,18 +311,18 @@ class DataDogProvider(AbstractProvider):
     def resolve_object_details(
         self,
         flag_key: str,
-        default_value: typing.Union[dict, list],
+        default_value: ObjectFlagValue,
         evaluation_context: typing.Optional[EvaluationContext] = None,
-    ) -> FlagResolutionDetails[typing.Union[dict, list]]:
+    ) -> FlagResolutionDetails[ObjectFlagValue]:
         return self._resolve_details(flag_key, default_value, evaluation_context, VariationType.Object)
 
     def _resolve_details(
         self,
         flag_key: str,
-        default_value: typing.Any,
+        default_value: ResolvedValue,
         evaluation_context: typing.Optional[EvaluationContext] = None,
         variation_type: VariationType = VariationType.Boolean,
-    ) -> FlagResolutionDetails[T]:
+    ) -> FlagResolutionDetails[ResolvedValue]:
         """
         Core resolution logic for all flag types.
 
@@ -428,7 +431,7 @@ class DataDogProvider(AbstractProvider):
 
             # Success - return resolved value (which may be None for JSON flags)
             return FlagResolutionDetails(
-                value=details.value,
+                value=typing.cast(ResolvedValue, details.value),
                 reason=reason,
                 variant=details.variant,
                 flag_metadata=flag_metadata,

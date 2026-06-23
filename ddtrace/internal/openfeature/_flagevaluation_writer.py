@@ -21,6 +21,7 @@ Key design properties:
 - Non-blocking enqueue: queue.Queue(QUEUE_SIZE); drops + counts on queue.Full.
 """
 
+import http.client as httplib
 import json
 import queue
 import struct
@@ -254,6 +255,17 @@ class _EvalEvent(typing.NamedTuple):
     eval_time_ms: int
 
 
+class _FlagEvaluationConnection(typing.Protocol):
+    def request(self, method: str, url: str, body: bytes, headers: dict[str, str]) -> None:
+        pass
+
+    def getresponse(self) -> httplib.HTTPResponse:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # FlagEvaluationWriter
 # ---------------------------------------------------------------------------
@@ -470,7 +482,7 @@ class FlagEvaluationWriter(PeriodicService):
 
         self._send_payload(payload, len(events))
 
-    def on_shutdown(self):
+    def on_shutdown(self) -> None:
         """Final flush on service shutdown — drains the queue and flushes before exit."""
         self._stop_drain_worker()
         self.periodic()
@@ -578,7 +590,7 @@ class FlagEvaluationWriter(PeriodicService):
 
     def _send_payload(self, payload: bytes, num_events: int) -> None:
         """POST the encoded payload to the EVP proxy."""
-        conn = get_connection(self._intake, timeout=self._timeout)
+        conn = typing.cast(_FlagEvaluationConnection, get_connection(self._intake, timeout=self._timeout))
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()

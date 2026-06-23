@@ -65,8 +65,7 @@ class PeriodicService(service.Service):
         if self._worker:
             self._worker.join(timeout)
 
-    @staticmethod
-    def on_shutdown():
+    def on_shutdown(self) -> None:
         pass
 
     def periodic(self):
