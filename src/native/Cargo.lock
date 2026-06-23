@@ -187,7 +187,7 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 
 [[package]]
 name = "build_common"
-version = "35.0.0"
+version = "36.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "cbindgen",
@@ -486,10 +486,10 @@ version = "1.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "chrono",
- "datadog-remote-config",
  "derive_more",
  "faststr",
  "libdd-common",
+ "libdd-remote-config",
  "log",
  "md5",
  "pyo3",
@@ -503,31 +503,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "datadog-remote-config"
-version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
-dependencies = [
- "anyhow",
- "base64",
- "futures-util",
- "http",
- "http-body-util",
- "libdd-common",
- "libdd-trace-protobuf",
- "manual_future",
- "serde",
- "serde_json",
- "serde_with",
- "sha2",
- "thiserror 2.0.18",
- "time",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
-]
-
-[[package]]
 name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
@@ -535,7 +510,6 @@ dependencies = [
  "build_common",
  "bytes",
  "datadog-ffe",
- "datadog-remote-config",
  "libc",
  "libdd-capabilities-impl",
  "libdd-common",
@@ -546,6 +520,7 @@ dependencies = [
  "libdd-library-config",
  "libdd-log",
  "libdd-profiling-ffi",
+ "libdd-remote-config",
  "libdd-shared-runtime",
  "libdd-trace-utils",
  "libdd-tracer-flare",
@@ -1085,7 +1060,6 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
- "rustls-native-certs",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1446,7 +1420,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-common"
-version = "4.2.0"
+version = "5.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1474,6 +1448,7 @@ dependencies = [
  "reqwest",
  "rustls",
  "rustls-native-certs",
+ "rustls-platform-verifier",
  "serde",
  "static_assertions",
  "thiserror 1.0.69",
@@ -1485,7 +1460,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-common-ffi"
-version = "35.0.0"
+version = "36.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1532,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-data-pipeline"
-version = "5.0.0"
+version = "6.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1551,6 +1526,7 @@ dependencies = [
  "libdd-shared-runtime",
  "libdd-telemetry",
  "libdd-tinybytes",
+ "libdd-trace-normalization",
  "libdd-trace-obfuscation",
  "libdd-trace-protobuf",
  "libdd-trace-stats",
@@ -1588,8 +1564,8 @@ dependencies = [
 
 [[package]]
 name = "libdd-http-client"
-version = "35.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v35.0.0#aa78483fba211c72ca3759c76318895f45e0184b"
+version = "36.0.0"
+source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "bytes",
  "fastrand",
@@ -1708,6 +1684,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "libdd-remote-config"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
+dependencies = [
+ "anyhow",
+ "base64",
+ "futures-util",
+ "hashbrown 0.15.5",
+ "http",
+ "http-body-util",
+ "libdd-common",
+ "libdd-trace-protobuf",
+ "manual_future",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "sha2",
+ "strum",
+ "strum_macros",
+ "thiserror 2.0.18",
+ "time",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "libdd-shared-runtime"
 version = "1.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
@@ -1726,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-shared-runtime-ffi"
-version = "35.0.0"
+version = "36.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "build_common",
@@ -1736,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-telemetry"
-version = "5.0.0"
+version = "5.0.1"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1780,7 +1784,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-trace-obfuscation"
-version = "3.1.0"
+version = "4.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1806,7 +1810,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-trace-stats"
-version = "4.0.0"
+version = "5.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1831,7 +1835,7 @@ dependencies = [
 
 [[package]]
 name = "libdd-trace-utils"
-version = "7.0.0"
+version = "8.0.0"
 source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff84566db4447d416ac8c48ea8"
 dependencies = [
  "anyhow",
@@ -1854,8 +1858,10 @@ dependencies = [
  "rmp",
  "rmp-serde",
  "rmpv",
+ "rustc-hash 2.1.2",
  "serde",
  "serde_json",
+ "thin-vec",
  "tokio",
  "tracing",
 ]
@@ -1867,9 +1873,9 @@ source = "git+https://github.com/DataDog/libdatadog?branch=main#c690b5e43ccdf5ff
 dependencies = [
  "anyhow",
  "bytes",
- "datadog-remote-config",
  "http",
  "libdd-common",
+ "libdd-remote-config",
  "libdd-trace-utils",
  "serde_json",
  "tempfile",
@@ -3178,6 +3184,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
+name = "strum"
+version = "0.26.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
+
+[[package]]
+name = "strum_macros"
+version = "0.26.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3356,6 +3381,12 @@ dependencies = [
  "rustix",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "thin-vec"
+version = "0.2.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0f7e269b48f0a7dd0146680fa24b50cc67fc0373f086a5b2f99bd084639b482"
 
 [[package]]
 name = "thiserror"

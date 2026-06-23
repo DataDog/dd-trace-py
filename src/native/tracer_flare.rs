@@ -1,4 +1,4 @@
-use datadog_remote_config::config::{agent_config, agent_task};
+use libdd_remote_config::config::{agent_config, agent_task};
 use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
