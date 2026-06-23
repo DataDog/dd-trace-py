@@ -127,6 +127,19 @@ class TestBooleanFlagResolution:
         assert result.error_code == ErrorCode.TYPE_MISMATCH
         assert "expected" in result.error_message.lower()
 
+    def test_resolve_boolean_flag_invalid_configuration(self, provider):
+        """Should return parse error when a flag has invalid configuration."""
+        flag = create_boolean_flag("invalid-config-flag", enabled=True, default_value=True)
+        flag["variations"]["true"]["value"] = "not-a-boolean"
+        config = create_config(flag)
+        process_ffe_configuration(config)
+
+        result = provider.resolve_boolean_details("invalid-config-flag", False)
+
+        assert result.value is False
+        assert result.reason == Reason.ERROR
+        assert result.error_code == ErrorCode.PARSE_ERROR
+
 
 class TestStringFlagResolution:
     """Test string flag resolution."""
