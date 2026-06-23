@@ -44,9 +44,7 @@ def build_expected_set(
     return expected
 
 
-def reconstruct_wheel_filename(
-    version: str, python_tag: str, platform: str
-) -> str:
+def reconstruct_wheel_filename(version: str, python_tag: str, platform: str) -> str:
     """Reconstruct wheel filename from components."""
     package_name = "ddtrace_internal"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
@@ -226,9 +224,9 @@ def main(args: argparse.Namespace) -> None:
     unexpected_wheels = actual_set - expected_set
     # Filter out version mismatches (they're already reported)
     unexpected_non_version = [
-        (v, p, pl, fl)
-        for v, p, pl, fl in unexpected_wheels
-        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches
+        (v, p, pl)
+        for v, p, pl in unexpected_wheels
+        if reconstruct_wheel_filename(v, p, pl) not in version_mismatches
     ]
 
     if unexpected_non_version:
