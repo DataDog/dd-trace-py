@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    openfeature: Fixes the error code returned for invalid Feature Flagging and Experimentation
+    flag configurations. Invalid flag configuration now returns ``PARSE_ERROR`` instead of a
+    generic error code, preserving the expected OpenFeature error type.
