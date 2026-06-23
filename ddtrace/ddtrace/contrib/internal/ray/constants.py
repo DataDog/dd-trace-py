@@ -1,4 +1,5 @@
 DD_RAY_TRACE_CTX = "_dd_ray_trace_ctx"
+DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR = "_dd_trace_context_headers"
 
 # Environment variables
 RAY_SUBMISSION_ID = "_RAY_SUBMISSION_ID"
@@ -74,3 +75,19 @@ RAY_TASK_RESOURCES_PREFIX = "ray.task.resources."
 RAY_ACTOR_CLASS_NAME = "ray.actor.class_name"
 RAY_ACTOR_MODULE_NAME = "ray.actor.module_name"
 RAY_ACTOR_METHOD_NAME = "ray.actor.method_name"
+
+
+# Ray serve related constants
+
+RAY_APP_NAME = "ray.serve.app_name"
+RAY_DEPLOYMENT_ARGS = "ray.serve.deployment.args"
+RAY_DEPLOYMENT_KWARGS = "ray.serve.deployment.kwargs"
+
+# This constant is defined here as it is used in ray core integration and
+# we do not want ray core to be dependent of ray serve.
+RAY_SERVE_REPLICA_METHOD_DENYLIST = {
+    "record_routing_stats",
+    "check_health",
+    "is_allocated",
+    "initialize_and_get_metadata",
+}

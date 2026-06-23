@@ -17,7 +17,7 @@
         "dependency": "aiohttp",
         "integration": "aiohttp",
         "minimum_tracer_supported": "3.7.4.post0",
-        "max_tracer_supported": "3.14.0",
+        "max_tracer_supported": "3.14.1",
         "auto-instrumented": true
     },
     {
@@ -425,7 +425,7 @@
         "dependency": "langchain-core",
         "integration": "langchain",
         "minimum_tracer_supported": "0.1.53",
-        "max_tracer_supported": "1.2.31",
+        "max_tracer_supported": "1.4.7",
         "auto-instrumented": true
     },
     {
@@ -510,7 +510,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.27.0",
+        "max_tracer_supported": "1.27.2",
         "auto-instrumented": true
     },
     {
@@ -559,7 +559,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "2.3.0",
+        "max_tracer_supported": "2.40.0",
         "auto-instrumented": true
     },
     {
@@ -573,7 +573,7 @@
         "dependency": "protobuf",
         "integration": "protobuf",
         "minimum_tracer_supported": "6.33.6",
-        "max_tracer_supported": "7.34.1",
+        "max_tracer_supported": "7.35.0",
         "auto-instrumented": false
     },
     {
@@ -664,10 +664,26 @@
         "auto-instrumented": false
     },
     {
+        "dependency": "torch",
+        "integration": "pytorch",
+        "minimum_tracer_supported": "2.0.1",
+        "max_tracer_supported": "2.12.0",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "ray",
         "integration": "ray",
         "minimum_tracer_supported": "2.46.0",
-        "max_tracer_supported": "2.49.2",
+        "max_tracer_supported": "2.54.1",
+        "pinned": "true",
+        "auto-instrumented": false
+    },
+    {
+        "dependency": "ray",
+        "integration": "ray_serve",
+        "minimum_tracer_supported": "2.47.1",
+        "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
     },
@@ -689,7 +705,7 @@
         "dependency": "requests",
         "integration": "requests",
         "minimum_tracer_supported": "2.25.1",
-        "max_tracer_supported": "2.34.1",
+        "max_tracer_supported": "2.34.2",
         "auto-instrumented": true
     },
     {

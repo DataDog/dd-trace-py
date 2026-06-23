@@ -7,6 +7,11 @@ stages:
   - shared-pipeline
   - benchmarks
   - release
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> main
 include:
   - local: ddtrace-internal/.gitlab-ci.yml
   - local: ddtrace/.gitlab-ci.yml

@@ -7,6 +7,10 @@ import pytest
 
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
+from ddtrace.contrib.internal.subprocess.patch import add_lst_callback
+from ddtrace.contrib.internal.subprocess.patch import add_str_callback
+from ddtrace.contrib.internal.subprocess.patch import del_lst_callback
+from ddtrace.contrib.internal.subprocess.patch import del_str_callback
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
@@ -1017,3 +1021,72 @@ def test_popen_positional_env_no_typeerror():
         if proc.poll() is None:
             proc.terminate()
             proc.wait()
+
+
+class _CallbackSpy:
+    """Records the arguments each registered subprocess callback receives."""
+
+    def __init__(self):
+        self.str_calls = []
+        self.lst_calls = []
+
+    def __enter__(self):
+        add_str_callback("_test_spy", self.str_calls.append)
+        add_lst_callback("_test_spy", self.lst_calls.append)
+        return self
+
+    def __exit__(self, *exc):
+        del_str_callback("_test_spy")
+        del_lst_callback("_test_spy")
+
+
+# Regression tests for APPSEC-68527: bytes commands are valid on POSIX and must
+# reach the RASP/IAST security callbacks instead of being silently dropped by a
+# type filter that only accepted str/list/tuple.
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_ossystem_bytes_reaches_callbacks(tracer, test_spans, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("ossystem_bytes"):
+            ret = os.system(b"dir -l /")
+            assert ret == 0
+
+        assert spy.str_calls == [b"dir -l /"]
+
+        spans = test_spans.pop()
+        span = spans[1]
+        assert span.name == COMMANDS.SPAN_NAME
+        assert span.resource == "dir"
+        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
+        assert span.get_tag(COMMANDS.COMPONENT) == "os"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_subprocess_bytes_shell_true_reaches_callbacks(tracer, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("popen_bytes_shell"):
+            subp = subprocess.Popen(b"dir -li /", shell=True)
+            subp.wait()
+
+        # shell=True routes the bytes command to the SHI (str) callbacks
+        assert spy.str_calls == [b"dir -li /"]
+        assert spy.lst_calls == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bytes commands are a POSIX behavior")
+@pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
+def test_subprocess_bytes_shell_false_reaches_callbacks(tracer, config):
+    with override_global_config(config):
+        patch()
+        with _CallbackSpy() as spy, tracer.trace("popen_bytes_noshell"):
+            subp = subprocess.Popen(b"/bin/ls", shell=False)
+            subp.wait()
+
+        # shell=False routes the bytes command to the CMDI (list) callbacks
+        assert spy.lst_calls == [b"/bin/ls"]
+        assert spy.str_calls == []
