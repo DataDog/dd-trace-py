@@ -231,6 +231,7 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
     }
