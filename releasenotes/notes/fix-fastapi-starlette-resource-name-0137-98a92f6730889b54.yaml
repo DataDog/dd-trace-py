@@ -1,4 +1,8 @@
 ---
 fixes:
   - |
-    fastapi: Fixes span resource names for FastAPI >= 0.137.
+    fastapi: Fixes span resource names for requests on nested routers being set to only
+    the leaf path segment instead of the full composed path. Affects FastAPI >= 0.137.
+  - |
+    fastapi: Fixes span resource names being duplicated when both the FastAPI and
+    Starlette patches are active. Affects FastAPI >= 0.137.

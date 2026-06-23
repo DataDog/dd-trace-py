@@ -165,18 +165,9 @@ def unpatch():
 
 
 def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
-    """Return True if traced_handler has already fired for this route instance on this request.
-
-    FastAPI >= 0.137 changed APIRoute.handle to call super().handle() (starlette Route.handle)
-    when effective_route_context is absent. When both the fastapi and starlette patches are
-    active, traced_handler fires twice for the same route instance, doubling resource_paths.
-
-    AIDEV-NOTE: We use id(instance) as the dedup key. Route objects are app-lifetime singletons
-    registered at startup and never GC'd during a request, so id() is stable for the duration.
-    Edge case: if FastAPI ever internally re-dispatches the same route instance within a single
-    request (e.g. error recovery), the second invocation will be silently skipped.
-    """
+    """Return True if traced_handler has already fired for this route instance on this request."""
     seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
+    # Route objects are app-lifetime singletons so id() is stable for the duration of the request.
     if id(instance) in seen_routes:
         return True
     seen_routes.add(id(instance))
@@ -184,13 +175,6 @@ def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
 
 
 def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
-    """Return the fully-composed route template from FastAPI >= 0.137's effective_route_context.
-
-    FastAPI 0.137 introduced a lazy _IncludedRouter that no longer flattens nested
-    include_router paths onto a single route. scope["route"].path_format only contains
-    the leaf-relative segment; FastAPI sets scope["fastapi"]["effective_route_context"].path_format
-    with the full composed path before calling APIRoute.handle.
-    """
     effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
     if effective_route_context is None:
         return None
@@ -211,6 +195,8 @@ def traced_handler(wrapped, instance, args, kwargs):
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
         return wrapped(*args, **kwargs)
 
+    # FastAPI >= 0.137 calls super().handle() from APIRoute.handle, causing traced_handler to fire
+    # twice for the same route instance on a single request, which doubles resource_paths.
     if _is_duplicate_route_call(scope, instance):
         return wrapped(*args, **kwargs)
 
