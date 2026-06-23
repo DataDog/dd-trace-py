@@ -31,7 +31,7 @@
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
         - .download_cache
-"build_sdist":
+"build sdist":
   extends: .build_base
   needs: []
   stage: "ddtrace-internal:package"
