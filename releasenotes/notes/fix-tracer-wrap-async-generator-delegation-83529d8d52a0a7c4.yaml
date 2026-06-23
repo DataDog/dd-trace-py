@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where applying ``@tracer.wrap()`` to an
+    async generator function skipped the generator's ``try``/``finally`` cleanup
+    when an exception was raised or the generator was closed early, and broke
+    composition with ``contextlib.asynccontextmanager`` (raising errors such as
+    ``object NoneType can't be used in 'await' expression``). The wrapper now
+    forwards ``athrow``, ``aclose``, and ``asend`` to the wrapped async generator.
