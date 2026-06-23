@@ -7,6 +7,7 @@ import pytest
 from ddtrace import constants
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.appsec.trace_utils import block_request_if_user_blocked
 from ddtrace.appsec.trace_utils import should_block_user
 from ddtrace.appsec.trace_utils import track_custom_event
@@ -122,6 +123,9 @@ class EventsSDKTestCase(TracerTestCase):
             assert entry_span.get_tag("%s.track" % success_prefix) == "true"
             assert not entry_span.get_tag("_dd.appsec.events.users.login.success.sdk")
             assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.ANON)
+            # the session id must be anonymized in anonymization mode, never exported in clear text
+            assert entry_span.get_tag(user.SESSION_ID) == _hash_user_id("test_session_id")
+            assert entry_span.get_tag(user.SESSION_ID) != "test_session_id"
 
     def test_track_user_login_event_success_auto_mode_extended(self):
         with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as span:
@@ -142,6 +146,8 @@ class EventsSDKTestCase(TracerTestCase):
             assert entry_span.get_tag("%s.track" % success_prefix) == "true"
             assert not entry_span.get_tag("_dd.appsec.events.users.login.success.sdk")
             assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
+            # the session id is kept as is in identification mode
+            assert entry_span.get_tag(user.SESSION_ID) == "test_session_id"
 
     def test_track_user_login_event_success_with_metadata(self):
         with (
