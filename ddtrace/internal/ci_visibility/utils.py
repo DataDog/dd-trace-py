@@ -61,7 +61,7 @@ def get_source_lines_for_test_method(
     try:
         code = test_method_object.__code__
         start_line = code.co_firstlineno
-        end_line = max((ln for _, ln in findlinestarts(code) if ln is not None), default=start_line)
+        end_line = max((ln for _, ln in findlinestarts(code) if ln is not None), default=start_line) + 1
         return start_line, end_line
     except AttributeError:
         pass  # not a plain function; fall through to inspect
