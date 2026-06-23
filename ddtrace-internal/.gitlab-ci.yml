@@ -82,6 +82,17 @@
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - .gitlab/scripts/build-wheel.sh
+.package_base:
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: ["arch:amd64"]
+  stage: package
+  before_script:
+    - pip install 'packaging>=24.0,<26' # ci-deps: allow
+  artifacts:
+    when: always
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
 "validate ddtrace-internal package":
   extends: .package_base
   needs:
