@@ -20,6 +20,10 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+# co_lines() is available from Python 3.10+; check once at import time.
+# TODO: remove _CO_LINES_SUPPORTED and the findlinestarts fallback once Python 3.9 support is dropped.
+_CO_LINES_SUPPORTED = hasattr((lambda: None).__code__, "co_lines")
+
 
 def get_relative_or_absolute_path_for_path(path: str, start_directory: str):
     try:
@@ -56,13 +60,21 @@ def get_source_lines_for_test_method(
         Tuple of (start_line, end_line), with None indicating unavailable information
     """
     # Fast path: derive line numbers from the bytecode rather than tokenizing source.
-    # co_firstlineno gives the start; findlinestarts gives all executed lines so the
-    # max is the last line with a bytecode instruction — a good approximation of end.
+    # co_firstlineno gives the start; the loop finds the last executed line for end.
+    # TODO: drop the findlinestarts branch once Python 3.9 support is removed.
     try:
         code = test_method_object.__code__
         start_line = code.co_firstlineno
-        end_line = max((ln for _, ln in findlinestarts(code) if ln is not None), default=start_line) + 1
-        return start_line, end_line
+        end_line = start_line
+        if _CO_LINES_SUPPORTED:
+            for _, _, line in code.co_lines():
+                if line is not None and line > end_line:
+                    end_line = line
+        else:
+            for _, line in findlinestarts(code):
+                if line is not None and line > end_line:
+                    end_line = line
+        return start_line, end_line + 1
     except AttributeError:
         pass  # not a plain function; fall through to inspect
     except Exception:
