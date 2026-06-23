@@ -34,21 +34,21 @@ SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 def build_expected_set(
     version: str, args: argparse.Namespace
-) -> set[tuple[str, str, str, str]]:
-    """Build set of expected (version, python_tag, platform, flavor) tuples."""
-    expected: set[tuple[str, str, str, str]] = set()
+) -> set[tuple[str, str, str]]:
+    """Build set of expected (version, python_tag, platform) tuples."""
+    expected: set[tuple[str, str, str] = set()
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
-            expected.add((version, py_tag, platform, ""))
+            expected.add((version, py_tag, platform))
 
     return expected
 
 
 def reconstruct_wheel_filename(
-    version: str, python_tag: str, platform: str, flavor: str
+    version: str, python_tag: str, platform: str
 ) -> str:
     """Reconstruct wheel filename from components."""
-    package_name = f"ddtrace{flavor}"
+    package_name = f"ddtrace_internal"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
@@ -90,13 +90,13 @@ def validate_sdist(
 
 def parse_actual_wheels(
     wheels_dir: str,
-) -> tuple[set[tuple[str, str, str, str]], list[str], int]:
+) -> tuple[set[tuple[str, str, str]], list[str], int]:
     """Parse actual wheel files.
 
     Returns:
         tuple: (actual_set: set, errors: list[str], valid_count: int)
     """
-    actual: set[tuple[str, str, str, str]] = set()
+    actual: set[tuple[str, str, str]] = set()
     errors: list[str] = []
 
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
@@ -110,7 +110,7 @@ def parse_actual_wheels(
             # We know: name=ddtrace, abi=python tag (e.g., cp310)
             # So platform is everything after: ddtrace-{version}-{python}-{python}-
             wheel_base = wheel_file.name.replace(".whl", "")
-            marker = f"{name.replace('-', '_')}-{version}-{py_tag}-{py_tag}-"
+            marker = f"{name.replace('-', '_')}-{version}-{py_tag}-none-"
             if marker in wheel_base:
                 platform = wheel_base.split(marker)[1]
             else:
@@ -118,8 +118,7 @@ def parse_actual_wheels(
                     f"Cannot parse platform from {wheel_file.name} - searched for marker {marker}"
                 )
 
-            flavor = name.replace("ddtrace", "").replace("-", "_")
-            actual.add((str(version), py_tag, platform, flavor))
+            actual.add((str(version), py_tag, platform))
         except Exception as e:
             errors.append(f"{wheel_file.name}: {e}")
 
@@ -127,13 +126,13 @@ def parse_actual_wheels(
 
 
 def identify_version_mismatches(
-    actual_set: set[tuple[str, str, str, str]], package_version: str
+    actual_set: set[tuple[str, str, str]], package_version: str
 ) -> dict[str, tuple[str, str]]:
     """Identify wheels with wrong versions."""
     mismatches: dict[str, tuple[str, str]] = {}
-    for version, py_tag, platform, flavor in actual_set:
+    for version, py_tag, platform in actual_set:
         if version != package_version:
-            key = reconstruct_wheel_filename(version, py_tag, platform, flavor)
+            key = reconstruct_wheel_filename(version, py_tag, platform)
             mismatches[key] = (package_version, version)
     return mismatches
 
@@ -209,8 +208,8 @@ def main(args: argparse.Namespace) -> None:
     missing_wheels = expected_set - actual_set
     if missing_wheels:
         print(f"✗ Missing {len(missing_wheels)} wheel(s):")
-        for version, py_tag, platform, flavor in sorted(missing_wheels):
-            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
+        for version, py_tag, platform in sorted(missing_wheels):
+            filename = reconstruct_wheel_filename(version, py_tag, platform)
             print(f"  - {filename}")
         errors.append(f"Missing wheels: {len(missing_wheels)}")
 
@@ -234,8 +233,8 @@ def main(args: argparse.Namespace) -> None:
 
     if unexpected_non_version:
         print(f"⚠ Unexpected {len(unexpected_non_version)} wheel(s) (warnings only):")
-        for version, py_tag, platform, flavor in sorted(unexpected_non_version):
-            filename = reconstruct_wheel_filename(version, py_tag, platform, flavor)
+        for version, py_tag, platform in sorted(unexpected_non_version):
+            filename = reconstruct_wheel_filename(version, py_tag, platform)
             print(f"  - {filename}")
         warnings.append(f"Unexpected wheels: {len(unexpected_non_version)}")
 
