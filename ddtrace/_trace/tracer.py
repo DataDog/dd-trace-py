@@ -800,13 +800,39 @@ class Tracer(object):
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
     ) -> AnyCallable:
-        """Wrap a generator function with tracing."""
+        """Wrap an async generator function with tracing."""
 
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                async for value in f(*args, **kwargs):
-                    yield value
+                # Delegate to the wrapped async generator, forwarding sent values,
+                # thrown exceptions, and close requests. This is the async analogue of
+                # ``yield from`` (which has no async equivalent) and is required so that
+                # ``try/finally`` cleanup inside the generator runs and so that the wrapper
+                # composes correctly with ``contextlib.asynccontextmanager``. A plain
+                # ``async for value in f(...): yield value`` only forwards ``__anext__`` and
+                # would skip the inner generator's cleanup on ``athrow``/``aclose``.
+                agen = f(*args, **kwargs)
+                try:
+                    item = await agen.__anext__()
+                except StopAsyncIteration:
+                    return
+                while True:
+                    try:
+                        sent = yield item
+                    except GeneratorExit:
+                        await agen.aclose()
+                        raise
+                    except BaseException as exc:
+                        try:
+                            item = await agen.athrow(exc)
+                        except StopAsyncIteration:
+                            return
+                    else:
+                        try:
+                            item = await agen.asend(sent)
+                        except StopAsyncIteration:
+                            return
 
         return cast(AnyCallable, func_wrapper)
 
