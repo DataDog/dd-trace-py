@@ -82,7 +82,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure CherryPy uses the last set configuration to be sure
         # there are no breaking changes for who uses `ddtrace-run`
         # with the `TraceMiddleware`
-        assert cherrypy.tools.tracer.service == "test.cherrypy.service"
+        assert config.cherrypy["service"] == "test.cherrypy.service"
         TraceMiddleware(
             cherrypy,
             service="new-intake",
@@ -95,7 +95,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         spans = self.pop_spans()
         assert len(spans) == 1
 
-        assert cherrypy.tools.tracer.service == "new-intake"
+        assert config.cherrypy["service"] == "new-intake"
 
     def test_child(self):
         self.getPage("/child")
@@ -458,8 +458,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         config.cherrypy["service"] = previous_service
 
     def test_service_configuration_middleware(self):
-        previous_service = cherrypy.tools.tracer.service
-        cherrypy.tools.tracer.service = "my_cherrypy_service2"
+        previous_service = config.cherrypy.get("service", "test.cherrypy.service")
+        config.cherrypy["service"] = "my_cherrypy_service2"
         self.getPage("/")
         time.sleep(0.1)
         self.assertStatus("200 OK")
@@ -477,7 +477,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert_span_http_status_code(s, 200)
         assert s.get_tag(http.METHOD) == "GET"
 
-        cherrypy.tools.tracer.service = previous_service
+        config.cherrypy["service"] = previous_service
 
     def test_inferred_spans_api_gateway_default(self):
         default_headers = [

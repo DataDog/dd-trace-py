@@ -97,6 +97,9 @@ _base_env = {
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
+    # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -3261,6 +3264,16 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
+            },
+        ),
+        Venv(
+            name="ray_serve",
+            command="pytest {cmdargs} tests/contrib/ray_serve",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "fastapi": latest,
+                "protobuf": "==4.25.8",
+                "ray[serve]": ["~=2.47.1", "~=2.54.1"],
             },
         ),
         Venv(
