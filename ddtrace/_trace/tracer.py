@@ -8,6 +8,8 @@ import logging
 import os
 from os import getpid
 from threading import Lock
+from typing import Any
+from typing import AsyncGenerator
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -805,34 +807,26 @@ class Tracer(object):
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                # Delegate to the wrapped async generator, forwarding sent values,
-                # thrown exceptions, and close requests. This is the async analogue of
-                # ``yield from`` (which has no async equivalent) and is required so that
-                # ``try/finally`` cleanup inside the generator runs and so that the wrapper
-                # composes correctly with ``contextlib.asynccontextmanager``. A plain
-                # ``async for value in f(...): yield value`` only forwards ``__anext__`` and
-                # would skip the inner generator's cleanup on ``athrow``/``aclose``.
-                agen = f(*args, **kwargs)
-                try:
-                    item = await agen.__anext__()
-                except StopAsyncIteration:
-                    return
+                # Delegate to the wrapped async generator: forward sent values,
+                # thrown exceptions, and close requests. This is required so that
+                # `try/finally` cleanup inside the generator runs; otherwise, the wrapper
+                # can fail when used with `contextlib.asynccontextmanager`.
+                agen: AsyncGenerator[Any, Any] = f(*args, **kwargs)
+                to_send: Any = None
+                to_throw: Optional[BaseException] = None
                 while True:
+                    item: Any
                     try:
-                        sent = yield item
+                        item = await (agen.athrow(to_throw) if to_throw is not None else agen.asend(to_send))
+                    except StopAsyncIteration:
+                        return
+                    try:
+                        to_send, to_throw = (yield item), None
                     except GeneratorExit:
                         await agen.aclose()
                         raise
                     except BaseException as exc:
-                        try:
-                            item = await agen.athrow(exc)
-                        except StopAsyncIteration:
-                            return
-                    else:
-                        try:
-                            item = await agen.asend(sent)
-                        except StopAsyncIteration:
-                            return
+                        to_throw = exc
 
         return cast(AnyCallable, func_wrapper)
 
