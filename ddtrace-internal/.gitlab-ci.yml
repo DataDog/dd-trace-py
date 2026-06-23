@@ -2,12 +2,41 @@
   - "cp314-cp314"
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
+.build_base:
+  stage: package
+  needs:
+    - job: "ddtrace-internal build linux"
+      artifacts: true
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    CARGO_BUILD_JOBS: "12"
+    CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
+    # DEV: Hack to make ASM CMake able to find the Python3 library
+    CIBW_BUILD: "1"
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
+    # job resource requests
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: true
+  artifacts:
+    when: always
+    paths:
+      - "pywheels/*.whl"
+      - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
 "ddtrace-internal build_sdist":
   extends: .build_base
   needs: []
   stage: "ddtrace-internal:package"
   image: "${IMAGE_BASE_URL}:${IMAGE_TAG}"
-  tags: [ "arch:${ARCH_TAG}" ]
+  tags: ["arch:${ARCH_TAG}"]
   variables:
     DD_CYTHONIZE: "0"
     ARCH_TAG: "amd64"
