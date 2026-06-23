@@ -36,7 +36,7 @@ release_pypi_prod:
 notify_datadog_release:
   extends: .release_base
   allow_failure: true
-  needs: ["validate ddtrace-internal package", "release_pypi_prod"]
+  needs: ["validate package", "release_pypi_prod"]
   image: ${PYPI_PUBLISH_IMAGE}
   id_tokens:
     DD_STS_OIDC_TOKEN:
