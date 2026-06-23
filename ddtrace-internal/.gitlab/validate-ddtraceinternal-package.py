@@ -36,7 +36,7 @@ def build_expected_set(
     version: str, args: argparse.Namespace
 ) -> set[tuple[str, str, str]]:
     """Build set of expected (version, python_tag, platform) tuples."""
-    expected: set[tuple[str, str, str] = set()
+    expected: set[tuple[str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         for platform in BASE_PLATFORMS:
             expected.add((version, py_tag, platform))
@@ -48,7 +48,7 @@ def reconstruct_wheel_filename(
     version: str, python_tag: str, platform: str
 ) -> str:
     """Reconstruct wheel filename from components."""
-    package_name = f"ddtrace_internal"
+    package_name = "ddtrace_internal"
     return f"{package_name}-{version}-{python_tag}-{python_tag}-{platform}.whl"
 
 
