@@ -1,8 +1,6 @@
 ---
 fixes:
   - |
-    anthropic: Fixed ``model_provider`` being reported as ``unknown`` on LLM Observability
-    spans for requests made through the ``AnthropicVertex`` and ``AnthropicBedrock`` clients,
-    whose base URLs do not contain ``anthropic``. These are now reported as ``google`` and
-    ``amazon_bedrock`` respectively, so cost estimation is applied to these spans instead of
-    being skipped.
+    anthropic: Fixes LLM Observability spans reporting ``model_provider`` as ``unknown``
+    for the ``AnthropicVertex`` and ``AnthropicBedrock`` clients, which prevented cost
+    estimation. The provider is now resolved to ``google`` and ``amazon_bedrock`` respectively.

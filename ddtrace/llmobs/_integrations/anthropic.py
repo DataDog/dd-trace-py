@@ -31,8 +31,6 @@ log = get_logger(__name__)
 
 MODEL = "anthropic.request.model"
 
-# AnthropicBedrock/AnthropicVertex route to other backends; these match the provider
-# strings used by the bedrock and google integrations.
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
 _BEDROCK_MODEL_PROVIDER = "amazon_bedrock"
 _VERTEX_MODEL_PROVIDER = "google"
