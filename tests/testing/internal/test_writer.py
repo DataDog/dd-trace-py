@@ -144,10 +144,12 @@ class TestWaitFinishTimeout:
 
     def test_wait_finish_with_no_timeout(self) -> None:
         writer = _ConcreteWriter()
+        writer.close = Mock()  # type: ignore[method-assign]
         writer.start()
         writer.signal_finish()
         writer.wait_finish()
         assert not writer.task.is_alive()
+        writer.close.assert_called_once_with()
 
     def test_wait_finish_respects_timeout(self) -> None:
         """wait_finish returns after the timeout even if the thread is still running."""
@@ -167,6 +169,7 @@ class TestWaitFinishTimeout:
                 return b"x"
 
         writer = _SlowWriter()
+        writer.close = Mock()  # type: ignore[method-assign]
         writer.flush_interval_seconds = 0.01
         writer.start()
         writer.put_event(Event(n=1))
@@ -177,6 +180,7 @@ class TestWaitFinishTimeout:
         writer.signal_finish()
         writer.wait_finish(timeout=0.1)
         # Thread may still be alive because we timed out.
+        writer.close.assert_not_called()
         # Clean up: signal the thread to finish.
         writer.should_finish.set()
         writer.task.join(timeout=5)
@@ -314,6 +318,16 @@ class TestTestOptWriter:
             headers={"Content-Type": "application/msgpack"},
             send_gzip=True,
         )
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_close_closes_connector(self, mock_backend_connector: Mock) -> None:
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.close()
+
+        mock_connector.close.assert_called_once_with()
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("ddtrace.testing.internal.writer.msgpack_packb")
@@ -478,6 +492,16 @@ class TestTestCoverageWriter:
         assert files[1].name == "event"
         assert files[1].content_type == "application/json"
         assert call_args[1]["send_gzip"] is True
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_close_closes_connector(self, mock_backend_connector: Mock) -> None:
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+
+        writer = TestCoverageWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.close()
+
+        mock_connector.close.assert_called_once_with()
 
 
 class TestSerializationFunctions:

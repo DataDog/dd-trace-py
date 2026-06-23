@@ -142,6 +142,9 @@ class BaseWriter(ABC):
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
 
+    def close(self) -> None:
+        pass
+
     def _periodic_task(self) -> None:
         while True:
             self._flush_now.wait(timeout=self.flush_interval_seconds)
@@ -155,6 +158,7 @@ class BaseWriter(ABC):
             if self.should_finish.is_set():
                 break
 
+        self.close()
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
@@ -287,6 +291,9 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
+    def close(self) -> None:
+        self.connector.close()
+
     def _test_cycle_payload(self, events: list[Event]) -> Event:
         return {
             "version": 1,
@@ -371,6 +378,9 @@ class TestCoverageWriter(BaseWriter):
             files=files,
         )
         self.put_event(event)
+
+    def close(self) -> None:
+        self.connector.close()
 
     def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
