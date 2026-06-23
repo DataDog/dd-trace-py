@@ -1,5 +1,5 @@
 """
-FlagEvalEVPHook — OpenFeature `finally_after` hook for EVP flagevaluation emission.
+FlagEvalLoggingHook — OpenFeature `finally_after` hook for EVP flagevaluation emission.
 
 Hook design:
 - Cheap capture only in finally_after (no aggregation, no serialization, no I/O).
@@ -28,7 +28,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 logger = get_logger(__name__)
 
 
-class FlagEvalEVPHook(Hook):
+class FlagEvalLoggingHook(Hook):
     """
     OpenFeature Hook that enqueues cheap evaluation snapshots for EVP aggregation.
 
@@ -115,6 +115,6 @@ class FlagEvalEVPHook(Hook):
         except Exception:
             # Never propagate hook exceptions — best-effort telemetry.
             logger.debug(
-                "FlagEvalEVPHook.finally_after: failed to enqueue eval snapshot",
+                "FlagEvalLoggingHook.finally_after: failed to enqueue eval snapshot",
                 exc_info=True,
             )
