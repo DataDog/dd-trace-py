@@ -814,6 +814,37 @@ class TestLLMObsOpenaiV1:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
 
+    def test_chat_completion_stream_cumulative_tokens(self, openai, openai_llmobs, test_spans):
+        """Assert that for OpenAI-compatible providers emitting cumulative usage on every chunk,
+        the span records the final (true total) usage rather than the first usage-bearing chunk.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed_cumulative_tokens.yaml"):
+            model = "gpt-3.5-turbo"
+            resp_model = model
+            input_messages = [{"role": "user", "content": "Who won the world series in 2020?"}]
+            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model, messages=input_messages, stream=True, stream_options={"include_usage": True}
+            )
+            for chunk in resp:
+                if chunk.model:
+                    resp_model = chunk.model
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp_model,
+            model_provider="openai",
+            input_messages=input_messages,
+            output_messages=[{"content": expected_completion, "role": "assistant"}],
+            metadata={"stream": True, "stream_options": {"include_usage": True}},
+            metrics={"input_tokens": 17, "output_tokens": 19, "total_tokens": 36},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
     def test_chat_completion_function_call(self, openai, openai_llmobs, test_spans):
         """Test that function call chat completion calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_function_call.yaml"):
