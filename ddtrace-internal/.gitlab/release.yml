@@ -6,7 +6,7 @@ variables:
     - if: !reference [.is_release]
       when: on_success
     - when: never
-  dependencies: ["validate ddtrace-internal package"]
+  dependencies: ["validate package"]
 .release_pypi:
   extends: .release_base
   image: ${PYPI_PUBLISH_IMAGE}
