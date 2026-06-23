@@ -4,3 +4,31 @@ stages:
   - ddtrace-internal:release
 include:
   - local: ddtrace-internal/.gitlab-ci.yml
+variables:
+  REPO_LANG: python # "python" is used everywhere rather than "py"
+  REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
+  RELEASE_ALLOW_TEST_FAILURES: false
+  RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # Repository URL for CI Visibility
+  DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/datadog-apm-python.git"
+default:
+  interruptible: true
+.is_main: $CI_COMMIT_REF_NAME == "main"
+.is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+.is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
+.is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+.is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
+.is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: !reference [.is_main]
+      auto_cancel:
+        on_new_commit: none
+    - if: !reference [.is_release_branch]
+      variables:
+        DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py-release.git"
+      auto_cancel:
+        on_new_commit: none
+    - when: always
