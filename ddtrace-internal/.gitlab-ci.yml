@@ -3,7 +3,7 @@
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
 .build_base:
-  stage: package
+  stage: "ddtrace-internal:package"
   needs:
     - job: "ddtrace-internal build linux"
       artifacts: true
@@ -82,10 +82,38 @@
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - .gitlab/scripts/build-wheel.sh
+# Extract package version from pyproject.toml and save to dotenv artifact
+"package version":
+  image: registry.ddbuild.io/images/mirror/python:3.14.0
+  tags: ["arch:amd64"]
+  stage: "ddtrace-internal:package"
+  script:
+    # Prevent git operation errors when the GitLab executor sees the checkout as owned by another user.
+    - git config --global --add safe.directory "${CI_PROJECT_DIR}"
+    - BASE_PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('ddtrace-internal/pyproject.toml', 'rb'))['project']['version'])")
+    - PACKAGE_VERSION="${BASE_PACKAGE_VERSION}"
+    - |
+      if [[ -z "${CI_COMMIT_TAG:-}" && "${BASE_PACKAGE_VERSION}" != *+* ]]; then
+        PACKAGE_VERSION="${BASE_PACKAGE_VERSION}+g$(git rev-parse --short=7 HEAD)"
+      fi
+    - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
+    - echo "BASE_PACKAGE_VERSION=${BASE_PACKAGE_VERSION}" | tee -a package_version.env
+    # Validate commit tag matches base version if tag is set
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        EXPECTED_TAG="v${BASE_PACKAGE_VERSION}"
+        if [ "${CI_COMMIT_TAG}" != "${EXPECTED_TAG}" ]; then
+          echo "[ERROR] CI_COMMIT_TAG (${CI_COMMIT_TAG}) does not match expected tag (${EXPECTED_TAG})"
+          exit 1
+        fi
+      fi
+  artifacts:
+    reports:
+      dotenv: package_version.env
 .package_base:
   image: registry.ddbuild.io/images/mirror/python:3.14.0
   tags: ["arch:amd64"]
-  stage: package
+  stage: "ddtrace-internal:package"
   before_script:
     - pip install 'packaging>=24.0,<26' # ci-deps: allow
   artifacts:
@@ -93,14 +121,11 @@
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
-"validate ddtrace-internal package":
+"validate package":
   extends: .package_base
   needs:
     - "build linux"
-    - "build macos amd64"
-    - "build macos arm64"
     - "build sdist"
-    - "collect windows wheels"
     - "package version"
   script:
     - .gitlab/validate-ddtraceinternal-package.py pywheels
