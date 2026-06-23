@@ -590,7 +590,7 @@ class Tracer(object):
             span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
-        if config.version:
+        if config.version and not config._otel_trace_semantics_enabled:
             root_span = self.current_root_span()
             # if: 1. the span is the root span and the span's service matches the global config; or
             #     2. the span is not the root, but the root span's service matches the span's service
