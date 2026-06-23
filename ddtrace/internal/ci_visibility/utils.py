@@ -7,6 +7,7 @@ import os
 import random
 import re
 from time import sleep
+import types
 import typing as t
 
 import ddtrace
@@ -46,6 +47,30 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
     return get_relative_or_absolute_path_for_path(file_object, repo_directory)
 
 
+def _max_line_in_code(code: types.CodeType) -> int:
+    """Return the maximum line number in a code object, recursing into nested code objects.
+
+    Nested classes and functions at the tail of a function body have their lines stored only
+    in child code objects inside co_consts, so without recursion we would under-report the end
+    line for such functions.
+    """
+    max_line = code.co_firstlineno
+    if _CO_LINES_SUPPORTED:
+        for _, _, line in code.co_lines():
+            if line is not None and line > max_line:
+                max_line = line
+    else:
+        for _, line in findlinestarts(code):
+            if line is not None and line > max_line:
+                max_line = line
+    for const in code.co_consts:
+        if isinstance(const, types.CodeType):
+            nested = _max_line_in_code(const)
+            if nested > max_line:
+                max_line = nested
+    return max_line
+
+
 @lru_cache(maxsize=512)
 def get_source_lines_for_test_method(
     test_method_object,
@@ -60,20 +85,16 @@ def get_source_lines_for_test_method(
         Tuple of (start_line, end_line), with None indicating unavailable information
     """
     # Fast path: derive line numbers from the bytecode rather than tokenizing source.
-    # co_firstlineno gives the start; the loop finds the last executed line for end.
+    # Unwrap functools.wraps-based decorators (e.g. @patch, @mock.patch) first so that
+    # we read the original test function's code object, not the decorator wrapper's.
+    # co_firstlineno gives the start; _max_line_in_code recurses into nested code objects
+    # so that tests ending with a nested class/def report the correct end line.
     # TODO: drop the findlinestarts branch once Python 3.9 support is removed.
     try:
-        code = test_method_object.__code__
+        func = inspect.unwrap(test_method_object)
+        code = func.__code__
         start_line = code.co_firstlineno
-        end_line = start_line
-        if _CO_LINES_SUPPORTED:
-            for _, _, line in code.co_lines():
-                if line is not None and line > end_line:
-                    end_line = line
-        else:
-            for _, line in findlinestarts(code):
-                if line is not None and line > end_line:
-                    end_line = line
+        end_line = _max_line_in_code(code)
         return start_line, end_line + 1
     except AttributeError:
         pass  # not a plain function; fall through to inspect
