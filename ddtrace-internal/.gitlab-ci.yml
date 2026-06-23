@@ -82,3 +82,14 @@
       fi
     - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
     - .gitlab/scripts/build-wheel.sh
+"validate ddtrace-internal package":
+  extends: .package_base
+  needs:
+    - "build linux"
+    - "build macos amd64"
+    - "build macos arm64"
+    - "build sdist"
+    - "collect windows wheels"
+    - "package version"
+  script:
+    - .gitlab/validate-ddtraceinternal-package.py pywheels
