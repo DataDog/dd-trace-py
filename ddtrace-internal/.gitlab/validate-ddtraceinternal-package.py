@@ -200,7 +200,6 @@ def main(args: argparse.Namespace) -> None:
     print(f"Expected {len(expected_set)} wheels:")
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
-    print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     print()
 
     # Phase 5: Set Comparison
