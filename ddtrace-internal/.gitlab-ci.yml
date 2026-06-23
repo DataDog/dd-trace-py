@@ -1,3 +1,7 @@
+variables:
+  IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
+  MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+  ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 .PYTHON_TAGS: &PYTHON_TAGS
   - "cp314-cp314"
 .X86_64_IMAGES: &X86_64_IMAGES
