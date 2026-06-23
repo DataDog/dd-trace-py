@@ -100,7 +100,12 @@ class DataDogProvider(AbstractProvider):
     Feature Flags and Experimentation (FFE) product.
     """
 
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any):
+    def __init__(
+        self,
+        *args: typing.Any,
+        initialization_timeout: typing.Optional[float] = None,
+        **kwargs: typing.Any,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY

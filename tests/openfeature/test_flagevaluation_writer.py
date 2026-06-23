@@ -11,6 +11,8 @@ Tests validate the two-tier aggregation spec:
 - EVP POST to /evp_proxy/v2/api/v2/flagevaluation with correct headers
 """
 
+from datetime import datetime
+from datetime import timezone
 import json
 import time
 from unittest import mock
@@ -114,6 +116,12 @@ class TestCanonicalContextKey:
         k_float = canonical_context_key({"x": 1.0})
         k_int = canonical_context_key({"x": 1})
         assert k_float != k_int
+
+    def test_datetime_vs_string_distinct_keys(self):
+        timestamp = datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc)
+        k_datetime = canonical_context_key({"x": timestamp})
+        k_string = canonical_context_key({"x": timestamp.isoformat()})
+        assert k_datetime != k_string
 
     def test_value_with_equals_or_newline_no_boundary_confusion(self):
         r"""'=' and '\n' in values must not fake a field boundary (length-prefix protocol)."""
@@ -416,6 +424,20 @@ class TestPeriodicFlush:
         assert "short" in ctx_eval
         assert "long_field" not in ctx_eval
 
+    def test_openfeature_datetime_context_value_is_json_serialized(self, writer):
+        """OpenFeature allows datetime context values; payload JSON should stringify them."""
+        timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
+        writer.enqueue(_make_event(attrs={"seen_at": timestamp, "nested": {"created_at": timestamp}}))
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        payload_bytes = mock_send.call_args[0][0]
+        decoded = json.loads(payload_bytes)
+        ctx_eval = decoded["flagEvaluations"][0]["context"]["evaluation"]
+        assert ctx_eval["seen_at"] == timestamp.isoformat()
+        assert ctx_eval["nested.created_at"] == timestamp.isoformat()
+
     def test_degraded_event_has_no_context_or_targeting_key(self, writer):
         """Degraded-tier events must not include targeting_key or context fields."""
         # Force to degraded by saturating per-flag cap.
@@ -464,6 +486,54 @@ class TestPeriodicFlush:
         from ddtrace.internal.periodic import PeriodicService
 
         assert issubclass(FlagEvaluationWriter, PeriodicService)
+
+    def test_payloads_are_split_under_evp_payload_size_limit(self, writer):
+        for i in range(5):
+            writer.enqueue(
+                _make_event(
+                    flag_key=f"split-{i}",
+                    targeting_key=f"user-{i}",
+                    attrs={"blob": "x" * 200},
+                )
+            )
+
+        sent = []
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 900):
+            with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+                writer.periodic()
+
+        assert len(sent) > 1
+        seen_flags = set()
+        for payload, num_events in sent:
+            assert len(payload) <= 900
+            decoded = json.loads(payload)
+            _assert_batch_contract_valid(decoded)
+            assert num_events == len(decoded["flagEvaluations"])
+            seen_flags.update(row["flag"]["key"] for row in decoded["flagEvaluations"])
+        assert seen_flags == {f"split-{i}" for i in range(5)}
+
+    def test_single_oversized_full_event_is_degraded_before_send(self, writer):
+        writer.enqueue(
+            _make_event(
+                flag_key="oversized-full",
+                targeting_key="user-with-context",
+                attrs={"blob": "x" * 200},
+            )
+        )
+
+        sent = []
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 300):
+            with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+                writer.periodic()
+
+        assert len(sent) == 1
+        payload, num_events = sent[0]
+        assert len(payload) <= 300
+        assert num_events == 1
+        row = json.loads(payload)["flagEvaluations"][0]
+        assert row["flag"]["key"] == "oversized-full"
+        assert "context" not in row
+        assert "targeting_key" not in row
 
 
 # ---------------------------------------------------------------------------

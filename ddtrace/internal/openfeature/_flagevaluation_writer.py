@@ -21,6 +21,8 @@ Key design properties:
 - Non-blocking enqueue: queue.Queue(QUEUE_SIZE); drops + counts on queue.Full.
 """
 
+from collections.abc import Mapping
+from collections.abc import Sequence
 import http.client as httplib
 import json
 import queue
@@ -30,6 +32,7 @@ import time
 import typing
 
 from ddtrace import config as ddconfig
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
@@ -44,6 +47,8 @@ logger = get_logger(__name__)
 # EVP endpoint for flag evaluation events.
 FLAGEVALUATIONS_ENDPOINT = f"{EVP_PROXY_AGENT_BASE_PATH}/api/v2/flagevaluation"
 EVP_SUBDOMAIN_VALUE = "event-platform-intake"
+FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
+_JSON_SEPARATORS = (",", ":")
 
 # Context pruning limits — mirror worker.ts MAX_EVALUATION_CONTEXT_FIELDS / MAX_FIELD_LENGTH.
 MAX_CONTEXT_FIELDS = 256
@@ -85,6 +90,10 @@ _TAG_BOOL = b"b"
 _TAG_INT = b"i"
 _TAG_FLOAT = b"f"
 _TAG_OTHER = b"o"
+
+
+def _json_dumps(obj: typing.Any) -> bytes:
+    return json.dumps(obj, separators=_JSON_SEPARATORS).encode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +191,25 @@ def flatten_and_prune_context(attrs: dict[str, typing.Any]) -> dict[str, typing.
     return out
 
 
+def _json_safe_context_value(value: typing.Any) -> typing.Any:
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Mapping):
+        return {str(k): _json_safe_context_value(v) for k, v in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        return [_json_safe_context_value(v) for v in value]
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+def _json_safe_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
+    return {k: _json_safe_context_value(v) for k, v in attrs.items()}
+
+
 def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any]) -> None:
     """Recursively flatten nested dicts into dot-notation keys."""
-    if not isinstance(attrs, dict):
+    if not isinstance(attrs, Mapping):
         if prefix:
             out[prefix] = attrs
         return
@@ -192,7 +217,7 @@ def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any
         if not prefix and k in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
             continue
         full_key = f"{prefix}.{k}" if prefix else k
-        if isinstance(v, dict):
+        if isinstance(v, Mapping):
             _flatten_recursive(full_key, v, out)
         else:
             out[full_key] = v
@@ -461,26 +486,17 @@ class FlagEvaluationWriter(PeriodicService):
         if not events:
             return
 
-        # 4. Encode and POST.
-        try:
-            context: dict[str, str] = {}
-            if ddconfig.service:
-                context["service"] = ddconfig.service
-            if ddconfig.env:
-                context["env"] = ddconfig.env
-            if ddconfig.version:
-                context["version"] = ddconfig.version
+        # 4. Encode under the EVP payload limit and POST.
+        context: dict[str, str] = {}
+        if ddconfig.service:
+            context["service"] = ddconfig.service
+        if ddconfig.env:
+            context["env"] = ddconfig.env
+        if ddconfig.version:
+            context["version"] = ddconfig.version
 
-            payload_obj: dict[str, typing.Any] = {"flagEvaluations": events}
-            if context:
-                payload_obj["context"] = context
-
-            payload = json.dumps(payload_obj).encode("utf-8")
-        except (TypeError, ValueError):
-            logger.debug("FlagEvaluationWriter: failed to encode payload", exc_info=True)
-            return
-
-        self._send_payload(payload, len(events))
+        for payload, num_events in _build_payloads(events, context, FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT):
+            self._send_payload(payload, num_events)
 
     def on_shutdown(self) -> None:
         """Final flush on service shutdown — drains the queue and flushes before exit."""
@@ -555,7 +571,7 @@ class FlagEvaluationWriter(PeriodicService):
                 eval_time_ms=event.eval_time_ms,
                 runtime_default=event.runtime_default,
                 targeting_key=event.targeting_key,
-                context_attrs=context_attrs,
+                context_attrs=_json_safe_context(context_attrs),
                 error_message=event.error_message,
             )
             self._global_count += 1
@@ -633,3 +649,85 @@ def _base_event(flag_key: str, entry: "_Entry", flush_time_ms: int) -> dict[str,
         "last_evaluation": entry.last_evaluation,
         "evaluation_count": entry.count,
     }
+
+
+def _degraded_payload_event(event: dict[str, typing.Any]) -> dict[str, typing.Any]:
+    degraded = event.copy()
+    degraded.pop("context", None)
+    degraded.pop("targeting_key", None)
+    return degraded
+
+
+def _encode_payload_event(
+    event: dict[str, typing.Any],
+    single_event_payload_limit: int,
+) -> typing.Optional[bytes]:
+    try:
+        encoded = _json_dumps(event)
+    except (TypeError, ValueError):
+        logger.debug("FlagEvaluationWriter: failed to encode event", exc_info=True)
+        return None
+
+    if len(encoded) <= single_event_payload_limit:
+        return encoded
+
+    degraded_event = _degraded_payload_event(event)
+    if degraded_event != event:
+        try:
+            encoded = _json_dumps(degraded_event)
+        except (TypeError, ValueError):
+            logger.debug("FlagEvaluationWriter: failed to encode degraded event", exc_info=True)
+            return None
+        if len(encoded) <= single_event_payload_limit:
+            logger.warning(
+                "FlagEvaluationWriter: degraded oversized flag evaluation event for %s before sending",
+                event.get("flag", {}).get("key", ""),
+            )
+            return encoded
+
+    logger.warning(
+        "FlagEvaluationWriter: dropped oversized flag evaluation event for %s",
+        event.get("flag", {}).get("key", ""),
+    )
+    return None
+
+
+def _build_payloads(
+    events: list[dict[str, typing.Any]],
+    context: dict[str, str],
+    payload_size_limit: int = FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT,
+) -> typing.Iterator[tuple[bytes, int]]:
+    context_suffix = b""
+    if context:
+        context_suffix = b',"context":' + _json_dumps(context)
+    prefix = b'{"flagEvaluations":['
+    suffix = b"]" + context_suffix + b"}"
+    single_event_payload_limit = payload_size_limit - len(prefix) - len(suffix)
+    if single_event_payload_limit <= 0:
+        logger.warning("FlagEvaluationWriter: EVP payload size limit is too small to encode flagevaluation payloads")
+        return
+
+    payload = bytearray(prefix)
+    num_events = 0
+
+    for event in events:
+        encoded_event = _encode_payload_event(event, single_event_payload_limit)
+        if encoded_event is None:
+            continue
+
+        separator_size = 1 if num_events else 0
+        candidate_size = len(payload) + separator_size + len(encoded_event) + len(suffix)
+        if num_events and candidate_size > payload_size_limit:
+            payload.extend(suffix)
+            yield bytes(payload), num_events
+            payload = bytearray(prefix)
+            num_events = 0
+
+        if num_events:
+            payload.extend(b",")
+        payload.extend(encoded_event)
+        num_events += 1
+
+    if num_events:
+        payload.extend(suffix)
+        yield bytes(payload), num_events
