@@ -69,7 +69,7 @@ class DDRuntimeContext:
         ddactive = self._ddcontext_provider.active()
         context = OtelContext()
         if isinstance(ddactive, DDSpan):
-            span = Span(ddactive)
+            span = Span(ddactive, [])
             context = set_span_in_context(span, context)
         elif isinstance(ddactive, DDContext):
             ts = TraceState.from_header([ddactive._tracestate])

@@ -428,7 +428,7 @@ def test_force_flush_no_processors_returns_true():
     assert provider.force_flush(timeout_millis=5000) is True
 
 
-def test_synchronous_multi_span_processor_add_and_call():
+def test_add_multiple_processors_shutdown_propagated():
     p1 = _RecordingProcessor()
     p2 = _RecordingProcessor()
     provider = TracerProvider()

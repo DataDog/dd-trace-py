@@ -3,7 +3,6 @@ from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
 from contextlib import contextmanager
-import threading
 from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -60,42 +59,6 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         return True
 
 
-class SynchronousMultiSpanProcessor:
-    """Forwards span events to a collection of :class:`SpanProcessor` instances sequentially.
-
-    Mirrors ``opentelemetry.sdk.trace.SynchronousMultiSpanProcessor``.
-    """
-
-    def __init__(self) -> None:
-        self._span_processors: tuple = ()
-        self._lock = threading.Lock()
-
-    def add_span_processor(self, span_processor: SpanProcessor) -> None:
-        """Appends a span processor to the chain."""
-        with self._lock:
-            self._span_processors = self._span_processors + (span_processor,)
-
-    def on_start(self, span: "OtelSpan", parent_context: Optional[OtelContext] = None) -> None:
-        for sp in self._span_processors:
-            sp.on_start(span, parent_context=parent_context)
-
-    def on_end(self, span: "OtelSpan") -> None:
-        for sp in self._span_processors:
-            sp.on_end(span)
-
-    def shutdown(self) -> None:
-        for sp in self._span_processors:
-            sp.shutdown()
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:
-        deadline_ns = time_ns() + timeout_millis * 1_000_000
-        for sp in self._span_processors:
-            remaining_ms = max(0, (deadline_ns - time_ns()) // 1_000_000)
-            if not sp.force_flush(timeout_millis=remaining_ms):
-                return False
-        return True
-
-
 try:
     from opentelemetry.util._decorator import _agnosticcontextmanager as contextmanager  # type: ignore[no-redef]
 except ImportError:
@@ -127,7 +90,7 @@ class TracerProvider(OtelTracerProvider):
     """
 
     def __init__(self) -> None:
-        self._active_span_processor = SynchronousMultiSpanProcessor()
+        self._span_processors: list[SpanProcessor] = []
 
     def add_span_processor(self, span_processor: SpanProcessor) -> None:
         """Registers a :class:`SpanProcessor` with this ``TracerProvider``.
@@ -135,18 +98,24 @@ class TracerProvider(OtelTracerProvider):
         Processors are called synchronously in the order they were added.
         Mirrors ``opentelemetry.sdk.trace.TracerProvider.add_span_processor``.
         """
-        self._active_span_processor.add_span_processor(span_processor)
+        self._span_processors.append(span_processor)
 
     def shutdown(self) -> None:
         """Shuts down all registered span processors."""
-        self._active_span_processor.shutdown()
+        for sp in self._span_processors:
+            sp.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         """Flushes all registered span processors.
 
         Mirrors ``opentelemetry.sdk.trace.TracerProvider.force_flush``.
         """
-        return self._active_span_processor.force_flush(timeout_millis)
+        deadline_ns = time_ns() + timeout_millis * 1_000_000
+        for sp in self._span_processors:
+            remaining_ms = max(0, (deadline_ns - time_ns()) // 1_000_000)
+            if not sp.force_flush(timeout_millis=remaining_ms):
+                return False
+        return True
 
     if OTEL_VERSION >= (1, 26):
         # OpenTelemetry 1.26+ has a new get_tracer signature
@@ -160,7 +129,7 @@ class TracerProvider(OtelTracerProvider):
             attributes: Optional[dict] = None,
         ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._active_span_processor)
+            return Tracer(self._span_processors)
 
     else:
 
@@ -171,14 +140,14 @@ class TracerProvider(OtelTracerProvider):
             schema_url: Optional[str] = None,
         ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
-            return Tracer(self._active_span_processor)
+            return Tracer(self._span_processors)
 
 
 class Tracer(OtelTracer):
     """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
 
-    def __init__(self, active_span_processor: Optional["SynchronousMultiSpanProcessor"] = None) -> None:
-        self._active_span_processor = active_span_processor
+    def __init__(self, span_processors: list[SpanProcessor]) -> None:
+        self._span_processors = span_processors
 
     def start_span(
         self,
@@ -217,8 +186,6 @@ class Tracer(OtelTracer):
                     link.context.trace_flags,
                     link.attributes,
                 )
-        asp = self._active_span_processor
-        span_processor = asp if (asp is not None and asp._span_processors) else None
         return Span(
             dd_span,
             kind=kind,
@@ -226,7 +193,7 @@ class Tracer(OtelTracer):
             start_time=start_time,
             record_exception=record_exception,
             set_status_on_exception=set_status_on_exception,
-            span_processor=span_processor,
+            span_processors=self._span_processors,
             parent_context=context,
         )
 
