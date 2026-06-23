@@ -165,7 +165,6 @@ def unpatch():
 
 
 def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
-    """Return True if traced_handler has already fired for this route instance on this request."""
     seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
     # Route objects are app-lifetime singletons so id() is stable for the duration of the request.
     if id(instance) in seen_routes:
