@@ -2,6 +2,8 @@
   - "cp314-cp314"
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v113741238-d2b8243-manylinux2014_x86_64"
+include:
+  - local: ddtrace-internal/.gitlab/release.yml
 .build_base:
   stage: "ddtrace-internal:package"
   needs:

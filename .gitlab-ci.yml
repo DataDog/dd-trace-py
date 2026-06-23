@@ -1,11 +1,6 @@
 stages:
   - ddtrace-internal:package
-  - package
-  - tests
-  - system-tests
-  - fuzz
-  - shared-pipeline
-  - benchmarks
-  - release
+  - ddtrace-internal:tests
+  - ddtrace-internal:release
 include:
   - local: ddtrace-internal/.gitlab-ci.yml
