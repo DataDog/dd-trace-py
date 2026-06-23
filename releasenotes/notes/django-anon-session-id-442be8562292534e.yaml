@@ -1,9 +1,6 @@
 ---
 fixes:
   - |
-    ASM: This fix resolves an issue where the Django session id, automatically collected by user
-    activity tracking, was exported in clear text as the ``usr.session_id`` span tag even when
-    automatic user instrumentation was running in ``anonymization`` mode. For Django's default
-    server-side session backends the session id is the session cookie value, so it is now hashed
-    in ``anonymization`` mode, consistently with the user id and login, to preserve the expected
-    anonymization boundary.
+    ASM: This fix resolves an issue where the Django session id collected by automatic user
+    activity tracking was not hashed in ``anonymization`` mode. It is now hashed, consistently
+    with the user id and login.
