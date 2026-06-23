@@ -44,8 +44,8 @@ def provider_and_client():
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         provider = DataDogProvider()
     # Sanity: the EVP writer/hook are wired (killswitch default on).
-    assert provider._flagevaluation_writer is not None
-    assert provider._flagevaluation_hook is not None
+    assert provider._flag_eval_evp_writer is not None
+    assert provider._flag_eval_evp_hook is not None
 
     api.set_provider(provider)
     client = api.get_client()
@@ -57,7 +57,7 @@ def provider_and_client():
 
 def _drain(provider):
     """Aggregate everything the eval path enqueued, returning the emitted rows."""
-    writer = provider._flagevaluation_writer
+    writer = provider._flag_eval_evp_writer
     with mock.patch.object(writer, "_send_payload") as mock_send:
         writer.periodic()
     if not mock_send.called:
@@ -73,10 +73,10 @@ class TestEVPHookFiresOnRealEvalPath:
 
     def test_evp_hook_registered_in_provider_hooks(self, provider_and_client):
         provider, _ = provider_and_client
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
         hooks = provider.get_provider_hooks()
-        assert any(isinstance(h, FlagEvaluationHook) for h in hooks)
+        assert any(isinstance(h, FlagEvalEVPHook) for h in hooks)
 
     def test_success_eval_enqueues_and_emits_row(self, provider_and_client):
         provider, client = provider_and_client
@@ -185,12 +185,12 @@ class TestOTelNonRegressionAlongsideEVP:
 
     def test_both_otel_and_evp_hooks_registered(self, provider_and_client):
         provider, _ = provider_and_client
-        from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
+        from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 
         hooks = provider.get_provider_hooks()
-        assert any(isinstance(h, FlagEvalHook) for h in hooks), "OTel hook must remain registered"
-        assert any(isinstance(h, FlagEvaluationHook) for h in hooks), "EVP hook must be registered"
+        assert any(isinstance(h, FlagEvalMetricsHook) for h in hooks), "OTel hook must remain registered"
+        assert any(isinstance(h, FlagEvalEVPHook) for h in hooks), "EVP hook must be registered"
 
     def test_eval_drives_otel_record_and_evp_enqueue_together(self, provider_and_client):
         """A single eval feeds BOTH the OTel metric record and the EVP enqueue."""
@@ -201,7 +201,7 @@ class TestOTelNonRegressionAlongsideEVP:
         # Spy the OTel metrics record and the EVP writer enqueue.
         with (
             mock.patch.object(provider._flag_eval_metrics, "record") as otel_record,
-            mock.patch.object(provider._flagevaluation_writer, "enqueue") as evp_enqueue,
+            mock.patch.object(provider._flag_eval_evp_writer, "enqueue") as evp_enqueue,
         ):
             client.get_boolean_value("dual-flag", False)
 

@@ -34,6 +34,7 @@ import typing
 from ddtrace import config as ddconfig
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
@@ -48,7 +49,7 @@ logger = get_logger(__name__)
 
 # EVP endpoint for flag evaluation events.
 FLAGEVALUATIONS_ENDPOINT = f"{EVP_PROXY_AGENT_BASE_PATH}/api/v2/flagevaluation"
-EVP_SUBDOMAIN_VALUE = "event-platform-intake"
+EVP_SUBDOMAIN_VALUE = EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 _JSON_SEPARATORS = (",", ":")
 
@@ -370,7 +371,7 @@ class FlagEvaluationWriter(PeriodicService):
         self._drain_worker: typing.Optional[PeriodicThread] = None
 
     # ------------------------------------------------------------------
-    # Public API used by FlagEvaluationHook
+    # Public API used by FlagEvalEVPHook
     # ------------------------------------------------------------------
 
     def enqueue(self, event: _EvalEvent) -> None:

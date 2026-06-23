@@ -13,7 +13,7 @@ flag-evaluation counting, mirroring the Go reference benchmark
 * ``hook_plus_drain`` — end-to-end: N hook enqueues followed by a full queue drain +
   aggregate, the realistic per-flush shape.
 
-The scenario builds its own ``FlagEvaluationWriter`` + ``FlagEvaluationHook`` and drives
+The scenario builds its own ``FlagEvaluationWriter`` + ``FlagEvalEVPHook`` and drives
 them directly so the benchmark isolates the EVP pipeline (no network, no native eval).
 """
 
@@ -54,7 +54,7 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
     num_context_fields: int
 
     def run(self):
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         mode = self.mode
@@ -82,7 +82,7 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         ]
 
         writer = FlagEvaluationWriter(interval=3600.0)
-        hook = FlagEvaluationHook(writer)
+        hook = FlagEvalEVPHook(writer)
 
         if mode == "hook_enqueue":
 

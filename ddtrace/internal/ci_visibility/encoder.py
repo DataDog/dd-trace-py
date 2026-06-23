@@ -23,6 +23,7 @@ from ddtrace.internal.ci_visibility.telemetry.payload import ENDPOINT
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_count
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.time import StopWatch
@@ -41,7 +42,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
-    _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
+    _MAX_PAYLOAD_SIZE = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
     _MAX_META_TAG_VALUE_LENGTH = 5000
 
     def __init__(self, *args: Any) -> None:

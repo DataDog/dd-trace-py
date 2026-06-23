@@ -1,7 +1,7 @@
 """
 Tests for flag evaluation metrics tracking.
 
-Tests the FlagEvalMetrics class and FlagEvalHook that emit
+Tests the FlagEvalMetrics class and FlagEvalMetricsHook that emit
 feature_flag.evaluations OTel metrics on every flag evaluation.
 """
 
@@ -21,8 +21,8 @@ from ddtrace.internal.openfeature._flageval_metrics import ATTR_FLAG_KEY
 from ddtrace.internal.openfeature._flageval_metrics import ATTR_REASON
 from ddtrace.internal.openfeature._flageval_metrics import ATTR_VARIANT
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.openfeature import DataDogProvider
 from tests.openfeature.config_helpers import create_boolean_flag
@@ -260,14 +260,14 @@ class TestFlagEvalMetrics:
         assert error_types == {"flag_not_found", "type_mismatch", "parse_error", "general"}, error_types
 
 
-class TestFlagEvalHook:
-    """Test FlagEvalHook class."""
+class TestFlagEvalMetricsHook:
+    """Test FlagEvalMetricsHook class."""
 
     def test_finally_after_calls_record(self):
         """finally_after should call metrics.record with correct arguments."""
         mock_metrics = MagicMock(spec=FlagEvalMetrics)
 
-        hook = FlagEvalHook(mock_metrics)
+        hook = FlagEvalMetricsHook(mock_metrics)
 
         # Create mock hook context
         hook_context = MagicMock(spec=HookContext)
@@ -296,7 +296,7 @@ class TestFlagEvalHook:
         """finally_after should pass error_code when present."""
         mock_metrics = MagicMock(spec=FlagEvalMetrics)
 
-        hook = FlagEvalHook(mock_metrics)
+        hook = FlagEvalMetricsHook(mock_metrics)
 
         hook_context = MagicMock(spec=HookContext)
         hook_context.flag_key = "missing-flag"
@@ -319,7 +319,7 @@ class TestFlagEvalHook:
         """finally_after should handle missing allocation_key."""
         mock_metrics = MagicMock(spec=FlagEvalMetrics)
 
-        hook = FlagEvalHook(mock_metrics)
+        hook = FlagEvalMetricsHook(mock_metrics)
 
         hook_context = MagicMock(spec=HookContext)
         hook_context.flag_key = "test-flag"
@@ -354,25 +354,25 @@ class TestProviderHooksIntegration:
         yield
         _set_ffe_config(None)
 
-    def test_provider_has_flag_eval_hook(self, provider):
-        """Provider should have flag evaluation hook when enabled."""
-        assert provider._flag_eval_hook is not None
+    def test_provider_has_flag_eval_metrics_hook(self, provider):
+        """Provider should have the OTel flag evaluation metrics hook when enabled."""
+        assert provider._flag_eval_metrics_hook is not None
         assert provider._flag_eval_metrics is not None
 
-    def test_get_provider_hooks_returns_flag_eval_hook(self, provider):
-        """get_provider_hooks should return the OTel flag eval hook (and optionally the EVP hook)."""
+    def test_get_provider_hooks_returns_flag_eval_metrics_hook(self, provider):
+        """get_provider_hooks should return the OTel metrics hook and optionally the EVP hook."""
         hooks = provider.get_provider_hooks()
-        # The OTel FlagEvalHook is always first when the provider is enabled.
-        # The EVP FlagEvaluationHook is also registered by default (DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true).
+        # The OTel FlagEvalMetricsHook is always first when the provider is enabled.
+        # The EVP FlagEvalEVPHook is also registered by default (DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true).
         assert len(hooks) >= 1
-        assert hooks[0] is provider._flag_eval_hook
+        assert hooks[0] is provider._flag_eval_metrics_hook
 
     def test_provider_disabled_has_no_hooks(self):
         """Provider should not have hooks when disabled."""
         with override_global_config({"experimental_flagging_provider_enabled": False}):
             provider = DataDogProvider()
 
-        assert provider._flag_eval_hook is None
+        assert provider._flag_eval_metrics_hook is None
         assert provider._flag_eval_metrics is None
         assert provider.get_provider_hooks() == []
 
@@ -383,7 +383,7 @@ class TestProviderHooksIntegration:
         provider.shutdown()
 
         assert provider._flag_eval_metrics is None
-        assert provider._flag_eval_hook is None
+        assert provider._flag_eval_metrics_hook is None
 
     def test_flag_metadata_includes_allocation_key(self, provider):
         """FlagResolutionDetails should include allocation_key in flag_metadata."""

@@ -25,10 +25,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
+from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
-from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
-from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
@@ -132,10 +132,10 @@ class DataDogProvider(AbstractProvider):
         # Initialize flag evaluation metrics tracking
         # Metrics are emitted via OTel when DD_METRICS_OTEL_ENABLED=true
         self._flag_eval_metrics: typing.Optional[FlagEvalMetrics] = None
-        self._flag_eval_hook: typing.Optional[FlagEvalHook] = None
+        self._flag_eval_metrics_hook: typing.Optional[FlagEvalMetricsHook] = None
         if self._enabled:
             self._flag_eval_metrics = FlagEvalMetrics()
-            self._flag_eval_hook = FlagEvalHook(self._flag_eval_metrics)
+            self._flag_eval_metrics_hook = FlagEvalMetricsHook(self._flag_eval_metrics)
 
         # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
@@ -147,13 +147,13 @@ class DataDogProvider(AbstractProvider):
         # environment at provider-construction time (the config var parses the live
         # environment via the DDConfig var system), which keeps the killswitch overridable
         # per-instance in tests.
-        self._flagevaluation_writer: typing.Optional[FlagEvaluationWriter] = None
-        self._flagevaluation_hook: typing.Optional[FlagEvaluationHook] = None
+        self._flag_eval_evp_writer: typing.Optional[FlagEvaluationWriter] = None
+        self._flag_eval_evp_hook: typing.Optional[FlagEvalEVPHook] = None
         evp_config = OpenFeatureConfig()
         evp_counts_enabled = evp_config.flagging_evaluation_counts_enabled
         if self._enabled and evp_counts_enabled:
-            self._flagevaluation_writer = FlagEvaluationWriter()
-            self._flagevaluation_hook = FlagEvaluationHook(self._flagevaluation_writer)
+            self._flag_eval_evp_writer = FlagEvaluationWriter()
+            self._flag_eval_evp_hook = FlagEvalEVPHook(self._flag_eval_evp_writer)
 
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
@@ -169,21 +169,21 @@ class DataDogProvider(AbstractProvider):
         """
         Returns provider-level hooks.
 
-        The flag evaluation hook is registered here to track metrics for
+        The OTel metrics hook is registered here to track metrics for
         every flag evaluation via the finally_after hook stage.
 
         Hook ordering:
-        1. OTel FlagEvalHook (_flageval_metrics.py) — always registered when the provider
+        1. OTel FlagEvalMetricsHook (_flageval_metrics.py) — always registered when the provider
            is enabled; emits the feature_flag.evaluations OTel counter (preserved unchanged).
-        2. FlagEvaluationHook (_flagevaluation_hook.py) — registered only when
+        2. FlagEvalEVPHook (_flag_eval_evp_hook.py) — registered only when
            DD_FLAGGING_EVALUATION_COUNTS_ENABLED is enabled (default on); enqueues cheap
            snapshots to FlagEvaluationWriter for EVP flagevaluation emission.
         """
         hooks: list[typing.Any] = []
-        if self._flag_eval_hook is not None:
-            hooks.append(self._flag_eval_hook)
-        if self._flagevaluation_hook is not None:
-            hooks.append(self._flagevaluation_hook)
+        if self._flag_eval_metrics_hook is not None:
+            hooks.append(self._flag_eval_metrics_hook)
+        if self._flag_eval_evp_hook is not None:
+            hooks.append(self._flag_eval_evp_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -215,9 +215,9 @@ class DataDogProvider(AbstractProvider):
             logger.debug("Exposure writer is already running", exc_info=True)
 
         # Start the EVP flagevaluation writer (if enabled via killswitch).
-        if self._flagevaluation_writer is not None:
+        if self._flag_eval_evp_writer is not None:
             try:
-                self._flagevaluation_writer.start()
+                self._flag_eval_evp_writer.start()
                 logger.debug("FlagEvaluationWriter started")
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter is already running", exc_info=True)
@@ -257,21 +257,21 @@ class DataDogProvider(AbstractProvider):
             logger.debug("Exposure writer has already stopped", exc_info=True)
 
         # Stop the EVP flagevaluation writer (if it was started).
-        if self._flagevaluation_writer is not None:
+        if self._flag_eval_evp_writer is not None:
             try:
-                self._flagevaluation_writer.stop()
-                self._flagevaluation_writer.join()
+                self._flag_eval_evp_writer.stop()
+                self._flag_eval_evp_writer.join()
                 logger.debug("FlagEvaluationWriter stopped")
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
-            self._flagevaluation_writer = None
-            self._flagevaluation_hook = None
+            self._flag_eval_evp_writer = None
+            self._flag_eval_evp_hook = None
 
         # Shutdown flag evaluation metrics
         if self._flag_eval_metrics is not None:
             self._flag_eval_metrics.shutdown()
             self._flag_eval_metrics = None
-            self._flag_eval_hook = None
+            self._flag_eval_metrics_hook = None
 
         # Clear exposure cache
         self.clear_exposure_cache()

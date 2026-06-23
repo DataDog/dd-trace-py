@@ -1,5 +1,5 @@
 """
-Tests for FlagEvaluationHook — finally_after cheap capture + non-blocking enqueue.
+Tests for FlagEvalEVPHook — finally_after cheap capture + non-blocking enqueue.
 
 Validates the hook design:
 - finally_after does cheap capture only (no aggregation, no I/O)
@@ -66,12 +66,12 @@ def writer():
 
 @pytest.fixture
 def hook(writer):
-    from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+    from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
-    return FlagEvaluationHook(writer=writer)
+    return FlagEvalEVPHook(writer=writer)
 
 
-class TestFlagEvaluationHook:
+class TestFlagEvalEVPHook:
     def test_finally_after_calls_writer_enqueue_once(self, hook, writer):
         """finally_after must call writer.enqueue exactly once per evaluation."""
         hc = _make_hook_context()
@@ -207,11 +207,11 @@ class TestAsyncBoundary:
 
     def test_aggregate_not_called_on_hook_path(self):
         """Spy on the REAL writer's _aggregate — it must NOT run during finally_after."""
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         real_writer = FlagEvaluationWriter(interval=10.0)
-        hook = FlagEvaluationHook(writer=real_writer)
+        hook = FlagEvalEVPHook(writer=real_writer)
 
         with mock.patch.object(real_writer, "_aggregate", wraps=real_writer._aggregate) as spy_aggregate:
             hc = _make_hook_context(attrs={"tier": "premium", "region": "us"})
@@ -236,12 +236,12 @@ class TestAsyncBoundary:
 
     def test_canonical_key_not_computed_on_hook_path(self):
         """canonical_context_key (the keying cost) must not run during finally_after."""
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         import ddtrace.internal.openfeature._flagevaluation_writer as writer_mod
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         real_writer = FlagEvaluationWriter(interval=10.0)
-        hook = FlagEvaluationHook(writer=real_writer)
+        hook = FlagEvalEVPHook(writer=real_writer)
 
         with mock.patch.object(writer_mod, "canonical_context_key", wraps=writer_mod.canonical_context_key) as spy_key:
             hc = _make_hook_context(attrs={"a": "b"})
@@ -252,7 +252,7 @@ class TestAsyncBoundary:
 class TestMetadataSourceMatchesOTelHook:
     """EVP hook reads allocation-key/eval metadata from the SAME source as the OTel hook.
 
-    The existing OTel FlagEvalHook reads allocation_key from
+    The existing OTel FlagEvalMetricsHook reads allocation_key from
     ``details.flag_metadata[METADATA_ALLOCATION_KEY]``. The EVP hook must read from the
     identical source so the two paths agree byte-for-byte on metadata.
     """
@@ -276,10 +276,10 @@ class TestMetadataSourceMatchesOTelHook:
 
     def test_otel_and_evp_hooks_extract_same_allocation_key(self):
         """Drive both hooks with identical details; both must surface the same allocation key."""
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
         from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
-        from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
         from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
         from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 
         details = _make_details(flag_metadata={METADATA_ALLOCATION_KEY: "shared-alloc"})
@@ -287,13 +287,13 @@ class TestMetadataSourceMatchesOTelHook:
 
         # OTel side: capture what FlagEvalMetrics.record received as allocation_key.
         metrics = mock.MagicMock(spec=FlagEvalMetrics)
-        otel_hook = FlagEvalHook(metrics)
+        otel_hook = FlagEvalMetricsHook(metrics)
         otel_hook.finally_after(hc, details, {})
         otel_alloc = metrics.record.call_args.kwargs["allocation_key"]
 
         # EVP side: capture what the EVP hook enqueued as allocation_key.
         evp_writer = mock.MagicMock(spec=FlagEvaluationWriter)
-        evp_hook = FlagEvaluationHook(evp_writer)
+        evp_hook = FlagEvalEVPHook(evp_writer)
         evp_hook.finally_after(hc, details, {})
         evp_alloc = evp_writer.enqueue.call_args[0][0].allocation_key
 
@@ -303,7 +303,7 @@ class TestMetadataSourceMatchesOTelHook:
 class TestKillswitchGating:
     def test_default_enabled_registers_evp_hook(self):
         """Default (no env var set) must register the EVP hook + writer."""
-        from ddtrace.internal.openfeature._flagevaluation_hook import FlagEvaluationHook
+        from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 
         env = {k: v for k, v in os.environ.items() if k != "DD_FLAGGING_EVALUATION_COUNTS_ENABLED"}
         # No env var → enabled by default.
@@ -314,9 +314,9 @@ class TestKillswitchGating:
                 from ddtrace.internal.openfeature._provider import DataDogProvider
 
                 provider = DataDogProvider()
-                assert provider._flagevaluation_writer is not None
-                assert provider._flagevaluation_hook is not None
-                assert isinstance(provider._flagevaluation_hook, FlagEvaluationHook)
+                assert provider._flag_eval_evp_writer is not None
+                assert provider._flag_eval_evp_hook is not None
+                assert isinstance(provider._flag_eval_evp_hook, FlagEvalEVPHook)
 
     def test_killswitch_false_does_not_register_evp_hook(self):
         """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=false must suppress EVP hook (killswitch)."""
@@ -327,11 +327,11 @@ class TestKillswitchGating:
                 from ddtrace.internal.openfeature._provider import DataDogProvider
 
                 provider = DataDogProvider()
-                assert provider._flagevaluation_writer is None
-                assert provider._flagevaluation_hook is None
+                assert provider._flag_eval_evp_writer is None
+                assert provider._flag_eval_evp_hook is None
 
     def test_killswitch_false_does_not_affect_otel_hook(self):
-        """Killswitch must not suppress the OTel FlagEvalHook (OTel non-regression)."""
+        """Killswitch must not suppress the OTel FlagEvalMetricsHook (OTel non-regression)."""
         with mock.patch.dict(os.environ, {"DD_FLAGGING_EVALUATION_COUNTS_ENABLED": "false"}):
             from tests.utils import override_global_config
 
@@ -342,13 +342,13 @@ class TestKillswitchGating:
 
                 provider = DataDogProvider()
                 # OTel hook still present.
-                assert provider._flag_eval_hook is not None
+                assert provider._flag_eval_metrics_hook is not None
                 # EVP hook absent.
-                assert provider._flagevaluation_hook is None
+                assert provider._flag_eval_evp_hook is None
                 # get_provider_hooks still returns the OTel hook.
                 hooks = provider.get_provider_hooks()
                 assert len(hooks) == 1
-                assert hooks[0] is provider._flag_eval_hook
+                assert hooks[0] is provider._flag_eval_metrics_hook
 
     def test_provider_shutdown_joins_evp_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
@@ -377,5 +377,5 @@ class TestKillswitchGating:
                 from ddtrace.internal.openfeature._provider import DataDogProvider
 
                 provider = DataDogProvider()
-                assert provider._flagevaluation_writer is not None
-                assert provider._flagevaluation_hook is not None
+                assert provider._flag_eval_evp_writer is not None
+                assert provider._flag_eval_evp_hook is not None
