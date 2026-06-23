@@ -1,7 +1,7 @@
 variables:
   PYPI_PUBLISH_IMAGE: registry.ddbuild.io/images/mirror/python:3.12.0
 .release_base:
-  stage: release
+  stage: ddtrace-internal:release
   rules:
     - if: !reference [.is_release]
       when: on_success
