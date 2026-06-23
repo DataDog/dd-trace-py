@@ -624,6 +624,56 @@ def test_ddwaf_info_with_3_errors():
         assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
+def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
+    """Regression test for APPSEC-68544.
+
+    A rejected (invalid/malicious) ASM_DD remote-config payload must not drop the bundled default
+    detection ruleset. Before the fix, update_rules removed the default from the builder and marked
+    the rejected path as loaded in ``_asm_dd_cache`` before checking the result, leaving the WAF
+    without the default rules (fail-open).
+    """
+    from ddtrace.appsec._ddwaf.waf import ASM_DD_DEFAULT
+
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        _ddwaf = DDWaf(rule_set.read(), b"", b"")
+
+    # The bundled default ruleset is the only ASM_DD config loaded at startup.
+    assert _ddwaf.initialized
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    default_required_data = set(_ddwaf.required_data)
+
+    # An ASM_DD payload that libddwaf rejects (here: "rules" is not a list, so no rule loads).
+    rejected_path = "datadog/2/ASM_DD/rejected/config"
+    ok = _ddwaf.update_rules([], [("ASM_DD", rejected_path, {"version": "2.1", "rules": "not-a-list"})])
+
+    # The update reports failure and the default ruleset is preserved, not the rejected payload.
+    assert ok is False
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, rejected_path) == 0
+    assert _ddwaf.initialized
+    assert set(_ddwaf.required_data) == default_required_data
+
+    # Remote config may later remove the previously-rejected config. Removing a config that was
+    # never stored is the desired end-state, so it must not be reported as a failed update.
+    ok = _ddwaf.update_rules([("ASM_DD", rejected_path)], [])
+    assert ok is True
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+
+    # A valid ASM_DD payload must still take over and displace the default ruleset.
+    with open(rules.RULES_GOOD_PATH) as rule_set:
+        valid_rules = json.load(rule_set)
+    accepted_path = "datadog/2/ASM_DD/accepted/config"
+    ok = _ddwaf.update_rules([], [("ASM_DD", accepted_path, valid_rules)])
+
+    assert ok is True
+    assert _ddwaf._asm_dd_cache == {accepted_path}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 0
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, accepted_path) == 1
+
+
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
