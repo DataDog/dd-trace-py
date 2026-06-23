@@ -1,7 +1,9 @@
 ---
 fixes:
   - |
-    tracing: an issue where applying ``@tracer.wrap()`` to an
-    async generator function skipped the generator's ``try``/``finally`` cleanup
-    when an exception was raised / generator closed early, breaking
-    composition with ``contextlib.asynccontextmanager``.
+tracing: Applying ``@tracer.wrap()`` to an async generator now forwards
+    sent values, thrown exceptions, and close requests to the underlying
+    generator, so it behaves like the unwrapped generator in all cases. Previously the
+    wrapper only relayed values during forward iteration, so sent values were
+    dropped and ``try``/``finally`` cleanup was skipped whenever the generator
+     was closed early or received a thrown exception.
