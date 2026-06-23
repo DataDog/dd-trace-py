@@ -815,9 +815,8 @@ class Tracer(object):
                 to_send: Any = None
                 to_throw: Optional[BaseException] = None
                 while True:
-                    item: Any
                     try:
-                        item = await (agen.athrow(to_throw) if to_throw is not None else agen.asend(to_send))
+                        item: Any = await (agen.athrow(to_throw) if to_throw is not None else agen.asend(to_send))
                     except StopAsyncIteration:
                         return
                     try:
