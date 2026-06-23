@@ -38,6 +38,8 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.threads import PeriodicThread
 from ddtrace.internal.utils.http import get_connection
 
@@ -91,9 +93,25 @@ _TAG_INT = b"i"
 _TAG_FLOAT = b"f"
 _TAG_OTHER = b"o"
 
+FLAG_EVALUATION_DROPPED_METRIC = "flagevaluation.rows.dropped"
+FLAG_EVALUATION_DEGRADED_METRIC = "flagevaluation.rows.degraded"
+FLAG_EVALUATION_SPLITS_METRIC = "flagevaluation.payload.splits"
+
+FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
+FLAG_EVALUATION_REASON_DEGRADED_CAP = "degraded_cap"
+FLAG_EVALUATION_REASON_PAYLOAD_LIMIT = "payload_limit"
+FLAG_EVALUATION_REASON_CARDINALITY_CAP = "cardinality_cap"
+
 
 def _json_dumps(obj: typing.Any) -> bytes:
     return json.dumps(obj, separators=_JSON_SEPARATORS).encode("utf-8")
+
+
+def _count_metric(name: str, value: int, reason: typing.Optional[str] = None) -> None:
+    if value <= 0:
+        return
+    tags = (("reason", reason),) if reason else tuple()
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +309,18 @@ class _FlagEvaluationConnection(typing.Protocol):
         pass
 
 
+class _PayloadEventResult(typing.NamedTuple):
+    encoded: typing.Optional[bytes]
+    degraded_payload_limit: bool = False
+    dropped_payload_limit: bool = False
+
+
+class _PayloadBuildResult(typing.NamedTuple):
+    payloads: list[tuple[bytes, int]]
+    degraded_payload_limit: int = 0
+    dropped_payload_limit: int = 0
+
+
 # ---------------------------------------------------------------------------
 # FlagEvaluationWriter
 # ---------------------------------------------------------------------------
@@ -416,11 +446,21 @@ class FlagEvaluationWriter(PeriodicService):
                         "FlagEvaluationWriter: queue full — dropped %d evaluation(s) under backpressure",
                         dropped_queue,
                     )
+                    _count_metric(
+                        FLAG_EVALUATION_DROPPED_METRIC,
+                        dropped_queue,
+                        FLAG_EVALUATION_REASON_QUEUE_OVERFLOW,
+                    )
                     self._dropped_queue = 0
                 if dropped_degraded:
                     logger.warning(
                         "FlagEvaluationWriter: degraded cap full — dropped %d evaluation(s)",
                         dropped_degraded,
+                    )
+                    _count_metric(
+                        FLAG_EVALUATION_DROPPED_METRIC,
+                        dropped_degraded,
+                        FLAG_EVALUATION_REASON_DEGRADED_CAP,
                     )
                     self._dropped_degraded_overflow = 0
                 return
@@ -437,11 +477,13 @@ class FlagEvaluationWriter(PeriodicService):
                 "FlagEvaluationWriter: queue full — dropped %d evaluation(s) under backpressure",
                 dropped_queue,
             )
+            _count_metric(FLAG_EVALUATION_DROPPED_METRIC, dropped_queue, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
         if dropped_degraded:
             logger.warning(
                 "FlagEvaluationWriter: degraded cap full — dropped %d evaluation(s)",
                 dropped_degraded,
             )
+            _count_metric(FLAG_EVALUATION_DROPPED_METRIC, dropped_degraded, FLAG_EVALUATION_REASON_DEGRADED_CAP)
 
         # 3. Build payload.
         flush_time_ms = int(time.time() * 1000)
@@ -468,7 +510,9 @@ class FlagEvaluationWriter(PeriodicService):
             events.append(ev)
 
         # Degraded-tier events: no targeting_key, no context.
+        degraded_count = 0
         for key, entry in degraded.items():
+            degraded_count += entry.count
             flag_key = key[0]
             variant = key[1]
             allocation_key = key[2]
@@ -482,6 +526,7 @@ class FlagEvaluationWriter(PeriodicService):
             if entry.error_message:
                 ev["error"] = {"message": entry.error_message}
             events.append(ev)
+        _count_metric(FLAG_EVALUATION_DEGRADED_METRIC, degraded_count, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
 
         if not events:
             return
@@ -495,7 +540,21 @@ class FlagEvaluationWriter(PeriodicService):
         if ddconfig.version:
             context["version"] = ddconfig.version
 
-        for payload, num_events in _build_payloads(events, context, FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT):
+        result = _build_payloads_with_stats(events, context, FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT)
+        _count_metric(
+            FLAG_EVALUATION_DEGRADED_METRIC,
+            result.degraded_payload_limit,
+            FLAG_EVALUATION_REASON_PAYLOAD_LIMIT,
+        )
+        _count_metric(
+            FLAG_EVALUATION_DROPPED_METRIC,
+            result.dropped_payload_limit,
+            FLAG_EVALUATION_REASON_PAYLOAD_LIMIT,
+        )
+        if len(result.payloads) > 1:
+            _count_metric(FLAG_EVALUATION_SPLITS_METRIC, len(result.payloads) - 1)
+
+        for payload, num_events in result.payloads:
             self._send_payload(payload, num_events)
 
     def on_shutdown(self) -> None:
@@ -661,15 +720,15 @@ def _degraded_payload_event(event: dict[str, typing.Any]) -> dict[str, typing.An
 def _encode_payload_event(
     event: dict[str, typing.Any],
     single_event_payload_limit: int,
-) -> typing.Optional[bytes]:
+) -> _PayloadEventResult:
     try:
         encoded = _json_dumps(event)
     except (TypeError, ValueError):
         logger.debug("FlagEvaluationWriter: failed to encode event", exc_info=True)
-        return None
+        return _PayloadEventResult(None)
 
     if len(encoded) <= single_event_payload_limit:
-        return encoded
+        return _PayloadEventResult(encoded)
 
     degraded_event = _degraded_payload_event(event)
     if degraded_event != event:
@@ -677,19 +736,19 @@ def _encode_payload_event(
             encoded = _json_dumps(degraded_event)
         except (TypeError, ValueError):
             logger.debug("FlagEvaluationWriter: failed to encode degraded event", exc_info=True)
-            return None
+            return _PayloadEventResult(None)
         if len(encoded) <= single_event_payload_limit:
             logger.warning(
                 "FlagEvaluationWriter: degraded oversized flag evaluation event for %s before sending",
                 event.get("flag", {}).get("key", ""),
             )
-            return encoded
+            return _PayloadEventResult(encoded, degraded_payload_limit=True)
 
     logger.warning(
         "FlagEvaluationWriter: dropped oversized flag evaluation event for %s",
         event.get("flag", {}).get("key", ""),
     )
-    return None
+    return _PayloadEventResult(None, dropped_payload_limit=True)
 
 
 def _build_payloads(
@@ -697,6 +756,15 @@ def _build_payloads(
     context: dict[str, str],
     payload_size_limit: int = FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT,
 ) -> typing.Iterator[tuple[bytes, int]]:
+    for payload in _build_payloads_with_stats(events, context, payload_size_limit).payloads:
+        yield payload
+
+
+def _build_payloads_with_stats(
+    events: list[dict[str, typing.Any]],
+    context: dict[str, str],
+    payload_size_limit: int = FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT,
+) -> _PayloadBuildResult:
     context_suffix = b""
     if context:
         context_suffix = b',"context":' + _json_dumps(context)
@@ -705,13 +773,21 @@ def _build_payloads(
     single_event_payload_limit = payload_size_limit - len(prefix) - len(suffix)
     if single_event_payload_limit <= 0:
         logger.warning("FlagEvaluationWriter: EVP payload size limit is too small to encode flagevaluation payloads")
-        return
+        return _PayloadBuildResult([])
 
     payload = bytearray(prefix)
     num_events = 0
+    payloads: list[tuple[bytes, int]] = []
+    degraded_payload_limit = 0
+    dropped_payload_limit = 0
 
     for event in events:
-        encoded_event = _encode_payload_event(event, single_event_payload_limit)
+        event_result = _encode_payload_event(event, single_event_payload_limit)
+        encoded_event = event_result.encoded
+        if event_result.dropped_payload_limit:
+            dropped_payload_limit += int(event.get("evaluation_count", 1) or 1)
+        if event_result.degraded_payload_limit:
+            degraded_payload_limit += int(event.get("evaluation_count", 1) or 1)
         if encoded_event is None:
             continue
 
@@ -719,7 +795,7 @@ def _build_payloads(
         candidate_size = len(payload) + separator_size + len(encoded_event) + len(suffix)
         if num_events and candidate_size > payload_size_limit:
             payload.extend(suffix)
-            yield bytes(payload), num_events
+            payloads.append((bytes(payload), num_events))
             payload = bytearray(prefix)
             num_events = 0
 
@@ -730,4 +806,6 @@ def _build_payloads(
 
     if num_events:
         payload.extend(suffix)
-        yield bytes(payload), num_events
+        payloads.append((bytes(payload), num_events))
+
+    return _PayloadBuildResult(payloads, degraded_payload_limit, dropped_payload_limit)

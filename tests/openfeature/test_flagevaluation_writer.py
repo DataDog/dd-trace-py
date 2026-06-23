@@ -25,6 +25,13 @@ from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DEGRADED_METRIC
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DROPPED_METRIC
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_CARDINALITY_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_DEGRADED_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PAYLOAD_LIMIT
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_QUEUE_OVERFLOW
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_SPLITS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
 from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIELDS
@@ -32,9 +39,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import MAX_FIELD_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import QUEUE_SIZE
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
+from ddtrace.internal.openfeature._flagevaluation_writer import _build_payloads_with_stats
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+TELEMETRY_COUNT_PATCH = "ddtrace.internal.openfeature._flagevaluation_writer.telemetry_writer.add_count_metric"
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +85,18 @@ def _wait_until(predicate, timeout: float = 2.0) -> bool:
             return True
         time.sleep(0.01)
     return predicate()
+
+
+def _assert_count_metric(mock_add_count, name: str, value: int, reason: str = None) -> None:
+    tags = (("reason", reason),) if reason else tuple()
+    mock_add_count.assert_any_call(TELEMETRY_NAMESPACE.TRACERS, name, value, tags)
+
+
+def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> None:
+    tags = (("reason", reason),) if reason else tuple()
+    for call in mock_add_count.call_args_list:
+        if call.args == (TELEMETRY_NAMESPACE.TRACERS, name, mock.ANY, tags):
+            raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
 
 
 @pytest.fixture
@@ -499,10 +523,14 @@ class TestPeriodicFlush:
 
         sent = []
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 900):
-            with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
-                writer.periodic()
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+                    writer.periodic()
 
         assert len(sent) > 1
+        _assert_count_metric(mock_count, FLAG_EVALUATION_SPLITS_METRIC, len(sent) - 1)
+        _assert_no_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, FLAG_EVALUATION_REASON_PAYLOAD_LIMIT)
+        _assert_no_count_metric(mock_count, FLAG_EVALUATION_DEGRADED_METRIC, FLAG_EVALUATION_REASON_PAYLOAD_LIMIT)
         seen_flags = set()
         for payload, num_events in sent:
             assert len(payload) <= 900
@@ -523,10 +551,12 @@ class TestPeriodicFlush:
 
         sent = []
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 300):
-            with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
-                writer.periodic()
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+                    writer.periodic()
 
         assert len(sent) == 1
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DEGRADED_METRIC, 1, FLAG_EVALUATION_REASON_PAYLOAD_LIMIT)
         payload, num_events = sent[0]
         assert len(payload) <= 300
         assert num_events == 1
@@ -534,6 +564,54 @@ class TestPeriodicFlush:
         assert row["flag"]["key"] == "oversized-full"
         assert "context" not in row
         assert "targeting_key" not in row
+
+    def test_single_oversized_degraded_event_is_dropped_and_counted(self, writer):
+        writer.enqueue(_make_event(flag_key="f" * 256, targeting_key="", attrs={}))
+
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT", 100):
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload") as mock_send:
+                    writer.periodic()
+
+        mock_send.assert_not_called()
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_PAYLOAD_LIMIT)
+
+    def test_build_payload_stats_count_payload_limit_degraded_and_dropped_rows(self):
+        now_ms = int(time.time() * 1000)
+        degradable = {
+            "timestamp": now_ms,
+            "flag": {"key": "large"},
+            "first_evaluation": now_ms,
+            "last_evaluation": now_ms,
+            "evaluation_count": 7,
+            "targeting_key": "user-with-context",
+            "context": {"evaluation": {"blob": "x" * 256}},
+        }
+        degraded = dict(degradable)
+        degraded.pop("targeting_key")
+        degraded.pop("context")
+        degraded_payload = _build_payloads_with_stats([degraded], {}, 1 << 30).payloads[0][0]
+
+        result = _build_payloads_with_stats([degradable], {}, len(degraded_payload))
+
+        assert result.degraded_payload_limit == 7
+        assert result.dropped_payload_limit == 0
+        assert len(result.payloads) == 1
+
+        undegreadable = {
+            "timestamp": now_ms,
+            "flag": {"key": "f" * 256},
+            "first_evaluation": now_ms,
+            "last_evaluation": now_ms,
+            "evaluation_count": 11,
+        }
+        oversized_payload = _build_payloads_with_stats([undegreadable], {}, 1 << 30).payloads[0][0]
+
+        result = _build_payloads_with_stats([undegreadable], {}, len(oversized_payload) - 1)
+
+        assert result.degraded_payload_limit == 0
+        assert result.dropped_payload_limit == 11
+        assert result.payloads == []
 
 
 # ---------------------------------------------------------------------------
@@ -655,13 +733,15 @@ class TestPayloadContractConformance:
                 error_message="degraded failure",
             )
         )
-        with mock.patch.object(writer, "_send_payload") as mock_send:
-            writer.periodic()
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            with mock.patch.object(writer, "_send_payload") as mock_send:
+                writer.periodic()
 
         decoded = json.loads(mock_send.call_args[0][0])
         _assert_batch_contract_valid(decoded)
         row = decoded["flagEvaluations"][0]
         _assert_row_contract_valid(row)
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DEGRADED_METRIC, 1, FLAG_EVALUATION_REASON_CARDINALITY_CAP)
         assert row["variant"] == {"key": "on"}
         assert row["error"] == {"message": "degraded failure"}
         assert "context" not in row
@@ -817,11 +897,13 @@ class TestObservableDropCounters:
 
         # Drain everything (so maps are populated) and assert the drop count is emitted.
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.logger") as mock_logger:
-            with mock.patch.object(writer, "_send_payload"):
-                writer.periodic()
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload"):
+                    writer.periodic()
             # A warning naming the queue-full drop count must have been emitted.
             warnings = [c for c in mock_logger.warning.call_args_list if "queue full" in str(c).lower()]
             assert warnings, "queue-full drop count must be logged (observable)"
+            _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
         # Counter resets after emission.
         assert writer._dropped_queue == 0
 
@@ -837,10 +919,12 @@ class TestObservableDropCounters:
         assert writer._dropped_degraded_overflow == 1
 
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.logger") as mock_logger:
-            with mock.patch.object(writer, "_send_payload"):
-                writer.periodic()
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload"):
+                    writer.periodic()
             warnings = [c for c in mock_logger.warning.call_args_list if "degraded cap" in str(c).lower()]
             assert warnings, "degraded-cap overflow count must be logged (observable)"
+            _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_DEGRADED_CAP)
         assert writer._dropped_degraded_overflow == 0
 
     def test_drop_accounting_is_complete_no_silent_loss(self, writer):
