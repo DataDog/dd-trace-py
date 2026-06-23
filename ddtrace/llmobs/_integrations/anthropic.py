@@ -32,7 +32,7 @@ log = get_logger(__name__)
 MODEL = "anthropic.request.model"
 
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
-_BEDROCK_MODEL_PROVIDER = "amazon_bedrock"
+_BEDROCK_MODEL_PROVIDER = "amazon"
 _VERTEX_MODEL_PROVIDER = "google"
 
 
@@ -275,10 +275,10 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _get_model_provider(self, span: Span) -> str:
         """Resolve the model provider from the request base_url captured on the span.
 
-        AnthropicBedrock ("bedrock-runtime.<region>.amazonaws.com") and AnthropicVertex
-        ("<region>-aiplatform.googleapis.com") route to other backends whose URLs do not
-        contain "anthropic". Returns "amazon_bedrock"/"google" for those, "anthropic" for
-        the default client, or "unknown" when the base_url is missing or unrecognized.
+        Returns "amazon_bedrock" if the base_url contains "bedrock".
+        Returns "google" if the base_url contains "google".
+        Returns "anthropic" if the base_url contains "anthropic". 
+        Returns "unknown" when the base_url is missing or unrecognized.
         """
         base_url = (span._get_ctx_item(REQUEST_BASE_URL) or "").lower()
         if not base_url:
