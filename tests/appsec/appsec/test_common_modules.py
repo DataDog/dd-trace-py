@@ -179,7 +179,7 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
     try:
         pool_manager = urllib3.PoolManager(num_pools=1)
         try:
-            response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port))
+            response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
             assert response.status == 200
         finally:
             pool_manager.clear()
