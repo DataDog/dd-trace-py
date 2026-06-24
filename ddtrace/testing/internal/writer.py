@@ -86,6 +86,10 @@ class BaseWriter(ABC):
         self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
+        # Connectors registered here are closed from both the background thread
+        # (via _task_teardown) and the caller thread (via wait_finish), covering
+        # all thread-local HTTPConnections opened via BackendConnector.
+        self._connectors: list[t.Any] = []
 
     def put_event(self, event: Event) -> None:
         with self.lock:
@@ -141,15 +145,17 @@ class BaseWriter(ABC):
             log.warning(
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
+        # Close the caller thread's thread-local connection for each registered
+        # connector (BackendConnector is threading.local, so this closes the
+        # connection opened by any sync flush that ran on the caller thread).
+        for connector in self._connectors:
+            connector.close()
 
     def _task_teardown(self) -> None:
-        """Called once from the background task thread after the flush loop exits.
-
-        Override in subclasses to release per-thread resources (e.g., close a
-        :class:`~ddtrace.testing.internal.http.BackendConnector` whose
-        underlying HTTP connection was created on the background thread via
-        ``threading.local``).
-        """
+        # Close the background thread's thread-local connection for each
+        # registered connector.
+        for connector in self._connectors:
+            connector.close()
 
     def _periodic_task(self) -> None:
         while True:
@@ -282,6 +288,7 @@ class TestOptWriter(BaseWriter):
         }
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        self._connectors = [self.connector]
 
         self.serializers: dict[type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -289,9 +296,6 @@ class TestOptWriter(BaseWriter):
             TestModule: serialize_module,
             TestSession: serialize_session,
         }
-
-    def _task_teardown(self) -> None:
-        self.connector.close()
 
     def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         self.metadata[event_type].update(metadata)
@@ -368,9 +372,7 @@ class TestCoverageWriter(BaseWriter):
         super().__init__(min_flush_events=_get_min_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
-
-    def _task_teardown(self) -> None:
-        self.connector.close()
+        self._connectors = [self.connector]
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]

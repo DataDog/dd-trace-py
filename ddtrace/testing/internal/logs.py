@@ -45,11 +45,9 @@ class LogsWriter(BaseWriter):
         super().__init__(max_buffer_events=self._MAX_BUFFER_EVENTS)
         self.flush_interval_seconds = self._FLUSH_INTERVAL_SECONDS
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.LOGS)
+        self._connectors = [self.connector]
         self.service = service
         self.hostname = socket.gethostname()
-
-    def _task_teardown(self) -> None:
-        self.connector.close()
 
     def _encode_events(self, events: list[Event]) -> bytes:
         return json.dumps(events).encode("utf-8")

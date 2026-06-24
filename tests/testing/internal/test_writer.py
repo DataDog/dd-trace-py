@@ -413,13 +413,18 @@ class TestTestOptWriter:
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     def test_connector_closed_after_writer_finishes(self, mock_bc: Mock) -> None:
-        """Regression: background task must close its thread-local connector.
+        """Regression: both the background task and the caller thread must close their
+        thread-local connectors.
 
-        ``BackendConnector`` subclasses ``threading.local`` so each thread
-        gets its own HTTP connection via ``__init__``.  Without an explicit
-        ``close()`` call from the background task the underlying socket is
-        left open until the GC eventually closes it, producing a
-        ``ResourceWarning: unclosed socket``.
+        ``BackendConnector`` subclasses ``threading.local`` so each thread gets its own
+        HTTP connection via ``__init__``.  Two connections can exist:
+
+        * **background thread** — opened when the periodic task calls ``_send_events``
+        * **caller thread** — opened when ``min_flush_events`` triggers a sync flush via
+          ``put_event`` → ``flush`` on the test/caller thread
+
+        Without explicit ``close()`` calls on both threads the underlying sockets are
+        left open, producing ``ResourceWarning: unclosed socket``.
         """
         close_caller_threads: list[str] = []
 
@@ -440,14 +445,13 @@ class TestTestOptWriter:
         writer.signal_finish()
         writer.wait_finish()
 
-        # close() must be called from the background task thread (not the main thread)
-        # so that the thread-local HTTP connection is properly closed.
-        assert close_caller_threads, "connector.close() was never called"
+        # close() must be called at least twice: once from the background task thread
+        # and once from the caller (main) thread via wait_finish().
         main_thread_name = threading.main_thread().name
-        assert all(t != main_thread_name for t in close_caller_threads), (
-            "connector.close() was called from the main thread, not the background task thread; "
-            "the thread-local socket would not be closed"
-        )
+        bg_closes = [t for t in close_caller_threads if t != main_thread_name]
+        caller_closes = [t for t in close_caller_threads if t == main_thread_name]
+        assert bg_closes, "connector.close() was never called from the background task thread"
+        assert caller_closes, "connector.close() was never called from the caller thread (via wait_finish)"
 
 
 class TestTestCoverageWriter:
