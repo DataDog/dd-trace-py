@@ -1,9 +1,14 @@
+import sys
+
 from mistralai import client
 
 from ddtrace import config
+from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandler
+from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import MistralAIIntegration
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 
@@ -70,6 +75,50 @@ async def traced_async_chat_generate(func, instance, args, kwargs):
             integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=resp, operation="llm")
 
 
+def traced_generate_stream(func, instance, args, kwargs):
+    integration: MistralAIIntegration = client._datadog_integration
+    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
+    provider_name = extract_provider(enriched_kwargs)
+    model_name = kwargs.get("model", "")
+
+    span = integration.trace(
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=True,
+    )
+    try:
+        resp = func(*args, **kwargs)
+        return make_traced_stream(resp, MistralAIStreamHandler(integration, span, args, enriched_kwargs))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=None, operation="llm")
+        span.finish()
+        raise
+
+
+async def traced_async_generate_stream(func, instance, args, kwargs):
+    integration: MistralAIIntegration = client._datadog_integration
+    enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
+    provider_name = extract_provider(enriched_kwargs)
+    model_name = kwargs.get("model", "")
+
+    span = integration.trace(
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=True,
+    )
+    try:
+        resp = await func(*args, **kwargs)
+        return make_traced_stream(resp, MistralAIAsyncStreamHandler(integration, span, args, enriched_kwargs))
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=None, operation="llm")
+        span.finish()
+        raise
+
+
 def traced_embed_generate(func, instance, args, kwargs):
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
@@ -120,6 +169,8 @@ def patch():
 
     wrap("mistralai.client.chat", "Chat.complete", traced_chat_generate)
     wrap("mistralai.client.chat", "Chat.complete_async", traced_async_chat_generate)
+    wrap("mistralai.client.chat", "Chat.stream", traced_generate_stream)
+    wrap("mistralai.client.chat", "Chat.stream_async", traced_async_generate_stream)
     wrap("mistralai.client.embeddings", "Embeddings.create", traced_embed_generate)
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
@@ -132,6 +183,8 @@ def unpatch():
 
     unwrap(client.chat.Chat, "complete")
     unwrap(client.chat.Chat, "complete_async")
+    unwrap(client.chat.Chat, "stream")
+    unwrap(client.chat.Chat, "stream_async")
     unwrap(client.embeddings.Embeddings, "create")
     unwrap(client.embeddings.Embeddings, "create_async")
 
