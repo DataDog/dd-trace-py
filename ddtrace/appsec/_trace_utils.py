@@ -380,3 +380,7 @@ def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Op
             entry_span._set_attribute(user.ID, str(userid))
     if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()
+
+
+# Registered here (always imported on AppSec startup) so set_user enforces user blocking.
+core.on("set_user_for_asm", block_request_if_user_blocked, "block_user")
