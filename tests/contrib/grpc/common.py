@@ -47,5 +47,12 @@ class GrpcBaseTestCase(TracerTestCase):
         self._server.start()
 
     def _stop_server(self):
-        self._server.stop(None)
+        # ``Server.stop`` is asynchronous: it returns a ``threading.Event`` that is set once the
+        # gRPC core has finished shutting down and released the listening socket. We must wait on
+        # it before returning, otherwise the next test's ``add_insecure_port`` (same fixed port)
+        # can race the still-closing socket. Under SO_REUSEPORT both servers briefly bind the port
+        # and the kernel may route the new client to the dying server, causing flaky failures.
+        # This became visible once pytest-xdist was enabled for the appsec_iast_default suite.
+        shutdown_complete = self._server.stop(None)
+        shutdown_complete.wait()
         self._server_pool.shutdown(wait=True)
