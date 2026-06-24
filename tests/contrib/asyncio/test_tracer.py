@@ -1,6 +1,7 @@
 """Ensure that the tracer works with asynchronous executions within the same ``IOLoop``."""
 
 import asyncio
+from contextlib import asynccontextmanager
 import os
 import re
 
@@ -252,3 +253,173 @@ async def test_wrapped_generator(tracer, test_spans):
     assert span.resource == "r"
     assert span.span_type == "t"
     assert span.get_tag("a") == "b"
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_asynccontextmanager(tracer, test_spans):
+    # @tracer.wrap() on an async generator must compose with
+    # contextlib.asynccontextmanager so it can be driven via ``async with``.
+    events = []
+
+    @asynccontextmanager
+    @tracer.wrap("managed")
+    async def managed():
+        events.append("enter")
+        try:
+            yield "resource"
+        finally:
+            events.append("cleanup")
+
+    async with managed() as resource:
+        assert resource == "resource"
+        events.append("body")
+
+    assert events == ["enter", "body", "cleanup"]
+
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    assert 1 == len(traces[0])
+    assert traces[0][0].name == "managed"
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_cleanup_on_exception(tracer, test_spans):
+    # When the consumer raises, the exception must propagate AND the wrapped
+    # generator's ``finally`` block must still run (regression: the old
+    # ``async for ... yield`` wrapper skipped the inner cleanup).
+    events = []
+
+    @asynccontextmanager
+    @tracer.wrap("managed")
+    async def managed():
+        events.append("enter")
+        try:
+            yield "resource"
+        finally:
+            events.append("cleanup")
+
+    with pytest.raises(ValueError, match="boom"):
+        async with managed():
+            events.append("body")
+            raise ValueError("boom")
+
+    assert events == ["enter", "body", "cleanup"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_early_close(tracer, test_spans):
+    # Closing the wrapped generator before it is exhausted must forward
+    # ``aclose`` to the inner generator so its ``finally`` runs, without raising
+    # "aclose(): asynchronous generator is already running".
+    events = []
+
+    @tracer.wrap("counter")
+    async def counter():
+        try:
+            for i in range(10):
+                yield i
+        finally:
+            events.append("cleanup")
+
+    gen = counter()
+    seen = [await gen.__anext__(), await gen.__anext__()]
+    await gen.aclose()
+
+    assert seen == [0, 1]
+    assert events == ["cleanup"]
+
+    traces = test_spans.pop_traces()
+    assert 1 == len(traces)
+    assert traces[0][0].name == "counter"
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_send(tracer, test_spans):
+    # Values sent into the wrapped generator via ``asend`` must be forwarded
+    # to the inner generator.
+    received = []
+
+    @tracer.wrap("echo")
+    async def echo():
+        while True:
+            value = yield
+            received.append(value)
+
+    gen = echo()
+    await gen.asend(None)  # prime
+    await gen.asend("a")
+    await gen.asend("b")
+    await gen.aclose()
+
+    assert received == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_classmethod_asynccontextmanager(tracer, test_spans):
+    # The exact shape that triggered the original bug: a classmethod async
+    # context manager whose body raises must propagate the exception AND run
+    # the wrapped generator's ``finally``.
+    events = []
+
+    class Model:
+        @classmethod
+        @asynccontextmanager
+        @tracer.wrap("model.conn")
+        async def get_conn(cls):
+            events.append("enter")
+            try:
+                yield "conn"
+            finally:
+                events.append("cleanup")
+
+    with pytest.raises(ValueError):
+        async with Model.get_conn() as conn:
+            assert conn == "conn"
+            events.append("body")
+            raise ValueError("boom")
+
+    assert events == ["enter", "body", "cleanup"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_cancelled_error(tracer, test_spans):
+    # asyncio.CancelledError (a BaseException, not Exception) must still
+    # propagate and run the wrapped generator's ``finally``.
+    events = []
+
+    @asynccontextmanager
+    @tracer.wrap("managed")
+    async def managed():
+        try:
+            yield "resource"
+        finally:
+            events.append("cleanup")
+
+    with pytest.raises(asyncio.CancelledError):
+        async with managed():
+            raise asyncio.CancelledError()
+
+    assert events == ["cleanup"]
+
+
+@pytest.mark.asyncio
+async def test_wrapped_async_gen_athrow_yields(tracer, test_spans):
+    """Inner gen catches the thrown exception and yields a recovery value."""
+
+    @tracer.wrap("resilient")
+    async def resilient():
+        value = 0
+        while True:
+            try:
+                yield value
+            except ValueError:
+                yield -1  # recovery yield, then loop continues
+            value += 1
+
+    gen = resilient()
+    assert await gen.asend(None) == 0
+    assert await gen.asend(None) == 1
+    recovery = await gen.athrow(ValueError("oops"))  # should yield -1, not raise
+    assert recovery == -1
+    assert await gen.asend(None) == 2  # resumes normally after recovery
+    await gen.aclose()
