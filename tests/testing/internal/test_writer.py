@@ -156,11 +156,15 @@ class TestWaitFinishTimeout:
             def __init__(self) -> None:
                 super().__init__()
                 self.started_flushing = threading.Event()
+                # Use a *separate* event to block the send so that signal_finish()
+                # (which sets should_finish) does not inadvertently unblock _send_events
+                # and let the thread exit before the timeout fires.
+                self._unblock_send = threading.Event()
 
             def _send_events(self, events: list[Event]) -> bool:
                 self.started_flushing.set()
-                # Block until finish is signalled (simulates slow network).
-                self.should_finish.wait()
+                # Block until explicitly unblocked (simulates a slow network call).
+                self._unblock_send.wait()
                 return True
 
             def _encode_events(self, events: list[Event]) -> bytes:
@@ -173,12 +177,17 @@ class TestWaitFinishTimeout:
         writer._flush_now.set()
         writer.started_flushing.wait(timeout=5)
 
-        # With a short timeout, wait_finish should return even though the thread is stuck.
+        # Thread is stuck in _send_events.  Signal finish so the thread knows it
+        # should stop after the current send, but the send itself is still blocked.
         writer.signal_finish()
         writer.wait_finish(timeout=0.1)
-        # Thread may still be alive because we timed out.
-        # Clean up: signal the thread to finish.
-        writer.should_finish.set()
+
+        # The timeout must have fired: the thread is still alive because _send_events
+        # has not returned yet.
+        assert writer.task.is_alive(), "thread should still be running while _send_events is blocked"
+
+        # Unblock the send so the thread can finish cleanly.
+        writer._unblock_send.set()
         writer.task.join(timeout=5)
 
 
@@ -401,6 +410,44 @@ class TestTestOptWriter:
                 send_gzip=True,
             ),
         ]
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_connector_closed_after_writer_finishes(self, mock_bc: Mock) -> None:
+        """Regression: background task must close its thread-local connector.
+
+        ``BackendConnector`` subclasses ``threading.local`` so each thread
+        gets its own HTTP connection via ``__init__``.  Without an explicit
+        ``close()`` call from the background task the underlying socket is
+        left open until the GC eventually closes it, producing a
+        ``ResourceWarning: unclosed socket``.
+        """
+        close_caller_threads: list[str] = []
+
+        original_connector = Mock()
+        original_connector.request.return_value = BackendResult(
+            response=Mock(status=200), response_length=0, elapsed_seconds=0.0
+        )
+
+        def _close_tracking() -> None:
+            close_caller_threads.append(threading.current_thread().name)
+
+        original_connector.close.side_effect = _close_tracking
+        mock_bc.return_value = original_connector
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
+        writer.start()
+        writer.put_event(Event(type="test"))
+        writer.signal_finish()
+        writer.wait_finish()
+
+        # close() must be called from the background task thread (not the main thread)
+        # so that the thread-local HTTP connection is properly closed.
+        assert close_caller_threads, "connector.close() was never called"
+        main_thread_name = threading.main_thread().name
+        assert all(t != main_thread_name for t in close_caller_threads), (
+            "connector.close() was called from the main thread, not the background task thread; "
+            "the thread-local socket would not be closed"
+        )
 
 
 class TestTestCoverageWriter:
@@ -893,6 +940,7 @@ class TestCircuitBreaker:
             writer = TestOptWriter(BackendConnectorAgentlessSetup(site="test", api_key="key"))
             result = writer._send_events([Event(type="test")])
             assert result is True
+
 
 
 class TestOversizedEventWarning:

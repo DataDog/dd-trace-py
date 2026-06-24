@@ -48,6 +48,9 @@ class LogsWriter(BaseWriter):
         self.service = service
         self.hostname = socket.gethostname()
 
+    def _task_teardown(self) -> None:
+        self.connector.close()
+
     def _encode_events(self, events: list[Event]) -> bytes:
         return json.dumps(events).encode("utf-8")
 

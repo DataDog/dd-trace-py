@@ -142,6 +142,15 @@ class BaseWriter(ABC):
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
 
+    def _task_teardown(self) -> None:
+        """Called once from the background task thread after the flush loop exits.
+
+        Override in subclasses to release per-thread resources (e.g., close a
+        :class:`~ddtrace.testing.internal.http.BackendConnector` whose
+        underlying HTTP connection was created on the background thread via
+        ``threading.local``).
+        """
+
     def _periodic_task(self) -> None:
         while True:
             self._flush_now.wait(timeout=self.flush_interval_seconds)
@@ -155,6 +164,7 @@ class BaseWriter(ABC):
             if self.should_finish.is_set():
                 break
 
+        self._task_teardown()
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
@@ -280,6 +290,9 @@ class TestOptWriter(BaseWriter):
             TestSession: serialize_session,
         }
 
+    def _task_teardown(self) -> None:
+        self.connector.close()
+
     def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         self.metadata[event_type].update(metadata)
 
@@ -355,6 +368,9 @@ class TestCoverageWriter(BaseWriter):
         super().__init__(min_flush_events=_get_min_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
+
+    def _task_teardown(self) -> None:
+        self.connector.close()
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
