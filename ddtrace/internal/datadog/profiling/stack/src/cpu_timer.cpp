@@ -5,6 +5,7 @@
 #include "echion/danger.h"
 #include "echion/frame.h"
 #include "echion/stacks.h"
+#include "echion/threads.h"
 #include "echion/vm.h"
 
 #include "sampler.hpp"
@@ -589,7 +590,7 @@ validate_raw_code_object(const RawFrame& raw_frame)
 }
 
 void
-render_raw_sample(EchionSampler& echion, const RawSample& raw, const std::string& thread_name)
+render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& raw)
 {
     FrameStack stack;
     bool saw_invalid_frame = false;
@@ -618,12 +619,28 @@ render_raw_sample(EchionSampler& echion, const RawSample& raw, const std::string
         stack.push_back(UNKNOWN_FRAME);
     }
 
-    auto& renderer = echion.renderer();
     const microsecond_t cpu_us = static_cast<microsecond_t>(raw.cpu_delta_ns / 1000ULL);
     if (cpu_us == 0) {
         return;
     }
-    renderer.render_cpu_sample_begin(thread_name, cpu_us, raw.python_thread_id, raw.native_tid);
+
+    std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
+    auto maybe_thread = echion.thread_info_map().find(raw.python_thread_id);
+    if (maybe_thread != echion.thread_info_map().end()) {
+        PyThreadState tstate{};
+        PyThreadState* tstate_arg = nullptr;
+        if (state.tstate != nullptr && !copy_type(state.tstate, tstate)) {
+            tstate_arg = &tstate;
+            maybe_thread->second->tstate_addr = reinterpret_cast<uintptr_t>(state.tstate);
+        }
+        auto success = maybe_thread->second->sample_cpu_timer(echion, tstate_arg, std::move(stack), cpu_us);
+        if (success) {
+            return;
+        }
+    }
+
+    auto& renderer = echion.renderer();
+    renderer.render_cpu_sample_begin(state.name, cpu_us, raw.python_thread_id, raw.native_tid);
     stack.render(echion);
     renderer.render_stack_end();
 }
@@ -633,7 +650,7 @@ drain_state(EchionSampler& echion, CaptureState& state)
 {
     RawSample raw;
     while (state.ring.pop_for_consumer(raw)) {
-        render_raw_sample(echion, raw, state.name);
+        render_raw_sample(echion, state, raw);
     }
 }
 

@@ -461,12 +461,17 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     // CPython iterates over both:
     // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
     // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
-    // First, get tasks from this thread's linked-list (if tstate_addr is set)
-    // Note: We continue processing even if one source fails to maximize partial results
-    if (tstate != nullptr && this->tstate_addr != 0) {
+    // First, get tasks from this thread's linked-list (if tstate_addr is set).
+    // CPU timer samples may only have the remote PyThreadState address, because
+    // the signal handler cannot safely copy/interrogate task state. The per-thread
+    // linked list is enough to discover the running task for logical stack stitching.
+    // Note: We continue processing even if one source fails to maximize partial results.
+    if (this->tstate_addr != 0) {
         (void)get_tasks_from_thread_linked_list(echion, tasks);
+    }
 
-        // Second, get tasks from interpreter's linked-list (lingering tasks)
+    // Second, get tasks from interpreter's linked-list (lingering tasks).
+    if (tstate != nullptr) {
         (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
     }
 
@@ -709,6 +714,84 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     }
 }
 
+namespace {
+
+bool
+contains_frame(const FrameStack& stack, Frame::Key cache_key)
+{
+    return std::any_of(stack.begin(), stack.end(), [&](const Frame& frame) { return frame.cache_key == cache_key; });
+}
+
+FrameStack
+merge_captured_stack_with_task_stack(const FrameStack& captured_stack, const FrameStack& task_stack)
+{
+    FrameStack merged;
+    size_t captured_prefix_size = captured_stack.size();
+
+    for (size_t i = 0; i < captured_stack.size(); i++) {
+        if (contains_frame(task_stack, captured_stack[i].cache_key)) {
+            captured_prefix_size = i;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < captured_prefix_size && merged.size() < max_frames; i++) {
+        merged.push_back(captured_stack[i]);
+    }
+    for (const auto& frame : task_stack) {
+        if (merged.size() >= max_frames) {
+            break;
+        }
+        merged.push_back(frame);
+    }
+
+    if (merged.empty()) {
+        return captured_stack;
+    }
+    return merged;
+}
+
+void
+mark_cpu_timer_task_stack(FrameStack& captured_stack, std::vector<std::unique_ptr<StackInfo>>& current_tasks)
+{
+    if (current_tasks.empty()) {
+        return;
+    }
+
+    size_t selected = 0;
+    bool found = false;
+    for (size_t i = 0; i < current_tasks.size(); i++) {
+        if (current_tasks[i]->on_cpu) {
+            selected = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        for (size_t i = 0; i < current_tasks.size(); i++) {
+            for (const auto& captured_frame : captured_stack) {
+                if (contains_frame(current_tasks[i]->stack, captured_frame.cache_key)) {
+                    selected = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                break;
+            }
+        }
+    }
+
+    current_tasks[selected]->on_cpu = true;
+    current_tasks[selected]->stack =
+      merge_captured_stack_with_task_stack(captured_stack, current_tasks[selected]->stack);
+    if (selected != 0) {
+        std::swap(current_tasks[0], current_tasks[selected]);
+    }
+}
+
+} // namespace
+
 // ----------------------------------------------------------------------------
 void
 ThreadInfo::render_unwound_stacks(EchionSampler& echion)
@@ -768,6 +851,38 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     }
 
     this->unwind(echion, tstate);
+    this->render_unwound_stacks(echion);
+
+    return Result<void>::ok();
+}
+
+Result<void>
+ThreadInfo::sample_cpu_timer(EchionSampler& echion,
+                             PyThreadState* tstate,
+                             FrameStack&& captured_stack,
+                             microsecond_t cpu_time_us)
+{
+    auto& renderer = echion.renderer();
+    renderer.render_cpu_sample_begin(name, cpu_time_us, thread_id, native_id);
+
+    current_tasks.clear();
+    current_greenlets.clear();
+    FrameStack timer_stack = captured_stack;
+    python_stack = std::move(captured_stack);
+
+    // AIDEV-NOTE: timer_create CPU samples are captured in a signal handler as
+    // raw physical frames only. Do async task and greenlet stitching here on the
+    // sampler thread, using the same ThreadInfo machinery as wall samples.
+    if (asyncio_loop) {
+        (void)unwind_tasks(echion, tstate);
+        // Task state is inspected on the sampler thread, potentially after the
+        // signal-captured code already yielded. Preserve the captured physical
+        // on-CPU frames and attach them to the matching logical task stack.
+        mark_cpu_timer_task_stack(timer_stack, current_tasks);
+    } else {
+        unwind_greenlets(echion, tstate, native_id);
+    }
+
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();

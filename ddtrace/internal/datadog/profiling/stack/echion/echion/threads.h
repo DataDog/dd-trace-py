@@ -61,6 +61,7 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t, bool include_cpu_time = true);
+    [[nodiscard]] Result<void> sample_cpu_timer(EchionSampler&, PyThreadState*, FrameStack&&, microsecond_t);
     void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------

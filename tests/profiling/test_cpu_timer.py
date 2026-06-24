@@ -56,6 +56,68 @@ def test_cpu_timer_profiler_emits_cpu_samples():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_task_stitching",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_profiler_stitches_asyncio_task_samples():
+    import asyncio
+    import os
+    import time
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def cpu_timer_async_busy_loop():
+        deadline = time.thread_time_ns() + 500_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    async def main():
+        task = asyncio.current_task()
+        assert task is not None
+        task.set_name("cpu-timer-async-main")
+
+        p = profiler.Profiler()
+        p.start()
+        await asyncio.sleep(0)
+        assert cpu_timer_async_busy_loop() > 0
+        p.stop()
+
+    asyncio.run(main())
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    stitched_cpu_samples = []
+    task_cpu_sample_functions = []
+    for sample in profile.sample:
+        if sample.value[cpu_time_index] <= 0:
+            continue
+        task_name_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        if task_name_label is None or profile.string_table[task_name_label.str] != "cpu-timer-async-main":
+            continue
+        function_names = set()
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_names.add(profile.string_table[function.name])
+        task_cpu_sample_functions.append(sorted(function_names))
+        if "cpu_timer_async_busy_loop" in function_names:
+            stitched_cpu_samples.append(sample)
+
+    assert stitched_cpu_samples, task_cpu_sample_functions[:20]
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_fault_guard",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
