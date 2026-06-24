@@ -70,6 +70,15 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     bint ddup_upload() nogil
 
+    void ddup_set_profiler_settings_json(string_view settings_json)
+
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bint referrers_enabled,
+                               int stability_threshold)
+    void ddup_stop_gc_monitor()
+
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
     void ddup_push_cputime(Sample *sample, int64_t cputime, int64_t count)
@@ -398,6 +407,28 @@ def config(
 
 def start() -> None:
     ddup_start()
+
+
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
+def start_gc_monitor(interval_ms: int,
+                     survivor_threshold: int,
+                     top_n: int,
+                     referrers_enabled: bool,
+                     stability_threshold: int) -> None:
+    ddup_start_gc_monitor(
+        clamp_to_uint64_unsigned(interval_ms),
+        survivor_threshold,
+        top_n,
+        referrers_enabled,
+        stability_threshold,
+    )
+
+
+def stop_gc_monitor() -> None:
+    ddup_stop_gc_monitor()
 
 
 def _get_endpoint(tracer)-> str:

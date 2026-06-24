@@ -331,6 +331,19 @@ class _ProfilerInstance(service.Service):
                 collectors.append(col)
         self._collectors = collectors
 
+        if profiling_config.gc.enabled:
+            try:
+                ddup.start_gc_monitor(
+                    interval_ms=profiling_config.gc.interval_s * 1000,
+                    survivor_threshold=profiling_config.gc.survivor_threshold,
+                    top_n=profiling_config.gc.top_n,
+                    referrers_enabled=profiling_config.gc.referrers_enabled,
+                    stability_threshold=profiling_config.gc.stability_threshold,
+                )
+                LOG.debug("GC monitor started (interval=%ds)", profiling_config.gc.interval_s)
+            except Exception:
+                LOG.error("Failed to start GC monitor", exc_info=True)
+
         if self._scheduler is not None:
             self._scheduler.start()
 
@@ -357,6 +370,14 @@ class _ProfilerInstance(service.Service):
             if flush:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
                 self._scheduler.flush()
+
+        # Signal the GC monitor to stop. This is a fire-and-forget stop -- no
+        # final snapshot is taken and we do not block waiting for the thread.
+        if profiling_config.gc.enabled:
+            try:
+                ddup.stop_gc_monitor()
+            except Exception:
+                LOG.debug("Exception while stopping GC monitor", exc_info=True)
 
         for col in reversed(self._collectors):
             try:

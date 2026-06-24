@@ -99,6 +99,16 @@ extern "C"
 
     void ddup_flush_sample(Datadog::Sample* sample);
     void ddup_drop_sample(Datadog::Sample* sample);
+
+    void ddup_set_profiler_settings_json(std::string_view settings_json);
+
+    // GC monitor controls
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bool referrers_enabled,
+                               int stability_threshold);
+    void ddup_stop_gc_monitor();
 #ifdef __cplusplus
 } // extern "C"
 #endif
