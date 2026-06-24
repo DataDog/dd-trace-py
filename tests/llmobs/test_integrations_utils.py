@@ -1,6 +1,7 @@
 import base64
 from types import SimpleNamespace
 
+from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
@@ -8,6 +9,9 @@ from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_mess
 from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_input_messages
 
 
 def test_format_audio_part_from_bytes():
@@ -55,6 +59,26 @@ def test_extract_content_parts_no_audio():
     )
     assert text == "hello\n[image]"
     assert audio_parts == []
+
+
+def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
+    """Regression: the streamed-output branch must use its own tool_results, not the input loop's.
+
+    ReAct content in a streamed output previously appended to the last input message's tool_results
+    list (the variable was discarded with ``_`` and a stale value leaked through), corrupting input.
+    """
+    react = "Action: search\nAction Input: weather\nObservation: {}"
+    kwargs = {"messages": [{"role": "user", "content": react.format("from-input")}]}
+    streamed_output = [{"role": "assistant", "content": react.format("from-output")}]
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")  # route input/output as messages, as the integration does
+        openai_set_meta_tags_from_chat(span, kwargs, streamed_output)
+        input_messages = get_llmobs_input_messages(span)
+
+    assert len(input_messages) == 1
+    tool_results = input_messages[0].get("tool_results", [])
+    assert len(tool_results) == 1
+    assert tool_results[0]["result"] == "from-input"
 
 
 def test_basic_functionality():

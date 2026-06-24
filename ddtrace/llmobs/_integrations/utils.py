@@ -448,7 +448,7 @@ def openai_set_meta_tags_from_chat(
 
             message = Message(content=content, role=role)
 
-            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+            extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
                 streamed_message, llm_span=span, dispatch_llm_choice=True
             )
             capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
