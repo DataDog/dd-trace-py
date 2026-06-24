@@ -63,12 +63,19 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_sample_type(unsigned int type)
 
     void ddup_start()
+    void ddup_set_profiler_settings_json(string_view settings_json)
     void ddup_set_runtime_id(string_view _id)
     void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
     void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     bint ddup_upload() nogil
+
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bint referrers_enabled)
+    void ddup_stop_gc_monitor()
 
     Sample *ddup_start_sample()
     void ddup_push_walltime(Sample *sample, int64_t walltime, int64_t count)
@@ -398,6 +405,26 @@ def config(
 
 def start() -> None:
     ddup_start()
+
+
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
+def start_gc_monitor(interval_ms: int,
+                     survivor_threshold: int,
+                     top_n: int,
+                     referrers_enabled: bool) -> None:
+    ddup_start_gc_monitor(
+        clamp_to_uint64_unsigned(interval_ms),
+        survivor_threshold,
+        top_n,
+        referrers_enabled,
+    )
+
+
+def stop_gc_monitor() -> None:
+    ddup_stop_gc_monitor()
 
 
 def _get_endpoint(tracer)-> str:
