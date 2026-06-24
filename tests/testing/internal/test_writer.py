@@ -942,7 +942,6 @@ class TestCircuitBreaker:
             assert result is True
 
 
-
 class TestOversizedEventWarning:
     """Regression test: a single event exceeding max_payload_size must log a warning."""
 
