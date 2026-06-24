@@ -2,10 +2,11 @@
 
 #include <cstdint>
 
+#include "python_headers.hpp"
+
 #include "echion/timing.h"
 
 class EchionSampler;
-typedef struct _ts PyThreadState;
 
 namespace Datadog {
 namespace CpuTimer {
