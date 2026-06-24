@@ -12,6 +12,7 @@ from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import block_request
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._asm_request_context import is_blocked
 from ddtrace.appsec._asm_request_context import set_block_request_callable
@@ -89,20 +90,21 @@ def _on_request_span_modifier(
                 environ["wsgi.input"] = io.BytesIO(body)
 
         try:
-            if content_type in ("application/json", "text/json"):
-                if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
-                    req_body = request.json
-                elif request.data is None or request.data == b"":
-                    req_body = None
+            with iast_disabled_taint_sources():
+                if content_type in ("application/json", "text/json"):
+                    if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
+                        req_body = request.json
+                    elif request.data is None or request.data == b"":
+                        req_body = None
+                    else:
+                        req_body = json.loads(request.data.decode("UTF-8"))
+                elif content_type in ("application/xml", "text/xml"):
+                    req_body = xmltodict.parse(request.get_data())
+                elif hasattr(request, "form"):
+                    req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}
                 else:
-                    req_body = json.loads(request.data.decode("UTF-8"))
-            elif content_type in ("application/xml", "text/xml"):
-                req_body = xmltodict.parse(request.get_data())
-            elif hasattr(request, "form"):
-                req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}
-            else:
-                # no raw body
-                req_body = None
+                    # no raw body
+                    req_body = None
         except Exception:
             logger.debug("Failed to parse request body", exc_info=True)
         finally:

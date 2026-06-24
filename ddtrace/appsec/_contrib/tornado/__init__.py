@@ -7,6 +7,7 @@ from ddtrace.appsec._asm_request_context import _use_html
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import get_headers
+from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._utils import Block_config
@@ -47,26 +48,26 @@ def tornado_call_waf_first(integration: str, handler: Any) -> None:
     if block := get_blocked():
         tornado_block(integration, handler, block)
         return
-    # adding body request support
-    handler.request._parse_body()
-    request_headers = get_headers() or {}
-    parsed_body = handler.request.body_arguments
-    if parsed_body:
-        parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
-    else:
-        _body: bytes = handler.request.body
-        try:
-            if "json" in request_headers.get("content-type", ""):
-                parsed_body = json.loads(_body)
-        except BaseException:
-            pass  # nosec
-        try:
-            if not parsed_body and "xml" in request_headers.get("content-type", ""):
-                import ddtrace.vendor.xmltodict as xmltodict
+    with iast_disabled_taint_sources():
+        handler.request._parse_body()
+        request_headers = get_headers() or {}
+        parsed_body = handler.request.body_arguments
+        if parsed_body:
+            parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
+        else:
+            _body: bytes = handler.request.body
+            try:
+                if "json" in request_headers.get("content-type", ""):
+                    parsed_body = json.loads(_body)
+            except BaseException:
+                pass  # nosec
+            try:
+                if not parsed_body and "xml" in request_headers.get("content-type", ""):
+                    import ddtrace.vendor.xmltodict as xmltodict
 
-                parsed_body = xmltodict.parse(_body)
-        except BaseException:
-            pass  # nosec
+                    parsed_body = xmltodict.parse(_body)
+            except BaseException:
+                pass  # nosec
     if parsed_body:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_BODY, parsed_body)
         call_waf_callback()
