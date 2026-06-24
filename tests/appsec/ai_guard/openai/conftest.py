@@ -6,10 +6,26 @@ import httpx
 import pytest
 
 from ddtrace.appsec._ai_guard import init_ai_guard
+from ddtrace.appsec._ai_guard._context import reset_aiguard_context_active
+from ddtrace.appsec._ai_guard._context import set_aiguard_context_active
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 from tests.utils import override_env
+
+
+@pytest.fixture
+def aiguard_active_context():
+    """Mark the current task as under active AI Guard evaluation for the test.
+
+    Always resets on teardown — even if the test raises — so subsequent tests
+    do not observe a leaked active counter.
+    """
+    token = set_aiguard_context_active()
+    try:
+        yield
+    finally:
+        reset_aiguard_context_active(token)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -47,6 +63,25 @@ def openai_sdk():
             yield openai
         finally:
             unpatch()
+
+
+@pytest.fixture
+def openai_sdk_buffered():
+    """Like ``openai_sdk`` but with stream-response evaluation enabled.
+
+    Enables ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` *before* calling
+    ``patch()`` so ``_install_openai_wrappers`` sees the flag as True and
+    actually installs the ``BufferedAIGuardStream`` wrappers.
+    """
+    with override_env(dict(OPENAI_API_KEY="<not-a-real-key>")):
+        with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+            patch()
+            import openai
+
+            try:
+                yield openai
+            finally:
+                unpatch()
 
 
 @pytest.fixture
@@ -128,6 +163,142 @@ def async_openai_client_stream(openai_sdk):
     return openai_sdk.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def openai_client_stream_buffered(openai_sdk_buffered):
+    return openai_sdk_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_StreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_client_stream_buffered(openai_sdk_buffered):
+    return openai_sdk_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Responses API streaming — mock httpx transport (SSE)
+#
+# The Responses API streams Server-Sent Events typed by a ``type`` field; the
+# terminal ``response.completed`` event carries the full ``response`` snapshot
+# with the generated ``output``. Mirrors the wire format from the contrib
+# cassette ``tests/contrib/openai/cassettes/v1/response_stream.yaml``.
+# ---------------------------------------------------------------------------
+
+
+def _fake_response_snapshot() -> dict:
+    return {
+        "id": "resp-test",
+        "object": "response",
+        "created_at": 0,
+        "model": "gpt-4o-mini",
+        "status": "completed",
+        "error": None,
+        "incomplete_details": None,
+        "instructions": None,
+        "max_output_tokens": None,
+        "output": [
+            {
+                "id": "msg-test",
+                "type": "message",
+                "status": "completed",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+            }
+        ],
+        "parallel_tool_calls": True,
+        "previous_response_id": None,
+        "temperature": 1.0,
+        "tool_choice": "auto",
+        "tools": [],
+        "top_p": 1.0,
+        "usage": None,
+        "user": None,
+        "metadata": {},
+    }
+
+
+def _sse(event: str, data: dict) -> bytes:
+    return ("event: " + event + "\ndata: " + json.dumps(data) + "\n\n").encode()
+
+
+def _fake_responses_stream_chunks() -> bytes:
+    msg_id = "msg-test"
+    events = [
+        _sse(
+            "response.output_text.delta",
+            {
+                "type": "response.output_text.delta",
+                "item_id": msg_id,
+                "output_index": 0,
+                "content_index": 0,
+                "delta": "ok",
+            },
+        ),
+        _sse(
+            "response.output_item.done",
+            {
+                "type": "response.output_item.done",
+                "output_index": 0,
+                "item": {
+                    "id": msg_id,
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "ok", "annotations": []}],
+                },
+            },
+        ),
+        _sse("response.completed", {"type": "response.completed", "response": _fake_response_snapshot()}),
+    ]
+    return b"".join(events)
+
+
+def _fake_responses_stream_response() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        stream=httpx.ByteStream(_fake_responses_stream_chunks()),
+    )
+
+
+class _ResponsesStreamMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_responses_stream_response()
+
+
+class _AsyncResponsesStreamMockTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_responses_stream_response()
+
+
+@pytest.fixture
+def openai_responses_stream_client(openai_sdk):
+    return openai_sdk.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def openai_responses_stream_client_buffered(openai_sdk_buffered):
+    return openai_sdk_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def async_openai_responses_stream_client_buffered(openai_sdk_buffered):
+    return openai_sdk_buffered.AsyncOpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.AsyncClient(transport=_AsyncResponsesStreamMockTransport()),
     )
 
 

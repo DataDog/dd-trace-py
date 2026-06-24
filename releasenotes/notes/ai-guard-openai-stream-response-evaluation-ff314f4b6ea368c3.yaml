@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    ai_guard: This introduces opt-in evaluation of streamed OpenAI responses.
+    When ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` is set to ``true`` (and
+    AI Guard is enabled), streamed responses from the OpenAI Chat Completions and
+    Responses APIs — including the ``with_raw_response`` helper — are buffered and
+    evaluated by AI Guard before any chunk is delivered to the caller. On a block
+    decision, ``AIGuardAbortError`` is raised and no chunks are delivered. The
+    flag is disabled by default, so existing streaming behavior is unchanged:
+    streamed chunks are forwarded live and only the request input is evaluated.
