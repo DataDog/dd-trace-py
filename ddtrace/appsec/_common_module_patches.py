@@ -381,7 +381,8 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
+    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
+    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
     if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:
