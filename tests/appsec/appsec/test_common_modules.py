@@ -134,30 +134,63 @@ def test_other_builtin_functions(builtin_function_name):
         try_unwrap("builtins", builtin_function_name)
 
 
-@pytest.mark.parametrize(
-    "args,kwargs,expected_url",
-    [
-        # urllib3 internal redirect handling re-invokes urlopen(method, url, body, ...) positionally:
-        # the redirected target URL must be captured from positional arg 1, not the body at arg 2.
-        (("GET", "http://attacker.example/redirected", b"the-body"), {}, "http://attacker.example/redirected"),
-        (("POST", "http://attacker.example/redirected"), {}, "http://attacker.example/redirected"),
-        # libraries such as requests call urlopen with keyword arguments only.
-        ((), {"method": "GET", "url": "http://attacker.example/kw", "body": b"the-body"}, "http://attacker.example/kw"),
-    ],
-)
-def test_wrapped_urllib3_urlopen_captures_redirect_url(args, kwargs, expected_url):
-    """Regression test for APPSEC-68569: the SSRF/API10 wrapper must store the request URL
-    (positional arg 1 or the ``url`` kwarg) in core, never the request body.
-    """
-    captured = {}
+def test_urllib3_poolmanager_redirect_inspects_absolute_target():
+    """Functional regression test for APPSEC-68569: drive a real urllib3 PoolManager redirect and
+    assert the URL handed to the downstream SSRF/API10 wrapper is the absolute redirected target.
 
-    def fake_urlopen(*a, **k):
-        captured["full_url"] = core.find_item("full_url")
-        return "response"
+    PoolManager calls ``HTTPConnectionPool.urlopen(method, request_uri, ...)`` with the *relative*
+    URI, so the buggy wrapper stored the body/``None`` (no host); the fix rebuilds the absolute URL.
+    """
+    urllib3 = pytest.importorskip("urllib3")
+    from http.server import BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer
+    import threading
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/source":
+                self.send_response(302)
+                self.send_header("Location", "/target")
+            else:
+                self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, *args, **kwargs):
+            pass  # silence test output
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    # Stand in for HTTPConnectionPool._make_request: record the inspected URL then release it,
+    # exactly as the real RASP wrapper does, so the set/discard flow across redirects is faithful.
+    inspected = []
+
+    def _make_request_recorder(func, instance, args, kwargs):
+        inspected.append(core.find_item("full_url"))
+        core.discard_item("full_url")
+        return func(*args, **kwargs)
 
     core.discard_item("full_url")
+    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
+    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request_recorder)
     try:
-        wrapped_urllib3_urlopen(fake_urlopen, None, args, kwargs)
-        assert captured["full_url"] == expected_url
+        pool_manager = urllib3.PoolManager(num_pools=1)
+        try:
+            response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port))
+            assert response.status == 200
+        finally:
+            pool_manager.clear()
     finally:
+        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
+        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
         core.discard_item("full_url")
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert inspected, "no downstream request was inspected"
+    # The redirected hop must be inspected as an absolute URL carrying the target host.
+    assert inspected[-1] == "http://127.0.0.1:{}/target".format(port), inspected
