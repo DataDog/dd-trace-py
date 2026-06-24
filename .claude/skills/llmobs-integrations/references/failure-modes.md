@@ -8,19 +8,19 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 
 **Symptoms:**
 - No LLMObs spans appear in Datadog
-- APM spans exist but have no LLMObs context items
+- APM spans exist but have no LLMObs fields
 - `llmobs_writer.enqueue()` never called
 
 **Causes:**
-1. `submit_to_llmobs=True` not passed to `integration.trace()` in patch code
-2. `integration.llmobs_set_tags()` not called (or not in the finally block)
+1. `submit_to_llmobs=True` not set on `LlmRequestEvent` for event-based patch code
+2. `ctx.dispatch_ended_event()` not called, so `LlmTracingSubscriber` never calls `integration.llmobs_set_tags()`
 3. Integration not instantiated -- `module._datadog_integration` is `None`
 4. `llmobs_enabled` returns `False` -- LLMObs not configured in tracer config
 
 **Fix:**
-- Verify `integration.trace(..., submit_to_llmobs=True)` in patch wrapper
-- Verify `integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=...)` is called in the **finally** block
-- Verify `patch()` stores integration: `module._datadog_integration = MyIntegration(tracer, config)`
+- Verify `LlmRequestEvent(..., submit_to_llmobs=True, llmobs_integration=integration, request_kwargs=kwargs, ...)` in event-based patch wrappers
+- Verify success and error paths call `ctx.dispatch_ended_event(...)`
+- Verify `patch()` stores integration: `module._datadog_integration = MyIntegration(integration_config=config.mylib)`
 - Check `DD_LLMOBS_ENABLED=1` is set
 
 ---
@@ -65,7 +65,7 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 **Fix:**
 - Check library docs/source for exact usage field names
 - Use `getattr(usage, "field_name", 0)` for attribute access
-- Include cache tokens: `total_input = input_tokens + cache_creation + cache_read`
+- Normalize input tokens to the total input tokens sent to the model. For Anthropic, use `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; for OpenAI, prompt/input tokens are already the combined input total and cached tokens appear separately in details.
 - For streaming: capture usage from the final event/chunk type
 - Map to standard keys: `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY`
 
@@ -103,13 +103,13 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 1. Not using `BaseStreamHandler` subclass -- raw iteration loses trace context
 2. Stream consumed in wrapper before returning to caller
 3. `span.finish()` called before stream is exhausted
-4. `finalize_stream()` doesn't call `integration.llmobs_set_tags()` or `span.finish()`
+4. `finalize_stream()` doesn't complete the span lifecycle: event-based integrations must dispatch the ended event; direct-trace integrations must call `integration.llmobs_set_tags()` and `span.finish()`
 5. Token usage not captured from final stream event
 
 **Fix:**
 - Subclass `StreamHandler` (sync) or `AsyncStreamHandler` (async)
 - Implement `process_chunk()` to accumulate data without consuming the stream
-- Implement `finalize_stream()` to: build response object, call `llmobs_set_tags()`, call `span.finish()`
+- Implement `finalize_stream()` to build the response object and complete the right lifecycle. For `LlmRequestEvent` integrations, set `ctx.event.response` and call `ctx.dispatch_ended_event(...)`; for direct-trace integrations, call `llmobs_set_tags()` and `span.finish()`.
 - Use `make_traced_stream(response, handler)` to wrap the response
 - In patch code: return the traced stream instead of the raw response
 - Capture usage from final chunk type (varies by library)
@@ -161,28 +161,31 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 
 ---
 
-## `vcr_not_working` -- VCR Cassettes Not Recording/Replaying
+## `test_transport_not_working` -- Cassettes, Proxy, or Mocks Not Replaying
 
-Tests use the [dd-apm-test-agent VCR feature](https://github.com/DataDog/dd-apm-test-agent#recording-3rd-party-api-requests) -- the client's base URL is pointed at `http://127.0.0.1:9126/vcr/{provider}` instead of the real API.
+LLMObs integration tests use multiple transport patterns: local vcrpy fixtures, the dd-apm-test-agent VCR proxy, and local mocked clients/streams. Follow the closest current integration.
 
 **Symptoms:**
 - Tests fail with network errors when cassettes should replay
 - Cassette files are empty or not created
 - Tests pass locally but fail in CI
 - `ConnectionError` or `APIError` during test execution
+- Mocked stream/client tests produce spans with empty messages or token metrics
 
 **Causes:**
-1. Client base URL not pointed at test agent VCR endpoint (`http://127.0.0.1:9126/vcr/{provider}`)
-2. APM test agent not running or not reachable
+1. vcrpy fixture does not match the real request path/body/headers
+2. Client base URL not pointed at test agent VCR endpoint when using the proxy pattern (`http://127.0.0.1:9126/vcr/{provider}`)
 3. Cassette recorded with different library version -- request format changed, matching fails
 4. `VCR_CI_MODE=true` in CI but cassette doesn't exist (returns 404)
 5. API key env var not set -- client validates key before sending even when VCR replays
-6. Custom provider not registered in `VCR_PROVIDER_MAP`
+6. Custom provider not registered in `VCR_PROVIDER_MAP` for proxy tests
+7. Mock object shape no longer matches the SDK's real response/stream events
 
 **Fix:**
-- Verify client uses `base_url="http://127.0.0.1:9126/vcr/{provider}"` in tests
-- Ensure test agent is running (`docker run ... ddapm-test-agent`)
-- Re-record cassettes when upgrading library version (unset `VCR_CI_MODE`, set real API key, run tests)
+- For vcrpy fixture tests, verify cassette directory, `match_on`, and auth-header filtering match the reference integration
+- For test-agent proxy tests, verify client uses `base_url="http://127.0.0.1:9126/vcr/{provider}"` and the test agent is reachable
+- Re-record cassettes when upgrading library version or changing request shape
 - Set placeholder API key env vars: `ANTHROPIC_API_KEY=test-key`
 - For custom providers, set `VCR_PROVIDER_MAP="myprovider=http://api.example.com/"`
-- Ensure cassette files are committed to the repository
+- For mocked client/stream tests, update mocks from the latest SDK object shape and keep assertions focused on LLMObs span data
+- Ensure cassette files are committed to the repository when the chosen pattern uses cassettes

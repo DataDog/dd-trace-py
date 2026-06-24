@@ -8,20 +8,18 @@ Each step points to a real file -- read it, don't guess the pattern.
 Create `ddtrace/contrib/internal/{name}/__init__.py` with RST docstrings
 and exports. See `ddtrace/contrib/internal/anthropic/__init__.py` for format.
 
-Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_supported_versions()`,
-`patch()`, and `unpatch()`. Choose the right pattern from the Architecture section in the main skill:
-- **Events API (NEW — preferred for new standard integrations)**: Use `context_with_event()` + `TracingEvent` subclasses + `TracingSubscriber`. Concrete examples:
+Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_supported_versions`,
+`patch()`, and `unpatch()`. Choose the right pattern:
+- **Events API (NEW — preferred for new standard integrations)**: Use `context_with_event()` + `TracingEvent` subclasses + `TracingSubscriber`. Read concrete examples first:
   - `ddtrace/contrib/internal/httpx/patch.py` — sync and async HTTP with `context_with_event()`
   - `ddtrace/contrib/internal/aiohttp/patch.py` — async HTTP client with `context_with_event()`
-  - Infrastructure reference:
-    - `ddtrace/_trace/events.py` — `TracingEvent` base class (subclass this per-event)
-    - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
-    - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
-    - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
-- **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py`. Use this when extending or mirroring an existing `context_with_data` integration.
-- **Bytecode wrapping** (`ddtrace.internal.wrapping.wrap/unwrap`): Lower overhead than wrapt; used by aws_lambda, asyncio, graphql. Preferred for performance-sensitive paths.
+  - `ddtrace/_trace/events.py` — `TracingEvent` base class (subclass this per-event)
+  - `ddtrace/_trace/subscribers/_base.py` — `TracingSubscriber` base class (handles span creation)
+  - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
+  - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
+- **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py` or another existing `context_with_data` integration. Use this when extending or mirroring an existing `context_with_data` integration.
 - **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.
-- **LLM**: Use `BaseLLMIntegration.trace()` with the **LLM events system** (`LlmRequestEvent` from `ddtrace.contrib._events.llm`). Read `ddtrace/contrib/internal/anthropic/patch.py` for the current events-based pattern.
+- **LLM/AI integrations**: Use this guide for contrib package layout, registration, config, and APM tests. Use the `llmobs-integrations` skill for LLM-specific patch patterns, span lifecycle, `BaseLLMIntegration`, stream handling, extraction, and LLMObs tests.
 
 ### Type Annotations
 
@@ -33,7 +31,7 @@ from typing import Any, Callable, Optional
 def get_version() -> str:
     ...
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> str:
     ...
 
 def patch() -> None:
@@ -55,7 +53,7 @@ def traced_request(
 ## 2. Register the integration
 
 Add to `ddtrace/_monkey.py` `PATCH_MODULES` dict in alphabetical order.
-If the module name we patched is different than the contrib name, e.g. we patched `snowflake.core`, but the main package is `snowflake`, add it to `_MODULES_FOR_CONTRIB` as well.
+If the module name we patched is different than the contrib name, e.g. we patched `snowflake.core`, but the main package is `snowflake`, add it to `MODULES_FOR_CONTRIB` as well.
 Add to `scripts/integration_registry/registry.yaml` with dependency
 names and tested version range.
 Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
@@ -82,7 +80,7 @@ Venv(
     command="pytest {cmdargs} tests/contrib/{name}",
     pkgs={
         "pytest-asyncio": latest,  # if async support
-        "vcrpy": latest,           # REQUIRED for LLM integrations
+        "vcrpy": latest,           # if the suite uses vcrpy cassettes; match nearby pins
     },
     venvs=[
         # Pin oldest supported version
@@ -102,7 +100,7 @@ Venv(
 Key rules:
 - `name` must match the integration name used in `PATCH_MODULES`
 - `command` points to the test directory
-- Add `"vcrpy": latest` to top-level `pkgs` for LLM integrations
+- Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
 - Use `select_pys()` for Python version ranges
 - Pin oldest supported + latest in separate nested `Venv()` entries
 - Check neighboring entries in the file for consistent formatting
@@ -125,7 +123,7 @@ Create `tests/contrib/{name}/` with:
 | `test_{name}.py` | APM span assertions | Prefer `@pytest.mark.snapshot` |
 | `test_{name}_llmobs.py` | LLMObs (LLM only) | `tests/contrib/anthropic/test_anthropic_llmobs.py` |
 
-LLMObs tests MUST use `_expected_llmobs_llm_span_event` from `tests/llmobs/_utils.py`.
+LLMObs tests should use `assert_llmobs_span_data()` from `tests/llmobs/_utils.py` with `_get_llmobs_data_metastruct(span)` from `ddtrace.llmobs._utils`.
 See the **llmobs-integrations** skill's Testing Guide for VCR cassette setup and assertion patterns.
 
 ## 6. Add documentation (non-LLM only)
@@ -138,11 +136,17 @@ Use the **releasenote** skill.
 
 ## Verification
 
-Use the **run-tests** skill to run tests. Use the **lint** skill for formatting, type checks, and linting. Never invoke `pytest`, `riot`, `ruff`, or `scripts/ddtest` directly.
+Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest`, `riot`, or `scripts/ddtest` directly.
+
+## Recent PRs as Examples
+
+- vLLM (#14732) -- LLM integration
+- Azure EventHubs (#14636) -- message queue
+- httpx revamp (#15522) -- HTTP client
 
 ## Complete Checklist
 
-Every new integration must complete ALL items that apply to its type (standard vs LLM):
+Every new integration must complete ALL applicable items:
 
 ### Registration
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
@@ -152,26 +156,26 @@ Every new integration must complete ALL items that apply to its type (standard v
 
 ### Patch Code
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` -- `patch()`, `unpatch()`, `get_version()`
-- [ ] Patch code uses `integration.trace()` — **no direct `tracer.trace()` or `span` creation**
+- [ ] Standard patch code uses `<Type>Event` + `core.context_with_event()`; specialized direct child spans follow the closest current reference
 - [ ] Prefer class-based events API (`TracingEvent` + `TracingSubscriber`) for new standard integrations
-- [ ] LLM integrations use **LLM events system** (`LLMEvent` subclasses) — see anthropic for the pattern
+- [ ] LLM integrations follow the `llmobs-integrations` skill for request span lifecycle and LLMObs extraction
 
 ### Integration Layer
 - [ ] `ddtrace/llmobs/_integrations/{name}.py` -- `BaseLLMIntegration` subclass (LLM only)
 - [ ] `_set_base_span_tags()` implemented
-- [ ] `_llmobs_set_tags()` implemented with all context items (LLM only)
+- [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
 - [ ] `riotfile.py` -- `Venv()` entry with pinned + latest package versions
 - [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
-- [ ] Compile and prune test requirements -- run `riot -v generate` to regenerate `.riot/requirements/`
+- [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
 
 ### Tests
 - [ ] `tests/contrib/{name}/test_{name}_patch.py` -- patch/unpatch cycle tests
 - [ ] `tests/contrib/{name}/test_{name}.py` -- APM span snapshot tests
 - [ ] `tests/contrib/{name}/test_{name}_llmobs.py` -- LLMObs assertion tests (LLM only)
 - [ ] Tests use `@pytest.mark.snapshot` for APM assertions where possible
-- [ ] LLMObs tests use `_expected_llmobs_llm_span_event` from `tests/llmobs/_utils.py`
+- [ ] LLMObs tests use `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
 
 ### Type Annotations
 - [ ] All function signatures have type annotations (parameters + return type)
@@ -179,7 +183,7 @@ Every new integration must complete ALL items that apply to its type (standard v
 - [ ] `Optional[X]` used for nullable parameters and return values
 - [ ] Wrapper functions use typed wrapt signature (`Callable[..., Any]`, `tuple[Any, ...]`, etc.)
 - [ ] No unjustified `# type: ignore` comments
-- [ ] `hatch run lint:typing -- <files>` passes with no errors
+- [ ] **lint** skill typing check (`scripts/lint typing`) passes with no errors
 
 ### Documentation
 - [ ] `docs/integrations.rst` -- automodule entry in alphabetical order (non-LLM only)

@@ -13,17 +13,21 @@ description: |
 
 # dd-trace-py LLMObs Integrations
 
-LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, token usage, and tool calls from traced spans. Use this skill when
-working with AI/LLM libraries, in addition to `apm-integrations` skill.
+LLMObs integrations enable Datadog LLM Observability for AI/LLM libraries. They extract model inputs, outputs, token usage, and tool calls from traced spans. This skill should be used in addition to the `apm-integrations` skill.
 
 ## Two-Layer Architecture
 
 LLMObs integrations consist of two cooperating layers:
 
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions, creates spans via `integration.trace(submit_to_llmobs=True)`, and calls `integration.llmobs_set_tags()` in the finally block.
-2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set LLMObs-specific metadata.
+1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions. Standard request/response LLM integrations construct `LlmRequestEvent` and use `core.context_with_event()` so the LLM tracing subscriber owns span lifecycle and LLMObs tag extraction.
+2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()` to extract and set provider-specific messages, tools, metadata, and token metrics.
 
-Both layers must work together. The patch layer controls instrumentation lifecycle; the integration layer controls what data is extracted.
+Both layers must work together. The patch layer identifies the operation and passes request/response data through the event; the integration layer controls what data is extracted.
+
+## Active Patch Patterns
+
+- **Event-based request spans**: Use `LlmRequestEvent` with `core.context_with_event()` for new standard request/response LLM integrations. Anthropic is the canonical reference. This is the preferred pattern.
+- **Direct integration spans**: Some existing or specialized integrations still call `integration.trace()` and `integration.llmobs_set_tags()` directly, especially for child spans, agent/tool spans, or integrations not yet migrated. Google GenAI, OpenAI tool spans, and Claude Agent SDK are useful references.
 
 ## Key Files
 
@@ -32,8 +36,9 @@ Both layers must work together. The patch layer controls instrumentation lifecyc
 | Base LLM integration class | `ddtrace/llmobs/_integrations/base.py` (`BaseLLMIntegration`) |
 | Stream handler base classes | `ddtrace/llmobs/_integrations/base_stream_handler.py` (`BaseStreamHandler`, `StreamHandler`, `AsyncStreamHandler`) |
 | Shared utilities | `ddtrace/llmobs/_integrations/utils.py` |
+| LLMObs annotation helper | `ddtrace/llmobs/_utils.py` (`_annotate_llmobs_span_data`) |
 | LLMObs constants | `ddtrace/llmobs/_constants.py` |
-| LLMObs types | `ddtrace/llmobs/types.py` (`Message`, `ToolCall`, `ToolResult`, `ToolDefinition`) |
+| LLMObs types | `ddtrace/llmobs/types.py` (`Message`, `AudioPart`, `ToolCall`, `ToolResult`, `ToolDefinition`) |
 | Integration registry | `ddtrace/llmobs/_integrations/__init__.py` |
 
 ## Reference Integrations
@@ -57,37 +62,42 @@ Subclass `BaseLLMIntegration` and implement:
 Set provider-specific APM tags on the span (e.g., `{name}.request.model`).
 
 ### `_llmobs_set_tags(span, args, kwargs, response, operation)`
-Extract and set all LLMObs context items on the span:
+Extract and annotate all LLMObs fields on the span:
 
-| Context Item | Description |
+| Field | Description |
 |-------------|-------------|
-| `SPAN_KIND` | `"llm"` for LLM calls, `"agent"` for agent calls, `"tool"` for tool calls |
-| `MODEL_NAME` | Model identifier (e.g., `"claude-3-sonnet-20240229"`) |
-| `MODEL_PROVIDER` | Provider name (e.g., `"anthropic"`, `"openai"`) |
-| `INPUT_MESSAGES` | List of `Message` objects from request |
-| `OUTPUT_MESSAGES` | List of `Message` objects from response |
-| `METADATA` | Dict of request parameters (temperature, top_p, etc.) |
-| `METRICS` | Token usage dict with `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY` |
-| `TOOL_DEFINITIONS` | List of `ToolDefinition` objects if tools are passed |
+| `kind` | `"llm"` for LLM calls, `"agent"` for agent calls, `"tool"` for tool calls |
+| `model_name` | Model identifier (e.g., `"claude-3-sonnet-20240229"`) |
+| `model_provider` | Provider name (e.g., `"anthropic"`, `"openai"`) |
+| `input_messages` | List of `Message` objects from request |
+| `output_messages` | List of `Message` objects from response |
+| `metadata` | Dict of sanitized request parameters (temperature, top_p, etc.) |
+| `metrics` | Token usage dict with `INPUT_TOKENS_METRIC_KEY`, `OUTPUT_TOKENS_METRIC_KEY`, `TOTAL_TOKENS_METRIC_KEY` |
+| `tool_definitions` | List of `ToolDefinition` objects if tools are passed |
 
-Context items are set via `span._set_ctx_items({...})`.
+Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set_ctx_items(...)`.
 
 ## Key Constraints
 
-- **`submit_to_llmobs=True`** must be passed to `integration.trace()` in the patch layer
-- **`integration.llmobs_set_tags()`** must be called in the **finally** block (not try or except)
+- **`submit_to_llmobs=True`** must be set on `LlmRequestEvent` for event-based request spans or passed to `integration.trace()` for direct LLMObs spans
+- **`ctx.dispatch_ended_event()`** must run on success and error paths for event-based patch wrappers
 - **Streaming** must use `BaseStreamHandler`/`AsyncStreamHandler` -- never consume streams directly
-- **Error handling** uses `span.set_exc_info()` in the except block, before the finally block
+- **Event-based patch wrappers** should not call `span.set_exc_info()`, `span.finish()`, or `integration.llmobs_set_tags()` directly; the tracing subscriber handles that when the event ends
+- **Direct integration spans** must keep `integration.llmobs_set_tags()` and span lifecycle handling aligned with the closest current reference
 - **Integration instance** must be stored on the module: `module._datadog_integration = MyLibIntegration(integration_config=config.mylib)`
 
 ## Message Types
 
 ```python
-from ddtrace.llmobs.types import Message, ToolCall, ToolResult, ToolDefinition
+from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolResult, ToolDefinition
 
 # Input/output messages
 Message(content="text", role="user")
 Message(content="response", role="assistant", tool_calls=[...])
+
+# Audio attachments in multimodal messages
+AudioPart(mime_type="audio/wav", content="<base64-audio>")
+Message(content="", role="user", audio_parts=[...])
 
 # Tool calls (in output messages)
 ToolCall(name="get_weather", arguments={"city": "NYC"}, tool_id="toolu_123", type="tool")
@@ -101,10 +111,10 @@ ToolDefinition(name="get_weather", description="...", schema={...})
 
 ## Debugging Quick Tips
 
-- **No LLMObs spans** -- check `submit_to_llmobs=True` and `llmobs_set_tags()` in finally block
+- **No LLMObs spans** -- check `submit_to_llmobs=True`, `ctx.dispatch_ended_event()`, and `llmobs_enabled`
 - **Wrong messages** -- check message extraction handles multi-part content and tool blocks
 - **Wrong tokens** -- check field name mapping (libraries use different names for token counts)
-- **Streaming broken** -- verify `BaseStreamHandler` subclass, check `finalize_stream()` calls `span.finish()`
+- **Streaming broken** -- verify `BaseStreamHandler` subclass, check `finalize_stream()` dispatches the ended event or finishes direct-trace spans according to the reference pattern
 - **DD_TRACE_DEBUG=true** to see patching activity and span creation
 
 See [Failure Modes](references/failure-modes.md) for detailed debugging guide.

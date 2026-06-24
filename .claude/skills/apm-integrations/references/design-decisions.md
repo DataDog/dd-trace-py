@@ -31,8 +31,9 @@ read `ddtrace/contrib/internal/anthropic/__init__.py` for an example.
 **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations):
 Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
 subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py`
-and `ddtrace/_trace/subscribers/`. No contrib integrations use this yet, but new
-ones should adopt it. See `ddtrace/internal/core/__init__.py`.
+and `ddtrace/_trace/subscribers/`. Read concrete contrib examples such as
+`ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`.
+See `ddtrace/internal/core/__init__.py` for the API.
 
 **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
@@ -46,8 +47,9 @@ spans directly. Still used by redis, kafka, grpc, graphql, requests, celery, etc
 
 ## LLM Integration Pattern
 
-See the `llmobs-integrations` skill for LLM/AI integration architecture. LLM integrations
-layer on top of APM integrations using `BaseLLMIntegration` -- use both skills together.
+See the `llmobs-integrations` skill for LLM/AI integration architecture. This
+APM guide covers the shared patch module, registration, and APM testing
+workflow; LLMObs lifecycle and extraction details belong in that skill.
 
 ## Key Files
 

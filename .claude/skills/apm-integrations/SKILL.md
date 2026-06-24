@@ -3,44 +3,43 @@ name: apm-integrations
 description: |
   dd-trace-py integration development guide. Use when creating, modifying, or
   debugging contrib integrations in the Python tracer. Covers the patch module
-  system, context_with_data, context_with_event (new), BaseLLMIntegration,
-  LLMObs integration layer, streaming, message extraction, testing with riot,
-  VCR cassettes, and common anti-patterns.
+  system, context_with_data, context_with_event (new), registration, testing
+  with riot, and common anti-patterns. LLM/AI integrations should use this
+  skill for APM-side workflow only; use llmobs-integrations for LLMObs-specific
+  lifecycle, extraction, streaming, and VCR guidance. Pin is DEPRECATED.
   Triggers: "dd-trace-py", "ddtrace", "contrib", "integration", "patch.py",
   "trace_handlers", "PATCH_MODULES", "context_with_data", "context_with_event",
-  "TracingEvent", "BaseLLMIntegration", "llmobs_set_tags",
-  "_llmobs_set_tags", "BaseStreamHandler", "submit_to_llmobs", "LLM span",
-  "VCR", "cassette", "anthropic", "openai", "google_genai", "claude_agent_sdk",
-  "generative-ai", "LLM integration", "llmobs_enabled", "llmobs", "LLMObs",
+  "TracingEvent", "VCR", "cassette", "generative-ai", "LLM integration",
   "riot", "riotfile", "suitespec", "new integration", "wrap", "unwrap".
 ---
 
 # dd-trace-py APM Integrations
 
-dd-trace-py provides automatic tracing for 90+ third-party libraries. Each integration uses monkey-patching to intercept library calls and create spans. Most use `wrapt.wrap_function_wrapper`; some use bytecode-level wrapping (`ddtrace/internal/wrapping/`).
+dd-trace-py provides automatic tracing for 90+ third-party libraries. Each integration uses monkey-patching via `wrapt` to intercept library calls and create spans.
 
 ## Architecture
 
 ```
 Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
-  Wraps library methods, creates events.
+  Wraps library methods, creates events or spans through the integration's current pattern
 ```
 
 **Standard integrations** use one of these patterns:
-- **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers emit events via `core.context_with_data()`, listeners in `trace_handlers.py` create spans (e.g., botocore, flask, httpx, django). We are trying to move away from this pattern in favor of the below.
-- **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations): Typed event-driven pattern using `core.context_with_event()` with `TracingEvent` subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py` and `ddtrace/_trace/subscribers/`. No contrib integrations use this yet, but new ones should adopt it.
-- **`Pin` + `tracer.trace()`** (DEPRECATED — do not use in new integrations): Many existing integrations use `Pin.get_from()` + `tracer.trace()` (e.g., kafka, celery, graphql). Do NOT use Pin in new code.
+- **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers emit events via `core.context_with_data()`, listeners in `trace_handlers.py` create spans (e.g., botocore, flask, django).
+- **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations): Typed event-driven pattern using `core.context_with_event()` with `TracingEvent` subclasses and `TracingSubscriber`. Read concrete examples such as `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`, plus infrastructure in `ddtrace/_trace/events.py` and `ddtrace/_trace/subscribers/`.
+- **`Pin` + `tracer.trace()`** (DEPRECATED — do not use in new integrations): Many existing integrations use `Pin.get_from()` + `tracer.trace()` (e.g., redis, kafka, grpc). Do NOT use Pin in new code.
 
-**LLM integrations** use `BaseLLMIntegration.trace()` and have a two-layer architecture (see LLM section below).
+**LLM integrations** still use the APM integration workflow for contrib module layout, patch registration, and APM span tests, but LLMObs-specific span lifecycle and extraction belong in the `llmobs-integrations` skill.
 
 ## Key Concepts
 
 - **`_datadog_patch` guard** -- prevents double-patching on repeated `patch()` calls
+- **Pin is DEPRECATED** -- many existing integrations still use `Pin.get_from()` and `Pin().onto()`, but do NOT use Pin in new integrations. Prefer `context_with_event` (new) or `context_with_data` (existing)
 - **`config._add()`** -- registers integration config at module level, before `patch()` runs
 - **`get_version()` / `_supported_versions()`** -- required exports for version detection
 - **`PATCH_MODULES`** -- registration dict in `ddtrace/_monkey.py` for `patch_all()` discovery
 - **`INTEGRATION_CONFIGS`** -- frozenset in `ddtrace/internal/settings/_config.py`, required for config to work
-- **`registry.yaml`** -- dependency names and tested version range in `ddtrace/contrib/integration_registry/`
+- **`registry.yaml`** -- dependency names and tested version range in `scripts/integration_registry/registry.yaml`
 
 ## Type Annotations
 
@@ -58,22 +57,24 @@ dd-trace-py uses mypy for type checking. All new integration code must pass the 
 
 ## Reference Integrations
 
-**Read 1-2 references of the same type before writing or modifying code.**
+**Always read 1-2 references of the same type before writing or modifying code.**
 
-**Read 1-2 references of the same type before writing or modifying code** (skip if it's a genuinely novel category with no comparable integration). See [Reference Integrations](references/reference-integrations.md) for all 13 categories with canonical examples, secondary references, and pattern notes.
-
+All patch modules live in `ddtrace/contrib/internal/{name}/`. See
+[Reference Integrations](references/reference-integrations.md) for canonical
+examples, secondary references, and pattern notes.
 
 ---
 
 ## LLM Integrations (LLMObs)
 
-LLM integrations have a two-layer architecture:
-1. **Patch Layer** (`ddtrace/contrib/internal/{name}/patch.py`) -- wraps library functions, creates spans using the LLM events system (`LLMEvent` subclasses). Read `ddtrace/contrib/internal/anthropic/patch.py` for the canonical pattern.
-2. **Integration Layer** (`ddtrace/llmobs/_integrations/{name}.py`) -- extends `BaseLLMIntegration`, implements `_set_base_span_tags()` and `_llmobs_set_tags()`.
+Use this APM skill for the shared integration work: contrib package layout,
+`patch()` / `unpatch()`, registration in `PATCH_MODULES`,
+`scripts/integration_registry/registry.yaml`, config registration, APM span
+tests, suitespec plumbing, and release-note/documentation expectations.
 
-For the full LLM guide — `BaseLLMIntegration`, stream handling, message extraction, token counting, and VCR testing — see the **llmobs-integrations** skill.
-
-See the **llmobs-integrations** skill for reference integrations and full implementation details.
+Use the **llmobs-integrations** skill for LLM-specific patch patterns,
+`LlmRequestEvent`, stream handlers, message/tool/token extraction, metadata
+sanitization, LLMObs assertions, and VCR cassette setup.
 
 ---
 
@@ -81,7 +82,7 @@ See the **llmobs-integrations** skill for reference integrations and full implem
 
 1. **Investigate** -- Read 1-2 reference integrations of the same type (see tables above)
 2. **Create patch module** -- `ddtrace/contrib/internal/{name}/patch.py` with `patch()`, `unpatch()`, `get_version()`
-3. **Register** -- Add to `PATCH_MODULES`, `registry.yaml`, and `INTEGRATION_CONFIGS`
+3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`
 4. **LLM only: Create integration class** -- Subclass `BaseLLMIntegration` in `ddtrace/llmobs/_integrations/`. See the **llmobs-integrations** skill's [Implementation Guide](../llmobs-integrations/references/implementation-guide.md) for full patterns.
 5. **Write tests** -- Add `Venv()` to `riotfile.py`, entries to suitespec, test files
 6. **Run tests** -- Use the **run-tests** skill
@@ -98,7 +99,7 @@ See [Implementation Guide](references/implementation-guide.md) for detailed step
 
 ### Native Extension Build Issues
 
-If `pip install -e .` fails with Rust compilation errors, `target3.1*` path errors, or stale cached artifacts causing builds to break, refer to 
+If `pip install -e .` fails with Rust compilation errors, `target3.1*` path errors, or stale cached artifacts causing builds to break, refer to
 [Troubleshooting](../../../docs/troubleshooting.rst)
 
 This clears the Rust target directory and pip's download/build caches. Run this before retrying any `pip install` that fails with native extension errors.
