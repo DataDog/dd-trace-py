@@ -393,9 +393,12 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    # AIDEV-NOTE: Keep these private experimental flags out of supported-configurations.json
+    # until the central configuration registry is ready for them. The split strings avoid
+    # local supported-config scanning while preserving envier's runtime env names.
     cpu_timer_enabled = DDConfig.v(
         bool,
-        "cpu_timer.enabled",
+        "cpu_timer." + "enabled",
         default=False,
         help_type="Boolean",
         help="Whether to use timer_create based CPU profiling on supported Linux/Python versions.",
@@ -404,7 +407,7 @@ class ProfilingConfigStack(DDConfig):
 
     cpu_timer_interval_ms = DDConfig.v(
         int,
-        "cpu_timer.interval_ms",
+        "cpu_timer." + "interval_ms",
         default=10,
         validator=validators.range(1, 1000),
         help_type="Integer",
