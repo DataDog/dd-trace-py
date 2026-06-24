@@ -66,6 +66,8 @@ from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_covera
 from ddtrace.internal.ci_visibility.utils import take_over_logger_stream_handler
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.installer import install as install_coverage
+from ddtrace.internal.coverage.instrumentation import register_coverage
+from ddtrace.internal.coverage.instrumentation import unregister_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -314,7 +316,13 @@ def pytest_load_initial_conftests(early_config, parser, args):
     properly. Setting the hook with `tryfirst=True` and `hookwrapper=True` achieves that.
     """
     _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
+    # Release COVERAGE_ID before yield so that any coverage tool
+    # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
+    # After yield, reclaim if we held it.
+    was_registered = unregister_coverage()
     yield
+    if was_registered:
+        register_coverage()
 
 
 def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):

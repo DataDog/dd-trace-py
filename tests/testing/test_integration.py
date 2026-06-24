@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from unittest.mock import Mock
 from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
+import pytest
 
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -491,6 +493,10 @@ class TestPytestPluginIntegration:
         result.assert_outcomes(passed=2)
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 15),
+    reason="IAST taint-tracking native extension not built for Python 3.15+ (setup.py, tracked in IAST 3.15 issue)",
+)
 class TestIASTTerminalSummary:
     def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that IAST terminal summary is present when IAST is enabled."""

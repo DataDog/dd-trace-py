@@ -18,6 +18,8 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.coverage.instrumentation import register_coverage
+from ddtrace.internal.coverage.instrumentation import unregister_coverage
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -1198,8 +1200,21 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
+    _pytest_load_initial_conftests_pre_yield(early_config, parser, args)
+    # Release COVERAGE_ID before yield so that any coverage tool
+    # (pytest-cov, coverage.py, etc.) can claim it in its own hook.
+    # After yield, reclaim if we held it — register_coverage() re-enables
+    # set_local_events() for all previously-instrumented code objects.
+    was_registered = unregister_coverage()
+    yield
+    if was_registered:
+        register_coverage()
+
+
+def _pytest_load_initial_conftests_pre_yield(
+    early_config: pytest.Config, parser: pytest.Parser, args: list[str]
+) -> None:
     if not _is_enabled_early(early_config, args):
-        yield
         return
 
     setup_logging()
@@ -1215,7 +1230,6 @@ def pytest_load_initial_conftests(
         session_manager = SessionManager(session=session)
     except SetupError as e:
         log.error("%s", e)
-        yield
         return
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
@@ -1227,10 +1241,7 @@ def pytest_load_initial_conftests(
     # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
     # when we know if pytest-cov is available.
     if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
-
-    yield
 
 
 def setup_coverage_collection() -> None:

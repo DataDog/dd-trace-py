@@ -91,6 +91,21 @@ def _ensure_registered() -> bool:
     return True
 
 
+def register_coverage() -> bool:
+    """Register ddtrace coverage tools (wrapper around _ensure_registered)."""
+    return _ensure_registered()
+
+
+def unregister_coverage() -> bool:
+    """Unregister ddtrace coverage tools if currently registered."""
+    global _DD_TOOL_ID
+    if _DD_TOOL_ID is not None and sys.monitoring.get_tool(_DD_TOOL_ID) == "datadog":
+        sys.monitoring.free_tool_id(_DD_TOOL_ID)
+        _DD_TOOL_ID = None
+        return True
+    return False
+
+
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
