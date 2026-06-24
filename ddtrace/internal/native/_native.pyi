@@ -1,3 +1,4 @@
+import contextvars
 from enum import Enum
 from typing import Any
 from typing import Iterator
@@ -765,3 +766,5 @@ class config:
     def set_raise(val: bool) -> None:
         """Set whether errors in event listeners should be re-raised (DD_TESTING_RAISE)."""
         ...
+
+def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...
