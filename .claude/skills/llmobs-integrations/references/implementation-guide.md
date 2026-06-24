@@ -29,7 +29,6 @@ Before writing anything, read the existing implementation that most closely matc
 | Standard LLM (chat completion) | `anthropic.py` | Library generates text responses from messages |
 | Agent runs + tool child spans | `claude_agent_sdk.py` | Library manages an agentic loop with tool calls |
 | Embeddings | `openai.py` | Library generates vector embeddings |
-| Tool execution spans | `openai.py` | OpenAI Responses API MCP calls create separate child spans with `kind="tool"`; see `_ResponseHook._create_mcp_tool_span()` and `tests/contrib/openai/test_openai_llmobs.py` |
 
 Create `ddtrace/llmobs/_integrations/{name}.py`:
 
