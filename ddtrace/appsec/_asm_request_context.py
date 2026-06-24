@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+import contextlib
 import json
 import re
 from types import TracebackType
@@ -791,3 +792,11 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
 def asm_listen() -> None:
     core.on("asm.set_blocked", set_blocked_dict)
     core.on("asm.get_blocked", get_blocked, "block_config")
+
+
+def iast_disabled_taint_sources() -> "contextlib.AbstractContextManager[None]":
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
+
+        return iast_suppress_context()
+    return contextlib.nullcontext()

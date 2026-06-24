@@ -77,7 +77,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
 
         output_messages: list[Message] = [Message(content="")]
-        if not span.error and response is not None:
+        # Record output whenever a response exists, independent of span.error: a
+        # genuine model error leaves no response, while an AI Guard block after
+        # the model call errors the span but keeps a valid response (APPSEC-68147).
+        if response is not None:
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 

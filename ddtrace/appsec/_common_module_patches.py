@@ -435,7 +435,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     return original_request_callable(*args, **kwargs)
 
 
-def wrapped_system_5542593D237084A7(command: str) -> None:
+def wrapped_system_5542593D237084A7(command: Union[str, bytes]) -> None:
     """
     wrapper for os.system function
     """
@@ -461,7 +461,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
-def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[list[str], str, bytes]) -> None:
     """
     listener for subprocess.Popen class
     """
@@ -474,8 +474,13 @@ def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
             return
 
         if in_asm_context():
+            command: list[Union[str, bytes]] = []
+            if isinstance(arg_list, list):
+                command.extend(arg_list)
+            else:
+                command.append(arg_list)
             res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list if isinstance(arg_list, list) else [arg_list]},
+                {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
                 crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )
