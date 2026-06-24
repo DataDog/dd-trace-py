@@ -352,3 +352,73 @@ def test_unregister_unregistered_partial_does_not_crash():
     forksafe.unregister_parent(instance_hook)
     forksafe.unregister_before_fork(partial_hook)
     forksafe.unregister_before_fork(instance_hook)
+
+
+@pytest.mark.parametrize("serializer", ["pickle", "cloudpickle"])
+def test_lock_pickle_roundtrip(serializer):
+    """A forksafe.Lock must survive (cloud)pickle as a fresh, unlocked lock.
+
+    Ray Serve cloudpickles deployment objects that transitively reference the
+    global ddtrace config, which holds a forksafe.Lock. Without a __reduce__,
+    this fails with "cannot pickle '_thread.lock'" (AIPTS-1715).
+    """
+    serial = pytest.importorskip(serializer)
+
+    lock = forksafe.Lock()
+    lock.acquire()  # locked in the source process
+
+    restored = serial.loads(serial.dumps(lock))
+
+    assert isinstance(restored, forksafe.ResetObject)
+    # The lock must be unlocked in the destination process, regardless of the
+    # source lock's state, since a lock cannot meaningfully cross processes.
+    assert restored.acquire(blocking=False) is True
+    restored.release()
+    # It must be re-registered so it is reset on a subsequent fork.
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", ["pickle", "cloudpickle"])
+def test_event_pickle_roundtrip(serializer):
+    """A forksafe.Event must survive (cloud)pickle as a fresh, unset event."""
+    serial = pytest.importorskip(serializer)
+
+    event = forksafe.Event()
+    event.set()
+
+    restored = serial.loads(serial.dumps(event))
+
+    assert isinstance(restored, forksafe.ResetObject)
+    assert restored.is_set() is False
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", ["pickle", "cloudpickle"])
+def test_global_config_pickle_roundtrip(serializer):
+    """The global ddtrace config (held by every IntegrationConfig) must be
+    picklable. It transitively holds a forksafe.Lock via the extra-services
+    queue; this is the node that broke Ray Serve cloudpickling (AIPTS-1715).
+
+    As a process-global singleton, it must round-trip to the same instance.
+    """
+    serial = pytest.importorskip(serializer)
+
+    from ddtrace import config
+
+    restored = serial.loads(serial.dumps(config))
+    assert restored is config
+
+
+@pytest.mark.parametrize("serializer", ["pickle", "cloudpickle"])
+def test_integration_config_pickle_roundtrip(serializer):
+    """An IntegrationConfig (e.g. config.fastapi) references the global config
+    singleton; pickling it must not drag in (or fail on) the global config's
+    process-local lock/file handles (AIPTS-1715).
+    """
+    serial = pytest.importorskip(serializer)
+
+    from ddtrace import config
+
+    restored = serial.loads(serial.dumps(config.fastapi))
+    assert restored.integration_name == "fastapi"
+    assert restored.global_config is config
