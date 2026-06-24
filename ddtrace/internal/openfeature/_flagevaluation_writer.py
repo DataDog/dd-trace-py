@@ -110,7 +110,7 @@ def _json_dumps(obj: typing.Any) -> bytes:
 def _json_default(value: typing.Any) -> str:
     if hasattr(value, "isoformat"):
         try:
-            return value.isoformat()
+            return str(value.isoformat())
         except Exception:
             pass
     return str(value)
@@ -558,7 +558,7 @@ class FlagEvaluationWriter(PeriodicService):
         for payload, num_events in result.payloads:
             self._send_payload(payload, num_events)
 
-    def on_shutdown(self) -> None:
+    def on_shutdown(self) -> None:  # type: ignore[override]
         """Final flush on service shutdown — drains the queue and flushes before exit."""
         self._stop_drain_worker()
         self.periodic()

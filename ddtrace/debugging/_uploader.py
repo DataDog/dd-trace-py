@@ -231,7 +231,7 @@ class SignalUploader(agent.AgentCheckPeriodicService):
             msg = "Debugger tracks not enabled"
             raise ValueError(msg)
 
-    def on_shutdown(self) -> None:
+    def on_shutdown(self) -> None:  # type: ignore[override]
         self._flush()
 
     @classmethod
