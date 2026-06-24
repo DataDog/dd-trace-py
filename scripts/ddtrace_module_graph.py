@@ -101,25 +101,29 @@ def import_target_bucket(
     mod: str, detailed_components: tuple[str, ...], extra_components: tuple[str, ...]
 ) -> Optional[str]:
     """Bucket import targets the same way as ``path_bucket`` (root modules collapse to ``(root)``)."""
+    choices = []
     if mod == "ddtrace":
         return
-    if mod in extra_components:
-        return mod
-    if not mod.startswith("ddtrace."):
-        return mod
     rest = mod[len("ddtrace.") :]
     if not rest:
         return
-    first, _, tail = rest.partition(".")
+    first, _, _ = rest.partition(".")
     parts = rest.split(".")
+    if not first or first.startswith("."):
+        return
     for component in detailed_components:
         component_parts = component.split(".")
         comparison = list(zip(component_parts, parts))
         if all(c == p for c, p in comparison):
-            return f"ddtrace.{component}.{'.'.join(parts[len(component_parts) :])}"
-    if not first or first.startswith(".") or any(a.startswith(first) for a in detailed_components) or not tail:
-        return
-    return f"ddtrace.{first}"
+            choices.append("ddtrace." + ".".join(parts[: len(component_parts) + 1]))
+    for component in extra_components:
+        if mod.startswith(component):
+            choices.append(component)
+    if not mod.startswith("ddtrace."):
+        choices.append(mod)
+    choices.append(f"ddtrace.{first}")
+    winner = sorted(choices, key=lambda a: len(a.split(".")))[-1]
+    return winner
 
 
 def resolve_relative(current_module: str, node: ast.ImportFrom, is_pkg_init: bool) -> list[str]:
@@ -160,7 +164,7 @@ def extract_ddtrace_imports(
                     out.add(node.module)
                     for alias in node.names:
                         path = f"{node.module}.{alias.name}"
-                        if path in extra_components or collect_aliases:
+                        if path in extra_components or node.module in extra_components or collect_aliases:
                             out.add(path)
             elif node.level > 0:
                 for base in resolve_relative(current_module, node, is_pkg_init):
@@ -168,7 +172,7 @@ def extract_ddtrace_imports(
                         out.add(base)
                         for alias in node.names:
                             path = f"{base}.{alias.name}"
-                            if path in extra_components or collect_aliases:
+                            if path in extra_components or base in extra_components or collect_aliases:
                                 out.add(path)
 
     return out
@@ -179,10 +183,15 @@ def collect_edges(
     detailed_components: tuple[str, ...],
     *,
     min_dependents_per_node: int,
+    min_edge_weight: int,
     collect_aliases: bool,
     extra_components: tuple[str, ...] = (),
-) -> tuple[set[tuple[str, str]], dict[str, int]]:
-    """Return (directed edges between buckets, edge weights)."""
+) -> tuple[set[tuple[str, str]], dict[tuple[str, str], int]]:
+    """Return (directed edges between buckets, edge weights).
+
+    Edge weights are static import reference counts. After aggregation, edges with
+    weight strictly less than ``min_edge_weight`` are omitted.
+    """
     edges: defaultdict[tuple[str, str], int] = defaultdict(int)
     dependents: defaultdict[str, int] = defaultdict(int)
     extra_set = frozenset(extra_components)
@@ -208,7 +217,20 @@ def collect_edges(
             dependents[bucket_dst] += 1
             if dependents[bucket_dst] > min_dependents_per_node:
                 edges[(bucket_src, bucket_dst)] += 1
+    edges = {k: v for k, v in edges.items() if v >= min_edge_weight}
     return set(edges), dict(edges)
+
+
+def filter_excluded_graph_nodes(
+    edges: set[tuple[str, str]],
+    weights: dict[tuple[str, str], int],
+    excluded: frozenset[str],
+) -> tuple[set[tuple[str, str]], dict[tuple[str, str], int]]:
+    """Remove nodes by exact name; drop every edge whose source or target is excluded."""
+    if not excluded:
+        return edges, weights
+    new_edges = {(a, b) for a, b in edges if a not in excluded and b not in excluded}
+    return new_edges, {e: weights[e] for e in new_edges}
 
 
 def _short_label(node: str) -> str:
@@ -413,6 +435,16 @@ def main() -> int:
         help=("Only count an edge after its destination bucket has accumulated more than N events (default: 0)."),
     )
     parser.add_argument(
+        "--min-edge-weight",
+        type=int,
+        default=0,
+        metavar="W",
+        help=(
+            "After aggregation, drop directed edges whose import-count weight is strictly less than W "
+            "(default: 0, i.e. keep all non-empty edges)."
+        ),
+    )
+    parser.add_argument(
         "--extra-component",
         dest="extra_components",
         action="append",
@@ -420,6 +452,16 @@ def main() -> int:
         help=(
             "Full ``ddtrace...`` module path to treat as its own graph bucket and to expand in "
             "``from ddtrace... import ...`` (e.g. ``ddtrace.internal.span``). Repeat for multiple."
+        ),
+    )
+    parser.add_argument(
+        "--exclude-component",
+        dest="exclude_components",
+        action="append",
+        metavar="NODE",
+        help=(
+            "Exact graph node id to remove (e.g. ``ddtrace.contrib`` or ``ddtrace (root)``). "
+            "Drops all edges whose source or target is one of these names. Repeat for multiple."
         ),
     )
     parser.add_argument(
@@ -444,6 +486,7 @@ def main() -> int:
         else tuple()
     )
     extra_components: tuple[str, ...] = tuple(args.extra_components or ())
+    exclude_nodes = frozenset(s.strip() for s in (args.exclude_components or ()) if s.strip())
 
     repo = Path(__file__).resolve().parents[1]
     ddtrace_root = repo / "ddtrace"
@@ -454,9 +497,11 @@ def main() -> int:
         ddtrace_root,
         detailed_components,
         min_dependents_per_node=args.min_dependents_per_node,
+        min_edge_weight=args.min_edge_weight,
         collect_aliases=args.collect_aliases,
         extra_components=extra_components,
     )
+    edges, weights = filter_excluded_graph_nodes(edges, weights, exclude_nodes)
     out_html = repo / "docs" / "ddtrace-module-dependencies.html"
     render_html(edges, weights, out_html)
     print(f"Wrote {out_html} ({len(edges)} edges)")

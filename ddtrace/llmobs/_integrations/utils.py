@@ -427,7 +427,10 @@ def openai_set_meta_tags_from_chat(
         span, input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
     )
 
-    if span.error or not messages:
+    # Gate on output presence only: a genuine model error leaves no messages,
+    # while an AI Guard block after the model call errors the span but keeps a
+    # valid response (APPSEC-68147).
+    if not messages:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
@@ -1070,7 +1073,10 @@ def openai_set_meta_tags_from_response(
         prompt=validated_prompt,
     )
 
-    if span.error or not response:
+    # Gate on output presence only: a genuine model error leaves no response,
+    # while an AI Guard block after the model call errors the span but keeps a
+    # valid response (APPSEC-68147).
+    if not response:
         _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 

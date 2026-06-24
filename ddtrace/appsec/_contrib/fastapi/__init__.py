@@ -10,6 +10,7 @@ from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
@@ -57,18 +58,19 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
             return await receive()
 
         try:
-            content_type = headers.get("content-type") or headers.get("Content-Type")
-            if content_type in ("application/json", "text/json"):
-                if body is None or body == b"":
+            with iast_disabled_taint_sources():
+                content_type = headers.get("content-type") or headers.get("Content-Type")
+                if content_type in ("application/json", "text/json"):
+                    if body is None or body == b"":
+                        req_body = None
+                    else:
+                        req_body = json.loads(body.decode())
+                elif content_type in ("application/xml", "text/xml"):
+                    req_body = xmltodict.parse(body)
+                elif content_type == "text/plain":
                     req_body = None
                 else:
-                    req_body = json.loads(body.decode())
-            elif content_type in ("application/xml", "text/xml"):
-                req_body = xmltodict.parse(body)
-            elif content_type == "text/plain":
-                req_body = None
-            else:
-                req_body = parse_form_multipart(body.decode(), headers) or None
+                    req_body = parse_form_multipart(body.decode(), headers) or None
             return receive_wrapped, req_body
         except Exception:
             return receive_wrapped, None
