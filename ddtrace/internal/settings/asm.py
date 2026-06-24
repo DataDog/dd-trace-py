@@ -320,8 +320,15 @@ class ASMConfig(DDConfig):
 
     @property
     def _apm_opt_out(self) -> bool:
+        # AI Guard standalone: when AI Guard is enabled and APM tracing is disabled, opt out of APM
+        # billing while still letting AI Guard traces (USER_KEEP'd via _aiguard_manual_keep) reach the
+        # backend. ``ai_guard_config`` is a module global defined below; this property is only evaluated
+        # at runtime (after module import), so the reference resolves fine.
         return (
-            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+            self._asm_enabled
+            or self._iast_enabled
+            or tracer_config._sca_enabled is True
+            or ai_guard_config._ai_guard_enabled
         ) and not self._apm_tracing_enabled
 
     @property

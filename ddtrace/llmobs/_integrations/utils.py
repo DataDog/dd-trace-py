@@ -1,3 +1,4 @@
+import base64
 from dataclasses import dataclass
 import inspect
 import json
@@ -31,6 +32,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
+from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -330,6 +332,12 @@ def openai_set_meta_tags_from_completion(
         metadata=parameters,
         output_messages=output_messages,
     )
+
+
+def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
+    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
+    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
+    return AudioPart(mime_type=mime_type, content=content)
 
 
 def _extract_content_parts(parts: list) -> str:
