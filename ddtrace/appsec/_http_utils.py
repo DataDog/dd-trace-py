@@ -49,7 +49,8 @@ def parse_http_body(
         # e.g. application/json; charset=utf-8 — many HTTP clients always
         # add a charset. Match against the bare media type so a charset
         # suffix doesn't silently skip body inspection.
-        base_content_type = content_type.split(";", 1)[0].strip()
+        # HTTP media types are case-insensitive (RFC 9110): normalize before matching.
+        base_content_type = content_type.split(";", 1)[0].strip().lower()
 
         if base_content_type in ("application/json", "application/vnd.api+json", "text/json"):
             return json.loads(body)

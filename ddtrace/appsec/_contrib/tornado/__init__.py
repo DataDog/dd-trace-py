@@ -55,14 +55,16 @@ def tornado_call_waf_first(integration: str, handler: Any) -> None:
         if parsed_body:
             parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
         else:
+            # HTTP media types are case-insensitive (RFC 9110): normalize before matching.
+            content_type = request_headers.get("content-type", "").lower()
             _body: bytes = handler.request.body
             try:
-                if "json" in request_headers.get("content-type", ""):
+                if "json" in content_type:
                     parsed_body = json.loads(_body)
             except BaseException:
                 pass  # nosec
             try:
-                if not parsed_body and "xml" in request_headers.get("content-type", ""):
+                if not parsed_body and "xml" in content_type:
                     import ddtrace.vendor.xmltodict as xmltodict
 
                     parsed_body = xmltodict.parse(_body)

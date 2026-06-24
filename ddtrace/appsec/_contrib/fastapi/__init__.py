@@ -59,7 +59,9 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
 
         try:
             with iast_disabled_taint_sources():
-                content_type = headers.get("content-type") or headers.get("Content-Type")
+                # Match the bare media type, case-insensitively (RFC 9110), ignoring params like charset.
+                raw_content_type = headers.get("content-type") or headers.get("Content-Type") or ""
+                content_type = raw_content_type.split(";", 1)[0].strip().lower()
                 if content_type in ("application/json", "text/json"):
                     if body is None or body == b"":
                         req_body = None

@@ -1106,10 +1106,20 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             (json.dumps(LARGE_BODY), "application/json", "tst-037-003"),
+            # HTTP media types are case-insensitive (RFC 9110): mixed-case must still be parsed/blocked
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "Application/JSON", "tst-037-003"),
+            # Content-Type parameters (e.g. charset) must not skip body inspection
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json; charset=utf-8", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
                 "text/xml",
+                "tst-037-003",
+            ),
+            # mixed-case xml must still be parsed/blocked
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "Text/XML",
                 "tst-037-003",
             ),
             # form body must be blocked
@@ -1142,7 +1152,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "json",
             "text_json",
             "json_large",
+            "json_mixed_case_content_type",
+            "json_charset_param_content_type",
             "xml",
+            "xml_mixed_case_content_type",
             "form",
             "form_multipart",
             "form_multipart_duplicate_keys",

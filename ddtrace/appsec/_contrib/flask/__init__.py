@@ -64,7 +64,8 @@ def _on_request_span_modifier(
 ) -> Optional[Any]:
     req_body = None
     if asm_config._asm_enabled and request.method in _BODY_METHODS:
-        content_type = request.content_type
+        # Match the bare media type, case-insensitively (RFC 9110), ignoring params like charset.
+        content_type = (request.content_type or "").split(";", 1)[0].strip().lower()
         wsgi_input = environ.get("wsgi.input", "")
 
         # Copy wsgi input if not seekable
