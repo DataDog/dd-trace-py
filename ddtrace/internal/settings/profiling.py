@@ -393,6 +393,25 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    cpu_timer_enabled = DDConfig.v(
+        bool,
+        "cpu_timer.enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use timer_create based CPU profiling on supported Linux/Python versions.",
+        private=True,
+    )
+
+    cpu_timer_interval_ms = DDConfig.v(
+        int,
+        "cpu_timer.interval_ms",
+        default=10,
+        validator=validators.range(1, 1000),
+        help_type="Integer",
+        help="CPU timer profiling interval in milliseconds.",
+        private=True,
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"

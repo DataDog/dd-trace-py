@@ -1,0 +1,523 @@
+import sys
+
+import pytest
+
+
+CPU_TIMER_SKIP_REASON = "CPU timer profiler is enabled only on Linux Python 3.14+"
+CPU_TIMER_SKIP = sys.platform != "linux" or sys.version_info < (3, 14)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_profiler",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "5",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_profiler_emits_cpu_samples():
+    import os
+    import time
+
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    def cpu_timer_busy_loop():
+        deadline = time.thread_time_ns() + 300_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    assert cpu_timer_busy_loop() > 0
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    cpu_time_by_function = {}
+    for sample in profile.sample:
+        cpu_time_ns = sample.value[cpu_time_index]
+        if cpu_time_ns <= 0:
+            continue
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_name = profile.string_table[function.name]
+            cpu_time_by_function[function_name] = cpu_time_by_function.get(function_name, 0) + cpu_time_ns
+
+    assert cpu_time_by_function.get("cpu_timer_busy_loop", 0) > 0, cpu_time_by_function
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_fault_guard",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_guarded_frame_read_fault_does_not_crash():
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    stack._cpu_timer_debug_set_fault_injection(True)
+    p = profiler.Profiler()
+    p.start()
+    assert burn_cpu(200_000_000) > 0
+
+    stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert stats["active"] is True, stats
+    assert stats["live_count"] >= 1, stats
+    assert stats["capture_failed_count"] > 0, stats
+    assert stats["capture_failed_cpu_ns"] > 0, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_postfork",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_postfork_child_reinitializes_without_stale_altstack():
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    assert burn_cpu(50_000_000) > 0
+
+    pid = os.fork()
+    if pid == 0:
+        try:
+            assert burn_cpu(100_000_000) > 0
+            stats = stack._cpu_timer_debug_stats()
+            assert stats["active"] is True, stats
+            assert stats["live_count"] >= 1, stats
+            assert stats["leaked_altstack_count"] == 0, stats
+        except BaseException:
+            os._exit(1)
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    p.stop()
+
+    assert os.WIFEXITED(status), status
+    assert os.WEXITSTATUS(status) == 0, status
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_preexisting_thread",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_existing_thread_is_not_cross_thread_armed():
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    ready = threading.Event()
+    stop = threading.Event()
+
+    def preexisting_worker():
+        ready.set()
+        while not stop.is_set():
+            time.sleep(0.01)
+
+    worker = threading.Thread(target=preexisting_worker, name="cpu-timer-preexisting")
+    worker.start()
+    assert ready.wait(1.0)
+
+    p = profiler.Profiler()
+    try:
+        p.start()
+        deadline = time.thread_time_ns() + 100_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        assert value > 0
+        stats = stack._cpu_timer_debug_stats()
+    finally:
+        stop.set()
+        worker.join(1.0)
+        p.stop()
+
+    assert not worker.is_alive()
+    assert stats["active"] is True, stats
+    assert stats["live_count"] >= 1, stats
+    assert stats["pending_unprepared"] >= 1, stats
+    assert stats["timer_syscall_failures"] == 0, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_thread_churn",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_thread_churn_does_not_crash_or_leak_altstacks():
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    for _ in range(4):
+        workers = [threading.Thread(target=burn_cpu, args=(30_000_000,)) for _ in range(8)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join()
+    time.sleep(0.2)
+    stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert stats["active"] is True, stats
+    assert stats["timer_syscall_failures"] == 0, stats
+    assert stats["capture_failed_count"] == 0, stats
+    assert stats["leaked_altstack_count"] == 0, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_stop_restart",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_stop_then_restart_does_not_rearm_same_process():
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    assert burn_cpu(100_000_000) > 0
+    first_stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    p = profiler.Profiler()
+    p.start()
+    assert burn_cpu(100_000_000) > 0
+    restart_stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert first_stats["active"] is True, first_stats
+    assert first_stats["live_count"] >= 1, first_stats
+    assert restart_stats["configured"] is True, restart_stats
+    assert restart_stats["active"] is False, restart_stats
+    assert restart_stats["replacing_wall_cpu"] is False, restart_stats
+    assert restart_stats["live_count"] == 0, restart_stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_blocked_fault_signal",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_does_not_arm_when_fault_signal_is_blocked():
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGBUS})
+    try:
+        p = profiler.Profiler()
+        p.start()
+        time.sleep(0.1)
+        stats = stack._cpu_timer_debug_stats()
+        p.stop()
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+
+    assert stats["blocked_signal_count"] > 0, stats
+    assert stats["live_count"] == 0, stats
+    assert stats["replacing_wall_cpu"] is False, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_syscall_readv",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_syscall_readv_loop_does_not_surface_eintr():
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    errors = []
+    iterations = [0]
+
+    def readv_loop():
+        fd = os.open("/dev/zero", os.O_RDONLY)
+        try:
+            buf = bytearray(1024 * 1024)
+            view = memoryview(buf)
+            deadline = time.monotonic() + 0.8
+            local_iterations = 0
+            while time.monotonic() < deadline:
+                try:
+                    read = os.readv(fd, [view])
+                except InterruptedError as exc:
+                    errors.append(repr(exc))
+                    break
+                except OSError as exc:
+                    errors.append(repr(exc))
+                    break
+                if read != len(buf):
+                    errors.append(f"short read: {read}")
+                    break
+                local_iterations += 1
+            iterations[0] = local_iterations
+        finally:
+            os.close(fd)
+
+    p = profiler.Profiler()
+    p.start()
+    worker = threading.Thread(target=readv_loop, name="cpu-timer-readv-loop")
+    worker.start()
+    worker.join()
+    stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert errors == []
+    assert iterations[0] > 0
+    assert stats["active"] is True, stats
+    assert stats["timer_syscall_failures"] == 0, stats
+    assert stats["capture_failed_count"] == 0, stats
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+    readv_loop_cpu_ns = 0
+    for sample in profile.sample:
+        cpu_time_ns = sample.value[cpu_time_index]
+        if cpu_time_ns <= 0:
+            continue
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_name = profile.string_table[function.name]
+            if function_name == "readv_loop":
+                readv_loop_cpu_ns += cpu_time_ns
+
+    assert readv_loop_cpu_ns > 0
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_blocked_signal",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_does_not_arm_when_sigprof_is_blocked():
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGPROF})
+    try:
+        p = profiler.Profiler()
+        p.start()
+        time.sleep(0.1)
+        stats = stack._cpu_timer_debug_stats()
+        p.stop()
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+
+    assert stats["blocked_signal_count"] > 0, stats
+    assert stats["live_count"] == 0, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_foreign_sigprof",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_forwards_foreign_sigprof_to_previous_handler():
+    import os
+    import signal
+    import time
+
+    from ddtrace.profiling import profiler
+
+    seen = []
+
+    def handle_sigprof(signum, frame):
+        seen.append(signum)
+
+    old_handler = signal.signal(signal.SIGPROF, handle_sigprof)
+    try:
+        p = profiler.Profiler()
+        p.start()
+        os.kill(os.getpid(), signal.SIGPROF)
+        deadline = time.time() + 1.0
+        while not seen and time.time() < deadline:
+            time.sleep(0.01)
+        p.stop()
+    finally:
+        signal.signal(signal.SIGPROF, old_handler)
+
+    assert seen == [signal.SIGPROF], seen
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_sigprof_hijack",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_disables_when_sigprof_handler_is_replaced():
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def burn_cpu(duration_ns):
+        deadline = time.thread_time_ns() + duration_ns
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    assert burn_cpu(100_000_000) > 0
+
+    signal.signal(signal.SIGPROF, lambda signum, frame: None)
+    time.sleep(0.2)
+    stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    assert stats["handler_hijack_disable_count"] > 0, stats
+    assert stats["permanently_disabled"] is True, stats
+    assert stats["active"] is False, stats
+    assert stats["replacing_wall_cpu"] is False, stats
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_sigbus_hijack",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_disables_when_fault_handler_is_replaced():
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+
+    old_handler = signal.getsignal(signal.SIGBUS)
+    signal.signal(signal.SIGBUS, lambda signum, frame: None)
+    time.sleep(0.2)
+    stats = stack._cpu_timer_debug_stats()
+    signal.signal(signal.SIGBUS, old_handler)
+    p.stop()
+
+    assert stats["handler_hijack_disable_count"] > 0, stats
+    assert stats["permanently_disabled"] is True, stats
+    assert stats["active"] is False, stats
+    assert stats["replacing_wall_cpu"] is False, stats

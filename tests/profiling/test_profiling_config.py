@@ -52,6 +52,30 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
 
+class TestCpuTimerConfig:
+    def test_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("_DD_PROFILING_STACK_CPU_TIMER_ENABLED", raising=False)
+        monkeypatch.delenv("_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS", raising=False)
+        config = ProfilingConfig()
+        assert config.stack.cpu_timer_enabled is False
+        assert config.stack.cpu_timer_interval_ms == 10
+
+    def test_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_STACK_CPU_TIMER_ENABLED", "1")
+        config = ProfilingConfig()
+        assert config.stack.cpu_timer_enabled is True
+
+    def test_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS", "25")
+        config = ProfilingConfig()
+        assert config.stack.cpu_timer_interval_ms == 25
+
+    def test_interval_validation(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS", "0")
+        with pytest.raises(ValueError):
+            ProfilingConfig()
+
+
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
@@ -134,6 +158,8 @@ class TestDumpSettings:
             "stack.adaptive_sampling_max_interval",
             "stack.fast_copy",
             "stack.max_threads",
+            "stack.cpu_timer_enabled",
+            "stack.cpu_timer_interval_ms",
             "exception.enabled",
             "exception.sampling_interval",
         ):

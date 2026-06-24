@@ -14,6 +14,8 @@ try:
 
     from . import _stack
     from ._stack import *  # noqa: F403, F401  # type: ignore[assignment]
+    from ._stack import _cpu_timer_debug_set_fault_injection  # noqa: F401
+    from ._stack import _cpu_timer_debug_stats  # noqa: F401
 
     is_available = True
 
