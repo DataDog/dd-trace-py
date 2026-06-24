@@ -280,7 +280,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         Returns "amazon_bedrock" if the base_url contains "bedrock".
         Returns "google" if the base_url contains "google".
-        Returns "anthropic" if the base_url contains "anthropic". 
+        Returns "anthropic" if the base_url contains "anthropic".
         Returns "unknown" when the base_url is missing or unrecognized.
         """
         base_url = (span._get_ctx_item(REQUEST_BASE_URL) or "").lower()
