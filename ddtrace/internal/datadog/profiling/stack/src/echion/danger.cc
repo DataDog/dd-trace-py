@@ -42,6 +42,13 @@ thread_local ThreadAltStack t_altstack;
 thread_local sigjmp_buf t_jmpenv;
 thread_local volatile sig_atomic_t t_handler_armed = 0;
 
+// Guards against a signal-handler chaining cycle. The unarmed path below chains
+// to the previously installed handler and re-raises; if that handler chains back
+// to us (e.g. profiler <-> crashtracker pointing at each other), we would loop
+// forever and hang the process. If we re-enter the unarmed path while already
+// chaining, fall through to the default disposition so termination is guaranteed.
+thread_local volatile sig_atomic_t t_in_unarmed_chain = 0;
+
 static inline void
 arm_fault_handler()
 {
@@ -66,21 +73,37 @@ segv_handler(int signo, siginfo_t* si, void* ucontext)
         return;
     }
 
-    if (t_handler_armed) {
-        errno = saved_errno;
-        // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
-        siglongjmp(t_jmpenv, 1);
+    if (!t_handler_armed) {
+        if (t_in_unarmed_chain) {
+            // We are being re-entered while already chaining to a previous
+            // handler: the handler chain has cycled back to us. Restore the
+            // default disposition and re-raise to guarantee the process
+            // terminates instead of looping forever.
+            struct sigaction dfl
+            {};
+            dfl.sa_handler = SIG_DFL;
+            sigemptyset(&dfl.sa_mask);
+            dfl.sa_flags = 0;
+            sigaction(signo, &dfl, nullptr);
+            pthread_kill(pthread_self(), signo);
+            return;
+        }
+        t_in_unarmed_chain = 1;
+
+        struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
+        // Restore the previous handler and re-raise so default/old handling occurs.
+        // Use pthread_kill(pthread_self(), signo): thread-directed (targets the
+        // faulting thread, which is guaranteed to be the current thread for
+        // synchronous signals like SIGSEGV/SIGBUS) and async-signal-safe per POSIX,
+        // unlike raise which acquires a lock internally.
+        sigaction(signo, old, nullptr);
+        pthread_kill(pthread_self(), signo);
+        return;
     }
 
-    struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
-    // Restore the previous handler and re-raise so default/old handling occurs.
-    // Use pthread_kill(pthread_self(), signo): thread-directed (targets the
-    // faulting thread, which is guaranteed to be the current thread for
-    // synchronous signals like SIGSEGV/SIGBUS) and async-signal-safe per POSIX,
-    // unlike raise which acquires a lock internally.
-    sigaction(signo, old, nullptr);
-    pthread_kill(pthread_self(), signo);
     errno = saved_errno;
+    // Jump back to the armed site. Use 1 so sigsetjmp returns nonzero.
+    siglongjmp(t_jmpenv, 1);
 }
 
 int

@@ -1,3 +1,4 @@
+import contextlib
 import contextvars
 from typing import Optional
 
@@ -20,6 +21,16 @@ log = get_logger(__name__)
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
 IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
+
+
+@contextlib.contextmanager
+def iast_suppress_context():
+    """Temporarily disable IAST taint *source* generation for the current context."""
+    token = IAST_CONTEXT.set(None)
+    try:
+        yield
+    finally:
+        IAST_CONTEXT.reset(token)
 
 
 def _set_span_tag_iast_request_tainted(span):

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    SCA: This fix resolves an issue where unresolved runtime reachability targets could accumulate across Software Composition Analysis updates, causing resident memory usage to grow over time.

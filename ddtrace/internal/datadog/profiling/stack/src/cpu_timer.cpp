@@ -86,7 +86,8 @@ raw_gettid()
 uint64_t
 thread_cpu_time_ns()
 {
-    struct timespec ts{};
+    struct timespec ts
+    {};
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
         return 0;
     }
@@ -98,8 +99,8 @@ thread_cpu_clock(pid_t tid)
 {
     constexpr unsigned long CPUCLOCK_SCHED = 2;
     constexpr unsigned long CPUCLOCK_PERTHREAD_MASK = 4;
-    const unsigned long encoded = ((~static_cast<unsigned long>(tid)) << 3) |
-                                  (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
+    const unsigned long encoded =
+      ((~static_cast<unsigned long>(tid)) << 3) | (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
     return static_cast<clockid_t>(encoded);
 }
 
@@ -218,7 +219,8 @@ struct EngineState
     std::unique_ptr<std::atomic<bool>[]> handler_active;
     size_t slot_capacity = 0;
 
-    struct sigaction previous_sigprof{};
+    struct sigaction previous_sigprof
+    {};
     bool has_previous_sigprof = false;
     bool exit_handler_registered = false;
 
@@ -242,8 +244,10 @@ struct EngineState
 // plane valid until the kernel tears the process down.
 EngineState& g_state = *new EngineState();
 
-void cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext);
-bool cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext);
+void
+cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext);
+bool
+cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext);
 
 void
 cpu_timer_process_exit()
@@ -257,7 +261,8 @@ cpu_timer_process_exit()
         return;
     }
 
-    struct sigaction ignore_action{};
+    struct sigaction ignore_action
+    {};
     ignore_action.sa_handler = SIG_IGN;
     sigemptyset(&ignore_action.sa_mask);
     ignore_action.sa_flags = 0;
@@ -301,13 +306,15 @@ forward_foreign_sigprof(int signo, siginfo_t* si, void* ucontext)
 bool
 install_sigprof_handler()
 {
-    struct sigaction sa{};
+    struct sigaction sa
+    {};
     sa.sa_sigaction = cpu_timer_signal_handler;
     sigemptyset(&sa.sa_mask);
     sigaddset(&sa.sa_mask, SIGPROF);
     sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
 
-    struct sigaction previous{};
+    struct sigaction previous
+    {};
     if (sigaction(SIGPROF, &sa, &previous) != 0) {
         return false;
     }
@@ -320,7 +327,8 @@ install_sigprof_handler()
 bool
 sigprof_handler_still_installed()
 {
-    struct sigaction current{};
+    struct sigaction current
+    {};
     if (sigaction(SIGPROF, nullptr, &current) != 0) {
         return false;
     }
@@ -354,8 +362,8 @@ disable_current_thread_altstack(OwnedAltStack& altstack)
         return;
     }
 
-    const bool current_is_ours = !(current.ss_flags & SS_DISABLE) && current.ss_sp == altstack.stack_sp &&
-                                 current.ss_size == altstack.stack_size;
+    const bool current_is_ours =
+      !(current.ss_flags & SS_DISABLE) && current.ss_sp == altstack.stack_sp && current.ss_size == altstack.stack_size;
     if (current_is_ours) {
         stack_t disable{};
         disable.ss_flags = SS_DISABLE;
@@ -442,7 +450,8 @@ delete_timer(CaptureState& state)
 bool
 create_timer(CaptureState& state)
 {
-    struct sigevent sev{};
+    struct sigevent sev
+    {};
     sev.sigev_notify = SIGEV_THREAD_ID;
     sev.sigev_signo = SIGPROF;
     sev.sigev_value.sival_ptr = &g_cookie;
@@ -489,7 +498,8 @@ initial_timer_offset_ns(const CaptureState& state, uint64_t interval_ns)
 bool
 arm_timer(CaptureState& state)
 {
-    struct itimerspec its{};
+    struct itimerspec its
+    {};
     const uint64_t interval_ns = g_state.interval_ms.load(std::memory_order_relaxed) * 1'000'000ULL;
     set_timespec_ns(its.it_value, initial_timer_offset_ns(state, interval_ns));
     set_timespec_ns(its.it_interval, interval_ns);
@@ -797,8 +807,8 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        PyCodeObject* code = reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) &
-                                                             ~static_cast<uintptr_t>(7));
+        PyCodeObject* code =
+          reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) & ~static_cast<uintptr_t>(7));
         if (code == nullptr || instr_ptr == nullptr) {
             failed = true;
             break;
@@ -810,9 +820,9 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        const int lasti = static_cast<int>((instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(code)) -
-                                           static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) /
-                                                                  sizeof(_Py_CODEUNIT)));
+        const int lasti =
+          static_cast<int>((instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(code)) -
+                           static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
         RawFrame& raw_frame = sample->frames[sample->depth];
         raw_frame.code_object = reinterpret_cast<uintptr_t>(code);
         raw_frame.lasti = lasti;

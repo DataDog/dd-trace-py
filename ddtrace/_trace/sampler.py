@@ -5,6 +5,7 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 
 import json
 from json.decoder import JSONDecodeError
+from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -122,7 +123,7 @@ class DatadogSampler:
         """Compute a key with the same format used by the Datadog agent API."""
         return f"service:{service or ''},env:{env or ''}"
 
-    def update_rate_by_service_sample_rates(self, rate_by_service: dict[str, float]) -> None:
+    def update_rate_by_service_sample_rates(self, rate_by_service: Mapping[str, float]) -> None:
         samplers: dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)

@@ -169,6 +169,9 @@ def _on_django_process(
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
     user_login = user_extra.get("login")
+    real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
+    if session_key and real_mode == LOGIN_EVENTS_MODE.ANON:
+        session_key = _hash_user_id(session_key)
     res = None
     if result_user and result_user.is_authenticated:
         if _metrics._is_user_auth_value_missing(user_id):
@@ -203,7 +206,6 @@ def _on_django_process(
                 span=span,
             )
         if in_asm_context():
-            real_mode = mode if mode != LOGIN_EVENTS_MODE.AUTO else asm_config._user_event_mode
             custom_data = {
                 "REQUEST_USER_ID": str(user_id) if user_id else None,
                 "REQUEST_USERNAME": user_login,

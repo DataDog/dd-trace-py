@@ -1,3 +1,4 @@
+import base64
 from dataclasses import dataclass
 import inspect
 import json
@@ -31,6 +32,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
+from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
@@ -38,6 +40,17 @@ from ddtrace.llmobs.types import ToolResult
 
 
 logger = get_logger(__name__)
+
+# The openai SDK uses `Omit`/`NotGiven` sentinels as defaults for unset request parameters.
+# Callers (e.g. PydanticAI) may forward these sentinels explicitly, so filter them out of span
+# metadata rather than serializing them to noisy repr strings. Identify them by class name instead
+# of importing openai: this shared utils module is provider-agnostic, so it must not depend on a
+# specific vendor SDK (which also avoids a circular import while ddtrace is patching openai).
+_OPENAI_SENTINEL_TYPE_NAMES = ("Omit", "NotGiven")
+
+
+def _is_openai_sentinel(value: Any) -> bool:
+    return type(value).__name__ in _OPENAI_SENTINEL_TYPE_NAMES
 
 
 COMMON_METADATA_KEYS = (
@@ -321,6 +334,12 @@ def openai_set_meta_tags_from_completion(
     )
 
 
+def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
+    """Build an ``AudioPart`` from raw audio bytes (base64-encoded) or an existing base64 string."""
+    content = base64.b64encode(data).decode("utf-8") if isinstance(data, bytes) else data
+    return AudioPart(mime_type=mime_type, content=content)
+
+
 def _extract_content_parts(parts: list) -> str:
     """Extract readable text from multimodal content parts (e.g., text + image)."""
     extracted = []
@@ -572,7 +591,7 @@ def get_metadata_from_kwargs(
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
         keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
-    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include}
+    metadata = {k: load_data_value(v) for k, v in kwargs.items() if k in keys_to_include and not _is_openai_sentinel(v)}
     return metadata
 
 
@@ -822,7 +841,13 @@ def openai_get_metadata_from_response(
     metadata = {}
 
     if kwargs:
-        metadata.update({k: v for k, v in kwargs.items() if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS})
+        metadata.update(
+            {
+                k: v
+                for k, v in kwargs.items()
+                if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS and not _is_openai_sentinel(v)
+            }
+        )
 
     if not response:
         return metadata
@@ -1016,67 +1041,6 @@ def openai_set_meta_tags_from_response(
     _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
 
 
-# Maximum nesting depth allowed for a single tool schema
-MAX_TOOL_SCHEMA_DEPTH = 10
-
-
-def _tool_schema_depth(obj: Any) -> int:
-    """Return the maximum nesting depth of a tool schema object."""
-    max_depth = 0
-    stack = [(obj, 0)]
-    while stack:
-        node, depth = stack.pop()
-        if depth > max_depth:
-            max_depth = depth
-        if isinstance(node, dict):
-            for v in node.values():
-                stack.append((v, depth + 1))
-        elif isinstance(node, list):
-            for item in node:
-                stack.append((item, depth + 1))
-    return max_depth
-
-
-def _truncate_schema_to_depth(obj: Any, max_depth: int) -> Any:
-    """Return a copy of obj with any container fields beyond `max_depth` levels replaced with empty containers."""
-    if not isinstance(obj, (dict, list)):
-        return obj
-    root: Any = {} if isinstance(obj, dict) else []
-    stack = [(obj, root, max_depth)]
-    while stack:
-        source, dest, remaining = stack.pop()
-        items = source.items() if isinstance(source, dict) else enumerate(source)
-        for key, val in items:
-            if isinstance(val, (dict, list)):
-                child: Any = {} if isinstance(val, dict) else []
-                if isinstance(dest, list):
-                    dest.append(child)
-                else:
-                    dest[key] = child
-                if remaining > 1:
-                    stack.append((val, child, remaining - 1))
-            else:
-                if isinstance(dest, list):
-                    dest.append(val)
-                else:
-                    dest[key] = val
-    return root
-
-
-def _tool_schema_exceeds_depth(name: str, schema: Any) -> bool:
-    """Return True and emit a warning if the tool schema exceeds MAX_TOOL_SCHEMA_DEPTH."""
-    if _tool_schema_depth(schema) > MAX_TOOL_SCHEMA_DEPTH:
-        logger.warning(
-            "LLMObs: truncating tool %r schema to %d levels of nesting because its depth exceeds "
-            "the maximum allowed. Deeply nested tool schemas are not yet supported. "
-            "LLMObs backend.",
-            name,
-            MAX_TOOL_SCHEMA_DEPTH,
-        )
-        return True
-    return False
-
-
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
@@ -1111,9 +1075,6 @@ def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
         if _get_attr(tool, "defer_loading", False):
             tool_definition["description"] = ""
             tool_definition["schema"] = {}
-        schema = tool_definition.get("schema") or {}
-        if _tool_schema_exceeds_depth(tool_definition.get("name") or "", schema):
-            tool_definition["schema"] = _truncate_schema_to_depth(schema, MAX_TOOL_SCHEMA_DEPTH)
         tool_definitions.append(tool_definition)
     return tool_definitions
 

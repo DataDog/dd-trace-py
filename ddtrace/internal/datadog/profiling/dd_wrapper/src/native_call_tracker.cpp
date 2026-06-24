@@ -1,5 +1,6 @@
 #include "native_call_tracker.hpp"
 
+#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -17,6 +18,9 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr,
     std::unique_lock lock(mtx);
     auto it = call_sites.find(key);
     if (it == call_sites.end()) {
+        if (call_sites.size() >= max_call_sites) {
+            return;
+        }
         call_sites.emplace(key, NativeCallEntry{ std::move(name), std::move(module) });
     }
 }
@@ -51,6 +55,13 @@ NativeCallRegistry::postfork_child()
     // every call site seen in the parent. Clearing would lose native frame info
     // with no way to re-populate it.
     new (&mtx) std::shared_mutex();
+}
+
+size_t
+NativeCallRegistry::size() const
+{
+    std::shared_lock lock(mtx);
+    return call_sites.size();
 }
 
 } // namespace Datadog
