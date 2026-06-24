@@ -6,9 +6,6 @@ from ddtrace._trace.span import Span
 
 Trace = list[Span]
 
-class ListStringTable(object):
-    def index(self, string: str) -> int: ...
-
 class BufferFull(Exception):
     pass
 
@@ -36,6 +33,5 @@ class MsgpackEncoderBase(BufferedEncoder):
     def _decode(self, data: Union[str, bytes]) -> Any: ...
 
 class MsgpackEncoderV04(MsgpackEncoderBase): ...
-class MsgpackEncoderV05(MsgpackEncoderBase): ...
 
 def packb(o: Any, **kwargs) -> bytes: ...

@@ -15,18 +15,6 @@ class WriterClientBase(object):
         self.encoder = encoder
 
 
-class AgentWriterClientV5(WriterClientBase):
-    ENDPOINT = "v0.5/traces"
-
-    def __init__(self, buffer_size, max_payload_size):
-        super(AgentWriterClientV5, self).__init__(
-            MSGPACK_ENCODERS["v0.5"](
-                max_size=buffer_size,
-                max_item_size=max_payload_size,
-            )
-        )
-
-
 class AgentWriterClientV4(WriterClientBase):
     ENDPOINT = "v0.4/traces"
 
@@ -48,9 +36,3 @@ class AgentlessWriterClient(WriterClientBase):
         super(AgentlessWriterClient, self).__init__(
             AgentlessTraceJSONEncoder(max_size=buffer_size, max_item_size=max_payload_size)
         )
-
-
-WRITER_CLIENTS = {
-    "v0.4": AgentWriterClientV4,
-    "v0.5": AgentWriterClientV5,
-}

@@ -103,7 +103,7 @@ class NativeWriterTests(BaseTestCase):
     def test_metrics_trace_too_big(self):
         statsd = mock.Mock()
         with (
-            override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=15000)),
+            override_global_config(dict(_health_metrics_enabled=True, _trace_writer_buffer_size=12000)),
             managed_writer(self.WRITER_CLASS, "http://asdf:1234", dogstatsd=statsd) as writer,
         ):
             for i in range(10):
@@ -955,23 +955,23 @@ def test_bad_encoding(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "init_api_version,api_version,endpoint,encoder_cls",
+    "init_api_version,api_version",
     [
-        (None, "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
-        ("v0.4", "v0.4", "v0.4/traces", MSGPACK_ENCODERS["v0.4"]),
-        ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
+        (None, "v0.5"),
+        ("v0.4", "v0.4"),
+        ("v0.5", "v0.5"),
     ],
 )
-def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+def test_writer_recreate_api_version(init_api_version, api_version):
     writer = NativeWriter("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
-    assert writer._endpoint == endpoint
-    assert isinstance(writer._encoder, encoder_cls)
+    assert writer._endpoint == "{}/traces".format(api_version)
+    assert isinstance(writer._encoder, MSGPACK_ENCODERS["v0.4"])
 
     writer = writer.recreate()
     assert writer._api_version == api_version
-    assert writer._endpoint == endpoint
-    assert isinstance(writer._encoder, encoder_cls)
+    assert writer._endpoint == "{}/traces".format(api_version)
+    assert isinstance(writer._encoder, MSGPACK_ENCODERS["v0.4"])
 
 
 def test_native_writer_recreate_keeps_stats_opt_out():
