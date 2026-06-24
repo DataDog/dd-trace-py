@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    opentelemetry: OTLP trace export now supports the ``http/protobuf`` protocol in addition to ``http/json``, selected via the ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`` environment variable. Any other value (including the OTel default ``grpc``, which is not supported over HTTP) falls back to ``http/json``.
+    opentelemetry: OTLP trace export now supports the ``http/protobuf`` protocol (the default) and ``http/json``, selected via the ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL`` environment variable.
