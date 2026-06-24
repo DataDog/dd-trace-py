@@ -349,3 +349,25 @@ class EventsSDKTestCase(TracerTestCase):
 
             assert any("No root span" in record.message for record in self._caplog.records)
             assert any(record.levelno == logging.WARNING for record in self._caplog.records)
+
+
+@pytest.mark.subprocess(env=dict(DD_APPSEC_ENABLED="true"))
+def test_user_blocking_listener_registered_without_appsec_trace_utils():
+    """Regression test for APPSEC-68564.
+
+    ``ddtrace.contrib.trace_utils.set_user`` enforces user blocking by dispatching the
+    ``set_user_for_asm`` event. The ``block_user`` listener must be registered during AppSec
+    startup even when ``ddtrace.appsec.trace_utils`` (and the user-tracking SDK) are never
+    imported, otherwise a blocked user can bypass blocking.
+    """
+    import sys
+
+    from ddtrace.appsec._listeners import load_appsec
+    from ddtrace.internal import core
+
+    # Enabling AppSec must not require importing the public user-tracking modules.
+    load_appsec()
+
+    assert "ddtrace.appsec.trace_utils" not in sys.modules
+    assert "ddtrace.appsec.track_user_sdk" not in sys.modules
+    assert core.event_hub.has_listeners("set_user_for_asm"), "block_user listener was not registered"
