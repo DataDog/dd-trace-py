@@ -49,6 +49,16 @@ class ProfilerStats
     // Total CPU time (in microseconds) spent by the sampler thread capturing samples
     size_t sample_capture_cpu_time_us = 0;
 
+    // GC monitor snapshot metrics (accumulated since last upload, wall time in us)
+    size_t gc_snapshot_count = 0;
+    size_t gc_snapshot_wall_time_us = 0;
+    size_t gc_gc_stats_time_us = 0;
+    size_t gc_get_objects_time_us = 0;
+    size_t gc_type_scan_time_us = 0;
+    size_t gc_survivor_update_time_us = 0;
+    size_t gc_name_resolve_time_us = 0;
+    size_t gc_serialize_time_us = 0;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -85,6 +95,20 @@ class ProfilerStats
 
     void add_sample_capture_cpu_time_us(size_t cpu_time_us);
     size_t get_sample_capture_cpu_time_us() const;
+
+    // GC monitor snapshot timing -- called from the GC monitor background thread.
+    // The same racy-but-acceptable pattern used by add_sample_capture_cpu_time_us applies.
+    struct GCSnapshotTiming
+    {
+        size_t wall_us{ 0 };
+        size_t gc_stats_us{ 0 };
+        size_t get_objects_us{ 0 };
+        size_t type_scan_us{ 0 };
+        size_t survivor_update_us{ 0 };
+        size_t name_resolve_us{ 0 };
+        size_t serialize_us{ 0 };
+    };
+    void add_gc_snapshot_timing(const GCSnapshotTiming& t);
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
