@@ -962,18 +962,24 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
         if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
             threads.insert(tstate.prev);
 
+#if PY_VERSION_HEX >= 0x030e0000
+        const uint64_t native_thread_id = tstate.native_thread_id;
+#else
+        const uint64_t native_thread_id = 0;
+#endif
+
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
             auto it = echion.thread_info_map().find(tstate.thread_id);
             if (it == echion.thread_info_map().end()) {
-                if (tstate.native_thread_id == 0) {
+                if (native_thread_id == 0) {
                     // We failed to find ThreadInfo for thread_id, maybe there's a
                     // race condition between this call and `register_thread()`.
                     continue;
                 }
 
-                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, tstate.native_thread_id, "Thread");
+                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_thread_id, "Thread");
                 if (!maybe_thread_info) {
                     continue;
                 }
@@ -985,11 +991,12 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
             // have ThreadInfo from best-effort registration but no armed CPU timer,
             // for example an already-existing main thread when profiling starts from
             // an auxiliary thread. Reconcile CPU timer arming from the PyThreadState
-            // walk so wall-sampler discovery is the safety net.
-            if (tstate.native_thread_id != 0 &&
-                !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, tstate.native_thread_id)) {
+            // walk so wall-sampler discovery is the safety net. PyThreadState exposes
+            // native_thread_id on CPython 3.14+, matching the CPU timer support floor.
+            if (native_thread_id != 0 &&
+                !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, native_thread_id)) {
                 Datadog::CpuTimer::Engine::get().register_thread(
-                  tstate.thread_id, tstate.native_thread_id, "Thread", tstate_addr);
+                  tstate.thread_id, native_thread_id, "Thread", tstate_addr);
             }
 
             // Update the tstate_addr for thread info, so we can access
