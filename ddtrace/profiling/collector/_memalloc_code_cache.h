@@ -62,22 +62,8 @@ class CodeFunctionCache
      * lookups. If the target set is full, evicts via FIFO. */
     void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
 
-    /* Drops every entry. Counters are preserved (use reset_counters to
-     * zero them). */
+    /* Drops every entry. */
     void clear();
-
-    /* Telemetry. Reads are unsynchronized and intentionally racy (single-
-     * threaded under GIL anyway); reset_counters() zeros all three. */
-    uint64_t hits() const { return hits_; }
-    uint64_t misses() const { return misses_; }
-    uint64_t evictions() const { return evictions_; }
-    void reset_counters();
-
-    size_t capacity() const { return sets_.size() * WAYS_PER_SET; }
-
-    /* Debug: histogram[k] = number of sets currently holding exactly k
-     * entries. Sum equals num_sets. O(num_sets); never on hot path. */
-    std::array<size_t, WAYS_PER_SET + 1> occupancy_histogram() const;
 
     /* Process-wide singleton, mirrors heap_tracker_t::instance. */
     static CodeFunctionCache* instance;
@@ -99,10 +85,6 @@ class CodeFunctionCache
 
     std::vector<Set> sets_;
     uint8_t log2_set_bits_; // log2(num_sets); num_sets is a power of two in [32, 1<<19], so this is in [5, 19]
-
-    uint64_t hits_ = 0;
-    uint64_t misses_ = 0;
-    uint64_t evictions_ = 0;
 
     size_t set_index(PyCodeObject* code) const;
 };
