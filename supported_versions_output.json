@@ -645,7 +645,7 @@
         "dependency": "pyramid",
         "integration": "pyramid",
         "minimum_tracer_supported": "1.10.8",
-        "max_tracer_supported": "2.0.2",
+        "max_tracer_supported": "2.1",
         "auto-instrumented": true
     },
     {
@@ -668,7 +668,6 @@
         "integration": "pytorch",
         "minimum_tracer_supported": "2.0.1",
         "max_tracer_supported": "2.12.0",
-        "pinned": "true",
         "auto-instrumented": false
     },
     {
@@ -682,7 +681,7 @@
     {
         "dependency": "ray",
         "integration": "ray_serve",
-        "minimum_tracer_supported": "2.47.1",
+        "minimum_tracer_supported": "2.46.0",
         "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
