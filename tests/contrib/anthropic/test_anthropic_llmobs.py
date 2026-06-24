@@ -383,13 +383,13 @@ class TestLLMObsAnthropic:
 
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_bedrock_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
-        """model_provider resolves to 'amazon_bedrock' for the Bedrock base_url (AnthropicBedrock)."""
+        """model_provider resolves to 'amazon' for the Bedrock base_url (AnthropicBedrock)."""
         mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
         llm = anthropic.Anthropic(base_url="https://bedrock-runtime.us-east-1.amazonaws.com")
         llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
-        assert get_llmobs_model_provider(spans[0]) == "amazon_bedrock"
+        assert get_llmobs_model_provider(spans[0]) == "amazon"
 
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_vertex_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
@@ -1761,7 +1761,7 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     "base_url,expected",
     [
         ("https://api.anthropic.com", "anthropic"),
-        ("https://bedrock-runtime.us-east-1.amazonaws.com", "amazon_bedrock"),
+        ("https://bedrock-runtime.us-east-1.amazonaws.com", "amazon"),
         ("https://us-central1-aiplatform.googleapis.com/v1", "google"),
         ("https://myresource.services.ai.azure.com/anthropic/", "anthropic"),
         ("http://localhost:8000", "unknown"),
@@ -1793,11 +1793,11 @@ def test_get_model_provider_is_per_span(tracer):
     integration = AnthropicIntegration(MagicMock())
     with tracer.trace("bedrock.request") as bedrock_span:
         bedrock_span._set_ctx_item(REQUEST_BASE_URL, "https://bedrock-runtime.us-east-1.amazonaws.com")
-        assert integration._get_model_provider(bedrock_span) == "amazon_bedrock"
+        assert integration._get_model_provider(bedrock_span) == "amazon"
 
     with tracer.trace("default.request") as default_span:
         default_span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
         assert integration._get_model_provider(default_span) == "anthropic"
 
     # The first span still resolves independently after the second request.
-    assert integration._get_model_provider(bedrock_span) == "amazon_bedrock"
+    assert integration._get_model_provider(bedrock_span) == "amazon"

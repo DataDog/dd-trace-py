@@ -278,7 +278,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _get_model_provider(self, span: Span) -> str:
         """Resolve the model provider from the request base_url captured on the span.
 
-        Returns "amazon_bedrock" if the base_url contains "bedrock".
+        Returns "amazon" if the base_url contains "bedrock".
         Returns "google" if the base_url contains "google".
         Returns "anthropic" if the base_url contains "anthropic".
         Returns "unknown" when the base_url is missing or unrecognized.
