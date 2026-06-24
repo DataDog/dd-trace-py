@@ -94,7 +94,7 @@ class Sampler
     void stop();
     PauseResult pause();
     void resume();
-    void register_thread(uint64_t id, uint64_t native_id, const char* name);
+    void register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate = nullptr);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);

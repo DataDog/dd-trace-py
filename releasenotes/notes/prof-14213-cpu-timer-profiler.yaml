@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: adds an opt-in Linux CPU timer stack profiler for CPython 3.14+ that collects CPU-time samples with per-thread CPU timers. Set ``_DD_PROFILING_STACK_CPU_TIMER_ENABLED=true`` to enable it.

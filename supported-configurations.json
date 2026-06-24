@@ -5792,6 +5792,22 @@
         "internal": true
       }
     ],
+    "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10",
+        "internal": true
+      }
+    ],
     "_DD_PROFILING_STACK_FAST_COPY": [
       {
         "implementation": "A",

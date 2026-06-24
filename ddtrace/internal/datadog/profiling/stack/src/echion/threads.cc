@@ -701,18 +701,20 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, bool include_cpu_time)
 {
     auto& renderer = echion.renderer();
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
-    microsecond_t previous_cpu_time = cpu_time;
-    auto update_cpu_time_success = update_cpu_time();
-    if (!update_cpu_time_success) {
-        return ErrorKind::CpuTimeError;
-    }
+    if (include_cpu_time) {
+        microsecond_t previous_cpu_time = cpu_time;
+        auto update_cpu_time_success = update_cpu_time();
+        if (!update_cpu_time_success) {
+            return ErrorKind::CpuTimeError;
+        }
 
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
+        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    }
 
     this->unwind(echion, tstate);
 

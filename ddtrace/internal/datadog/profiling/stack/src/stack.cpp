@@ -1,4 +1,5 @@
 #include "cast_to_pyfunc.hpp"
+#include "cpu_timer.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
@@ -82,8 +83,10 @@ stack_thread_register(PyObject* self, PyObject* args)
         return NULL;
     }
 
+    PyThreadState* tstate = PyThreadState_Get();
+
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().register_thread(id, native_id, name);
+    Sampler::get().register_thread(id, native_id, name, tstate);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -268,6 +271,95 @@ stack_set_max_threads(PyObject* Py_UNUSED(self), PyObject* args)
 
     Sampler::get().set_max_threads_per_sample(max_threads);
 
+    Py_RETURN_NONE;
+}
+
+static int
+set_debug_stat(PyObject* dict, const char* name, uint64_t value)
+{
+    PyObject* py_value = PyLong_FromUnsignedLongLong(value);
+    if (py_value == nullptr) {
+        return -1;
+    }
+    const int rc = PyDict_SetItemString(dict, name, py_value);
+    Py_DECREF(py_value);
+    return rc;
+}
+
+static int
+set_debug_stat(PyObject* dict, const char* name, bool value)
+{
+    PyObject* py_value = value ? Py_True : Py_False;
+    Py_INCREF(py_value);
+    const int rc = PyDict_SetItemString(dict, name, py_value);
+    Py_DECREF(py_value);
+    return rc;
+}
+
+static PyObject*
+stack_set_cpu_timer(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 0;
+    unsigned long long interval_ms = 10;
+
+    if (!PyArg_ParseTuple(args, "pK", &enabled, &interval_ms)) {
+        return NULL;
+    }
+
+    CpuTimer::Engine::get().configure(static_cast<bool>(enabled), static_cast<uint64_t>(interval_ms));
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    const CpuTimer::DebugStats stats = CpuTimer::Engine::get().debug_stats();
+    PyObject* dict = PyDict_New();
+    if (dict == nullptr) {
+        return nullptr;
+    }
+
+    if (set_debug_stat(dict, "supported", stats.supported) != 0 ||
+        set_debug_stat(dict, "configured", stats.configured) != 0 ||
+        set_debug_stat(dict, "active", stats.active) != 0 ||
+        set_debug_stat(dict, "permanently_disabled", stats.permanently_disabled) != 0 ||
+        set_debug_stat(dict, "replacing_wall_cpu", stats.replacing_wall_cpu) != 0 ||
+        set_debug_stat(dict, "interval_ms", stats.interval_ms) != 0 ||
+        set_debug_stat(dict, "live_count", stats.live_count) != 0 ||
+        set_debug_stat(dict, "retired_count", stats.retired_count) != 0 ||
+        set_debug_stat(dict, "leaked_altstack_count", stats.leaked_altstack_count) != 0 ||
+        set_debug_stat(dict, "pending_unprepared", stats.pending_unprepared) != 0 ||
+        set_debug_stat(dict, "app_altstack_present", stats.app_altstack_present) != 0 ||
+        set_debug_stat(dict, "reused_altstack_count", stats.reused_altstack_count) != 0 ||
+        set_debug_stat(dict, "reused_altstack_too_small_count", stats.reused_altstack_too_small_count) != 0 ||
+        set_debug_stat(dict, "blocked_signal_count", stats.blocked_signal_count) != 0 ||
+        set_debug_stat(dict, "tid_out_of_bounds", stats.tid_out_of_bounds) != 0 ||
+        set_debug_stat(dict, "timer_syscall_failures", stats.timer_syscall_failures) != 0 ||
+        set_debug_stat(dict, "accepted_signal_oob_tid_count", stats.accepted_signal_oob_tid_count) != 0 ||
+        set_debug_stat(dict, "handler_hijack_disable_count", stats.handler_hijack_disable_count) != 0 ||
+        set_debug_stat(dict, "fast_copy_conflict_count", stats.fast_copy_conflict_count) != 0 ||
+        set_debug_stat(dict, "dropped_count", stats.dropped_count) != 0 ||
+        set_debug_stat(dict, "dropped_cpu_ns", stats.dropped_cpu_ns) != 0 ||
+        set_debug_stat(dict, "capture_failed_count", stats.capture_failed_count) != 0 ||
+        set_debug_stat(dict, "capture_failed_cpu_ns", stats.capture_failed_cpu_ns) != 0 ||
+        set_debug_stat(dict, "residual_cpu_ns", stats.residual_cpu_ns) != 0 ||
+        set_debug_stat(dict, "stage2_invalid_frame_count", stats.stage2_invalid_frame_count) != 0) {
+        Py_DECREF(dict);
+        return nullptr;
+    }
+
+    return dict;
+}
+
+static PyObject*
+stack_cpu_timer_debug_set_fault_injection(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 0;
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {
+        return nullptr;
+    }
+    CpuTimer::Engine::get().debug_set_fault_injection(static_cast<bool>(enabled));
     Py_RETURN_NONE;
 }
 
@@ -736,6 +828,7 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
     if (fast_copy_active) {
+        CpuTimer::Engine::get().disable_for_fault_handler_swap();
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -797,6 +890,12 @@ static PyMethodDef stack_methods[] = {
       METH_VARARGS,
       "Set max sampling period for adaptive sampling" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
+    { "set_cpu_timer", stack_set_cpu_timer, METH_VARARGS, "Configure timer_create based CPU profiling" },
+    { "_cpu_timer_debug_stats", stack_cpu_timer_debug_stats, METH_NOARGS, "Return private CPU timer diagnostics" },
+    { "_cpu_timer_debug_set_fault_injection",
+      stack_cpu_timer_debug_set_fault_injection,
+      METH_VARARGS,
+      "Enable private CPU timer fault injection" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },

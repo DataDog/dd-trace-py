@@ -628,6 +628,7 @@ profiling_native:
         - ddtrace/profiling/**/*.cc
         - ddtrace/profiling/**/*.h
         - ddtrace/profiling/**/*.hpp
+        - ddtrace/profiling/**/*.pxd
         - ddtrace/profiling/**/*.pyx
         # Build/test config files (not matchable by extension alone)
         - ddtrace/internal/datadog/profiling/**/CMakeLists.txt

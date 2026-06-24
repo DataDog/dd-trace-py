@@ -60,6 +60,44 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
+StackRenderer::render_cpu_sample_begin(std::string_view name,
+                                       microsecond_t cpu_time_us,
+                                       uintptr_t thread_id,
+                                       unsigned long native_id)
+{
+    static bool failed = false;
+    if (failed) {
+        return;
+    }
+    sample = SampleManager::start_sample();
+    if (sample == nullptr) {
+        std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
+        failed = true;
+        return;
+    }
+
+    const int64_t now_ns = get_monotonic_ns();
+    sample->push_monotonic_ns(now_ns);
+    sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
+    sample->push_cputime(1000 * cpu_time_us, 1);
+
+    thread_state.id = thread_id;
+    thread_state.native_id = native_id;
+    thread_state.name = std::string(name);
+    thread_state.now_time_ns = now_ns;
+    thread_state.wall_time_ns = 0;
+    thread_state.cpu_time_ns = 1000 * cpu_time_us;
+    pushed_task_name = false;
+
+    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    if (active_span) {
+        sample->push_span_id(active_span->span_id);
+        sample->push_local_root_span_id(active_span->local_root_span_id);
+        sample->push_trace_type(std::string_view(active_span->span_type));
+    }
+}
+
+void
 StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
