@@ -84,16 +84,6 @@ raw_gettid()
     return static_cast<pid_t>(syscall(SYS_gettid));
 }
 
-uint64_t
-thread_cpu_time_ns()
-{
-    struct timespec ts{};
-    if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
-        return 0;
-    }
-    return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL + static_cast<uint64_t>(ts.tv_nsec);
-}
-
 clockid_t
 thread_cpu_clock(pid_t tid)
 {
@@ -102,6 +92,29 @@ thread_cpu_clock(pid_t tid)
     const unsigned long encoded = ((~static_cast<unsigned long>(tid)) << 3) |
                                   (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
     return static_cast<clockid_t>(encoded);
+}
+
+uint64_t
+clock_to_ns(clockid_t clock_id)
+{
+    struct timespec ts
+    {};
+    if (clock_gettime(clock_id, &ts) != 0) {
+        return 0;
+    }
+    return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ULL + static_cast<uint64_t>(ts.tv_nsec);
+}
+
+uint64_t
+thread_cpu_time_ns()
+{
+    return clock_to_ns(CLOCK_THREAD_CPUTIME_ID);
+}
+
+uint64_t
+thread_cpu_time_ns(pid_t tid)
+{
+    return clock_to_ns(thread_cpu_clock(tid));
 }
 
 bool
@@ -368,8 +381,9 @@ disable_current_thread_altstack(OwnedAltStack& altstack)
         return;
     }
 
-    altstack.detached = true;
-    g_state.leaked_altstacks.emplace_back(altstack.mapping, altstack.mapping_size);
+    munmap(altstack.mapping, altstack.mapping_size);
+    altstack.mapping = nullptr;
+    altstack.installed = false;
 }
 
 bool
@@ -529,7 +543,8 @@ retire_state_locked(std::unique_ptr<CaptureState> state, bool current_thread)
             state->residual_cpu_ns.fetch_add(now - state->last_cpu_ns, std::memory_order_relaxed);
         }
         disable_current_thread_altstack(state->altstack);
-    } else if (state->altstack.installed && state->altstack.mapping != nullptr && !state->altstack.detached) {
+    } else if (state->altstack.installed && !state->altstack.using_existing && state->altstack.mapping != nullptr &&
+               !state->altstack.detached) {
         state->altstack.detached = true;
         g_state.leaked_altstacks.emplace_back(state->altstack.mapping, state->altstack.mapping_size);
     }
@@ -677,6 +692,15 @@ disable_all_timers_for_hijack()
     g_state.active.store(false, std::memory_order_release);
     g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     g_state.permanently_disabled.store(true, std::memory_order_release);
+    disable_all_timers_locked();
+}
+
+void
+disable_all_timers_for_blocked_signal()
+{
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    g_state.active.store(false, std::memory_order_release);
+    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     disable_all_timers_locked();
 }
 
@@ -885,7 +909,8 @@ Engine::start()
         return false;
     }
     if (g_state.permanently_disabled.load(std::memory_order_acquire) ||
-        g_state.stopped_once.load(std::memory_order_acquire)) {
+        g_state.stopped_once.load(std::memory_order_acquire) ||
+        g_state.blocked_signal_count.load(std::memory_order_acquire) > 0) {
         return false;
     }
     if (g_state.active.load(std::memory_order_acquire)) {
@@ -895,6 +920,9 @@ Engine::start()
     std::lock_guard<std::mutex> lock(g_state.registry_lock);
     if (g_state.active.load(std::memory_order_acquire)) {
         return true;
+    }
+    if (g_state.blocked_signal_count.load(std::memory_order_acquire) > 0) {
+        return false;
     }
     if (!initialize_slots()) {
         g_state.permanently_disabled.store(true, std::memory_order_release);
@@ -1027,8 +1055,11 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
     }
 
     const pid_t current_tid = raw_gettid();
-    if (native_id != static_cast<uint64_t>(current_tid)) {
-        g_state.pending_unprepared.fetch_add(1, std::memory_order_relaxed);
+    const bool current_thread = native_id == static_cast<uint64_t>(current_tid);
+    // AIDEV-NOTE: Remote arming cannot inspect the target thread's signal mask.
+    // If current-thread registration already found SIGPROF/SIGSEGV/SIGBUS blocked,
+    // keep the CPU timer inactive rather than replacing wall-sampled CPU time unsafely.
+    if (!current_thread && g_state.blocked_signal_count.load(std::memory_order_relaxed) > 0) {
         return;
     }
     if (tstate == nullptr) {
@@ -1039,8 +1070,9 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         g_state.tid_out_of_bounds.fetch_add(1, std::memory_order_relaxed);
         return;
     }
-    if (is_signal_blocked(SIGPROF) || is_signal_blocked(SIGSEGV) || is_signal_blocked(SIGBUS)) {
+    if (current_thread && (is_signal_blocked(SIGPROF) || is_signal_blocked(SIGSEGV) || is_signal_blocked(SIGBUS))) {
         g_state.blocked_signal_count.fetch_add(1, std::memory_order_relaxed);
+        disable_all_timers_for_blocked_signal();
         return;
     }
     if (!sigprof_handler_still_installed() || !fault_handlers_still_installed()) {
@@ -1053,29 +1085,33 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
                       ? reinterpret_cast<PyThreadState*>(static_cast<uintptr_t>(1))
                       : tstate;
 
-    if (!install_current_thread_altstack(state->altstack)) {
+    if (current_thread && !install_current_thread_altstack(state->altstack)) {
         return;
     }
     if (!create_timer(*state)) {
         g_state.timer_syscall_failures.fetch_add(1, std::memory_order_relaxed);
-        disable_current_thread_altstack(state->altstack);
+        if (current_thread) {
+            disable_current_thread_altstack(state->altstack);
+        }
         return;
     }
 
-    state->last_cpu_ns = thread_cpu_time_ns();
+    state->last_cpu_ns = current_thread ? thread_cpu_time_ns() : thread_cpu_time_ns(static_cast<pid_t>(native_id));
     CaptureState* state_ptr = state.get();
     {
         std::lock_guard<std::mutex> lock(g_state.registry_lock);
         if (!g_state.active.load(std::memory_order_acquire)) {
             delete_timer(*state);
-            disable_current_thread_altstack(state->altstack);
+            if (current_thread) {
+                disable_current_thread_altstack(state->altstack);
+            }
             return;
         }
         auto existing = g_state.live_by_thread_id.find(python_thread_id);
         if (existing != g_state.live_by_thread_id.end()) {
             auto old = std::move(existing->second);
             g_state.live_by_thread_id.erase(existing);
-            retire_state_locked(std::move(old), true);
+            retire_state_locked(std::move(old), current_thread);
         }
         g_state.live_by_thread_id.emplace(python_thread_id, std::move(state));
         g_state.slots[native_id].store(state_ptr, std::memory_order_seq_cst);
@@ -1113,6 +1149,23 @@ Engine::unregister_thread(uint64_t python_thread_id)
     }
 #else
     (void)python_thread_id;
+#endif
+}
+
+bool
+Engine::has_thread(uint64_t python_thread_id, uint64_t native_id) const
+{
+#if DD_CPU_TIMER_SUPPORTED
+    std::lock_guard<std::mutex> lock(g_state.registry_lock);
+    const auto it = g_state.live_by_thread_id.find(python_thread_id);
+    if (it == g_state.live_by_thread_id.end()) {
+        return false;
+    }
+    return it->second->native_tid == native_id;
+#else
+    (void)python_thread_id;
+    (void)native_id;
+    return false;
 #endif
 }
 
