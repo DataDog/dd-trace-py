@@ -53,6 +53,7 @@ class Engine
 
     void register_thread(uint64_t python_thread_id, uint64_t native_id, const char* name, PyThreadState* tstate);
     void unregister_thread(uint64_t python_thread_id);
+    bool has_thread(uint64_t python_thread_id, uint64_t native_id) const;
     void drain(EchionSampler& echion);
 
     bool replaces_wall_sampler_cpu_time() const;

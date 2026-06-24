@@ -2,6 +2,8 @@
 #include <echion/tasks.h>
 #include <echion/threads.h>
 
+#include "cpu_timer.hpp"
+
 #include <echion/echion_sampler.h>
 
 #include <algorithm>
@@ -960,9 +962,29 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
 
             auto it = echion.thread_info_map().find(tstate.thread_id);
             if (it == echion.thread_info_map().end()) {
-                // We failed to find ThreadInfo for thread_id, maybe there's a
-                // race condition between this call and `register_thread()`.
-                continue;
+                if (tstate.native_thread_id == 0) {
+                    // We failed to find ThreadInfo for thread_id, maybe there's a
+                    // race condition between this call and `register_thread()`.
+                    continue;
+                }
+
+                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, tstate.native_thread_id, "Thread");
+                if (!maybe_thread_info) {
+                    continue;
+                }
+                it = echion.thread_info_map().emplace(tstate.thread_id, std::move(*maybe_thread_info)).first;
+            }
+
+            // AIDEV-NOTE: timer_create CPU timers are per native thread, while the
+            // historical ThreadInfo map is metadata for wall sampling. A thread can
+            // have ThreadInfo from best-effort registration but no armed CPU timer,
+            // for example an already-existing main thread when profiling starts from
+            // an auxiliary thread. Reconcile CPU timer arming from the PyThreadState
+            // walk so wall-sampler discovery is the safety net.
+            if (tstate.native_thread_id != 0 &&
+                !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, tstate.native_thread_id)) {
+                Datadog::CpuTimer::Engine::get().register_thread(
+                  tstate.thread_id, tstate.native_thread_id, "Thread", tstate_addr);
             }
 
             // Update the tstate_addr for thread info, so we can access

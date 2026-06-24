@@ -56,6 +56,74 @@ def test_cpu_timer_profiler_emits_cpu_samples():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_auxiliary_start_main_thread",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_profiler_started_in_auxiliary_thread_profiles_main_thread():
+    import os
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    ready = threading.Event()
+    stop = threading.Event()
+
+    def profiler_thread():
+        p = profiler.Profiler()
+        p.start()
+        ready.set()
+        stop.wait(2.0)
+        p.stop()
+
+    def cpu_timer_main_thread_busy_loop():
+        deadline = time.thread_time_ns() + 500_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    thread = threading.Thread(target=profiler_thread, name="cpu-timer-profiler-starter")
+    thread.start()
+    assert ready.wait(2.0)
+    try:
+        time.sleep(0.2)
+        assert cpu_timer_main_thread_busy_loop() > 0
+        stats = stack._cpu_timer_debug_stats()
+    finally:
+        stop.set()
+        thread.join(2.0)
+
+    assert not thread.is_alive()
+    assert stats["active"] is True, stats
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    cpu_time_by_function = {}
+    for sample in profile.sample:
+        cpu_time_ns = sample.value[cpu_time_index]
+        if cpu_time_ns <= 0:
+            continue
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            line = location.line[0]
+            function = pprof_utils.get_function_with_id(profile, line.function_id)
+            function_name = profile.string_table[function.name]
+            cpu_time_by_function[function_name] = cpu_time_by_function.get(function_name, 0) + cpu_time_ns
+
+    assert cpu_time_by_function.get("cpu_timer_main_thread_busy_loop", 0) > 0, cpu_time_by_function
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_asyncio_task_stitching",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
@@ -210,7 +278,7 @@ def test_cpu_timer_postfork_child_reinitializes_without_stale_altstack():
     err=None,
 )
 @pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
-def test_cpu_timer_existing_thread_is_not_cross_thread_armed():
+def test_cpu_timer_preexisting_thread_remote_discovery_is_safe():
     import threading
     import time
 
@@ -246,8 +314,8 @@ def test_cpu_timer_existing_thread_is_not_cross_thread_armed():
     assert not worker.is_alive()
     assert stats["active"] is True, stats
     assert stats["live_count"] >= 1, stats
-    assert stats["pending_unprepared"] >= 1, stats
     assert stats["timer_syscall_failures"] == 0, stats
+    assert stats["capture_failed_count"] == 0, stats
 
 
 @pytest.mark.subprocess(
