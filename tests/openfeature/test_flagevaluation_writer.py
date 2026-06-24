@@ -13,6 +13,7 @@ Tests validate the two-tier aggregation spec:
 
 from datetime import datetime
 from datetime import timezone
+from decimal import Decimal
 import json
 import time
 from unittest import mock
@@ -461,6 +462,33 @@ class TestPeriodicFlush:
         ctx_eval = decoded["flagEvaluations"][0]["context"]["evaluation"]
         assert ctx_eval["seen_at"] == timestamp.isoformat()
         assert ctx_eval["nested.created_at"] == timestamp.isoformat()
+
+    def test_openfeature_non_json_context_values_are_json_serialized(self, writer):
+        """Non-JSON-safe context values must not make payload encoding drop the batch."""
+
+        class CustomContextValue:
+            def __str__(self):
+                return "custom-value"
+
+        writer.enqueue(
+            _make_event(
+                attrs={
+                    "amount": Decimal("12.34"),
+                    "custom": CustomContextValue(),
+                    "list": [Decimal("1.5"), CustomContextValue()],
+                }
+            )
+        )
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        payload_bytes = mock_send.call_args[0][0]
+        decoded = json.loads(payload_bytes)
+        ctx_eval = decoded["flagEvaluations"][0]["context"]["evaluation"]
+        assert ctx_eval["amount"] == "12.34"
+        assert ctx_eval["custom"] == "custom-value"
+        assert ctx_eval["list"] == ["1.5", "custom-value"]
 
     def test_degraded_event_has_no_context_or_targeting_key(self, writer):
         """Degraded-tier events must not include targeting_key or context fields."""

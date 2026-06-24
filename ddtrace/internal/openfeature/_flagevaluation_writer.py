@@ -22,7 +22,6 @@ Key design properties:
 """
 
 from collections.abc import Mapping
-from collections.abc import Sequence
 import http.client as httplib
 import json
 import queue
@@ -105,7 +104,16 @@ FLAG_EVALUATION_REASON_CARDINALITY_CAP = "cardinality_cap"
 
 
 def _json_dumps(obj: typing.Any) -> bytes:
-    return json.dumps(obj, separators=_JSON_SEPARATORS).encode("utf-8")
+    return json.dumps(obj, default=_json_default, separators=_JSON_SEPARATORS).encode("utf-8")
+
+
+def _json_default(value: typing.Any) -> str:
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return str(value)
 
 
 def _count_metric(name: str, value: int, reason: typing.Optional[str] = None) -> None:
@@ -211,15 +219,7 @@ def flatten_and_prune_context(attrs: dict[str, typing.Any]) -> dict[str, typing.
 
 
 def _json_safe_context_value(value: typing.Any) -> typing.Any:
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, Mapping):
-        return {str(k): _json_safe_context_value(v) for k, v in value.items()}
-    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
-        return [_json_safe_context_value(v) for v in value]
-    if hasattr(value, "isoformat"):
-        return value.isoformat()
-    return str(value)
+    return json.loads(_json_dumps(value).decode("utf-8"))
 
 
 def _json_safe_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
