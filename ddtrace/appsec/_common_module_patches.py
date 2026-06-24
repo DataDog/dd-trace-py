@@ -366,18 +366,11 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
         env.downstream_requests += 1
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        response = original_request_callable(*args, **kwargs)
-        try:
-            if response.__class__.__name__ == "BaseHTTPResponse" and 300 <= response.status < 400:
-                # api10 for redirected response status and headers in urllib3
-                addresses = {
-                    "DOWN_RES_STATUS": str(response.status),
-                    "DOWN_RES_HEADERS": response.headers,
-                }
-                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-        except Exception:
-            pass  # nosec
-        return response
+        # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
+        # out in http.client.HTTPConnection.getresponse (wrapped by `wrapped_response`), which
+        # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
+        # subcontext. Re-inspecting here would double-call the WAF.
+        return original_request_callable(*args, **kwargs)
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
