@@ -130,7 +130,7 @@ class DDWaf:
         """update the rules of the WAF instance. return False if an error occurs."""
         ok = True
         for product, path in removals:
-            ok &= py_remove_config(self._builder, path)
+            py_remove_config(self._builder, path)
             self._rc_products.get(product, set()).discard(path)
             if product == "ASM_DD":
                 self._asm_dd_cache.discard(path)
@@ -146,16 +146,19 @@ class DDWaf:
                 self._asm_dd_cache.add(path)
             diagnostics = ddwaf_object()
             ruleset_object = ddwaf_object.create_without_limits(rules)
-            ok &= py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
+            res = py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
             self._set_info(diagnostics, "update")
             ddwaf_object_free(ruleset_object)
-            ddwaf_object_free(diagnostics)
+            ok &= res
+            if not res:
+                self._rc_products[product].discard(path)
+                if product == "ASM_DD":
+                    self._asm_dd_cache.discard(path)
         if not self._asm_dd_cache:
             # we need to add the default ruleset back
             diagnostics = ddwaf_object()
             ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
             self._set_info(diagnostics, "update")
-            ddwaf_object_free(diagnostics)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
         self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
