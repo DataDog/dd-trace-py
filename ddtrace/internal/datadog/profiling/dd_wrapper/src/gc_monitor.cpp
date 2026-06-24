@@ -1,5 +1,9 @@
+#define Py_BUILD_CORE 1
+#define Py_BUILD_CORE_MODULE 1
+
 #include <Python.h>
 #include <frameobject.h>
+#include <objimpl.h>
 
 #include "gc_monitor.hpp"
 #include "profile_borrow.hpp"
@@ -9,7 +13,6 @@
 #include <chrono>
 #include <cstring>
 #include <ctime>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -182,6 +185,53 @@ is_excluded_type(const std::string& tname) noexcept
     return false;
 }
 
+// Resolve a PyTypeObject* histogram into a parallel (type_table, type_counts)
+// representation, deduplicating by fully-qualified type name.  This is the only
+// part of the snapshot that needs Python API calls per *unique type* (not per
+// instance), so it is cheap.  GIL must be held.
+void
+resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_hist,
+                       std::vector<std::string>& type_table,
+                       std::vector<uint32_t>& type_counts)
+{
+    std::unordered_map<std::string, uint32_t> type_table_index;
+    type_table.reserve(type_hist.size());
+    type_counts.reserve(type_hist.size());
+
+    for (const auto& [tp, count] : type_hist) {
+        std::string tname;
+        if (tp != nullptr) {
+            PyObject* tp_obj = reinterpret_cast<PyObject*>(tp);
+            PyObject* mod = PyObject_GetAttrString(tp_obj, "__module__");
+            PyObject* qname = PyObject_GetAttrString(tp_obj, "__qualname__");
+            std::string mod_s = pystr_to_std(mod);
+            std::string qname_s = pystr_to_std(qname);
+            Py_XDECREF(mod);
+            Py_XDECREF(qname);
+            PyErr_Clear();
+            if (mod_s.empty() || mod_s == "builtins") {
+                tname = qname_s.empty() ? "<unknown>" : qname_s;
+            } else if (qname_s.empty()) {
+                tname = mod_s;
+            } else {
+                tname = mod_s + "." + qname_s;
+            }
+        } else {
+            tname = "<unknown>";
+        }
+
+        auto it = type_table_index.find(tname);
+        if (it == type_table_index.end()) {
+            auto tidx = static_cast<uint32_t>(type_table.size());
+            type_table.push_back(tname);
+            type_table_index[tname] = tidx;
+            type_counts.push_back(count);
+        } else {
+            type_counts[it->second] += count;
+        }
+    }
+}
+
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -343,6 +393,59 @@ GCMonitor::take_snapshot()
     const auto t_get_objects_start = Clock::now();
     timing.gc_stats_us = elapsed_us(t_gc_stats_start, t_get_objects_start);
 
+    std::unordered_map<PyTypeObject*, uint32_t> type_hist;
+    std::vector<std::string> type_table;
+    std::vector<uint32_t> type_counts;
+
+#if PY_VERSION_HEX >= 0x030C0000
+    // ------------------------------------------------------------------
+    // Phases 1+2 (GIL held): walk all GC-tracked objects in place and tally
+    // them by type.
+    //
+    // PyUnstable_GC_VisitObjects (3.12+) iterates the GC heaps without
+    // allocating a Python list and without touching refcounts, unlike
+    // gc.get_objects() which builds an N-element list and performs 2N
+    // INCREF/DECREF operations.  The callback only reads Py_TYPE and updates a
+    // C++ hashmap -- it must not (de)allocate Python objects or trigger a
+    // collection (GC is disabled for the duration of the visit anyway).  We
+    // never store the object pointers, only their type pointers, so there is
+    // no lifetime concern once the visit returns.
+    // ------------------------------------------------------------------
+    Py_DECREF(gc_mod); // not needed for the in-place walk
+
+    PyUnstable_GC_VisitObjects(
+      [](PyObject* obj, void* arg) noexcept -> int {
+          auto* hist = static_cast<std::unordered_map<PyTypeObject*, uint32_t>*>(arg);
+          try {
+              (*hist)[Py_TYPE(obj)]++;
+          } catch (...) {
+              // A C++ exception must never propagate into CPython's C frames.
+              // On allocation failure we simply drop this object's tally.
+          }
+          return 1; // continue iteration
+      },
+      &type_hist);
+
+    // ------------------------------------------------------------------
+    // Phase 3 (GIL still held): resolve type names per unique type.  The
+    // PyTypeObject* keys are guaranteed live here: we hold the GIL and have
+    // not allocated/freed anything since the visit, so every type that had a
+    // live instance during the walk is still alive.
+    // ------------------------------------------------------------------
+    const auto t_name_resolve_start = Clock::now();
+    timing.get_objects_us = elapsed_us(t_get_objects_start, t_name_resolve_start);
+    timing.type_scan_us = 0; // the type tally is folded into the visit above
+
+    resolve_type_histogram(type_hist, type_table, type_counts);
+
+    PyErr_Clear();
+    PyGILState_Release(gstate);
+#else
+    // ------------------------------------------------------------------
+    // Fallback for Python < 3.12, which lacks PyUnstable_GC_VisitObjects.
+    //
+    // Phase 1 (GIL held): gc.get_objects() materializes the live object list.
+    // ------------------------------------------------------------------
     PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
     Py_DECREF(gc_mod);
 
@@ -377,7 +480,6 @@ GCMonitor::take_snapshot()
     // read and a hashmap update.  Python threads are free to run while we
     // do the O(n) work here.
     // ------------------------------------------------------------------
-    std::unordered_map<PyTypeObject*, uint32_t> type_hist;
     type_hist.reserve(static_cast<size_t>(n_objs / 8));
 
     for (PyObject* obj : ptrs) {
@@ -387,11 +489,6 @@ GCMonitor::take_snapshot()
     // ------------------------------------------------------------------
     // Phase 3 (GIL re-acquired): resolve type names, release object list
     //
-    // We call type_name_of once per *unique type*, not once per instance.
-    // In a typical process there are O(hundreds) of unique types but
-    // O(millions) of instances, so this is orders of magnitude cheaper
-    // than the previous per-instance approach.
-    //
     // We resolve names while `objs` is still alive to guarantee that the
     // PyTypeObject* keys in type_hist are valid (a heap type's refcount
     // includes a contribution from each of its live instances).
@@ -400,53 +497,13 @@ GCMonitor::take_snapshot()
     const auto t_name_resolve_start = Clock::now();
     timing.type_scan_us = elapsed_us(t_type_scan_start, t_name_resolve_start);
 
-    std::vector<std::string> type_table;
-    std::unordered_map<std::string, uint32_t> type_table_index;
-    std::vector<uint32_t> type_counts;
-    type_table.reserve(type_hist.size());
-    type_counts.reserve(type_hist.size());
-
-    for (auto& [tp, count] : type_hist) {
-        std::string tname;
-        if (tp != nullptr) {
-            // Reuse type_name_of by passing a dummy instance: we only need
-            // __module__ and __qualname__ from the type, so pass the type
-            // object itself as the argument (its own type is `type`, but we
-            // call GetAttrString on tp directly).
-            PyObject* tp_obj = reinterpret_cast<PyObject*>(tp);
-            PyObject* mod = PyObject_GetAttrString(tp_obj, "__module__");
-            PyObject* qname = PyObject_GetAttrString(tp_obj, "__qualname__");
-            std::string mod_s = pystr_to_std(mod);
-            std::string qname_s = pystr_to_std(qname);
-            Py_XDECREF(mod);
-            Py_XDECREF(qname);
-            PyErr_Clear();
-            if (mod_s.empty() || mod_s == "builtins") {
-                tname = qname_s.empty() ? "<unknown>" : qname_s;
-            } else if (qname_s.empty()) {
-                tname = mod_s;
-            } else {
-                tname = mod_s + "." + qname_s;
-            }
-        } else {
-            tname = "<unknown>";
-        }
-
-        auto it = type_table_index.find(tname);
-        if (it == type_table_index.end()) {
-            auto tidx = static_cast<uint32_t>(type_table.size());
-            type_table.push_back(tname);
-            type_table_index[tname] = tidx;
-            type_counts.push_back(count);
-        } else {
-            type_counts[it->second] += count;
-        }
-    }
+    resolve_type_histogram(type_hist, type_table, type_counts);
 
     // Release the object list now that we no longer need the type pointers.
     Py_DECREF(objs);
     PyErr_Clear();
     PyGILState_Release(gstate);
+#endif
 
     // ------------------------------------------------------------------
     // Phase 4 (GIL released): serialize
