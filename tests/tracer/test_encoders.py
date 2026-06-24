@@ -28,7 +28,6 @@ from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
