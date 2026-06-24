@@ -1050,6 +1050,16 @@ class LLMObs(Service):
         variable_mapping: Optional[dict[str, str]] = None,
         agentic_service: Optional[str] = None,
     ) -> dict[str, str]:
+        """
+        Publish a custom evaluator configuration.
+
+        :param BaseEvaluator evaluator: The evaluator to publish.
+        :param str ml_app: Deprecated. Use ``agentic_service`` instead. Required if ``agentic_service`` is not provided.
+        :param str eval_name: The name to use for the published evaluator. Defaults to the evaluator name.
+        :param dict variable_mapping: A mapping from evaluator variables to span fields.
+        :param str agentic_service: The Agentic service for this evaluator. Required if ``ml_app`` is not provided.
+        :returns: A dictionary containing the evaluator configuration UI URL.
+        """
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
 

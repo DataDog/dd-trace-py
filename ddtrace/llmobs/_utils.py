@@ -367,7 +367,7 @@ def get_llmobs_span_name(span: Span) -> Optional[str]:
 
 
 def resolve_ml_app(ml_app: Optional[str] = None) -> str:
-    """Resolve the LLMObs application identity."""
+    """Resolve ML app name, falling back to config, service name, then default."""
     return ml_app or config._llmobs_ml_app or config.service or ML_APP_DEFAULT
 
 
