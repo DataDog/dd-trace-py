@@ -112,7 +112,7 @@ def _json_default(value: typing.Any) -> str:
         try:
             return str(value.isoformat())
         except Exception:
-            pass
+            return str(value)
     return str(value)
 
 
