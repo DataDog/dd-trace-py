@@ -1,6 +1,14 @@
-use libdd_remote_config::{default_registry, ParserRegistry, RemoteConfigProduct};
+use libdd_remote_config::{
+    config::{agent_config::AgentConfigFile, agent_task::AgentTaskFile},
+    ParserRegistry, RemoteConfigProduct,
+};
 use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
-use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
+use pyo3::{
+    create_exception,
+    exceptions::{PyException, PyValueError},
+    prelude::*,
+    Bound, PyErr,
+};
 
 create_exception!(
     tracer_flare_exceptions,
@@ -138,11 +146,14 @@ impl TracerFlareManagerPy {
     /// Returns:
     ///     TracerFlareManager instance
     #[new]
-    fn new(agent_url: &str) -> Self {
-        TracerFlareManagerPy {
+    fn new(agent_url: &str) -> PyResult<Self> {
+        Ok(TracerFlareManagerPy {
             manager: TracerFlareManager::new(agent_url, "python"),
-            registry: default_registry(),
-        }
+            registry: ParserRegistry::new()
+                .with::<AgentConfigFile>()
+                .and_then(|reg| reg.with::<AgentTaskFile>())
+                .map_err(|_| PyValueError::new_err("Failed to create remote config parser"))?,
+        })
     }
 
     /// Handles incoming remote configuration data and determines the appropriate action.
