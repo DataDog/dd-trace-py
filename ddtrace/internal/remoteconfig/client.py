@@ -379,6 +379,13 @@ class RemoteConfigClient:
                         exc_info=True,
                     )
                     self._set_apply_state_for_payloads(product_payload_list, 3, error_message)
+            else:
+                # The callback was unregistered between reconcile and dispatch. Report
+                # error rather than leaving the config Unacknowledged forever (it would
+                # be carried over as unchanged on later polls and never re-dispatched).
+                self._set_apply_state_for_payloads(
+                    product_payload_list, 3, "No callback registered for product %r" % product_name
+                )
 
     def _set_apply_state_for_payloads(
         self, payloads: Sequence[Payload], apply_state: int, apply_error: Optional[str] = None

@@ -8,6 +8,8 @@ from mock.mock import ANY
 
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
+from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import Payload
 import ddtrace.internal.remoteconfig._connectors
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -888,3 +890,23 @@ def test_apply_state_error_when_callback_raises(mock_send_request):
         applied = rc_client._applied_configs[_BASE_TARGET]
         assert applied.apply_state == 3  # ERROR
         assert applied.apply_error is not None
+
+
+def test_apply_state_error_when_callback_unregistered_before_dispatch():
+    """A config whose product callback is gone at dispatch is reported ERROR, not left pending.
+
+    Otherwise it would be carried over as unchanged on later polls and never re-dispatched,
+    staying UNACKNOWLEDGED forever.
+    """
+    rc_client = RemoteConfigClient()
+    target = "datadog/2/ASM_DATA/ASM_DATA-base/config"
+    meta = ConfigMetadata(
+        id="ASM_DATA-base", product_name="ASM_DATA", sha256_hash="abc", length=1, tuf_version=1, apply_state=1
+    )
+    rc_client._applied_configs[target] = meta
+
+    # dispatch with no registered callbacks (the product was unregistered after publish)
+    rc_client._dispatch_payloads([Payload(meta, target, {"data": 1})], {})
+
+    assert rc_client._applied_configs[target].apply_state == 3  # ERROR
+    assert rc_client._applied_configs[target].apply_error is not None
