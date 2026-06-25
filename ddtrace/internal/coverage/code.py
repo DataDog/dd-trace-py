@@ -119,7 +119,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls._instance._collect_import_coverage = collect_import_time_coverage
 
         if _PY_GE_312:
-            from ddtrace.internal.coverage.instrumentation_py3_12 import set_use_disable_optimization
+            from ddtrace.internal.coverage.instrumentation_py3_12 import (  # type: ignore[attr-defined]
+                set_use_disable_optimization,
+            )
 
             set_use_disable_optimization(use_disable_optimization)
 
