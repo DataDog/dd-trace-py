@@ -275,7 +275,17 @@ class RemoteConfigClient:
             log.debug("failed to enable remote config broadcast", exc_info=True)
 
     def make_reader(self) -> Optional[Any]:
-        """Create a native reader over the inherited shared memory."""
+        """Create a native reader over the inherited shared memory or reuse an existing one."""
+        if self._reader is not None:
+            # Reused across a fork-of-a-fork: the mapped SHM segments survive the fork,
+            # only the memoized data must be cleared so the full snapshot is re-emitted here.
+            try:
+                self._reader.reset()
+            except Exception:
+                log.debug("failed to reset inherited remote config reader", exc_info=True)
+                self._reader = None
+            return self._reader
+
         if self._native is None:
             return None
         try:

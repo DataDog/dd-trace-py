@@ -344,6 +344,15 @@ impl RemoteConfigReader {
         });
         Ok(changes)
     }
+
+    /// Forget what this reader has already delivered, so the next `read()`
+    /// returns the full active snapshot.
+    fn reset(&self) {
+        self.reader
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .reset();
+    }
 }
 
 pub fn register_remote_config(m: &Bound<'_, PyModule>) -> PyResult<()> {
