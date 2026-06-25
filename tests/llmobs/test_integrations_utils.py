@@ -1,9 +1,24 @@
+import base64
 from types import SimpleNamespace
 
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+
+
+def test_format_audio_part_from_bytes():
+    """Raw bytes are base64-encoded into an AudioPart with the given mime type."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_audio_part(raw, "audio/wav")
+    assert part == {"mime_type": "audio/wav", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_audio_part_from_base64_string():
+    """An already-encoded base64 string is passed through unchanged."""
+    part = format_audio_part("AAECAw==", "audio/mp3")
+    assert part == {"mime_type": "audio/mp3", "content": "AAECAw=="}
 
 
 def test_basic_functionality():

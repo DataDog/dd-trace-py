@@ -320,8 +320,15 @@ class ASMConfig(DDConfig):
 
     @property
     def _apm_opt_out(self) -> bool:
+        # AI Guard standalone: when AI Guard is enabled and APM tracing is disabled, opt out of APM
+        # billing while still letting AI Guard traces (USER_KEEP'd via _aiguard_manual_keep) reach the
+        # backend. ``ai_guard_config`` is a module global defined below; this property is only evaluated
+        # at runtime (after module import), so the reference resolves fine.
         return (
-            self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
+            self._asm_enabled
+            or self._iast_enabled
+            or tracer_config._sca_enabled is True
+            or ai_guard_config._ai_guard_enabled
         ) and not self._apm_tracing_enabled
 
     @property
@@ -343,6 +350,9 @@ class AIGuardConfig(DDConfig):
     _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD.ENV_MAX_CONTENT_SIZE, default=512 * 1024)
     _ai_guard_max_messages_length = DDConfig.var(int, AI_GUARD.ENV_MAX_MESSAGES_LENGTH, default=16)
     _ai_guard_timeout = DDConfig.var(int, AI_GUARD.ENV_TIMEOUT, default=10_000)
+    _ai_guard_analyze_stream_responses_enabled = DDConfig.var(
+        bool, AI_GUARD.ENV_ANALYZE_STREAM_RESPONSES_ENABLED, default=False
+    )
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -352,6 +362,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_max_content_size",
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",
+        "_ai_guard_analyze_stream_responses_enabled",
     ]
 
     def reset(self):
