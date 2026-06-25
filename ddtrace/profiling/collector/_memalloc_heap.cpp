@@ -158,9 +158,10 @@ class heap_tracker_t
      * own threshold. This prevents MEM-domain traffic from inflating the OBJ
      * sample rate and vice versa.
      * Indexed by PyMemAllocatorDomain: RAW=0, MEM=1, OBJ=2. */
-    struct domain_state_t {
-        uint64_t allocated_memory{0};
-        uint64_t current_sample_size{0};
+    struct domain_state_t
+    {
+        uint64_t allocated_memory{ 0 };
+        uint64_t current_sample_size{ 0 };
     };
     std::array<domain_state_t, 3> domain_states_;
 
@@ -322,10 +323,10 @@ heap_tracker_t::reset_sampling_state_no_cpython(PyMemAllocatorDomain domain)
     ds.allocated_memory = 0;
     // MEM domain samples 4× less frequently than OBJ/RAW to reduce the cost of
     // CPython traceback capture on high-frequency small allocations.
-    const uint32_t effective_rate = (domain == PYMEM_DOMAIN_MEM)
-        ? static_cast<uint32_t>(std::min<uint64_t>(
-              static_cast<uint64_t>(sample_size) * MEM_DOMAIN_SAMPLE_RATE_FACTOR, UINT32_MAX))
-        : static_cast<uint32_t>(sample_size);
+    const uint32_t effective_rate =
+      (domain == PYMEM_DOMAIN_MEM) ? static_cast<uint32_t>(std::min<uint64_t>(
+                                       static_cast<uint64_t>(sample_size) * MEM_DOMAIN_SAMPLE_RATE_FACTOR, UINT32_MAX))
+                                   : static_cast<uint32_t>(sample_size);
     ds.current_sample_size = next_sample_size_no_cpython(effective_rate);
 }
 
