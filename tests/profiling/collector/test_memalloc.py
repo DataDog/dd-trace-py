@@ -1594,14 +1594,20 @@ def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) ->
 
     # 1200 > default cache capacity of 1024, so eviction fires for many sets.
     NUM_FUNCTIONS = 1200
-    alloc_expr = "(None,) * 256" if PY_313_OR_ABOVE else "bytearray(256)"
+    # The allocation size must be a runtime argument, not a literal.  The compiler
+    # constant-folds "(None,) * 256" (two constant operands) into a single tuple in
+    # co_consts, so the function would do LOAD_CONST; RETURN_VALUE and allocate
+    # nothing at call time -- its frame would never appear in the profile.  A
+    # variable operand defeats the fold so every call performs a real, tracked
+    # allocation attributed to cache_evict_fn_<N>.
+    alloc_expr = "(None,) * n" if PY_313_OR_ABOVE else "bytearray(n)"
 
-    fns: list[Callable[[], object]] = []
+    fns: list[Callable[[int], object]] = []
     for i in range(NUM_FUNCTIONS):
-        ns: dict[str, Callable[[], object]] = {}
+        ns: dict[str, Callable[[int], object]] = {}
         exec(
             textwrap.dedent(f"""\
-                def cache_evict_fn_{i}():
+                def cache_evict_fn_{i}(n):
                     return {alloc_expr}
             """),
             ns,
@@ -1620,7 +1626,7 @@ def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) ->
     with mc:
         for fn in fns:
             for _ in range(5):
-                live.append(fn())
+                live.append(fn(256))
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
