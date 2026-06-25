@@ -1,0 +1,118 @@
+"""Methods and other bound callables: instance / class / static / property / __call__.
+
+Each mechanism installs its wrapper onto the class attribute in place, preserving
+descriptor binding (``self`` / ``cls``).
+"""
+
+import asyncio
+
+from tests.wrapping._harness import AGEN_ITER_XFAIL
+from tests.wrapping._harness import aiterate
+from tests.wrapping._harness import mechanisms
+from tests.wrapping._harness import mechanisms_param
+from tests.wrapping._harness import run
+from tests.wrapping.mechanisms import wrap_property
+
+
+@mechanisms
+def test_instance_method(mech):
+    class C:
+        def m(self, x):
+            return ("instance", x)
+
+    mech.install_method(C, "m", "instance_method")
+    assert C().m(5) == ("instance", 5)
+
+
+@mechanisms
+def test_classmethod(mech):
+    class C:
+        @classmethod
+        def m(cls, x):
+            return (cls.__name__, x)
+
+    mech.install_method(C, "m", "classmethod")
+    assert C.m(5) == ("C", 5)
+    assert C().m(5) == ("C", 5)
+
+
+@mechanisms
+def test_staticmethod(mech):
+    class C:
+        @staticmethod
+        def m(x):
+            return ("static", x)
+
+    mech.install_method(C, "m", "staticmethod")
+    assert C.m(5) == ("static", 5)
+    assert C().m(5) == ("static", 5)
+
+
+@mechanisms
+def test_property_getter(mech):
+    class C:
+        def __init__(self):
+            self._x = 10
+
+        def _get(self):
+            return self._x * 2
+
+        prop = property(_get)
+
+    wrap_property(mech, C, "prop")
+    assert C().prop == 20
+
+
+@mechanisms
+def test_callable_instance(mech):
+    class C:
+        def __call__(self, x):
+            return ("called", x)
+
+    mech.install_method(C, "__call__", "instance_method")
+    assert C()(5) == ("called", 5)
+
+
+@mechanisms
+def test_instance_method_generator(mech):
+    class C:
+        def gen(self, n):
+            yield from range(n)
+
+    mech.install_method(C, "gen", "instance_method")
+    assert list(C().gen(3)) == [0, 1, 2]
+
+
+@mechanisms
+def test_instance_method_coroutine(mech):
+    class C:
+        async def coro(self, x):
+            await asyncio.sleep(0)
+            return x + 1
+
+    mech.install_method(C, "coro", "instance_method")
+    assert run(C().coro(5)) == 6
+
+
+@mechanisms
+def test_classmethod_coroutine(mech):
+    class C:
+        @classmethod
+        async def coro(cls, x):
+            await asyncio.sleep(0)
+            return (cls.__name__, x)
+
+    mech.install_method(C, "coro", "classmethod")
+    assert run(C.coro(5)) == ("C", 5)
+
+
+@mechanisms_param(xfail=AGEN_ITER_XFAIL)
+def test_instance_method_async_generator(mech):
+    class C:
+        async def agen(self, n):
+            for i in range(n):
+                await asyncio.sleep(0)
+                yield i
+
+    mech.install_method(C, "agen", "instance_method")
+    assert run(aiterate(C().agen(3))) == [0, 1, 2]

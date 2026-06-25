@@ -196,6 +196,14 @@ exclude = [
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
     "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
     "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
+    # Version-gated wrapping tests: each uses syntax newer than the project minimum,
+    # so the min-version ruff parser rejects them and they are excluded from ruff on
+    # every interpreter (not linted). conftest.py collect_ignores them below their
+    # target interpreter at test time. Mirrors test_template_string_aspect.py above.
+    "tests/wrapping/test_match_py310.py",  # match/case (3.10+)
+    "tests/wrapping/test_except_star_py311.py",  # except* (3.11+)
+    "tests/wrapping/test_pep695_py312.py",  # PEP 695 generics (3.12+)
+    "tests/wrapping/test_tstrings_py314.py",  # PEP 750 t-strings (3.14+)
 ]
 lint.ignore = [
     "A003",
