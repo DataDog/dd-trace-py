@@ -192,6 +192,9 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         raw = dynamic_params.get("block")
         if raw is None:
             return server_block
+        # AIDEV-NOTE: intentionally fail-secure — only the literal "false" is treated as
+        # "don't add block"; any other value errs toward blocking. The `or server_block`
+        # below means dynamic params can never weaken server policy regardless.
         dynamic_block = raw if isinstance(raw, bool) else str(raw).lower() != "false"
         return server_block or dynamic_block
 
