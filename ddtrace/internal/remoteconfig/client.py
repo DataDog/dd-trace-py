@@ -1,5 +1,6 @@
 import json
 import os
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import Sequence
@@ -22,6 +23,10 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
+
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native import RemoteConfigProduct
 
 
 log = get_logger(__name__)
@@ -82,9 +87,9 @@ class RemoteConfigClient:
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture
-        self._product_callbacks: dict[str, RCCallback] = {}
+        self._product_callbacks: "dict[RemoteConfigProduct, RCCallback]" = {}
         # Track which products are enabled (reported to the agent each poll)
-        self._enabled_products: set[str] = set()
+        self._enabled_products: "set[RemoteConfigProduct]" = set()
         self._capability_values: list = []
 
         # Native client (created lazily on the master process) and the
@@ -117,29 +122,29 @@ class RemoteConfigClient:
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
 
-    def register_callback(self, product_name: str, callback: RCCallback) -> None:
+    def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
         self._product_callbacks[product_name] = callback
         log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
 
     def enabled_product_names(self) -> list:
         return [str(p) for p in self._enabled_products]
 
-    def unregister_product(self, product_name: str) -> None:
+    def unregister_product(self, product_name: "RemoteConfigProduct") -> None:
         self._product_callbacks.pop(product_name, None)
         log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)
 
-    def update_product_callback(self, product_name: str, callback: RCCallback) -> bool:
+    def update_product_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> bool:
         if product_name in self._product_callbacks:
             self._product_callbacks[product_name] = callback
             log.debug("[%s][P: %s] Updated callback for product %s", os.getpid(), os.getppid(), product_name)
             return True
         return False
 
-    def enable_product(self, product_name: str) -> None:
+    def enable_product(self, product_name: "RemoteConfigProduct") -> None:
         self._enabled_products.add(product_name)
         log.debug("[%s][P: %s] Enabled product %s", os.getpid(), os.getppid(), product_name)
 
-    def disable_product(self, product_name: str) -> None:
+    def disable_product(self, product_name: "RemoteConfigProduct") -> None:
         self._enabled_products.discard(product_name)
         log.debug("[%s][P: %s] Disabled product %s", os.getpid(), os.getppid(), product_name)
 

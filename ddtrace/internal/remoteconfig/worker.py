@@ -1,5 +1,5 @@
-import enum
 import os
+from typing import TYPE_CHECKING
 from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -14,6 +14,12 @@ from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import StopWatch
+
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native import RemoteConfigCapabilities
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 log = get_logger(__name__)
@@ -36,11 +42,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: dict[enum.IntFlag, str] = dict()
+        self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
         self._consecutive_failures = 0
         # Child-process consumer of the SHM (created at fork); None in the
         # single-process case, where the poller dispatches directly.
-        self._subscriber = None
+        self._subscriber: Optional["RemoteConfigSubscriber"] = None
         self._before_fork_registered = False
 
     def _agent_check(self) -> None:
@@ -187,7 +193,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
-    def update_product_callback(self, product: str, callback: RCCallback) -> bool:
+    def update_product_callback(self, product: "RemoteConfigProduct", callback: RCCallback) -> bool:
         """Update the callback for a registered product.
 
         Some Products fork and restart their instances when application creates new process. In that case,
@@ -198,9 +204,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def register_callback(
         self,
-        product: str,
+        product: "RemoteConfigProduct",
         callback: RCCallback,
-        capabilities: Iterable[enum.IntFlag] = [],
+        capabilities: "Iterable[RemoteConfigCapabilities]" = [],
     ) -> None:
         """Register a product callback for remote configuration updates.
 
@@ -235,7 +241,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def enable_product(self, product: str) -> None:
+    def enable_product(self, product: "RemoteConfigProduct") -> None:
         """Enable a product to be included in client payloads.
 
         When a product is enabled, it will be added to the 'products' list
@@ -247,7 +253,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._client.enable_product(product)
 
-    def disable_product(self, product: str) -> None:
+    def disable_product(self, product: "RemoteConfigProduct") -> None:
         """Disable a product, removing it from client payloads.
 
         The product's callback remains registered and can still receive
@@ -259,7 +265,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._client.disable_product(product)
 
-    def unregister_callback(self, product: str) -> None:
+    def unregister_callback(self, product: "RemoteConfigProduct") -> None:
         """Unregister a product callback.
 
         This removes the callback but does not disable the product. To also
@@ -283,7 +289,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error unregistering from RCM client", exc_info=True)
 
-    def get_registered(self, product: str) -> Optional[RCCallback]:
+    def get_registered(self, product: "RemoteConfigProduct") -> Optional[RCCallback]:
         """Get the registered callback for a product."""
         return self._client._product_callbacks.get(product)
 
