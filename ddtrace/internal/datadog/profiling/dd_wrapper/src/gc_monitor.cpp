@@ -232,6 +232,224 @@ resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_h
     }
 }
 
+// ---------------------------------------------------------------------------
+// Reference-tree construction (gc.get_referents based)
+// ---------------------------------------------------------------------------
+
+// Safety bounds for the unrolled tree.  The type-reference graph is cyclic and
+// densely connected (builtin containers reference, and are referenced by, most
+// types), so even with a per-path cycle guard an unbounded expansion could blow
+// up memory and JSON size.  These caps keep the output bounded regardless of
+// heap shape.
+constexpr size_t kRefTreeMaxChildren = 64;   // top children (by bytes) per node
+constexpr size_t kRefTreeMaxNodes = 100'000; // total nodes across the forest
+
+// {reference count, total shallow bytes} aggregated for one (holder, held) edge.
+using EdgeAgg = std::pair<uint64_t, uint64_t>;
+using AdjList = std::vector<std::pair<uint32_t, EdgeAgg>>;
+using Adj = std::unordered_map<uint32_t, AdjList>;
+
+// Default shallow size of an object, mirroring object.__sizeof__: tp_basicsize
+// plus the variable part for var-sized types.  This intentionally omits the GC
+// header that sys.getsizeof adds; it is a cheap C-only approximation that
+// avoids a Python call per object.  GIL must be held (reads Py_TYPE/Py_SIZE).
+uint64_t
+shallow_size(PyObject* obj) noexcept
+{
+    PyTypeObject* tp = Py_TYPE(obj);
+    Py_ssize_t size = tp->tp_basicsize;
+    if (tp->tp_itemsize != 0) {
+        Py_ssize_t n = Py_SIZE(obj);
+        if (n > 0) {
+            size += n * tp->tp_itemsize;
+        }
+    }
+    return size > 0 ? static_cast<uint64_t>(size) : 0;
+}
+
+// Recursively unroll the aggregated type graph into a tree rooted at `idx`.
+// `on_path` marks the types on the current root-to-node path so a type is never
+// expanded twice along the same chain (cycle guard).  `budget` caps the total
+// number of nodes emitted across the whole forest.
+void
+build_subtree(uint32_t idx,
+              uint64_t ic,
+              uint64_t ts,
+              int depth,
+              int max_depth,
+              const Adj& adj,
+              std::vector<char>& on_path,
+              size_t& budget,
+              TreeNode& out)
+{
+    out.type_idx = idx;
+    out.ic = ic;
+    out.ts = ts;
+    if (depth >= max_depth) {
+        return;
+    }
+    auto it = adj.find(idx);
+    if (it == adj.end()) {
+        return;
+    }
+    on_path[idx] = 1;
+    size_t added = 0;
+    for (const auto& [child, agg] : it->second) {
+        if (added >= kRefTreeMaxChildren || budget == 0) {
+            break;
+        }
+        if (on_path[child] != 0) {
+            continue; // type already on this path -- stop to avoid a cycle
+        }
+        --budget;
+        out.children.emplace_back();
+        build_subtree(child, agg.first, agg.second, depth + 1, max_depth, adj, on_path, budget, out.children.back());
+        ++added;
+    }
+    on_path[idx] = 0;
+}
+
+// Walk every live (GC-tracked) object in `objs`, calling gc.get_referents on
+// each to discover which types its instances hold references to, and aggregate
+// the result into a "holder type -> held type" graph.  The graph is then
+// unrolled into a forest of trees (one per type that has live instances), so
+// that following a chain root -> child -> grandchild reads as "instances of the
+// root type hold references to instances of the child type, which in turn hold
+// references to instances of the grandchild type", together with how many such
+// references exist and how many shallow bytes they retain.
+//
+// Builds `type_table`/`type_counts` (instance counts) from scratch so that held
+// types that are not themselves GC-tracked (e.g. int/str) still get a name and
+// an index.  GIL must be held for the entire call.
+void
+build_reference_tree(PyObject* gc_mod,
+                     PyObject* objs,
+                     int max_depth,
+                     std::vector<std::string>& type_table,
+                     std::vector<uint32_t>& type_counts,
+                     std::vector<TreeNode>& forest)
+{
+    PyObject* get_referents = PyObject_GetAttrString(gc_mod, "get_referents");
+    if (get_referents == nullptr) {
+        PyErr_Clear();
+        return;
+    }
+
+    std::vector<uint64_t> type_sizes;
+    std::unordered_map<std::string, uint32_t> name_index;
+    std::unordered_map<PyTypeObject*, uint32_t> ptr_index;
+
+    // Resolve a type to its index in the parallel type_table/type_counts/
+    // type_sizes vectors, deduplicating by fully-qualified name.  Cached per
+    // PyTypeObject* so the (allocating) name lookup runs once per unique type.
+    auto intern = [&](PyTypeObject* tp) -> uint32_t {
+        auto pit = ptr_index.find(tp);
+        if (pit != ptr_index.end()) {
+            return pit->second;
+        }
+        auto* tp_obj = reinterpret_cast<PyObject*>(tp);
+        PyObject* mod = PyObject_GetAttrString(tp_obj, "__module__");
+        PyObject* qname = PyObject_GetAttrString(tp_obj, "__qualname__");
+        std::string mod_s = pystr_to_std(mod);
+        std::string qname_s = pystr_to_std(qname);
+        Py_XDECREF(mod);
+        Py_XDECREF(qname);
+        PyErr_Clear();
+
+        std::string tname;
+        if (mod_s.empty() || mod_s == "builtins") {
+            tname = qname_s.empty() ? "<unknown>" : qname_s;
+        } else if (qname_s.empty()) {
+            tname = mod_s;
+        } else {
+            tname = mod_s + "." + qname_s;
+        }
+
+        uint32_t idx;
+        auto nit = name_index.find(tname);
+        if (nit != name_index.end()) {
+            idx = nit->second;
+        } else {
+            idx = static_cast<uint32_t>(type_table.size());
+            type_table.push_back(tname);
+            type_counts.push_back(0);
+            type_sizes.push_back(0);
+            name_index.emplace(std::move(tname), idx);
+        }
+        ptr_index.emplace(tp, idx);
+        return idx;
+    };
+
+    std::unordered_map<uint64_t, EdgeAgg> edges;
+
+    Py_ssize_t n_objs = PyList_GET_SIZE(objs);
+    for (Py_ssize_t i = 0; i < n_objs; ++i) {
+        PyObject* obj = PyList_GET_ITEM(objs, i); // borrowed
+        uint32_t hidx = intern(Py_TYPE(obj));
+        type_counts[hidx] += 1;
+        type_sizes[hidx] += shallow_size(obj);
+
+        PyObject* refs = PyObject_CallFunctionObjArgs(get_referents, obj, nullptr);
+        if (refs != nullptr && PyList_Check(refs)) {
+            Py_ssize_t n_refs = PyList_GET_SIZE(refs);
+            for (Py_ssize_t j = 0; j < n_refs; ++j) {
+                PyObject* r = PyList_GET_ITEM(refs, j); // borrowed
+                if (r == nullptr) {
+                    continue;
+                }
+                uint32_t tidx = intern(Py_TYPE(r));
+                uint64_t key = (static_cast<uint64_t>(hidx) << 32) | tidx;
+                auto& agg = edges[key];
+                agg.first += 1;
+                agg.second += shallow_size(r);
+            }
+        }
+        Py_XDECREF(refs);
+        PyErr_Clear();
+    }
+
+    Py_DECREF(get_referents);
+
+    // Build the adjacency list, keeping each holder's edges sorted by retained
+    // bytes (desc) so the most memory-significant children come first -- they
+    // are the ones that survive the per-node child cap and node budget.
+    Adj adj;
+    adj.reserve(edges.size());
+    for (const auto& [key, agg] : edges) {
+        auto h = static_cast<uint32_t>(key >> 32);
+        auto t = static_cast<uint32_t>(key & 0xffffffffULL);
+        adj[h].emplace_back(t, agg);
+    }
+    for (auto& [h, lst] : adj) {
+        std::sort(
+          lst.begin(), lst.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
+    }
+
+    // Roots: every type with at least one live instance, biggest first so the
+    // node budget is spent on the heaviest types.
+    std::vector<uint32_t> root_order;
+    root_order.reserve(type_counts.size());
+    for (uint32_t idx = 0; idx < type_counts.size(); ++idx) {
+        if (type_counts[idx] > 0) {
+            root_order.push_back(idx);
+        }
+    }
+    std::sort(
+      root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) { return type_sizes[a] > type_sizes[b]; });
+
+    std::vector<char> on_path(type_table.size(), 0);
+    size_t budget = kRefTreeMaxNodes;
+    forest.reserve(root_order.size());
+    for (uint32_t idx : root_order) {
+        if (budget == 0) {
+            break;
+        }
+        --budget;
+        forest.emplace_back();
+        build_subtree(idx, type_counts[idx], type_sizes[idx], 0, max_depth, adj, on_path, budget, forest.back());
+    }
+}
+
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -246,7 +464,7 @@ GCMonitor::get()
 }
 
 void
-GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled)
+GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled, int max_depth)
 {
     std::unique_lock<std::mutex> lock(_mutex);
     if (_started) {
@@ -256,6 +474,7 @@ GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool r
     _survivor_threshold = survivor_threshold;
     _top_n = top_n;
     _referrers_enabled = referrers_enabled;
+    _max_depth = max_depth > 0 ? max_depth : 1;
     _started = true;
     _stop_flag = false;
     lock.unlock();
@@ -393,117 +612,155 @@ GCMonitor::take_snapshot()
     const auto t_get_objects_start = Clock::now();
     timing.gc_stats_us = elapsed_us(t_gc_stats_start, t_get_objects_start);
 
-    std::unordered_map<PyTypeObject*, uint32_t> type_hist;
     std::vector<std::string> type_table;
     std::vector<uint32_t> type_counts;
+    std::vector<TreeNode> ref_tree;
+    Clock::time_point t_name_resolve_start;
 
+    if (_referrers_enabled) {
+        // --------------------------------------------------------------
+        // Reference-tree mode (GIL held for the whole walk).
+        //
+        // gc.get_objects() materializes the live object list and owns a
+        // reference to every object, keeping them alive for the duration of the
+        // walk.  We then call gc.get_referents() on each object to learn which
+        // types its instances point at, aggregate the result into a "holder
+        // type -> held type" graph and unroll it into a forest of type trees.
+        // This is much heavier than the refcount-free type tally below (a Python
+        // call plus a temporary list per object), so it is gated behind the
+        // referrers flag.
+        // --------------------------------------------------------------
+        PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
+        if (objs == nullptr || !PyList_Check(objs)) {
+            Py_XDECREF(objs);
+            Py_DECREF(gc_mod);
+            PyErr_Clear();
+            PyGILState_Release(gstate);
+            return;
+        }
+
+        const auto t_walk_start = Clock::now();
+        timing.get_objects_us = elapsed_us(t_get_objects_start, t_walk_start);
+
+        build_reference_tree(gc_mod, objs, _max_depth, type_table, type_counts, ref_tree);
+
+        Py_DECREF(objs);
+        Py_DECREF(gc_mod);
+        PyErr_Clear();
+
+        t_name_resolve_start = Clock::now();
+        timing.type_scan_us = elapsed_us(t_walk_start, t_name_resolve_start);
+        PyGILState_Release(gstate);
+    } else {
+        std::unordered_map<PyTypeObject*, uint32_t> type_hist;
 #if PY_VERSION_HEX >= 0x030C0000
-    // ------------------------------------------------------------------
-    // Phases 1+2 (GIL held): walk all GC-tracked objects in place and tally
-    // them by type.
-    //
-    // PyUnstable_GC_VisitObjects (3.12+) iterates the GC heaps without
-    // allocating a Python list and without touching refcounts, unlike
-    // gc.get_objects() which builds an N-element list and performs 2N
-    // INCREF/DECREF operations.  The callback only reads Py_TYPE and updates a
-    // C++ hashmap -- it must not (de)allocate Python objects or trigger a
-    // collection (GC is disabled for the duration of the visit anyway).  We
-    // never store the object pointers, only their type pointers, so there is
-    // no lifetime concern once the visit returns.
-    // ------------------------------------------------------------------
-    Py_DECREF(gc_mod); // not needed for the in-place walk
+        // --------------------------------------------------------------
+        // Phases 1+2 (GIL held): walk all GC-tracked objects in place and tally
+        // them by type.
+        //
+        // PyUnstable_GC_VisitObjects (3.12+) iterates the GC heaps without
+        // allocating a Python list and without touching refcounts, unlike
+        // gc.get_objects() which builds an N-element list and performs 2N
+        // INCREF/DECREF operations.  The callback only reads Py_TYPE and updates
+        // a C++ hashmap -- it must not (de)allocate Python objects or trigger a
+        // collection (GC is disabled for the duration of the visit anyway).  We
+        // never store the object pointers, only their type pointers, so there is
+        // no lifetime concern once the visit returns.
+        // --------------------------------------------------------------
+        Py_DECREF(gc_mod); // not needed for the in-place walk
 
-    PyUnstable_GC_VisitObjects(
-      [](PyObject* obj, void* arg) noexcept -> int {
-          auto* hist = static_cast<std::unordered_map<PyTypeObject*, uint32_t>*>(arg);
-          try {
-              (*hist)[Py_TYPE(obj)]++;
-          } catch (...) {
-              // A C++ exception must never propagate into CPython's C frames.
-              // On allocation failure we simply drop this object's tally.
-          }
-          return 1; // continue iteration
-      },
-      &type_hist);
+        PyUnstable_GC_VisitObjects(
+          [](PyObject* obj, void* arg) noexcept -> int {
+              auto* hist = static_cast<std::unordered_map<PyTypeObject*, uint32_t>*>(arg);
+              try {
+                  (*hist)[Py_TYPE(obj)]++;
+              } catch (...) {
+                  // A C++ exception must never propagate into CPython's C frames.
+                  // On allocation failure we simply drop this object's tally.
+              }
+              return 1; // continue iteration
+          },
+          &type_hist);
 
-    // ------------------------------------------------------------------
-    // Phase 3 (GIL still held): resolve type names per unique type.  The
-    // PyTypeObject* keys are guaranteed live here: we hold the GIL and have
-    // not allocated/freed anything since the visit, so every type that had a
-    // live instance during the walk is still alive.
-    // ------------------------------------------------------------------
-    const auto t_name_resolve_start = Clock::now();
-    timing.get_objects_us = elapsed_us(t_get_objects_start, t_name_resolve_start);
-    timing.type_scan_us = 0; // the type tally is folded into the visit above
+        // --------------------------------------------------------------
+        // Phase 3 (GIL still held): resolve type names per unique type.  The
+        // PyTypeObject* keys are guaranteed live here: we hold the GIL and have
+        // not allocated/freed anything since the visit, so every type that had a
+        // live instance during the walk is still alive.
+        // --------------------------------------------------------------
+        t_name_resolve_start = Clock::now();
+        timing.get_objects_us = elapsed_us(t_get_objects_start, t_name_resolve_start);
+        timing.type_scan_us = 0; // the type tally is folded into the visit above
 
-    resolve_type_histogram(type_hist, type_table, type_counts);
+        resolve_type_histogram(type_hist, type_table, type_counts);
 
-    PyErr_Clear();
-    PyGILState_Release(gstate);
-#else
-    // ------------------------------------------------------------------
-    // Fallback for Python < 3.12, which lacks PyUnstable_GC_VisitObjects.
-    //
-    // Phase 1 (GIL held): gc.get_objects() materializes the live object list.
-    // ------------------------------------------------------------------
-    PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
-    Py_DECREF(gc_mod);
-
-    if (objs == nullptr || !PyList_Check(objs)) {
-        Py_XDECREF(objs);
         PyErr_Clear();
         PyGILState_Release(gstate);
-        return;
-    }
+#else
+        // --------------------------------------------------------------
+        // Fallback for Python < 3.12, which lacks PyUnstable_GC_VisitObjects.
+        //
+        // Phase 1 (GIL held): gc.get_objects() materializes the live object list.
+        // --------------------------------------------------------------
+        PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
+        Py_DECREF(gc_mod);
 
-    Py_ssize_t n_objs = PyList_GET_SIZE(objs);
+        if (objs == nullptr || !PyList_Check(objs)) {
+            Py_XDECREF(objs);
+            PyErr_Clear();
+            PyGILState_Release(gstate);
+            return;
+        }
 
-    // Copy raw pointers into a C++ vector.  PyList_GET_ITEM returns borrowed
-    // references; the pointers remain valid as long as `objs` is alive.
-    std::vector<PyObject*> ptrs(static_cast<size_t>(n_objs));
-    for (Py_ssize_t i = 0; i < n_objs; ++i) {
-        ptrs[static_cast<size_t>(i)] = PyList_GET_ITEM(objs, i);
-    }
+        Py_ssize_t n_objs = PyList_GET_SIZE(objs);
 
-    // Release the GIL.  `objs` owns a reference to every object in `ptrs`,
-    // so no pointer in `ptrs` can be freed until we Py_DECREF(objs) below.
-    // Direct dereference of ob_type is therefore safe without the GIL.
-    const auto t_type_scan_start = Clock::now();
-    timing.get_objects_us = elapsed_us(t_get_objects_start, t_type_scan_start);
-    PyGILState_Release(gstate);
+        // Copy raw pointers into a C++ vector.  PyList_GET_ITEM returns borrowed
+        // references; the pointers remain valid as long as `objs` is alive.
+        std::vector<PyObject*> ptrs(static_cast<size_t>(n_objs));
+        for (Py_ssize_t i = 0; i < n_objs; ++i) {
+            ptrs[static_cast<size_t>(i)] = PyList_GET_ITEM(objs, i);
+        }
 
-    // ------------------------------------------------------------------
-    // Phase 2 (GIL released): build type histogram
-    //
-    // We read ob_type for each object and tally counts by PyTypeObject*.
-    // No Python API calls, no refcount operations -- just a struct-field
-    // read and a hashmap update.  Python threads are free to run while we
-    // do the O(n) work here.
-    // ------------------------------------------------------------------
-    type_hist.reserve(static_cast<size_t>(n_objs / 8));
+        // Release the GIL.  `objs` owns a reference to every object in `ptrs`,
+        // so no pointer in `ptrs` can be freed until we Py_DECREF(objs) below.
+        // Direct dereference of ob_type is therefore safe without the GIL.
+        const auto t_type_scan_start = Clock::now();
+        timing.get_objects_us = elapsed_us(t_get_objects_start, t_type_scan_start);
+        PyGILState_Release(gstate);
 
-    for (PyObject* obj : ptrs) {
-        type_hist[Py_TYPE(obj)]++;
-    }
+        // --------------------------------------------------------------
+        // Phase 2 (GIL released): build type histogram
+        //
+        // We read ob_type for each object and tally counts by PyTypeObject*.
+        // No Python API calls, no refcount operations -- just a struct-field
+        // read and a hashmap update.  Python threads are free to run while we
+        // do the O(n) work here.
+        // --------------------------------------------------------------
+        type_hist.reserve(static_cast<size_t>(n_objs / 8));
 
-    // ------------------------------------------------------------------
-    // Phase 3 (GIL re-acquired): resolve type names, release object list
-    //
-    // We resolve names while `objs` is still alive to guarantee that the
-    // PyTypeObject* keys in type_hist are valid (a heap type's refcount
-    // includes a contribution from each of its live instances).
-    // ------------------------------------------------------------------
-    gstate = PyGILState_Ensure();
-    const auto t_name_resolve_start = Clock::now();
-    timing.type_scan_us = elapsed_us(t_type_scan_start, t_name_resolve_start);
+        for (PyObject* obj : ptrs) {
+            type_hist[Py_TYPE(obj)]++;
+        }
 
-    resolve_type_histogram(type_hist, type_table, type_counts);
+        // --------------------------------------------------------------
+        // Phase 3 (GIL re-acquired): resolve type names, release object list
+        //
+        // We resolve names while `objs` is still alive to guarantee that the
+        // PyTypeObject* keys in type_hist are valid (a heap type's refcount
+        // includes a contribution from each of its live instances).
+        // --------------------------------------------------------------
+        gstate = PyGILState_Ensure();
+        t_name_resolve_start = Clock::now();
+        timing.type_scan_us = elapsed_us(t_type_scan_start, t_name_resolve_start);
 
-    // Release the object list now that we no longer need the type pointers.
-    Py_DECREF(objs);
-    PyErr_Clear();
-    PyGILState_Release(gstate);
+        resolve_type_histogram(type_hist, type_table, type_counts);
+
+        // Release the object list now that we no longer need the type pointers.
+        Py_DECREF(objs);
+        PyErr_Clear();
+        PyGILState_Release(gstate);
 #endif
+    }
 
     // ------------------------------------------------------------------
     // Phase 4 (GIL released): serialize
@@ -512,7 +769,7 @@ GCMonitor::take_snapshot()
     timing.name_resolve_us = elapsed_us(t_name_resolve_start, t_serialize_start);
 
     std::vector<RootNode> roots;
-    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots);
+    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots, ref_tree);
 
     const auto t_wall_end = Clock::now();
     timing.serialize_us = elapsed_us(t_serialize_start, t_wall_end);
@@ -532,7 +789,8 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
                      int garbage_count,
                      const std::vector<std::string>& type_table,
                      const std::vector<uint32_t>& type_counts,
-                     const std::vector<RootNode>& roots)
+                     const std::vector<RootNode>& roots,
+                     const std::vector<TreeNode>& ref_tree)
 {
     // Compute snapshot time (ns since epoch)
     auto now = std::chrono::system_clock::now();
@@ -608,6 +866,20 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
             out << "]";
         }
         out << "}";
+    }
+    out << "]";
+
+    // reference tree (type -> type "holds a reference to" graph). Each node is
+    // {"t":type_idx,"ic":refs,"ts":bytes,"ch":[...]} -- see serialize_node. A
+    // root node's ic/ts are the type's live instance count and total shallow
+    // size; a child node's ic/ts are the number of references from the parent
+    // type to the child type and the shallow bytes they retain.
+    out << ",\"rt\":[";
+    for (size_t i = 0; i < ref_tree.size(); ++i) {
+        if (i > 0) {
+            out << ",";
+        }
+        serialize_node(out, ref_tree[i], 0);
     }
     out << "]}";
 

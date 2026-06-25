@@ -46,7 +46,7 @@ class GCMonitor
 
     // Start the background thread with the given configuration.
     // Calling start() when already running is a no-op.
-    void start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled);
+    void start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled, int max_depth);
 
     // Signal the background thread to stop and return immediately.
     // No final snapshot is taken. Safe to call from any thread.
@@ -73,7 +73,8 @@ class GCMonitor
                    int garbage_count,
                    const std::vector<std::string>& type_table,
                    const std::vector<uint32_t>& type_counts,
-                   const std::vector<RootNode>& roots);
+                   const std::vector<RootNode>& roots,
+                   const std::vector<TreeNode>& ref_tree);
 
     std::thread _thread;
     mutable std::mutex _mutex;
@@ -85,6 +86,8 @@ class GCMonitor
     int _survivor_threshold{ 3 };
     int _top_n{ 20 };
     bool _referrers_enabled{ false };
+    // Maximum depth of the type->type reference tree built via gc.get_referents.
+    int _max_depth{ 10 };
 
     // Cross-snapshot state (only accessed from the background thread)
     std::array<GCGenStats, 3> _prev_gen_stats{};

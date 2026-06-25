@@ -386,9 +386,10 @@ void
 ddup_start_gc_monitor(uint64_t interval_ms, // cppcheck-suppress unusedFunction
                       int survivor_threshold,
                       int top_n,
-                      bool referrers_enabled)
+                      bool referrers_enabled,
+                      int max_depth)
 {
-    Datadog::GCMonitor::get().start(interval_ms, survivor_threshold, top_n, referrers_enabled);
+    Datadog::GCMonitor::get().start(interval_ms, survivor_threshold, top_n, referrers_enabled, max_depth);
 }
 
 void
