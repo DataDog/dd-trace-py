@@ -333,6 +333,9 @@ class RemoteConfigClient:
                     with StopWatch() as sw:
                         product_callback(product_payload_list)
 
+                    # Applied by the product: mark Acknowledged
+                    self._set_apply_state_for_payloads(product_payload_list, 2)
+
                     if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
                         telemetry_writer.add_log(
                             TELEMETRY_LOG_LEVEL.WARNING,
@@ -344,6 +347,7 @@ class RemoteConfigClient:
                             },
                         )
                 except Exception:
+                    error_message = "Failed to apply configuration for product %r" % product_name
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
@@ -352,6 +356,24 @@ class RemoteConfigClient:
                         product_payload_list,
                         exc_info=True,
                     )
+                    self._set_apply_state_for_payloads(product_payload_list, 3, error_message)
+
+    def _set_apply_state_for_payloads(
+        self, payloads: Sequence[Payload], apply_state: int, apply_error: Optional[str] = None
+    ) -> None:
+        """Promote apply_state after the product callback ran.
+
+        Match by path + sha256_hash so a late callback can't overwrite a newer
+        config; skip removals (content is None).
+        """
+        for payload in payloads:
+            if payload.content is None:
+                continue
+            applied = self._applied_configs.get(payload.path)
+            if applied is None or applied.sha256_hash != payload.metadata.sha256_hash:
+                continue
+            applied.apply_state = apply_state
+            applied.apply_error = apply_error
 
     def renew_id(self):
         # called after the process is forked to declare a new id
@@ -647,7 +669,8 @@ class RemoteConfigClient:
             config.apply_error = error_message
             applied_configs[target] = config
         else:
-            config.apply_state = 2  # Acknowledged (applied)
+            # Promoted to 2 once the subscriber runs the callback (_dispatch_to_products)
+            config.apply_state = 1  # Unacknowledged (apply pending)
             applied_configs[target] = config
 
     def _add_apply_config_to_cache(self):
@@ -747,12 +770,13 @@ class RemoteConfigClient:
         payload_list: list[Payload] = []
         self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
 
-        # 3. Publish all payloads to the global connector
-        self._publish_configuration(payload_list)
-
+        # 3. Snapshot before publishing so the subscriber can match payloads
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
         self._backend_state = backend_state
+
+        # 4. Publish all payloads to the global connector
+        self._publish_configuration(payload_list)
 
         self._add_apply_config_to_cache()
 

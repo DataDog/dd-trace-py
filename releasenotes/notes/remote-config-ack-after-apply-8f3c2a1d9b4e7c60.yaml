@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    remoteconfig: Fixed a configuration being reported as ``acknowledged`` before
+    the product applied it. The state is now set to ``acknowledged`` only after the
+    product callback applies the configuration, and to ``error`` if it raises.

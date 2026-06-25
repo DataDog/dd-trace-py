@@ -5,7 +5,6 @@ import os
 
 import mock
 from mock.mock import ANY
-import pytest
 
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
@@ -836,78 +835,55 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     mock_write.reset_mock()
 
 
-@pytest.mark.skip(reason="Tests old error handling behavior - needs rewrite for new callback dispatch error handling")
-@mock.patch.object(SyncRemoteConfigClient, "_send_request")
-def test_remote_config_client_callback_error(mock_send_request):
+# Target introduced by MOCK_AGENT_RESPONSES[2]
+_BASE_TARGET = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
+
+
+def _process_until_base(rc_client, mock_send_request):
+    """Process responses 0-2 (response[2] introduces "base") without applying it."""
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
+    for i in range(3):
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[i]
+        rc_client.request()
+        if i < 2:  # apply earlier responses; leave "base" pending
+            rc_client.poll()
 
-    def callback_with_exception():
+
+@mock.patch.object(SyncRemoteConfigClient, "_send_request")
+def test_apply_state_acknowledged_only_after_apply(mock_send_request):
+    """apply_state is ACKNOWLEDGED only once the subscriber runs the product callback."""
+    rc_client = SyncRemoteConfigClient()
+    rc_client.register_callback("ASM_FEATURES", mock.MagicMock())
+
+    with override_global_config(dict(_remote_config_enabled=False)):
+        _process_until_base(rc_client, mock_send_request)
+
+        # received and stored, but not applied yet
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # UNACKNOWLEDGED
+
+        rc_client.poll()
+
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
+
+
+@mock.patch.object(SyncRemoteConfigClient, "_send_request")
+def test_apply_state_error_when_callback_raises(mock_send_request):
+    """apply_state is reported as ERROR when the product callback raises while applying."""
+
+    def callback_with_exception(payloads):
         raise Exception("fake error")
 
     rc_client = SyncRemoteConfigClient()
-    mock_callback = mock.mock.MagicMock()
     rc_client.register_callback("ASM_FEATURES", callback_with_exception)
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        # 0.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client)
+        _process_until_base(rc_client, mock_send_request)
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # UNACKNOWLEDGED
 
-        # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
-        # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+        rc_client.poll()
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
-
-        # 2. A single configuration for the product is added. (“base”)
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=2,
-            config_states=[
-                {
-                    "id": "ASM_FEATURES-base",
-                    "version": 1,
-                    "product": "ASM_FEATURES",
-                    "apply_state": 3,
-                    "apply_error": "Failed to apply configuration "
-                    "ConfigMetadata(id='ASM_FEATURES-base', product_name='ASM_FEATURES', "
-                    "sha256_hash='9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6', "
-                    "length=47, "
-                    "tuf_version=1, "
-                    "apply_state=1, "
-                    "apply_error=None) for "
-                    "product "
-                    "'ASM_FEATURES'",
-                }
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                }
-            ],
-        )
-
-        _assert_response(mock_send_request, expected_response)
+        applied = rc_client._applied_configs[_BASE_TARGET]
+        assert applied.apply_state == 3  # ERROR
+        assert applied.apply_error is not None
