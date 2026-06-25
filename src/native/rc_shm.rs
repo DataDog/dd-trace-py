@@ -434,6 +434,15 @@ impl ShmReader {
         self.manifest.wait_for_change(timeout)
     }
 
+    /// Forget the diff memo so the next [`read`](Self::read) re-emits the full
+    /// active set as adds.
+    ///
+    /// Used for a fork of a reader process.
+    pub fn reset(&mut self) {
+        self.active_configs.clear();
+        self.active_products.clear();
+    }
+
     /// Read the latest published state and return the changes since the previous
     /// successful read (removals first).
     ///
