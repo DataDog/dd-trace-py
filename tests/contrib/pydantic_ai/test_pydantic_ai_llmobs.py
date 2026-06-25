@@ -465,7 +465,7 @@ class TestLLMObsPydanticAI:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         span_data = _get_llmobs_data_metastruct(spans[0])
-        recorded_settings = span_data["metadata"]["model_settings"]
+        recorded_settings = span_data["meta"]["metadata"]["_dd"]["agent_manifest"]["model_settings"]
         # Coerced values must be JSON-serializable.
         json.dumps(recorded_settings)
         assert recorded_settings["max_tokens"] == 100
