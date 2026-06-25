@@ -21,6 +21,9 @@ from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.http import is_json_media_type
+from ddtrace.internal.utils.http import is_xml_media_type
+from ddtrace.internal.utils.http import normalize_media_type
 from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
@@ -59,15 +62,13 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
 
         try:
             with iast_disabled_taint_sources():
-                # Match the bare media type, case-insensitively (RFC 9110), ignoring params like charset.
-                raw_content_type = headers.get("content-type") or headers.get("Content-Type") or ""
-                content_type = raw_content_type.split(";", 1)[0].strip().lower()
-                if content_type in ("application/json", "text/json"):
+                content_type = normalize_media_type(headers.get("content-type") or headers.get("Content-Type"))
+                if is_json_media_type(content_type):
                     if body is None or body == b"":
                         req_body = None
                     else:
                         req_body = json.loads(body.decode())
-                elif content_type in ("application/xml", "text/xml"):
+                elif is_xml_media_type(content_type):
                     req_body = xmltodict.parse(body)
                 elif content_type == "text/plain":
                     req_body = None

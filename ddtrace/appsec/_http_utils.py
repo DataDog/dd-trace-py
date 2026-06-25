@@ -9,6 +9,9 @@ from typing import Union
 from urllib.parse import parse_qs
 
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.http import is_json_media_type
+from ddtrace.internal.utils.http import is_xml_media_type
+from ddtrace.internal.utils.http import normalize_media_type
 import ddtrace.vendor.xmltodict as xmltodict
 
 
@@ -41,22 +44,15 @@ def parse_http_body(
             return None
 
     try:
-        content_type = normalized_headers.get("content-type")
-        if not content_type:
+        base_content_type = normalize_media_type(normalized_headers.get("content-type"))
+        if not base_content_type:
             return None
 
-        # Content-Type legally carries parameters (charset, boundary, ...),
-        # e.g. application/json; charset=utf-8 — many HTTP clients always
-        # add a charset. Match against the bare media type so a charset
-        # suffix doesn't silently skip body inspection.
-        # HTTP media types are case-insensitive (RFC 9110): normalize before matching.
-        base_content_type = content_type.split(";", 1)[0].strip().lower()
-
-        if base_content_type in ("application/json", "application/vnd.api+json", "text/json"):
+        if is_json_media_type(base_content_type):
             return json.loads(body)
         elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
             return parse_qs(body)
-        elif base_content_type in ("application/xml", "text/xml"):
+        elif is_xml_media_type(base_content_type):
             return xmltodict.parse(body)
         elif base_content_type == "multipart/form-data":
             return http_utils.parse_form_multipart(body, normalized_headers)

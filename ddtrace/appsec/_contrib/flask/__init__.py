@@ -30,6 +30,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils import http as http_utils
+from ddtrace.internal.utils.http import is_json_media_type
+from ddtrace.internal.utils.http import is_xml_media_type
+from ddtrace.internal.utils.http import normalize_media_type
 from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
 
@@ -64,8 +67,7 @@ def _on_request_span_modifier(
 ) -> Optional[Any]:
     req_body = None
     if asm_config._asm_enabled and request.method in _BODY_METHODS:
-        # Match the bare media type, case-insensitively (RFC 9110), ignoring params like charset.
-        content_type = (request.content_type or "").split(";", 1)[0].strip().lower()
+        content_type = normalize_media_type(request.content_type)
         wsgi_input = environ.get("wsgi.input", "")
 
         # Copy wsgi input if not seekable
@@ -92,14 +94,14 @@ def _on_request_span_modifier(
 
         try:
             with iast_disabled_taint_sources():
-                if content_type in ("application/json", "text/json"):
+                if is_json_media_type(content_type):
                     if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
                         req_body = request.json
                     elif request.data is None or request.data == b"":
                         req_body = None
                     else:
                         req_body = json.loads(request.data.decode("UTF-8"))
-                elif content_type in ("application/xml", "text/xml"):
+                elif is_xml_media_type(content_type):
                     req_body = xmltodict.parse(request.get_data())
                 elif hasattr(request, "form"):
                     req_body = {k: vs if len(vs) > 1 else vs[0] for k, vs in request.form.to_dict(flat=False).items()}

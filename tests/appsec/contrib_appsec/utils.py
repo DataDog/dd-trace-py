@@ -1110,6 +1110,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "Application/JSON", "tst-037-003"),
             # Content-Type parameters (e.g. charset) must not skip body inspection
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json; charset=utf-8", "tst-037-003"),
+            # structured-suffix JSON types (application/*+json, e.g. RFC 7807) must be parsed
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/vnd.api+json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
@@ -1120,6 +1122,12 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
                 "Text/XML",
+                "tst-037-003",
+            ),
+            # structured-suffix XML types (application/*+xml) must be parsed
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "application/atom+xml",
                 "tst-037-003",
             ),
             # form body must be blocked
@@ -1154,8 +1162,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "json_large",
             "json_mixed_case_content_type",
             "json_charset_param_content_type",
+            "json_structured_suffix_content_type",
             "xml",
             "xml_mixed_case_content_type",
+            "xml_structured_suffix_content_type",
             "form",
             "form_multipart",
             "form_multipart_duplicate_keys",

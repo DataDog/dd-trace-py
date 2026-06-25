@@ -33,6 +33,32 @@ _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 
+def normalize_media_type(content_type):
+    # type: (Optional[str]) -> str
+    """Return the bare media type without parameters, lowercased.
+
+    HTTP media types are case-insensitive and may carry parameters such as
+    ``charset`` or ``boundary`` (RFC 9110), e.g. ``Application/JSON; charset=utf-8``.
+    Matching against the normalized bare media type avoids those variants silently
+    skipping body inspection.
+    """
+    if not content_type:
+        return ""
+    return content_type.split(";", 1)[0].strip().lower()
+
+
+def is_json_media_type(media_type):
+    # type: (str) -> bool
+    """Whether a normalized media type denotes JSON, including ``application/*+json`` suffixes."""
+    return media_type in ("application/json", "text/json") or media_type.endswith("+json")
+
+
+def is_xml_media_type(media_type):
+    # type: (str) -> bool
+    """Whether a normalized media type denotes XML, including ``application/*+xml`` suffixes."""
+    return media_type in ("application/xml", "text/xml") or media_type.endswith("+xml")
+
+
 if TYPE_CHECKING:
     import http.client as httplib
 
@@ -397,17 +423,16 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
                 res.setdefault(key, []).append(value)
             res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
-            content_type = msg.get("Content-Type")
-            base_content_type = content_type.split(";", 1)[0].strip() if content_type else content_type
-            if base_content_type in ("application/json", "text/json"):
+            base_content_type = normalize_media_type(msg.get("Content-Type"))
+            if is_json_media_type(base_content_type):
                 res = json.loads(msg.get_payload())
-            elif base_content_type in ("application/xml", "text/xml"):
+            elif is_xml_media_type(base_content_type):
                 import ddtrace.vendor.xmltodict as xmltodict
 
                 res = xmltodict.parse(msg.get_payload())
             elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
                 res = parse_qs(msg.get_payload())
-            elif base_content_type in ("text/plain", None):
+            elif base_content_type in ("text/plain", ""):
                 res = msg.get_payload()
             else:
                 res = ""
