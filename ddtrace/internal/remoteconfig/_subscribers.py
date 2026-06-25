@@ -23,9 +23,9 @@ class RemoteConfigSubscriber(PeriodicService):
     def __init__(
         self,
         reader: Any,
-        dispatch: Callable[[Sequence], None],
+        dispatch: Callable[[Sequence[Any]], None],
         name: str,
-        enabled_products: Callable[[], list],
+        enabled_products: Callable[[], list[str]],
     ) -> None:
         super().__init__(interval=0, autorestart=False)  # interval handled by wait_for_change
         self._reader = reader

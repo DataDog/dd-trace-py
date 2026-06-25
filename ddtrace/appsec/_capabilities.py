@@ -40,8 +40,8 @@ def _asm_feature_is_required() -> bool:
     return any(c in caps for c in _FEATURE_REQUIRED)
 
 
-def _rc_capabilities() -> list:
-    value: list = []
+def _rc_capabilities() -> list[Cap]:
+    value: list[Cap] = []
     if config._remote_config_enabled:
         if asm_config._asm_can_be_enabled:
             value.append(Cap.AsmActivation)
