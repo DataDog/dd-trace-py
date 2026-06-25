@@ -4490,11 +4490,23 @@ venv = Venv(
         Venv(
             name="ai_guard_openai",
             command="pytest {cmdargs} tests/appsec/ai_guard/openai/",
-            pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                "openai": ["==1.102.0", latest],
             },
+            venvs=[
+                # openai 1.102.0 crashes on Python 3.14 parsing its own discriminated-union
+                # response models: it sets ``__discriminator__`` on a bare ``typing.Union``,
+                # which 3.14 made immutable (AttributeError). Fixed in later SDKs, so cap this
+                # pin at <=3.13. See https://github.com/openai/openai-python/issues/2704
+                Venv(
+                    pys=select_pys(max_version="3.13"),
+                    pkgs={"openai": "==1.102.0"},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"openai": latest},
+                ),
+            ],
         ),
         Venv(
             name="ai_guard_anthropic",
