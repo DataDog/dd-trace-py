@@ -45,27 +45,18 @@ class MediaType(Enum):
     UNKNOWN = "unknown"
 
 
-def normalize_media_type(content_type: Optional[str]) -> str:
-    """Return the bare media type without parameters, lowercased.
-
-    HTTP media types are case-insensitive and may carry parameters such as
-    ``charset`` or ``boundary`` (RFC 9110), e.g. ``Application/JSON; charset=utf-8``.
-    Matching against the normalized bare media type avoids those variants silently
-    skipping body inspection.
-    """
-    if not content_type:
-        return ""
-    return content_type.split(";", 1)[0].strip().lower()
-
-
 def classify_media_type(content_type: Optional[str]) -> MediaType:
     """Classify a ``Content-Type`` value into a :class:`MediaType` body-parsing category.
 
-    The value is normalized first (case-insensitive, parameters ignored), and
-    structured-suffix types are recognized: ``application/*+json`` maps to JSON and
-    ``application/*+xml`` maps to XML.
+    HTTP media types are case-insensitive and may carry parameters such as ``charset``
+    or ``boundary`` (RFC 9110), e.g. ``Application/JSON; charset=utf-8``; the value is
+    normalized to its bare, lowercased media type before matching. Any subtype carrying
+    a ``+json`` structured suffix (e.g. ``application/vnd.api+json``) maps to JSON, and
+    any ``+xml`` suffix maps to XML. An empty or unrecognized value maps to UNKNOWN.
     """
-    media_type = normalize_media_type(content_type)
+    if not content_type:
+        return MediaType.UNKNOWN
+    media_type = content_type.split(";", 1)[0].strip().lower()
     if media_type in ("application/json", "text/json") or media_type.endswith("+json"):
         return MediaType.JSON
     if media_type in ("application/xml", "text/xml") or media_type.endswith("+xml"):
@@ -443,8 +434,10 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
                 res.setdefault(key, []).append(value)
             res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
-            # msg.get_content_type() defaults a part with no Content-Type to text/plain (RFC 2046).
-            category = classify_media_type(msg.get_content_type())
+            content_type = msg.get("Content-Type")
+            # A part with no Content-Type header defaults to text/plain (RFC 2046); a present
+            # but unrecognized value (UNKNOWN) is left unparsed, as before.
+            category = MediaType.PLAIN if content_type is None else classify_media_type(content_type)
             if category is MediaType.JSON:
                 res = json.loads(msg.get_payload())
             elif category is MediaType.XML:

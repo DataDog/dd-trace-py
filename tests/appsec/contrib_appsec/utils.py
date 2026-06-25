@@ -1130,11 +1130,25 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 "application/atom+xml",
                 "tst-037-003",
             ),
+            # xml Content-Type parameters (e.g. charset) must not skip body inspection
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "text/xml; charset=utf-8",
+                "tst-037-003",
+            ),
             # form body must be blocked
             ("attack=yqrweytqwreasldhkuqwgervflnmlnli", "application/x-www-form-urlencoded", "tst-037-003"),
             (
                 '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
                 'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
+            # mixed-case Content-Type on a multipart inner part must still be parsed
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: Application/JSON\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
                 "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
@@ -1166,8 +1180,10 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "xml",
             "xml_mixed_case_content_type",
             "xml_structured_suffix_content_type",
+            "xml_charset_param_content_type",
             "form",
             "form_multipart",
+            "form_multipart_mixed_case_part",
             "form_multipart_duplicate_keys",
             "text",
             "no_attack",
