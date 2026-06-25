@@ -96,7 +96,7 @@ def _expected_tool_first_call_span_data(**overrides):
                 "tool_calls": [
                     {
                         "name": "get_weather",
-                        "arguments": '{"location": "New York City"}',
+                        "arguments": {"location": "New York City"},
                         "tool_id": "oG2fuvoqp",
                         "type": "function",
                     }
@@ -125,7 +125,7 @@ def _expected_tool_followup_span_data(**overrides):
                 "tool_calls": [
                     {
                         "name": "get_weather",
-                        "arguments": '{"location": "New York City"}',
+                        "arguments": {"location": "New York City"},
                         "tool_id": "oG2fuvoqp",
                         "type": "function",
                     }

@@ -10,6 +10,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -76,7 +77,9 @@ class MistralAIIntegration(BaseLLMIntegration):
         elif operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
-    def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_llm(
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         tools = _extract_tools(kwargs.get("tools"))
         _annotate_llmobs_span_data(
             span,
@@ -87,7 +90,9 @@ class MistralAIIntegration(BaseLLMIntegration):
             tool_definitions=tools or None,
         )
 
-    def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_embedding(
+        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+    ) -> None:
         _annotate_llmobs_span_data(
             span,
             metadata=_extract_metadata(kwargs, EMBED_METADATA_PARAMS),
@@ -97,11 +102,11 @@ class MistralAIIntegration(BaseLLMIntegration):
         )
 
 
-def _extract_metadata(kwargs, params):
+def _extract_metadata(kwargs: dict[str, Any], params: list[str]) -> dict[str, Any]:
     return {param: value for param in params if (value := kwargs.get(param, None)) is not None}
 
 
-def _extract_input_messages(kwargs):
+def _extract_input_messages(kwargs: dict[str, Any]) -> list[Message]:
     messages = kwargs.get("messages", []) or []
     input_messages = []
     for message in messages:
@@ -119,7 +124,7 @@ def _extract_input_messages(kwargs):
     return input_messages
 
 
-def _extract_output_messages(response):
+def _extract_output_messages(response: Optional[Any]) -> list[Message]:
     if response is None:
         return [Message(content="", role="assistant")]
     output_messages = []
@@ -131,14 +136,16 @@ def _extract_output_messages(response):
     return output_messages or [Message(content="", role="assistant")]
 
 
-def _extract_tool_calls(tool_calls_raw):
+def _extract_tool_calls(tool_calls_raw: Any) -> list[ToolCall]:
     tool_calls = []
     for tool_call in tool_calls_raw:
         fn = _get_attr(tool_call, "function", None)
+        args = _get_attr(fn, "arguments", {})
+        arguments = safe_load_json(args) if isinstance(args, str) else args
         tool_calls.append(
             ToolCall(
                 name=str(_get_attr(fn, "name", "")),
-                arguments=_get_attr(fn, "arguments", {}),
+                arguments=arguments,
                 tool_id=str(_get_attr(tool_call, "id", "")),
                 type="function",
             )
@@ -146,7 +153,7 @@ def _extract_tool_calls(tool_calls_raw):
     return tool_calls
 
 
-def _extract_message_from_assistant_message(message):
+def _extract_message_from_assistant_message(message: Any) -> Message:
     role = str(_get_attr(message, "role", "assistant") or "assistant")
     content = str(_get_attr(message, "content", "") or "")
     msg = Message(content=content, role=role)
@@ -156,7 +163,7 @@ def _extract_message_from_assistant_message(message):
     return msg
 
 
-def _extract_embedding_input_documents(kwargs):
+def _extract_embedding_input_documents(kwargs: dict[str, Any]) -> list[Document]:
     inputs = kwargs.get("inputs", "")
     if isinstance(inputs, str):
         return [Document(text=inputs)]
@@ -165,7 +172,7 @@ def _extract_embedding_input_documents(kwargs):
     return [Document(text=str(inputs))]
 
 
-def _extract_embedding_output_value(response):
+def _extract_embedding_output_value(response: Optional[Any]) -> str:
     data = _get_attr(response, "data", []) or []
     if data:
         embedding = _get_attr(data[0], "embedding", []) or []
@@ -173,7 +180,7 @@ def _extract_embedding_output_value(response):
     return ""
 
 
-def _extract_metrics(response):
+def _extract_metrics(response: Optional[Any]) -> dict[str, Any]:
     if response is None:
         return {}
     usage = _get_attr(response, "usage", None)
@@ -189,15 +196,13 @@ def _extract_metrics(response):
         metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
-    prompt_token_details = _get_attr(usage, "prompt_token_details", None)
-    if prompt_token_details is not None:
-        cached_tokens = _get_attr(prompt_token_details, "cached_tokens", None)
-        if cached_tokens is not None:
-            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+    cached_tokens = _get_attr(usage, "num_cached_tokens", None)
+    if cached_tokens is not None:
+        metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
     return metrics
 
 
-def _function_declaration_to_tool_definition(function_declaration):
+def _function_declaration_to_tool_definition(function_declaration: Any) -> ToolDefinition:
     return ToolDefinition(
         name=str(_get_attr(function_declaration, "name", "") or ""),
         description=str(_get_attr(function_declaration, "description", "") or ""),
@@ -205,7 +210,7 @@ def _function_declaration_to_tool_definition(function_declaration):
     )
 
 
-def _extract_tools(tools):
+def _extract_tools(tools: Optional[Any]) -> list[ToolDefinition]:
     if not tools:
         return []
     tool_definitions = []
