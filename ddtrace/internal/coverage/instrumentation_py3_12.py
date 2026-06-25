@@ -63,6 +63,26 @@ _DD_CANDIDATE_SLOTS = (4, 3, 1)
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
 
+# AIDEV-NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
+# line so Python stops firing that event for this code location — a performance optimisation that
+# avoids redundant callbacks in loops.  CollectInContext.__enter__ then calls restart_events() at
+# the start of each test to re-enable them.
+# Set to False when another sys.monitoring tool (e.g. coverage.py for report upload) is active:
+# restart_events() is a global call that would reset that tool's disabled-event state too, corrupting
+# its data.  Without DISABLE, events keep firing on every execution (slightly slower but still
+# correct, since CoverageLines.add() is idempotent), and restart_events() is never needed.
+_use_disable_optimization: bool = True
+
+
+def set_use_disable_optimization(enabled: bool) -> None:
+    """Control whether _event_handler returns sys.monitoring.DISABLE after recording a line.
+
+    Pass False when another sys.monitoring-based coverage tool is running concurrently so that
+    restart_events() calls (which are global) do not corrupt the other tool's state.
+    """
+    global _use_disable_optimization
+    _use_disable_optimization = enabled
+
 
 def _ensure_registered() -> bool:
     """Claim a tool slot on first call; return True if registered, False if all slots are taken."""
@@ -108,8 +128,9 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     Returns:
         Tuple of (code object, CoverageLines with instrumentable lines)
 
-    Note: Both modes use an optimized approach where callbacks return DISABLE
-    after recording, meaning each line/function is only reported once per coverage context.
+    Note: By default callbacks return DISABLE after recording so each line fires only once per
+    test context (performance optimisation).  When _use_disable_optimization is False the callback
+    returns None instead, trading some performance for compatibility with other sys.monitoring tools.
     """
     if not _ensure_registered():
         return code, CoverageLines()
@@ -117,10 +138,18 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     return _instrument_with_monitoring(code, hook, path, package)
 
 
-def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABLE]:
+def _event_handler(code: CodeType, line: int) -> t.Optional[t.Literal[sys.monitoring.DISABLE]]:
     """
     Callback for LINE/PY_START events.
-    Returns sys.monitoring.DISABLE to improve performance.
+
+    When _use_disable_optimization is True (default), returns sys.monitoring.DISABLE after
+    recording so Python stops firing events for this code location — a performance win for
+    loops and hot paths.  CollectInContext then calls restart_events() between tests to
+    re-enable them.
+
+    When _use_disable_optimization is False (set when another sys.monitoring tool such as
+    coverage.py is active), returns None so events keep firing.  This is slightly slower but
+    means restart_events() is never needed, leaving the other tool's state untouched.
     """
     hook_data = _CODE_HOOKS.get(code)
     if hook_data is None:
@@ -138,13 +167,12 @@ def _event_handler(code: CodeType, line: int) -> t.Literal[sys.monitoring.DISABL
         for line_num, import_name in import_names.items():
             hook((line_num, path, import_name))
     else:
-        # Report the line and then disable monitoring for this specific line
-        # This ensures each line is only reported once per context, even if executed multiple times (e.g., in loops)
         import_name = import_names.get(line, None)
         hook((line, path, import_name))
 
-    # Return DISABLE to prevent future callbacks for this specific line/code
-    return sys.monitoring.DISABLE
+    if _use_disable_optimization:
+        return sys.monitoring.DISABLE
+    return None
 
 
 def _instrument_with_monitoring(

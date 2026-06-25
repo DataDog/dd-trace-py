@@ -344,26 +344,18 @@ class TestITR:
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []
 
-    def test_itr_coverage_disabled_when_report_upload_enabled(self, pytester: Pytester) -> None:
-        """Guard test: setup_coverage_collection() must NOT be called when coverage_report_upload_enabled=True,
-        and a warning must be emitted explaining why.
+    def test_itr_coverage_enabled_with_coverage_report_upload(self, pytester: Pytester) -> None:
+        """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
+        even when coverage_report_upload_enabled=True.
 
-        ModuleCodeCollector calls sys.monitoring.restart_events() at the start of each test context
-        (Python 3.12+). This resets the event counters used by coverage.py, corrupting its data.
-        The two mechanisms are mutually exclusive and cannot run simultaneously.
-
-        When both coverage_enabled=True and coverage_report_upload_enabled=True, per-test ITR coverage
-        collection is explicitly skipped in favour of the full-session coverage.py report upload,
-        and a warning is emitted to inform the user.
-
-        Note: caplog cannot capture logs emitted inside pytester.inline_run() because inline_run
-        installs its own log capture that shadows the outer caplog handler. We patch log.warning
-        directly instead.
+        Both mechanisms can run simultaneously because when coverage_report_upload_enabled=True,
+        ModuleCodeCollector is installed with use_disable_optimization=False. This means
+        _event_handler never returns sys.monitoring.DISABLE, so restart_events() is never called
+        between tests — leaving coverage.py's sys.monitoring state untouched.
         """
         pytester.makepyfile(test_placeholder="def test_ok(): pass")
 
         setup_coverage_calls: list[bool] = []
-        warning_messages: list[str] = []
 
         with (
             patch(
@@ -376,23 +368,13 @@ class TestITR:
             setup_standard_mocks(),
             patch(
                 "ddtrace.testing.internal.pytest.plugin.setup_coverage_collection",
-                side_effect=lambda: setup_coverage_calls.append(True),
+                side_effect=lambda **kwargs: setup_coverage_calls.append(True),
             ),
-            patch(
-                "ddtrace.testing.internal.pytest.plugin.log",
-            ) as mock_log,
         ):
-            mock_log.warning.side_effect = lambda msg, *args, **kwargs: warning_messages.append(
-                msg % args if args else msg
-            )
             pytester.inline_run("--ddtrace", "-v", "-s")
 
-        assert len(setup_coverage_calls) == 0, (
-            "setup_coverage_collection() must NOT be called when coverage_report_upload_enabled=True "
-            "because ModuleCodeCollector's sys.monitoring.restart_events() would corrupt coverage.py data; "
+        assert len(setup_coverage_calls) == 1, (
+            "setup_coverage_collection() must be called when coverage_enabled=True "
+            "even when coverage_report_upload_enabled=True; "
             f"was called {len(setup_coverage_calls)} time(s)"
-        )
-        assert any("Per-test code coverage (ITR) is disabled" in msg for msg in warning_messages), (
-            "A warning must be emitted when both coverage_enabled and coverage_report_upload_enabled are set; "
-            f"warnings seen: {warning_messages}"
         )

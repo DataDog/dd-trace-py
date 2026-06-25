@@ -1,6 +1,7 @@
 ---
 fixes:
   - |
-    CI Visibility: When both Test Impact Analysis and coverage report upload are enabled,
-    per-test coverage collection is now explicitly disabled and a warning is logged.
-    The two mechanisms cannot run simultaneously on Python 3.12+.
+    CI Visibility: Test Impact Analysis per-test coverage and coverage report upload can
+    now run simultaneously. When report upload is enabled, the internal coverage collector
+    skips the ``sys.monitoring.DISABLE`` optimisation so it never needs to call
+    ``restart_events()`` between tests, leaving coverage.py's monitoring state untouched.

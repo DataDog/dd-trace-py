@@ -1235,27 +1235,19 @@ def pytest_load_initial_conftests(
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
-    # The coverage.py startup is handled later in pytest_configure when we know if pytest-cov is available.
-    # AIDEV-NOTE: These two mechanisms CANNOT run simultaneously on Python 3.12+.
-    # ModuleCodeCollector calls sys.monitoring.restart_events() at the start of each test context,
-    # which would reset coverage.py's own sys.monitoring state and corrupt its data.
-    # When coverage_report_upload_enabled=True, per-test ITR bitmaps are explicitly disabled and
-    # the user is warned. Do NOT remove the `not coverage_report_upload_enabled` guard.
-    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        setup_coverage_collection()
-    elif session_manager.settings.coverage_enabled and session_manager.settings.coverage_report_upload_enabled:
-        log.warning(
-            "Per-test code coverage (ITR) is disabled because coverage report upload is enabled. "
-            "Both features use sys.monitoring and cannot run simultaneously. "
-            "Test Impact Analysis will not be able to skip tests based on coverage data."
-        )
+    # Both can run simultaneously. When coverage_report_upload_enabled=True we pass
+    # use_disable_optimization=False so ModuleCodeCollector never calls restart_events() between
+    # tests — avoiding interference with coverage.py's sys.monitoring state.
+    # The coverage.py startup itself is handled later in pytest_configure.
+    if session_manager.settings.coverage_enabled:
+        setup_coverage_collection(use_disable_optimization=not session_manager.settings.coverage_report_upload_enabled)
 
     yield
 
 
-def setup_coverage_collection() -> None:
+def setup_coverage_collection(use_disable_optimization: bool = True) -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path)
+    install_coverage(workspace_path, use_disable_optimization=use_disable_optimization)
 
 
 def pytest_configure(config: pytest.Config) -> None:
