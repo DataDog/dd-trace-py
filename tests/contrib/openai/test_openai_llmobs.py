@@ -476,7 +476,7 @@ class TestLLMObsOpenaiV1:
             input_messages=[
                 {
                     "role": "user",
-                    "content": "What\u2019s in this image?\n[image]\n[audio]",
+                    "content": "What\u2019s in this image?\n[image]",
                     "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
                 }
             ],
@@ -534,7 +534,7 @@ class TestLLMObsOpenaiV1:
             input_messages=[
                 {
                     "role": "user",
-                    "content": "What\u2019s in this image?\n[image]\n[audio]",
+                    "content": "What\u2019s in this image?\n[image]",
                     "audio_parts": [{"mime_type": "audio/wav", "content": "base64data"}],
                 }
             ],

@@ -368,10 +368,13 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
             input_audio = _get_attr(part, "input_audio", {}) or {}
             data = _get_attr(input_audio, "data", "")
             if data:
+                # Audio is captured as a structured audio_part (rendered as a player), so no text
+                # marker is needed. Only fall back to "[audio]" when there's no audio to capture.
                 audio_parts.append(
                     format_audio_part(data, audio_mime_type_from_format(_get_attr(input_audio, "format", "")))
                 )
-            extracted.append(AUDIO_FALLBACK_MARKER)
+            else:
+                extracted.append(AUDIO_FALLBACK_MARKER)
         else:
             extracted.append(f"[{part_type}]")
     return "\n".join(extracted), audio_parts

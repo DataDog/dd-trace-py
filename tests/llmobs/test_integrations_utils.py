@@ -38,15 +38,27 @@ def test_audio_mime_type_from_format():
 
 
 def test_extract_content_parts_collects_audio():
-    """input_audio parts produce AudioParts alongside the readable text marker."""
+    """Captured input_audio becomes an AudioPart and leaves no '[audio]' text marker behind."""
     text, audio_parts = _extract_content_parts(
         [
             {"type": "text", "text": "what is said here?"},
             {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
         ]
     )
-    assert text == "what is said here?\n[audio]"
+    assert text == "what is said here?"
     assert audio_parts == [{"mime_type": "audio/mpeg", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_audio_marker_fallback_when_no_data():
+    """When an input_audio part carries no data, fall back to the '[audio]' text marker."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "listen:"},
+            {"type": "input_audio", "input_audio": {"format": "wav"}},
+        ]
+    )
+    assert text == "listen:\n[audio]"
+    assert audio_parts == []
 
 
 def test_extract_content_parts_no_audio():
