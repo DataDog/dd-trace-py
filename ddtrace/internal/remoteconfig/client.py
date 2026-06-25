@@ -15,6 +15,7 @@ import uuid
 
 import ddtrace
 from ddtrace.internal import agent
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import runtime
@@ -252,10 +253,15 @@ class RemoteConfigClient:
         # Track which products are enabled
         self._enabled_products: set[str] = set()
 
+        # Serializes connector read + dispatch between the background subscriber
+        # thread and the synchronous pump in the polling process (forksafe so a
+        # child never inherits a locked mutex). Product callbacks must not re-enter.
+        self._dispatch_lock = forksafe.Lock()
+
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
         self._global_subscriber = RemoteConfigSubscriber(
-            self._global_connector, self._dispatch_to_products, "GlobalSubscriber"
+            self._global_connector, self._dispatch_to_products, "GlobalSubscriber", self._dispatch_lock
         )
 
         self._applied_configs: AppliedConfigType = {}
@@ -306,6 +312,19 @@ class RemoteConfigClient:
                     exc_info=True,
                 )
 
+        self._dispatch_payloads(payloads, product_callbacks)
+
+    def _pump_subscriber(self) -> None:
+        """Apply just-published configs synchronously in the polling process.
+
+        Runs at the end of a poll so apply_state is promoted before the next poll
+        reports it (no transient UNACKNOWLEDGED). The background subscriber still
+        delivers to forked children. The lock serializes with that thread.
+        """
+        with self._dispatch_lock:
+            self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
+
+    def _dispatch_payloads(self, payloads: Sequence[Payload], product_callbacks: dict[str, RCCallback]) -> None:
         if not payloads:
             return
 
@@ -784,6 +803,9 @@ class RemoteConfigClient:
         self._publish_configuration(payload_list)
 
         self._add_apply_config_to_cache()
+
+        # 5. Apply synchronously so apply_state is promoted before the next poll reports it
+        self._pump_subscriber()
 
     def request(self) -> bool:
         try:

@@ -839,31 +839,27 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 _BASE_TARGET = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
 
 
-def _process_until_base(rc_client, mock_send_request):
-    """Process responses 0-2 (response[2] introduces "base") without applying it."""
+def _process_through_base(rc_client, mock_send_request):
+    """Process responses 0-2 (response[2] introduces "base"). The polling process applies
+    synchronously in _process_response, so "base" is applied by the time request() returns.
+    """
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
     for i in range(3):
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[i]
         rc_client.request()
-        if i < 2:  # apply earlier responses; leave "base" pending
-            rc_client.poll()
 
 
 @mock.patch.object(SyncRemoteConfigClient, "_send_request")
-def test_apply_state_acknowledged_only_after_apply(mock_send_request):
-    """apply_state is ACKNOWLEDGED only once the subscriber runs the product callback."""
+def test_apply_state_acknowledged_after_synchronous_apply(mock_send_request):
+    """The polling process applies inline, so apply_state is ACKNOWLEDGED once request() returns."""
     rc_client = SyncRemoteConfigClient()
     rc_client.register_callback("ASM_FEATURES", mock.MagicMock())
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        _process_until_base(rc_client, mock_send_request)
+        _process_through_base(rc_client, mock_send_request)
 
-        # received and stored, but not applied yet
-        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # UNACKNOWLEDGED
-
-        rc_client.poll()
-
+        # applied synchronously during request(); no separate poll needed
         assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
 
 
@@ -878,11 +874,7 @@ def test_apply_state_error_when_callback_raises(mock_send_request):
     rc_client.register_callback("ASM_FEATURES", callback_with_exception)
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        _process_until_base(rc_client, mock_send_request)
-
-        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # UNACKNOWLEDGED
-
-        rc_client.poll()
+        _process_through_base(rc_client, mock_send_request)
 
         applied = rc_client._applied_configs[_BASE_TARGET]
         assert applied.apply_state == 3  # ERROR
