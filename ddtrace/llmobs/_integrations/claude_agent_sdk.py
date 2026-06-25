@@ -11,6 +11,7 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import build_context_delta
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -361,30 +362,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         before = self._parse_snapshot(before_context)
         after = self._parse_snapshot(after_context)
 
-        first_tokens = before.get("used_tokens")
-        last_tokens = after.get("used_tokens")
-        if first_tokens is None and last_tokens is None:
-            return None
-
-        first_tokens = first_tokens or 0
-        last_tokens = last_tokens or 0
         context_window = after.get("total_tokens") or before.get("total_tokens") or 0
-        first_pct = round(first_tokens / context_window * 100, 1) if context_window > 0 else 0.0
-        last_pct = round(last_tokens / context_window * 100, 1) if context_window > 0 else 0.0
-
-        delta: dict[str, Any] = {
-            "first_input_tokens": first_tokens,
-            "last_input_tokens": last_tokens,
-            "delta_tokens": last_tokens - first_tokens,
-            "context_window_size": context_window,
-            "first_usage_pct": first_pct,
-            "last_usage_pct": last_pct,
-        }
-        if before["sections"]:
-            delta["first_sections"] = before["sections"]
-        if after["sections"]:
-            delta["last_sections"] = after["sections"]
-        return delta
+        return build_context_delta(
+            first_input_tokens=before.get("used_tokens") or 0,
+            last_input_tokens=after.get("used_tokens") or 0,
+            context_window_size=context_window,
+            first_sections=before["sections"],
+            last_sections=after["sections"],
+        )
 
     def _parse_snapshot(self, messages: Any) -> dict[str, Any]:
         """Parse a list of /context messages into a snapshot dict with sections and token counts."""

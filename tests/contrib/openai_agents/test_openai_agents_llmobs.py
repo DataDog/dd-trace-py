@@ -147,13 +147,18 @@ def _assert_expected_agent_run(
         assert get_llmobs_span_name(span) == expected_span_names[i], (
             f"span[{i}] name mismatch: expected={expected_span_names[i]!r}, actual={get_llmobs_span_name(span)!r}"
         )
-    # First span: agent span.
+    # First span: agent span. Its meta.metadata._dd carries agent_manifest plus (per-agent context_delta),
+    # so assert the manifest directly rather than the whole _dd — extra _dd keys are tolerated.
+    agent_name = get_llmobs_span_name(spans[0])
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[0]),
         span_kind="agent",
-        metadata=_expected_agent_metadata(get_llmobs_span_name(spans[0])),
         tags=COMMON_TAGS,
-        name=get_llmobs_span_name(spans[0]),
+        name=agent_name,
+    )
+    actual_agent_dd = _get_llmobs_data_metastruct(spans[0]).get("meta", {}).get("metadata", {}).get("_dd", {})
+    assert actual_agent_dd.get("agent_manifest") == _expected_agent_metadata(agent_name)["_dd"]["agent_manifest"], (
+        f"agent_manifest mismatch on the {agent_name} agent span"
     )
 
     for i, span in enumerate(spans[1:]):
@@ -759,7 +764,7 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
 
 @pytest.mark.asyncio
 async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
-    """Regression test: tag_agent_manifest should not raise AttributeError when current_span is None."""
+    """Regression test: the wrapper must not raise when current_span is None (returns before _capture_agent)."""
     from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
 
     # Create an async mock for the original function that _patched_run_single_turn wraps
@@ -775,3 +780,94 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
         )
+
+
+# -- MLOB-7584: per-agent context_delta ----------------------------------------
+
+
+def _context_delta(span):
+    """Return the context_delta payload on a span, or None."""
+    metastruct = _get_llmobs_data_metastruct(span)
+    return metastruct.get("meta", {}).get("metadata", {}).get("_dd", {}).get("context_delta")
+
+
+def _assert_context_delta_contract(delta):
+    """Assert a context_delta payload conforms to the wire contract."""
+    assert delta["first_input_tokens"] > 0
+    assert delta["last_input_tokens"] > 0
+    assert delta["delta_tokens"] == delta["last_input_tokens"] - delta["first_input_tokens"]
+    assert "context_window_size" in delta
+    assert "first_usage_pct" in delta and "last_usage_pct" in delta
+    allowed_names = {"system", "tools", "user_messages", "assistant_messages"}
+    for key in ("first_sections", "last_sections"):
+        for section in delta.get(key, []):
+            assert section["name"] in allowed_names, f"unknown section name {section['name']!r} in {key}"
+            assert section["tokens"] > 0, "zero-token sections must be filtered out by _sections_with_pct"
+            assert 0 <= section["pct"] <= 100
+
+
+@pytest.mark.asyncio
+async def test_llmobs_context_delta_emitted_on_agent_span(
+    agents, openai_agents_llmobs, test_spans, request_vcr, addition_agent
+):
+    """A single-agent run emits context_delta on the AGENT span -- never the workflow root.
+
+    Exercises the full per-agent chain: processor.on_span_end (response) -> record_llm_side
+    (keyed by parent agent span_id) -> patch.py wrapper -> record_agent_side -> processor
+    .on_span_end (agent) -> emit_context_delta_for_agent -> meta.metadata._dd.context_delta.
+    """
+    with request_vcr.use_cassette("test_single_agent_with_tool_calls.yaml"):
+        await agents.Runner.run(addition_agent, "What is the sum of 1 and 2?")
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    spans.sort(key=lambda span: span.start_ns)
+
+    # spans[0] is the workflow root; the context_delta must NOT be there (dropped workflow emit).
+    assert _context_delta(spans[0]) is None, "context_delta must not be emitted on the workflow root span"
+
+    agent_spans = [
+        s for s in spans if _get_llmobs_data_metastruct(s).get("meta", {}).get("span", {}).get("kind") == "agent"
+    ]
+    assert len(agent_spans) == 1, f"expected exactly one agent span, got {len(agent_spans)}"
+
+    delta = _context_delta(agent_spans[0])
+    # Some agents library versions don't trigger the wrapper (older shapes where the per-turn
+    # function name doesn't match any wrap target); the agent-side tools_chars is then absent
+    # but the LLM-side snapshots still emit. Require the payload here -- the installed pinned
+    # SDK matches a wrap target -- and conform it to the contract.
+    assert delta is not None, "context_delta must be emitted on the agent span"
+    _assert_context_delta_contract(delta)
+
+
+@pytest.mark.asyncio
+async def test_llmobs_context_delta_per_agent_on_handoff(
+    agents, openai_agents_llmobs, test_spans, request_vcr, research_workflow
+):
+    """A 2-agent handoff emits exactly TWO context_deltas -- one per agent span, no aggregate.
+
+    Regression guard: state keyed by (trace_id, agent_span_id) means each agent span
+    (Researcher, Summarizer) carries its own delta and the workflow root carries none -- it
+    would regress if state were keyed by trace_id alone (a single delta for the whole workflow).
+    """
+    with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
+        await agents.Runner.run(
+            research_workflow, "What is a brief summary of what happened yesterday in the soccer world??"
+        )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    spans.sort(key=lambda span: span.start_ns)
+
+    # Workflow root carries no delta.
+    assert _context_delta(spans[0]) is None, "context_delta must not be emitted on the workflow root span"
+
+    agent_spans = [
+        s for s in spans if _get_llmobs_data_metastruct(s).get("meta", {}).get("span", {}).get("kind") == "agent"
+    ]
+    assert len(agent_spans) == 2, f"a 2-agent handoff must produce 2 agent spans, got {len(agent_spans)}"
+
+    deltas = {get_llmobs_span_name(s): _context_delta(s) for s in agent_spans}
+    # Exactly two deltas, one per agent span -- the core invariant of the per-agent design.
+    assert all(d is not None for d in deltas.values()), f"each agent span must carry its own context_delta: {deltas}"
+    assert set(deltas) == {"Researcher", "Summarizer"}, f"unexpected agent span names: {set(deltas)}"
+    for delta in deltas.values():
+        _assert_context_delta_contract(delta)

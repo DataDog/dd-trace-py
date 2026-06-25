@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import json
 from typing import Any
 from typing import Optional
@@ -15,10 +16,17 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_ASSISTANT_MESSAGES
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_SYSTEM
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_TOOLS
+from ddtrace.llmobs._integrations.utils import CONTEXT_SECTION_USER_MESSAGES
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._integrations.utils import split_tokens_by_chars
+from ddtrace.llmobs._integrations.utils import tag_context_delta
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -31,8 +39,106 @@ from ddtrace.trace import Span
 logger = get_logger(__name__)
 
 
+def count_tools_chars(agent) -> int:
+    """Sum chars for ``agent.tools + agent.handoffs`` serialized as JSON.
+
+    MCP server tools (``agent.mcp_servers``) are not counted -- they're fetched async via
+    ``agent.get_mcp_tools()``. Agents that lean on MCP will see ``tools`` under-counted.
+    """
+    chars = 0
+    for tool in getattr(agent, "tools", None) or []:
+        chars += len(safe_json(tool) or str(tool))
+    for handoff in getattr(agent, "handoffs", None) or []:
+        chars += len(safe_json(handoff) or str(handoff))
+    return chars
+
+
+# Responses API non-role items bucketed as agent-produced. ``message`` items have
+# their own ``role`` and are bucketed by role, not by type.
+_ASSISTANT_PRODUCED_ITEM_TYPES = frozenset(
+    {
+        "function_call",
+        "function_call_output",
+        "tool_call",
+        "tool_call_output",
+        "computer_call",
+        "computer_call_output",
+        "code_interpreter_call",
+        "file_search_call",
+        "web_search_call",
+        "reasoning",
+        "reasoning_item",
+    }
+)
+
+
+def split_message_chars(messages: Any) -> tuple[int, int]:
+    """Return ``(user_chars, assistant_chars)`` for a response-span's ``input``.
+
+    Buckets role-tagged messages by role and Responses API non-role items (function_call,
+    function_call_output, reasoning, ...) into assistant_chars. system/developer roles
+    are excluded -- they flow through ``response_system_instructions`` separately.
+    """
+    if isinstance(messages, str):
+        return len(messages), 0
+    if not isinstance(messages, list):
+        return 0, 0
+    user_chars = 0
+    assistant_chars = 0
+    for msg in messages:
+        role = _get_attr(msg, "role", None)
+        item_type = _get_attr(msg, "type", None)
+        content = _get_attr(msg, "content", None)
+        output = _get_attr(msg, "output", None)
+        arguments = _get_attr(msg, "arguments", None)
+        if content is not None:
+            chars = len(str(content))
+        elif output is not None:
+            chars = len(str(output))
+        elif arguments is not None:
+            chars = len(str(arguments))
+        else:
+            chars = 0
+        if role == "user":
+            user_chars += chars
+        elif role in ("assistant", "tool"):
+            assistant_chars += chars
+        elif item_type in _ASSISTANT_PRODUCED_ITEM_TYPES:
+            assistant_chars += chars
+        # role in ("system", "developer") and unknown shapes: skip
+    return user_chars, assistant_chars
+
+
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
+
+    # Static map -- OpenAI doesn't expose context_window in API responses. Only models with a
+    # published context window are listed; unknown models fall through to 0 ("unknown"). The
+    # resolver below picks the longest-prefix match so "o1-preview" wins over "o1" and
+    # "gpt-4o-mini" wins over "gpt-4o" / "gpt-4".
+    _OPENAI_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+        "gpt-4o-mini": 128_000,
+        "gpt-4o": 128_000,
+        "gpt-4-turbo": 128_000,
+        "gpt-4.1": 1_047_576,
+        "gpt-4": 8_192,
+        "gpt-3.5-turbo": 16_385,
+        "gpt-5-mini": 400_000,
+        "gpt-5": 400_000,
+        "o1-preview": 128_000,
+        "o1-mini": 128_000,
+        "o1": 200_000,
+        "o3-mini": 200_000,
+        "o3": 200_000,
+        "o4-mini": 200_000,
+    }
+
+    # Model prefixes sorted longest-first so the resolver matches the most specific prefix
+    # (e.g. "gpt-4o-mini" before "gpt-4o" before "gpt-4"). Precomputed once at class-definition
+    # time -- the map is static, so re-sorting on every lookup is wasted work.
+    _SORTED_MODEL_PREFIXES: tuple[str, ...] = tuple(sorted(_OPENAI_MODEL_CONTEXT_WINDOWS, key=len, reverse=True))
+
+    _CONTEXT_STATE_MAX = 1024
 
     def __init__(self, integration_config: Any) -> None:
         super().__init__(integration_config)
@@ -41,6 +147,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
+        # per-agent context_delta snapshots, keyed by (trace_id, agent llmobs span_id). Each
+        # agent span accumulates its own first/last LLM-call snapshots and is emitted + dropped
+        # at that agent span's finish. Bounded LRU below.
+        self._context_state: OrderedDict[tuple[int, str], dict[str, Any]] = OrderedDict()
 
     def trace(
         self,
@@ -286,6 +396,125 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
+        self._context_state.clear()
+
+    def _context_window_for(self, model: str) -> int:
+        """Look up the model's context window. Returns 0 if unknown."""
+        if not model:
+            return 0
+        if model in self._OPENAI_MODEL_CONTEXT_WINDOWS:
+            return self._OPENAI_MODEL_CONTEXT_WINDOWS[model]
+        # Prefix match for dated model names (e.g. "gpt-4o-2024-08-06" -> "gpt-4o").
+        # _SORTED_MODEL_PREFIXES is longest-first so "gpt-4o-mini" wins over "gpt-4o" / "gpt-4".
+        for prefix in self._SORTED_MODEL_PREFIXES:
+            if model.startswith(prefix):
+                return self._OPENAI_MODEL_CONTEXT_WINDOWS[prefix]
+        return 0
+
+    def _get_or_create_context_state(self, key: tuple[int, str]) -> dict[str, Any]:
+        """Get-or-create per-agent state, bounded to ``_CONTEXT_STATE_MAX`` (oldest-first eviction).
+
+        AIDEV-NOTE: MLOB-7584 — an entry is popped only when its agent span finishes
+        (``emit_context_delta_for_agent``). The LRU bounds memory against entries that never
+        reach that finish: an interrupted/resumed run (recent SDKs use ``ReattachedTrace``, which
+        doesn't re-emit finish), or a response span whose llmobs parent isn't an agent span.
+        """
+        state = self._context_state.get(key)
+        if state is None:
+            if len(self._context_state) >= self._CONTEXT_STATE_MAX:
+                self._context_state.popitem(last=False)
+            state = self._context_state[key] = {}
+        return state
+
+    def record_llm_side(
+        self,
+        trace_id: int,
+        agent_span_id: str,
+        *,
+        input_tokens: int,
+        system_chars: int,
+        user_chars: int,
+        assistant_chars: int,
+        model: str,
+    ) -> None:
+        """Capture a per-LLM-call snapshot for one agent.
+
+        Keyed by ``(trace_id, agent_span_id)`` so each agent in a handoff chain accumulates
+        only its own LLM calls. Called from ``on_span_end`` on response-type spans.
+        """
+        if not self.llmobs_enabled:
+            return
+        snapshot = {
+            "input_tokens": input_tokens,
+            "system_chars": system_chars,
+            "user_chars": user_chars,
+            "assistant_chars": assistant_chars,
+            "model": model or "",
+        }
+        state = self._get_or_create_context_state((trace_id, agent_span_id))
+        if "first_llm" not in state:
+            state["first_llm"] = snapshot
+        state["last_llm"] = snapshot
+
+    def record_agent_side(self, trace_id: int, agent_span_id: str, *, tools_chars: int) -> None:
+        """Capture a per-turn agent-side snapshot (tools+handoffs char count) for one agent.
+
+        Keyed by ``(trace_id, agent_span_id)``. Called from the run_single_turn patch wrapper,
+        where the current span is the agent span the turn runs under.
+        """
+        if not self.llmobs_enabled:
+            return
+        snapshot = {"tools_chars": tools_chars}
+        state = self._get_or_create_context_state((trace_id, agent_span_id))
+        if "first_agent" not in state:
+            state["first_agent"] = snapshot
+        state["last_agent"] = snapshot
+
+    def emit_context_delta_for_agent(self, agent_span: Span, trace_id: int, agent_span_id: str) -> None:
+        """Emit this agent's ``context_delta`` on its own agent span, then drop its state.
+
+        Computed from the agent's own first->last LLM-call snapshots plus its system/tools/
+        user/assistant section breakdown. Must run while ``agent_span`` is still open (LLMObs
+        serializes span data at ``.finish()``).
+        """
+        state = self._context_state.pop((trace_id, agent_span_id), None)
+        if not state:
+            return
+        first_llm = state.get("first_llm")
+        last_llm = state.get("last_llm")
+        if not first_llm or not last_llm:
+            # No full first/last LLM pair (e.g. a response span whose parent isn't this agent --
+            # see _get_or_create_context_state). Log so the orphan case is visible.
+            logger.debug("openai_agents: no context_delta for agent span %s (incomplete LLM snapshots)", agent_span_id)
+            return
+
+        first_agent = state.get("first_agent", {"tools_chars": 0})
+        last_agent = state.get("last_agent", {"tools_chars": 0})
+
+        # The char-proportional split mixes two sources by design: tools chars come from the
+        # agent's declared tool list (agent-side), system/user/assistant chars from the response
+        # span (LLM-side). It's an approximate visual estimate, not exact token attribution.
+        first_chars = {
+            CONTEXT_SECTION_SYSTEM: first_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: first_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: first_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: first_llm["assistant_chars"],
+        }
+        last_chars = {
+            CONTEXT_SECTION_SYSTEM: last_llm["system_chars"],
+            CONTEXT_SECTION_TOOLS: last_agent["tools_chars"],
+            CONTEXT_SECTION_USER_MESSAGES: last_llm["user_chars"],
+            CONTEXT_SECTION_ASSISTANT_MESSAGES: last_llm["assistant_chars"],
+        }
+
+        tag_context_delta(
+            agent_span,
+            first_token_counts=split_tokens_by_chars(first_llm["input_tokens"], first_chars),
+            last_token_counts=split_tokens_by_chars(last_llm["input_tokens"], last_chars),
+            first_input_tokens=first_llm["input_tokens"],
+            last_input_tokens=last_llm["input_tokens"],
+            context_window_size=self._context_window_for(last_llm.get("model", "")),
+        )
 
     # AIDEV-NOTE: MLOB-7584 — the agent's position varies by wheel (0.0.x-0.17.x): ``agent=`` kwarg
     # (0.8-0.13), ``bindings=`` kwarg (>=0.14), or positional arg[1] when streamed (arg[0] is the
@@ -309,12 +538,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             if hasattr(candidate, "name") and hasattr(candidate, "tools") and hasattr(candidate, "handoffs"):
                 return candidate
         return None
-
-    def tag_agent_manifest(self, span: Span, args: list[Any], kwargs: dict[str, Any]) -> None:
-        agent = self._extract_agent_from_call(args, kwargs)
-        if agent is None:
-            return
-        self._tag_agent_manifest_from_agent(span, agent)
 
     def _tag_agent_manifest_from_agent(self, span: Span, agent: Any) -> None:
         if not agent or not self.llmobs_enabled:

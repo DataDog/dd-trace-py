@@ -1630,3 +1630,95 @@ def extract_instance_metadata_from_stack(
     except Exception:
         logger.warning("Failed to extract prompt variable name")
         return default_variable_name, default_module_name
+
+
+# Cross-framework section names for the context_delta token breakdown.
+CONTEXT_SECTION_SYSTEM = "system"
+CONTEXT_SECTION_TOOLS = "tools"
+CONTEXT_SECTION_USER_MESSAGES = "user_messages"
+CONTEXT_SECTION_ASSISTANT_MESSAGES = "assistant_messages"
+
+
+def split_tokens_by_chars(total_tokens: int, char_counts: dict[str, int]) -> dict[str, int]:
+    """Distribute ``total_tokens`` proportional to ``char_counts``.
+
+    Total is authoritative (model-reported); the per-category split is
+    char-proportional and approximate. Small or dense sections drift most (prose,
+    JSON, and numeric text tokenize at different rates). For proportional
+    visualization only -- never billing.
+    """
+    if total_tokens <= 0 or not char_counts:
+        return {name: 0 for name in char_counts}
+    total_chars = sum(char_counts.values())
+    if total_chars <= 0:
+        return {name: 0 for name in char_counts}
+    return {name: int(total_tokens * (chars / total_chars)) for name, chars in char_counts.items()}
+
+
+def _sections_with_pct(token_counts: dict[str, int]) -> list[dict[str, Any]]:
+    """Return ``sections`` list with pct as share of used tokens. Drops zero entries."""
+    total = sum(token_counts.values())
+    sections: list[dict[str, Any]] = []
+    for name, tokens in token_counts.items():
+        if tokens <= 0:
+            continue
+        pct = round(tokens / total * 100, 1) if total > 0 else 0.0
+        sections.append({"name": name, "tokens": tokens, "pct": pct})
+    return sections
+
+
+def build_context_delta(
+    *,
+    first_input_tokens: int,
+    last_input_tokens: int,
+    context_window_size: int,
+    first_sections: Optional[list[dict[str, Any]]] = None,
+    last_sections: Optional[list[dict[str, Any]]] = None,
+) -> Optional[dict[str, Any]]:
+    """Assemble the ``context_delta`` payload shared across agentic integrations.
+
+    Returns ``None`` when neither snapshot carries token data so callers can skip
+    emission. Section lists are attached only when non-empty. This is the single
+    source of truth for the wire shape the LLMObs backend renders.
+    """
+    if first_input_tokens <= 0 and last_input_tokens <= 0:
+        return None
+
+    first_pct = round(first_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+    last_pct = round(last_input_tokens / context_window_size * 100, 1) if context_window_size > 0 else 0.0
+
+    delta: dict[str, Any] = {
+        "first_input_tokens": first_input_tokens,
+        "last_input_tokens": last_input_tokens,
+        "delta_tokens": last_input_tokens - first_input_tokens,
+        "context_window_size": context_window_size,
+        "first_usage_pct": first_pct,
+        "last_usage_pct": last_pct,
+    }
+    if first_sections:
+        delta["first_sections"] = first_sections
+    if last_sections:
+        delta["last_sections"] = last_sections
+    return delta
+
+
+def tag_context_delta(
+    span: Span,
+    *,
+    first_token_counts: dict[str, int],
+    last_token_counts: dict[str, int],
+    first_input_tokens: int,
+    last_input_tokens: int,
+    context_window_size: int,
+) -> None:
+    """Emit ``meta.metadata._dd.context_delta`` from per-section token counts."""
+    delta = build_context_delta(
+        first_input_tokens=first_input_tokens,
+        last_input_tokens=last_input_tokens,
+        context_window_size=context_window_size,
+        first_sections=_sections_with_pct(first_token_counts),
+        last_sections=_sections_with_pct(last_token_counts),
+    )
+    if delta is None:
+        return
+    _annotate_llmobs_span_data(span, context_delta=delta)

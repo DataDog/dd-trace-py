@@ -28,22 +28,34 @@ def _supported_versions() -> dict[str, str]:
     return {"agents": ">=0.0.2"}
 
 
+def _capture_agent(current_span, args, kwargs):
+    # AIDEV-NOTE: MLOB-7584 — the SDK doesn't guard this wrap site, so a raise here would surface in the
+    # user's Runner.run. ``current_span`` is the agent span the turn runs under, so its span_id keys this
+    # agent's context_delta to the same key the response spans resolve via get_llmobs_parent_id (the join).
+    try:
+        from ddtrace.llmobs._integrations.openai_agents import count_tools_chars
+
+        integration = agents._datadog_integration
+        agent = integration._extract_agent_from_call(args, kwargs)
+        if agent is None:
+            return
+        integration._tag_agent_manifest_from_agent(current_span, agent)
+        integration.record_agent_side(
+            current_span.trace_id, str(current_span.span_id), tools_chars=count_tools_chars(agent)
+        )
+    except Exception:
+        log.debug("openai_agents agent capture failed", exc_info=True)
+
+
 async def _patched_run_single_turn(func, instance, args, kwargs):
     current_span = tracer.current_span()
     result = await func(*args, **kwargs)
 
     if current_span is None:
-        log.debug("No current span available, skipping tag_agent_manifest")
+        log.debug("No current span available, skipping agent capture")
         return result
 
-    # AIDEV-NOTE: MLOB-7584 — the SDK doesn't guard this wrap site, so an unguarded raise here
-    # would surface in the user's Runner.run.
-    try:
-        integration = agents._datadog_integration
-        integration.tag_agent_manifest(current_span, args, kwargs)
-    except Exception:
-        log.debug("openai_agents tag_agent_manifest failed", exc_info=True)
-
+    _capture_agent(current_span, args, kwargs)
     return result
 
 

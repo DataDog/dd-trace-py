@@ -1077,3 +1077,106 @@ def test_shadow_tags_llm_with_cache_tokens(tracer):
     assert span.get_metric("_dd.llmobs.output_tokens") == 8
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 3
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 5
+
+
+# MLOB-7584 — regression coverage for the shared ``build_context_delta`` refactor.
+# ``claude_agent_sdk._parse_context_delta`` now delegates to the shared assembler in
+# ``_integrations/utils.py`` (reused by openai_agents). These pin claude's prior behavior so a
+# change to the shared helper can't silently alter this already-shipped integration.
+
+# Realistic ``/context`` snapshots. The parser also accepts the old 0.0.x ``UserMessage`` str
+# format (see ``_extract_context_text``), which lets these stay free of SDK message types.
+_CTX_AFTER = """\
+**Tokens:** 60.0k / 200.0k (30%)
+
+### Estimated usage by category
+
+| Category | Tokens | Percentage |
+| --- | --- | --- |
+| System prompt | 10.0k | 17% |
+| Tools | 20.0k | 33% |
+| Messages | 30.0k | 50% |
+| Free space | 140.0k | 70% |
+"""
+
+_CTX_BEFORE = """\
+**Tokens:** 12.0k / 200.0k (6%)
+
+### Estimated usage by category
+
+| Category | Tokens | Percentage |
+| --- | --- | --- |
+| System prompt | 10.0k | 83% |
+| Messages | 2.0k | 17% |
+"""
+
+
+def _claude_integration():
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.claude_agent_sdk import ClaudeAgentSdkIntegration
+
+    return ClaudeAgentSdkIntegration(MagicMock())
+
+
+def _ctx_messages(text):
+    """A minimal old-format ``/context`` message list (a ``UserMessage`` with str content)."""
+
+    class _FakeUserMessage:
+        def __init__(self, content):
+            self.content = content
+
+    _FakeUserMessage.__name__ = "UserMessage"  # _extract_context_text dispatches on type name
+    return [_FakeUserMessage(text)]
+
+
+def test_parse_context_delta_both_snapshots_empty_returns_none():
+    # No token data on either side -> None so the caller skips emission. _parse_snapshot sets
+    # ``used_tokens = sum(...) or None``, so build_context_delta's "<= 0" guard is equivalent to
+    # claude's prior "is None" guard -- the behavior-preserving invariant of the shared refactor.
+    assert _claude_integration()._parse_context_delta(None, None) is None
+
+
+def test_parse_context_delta_one_sided_emits_delta_with_zero_first():
+    # Only an "after" snapshot (e.g. the first /context of a session): the "first" side is 0 and
+    # carries no sections; the delta still emits.
+    delta = _claude_integration()._parse_context_delta(None, _ctx_messages(_CTX_AFTER))
+    assert delta is not None
+    assert delta["first_input_tokens"] == 0
+    assert delta["last_input_tokens"] == 60000
+    assert delta["delta_tokens"] == 60000
+    assert delta["context_window_size"] == 200000
+    assert delta["first_usage_pct"] == 0.0
+    assert delta["last_usage_pct"] == 30.0
+    assert "first_sections" not in delta  # empty -> not attached
+    # "Free space" is an excluded overhead row.
+    assert {s["name"] for s in delta["last_sections"]} == {"System prompt", "Tools", "Messages"}
+
+
+def test_parse_context_delta_zero_window_yields_zero_pct_not_crash():
+    # Sections present but no "**Tokens:**" headline -> window resolves to 0; pct must be 0.0
+    # (no ZeroDivisionError), and the delta still emits because used tokens > 0.
+    no_window = """\
+### Estimated usage by category
+
+| Category | Tokens | Percentage |
+| --- | --- | --- |
+| System prompt | 5.0k | 100% |
+"""
+    delta = _claude_integration()._parse_context_delta(None, _ctx_messages(no_window))
+    assert delta is not None
+    assert delta["context_window_size"] == 0
+    assert delta["last_input_tokens"] == 5000
+    assert delta["last_usage_pct"] == 0.0
+
+
+def test_parse_context_delta_normal_snapshot_populates_growth_and_sections():
+    delta = _claude_integration()._parse_context_delta(_ctx_messages(_CTX_BEFORE), _ctx_messages(_CTX_AFTER))
+    assert delta is not None
+    assert delta["first_input_tokens"] == 12000
+    assert delta["last_input_tokens"] == 60000
+    assert delta["delta_tokens"] == 48000
+    assert delta["context_window_size"] == 200000
+    assert delta["first_usage_pct"] == 6.0
+    assert delta["last_usage_pct"] == 30.0
+    assert delta["first_sections"] and delta["last_sections"]

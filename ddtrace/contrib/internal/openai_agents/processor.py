@@ -7,8 +7,10 @@ from agents.tracing.traces import Trace as OaiTrace
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._integrations.openai_agents import split_message_chars
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 
 
 logger = get_logger(__name__)
@@ -80,6 +82,29 @@ class LLMObsTraceProcessor(TracingProcessor):
         if not llmobs_span:
             return
         self._integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
+
+        if span_adapter.span_type == "response":
+            # Attribute this LLM snapshot to its parent agent span so each agent in a handoff
+            # chain accumulates only its own calls.
+            agent_span_id = get_llmobs_parent_id(llmobs_span)
+            metrics = span_adapter.llmobs_metrics or {}
+            input_tokens = metrics.get("input_tokens", 0)
+            if agent_span_id and input_tokens > 0:
+                user_chars, assistant_chars = split_message_chars(span_adapter.input)
+                self._integration.record_llm_side(
+                    llmobs_span.trace_id,
+                    agent_span_id,
+                    input_tokens=input_tokens,
+                    system_chars=len(span_adapter.response_system_instructions or ""),
+                    user_chars=user_chars,
+                    assistant_chars=assistant_chars,
+                    model=span_adapter.llmobs_model_name or "",
+                )
+        elif span_adapter.span_type == "agent":
+            # Emit this agent's context_delta on its own span while it is still open --
+            # LLMObs serializes span data at finish, so emitting after finish is a no-op.
+            self._integration.emit_context_delta_for_agent(llmobs_span, llmobs_span.trace_id, str(llmobs_span.span_id))
+
         llmobs_span.finish()
 
     def force_flush(self) -> None:

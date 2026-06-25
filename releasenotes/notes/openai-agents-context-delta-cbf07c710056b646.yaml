@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds per-agent context-size information to the OpenAI Agents SDK
+    integration -- each agent span carries a breakdown of its input tokens across system, tools,
+    user messages, and assistant messages.
