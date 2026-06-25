@@ -382,7 +382,9 @@ class TestITR:
                 "ddtrace.testing.internal.pytest.plugin.log",
             ) as mock_log,
         ):
-            mock_log.warning.side_effect = lambda msg, *args, **kwargs: warning_messages.append(msg % args if args else msg)
+            mock_log.warning.side_effect = lambda msg, *args, **kwargs: warning_messages.append(
+                msg % args if args else msg
+            )
             pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert len(setup_coverage_calls) == 0, (
