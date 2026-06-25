@@ -1,0 +1,7 @@
+upgrade:
+  - |
+    openfeature: The minimum required version of ``openfeature-sdk`` is now 0.10.0 (previously 0.8.0).
+    Since ``openfeature-sdk`` 0.10.0 requires Python 3.10 or newer, the Datadog OpenFeature provider now
+    also requires Python 3.10 or newer. This fixes provider loading with the OpenFeature SDK's current
+    public provider API and supports both non-blocking provider registration via
+    ``openfeature.api.set_provider()`` and blocking registration via ``openfeature.api.set_provider_and_wait()``.

@@ -121,5 +121,31 @@ class TestProviderImportWithoutOpenFeature:
         assert hasattr(provider, "get_metadata")
         assert hasattr(provider, "initialize")
         assert hasattr(provider, "shutdown")
+        assert hasattr(provider, "attach")
         assert hasattr(provider, "resolve_boolean_details")
         assert hasattr(provider, "resolve_string_details")
+
+    def test_provider_with_unsupported_openfeature_version_uses_stub(self):
+        """
+        Test that DataDogProvider falls back to the stub for openfeature-sdk<0.10.0.
+        """
+        import importlib
+
+        modules_to_remove = [key for key in list(sys.modules.keys()) if key.startswith("ddtrace.openfeature")]
+        for module in modules_to_remove:
+            sys.modules.pop(module, None)
+
+        try:
+            with mock.patch("importlib.metadata.version", return_value="0.9.0"):
+                import ddtrace.openfeature
+
+                importlib.reload(ddtrace.openfeature)
+
+                provider = ddtrace.openfeature.DataDogProvider()
+
+                assert provider is not None
+                assert not hasattr(provider, "attach")
+        finally:
+            for module in list(sys.modules.keys()):
+                if module.startswith("ddtrace.openfeature"):
+                    sys.modules.pop(module, None)

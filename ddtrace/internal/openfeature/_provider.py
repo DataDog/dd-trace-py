@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-from importlib.metadata import version
 import threading
 import typing
 
@@ -16,6 +15,7 @@ from openfeature.event import ProviderEventDetails
 from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagResolutionDetails
 from openfeature.flag_evaluation import Reason
+from openfeature.provider import AbstractProvider
 from openfeature.provider import Metadata
 from openfeature.provider import ProviderStatus
 
@@ -33,15 +33,6 @@ from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import config as ffe_config
-
-
-# Handle different import paths between openfeature-sdk versions
-# Versions 0.7.0+ reorganized submodules
-pkg_version = version("openfeature-sdk")
-if pkg_version >= "0.7.0":
-    from openfeature.provider import AbstractProvider
-else:
-    from openfeature.provider.provider import AbstractProvider
 
 
 T = typing.TypeVar("T", covariant=True)
@@ -505,14 +496,8 @@ class DataDogProvider(AbstractProvider):
     def _emit_ready_event(self) -> None:
         """
         Safely emit PROVIDER_READY event.
-
-        Handles SDK version compatibility - emit_provider_ready() only exists in SDK 0.7.0+.
         """
-        if hasattr(self, "emit_provider_ready") and ProviderEventDetails is not None:
-            self.emit_provider_ready(ProviderEventDetails())
-        else:
-            # SDK 0.6.0 doesn't have emit methods
-            logger.debug("Provider status is READY (event emission not supported in SDK 0.6.0)")
+        self.emit_provider_ready(ProviderEventDetails())
 
     def clear_exposure_cache(self) -> None:
         """

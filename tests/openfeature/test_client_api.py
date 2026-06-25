@@ -24,11 +24,12 @@ from tests.utils import override_global_config
 
 
 @pytest.fixture
-def setup_provider():
+def setup_provider(wait_for_provider_registration):
     """Setup DataDog provider and OpenFeature API."""
     with override_global_config({"experimental_flagging_provider_enabled": True}):
         provider = DataDogProvider()
         api.set_provider(provider)
+        wait_for_provider_registration(provider)
         yield
         # Cleanup
         api.clear_providers()

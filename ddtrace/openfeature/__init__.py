@@ -3,14 +3,18 @@ from importlib.metadata import version
 import typing
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.vendor.packaging.version import InvalidVersion
+from ddtrace.vendor.packaging.version import Version
 
 
 log = get_logger(__name__)
+_MIN_OPENFEATURE_VERSION = Version("0.10.0")
+_openfeature_version = None
 
 try:
-    pkg_version = version("openfeature-sdk")
-    _HAS_OPENFEATURE = True
-except PackageNotFoundError:
+    _openfeature_version = Version(version("openfeature-sdk"))
+    _HAS_OPENFEATURE = _openfeature_version >= _MIN_OPENFEATURE_VERSION
+except (PackageNotFoundError, InvalidVersion):
     _HAS_OPENFEATURE = False
 
 if _HAS_OPENFEATURE:
@@ -31,10 +35,11 @@ if not _HAS_OPENFEATURE:
 
         def __init__(self, *args: typing.Any, **kwargs: typing.Any):
             log.warning(
-                "DataDogProvider could not be loaded. This may be due to openfeature-sdk not being installed "
-                "or an incompatibility between the ddtrace provider and the installed openfeature-sdk version. "
-                "Please ensure openfeature-sdk is installed and compatible. "
-                "Check the official documentation: https://openfeature.dev/docs/reference/technologies/server/python"
+                "DataDogProvider could not be loaded. Please install openfeature-sdk>=%s. "
+                "Installed version: %s. "
+                "Check the official documentation: https://openfeature.dev/docs/reference/technologies/server/python",
+                _MIN_OPENFEATURE_VERSION,
+                _openfeature_version or "not installed",
             )
 
         def shutdown(self):
