@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import lru_cache
 from io import StringIO
 import logging
 from pathlib import Path
@@ -152,6 +153,15 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
         return abs_path
 
 
+@lru_cache(maxsize=512)
+def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
+    """Return item_path relative to workspace_path as a string, or None if not under workspace."""
+    try:
+        return str(item_path.relative_to(workspace_path))
+    except ValueError:
+        return None
+
+
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
@@ -165,7 +175,9 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.
     try:
         # Get absolute path from item
         item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
-        relative_path = str(item_path.relative_to(workspace_path))
+        relative_path = _cached_relative_path(item_path, workspace_path)
+        if relative_path is None:
+            raise ValueError(f"{item_path!r} is not under workspace {workspace_path!r}")
 
         # Try to get precise source line information
         start_line, end_line = _get_source_lines(item, item_path)

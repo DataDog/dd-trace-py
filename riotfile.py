@@ -624,6 +624,9 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # Ray Serve cloudpickles objects that reference the global config
+                # (which holds forksafe locks); test_forksafe.py exercises that path.
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
