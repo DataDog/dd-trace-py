@@ -26,8 +26,14 @@ log = get_logger(__name__)
 _no_env_job_id_warned: bool = False
 _installed: bool = False
 _optimizer_wrapped: bool = False
+_grad_scaler_wrapped: bool = False
+_clip_grad_norm_wrapped: bool = False
 _fsdp_hook_registered: bool = False
 _deepspeed_hook_registered: bool = False
+# Counter for the optimizer.step wrap. First fire emits an INFO log so we can
+# diagnose whether Ray Train / Lightning / DeepSpeed route through the public
+# Optimizer.step or a vendored fast path that bypasses our wrap.
+_optimizer_step_fire_count: int = 0
 
 # Tracks the active ExecutionContext for the current distributed training session.
 # Presence (non-None) doubles as the "bootstrapped" flag.
@@ -37,6 +43,19 @@ _rank_ctx: contextvars.ContextVar[Optional[core.ExecutionContext[Any]]] = contex
 )
 
 _cached_distributed_backend: Optional[str] = None
+
+
+def _inner_model(instance: Any) -> Any:
+    """Unwrap a framework wrapper (DDP / FSDP / DeepSpeedEngine) to the
+    underlying ``nn.Module`` used for parameter / module-tree walks.
+
+    All three wrappers expose the inner module on a ``.module`` attribute
+    on supported torch versions. Plain ``nn.Module`` instances degrade to
+    themselves. Done centrally so the c_bridge param-count and
+    is_transformer detection sees the same view regardless of which
+    framework wrapper installed it.
+    """
+    return getattr(instance, "module", instance)
 
 
 def _step_profiling_enabled() -> bool:
@@ -50,6 +69,13 @@ def _step_profiling_enabled() -> bool:
 _RAY_SUBMISSION_ID_ENV = "_RAY_SUBMISSION_ID"
 _RAY_JOB_NAME_ENV = "_RAY_JOB_NAME"
 _RAY_RUN_METADATA_ENV = "_DD_RAY_RUN_METADATA"
+
+
+def _reset_optimizer_step_count() -> None:
+    """Test / forksafe helper: reset the one-shot fire log so a fresh
+    process emits its info line again."""
+    global _optimizer_step_fire_count
+    _optimizer_step_fire_count = 0
 
 
 def _reset_child_state() -> None:
@@ -277,6 +303,7 @@ def _wrapped_ddp_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> An
         from ddtrace.contrib.internal.pytorch import _rank_root  # noqa: PLC0415
 
         _rank_root.set_framework("ddp")
+        _rank_root.set_model(_inner_model(instance))
     except Exception:
         log.debug("pytorch: failed to update rank-root framework tag", exc_info=True)
     return result
@@ -315,6 +342,7 @@ def _wrapped_fsdp_init(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> A
         from ddtrace.contrib.internal.pytorch import _rank_root  # noqa: PLC0415
 
         _rank_root.set_framework("fsdp")
+        _rank_root.set_model(_inner_model(instance))
     except Exception:
         log.debug("pytorch: failed to update rank-root framework tag", exc_info=True)
     return result
@@ -366,6 +394,11 @@ def _wrapped_deepspeed_init(wrapped: Any, instance: Any, args: Any, kwargs: Any)
         from ddtrace.contrib.internal.pytorch import _rank_root  # noqa: PLC0415
 
         _rank_root.set_framework("deepspeed")
+        # deepspeed.initialize() returns a tuple whose first element is
+        # the DeepSpeedEngine; the engine's .module is the underlying
+        # nn.Module that _c_bridge needs for parameter introspection.
+        engine = result[0] if isinstance(result, tuple) and result else result
+        _rank_root.set_model(_inner_model(engine))
     except Exception:
         log.debug("pytorch: failed to update rank-root framework tag", exc_info=True)
     return result
@@ -433,10 +466,128 @@ def _uninstall_optimizer_step() -> None:
 def _wrapped_optimizer_step(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
     from ddtrace.contrib.internal.pytorch import _c_tracer  # noqa: PLC0415
 
+    global _optimizer_step_fire_count
+    _optimizer_step_fire_count += 1
+    # One-shot info log so we can confirm the wrap is actually firing.
+    # Frameworks that use a vendored fast path (DeepSpeed engine.step,
+    # FSDP's internal optimizer step, ...) bypass torch.optim.Optimizer.step
+    # and our wrap never fires — without this log the failure mode is silent.
+    if _optimizer_step_fire_count == 1:
+        log.info(
+            "pytorch: Optimizer.step wrap fired for the first time on %s — step-boundary signalling active",
+            type(instance).__name__,
+        )
+
     _c_tracer.step_end()  # close step N: optimizer phase ends
     result = wrapped(*args, **kwargs)
     _c_tracer.step_begin()  # open step N+1: forward starts
     return result
+
+
+def _wrapped_grad_scaler_step(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
+    """Wrap ``torch.cuda.amp.GradScaler.step`` to detect skipped steps.
+
+    GradScaler.step returns the wrapped optimizer.step()'s return value when
+    it actually steps, or ``None`` when it determined gradients were
+    inf/NaN and skipped the step. Bumping the AMP-skip counter on every
+    ``None`` return matches what the C tracer's heuristic D2H-pattern
+    detection counts — but doing it from Python is deterministic.
+    """
+    from ddtrace.contrib.internal.pytorch import _c_tracer  # noqa: PLC0415
+
+    result = wrapped(*args, **kwargs)
+    if result is None:
+        try:
+            _c_tracer.record_amp_skipped()
+        except Exception:
+            log.debug("pytorch: record_amp_skipped failed", exc_info=True)
+    return result
+
+
+def _install_grad_scaler() -> None:
+    global _grad_scaler_wrapped
+    if _grad_scaler_wrapped:
+        return
+    # torch.cuda.amp.GradScaler is the legacy path; torch.amp.GradScaler is
+    # the modern alias (PyTorch >= 2.4). They are the same class object on
+    # supported versions, so wrapping one wraps both — but wrapping via
+    # different module attribute names twice would double-wrap. Prefer the
+    # legacy path because every supported torch version exposes it.
+    try:
+        import torch.cuda.amp  # noqa: F401, PLC0415
+    except Exception:
+        return
+    if not hasattr(torch.cuda.amp, "GradScaler"):
+        return
+    try:
+        _wrap("torch.cuda.amp", "GradScaler.step", _wrapped_grad_scaler_step)
+        _grad_scaler_wrapped = True
+    except Exception:
+        log.debug("pytorch: failed to wrap GradScaler.step", exc_info=True)
+
+
+def _uninstall_grad_scaler() -> None:
+    global _grad_scaler_wrapped
+    if not _grad_scaler_wrapped:
+        return
+    try:
+        import torch.cuda.amp  # noqa: PLC0415
+
+        _unwrap(torch.cuda.amp.GradScaler, "step")
+    except Exception:
+        log.debug("pytorch: failed to unwrap GradScaler.step", exc_info=True)
+    _grad_scaler_wrapped = False
+
+
+def _wrapped_clip_grad_norm(wrapped: Any, instance: Any, args: Any, kwargs: Any) -> Any:
+    """Wrap ``torch.nn.utils.clip_grad_norm_`` to feed the grad-clip wall-time sketch.
+
+    Times the call and reports nanoseconds to the C tracer. The wrap is
+    cheap (one ``perf_counter_ns`` pair) compared to the actual grad
+    clip (a D2H sync of the norm), so the overhead is in the noise.
+    """
+    import time  # noqa: PLC0415
+
+    from ddtrace.contrib.internal.pytorch import _c_tracer  # noqa: PLC0415
+
+    t0 = time.perf_counter_ns()
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        try:
+            _c_tracer.record_grad_clip_ns(time.perf_counter_ns() - t0)
+        except Exception:
+            log.debug("pytorch: record_grad_clip_ns failed", exc_info=True)
+
+
+def _install_clip_grad_norm() -> None:
+    global _clip_grad_norm_wrapped
+    if _clip_grad_norm_wrapped:
+        return
+    try:
+        import torch.nn.utils  # noqa: F401, PLC0415
+    except Exception:
+        return
+    if not hasattr(torch.nn.utils, "clip_grad_norm_"):
+        return
+    try:
+        _wrap("torch.nn.utils", "clip_grad_norm_", _wrapped_clip_grad_norm)
+        _clip_grad_norm_wrapped = True
+    except Exception:
+        log.debug("pytorch: failed to wrap clip_grad_norm_", exc_info=True)
+
+
+def _uninstall_clip_grad_norm() -> None:
+    global _clip_grad_norm_wrapped
+    if not _clip_grad_norm_wrapped:
+        return
+    try:
+        import torch.nn.utils  # noqa: PLC0415
+
+        _unwrap(torch.nn.utils, "clip_grad_norm_")
+    except Exception:
+        log.debug("pytorch: failed to unwrap clip_grad_norm_", exc_info=True)
+    _clip_grad_norm_wrapped = False
 
 
 def install() -> None:
@@ -452,6 +603,8 @@ def install() -> None:
     _install_fsdp()
     _install_deepspeed()
     _install_optimizer_step()
+    _install_grad_scaler()
+    _install_clip_grad_norm()
     # Late-patch bootstrap: if init_process_group was called before patch(),
     # our wrapper will never fire. Run bootstrap now.
     if _distributed_available():
@@ -482,6 +635,8 @@ def uninstall() -> None:
         _uninstall_deepspeed()
         _deepspeed_hook_registered = False
         _uninstall_optimizer_step()
+        _uninstall_grad_scaler()
+        _uninstall_clip_grad_norm()
     try:
         from ddtrace.contrib.internal.pytorch import _device as _device_mod  # noqa: PLC0415
 
