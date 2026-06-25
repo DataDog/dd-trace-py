@@ -840,12 +840,13 @@ _BASE_TARGET = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
 
 
 def _process_through_base(rc_client, mock_send_request):
-    """Process responses 0-2 ("base" is introduced in response[1]). The polling process applies
-    synchronously in _process_response, so "base" is applied by the time request() returns.
+    """Process responses 0-1 ("base" is introduced in response[1]; response[2] would modify it).
+    The polling process applies synchronously in _process_response, so "base" is applied — and
+    dispatched to the product exactly once — by the time request() returns.
     """
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
-    for i in range(3):
+    for i in range(2):
         mock_send_request.return_value = MOCK_AGENT_RESPONSES[i]
         rc_client.request()
 
