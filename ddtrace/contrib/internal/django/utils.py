@@ -255,6 +255,8 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+        # Match the bare media type, case-insensitively (RFC 9110), ignoring params like charset.
+        content_type = (content_type or "").split(";", 1)[0].strip().lower()
         headers = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.extract_body"
         ).headers.value
