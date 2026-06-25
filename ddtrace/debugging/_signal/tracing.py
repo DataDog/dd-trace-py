@@ -7,6 +7,7 @@ import typing as t
 import ddtrace
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.debugging._expressions import DDExpressionEvaluationError
+from ddtrace.debugging._origin import resolve_code_origin_filename
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import SpanDecorationFunctionProbe
 from ddtrace.debugging._probe.model import SpanDecorationLineProbe
@@ -67,8 +68,9 @@ class DynamicSpan(Signal):
 
         frame = self.frame
         code = frame.f_code
+        filename = resolve_code_origin_filename(code.co_filename)
         for s in (root, span) if root_co_type is None else (span,):
-            s._set_attribute("_dd.code_origin.frames.0.file", str(Path(code.co_filename).resolve()))
+            s._set_attribute("_dd.code_origin.frames.0.file", filename)
             s._set_attribute("_dd.code_origin.frames.0.line", str(frame.f_lineno))
             s._set_attribute("_dd.code_origin.frames.0.type", probe.module)
             s._set_attribute("_dd.code_origin.frames.0.method", probe.func_qname)

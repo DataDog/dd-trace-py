@@ -8,6 +8,7 @@ import typing as t
 import uuid
 
 import ddtrace
+from ddtrace.debugging._origin import resolve_code_origin_filename
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
@@ -78,7 +79,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
         self.uploader = uploader
 
-        filename = str(Path(f.__code__.co_filename).resolve())
+        filename = resolve_code_origin_filename(f.__code__.co_filename)
         name = f.__qualname__
         module = f.__module__
         self.location = EntrySpanLocation(
