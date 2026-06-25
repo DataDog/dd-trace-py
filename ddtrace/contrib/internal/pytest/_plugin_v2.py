@@ -445,7 +445,7 @@ def pytest_configure(config: pytest_Config) -> None:
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
             message="the new pytest plugin is now the default version. No additional configurations are required.",
-            removal_version="3.0.0",
+            removal_version="5.0.0",
             category=DDTraceDeprecationWarning,
         )
 
