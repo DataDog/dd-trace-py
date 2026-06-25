@@ -2,4 +2,4 @@
 fixes:
   - |
     AAP: Resolve an issue where some request bodies could be skipped during analysis
-    depending on the ``Content-Type`` header for the Tornado, Flask, and FastAPI integrations.
+    depending on the ``Content-Type`` header for the Django, Tornado, Flask, and FastAPI integrations.
