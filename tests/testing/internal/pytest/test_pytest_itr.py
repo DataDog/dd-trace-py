@@ -343,3 +343,47 @@ class TestITR:
 
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []
+
+    def test_itr_coverage_enabled_regardless_of_report_upload_setting(self, pytester: Pytester) -> None:
+        """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
+        regardless of coverage_report_upload_enabled.
+
+        Previously, the guard condition was:
+            if coverage_enabled and NOT coverage_report_upload_enabled:
+                setup_coverage_collection()
+
+        This caused ModuleCodeCollector to never be installed when coverage_report_upload_enabled=True
+        (e.g. when the backend feature flag is on), silently producing empty ITR bitmaps for every test.
+
+        The fix changes the guard to:
+            if coverage_enabled:
+                setup_coverage_collection()
+
+        ModuleCodeCollector (sys.monitoring slot 4, ITR bitmaps) and coverage.py (slot 1, full-session
+        report upload) are not mutually exclusive and can run concurrently.
+        """
+        pytester.makepyfile(test_placeholder="def test_ok(): pass")
+
+        setup_coverage_calls = []
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    coverage_enabled=True,
+                    coverage_report_upload_enabled=True,
+                ),
+            ),
+            setup_standard_mocks(),
+            patch(
+                "ddtrace.testing.internal.pytest.plugin.setup_coverage_collection",
+                side_effect=lambda: setup_coverage_calls.append(True),
+            ),
+        ):
+            pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert len(setup_coverage_calls) == 1, (
+            "setup_coverage_collection() must be called when coverage_enabled=True "
+            "even when coverage_report_upload_enabled=True; "
+            f"was called {len(setup_coverage_calls)} time(s)"
+        )

@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where enabling coverage report upload
+    (``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED=true``) caused the per-test
+    code coverage bitmaps used by Test Impact Analysis (ITR) to be silently empty.
+    The internal coverage collector (``ModuleCodeCollector``) was incorrectly skipped
+    whenever coverage report upload was enabled, because the two mechanisms were treated
+    as mutually exclusive. They are now both activated when their respective feature flags
+    are set, so ITR test skipping and coverage report upload can be used simultaneously.
