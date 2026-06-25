@@ -887,3 +887,28 @@ def test_apply_state_error_when_callback_raises(mock_send_request):
         applied = rc_client._applied_configs[_BASE_TARGET]
         assert applied.apply_state == 3  # ERROR
         assert applied.apply_error is not None
+
+
+@mock.patch.object(SyncRemoteConfigClient, "_send_request")
+def test_pending_config_republished_after_connector_drop(mock_send_request):
+    """A payload dropped by the single-slot connector is re-published until applied."""
+    with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
+        MOCK_AGENT_RESPONSES = json.load(f)
+
+    rc_client = SyncRemoteConfigClient()
+    rc_client.register_callback("ASM_FEATURES", mock.MagicMock())
+
+    with override_global_config(dict(_remote_config_enabled=False)):
+        _process_until_base(rc_client, mock_send_request)
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # UNACKNOWLEDGED
+
+        # simulate the connector dropping base's payload before the subscriber read it
+        rc_client._global_connector.write([])
+        rc_client.poll()
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 1  # still not applied
+
+        # a later poll cycle re-publishes the pending payload and the subscriber applies it
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
+        rc_client.request()
+        rc_client.poll()
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # recovered
