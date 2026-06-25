@@ -49,6 +49,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             "createResponse",
             "parseChatCompletion",
             "parseResponse",
+            "createRealtimeSession",
+            "createRealtimeResponse",
         )
         if operation_id in traced_operations:
             submit_to_llmobs = True
@@ -64,6 +66,15 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
         span._set_attribute("openai.request.provider", client)
+
+    def _get_model_provider(self, span) -> str:
+        if self._is_provider(span, "azure"):
+            return "azure_openai"
+        elif self._is_provider(span, "openai"):
+            return "openai"
+        elif self._is_provider(span, "deepseek"):
+            return "deepseek"
+        return UNKNOWN_MODEL_PROVIDER
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -95,13 +106,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
-        model_provider = UNKNOWN_MODEL_PROVIDER
-        if self._is_provider(span, "azure"):
-            model_provider = "azure_openai"
-        elif self._is_provider(span, "openai"):
-            model_provider = "openai"
-        elif self._is_provider(span, "deepseek"):
-            model_provider = "deepseek"
+        model_provider = self._get_model_provider(span)
 
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
@@ -169,6 +174,43 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata={"tool_id": tool_id},
         )
 
+    def _llmobs_set_tags_from_realtime_session(
+        self, span: Span, model_name: Optional[str], metadata: Optional[dict[str, Any]]
+    ) -> None:
+        """Tag the long-lived Realtime session span (workflow kind)."""
+        provider = span.get_tag("openai.request.provider") or "OpenAI"
+        _annotate_llmobs_span_data(
+            span,
+            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            kind="workflow",
+            model_name=model_name or "unknown_model",
+            model_provider=self._get_model_provider(span),
+            metadata=metadata or {},
+        )
+
+    def _llmobs_set_tags_from_realtime_response(
+        self,
+        span: Span,
+        model_name: Optional[str],
+        input_messages: list[Any],
+        output_messages: list[Any],
+        metadata: Optional[dict[str, Any]],
+        metrics: Optional[dict[str, Any]],
+    ) -> None:
+        """Tag a per-response Realtime child span (llm kind) built by the realtime state machine."""
+        provider = span.get_tag("openai.request.provider") or "OpenAI"
+        _annotate_llmobs_span_data(
+            span,
+            name="{}.{}".format(provider, span.resource) if span.resource else None,
+            kind="llm",
+            model_name=model_name or "unknown_model",
+            model_provider=self._get_model_provider(span),
+            input_messages=input_messages or None,
+            output_messages=output_messages or None,
+            metadata=metadata or {},
+            metrics=metrics or None,
+        )
+
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
             "workflow"
@@ -179,13 +221,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
-        model_provider = UNKNOWN_MODEL_PROVIDER
-        if self._is_provider(span, "azure"):
-            model_provider = "azure_openai"
-        elif self._is_provider(span, "openai"):
-            model_provider = "openai"
-        elif self._is_provider(span, "deepseek"):
-            model_provider = "deepseek"
+        model_provider = self._get_model_provider(span)
         self._apply_shadow_metrics(
             span,
             metrics,

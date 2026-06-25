@@ -7,9 +7,13 @@ from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
+from ddtrace.llmobs._integrations.utils import concat_base64_audio
 from ddtrace.llmobs._integrations.utils import format_audio_part
+from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 
@@ -86,6 +90,66 @@ def test_extract_content_parts_no_audio():
     )
     assert text == "hello\n[image]"
     assert audio_parts == []
+
+
+def test_realtime_audio_format_to_mime_legacy_strings():
+    """Legacy string realtime formats map to MIME types."""
+    assert realtime_audio_format_to_mime("pcm16") == "audio/pcm"
+    assert realtime_audio_format_to_mime("pcm") == "audio/pcm"
+    assert realtime_audio_format_to_mime("g711_ulaw") == "audio/pcmu"
+    assert realtime_audio_format_to_mime("g711_alaw") == "audio/pcma"
+    assert realtime_audio_format_to_mime("wav") == "audio/wav"
+    assert realtime_audio_format_to_mime("") == ""
+    assert realtime_audio_format_to_mime(None) == ""
+
+
+def test_realtime_audio_format_to_mime_object_form():
+    """The newer discriminated-union object form carries a MIME type in its ``type`` field."""
+    assert realtime_audio_format_to_mime(SimpleNamespace(type="audio/pcm")) == "audio/pcm"
+    assert realtime_audio_format_to_mime({"type": "audio/pcmu"}) == "audio/pcmu"
+    assert realtime_audio_format_to_mime({"type": "AUDIO/WAV"}) == "audio/wav"
+
+
+def test_is_renderable_audio_mime():
+    """Raw PCM family formats are not renderable; common encoded formats are."""
+    assert is_renderable_audio_mime("audio/wav")
+    assert is_renderable_audio_mime("audio/mpeg")
+    assert not is_renderable_audio_mime("audio/pcm")
+    assert not is_renderable_audio_mime("audio/pcmu")
+    assert not is_renderable_audio_mime("audio/pcma")
+    assert not is_renderable_audio_mime("")
+
+
+def test_concat_base64_audio():
+    """Base64 chunks are decoded then concatenated at the byte level."""
+    chunk1 = base64.b64encode(b"\x00\x01").decode("utf-8")
+    chunk2 = base64.b64encode(b"\x02\x03\x04").decode("utf-8")
+    assert concat_base64_audio([chunk1, chunk2]) == b"\x00\x01\x02\x03\x04"
+    assert concat_base64_audio([]) == b""
+    # Invalid chunks are skipped rather than raising.
+    assert concat_base64_audio([chunk1, "!!!notb64", chunk2]) == b"\x00\x01\x02\x03\x04"
+
+
+def test_format_audio_part_with_guard_renderable():
+    """A renderable format within budget yields an inline AudioPart."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_audio_part_with_guard(raw, "audio/wav")
+    assert part == {"mime_type": "audio/wav", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_audio_part_with_guard_non_renderable():
+    """Raw PCM is not renderable, so no inline AudioPart is emitted."""
+    assert format_audio_part_with_guard(b"\x00\x01\x02\x03", "audio/pcm") is None
+
+
+def test_format_audio_part_with_guard_oversize():
+    """Audio over the byte budget is dropped to respect the per-span-event size limit."""
+    assert format_audio_part_with_guard(b"\x00" * 100, "audio/wav", max_bytes=10) is None
+
+
+def test_format_audio_part_with_guard_empty():
+    """No audio bytes yields no AudioPart."""
+    assert format_audio_part_with_guard(b"", "audio/wav") is None
 
 
 def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):

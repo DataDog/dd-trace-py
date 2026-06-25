@@ -353,6 +353,93 @@ def audio_mime_type_from_format(fmt: str) -> str:
     return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
 
 
+# Raw audio formats the UI cannot render as a player. For these we keep the transcript as the
+# message content and skip the inline audio_part (raw bytes would only bloat the payload).
+_NON_RENDERABLE_AUDIO_MIME_TYPES = frozenset(
+    {
+        "audio/pcm",
+        "audio/pcm16",
+        "audio/l16",
+        "audio/pcmu",
+        "audio/pcma",
+        "audio/g711_ulaw",
+        "audio/g711_alaw",
+        "audio/basic",
+    }
+)
+
+# Inline audio above this many bytes is dropped from the span event to stay within the 5 MB
+# per-span-event limit (oversize events have their whole I/O dropped backend-side).
+LLMOBS_AUDIO_INLINE_MAX_BYTES = 4 * 1024 * 1024
+
+# OpenAI Realtime audio ``format`` values (legacy string form) that don't map to ``audio/<format>``.
+_REALTIME_AUDIO_FORMAT_MIME_TYPES = {
+    "pcm16": "audio/pcm",
+    "pcm": "audio/pcm",
+    "g711_ulaw": "audio/pcmu",
+    "g711_alaw": "audio/pcma",
+}
+
+
+def realtime_audio_format_to_mime(fmt: Any) -> str:
+    """Map an OpenAI Realtime audio format to a MIME type.
+
+    Handles both the legacy string form (e.g. "pcm16", "g711_ulaw") and the newer
+    discriminated-union object whose ``type`` is already a MIME type (e.g. "audio/pcm").
+    """
+    if fmt is None:
+        return ""
+    type_attr = _get_attr(fmt, "type", None)
+    if type_attr:
+        fmt = type_attr
+    fmt = str(fmt).strip().lower()
+    if not fmt:
+        return ""
+    if fmt.startswith("audio/"):
+        return fmt
+    return _REALTIME_AUDIO_FORMAT_MIME_TYPES.get(fmt, "audio/{}".format(fmt))
+
+
+def is_renderable_audio_mime(mime_type: str) -> bool:
+    """Whether a MIME type can be rendered as an audio player in the UI (raw PCM cannot)."""
+    return bool(mime_type) and mime_type.strip().lower() not in _NON_RENDERABLE_AUDIO_MIME_TYPES
+
+
+def concat_base64_audio(b64_chunks: list) -> bytes:
+    """Decode and concatenate a list of base64 audio chunks into raw bytes.
+
+    Chunks must be decoded before concatenation: directly joining base64 strings is invalid
+    unless each chunk is aligned on a 3-byte boundary.
+    """
+    buf = bytearray()
+    for chunk in b64_chunks:
+        if not chunk:
+            continue
+        try:
+            buf.extend(base64.b64decode(chunk))
+        except (ValueError, TypeError):
+            continue
+    return bytes(buf)
+
+
+def format_audio_part_with_guard(
+    audio_bytes: bytes, mime_type: str, max_bytes: int = LLMOBS_AUDIO_INLINE_MAX_BYTES
+) -> Optional[AudioPart]:
+    """Build a playable ``AudioPart`` only for renderable formats within the size budget.
+
+    Returns ``None`` for non-renderable formats (e.g. raw PCM) or oversize audio; callers should
+    fall back to the transcript as the message content in that case.
+    """
+    if not audio_bytes or not is_renderable_audio_mime(mime_type):
+        return None
+    if len(audio_bytes) > max_bytes:
+        logger.debug(
+            "Audio (%d bytes) exceeds inline budget %d; omitting inline audio content", len(audio_bytes), max_bytes
+        )
+        return None
+    return format_audio_part(audio_bytes, mime_type)
+
+
 def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart]]:
     """Extract readable text and audio segments from multimodal content parts (e.g., text + image + audio)."""
     extracted = []
