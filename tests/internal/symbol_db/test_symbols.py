@@ -301,11 +301,12 @@ def test_scope_context_upload_skips_empty_batch():
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))
 def test_symbols_upload_enabled():
+    from ddtrace.internal.native import RemoteConfigProduct
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     assert not SymbolDatabaseUploader.is_installed()
-    assert remoteconfig_poller.get_registered("LIVE_DEBUGGING_SYMBOL_DB") is not None
+    assert remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebuggerSymbolDb) is not None
 
 
 @pytest.mark.subprocess(
