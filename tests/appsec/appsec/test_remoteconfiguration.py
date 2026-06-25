@@ -7,13 +7,13 @@ import pytest
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
-from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.trace_utils import set_http_meta
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -209,7 +209,7 @@ def test_rc_activation_validate_products(tracer, rc_poller):
 
         enable_appsec_rc()
 
-        assert rc_poller._client._product_callbacks["ASM_FEATURES"]
+        assert rc_poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures]
     disable_appsec_rc()
 
 
@@ -256,35 +256,35 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     with override_global_config(global_config):
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc()
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)) is expected
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
         # sending nothing should not change anything (configuration is the same)
         _appsec_callback(empty_config)
 
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)) is expected
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
         # sending empty config for asm should disable asm (meaning asm was deleted)
         _appsec_callback(disable_config)
 
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData) is None
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm) is None
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
         # sending nothing should not change anything (configuration is the same)
         _appsec_callback(empty_config)
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData) is None
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm) is None
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
         # sending config should enable asm again
         _appsec_callback(enable_config)
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData)) is expected
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)) is expected
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)
 
     disable_appsec_rc()
 
@@ -305,9 +305,9 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user)
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc()
 
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)
-        assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM)
-        assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)) == auto_user
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmData)
+        assert rc_poller._client._product_callbacks.get(RemoteConfigProduct.Asm)
+        assert bool(rc_poller._client._product_callbacks.get(RemoteConfigProduct.AsmFeatures)) == auto_user
 
     disable_appsec_rc()
 
@@ -403,7 +403,7 @@ def test_rc_activation_does_not_report_appsec_product_when_only_rc_enabled(trace
             enable_appsec_rc()
 
             # RC listeners are registered but AppSec is not enabled
-            assert rc_poller._client._product_callbacks["ASM_FEATURES"]
+            assert rc_poller._client._product_callbacks[RemoteConfigProduct.AsmFeatures]
             # Telemetry should NOT report AppSec as activated
             mock_tw.product_activated.assert_not_called()
 
