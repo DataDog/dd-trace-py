@@ -6,8 +6,8 @@ import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import PYDANTIC_AI_TAGS
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
@@ -520,11 +520,11 @@ def test_model_settings_unserializable_values_are_coerced():
     with pytest.raises(TypeError):
         json.dumps(raw)
 
-    coerced = PydanticAIIntegration._get_model_settings(raw)
+    coerced = load_data_value(raw)
     json.dumps(coerced)  # must not raise
     assert coerced["max_tokens"] == 100
     assert coerced["temperature"] == "Omit()"
 
 
 def test_model_settings_none_is_preserved():
-    assert PydanticAIIntegration._get_model_settings(None) is None
+    assert load_data_value(None) is None

@@ -182,7 +182,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if model_name:
                 manifest["model"] = model_name
         if hasattr(agent, "model_settings"):
-            manifest["model_settings"] = self._get_model_settings(agent.model_settings)
+            manifest["model_settings"] = load_data_value(agent.model_settings)
         if hasattr(agent, "_instructions"):
             instructions = agent._instructions
             if isinstance(instructions, list):
@@ -195,11 +195,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
         manifest["tools"] = self._get_agent_tools(agent)
 
         _annotate_llmobs_span_data(span, agent_manifest=manifest)
-
-    @staticmethod
-    def _get_model_settings(model_settings: Any) -> Any:
-        # ensure that model settings is JSON serializable
-        return load_data_value(model_settings)
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """
