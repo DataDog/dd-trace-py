@@ -1237,9 +1237,9 @@ def pytest_load_initial_conftests(
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
     # Both can run simultaneously — they use separate mechanisms (sys.monitoring slot 4 vs coverage.py).
     # The coverage.py startup is handled later in pytest_configure when we know if pytest-cov is available.
-    # AIDEV-NOTE: Do NOT add `not coverage_report_upload_enabled` here. The two paths are not mutually
-    # exclusive. When coverage_report_upload_enabled=True from the backend, omitting this call causes
-    # all per-test ITR bitmaps to be empty because ModuleCodeCollector is never installed.
+    # The two paths are not mutually exclusive. When coverage_report_upload_enabled=True from the backend,
+    # omitting this call causes all per-test ITR bitmaps to be empty because ModuleCodeCollector
+    # is never installed.
     if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
