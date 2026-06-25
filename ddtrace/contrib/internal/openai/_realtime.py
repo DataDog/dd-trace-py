@@ -1,9 +1,9 @@
 """Instrumentation for the OpenAI Realtime API (bidirectional WebSocket event stream).
 
 The Realtime API is not request/response, so it can't reuse the streaming path. Instead we wrap
-the connection's ``send``/``recv``/``close`` methods (all typed sub-resource sends funnel through
-``RealtimeConnection.send``, and iteration funnels through ``recv``) and feed each observed event
-into a ``_RealtimeState`` machine:
+the connection's ``send``/``parse_event``/``close`` methods (all typed sub-resource sends funnel
+through ``RealtimeConnection.send``, and ``recv``/iteration/``recv_bytes()`` all funnel through
+``parse_event``) and feed each observed event into a ``_RealtimeState`` machine:
 
 - a long-lived **session span** (workflow) spanning connect -> close, tagged with session config.
 - a per-turn **llm child span** started on ``response.created`` and finished on ``response.done``,
@@ -12,6 +12,16 @@ into a ``_RealtimeState`` machine:
 Realtime audio is raw PCM by default, which the UI can't render, so we keep the transcript as the
 message content and only emit a playable ``audio_part`` for renderable formats (handled by the
 shared audio helpers).
+
+Known limitations (deferred by design):
+- Input audio transcription that completes *after* ``response.done`` is not back-filled onto the
+  (already finished) response span; the transcript is dropped for that turn. Transcription normally
+  completes before the response does.
+- Out-of-band responses created with an inline ``response.create.response.input`` are not paired
+  with that explicit input; their input message reflects the pending conversation turn instead.
+- A single pending-input turn is tracked, so multiple committed items or overlapping/parallel
+  responses may be collapsed or paired by arrival order. The Realtime API serializes turns in
+  normal use.
 """
 
 import importlib
