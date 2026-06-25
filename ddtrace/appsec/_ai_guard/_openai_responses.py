@@ -415,11 +415,8 @@ def _convert_openai_response_output(resp: Any) -> list[Message]:
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.responses.create.before``.
 
-    Streaming Responses requests are evaluated here only when
-    ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED`` is on — in that mode the
-    streamed response is also buffered and evaluated at stream end by the
-    ``BufferedAIGuardStream`` wrapper. When the flag is off, streaming requests
-    are skipped (today's input-only default for streaming).
+    Streaming requests are evaluated only when the flag is on (the response is then buffered
+    and evaluated at stream end); otherwise they are skipped.
     """
     if kwargs.get("stream") and not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
         logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")

@@ -2,13 +2,8 @@ from typing import Any
 
 
 def _build_output_from_text_deltas(chunks: list[Any]) -> list[Any]:
-    """Last-resort reconstruction: stitch ``response.output_text.delta`` events.
-
-    Used only when no terminal snapshot (``response.completed`` /
-    ``response.incomplete``) and no ``response.output_item.done`` events were
-    seen. Produces a single assistant ``message`` item whose ``output_text``
-    part is the concatenation of every text delta, which
-    ``_convert_openai_response_output`` reads via ``_extract_text_content``.
+    """Last-resort reconstruction: concatenate ``response.output_text.delta`` events into one
+    assistant ``message`` item. Used only when no snapshot or ``output_item.done`` events exist.
     """
     text = "".join(
         str(getattr(c, "delta", ""))
@@ -21,17 +16,8 @@ def _build_output_from_text_deltas(chunks: list[Any]) -> list[Any]:
 
 
 def reconstruct_openai_responses(chunks: list[Any]) -> Any:
-    """Rebuild a Responses-shaped ``{"output": [...]}`` dict from buffered events.
-
-    Preference order (per the SDK's event semantics):
-      1. The terminal ``response.completed`` / ``response.incomplete`` snapshot,
-         which carries the full generated ``output`` (a normal incomplete stream,
-         e.g. ``max_output_tokens``, still carries the generated text).
-      2. ``response.output_item.done`` events, ordered by ``output_index``.
-      3. Concatenated ``response.output_text.delta`` events.
-
-    ``_convert_openai_response_output`` reads ``output`` via ``_get`` so the
-    dict shape works directly.
+    """Rebuild a ``{"output": [...]}`` dict from buffered events, preferring the terminal
+    ``response.completed``/``incomplete`` snapshot, then ``output_item.done``, then text deltas.
     """
     snapshot = next(
         (

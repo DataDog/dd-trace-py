@@ -96,14 +96,8 @@ _openai_wrapped_targets: list[tuple[Any, str]] = []
 
 
 def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_after):
-    """Build the (sync, async) buffer-installing wrappers for one OpenAI surface.
-
-    ``reconstruct`` rebuilds a provider response from buffered chunks;
-    ``evaluate_after`` is the existing after-listener (``_openai_chat_completion_after``
-    / ``_openai_response_create_after``) reused as the block-on-response check.
-    The sync/async split exists because the async ``create`` contrib wrappers are
-    ``async def`` — a sync wrapper would capture an un-awaited coroutine and
-    ``_is_traced_stream`` would silently return False, skipping all buffering.
+    """Build the (sync, async) buffer wrappers for one OpenAI surface; ``evaluate_after`` is the
+    reused after-listener. Split needed: async ``create`` returns a coroutine a sync wrapper can't await.
     """
 
     def sync_wrapper(func, instance, args, kwargs):
@@ -132,13 +126,8 @@ def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_af
 
 
 def _install_openai_wrappers(client: AIGuardClient) -> None:
-    """Install outermost streaming buffer wrappers on OpenAI ``create`` methods.
-
-    Called when the OpenAI contrib fires ``openai.patch`` (at the end of its own
-    ``patch()``), so our wrappers sit outermost. Only installs when
-    ``DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED=true`` — zero overhead on the
-    default (flag-off) path. Covers Chat Completions and the Responses API; the
-    raw/streaming response helpers are handled by ``_install_openai_raw_wrappers``.
+    """Install outermost streaming buffer wrappers on Chat/Responses ``create`` (raw helpers go to
+    ``_install_openai_raw_wrappers``). Fires on ``openai.patch``; only when the flag is on.
     """
     if not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
         return
@@ -182,11 +171,9 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
 
 
 def _inject_parse_cache(api_response: Any, value: Any) -> None:
-    """Store *value* as the cached parse result so repeated ``.parse()`` calls
-    return the same buffered stream instead of re-wrapping (and re-draining) a
-    stream that is already exhausted. Mirrors the contrib's own cache injection;
-    touches private SDK internals that vary across versions (>=2.0 uses
-    ``_parsed_by_type``, 1.x uses ``_parsed``).
+    """Cache *value* as the parse result so repeated ``.parse()`` calls reuse the buffered stream.
+
+    Touches private SDK internals: >=2.0 uses ``_parsed_by_type``, 1.x uses ``_parsed``.
     """
     try:
         if hasattr(api_response, "_parsed_by_type"):
@@ -198,19 +185,10 @@ def _inject_parse_cache(api_response: Any, value: Any) -> None:
 
 
 def _install_openai_raw_wrappers(client: AIGuardClient) -> None:
-    """Buffer streamed responses obtained via ``chat.completions.with_raw_response``.
+    """Buffer streamed ``chat.completions.with_raw_response`` results (a contrib streaming bypass).
 
-    The contrib leaves this surface a bypass for streaming: it dispatches only
-    ``.before`` and returns the raw ``APIResponse`` un-traced, so the caller's
-    ``response.parse()`` yields an un-buffered ``Stream``. We mirror the contrib's
-    technique — wrap ``*WithRawResponse.__init__`` (outermost, after the contrib
-    has wrapped the instance ``create``) and then wrap the instance ``parse`` so
-    the parsed stream is buffered/evaluated before the caller iterates it.
-
-    Scope: Chat Completions only. ``with_streaming_response`` (a separate
-    ``*WithStreamedResponse`` surface the contrib does not trace) and Responses
-    raw helpers are documented as unsupported under this flag (see
-    docs/configuration.rst).
+    Wraps ``*WithRawResponse.__init__`` then the instance ``parse``. Chat Completions only;
+    ``with_streaming_response`` and Responses raw helpers are unsupported (see docs/configuration.rst).
     """
     import asyncio
 
@@ -300,11 +278,9 @@ def _install_openai_raw_wrappers(client: AIGuardClient) -> None:
 
 
 def _uninstall_openai_wrappers() -> None:
-    """Remove AI Guard streaming buffer wrappers from OpenAI ``create`` methods.
+    """Unwrap the targets recorded in ``_openai_wrapped_targets`` (no-op if none).
 
-    Called when the OpenAI contrib fires ``openai.unpatch`` (before the contrib's
-    own unwrap calls). Only unwraps targets we recorded in
-    ``_openai_wrapped_targets`` -- no-ops if none were installed.
+    Fires on ``openai.unpatch``, before the contrib's own unwrap calls.
     """
     from ddtrace.contrib.internal.trace_utils import unwrap
 
