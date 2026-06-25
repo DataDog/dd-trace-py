@@ -8,6 +8,7 @@ from ddtrace.debugging._products.code_origin.span import apm_tracing_rc
 from ddtrace.debugging._products.code_origin.span import enabled
 from ddtrace.debugging._products.code_origin.span import post_preload
 from ddtrace.debugging._products.code_origin.span import restart
+from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings._core import ValueSource
 
 
@@ -203,4 +204,5 @@ def test_apm_tracing_rc_remote_reenable_when_no_env_override(monkeypatch):
 
 
 def test_apm_capabilities_value():
-    assert APMCapabilities.APM_TRACING_ENABLE_CODE_ORIGIN == 1 << 40
+    assert APMCapabilities == (RemoteConfigCapabilities.ApmTracingEnableCodeOrigin,)
+    assert int(APMCapabilities[0]) == 40
