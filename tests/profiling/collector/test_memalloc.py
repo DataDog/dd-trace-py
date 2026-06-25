@@ -1610,10 +1610,17 @@ def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) ->
 
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
+    # The heap profiler snapshots *live* heap, and the PyCodeObject->function_id
+    # cache under test is only exercised on the live-heap frame walk
+    # (push_stacktrace_to_sample_no_refcount).  Retain every allocation until after
+    # the snapshot so the sampled objects are still live and their cache_evict_fn_*
+    # frames get walked through the cache; discarding them would leave the snapshot
+    # empty and the cache untouched.
+    live: list[object] = []
     with mc:
         for fn in fns:
             for _ in range(5):
-                fn()
+                live.append(fn())
 
         profile = mc.snapshot_and_parse_pprof(output_filename)
 
@@ -1643,3 +1650,5 @@ def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) ->
     # Sanity: eviction ran, profiler still produced samples.
     cache_fn_count = sum(1 for n in profiled_names if _VALID_IDX.match(n))
     assert cache_fn_count > 0, "No cache_evict_fn_* functions appeared in profile — sampling may be broken."
+
+    del live
