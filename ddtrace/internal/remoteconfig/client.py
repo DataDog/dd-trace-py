@@ -259,9 +259,6 @@ class RemoteConfigClient:
         )
 
         self._applied_configs: AppliedConfigType = {}
-        # Published payloads not yet acknowledged, kept so a payload dropped by the
-        # single-slot connector can be re-published until the product applies it.
-        self._pending_payloads: dict[str, Payload] = {}
         self._last_targets_version = 0
         self._last_error: Optional[str] = None
         self._backend_state: Optional[str] = None
@@ -388,7 +385,6 @@ class RemoteConfigClient:
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
         self._applied_configs.clear()
-        self._pending_payloads.clear()
 
     def register_callback(
         self,
@@ -779,25 +775,12 @@ class RemoteConfigClient:
         payload_list: list[Payload] = []
         self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
 
-        # 3. Re-publish configs that were published but not yet acknowledged, so a
-        #    payload dropped by the single-slot connector still reaches the subscriber.
-        republished = {p.path for p in payload_list}
-        for target, pending in list(self._pending_payloads.items()):
-            config = applied_configs.get(target)
-            if config is None or config.apply_state == 2:  # gone or acknowledged
-                del self._pending_payloads[target]
-            elif target not in republished:
-                payload_list.append(pending)
-        for p in payload_list:
-            if p.content is not None:
-                self._pending_payloads[p.path] = p
-
-        # 4. Snapshot before publishing so the subscriber can match payloads
+        # 3. Snapshot before publishing so the subscriber can match payloads
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs
         self._backend_state = backend_state
 
-        # 5. Publish all payloads to the global connector
+        # 4. Publish all payloads to the global connector
         self._publish_configuration(payload_list)
 
         self._add_apply_config_to_cache()
