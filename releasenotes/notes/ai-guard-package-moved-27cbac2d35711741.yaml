@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    AI Guard: the public SDK has moved from the ``ddtrace.appsec.ai_guard`` package to the
+    top-level ``ddtrace.aiguard`` package. Importing from ``ddtrace.appsec.ai_guard`` is
+    deprecated, now emits a ``ddtrace.DDTraceDeprecationWarning``, and will be removed in 5.0.0.
+    As an alternative, update imports such as ``from ddtrace.appsec.ai_guard import AIGuardClient``
+    to ``from ddtrace.aiguard import AIGuardClient``.
