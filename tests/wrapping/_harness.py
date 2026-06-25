@@ -75,60 +75,28 @@ async def aiterate(agen):
 # strings stay terse here; the README carries the full table.
 #
 #   1. G22                  internal_wrap  all    generator return value dropped
-#   2. PR #18741            internal_wrap  3.11+  async-gen await machinery corrupted
-#   3. WCTX async-gen       wrapping_ctx   3.10   asend/athrow/aclose -> internal TypeError
-#   4. WCTX unstarted-throw wrapping_ctx   3.11+  throw() into unstarted gen -> AttributeError
-#   5. WCTX t-string        wrapping_ctx   3.14   bytecode lib can't re-encode t-string opcodes
+#   2. WCTX async-gen       wrapping_ctx   3.10   asend/athrow/aclose -> internal TypeError
+#   3. WCTX unstarted-throw wrapping_ctx   3.11+  throw() into unstarted gen -> AttributeError
+#   4. WCTX t-string        wrapping_ctx   3.14   bytecode lib can't re-encode t-string opcodes
 #
-# #2 is detected by PROBING the actual behaviour rather than keying on a version:
-# the PR #18741 fix is already on main, so a version-only predicate would turn the
-# strict=True xfails into XPASS failures the moment this branch is rebased/merged.
-# The probe keeps the xfail correct whether or not the tree contains the fix.
-# (#2 is immune on 3.9/3.10 which use YIELD_FROM; #3's plain __anext__ iteration is
-# fine, only the bidirectional protocol breaks -- hence the ITER vs SEND split.)
-
-
-def _internal_wrap_corrupts_awaiting_async_gen():
-    """Return True iff internal wrap() still corrupts an async generator that
-    awaits around its yield (the PR #18741 defect).
-    """
-    if sys.version_info < (3, 11):
-        return False  # 3.9/3.10 drive async-gens via YIELD_FROM and are immune
-
-    async def _probe():
-        await asyncio.sleep(0)
-        yield 1
-
-    ALL_MECHANISMS["internal_wrap"].wrap_function(_probe)  # mutates __code__ in place
-
-    async def _drive():
-        async for _ in _probe():
-            pass
-
-    try:
-        run(_drive())
-    except BaseException:  # noqa: BLE001 - any failure means the defect is present
-        return True
-    return False
-
-
-_PR18741_PRESENT = _internal_wrap_corrupts_awaiting_async_gen()
+# NOTE: the async-gen await defect (PR #18741) is FIXED on main and now in this
+# tree, so its tests are hard-asserted (no xfail) and a regression would fail
+# loudly. The WCTX async-gen failure on 3.10 is only the bidirectional protocol
+# (asend/athrow/aclose); plain __anext__ iteration is fine -- hence ITER vs SEND.
 
 
 def _agen_xfails(send_protocol: bool):
     xf = {}
-    if _PR18741_PRESENT:  # #2, probed (not version-keyed) -- see note above
-        xf["internal_wrap"] = "PR#18741: async-gen await machinery corrupted (asyncs.py @loop vs @presend0)"
-    if send_protocol and sys.version_info[:2] == (3, 10):  # #3
+    if send_protocol and sys.version_info[:2] == (3, 10):  # #2
         xf["wrapping_context"] = (
             "WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)"
         )
     return xf
 
 
-# #2 + #3: async-gen tests driven only via __anext__ (iterate, multi-suspend).
+# async-gen tests driven only via __anext__ (iterate, multi-suspend): no xfails.
 AGEN_ITER_XFAIL = _agen_xfails(send_protocol=False)
-# #2 + #3: async-gen tests using the bidirectional protocol (asend/athrow/aclose).
+# async-gen tests using the bidirectional protocol (asend/athrow/aclose): #2 on 3.10.
 AGEN_SEND_XFAIL = _agen_xfails(send_protocol=True)
 
 # #1: internal wrap() drops a generator's return value (generators.py @stopiter
