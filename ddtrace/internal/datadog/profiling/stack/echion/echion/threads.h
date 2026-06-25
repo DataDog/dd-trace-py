@@ -15,8 +15,10 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
 
 #if defined PL_LINUX
 #include <ctime>
@@ -42,7 +44,19 @@ class ThreadInfo
     uintptr_t thread_id;
     unsigned long native_id;
     FrameStack python_stack;
-    std::vector<std::unique_ptr<StackInfo>> current_tasks;
+
+    // current_tasks and task_count_ together form a reusable buffer:
+    // entries are kept alive between samples so the inner FrameStack capacity
+    // amortizes. The valid range each sample is [0, task_count_); the
+    // outer vector grows on demand only when a sample exceeds prior peak.
+    std::vector<StackInfo> current_tasks;
+    size_t task_count_ = 0;
+
+    // Reusable per-task coroutine stack buffers keyed by Task object. Long-lived
+    // Tasks keep their FrameStack capacity across samples; stale keys are erased
+    // on the next task unwind for this thread.
+    std::unordered_map<PyObject*, FrameStack> task_coro_stacks_;
+
     std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
     std::string name;
