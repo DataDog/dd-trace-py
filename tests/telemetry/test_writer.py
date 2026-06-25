@@ -161,7 +161,7 @@ import opentelemetry
     configurations.sort(key=lambda x: x["name"])
 
     expected = [
-        {"name": "DD_AGENTIC_SERVICE", "origin": "default", "value": None},
+        {"name": "DD_AGENT_SERVICE", "origin": "default", "value": None},
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},

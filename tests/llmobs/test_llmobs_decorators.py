@@ -571,11 +571,11 @@ def test_ml_app_override(llmobs, test_spans):
     )
 
 
-def test_agentic_service_override(llmobs, test_spans):
-    """Test that agentic_service on decorators writes the canonical ml_app tag."""
+def test_agent_service_override(llmobs, test_spans):
+    """Test that agent_service on decorators writes the canonical ml_app tag."""
     for decorator_name, decorator in [("task", task), ("workflow", workflow), ("tool", tool)]:
 
-        @decorator(ml_app="legacy_ml_app", agentic_service="test_agentic_service")
+        @decorator(ml_app="legacy_ml_app", agent_service="test_agent_service")
         def f():
             pass
 
@@ -584,10 +584,10 @@ def test_agentic_service_override(llmobs, test_spans):
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
             span_kind=decorator_name,
-            tags={"ml_app": "test_agentic_service", "decorator": "1"},
+            tags={"ml_app": "test_agent_service", "decorator": "1"},
         )
 
-    @llm(model_name="test_model", agentic_service="test_agentic_service")
+    @llm(model_name="test_model", agent_service="test_agent_service")
     def g():
         pass
 
@@ -598,10 +598,10 @@ def test_agentic_service_override(llmobs, test_spans):
         span_kind="llm",
         model_name="test_model",
         model_provider=UNKNOWN_MODEL_PROVIDER,
-        tags={"ml_app": "test_agentic_service", "decorator": "1"},
+        tags={"ml_app": "test_agent_service", "decorator": "1"},
     )
 
-    @embedding(model_name="test_model", agentic_service="test_agentic_service")
+    @embedding(model_name="test_model", agent_service="test_agent_service")
     def h():
         pass
 
@@ -612,7 +612,7 @@ def test_agentic_service_override(llmobs, test_spans):
         span_kind="embedding",
         model_name="test_model",
         model_provider=UNKNOWN_MODEL_PROVIDER,
-        tags={"ml_app": "test_agentic_service", "decorator": "1"},
+        tags={"ml_app": "test_agent_service", "decorator": "1"},
     )
 
 

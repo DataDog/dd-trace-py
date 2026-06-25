@@ -45,11 +45,11 @@ from ddtrace.llmobs.types import Prompt
 
 
 class TestMLApp:
-    @pytest.mark.subprocess(env={"DD_AGENTIC_SERVICE": "agentic-service", "DD_LLMOBS_ML_APP": "legacy-ml-app"})
-    def test_config_prefers_agentic_service_env_var(self):
+    @pytest.mark.subprocess(env={"DD_AGENT_SERVICE": "agent-service", "DD_LLMOBS_ML_APP": "legacy-ml-app"})
+    def test_config_prefers_agent_service_env_var(self):
         import ddtrace
 
-        assert ddtrace.config._llmobs_ml_app == "agentic-service"
+        assert ddtrace.config._llmobs_ml_app == "agent-service"
 
     @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "legacy-ml-app"})
     def test_config_reads_legacy_ml_app_env_var(self):
@@ -57,12 +57,12 @@ class TestMLApp:
 
         assert ddtrace.config._llmobs_ml_app == "legacy-ml-app"
 
-    @pytest.mark.parametrize("llmobs_env", [{"DD_AGENTIC_SERVICE": "<agentic-service-name>"}])
-    def test_tag_defaults_to_agentic_service_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that no ml_app defaults to the environment variable DD_AGENTIC_SERVICE."""
+    @pytest.mark.parametrize("llmobs_env", [{"DD_AGENT_SERVICE": "<agent-service-name>"}])
+    def test_tag_defaults_to_agent_service_env_var(self, llmobs, tracer, llmobs_env):
+        """Test that no ml_app defaults to the environment variable DD_AGENT_SERVICE."""
         with llmobs.workflow("root_llm_span") as span:
             pass
-        assert get_llmobs_tags(span)["ml_app"] == "<agentic-service-name>"
+        assert get_llmobs_tags(span)["ml_app"] == "<agent-service-name>"
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
     def test_tag_defaults_to_env_var(self, llmobs, tracer, llmobs_env):
@@ -73,13 +73,13 @@ class TestMLApp:
 
     @pytest.mark.parametrize(
         "llmobs_env",
-        [{"DD_AGENTIC_SERVICE": "<agentic-service-name>", "DD_LLMOBS_ML_APP": "<legacy-ml-app-name>"}],
+        [{"DD_AGENT_SERVICE": "<agent-service-name>", "DD_LLMOBS_ML_APP": "<legacy-ml-app-name>"}],
     )
-    def test_agentic_service_env_var_overrides_legacy_ml_app_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that DD_AGENTIC_SERVICE takes precedence over DD_LLMOBS_ML_APP."""
+    def test_agent_service_env_var_overrides_legacy_ml_app_env_var(self, llmobs, tracer, llmobs_env):
+        """Test that DD_AGENT_SERVICE takes precedence over DD_LLMOBS_ML_APP."""
         with llmobs.workflow("root_llm_span") as span:
             pass
-        assert get_llmobs_tags(span)["ml_app"] == "<agentic-service-name>"
+        assert get_llmobs_tags(span)["ml_app"] == "<agent-service-name>"
 
     @pytest.mark.parametrize("llmobs_env", [{"DD_LLMOBS_ML_APP": "<not-a-real-app-name>"}])
     def test_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
@@ -88,18 +88,18 @@ class TestMLApp:
             pass
         assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
 
-    @pytest.mark.parametrize("llmobs_env", [{"DD_AGENTIC_SERVICE": "<agentic-service-name>"}])
-    def test_agentic_service_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
-        """Test that when agentic_service is set on the span, it overrides DD_AGENTIC_SERVICE."""
-        with llmobs.workflow("root_llm_span", agentic_service="test-agentic-service") as span:
+    @pytest.mark.parametrize("llmobs_env", [{"DD_AGENT_SERVICE": "<agent-service-name>"}])
+    def test_agent_service_tag_overrides_env_var(self, llmobs, tracer, llmobs_env):
+        """Test that when agent_service is set on the span, it overrides DD_AGENT_SERVICE."""
+        with llmobs.workflow("root_llm_span", agent_service="test-agent-service") as span:
             pass
-        assert get_llmobs_tags(span)["ml_app"] == "test-agentic-service"
+        assert get_llmobs_tags(span)["ml_app"] == "test-agent-service"
 
-    def test_agentic_service_tag_overrides_ml_app_tag(self, llmobs, tracer):
-        """Test that agentic_service takes precedence over the legacy ml_app argument."""
-        with llmobs.workflow("root_llm_span", ml_app="test-ml-app", agentic_service="test-agentic-service") as span:
+    def test_agent_service_tag_overrides_ml_app_tag(self, llmobs, tracer):
+        """Test that agent_service takes precedence over the legacy ml_app argument."""
+        with llmobs.workflow("root_llm_span", ml_app="test-ml-app", agent_service="test-agent-service") as span:
             pass
-        assert get_llmobs_tags(span)["ml_app"] == "test-agentic-service"
+        assert get_llmobs_tags(span)["ml_app"] == "test-agent-service"
 
     def test_propagates_ignore_non_llmobs_spans(self, llmobs, tracer, test_spans):
         """

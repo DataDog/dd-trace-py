@@ -70,7 +70,7 @@ def _model_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-        agentic_service: Optional[str] = None,
+        agent_service: Optional[str] = None,
     ):
         def inner(func):
             if iscoroutinefunction(func) or isasyncgenfunction(func):
@@ -88,7 +88,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     )
                     return yield_from_async_gen(func, span, args, kwargs)
@@ -106,7 +106,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         resp = await func(*args, **kwargs)
@@ -142,7 +142,7 @@ def _model_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
-                            agentic_service=agentic_service,
+                            agent_service=agent_service,
                             _decorator=True,
                         )
                         try:
@@ -168,7 +168,7 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         resp = func(*args, **kwargs)
@@ -203,7 +203,7 @@ def _llmobs_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-        agentic_service: Optional[str] = None,
+        agent_service: Optional[str] = None,
         _automatic_io_annotation: bool = True,
     ):
         def inner(func):
@@ -220,7 +220,7 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     )
                     func_signature = signature(func)
@@ -240,7 +240,7 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         func_signature = signature(func)
@@ -267,7 +267,7 @@ def _llmobs_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
-                            agentic_service=agentic_service,
+                            agent_service=agent_service,
                             _decorator=True,
                         )
                         func_signature = signature(func)
@@ -296,7 +296,7 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agentic_service=agentic_service,
+                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         func_signature = signature(func)

@@ -408,7 +408,7 @@ def _default_config() -> dict[str, _ConfigItem]:
         ),
         "_llmobs_ml_app": _ConfigItem(
             default=None,
-            envs=["DD_AGENTIC_SERVICE", "DD_LLMOBS_ML_APP"],
+            envs=["DD_AGENT_SERVICE", "DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
         ),
         "_llmobs_sample_rate": _ConfigItem(

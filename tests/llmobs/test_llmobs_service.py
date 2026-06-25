@@ -75,18 +75,18 @@ def test_service_enable_proxy(tracer, test_spans):
         llmobs_service.disable()
 
 
-def test_service_enable_agentic_service_precedence(tracer):
+def test_service_enable_agent_service_precedence(tracer):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<config-ml-app>")):
         llmobs_service.enable(
             _tracer=tracer,
             agentless_enabled=False,
             ml_app="<legacy-ml-app>",
-            agentic_service="<agentic-service>",
+            agent_service="<agent-service>",
         )
-        assert ddtrace.config._llmobs_ml_app == "<agentic-service>"
+        assert ddtrace.config._llmobs_ml_app == "<agent-service>"
         with llmobs_service.workflow() as span:
             pass
-        assert get_llmobs_ml_app(span) == "<agentic-service>"
+        assert get_llmobs_ml_app(span) == "<agent-service>"
         llmobs_service.disable()
 
 
@@ -1298,14 +1298,14 @@ def test_ml_app_override(llmobs):
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
 
 
-def test_agentic_service_override(llmobs):
-    with llmobs.task(name="test_task", ml_app="legacy_app", agentic_service="test_app") as span:
+def test_agent_service_override(llmobs):
+    with llmobs.task(name="test_task", ml_app="legacy_app", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="task", tags={"ml_app": "test_app"})
-    with llmobs.tool(name="test_tool", agentic_service="test_app") as span:
+    with llmobs.tool(name="test_tool", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="tool", tags={"ml_app": "test_app"})
-    with llmobs.llm(model_name="model_name", name="test_llm", agentic_service="test_app") as span:
+    with llmobs.llm(model_name="model_name", name="test_llm", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(span),
@@ -1314,7 +1314,7 @@ def test_agentic_service_override(llmobs):
         model_provider=UNKNOWN_MODEL_PROVIDER,
         tags={"ml_app": "test_app"},
     )
-    with llmobs.embedding(model_name="model_name", name="test_embedding", agentic_service="test_app") as span:
+    with llmobs.embedding(model_name="model_name", name="test_embedding", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(span),
@@ -1323,13 +1323,13 @@ def test_agentic_service_override(llmobs):
         model_provider=UNKNOWN_MODEL_PROVIDER,
         tags={"ml_app": "test_app"},
     )
-    with llmobs.workflow(name="test_workflow", agentic_service="test_app") as span:
+    with llmobs.workflow(name="test_workflow", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="workflow", tags={"ml_app": "test_app"})
-    with llmobs.agent(name="test_agent", agentic_service="test_app") as span:
+    with llmobs.agent(name="test_agent", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="agent", tags={"ml_app": "test_app"})
-    with llmobs.retrieval(name="test_retrieval", agentic_service="test_app") as span:
+    with llmobs.retrieval(name="test_retrieval", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
 
@@ -2294,7 +2294,7 @@ def test_submit_evaluation_metric_tags(llmobs, mock_llmobs_eval_metric_writer):
     )
 
 
-def test_submit_evaluation_agentic_service_tags(llmobs, mock_llmobs_eval_metric_writer):
+def test_submit_evaluation_agent_service_tags(llmobs, mock_llmobs_eval_metric_writer):
     llmobs.submit_evaluation(
         span={"span_id": "123", "trace_id": "456"},
         label="toxicity",
@@ -2302,17 +2302,17 @@ def test_submit_evaluation_agentic_service_tags(llmobs, mock_llmobs_eval_metric_
         value="high",
         tags={"foo": "bar"},
         ml_app="legacy_ml_app",
-        agentic_service="agentic_service",
+        agent_service="agent_service",
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
-            ml_app="agentic_service",
+            ml_app="agent_service",
             span_id="123",
             trace_id="456",
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agentic_service", "foo:bar"],
+            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:agent_service", "foo:bar"],
         )
     )
 
@@ -2741,16 +2741,16 @@ def test_get_spans_returns_span_list(mock_get_connection, llmobs):
     assert result[1]["span_id"] == "def"
 
 
-def test_get_spans_agentic_service_uses_ml_app_filter(mock_get_connection, llmobs):
+def test_get_spans_agent_service_uses_ml_app_filter(mock_get_connection, llmobs):
     _set_get_spans_app_key(llmobs)
     page = {"data": [], "meta": {"page": {}}}
     mock_conn = _setup_mock_connection(mock_get_connection, [(200, page)])
-    llmobs.get_spans(ml_app="legacy_ml_app", agentic_service="agentic_service")
+    llmobs.get_spans(ml_app="legacy_ml_app", agent_service="agent_service")
 
     path = mock_conn.request.call_args.args[1]
     query = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
-    assert query["filter[ml_app]"] == ["agentic_service"]
-    assert "filter[agentic_service]" not in query
+    assert query["filter[ml_app]"] == ["agent_service"]
+    assert "filter[agent_service]" not in query
 
 
 def test_get_spans_paginates(mock_get_connection, llmobs):

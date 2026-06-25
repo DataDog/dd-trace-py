@@ -47,7 +47,7 @@
         "default": "0"
       }
     ],
-    "DD_AGENTIC_SERVICE": [
+    "DD_AGENT_SERVICE": [
       {
         "implementation": "B",
         "type": "string",

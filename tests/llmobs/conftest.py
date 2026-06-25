@@ -274,9 +274,7 @@ def llmobs(
     for env, val in llmobs_env.items():
         monkeypatch.setenv(env, val)
     global_config = default_global_config()
-    global_config.update(
-        dict(_llmobs_ml_app=llmobs_env.get("DD_AGENTIC_SERVICE") or llmobs_env.get("DD_LLMOBS_ML_APP"))
-    )
+    global_config.update(dict(_llmobs_ml_app=llmobs_env.get("DD_AGENT_SERVICE") or llmobs_env.get("DD_LLMOBS_ML_APP")))
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
