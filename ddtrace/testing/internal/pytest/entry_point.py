@@ -6,7 +6,7 @@ if env.get("DD_PYTEST_USE_NEW_PLUGIN", "").lower() in ("0", "false"):
     from ddtrace import DDTraceDeprecationWarning
     from ddtrace.vendor.debtcollector import deprecate
 
-    deprecate(
+    deprecate(  # type: ignore[no-untyped-call]
         "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated",
         message=(
             "The legacy pytest plugin (ddtrace/contrib/internal/pytest) is deprecated and will be removed "
