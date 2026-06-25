@@ -21,9 +21,8 @@ from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
-from ddtrace.internal.utils.http import is_json_media_type
-from ddtrace.internal.utils.http import is_xml_media_type
-from ddtrace.internal.utils.http import normalize_media_type
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
@@ -62,15 +61,15 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
 
         try:
             with iast_disabled_taint_sources():
-                content_type = normalize_media_type(headers.get("content-type") or headers.get("Content-Type"))
-                if is_json_media_type(content_type):
+                media_type = classify_media_type(headers.get("content-type") or headers.get("Content-Type"))
+                if media_type is MediaType.JSON:
                     if body is None or body == b"":
                         req_body = None
                     else:
                         req_body = json.loads(body.decode())
-                elif is_xml_media_type(content_type):
+                elif media_type is MediaType.XML:
                     req_body = xmltodict.parse(body)
-                elif content_type == "text/plain":
+                elif media_type is MediaType.PLAIN:
                     req_body = None
                 else:
                     req_body = parse_form_multipart(body.decode(), headers) or None

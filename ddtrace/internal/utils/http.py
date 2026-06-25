@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
+from enum import Enum
 from json import loads
 import logging
 import re
@@ -33,8 +34,18 @@ _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 
-def normalize_media_type(content_type):
-    # type: (Optional[str]) -> str
+class MediaType(Enum):
+    """Body-parsing category for an HTTP ``Content-Type``."""
+
+    JSON = "json"
+    XML = "xml"
+    FORM_URLENCODED = "form_urlencoded"
+    MULTIPART = "multipart"
+    PLAIN = "plain"
+    UNKNOWN = "unknown"
+
+
+def normalize_media_type(content_type: Optional[str]) -> str:
     """Return the bare media type without parameters, lowercased.
 
     HTTP media types are case-insensitive and may carry parameters such as
@@ -47,16 +58,25 @@ def normalize_media_type(content_type):
     return content_type.split(";", 1)[0].strip().lower()
 
 
-def is_json_media_type(media_type):
-    # type: (str) -> bool
-    """Whether a normalized media type denotes JSON, including ``application/*+json`` suffixes."""
-    return media_type in ("application/json", "text/json") or media_type.endswith("+json")
+def classify_media_type(content_type: Optional[str]) -> MediaType:
+    """Classify a ``Content-Type`` value into a :class:`MediaType` body-parsing category.
 
-
-def is_xml_media_type(media_type):
-    # type: (str) -> bool
-    """Whether a normalized media type denotes XML, including ``application/*+xml`` suffixes."""
-    return media_type in ("application/xml", "text/xml") or media_type.endswith("+xml")
+    The value is normalized first (case-insensitive, parameters ignored), and
+    structured-suffix types are recognized: ``application/*+json`` maps to JSON and
+    ``application/*+xml`` maps to XML.
+    """
+    media_type = normalize_media_type(content_type)
+    if media_type in ("application/json", "text/json") or media_type.endswith("+json"):
+        return MediaType.JSON
+    if media_type in ("application/xml", "text/xml") or media_type.endswith("+xml"):
+        return MediaType.XML
+    if media_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+        return MediaType.FORM_URLENCODED
+    if media_type == "multipart/form-data":
+        return MediaType.MULTIPART
+    if media_type == "text/plain":
+        return MediaType.PLAIN
+    return MediaType.UNKNOWN
 
 
 if TYPE_CHECKING:
@@ -423,16 +443,17 @@ def parse_form_multipart(body: str, headers: Optional[Mapping[str, str]] = None)
                 res.setdefault(key, []).append(value)
             res = {k: v[0] if len(v) == 1 else v for k, v in res.items()}
         else:
-            base_content_type = normalize_media_type(msg.get("Content-Type"))
-            if is_json_media_type(base_content_type):
+            # msg.get_content_type() defaults a part with no Content-Type to text/plain (RFC 2046).
+            category = classify_media_type(msg.get_content_type())
+            if category is MediaType.JSON:
                 res = json.loads(msg.get_payload())
-            elif is_xml_media_type(base_content_type):
+            elif category is MediaType.XML:
                 import ddtrace.vendor.xmltodict as xmltodict
 
                 res = xmltodict.parse(msg.get_payload())
-            elif base_content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
+            elif category is MediaType.FORM_URLENCODED:
                 res = parse_qs(msg.get_payload())
-            elif base_content_type in ("text/plain", ""):
+            elif category is MediaType.PLAIN:
                 res = msg.get_payload()
             else:
                 res = ""
