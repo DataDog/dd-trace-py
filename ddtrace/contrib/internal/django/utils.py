@@ -21,6 +21,8 @@ from ddtrace.internal import compat
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
@@ -255,17 +257,18 @@ def _extract_body(request):
     if request.method in _BODY_METHODS:
         req_body = None
         content_type = request.content_type if hasattr(request, "content_type") else request.META.get("CONTENT_TYPE")
+        media_type = classify_media_type(content_type)
         headers = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
             "django.extract_body"
         ).headers.value
         try:
-            if content_type == "application/x-www-form-urlencoded":
+            if media_type is MediaType.FORM_URLENCODED:
                 req_body = parse_form_params(request.body.decode("UTF-8", errors="ignore"))
-            elif content_type == "multipart/form-data":
+            elif media_type is MediaType.MULTIPART:
                 req_body = parse_form_multipart(request.body.decode("UTF-8", errors="ignore"), headers)
-            elif content_type in ("application/json", "text/json"):
+            elif media_type is MediaType.JSON:
                 req_body = json.loads(request.body.decode("UTF-8", errors="ignore"))
-            elif content_type in ("application/xml", "text/xml"):
+            elif media_type is MediaType.XML:
                 req_body = xmltodict.parse(request.body.decode("UTF-8", errors="ignore"))
             else:  # text/plain, others: don't use them
                 req_body = None
