@@ -344,23 +344,16 @@ class TestITR:
         coverage_events = [args[0] for args, kwargs in put_event_mock.call_args_list]
         assert coverage_events == []
 
-    def test_itr_coverage_enabled_regardless_of_report_upload_setting(self, pytester: Pytester) -> None:
-        """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
-        regardless of coverage_report_upload_enabled.
+    def test_itr_coverage_disabled_when_report_upload_enabled(self, pytester: Pytester) -> None:
+        """Guard test: setup_coverage_collection() must NOT be called when coverage_report_upload_enabled=True.
 
-        Previously, the guard condition was:
-            if coverage_enabled and NOT coverage_report_upload_enabled:
-                setup_coverage_collection()
+        ModuleCodeCollector calls sys.monitoring.restart_events() at the start of each test context
+        (Python 3.12+). This resets the event counters used by coverage.py, corrupting its data.
+        The two mechanisms are mutually exclusive and cannot run simultaneously.
 
-        This caused ModuleCodeCollector to never be installed when coverage_report_upload_enabled=True
-        (e.g. when the backend feature flag is on), silently producing empty ITR bitmaps for every test.
-
-        The fix changes the guard to:
-            if coverage_enabled:
-                setup_coverage_collection()
-
-        ModuleCodeCollector (sys.monitoring slot 4, ITR bitmaps) and coverage.py (slot 1, full-session
-        report upload) are not mutually exclusive and can run concurrently.
+        When both coverage_enabled=True and coverage_report_upload_enabled=True, per-test ITR coverage
+        collection is explicitly skipped in favour of the full-session coverage.py report upload,
+        and a warning is emitted to inform the user.
         """
         pytester.makepyfile(test_placeholder="def test_ok(): pass")
 
@@ -382,8 +375,8 @@ class TestITR:
         ):
             pytester.inline_run("--ddtrace", "-v", "-s")
 
-        assert len(setup_coverage_calls) == 1, (
-            "setup_coverage_collection() must be called when coverage_enabled=True "
-            "even when coverage_report_upload_enabled=True; "
+        assert len(setup_coverage_calls) == 0, (
+            "setup_coverage_collection() must NOT be called when coverage_report_upload_enabled=True "
+            "because ModuleCodeCollector's sys.monitoring.restart_events() would corrupt coverage.py data; "
             f"was called {len(setup_coverage_calls)} time(s)"
         )

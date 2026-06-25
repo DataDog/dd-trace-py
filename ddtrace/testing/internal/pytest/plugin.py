@@ -1235,13 +1235,20 @@ def pytest_load_initial_conftests(
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
-    # Both can run simultaneously — they use separate mechanisms (sys.monitoring slot 4 vs coverage.py).
     # The coverage.py startup is handled later in pytest_configure when we know if pytest-cov is available.
-    # The two paths are not mutually exclusive. When coverage_report_upload_enabled=True from the backend,
-    # omitting this call causes all per-test ITR bitmaps to be empty because ModuleCodeCollector
-    # is never installed.
-    if session_manager.settings.coverage_enabled:
+    # AIDEV-NOTE: These two mechanisms CANNOT run simultaneously on Python 3.12+.
+    # ModuleCodeCollector calls sys.monitoring.restart_events() at the start of each test context,
+    # which would reset coverage.py's own sys.monitoring state and corrupt its data.
+    # When coverage_report_upload_enabled=True, per-test ITR bitmaps are explicitly disabled and
+    # the user is warned. Do NOT remove the `not coverage_report_upload_enabled` guard.
+    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
         setup_coverage_collection()
+    elif session_manager.settings.coverage_enabled and session_manager.settings.coverage_report_upload_enabled:
+        log.warning(
+            "Per-test code coverage (ITR) is disabled because coverage report upload is enabled. "
+            "Both features use sys.monitoring and cannot run simultaneously. "
+            "Test Impact Analysis will not be able to skip tests based on coverage data."
+        )
 
     yield
 
