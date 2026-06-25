@@ -318,8 +318,11 @@ class RemoteConfigClient:
         """Apply just-published configs synchronously in the polling process.
 
         Runs at the end of a poll so apply_state is promoted before the next poll
-        reports it (no transient UNACKNOWLEDGED). The background subscriber still
-        delivers to forked children. The lock serializes with that thread.
+        reports it (no transient UNACKNOWLEDGED). The product callbacks run here on
+        the poller thread while the lock is held; the lock serializes with the
+        background subscriber thread (which still delivers to forked children) so
+        each payload is dispatched once. If the subscriber wins the connector read,
+        this blocks on the lock until it finishes, then reads an empty batch.
         """
         with self._dispatch_lock:
             self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
@@ -388,7 +391,8 @@ class RemoteConfigClient:
         for payload in payloads:
             if payload.content is None:
                 continue
-            # Mutated from the subscriber thread; the poller reads it in _build_state.
+            # apply_state is written here from either the subscriber thread or the poller
+            # thread (via _pump_subscriber) and read by the poller in _build_state.
             applied = self._applied_configs.get(payload.path)
             if (
                 applied is None

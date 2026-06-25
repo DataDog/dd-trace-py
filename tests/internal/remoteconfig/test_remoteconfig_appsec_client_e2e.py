@@ -835,12 +835,12 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     mock_write.reset_mock()
 
 
-# Target introduced by MOCK_AGENT_RESPONSES[2]
+# Target introduced by MOCK_AGENT_RESPONSES[1] (carried over unchanged in [2])
 _BASE_TARGET = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
 
 
 def _process_through_base(rc_client, mock_send_request):
-    """Process responses 0-2 (response[2] introduces "base"). The polling process applies
+    """Process responses 0-2 ("base" is introduced in response[1]). The polling process applies
     synchronously in _process_response, so "base" is applied by the time request() returns.
     """
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
@@ -852,15 +852,23 @@ def _process_through_base(rc_client, mock_send_request):
 
 @mock.patch.object(SyncRemoteConfigClient, "_send_request")
 def test_apply_state_acknowledged_after_synchronous_apply(mock_send_request):
-    """The polling process applies inline, so apply_state is ACKNOWLEDGED once request() returns."""
+    """The polling process applies inline, so apply_state is ACKNOWLEDGED once request() returns,
+    and the config is dispatched to the product exactly once.
+    """
+    callback = mock.MagicMock()
     rc_client = SyncRemoteConfigClient()
-    rc_client.register_callback("ASM_FEATURES", mock.MagicMock())
+    rc_client.register_callback("ASM_FEATURES", callback)
 
     with override_global_config(dict(_remote_config_enabled=False)):
         _process_through_base(rc_client, mock_send_request)
 
         # applied synchronously during request(); no separate poll needed
         assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
+        assert callback.call_count == 1  # dispatched to the product exactly once
+
+        # a redundant subscriber poll must not re-dispatch (connector counter dedup)
+        rc_client.poll()
+        assert callback.call_count == 1
 
 
 @mock.patch.object(SyncRemoteConfigClient, "_send_request")
