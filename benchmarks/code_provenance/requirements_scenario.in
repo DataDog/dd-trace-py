@@ -1,0 +1,21 @@
+# Many dependencies to stress code provenance package scanning.
+# Top-level packages only — transitives are resolved by uv pip compile.
+ai21
+anthropic
+boto3
+cohere
+langchain
+langchain-anthropic
+langchain-aws
+langchain-cohere
+langchain-community
+langchain-openai
+langchain-pinecone
+langchain-text-splitters
+openai
+pydantic-settings
+sentencepiece
+sqlalchemy
+tabulate
+tiktoken
+tokenizers
