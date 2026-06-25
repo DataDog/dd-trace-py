@@ -2,9 +2,12 @@
 fixes:
   - |
     CI Visibility: This fix resolves an issue where enabling coverage report upload
-    (``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED=true``) caused the per-test
-    code coverage bitmaps used by Test Impact Analysis (ITR) to be silently empty.
-    The internal coverage collector (``ModuleCodeCollector``) was incorrectly skipped
-    whenever coverage report upload was enabled, because the two mechanisms were treated
-    as mutually exclusive. They are now both activated when their respective feature flags
-    are set, so ITR test skipping and coverage report upload can be used simultaneously.
+    (``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED=true``) alongside Test Impact
+    Analysis caused per-test coverage collection to be silently disabled with no indication
+    to the user. The two mechanisms — ``ModuleCodeCollector`` (which calls
+    ``sys.monitoring.restart_events()`` on Python 3.12+) and ``coverage.py`` (used for
+    report upload) — cannot run simultaneously, as restarting monitoring events would
+    corrupt coverage.py data. This mutual exclusion is now made explicit: when both
+    features are enabled, per-test ITR coverage is intentionally skipped and a warning
+    is logged explaining why Test Impact Analysis will not be able to skip tests based
+    on coverage data.
