@@ -278,7 +278,7 @@ heap_tracker_t::should_sample_no_cpython(size_t size, PyMemAllocatorDomain domai
      * so we can observe whether the limit is ever reached in practice. */
     if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
         ++cap_drops;
-        reset_sampling_state_no_cpython();
+        reset_sampling_state_no_cpython(domain);
         return false;
     }
 
