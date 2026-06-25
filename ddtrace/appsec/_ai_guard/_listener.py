@@ -36,6 +36,15 @@ from ddtrace.internal.settings.asm import ai_guard_config
 
 logger = ddlogger.get_logger(__name__)
 
+# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
+# only ever peels OUR layer -- mirrors ``_anthropic_wrapped_targets``.
+_openai_wrapped_targets: list[tuple[Any, str]] = []
+
+# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
+# only ever peels OUR layer -- never a contrib wrapper on a target we skipped or
+# that failed mid-install.
+_anthropic_wrapped_targets: list[tuple[Any, str]] = []
+
 
 def ai_guard_listen():
     client = new_ai_guard_client()
@@ -88,11 +97,6 @@ def _openai_listen(client: AIGuardClient):
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
     core.on("openai.patch", partial(_install_openai_wrappers, client))
     core.on("openai.unpatch", _uninstall_openai_wrappers)
-
-
-# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
-# only ever peels OUR layer -- mirrors ``_anthropic_wrapped_targets``.
-_openai_wrapped_targets: list[tuple[Any, str]] = []
 
 
 def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_after):
@@ -297,12 +301,6 @@ def _anthropic_listen(client: AIGuardClient):
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
     core.on("anthropic.unpatch", _uninstall_anthropic_wrappers)
-
-
-# Records the (owner_object, attr_name) pairs we actually wrapped, so uninstall
-# only ever peels OUR layer -- never a contrib wrapper on a target we skipped or
-# that failed mid-install.
-_anthropic_wrapped_targets: list[tuple[Any, str]] = []
 
 
 def _install_anthropic_wrappers(client: AIGuardClient) -> None:
