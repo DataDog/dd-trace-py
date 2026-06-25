@@ -43,10 +43,6 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-class WAFUpdateError(Exception):
-    """Raised when the WAF rejects a remote configuration update."""
-
-
 class _DDWafNotInitialized:
     """Sentinel indicating _ddwaf has not been initialized yet (distinct from None = init failed)."""
 
@@ -439,16 +435,9 @@ def waf_update(
     removals: Sequence[tuple[str, str]],
     updates: Sequence[tuple[str, str, PayloadType]],
 ) -> None:
-    """Update the WAF rules with the provided removals and updates.
-
-    Raises if the WAF rejected the update so remote config reports the
-    configuration as errored. A configured static rule file makes remote config
-    WAF updates an intentional no-op, which is not a failure.
-    """
-    if AppSecSpanProcessor._instance is None:
-        return
-    if not AppSecSpanProcessor._instance._update_rules(removals, updates) and asm_config._asm_static_rule_file is None:
-        raise WAFUpdateError("AppSec WAF rejected the remote configuration update")
+    """Update the WAF rules with the provided removals and updates."""
+    if AppSecSpanProcessor._instance is not None:
+        AppSecSpanProcessor._instance._update_rules(removals, updates)
 
 
 core.on("test.config.override", AppSecSpanProcessor._reset)

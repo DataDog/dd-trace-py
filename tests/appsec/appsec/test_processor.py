@@ -13,10 +13,7 @@ from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
-from ddtrace.appsec._processor import WAFUpdateError
 from ddtrace.appsec._processor import _transform_headers
-from ddtrace.appsec._processor import asm_config as _processor_asm_config
-from ddtrace.appsec._processor import waf_update
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
@@ -1089,31 +1086,3 @@ def test_rasp_bypassed_when_subcontext_unavailable(mock_run):
             )
         assert res is None
         mock_run.assert_not_called()
-
-
-def test_waf_update_raises_when_waf_rejects_update():
-    """A WAF that rejects the update makes waf_update raise so RC reports an error."""
-    instance = mock.MagicMock()
-    instance._update_rules.return_value = False
-    with mock.patch.object(AppSecSpanProcessor, "_instance", instance):
-        with mock.patch.object(_processor_asm_config, "_asm_static_rule_file", None):
-            with pytest.raises(WAFUpdateError):
-                waf_update([], [("ASM_DATA", "path", {})])
-    instance._update_rules.assert_called_once()
-
-
-def test_waf_update_does_not_raise_with_static_rule_file():
-    """A static rule file makes RC WAF updates an intentional no-op, not a failure."""
-    instance = mock.MagicMock()
-    instance._update_rules.return_value = False
-    with mock.patch.object(AppSecSpanProcessor, "_instance", instance):
-        with mock.patch.object(_processor_asm_config, "_asm_static_rule_file", "some_rules.json"):
-            waf_update([], [("ASM_DATA", "path", {})])  # must not raise
-
-
-def test_waf_update_does_not_raise_on_success():
-    instance = mock.MagicMock()
-    instance._update_rules.return_value = True
-    with mock.patch.object(AppSecSpanProcessor, "_instance", instance):
-        with mock.patch.object(_processor_asm_config, "_asm_static_rule_file", None):
-            waf_update([], [("ASM_DATA", "path", {})])  # must not raise
