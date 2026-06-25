@@ -513,10 +513,19 @@ class ProfilingConfigGC(DDConfig):
         default=False,
         help_type="Boolean",
         help=(
-            "Whether to walk referrer chains (gc.get_referrers) to find GC roots for "
-            "leak suspects. Produces richer root category and fn fields but is expensive "
-            "on large heaps."
+            "Whether to walk references (gc.get_referents) to build the type->type "
+            "reference tree. Produces the 'rt' reference graph but is expensive on "
+            "large heaps."
         ),
+    )
+
+    max_depth = DDConfig.v(
+        int,
+        "max_depth",
+        default=10,
+        validator=_validate_positive_int,
+        help_type="Integer",
+        help="Maximum depth of the type->type reference tree built from gc.get_referents",
     )
 
 

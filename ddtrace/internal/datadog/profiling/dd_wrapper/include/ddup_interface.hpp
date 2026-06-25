@@ -102,7 +102,11 @@ extern "C"
     void ddup_drop_sample(Datadog::Sample* sample);
 
     // GC monitor controls
-    void ddup_start_gc_monitor(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled);
+    void ddup_start_gc_monitor(uint64_t interval_ms,
+                               int survivor_threshold,
+                               int top_n,
+                               bool referrers_enabled,
+                               int max_depth);
     void ddup_stop_gc_monitor();
 #ifdef __cplusplus
 } // extern "C"
