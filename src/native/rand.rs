@@ -1,6 +1,28 @@
 use pyo3::{prelude::*, types::PyModule};
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::{
+    rngs::{OsRng, SmallRng},
+    Rng, SeedableRng, TryRngCore,
+};
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// Set once at module init (Release) when a MicroVM environment is detected; every read is an
+// Acquire load so the store is visible to threads that did not participate in module import.
+static SECURE_RANDOM: AtomicBool = AtomicBool::new(false);
+
+// Returns true when running inside a Firecracker/Lambda MicroVM where process memory can be
+// cloned from a snapshot, making SmallRng state deterministic across resumed instances.
+// AWS Lambda sets AWS_LAMBDA_MICROVM_IMAGE_ARN in all MicroVM-based invocations.
+fn is_microvm_environment() -> bool {
+    std::env::var("AWS_LAMBDA_MICROVM_IMAGE_ARN")
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+}
+
+#[inline]
+fn secure_random() -> bool {
+    SECURE_RANDOM.load(Ordering::Acquire)
+}
 
 struct RngState {
     rng: SmallRng,
@@ -45,6 +67,9 @@ pub fn seed() {
 /// Generate a random 64-bit unsigned integer.
 #[pyfunction]
 pub fn rand64bits() -> u64 {
+    if secure_random() {
+        return OsRng.try_next_u64().expect("OsRng failed");
+    }
     RNG.with(|rng| rng.borrow_mut().gen())
 }
 
@@ -58,8 +83,224 @@ pub fn generate_128bit_trace_id() -> u128 {
     (timestamp << 96) | (rand64bits() as u128)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+
+    // Serialize tests that mutate SECURE_RANDOM so they don't interfere with each other.
+    static SECURE_RANDOM_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    // Run `f` with SECURE_RANDOM set to `enabled`, restoring false even on panic.
+    fn with_secure_random<F: FnOnce()>(enabled: bool, f: F) {
+        let _guard = SECURE_RANDOM_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        SECURE_RANDOM.store(enabled, Ordering::Relaxed);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        SECURE_RANDOM.store(false, Ordering::Relaxed);
+        result.unwrap();
+    }
+
+    // Serialize tests that mutate env vars to avoid races between parallel test threads.
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    // ── is_microvm_environment() ──────────────────────────────────────────────
+
+    #[test]
+    fn test_is_microvm_environment_when_set() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var(
+            "AWS_LAMBDA_MICROVM_IMAGE_ARN",
+            "arn:aws:lambda:us-east-1::runtime:python3.12",
+        );
+        let result = is_microvm_environment();
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
+        assert!(
+            result,
+            "expected is_microvm_environment() == true when ARN is set"
+        );
+    }
+
+    #[test]
+    fn test_is_microvm_environment_when_empty() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("AWS_LAMBDA_MICROVM_IMAGE_ARN", "");
+        let result = is_microvm_environment();
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
+        assert!(
+            !result,
+            "expected is_microvm_environment() == false when ARN is empty"
+        );
+    }
+
+    #[test]
+    fn test_is_microvm_environment_when_unset() {
+        let _guard = ENV_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("AWS_LAMBDA_MICROVM_IMAGE_ARN");
+        assert!(
+            !is_microvm_environment(),
+            "expected is_microvm_environment() == false when ARN is unset"
+        );
+    }
+
+    // ── secure_random() ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_secure_random_returns_bool() {
+        // AtomicBool defaults to false; just verify the load doesn't panic.
+        let v = secure_random();
+        assert!(v == true || v == false);
+    }
+
+    #[test]
+    fn test_secure_random_flag_reflects_stored_value() {
+        with_secure_random(true, || {
+            assert!(
+                secure_random(),
+                "secure_random() should return true after storing true"
+            );
+        });
+        assert!(
+            !secure_random(),
+            "secure_random() should return false after restoring false"
+        );
+    }
+
+    // ── rand64bits() — SmallRng path (SECURE_RANDOM = false) ─────────────────
+
+    #[test]
+    fn test_rand64bits_unique_values() {
+        // 2^-64 ≈ 5e-20 collision probability per pair; 1000 samples is safe.
+        let values: HashSet<u64> = (0..1000).map(|_| rand64bits()).collect();
+        assert!(
+            values.len() > 990,
+            "Expected unique rand64bits values, got {} distinct in 1000",
+            values.len()
+        );
+    }
+
+    #[test]
+    fn test_rand64bits_uses_full_range() {
+        // If the RNG were stuck below 2^32, none of the high 32 bits would be set.
+        let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
+        assert!(
+            any_high_bit_set,
+            "rand64bits never set bits above 32 — RNG range is too narrow"
+        );
+    }
+
+    // ── rand64bits() — OsRng path (SECURE_RANDOM = true) ─────────────────────
+
+    #[test]
+    fn test_rand64bits_osrng_path_produces_varied_values() {
+        with_secure_random(true, || {
+            let values: HashSet<u64> = (0..100).map(|_| rand64bits()).collect();
+            assert!(
+                values.len() > 90,
+                "OsRng path in rand64bits produced insufficient diversity: {} distinct in 100",
+                values.len()
+            );
+        });
+    }
+
+    #[test]
+    fn test_rand64bits_osrng_path_uses_full_range() {
+        with_secure_random(true, || {
+            let any_high_bit_set = (0..100).any(|_| rand64bits() >> 32 != 0);
+            assert!(
+                any_high_bit_set,
+                "OsRng path in rand64bits never set bits above 32"
+            );
+        });
+    }
+
+    // ── seed() ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_seed_does_not_break_rng() {
+        // seed() reseeds the thread-local SmallRng; verify it still produces values.
+        seed();
+        let values: HashSet<u64> = (0..10).map(|_| rand64bits()).collect();
+        assert!(!values.is_empty());
+    }
+
+    // ── OsRng ────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_osrng_produces_varied_values() {
+        let values: HashSet<u64> = (0..100).map(|_| OsRng.try_next_u64().unwrap()).collect();
+        assert!(
+            values.len() > 90,
+            "Expected diverse values from OsRng, got {}",
+            values.len()
+        );
+    }
+
+    // ── generate_128bit_trace_id() ───────────────────────────────────────────
+
+    #[test]
+    fn test_trace_id_timestamp_in_high_bits() {
+        // Format: [32-bit unix seconds][32 zeros][64 random bits]
+        // Top 32 bits must be a plausible Unix timestamp.
+        let id = generate_128bit_trace_id();
+        let timestamp = (id >> 96) as u32;
+        // 2020-01-01T00:00:00Z = 1_577_836_800
+        // 2100-01-01T00:00:00Z = 4_102_444_800
+        assert!(
+            timestamp > 1_577_836_800,
+            "timestamp {timestamp} is before 2020"
+        );
+        assert!(
+            timestamp < 4_102_444_800,
+            "timestamp {timestamp} is after 2100"
+        );
+    }
+
+    #[test]
+    fn test_trace_id_middle_bits_zero() {
+        // Bits 95-64 (the 32 bits after the timestamp) must always be zero per the spec.
+        for _ in 0..20 {
+            let id = generate_128bit_trace_id();
+            let middle = ((id >> 64) & 0xFFFF_FFFF) as u32;
+            assert_eq!(
+                middle, 0,
+                "middle 32 bits of trace ID should be zero, got {id:#034x}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_trace_id_low_bits_vary() {
+        // The low 64 bits carry the random payload; they must not be constant.
+        let lows: HashSet<u64> = (0..100)
+            .map(|_| generate_128bit_trace_id() as u64)
+            .collect();
+        assert!(
+            lows.len() > 90,
+            "Low 64 bits of trace IDs are not random enough: {} distinct in 100",
+            lows.len()
+        );
+    }
+
+    #[test]
+    fn test_trace_id_ids_are_unique() {
+        let ids: HashSet<u128> = (0..1000).map(|_| generate_128bit_trace_id()).collect();
+        assert!(
+            ids.len() > 990,
+            "Expected unique trace IDs, got {} distinct in 1000",
+            ids.len()
+        );
+    }
+}
+
 /// Register the rand module functions and set up fork safety.
 pub fn register_rand(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    // Release store: any thread that subsequently does an Acquire load will see this value,
+    // even if it was created before module import.
+    SECURE_RANDOM.store(is_microvm_environment(), Ordering::Release);
+
     m.add_function(wrap_pyfunction!(seed, m)?)?;
     m.add_function(wrap_pyfunction!(rand64bits, m)?)?;
     m.add_function(wrap_pyfunction!(generate_128bit_trace_id, m)?)?;
