@@ -344,13 +344,12 @@ def format_audio_part(data: Union[bytes, str], mime_type: str) -> AudioPart:
 # OpenAI audio ``format`` values that don't map to ``audio/<format>``.
 _OPENAI_AUDIO_MIME_TYPES = {
     "mp3": "audio/mpeg",
-    "pcm16": "audio/pcm",
 }
 
 
 def audio_mime_type_from_format(fmt: str) -> str:
     """Map an OpenAI audio ``format`` (e.g. "wav", "mp3") to a MIME type."""
-    fmt = (fmt or "").lower()
+    fmt = (fmt or "").strip().lower()
     return _OPENAI_AUDIO_MIME_TYPES.get(fmt, "audio/{}".format(fmt) if fmt else "audio/wav")
 
 

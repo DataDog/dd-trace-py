@@ -31,9 +31,9 @@ def test_audio_mime_type_from_format():
     """OpenAI audio formats map to MIME types, falling back to audio/<format>."""
     assert audio_mime_type_from_format("wav") == "audio/wav"
     assert audio_mime_type_from_format("mp3") == "audio/mpeg"
-    assert audio_mime_type_from_format("pcm16") == "audio/pcm"
     assert audio_mime_type_from_format("FLAC") == "audio/flac"
     assert audio_mime_type_from_format("opus") == "audio/opus"
+    assert audio_mime_type_from_format("  MP3 ") == "audio/mpeg"  # whitespace + case insensitive
     assert audio_mime_type_from_format("") == "audio/wav"
 
 
@@ -47,6 +47,21 @@ def test_extract_content_parts_collects_audio():
     )
     assert text == "what is said here?"
     assert audio_parts == [{"mime_type": "audio/mpeg", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_multiple_audio_only():
+    """A message with only input_audio parts captures each as an AudioPart and has empty text."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "input_audio", "input_audio": {"data": "AAA=", "format": "wav"}},
+            {"type": "input_audio", "input_audio": {"data": "BBB=", "format": "mp3"}},
+        ]
+    )
+    assert text == ""
+    assert audio_parts == [
+        {"mime_type": "audio/wav", "content": "AAA="},
+        {"mime_type": "audio/mpeg", "content": "BBB="},
+    ]
 
 
 def test_extract_content_parts_audio_marker_fallback_when_no_data():
