@@ -205,3 +205,57 @@ def test_fork_broadcast():
     assert count == "1"
     assert path == BASE_PATH
     assert json.loads(content) == {"asm": {"enabled": True}}
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+def test_fork_of_fork_broadcast():
+    # A grandchild (a fork of an already-forked consumer) must still receive the
+    # full active snapshot. The intermediate child consumed the snapshot into its
+    # reader's diff memo and took the SHM handles from the native client, so the
+    # grandchild can neither re-take the handles nor rely on a fresh diff:
+    # make_reader() must reuse the inherited reader and reset its memo.
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client, _ = _client(agent.url)
+        client.enable_shared_memory()
+        assert client.request() is True
+
+        read_fd, write_fd = os.pipe()
+        pid = os.fork()
+        if pid == 0:  # intermediate child
+            os.close(read_fd)
+            try:
+                # Consume the snapshot here first: this populates the reader's
+                # diff memo and takes the SHM handles, so without a reset the
+                # grandchild would observe no delta.
+                reader = client.make_reader()
+                reader.read(client.enabled_product_names())
+
+                cpid = os.fork()
+                if cpid == 0:  # grandchild
+                    sink = _Sink()
+                    client._product_callbacks[RemoteConfigProduct.AsmFeatures] = sink
+                    # Reuses the inherited reader (handles already gone) and resets it.
+                    greader = client.make_reader()
+                    client.dispatch_native_changes(greader.read(client.enabled_product_names()))
+                    got = sink.last
+                    msg = "%d|%s|%s" % (
+                        len(got),
+                        got[0].path if got else "",
+                        json.dumps(got[0].content) if got else "",
+                    )
+                    os.write(write_fd, msg.encode())
+                    os._exit(0)
+                os.waitpid(cpid, 0)
+            finally:
+                os.close(write_fd)
+                os._exit(0)
+
+        os.close(write_fd)
+        out = os.read(read_fd, 4096).decode()
+        os.close(read_fd)
+        os.waitpid(pid, 0)
+
+    count, path, content = out.split("|", 2)
+    assert count == "1", "grandchild must receive the full snapshot, not an empty delta"
+    assert path == BASE_PATH
+    assert json.loads(content) == {"asm": {"enabled": True}}
