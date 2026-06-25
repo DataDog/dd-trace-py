@@ -200,6 +200,64 @@ def test_realtime_state_pcm_audio_only_fallback_marker():
     assert resp["output_messages"] == [{"role": "assistant", "content": "[audio]"}]
 
 
+def test_realtime_state_close_tags_in_flight_response():
+    """Closing mid-turn (before response.done) tags and finishes the in-flight response span."""
+    integration, state = _new_state(model="gpt-realtime")
+    state.on_server_event(_session_created())
+    state.on_server_event(
+        _ns(
+            type="conversation.item.input_audio_transcription.completed",
+            item_id="item_1",
+            transcript="partial question",
+        )
+    )
+    # snapshot the pending input into the response turn, then stream a partial transcript
+    state.on_server_event(_ns(type="response.created", response=_ns(id="resp_1")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.delta", response_id="resp_1", delta="partial "))
+    # no response.done — connection closes mid-turn
+    state.finish_session()
+
+    assert len(integration.responses) == 1, "in-flight response span should still be tagged"
+    resp = integration.responses[0]
+    assert resp["output_messages"] == [{"role": "assistant", "content": "partial "}]
+    assert resp["span"].finished is True
+    assert state._session_span.finished is True
+
+
+def test_realtime_state_input_buffer_clear_discards_audio():
+    """An input_audio_buffer.clear drops buffered audio so it isn't attributed to the next turn."""
+    integration, state = _new_state(model="gpt-realtime")
+    state.on_server_event(_session_created())
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_client_event({"type": "input_audio_buffer.clear"})
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r", transcript="hi"))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+
+    # no leftover input audio -> no input message (cleared) ; output transcript captured
+    assert integration.responses[0]["input_messages"] == []
+    assert integration.responses[0]["output_messages"] == [{"role": "assistant", "content": "hi"}]
+
+
+def test_realtime_state_absorb_input_item_skips_non_user_role():
+    """conversation.item.create for a non-user item is not captured as user input."""
+    integration, state = _new_state(model="gpt-realtime")
+    state.on_server_event(_session_created())
+    state.on_client_event(
+        {"type": "conversation.item.create", "item": {"role": "assistant", "content": [{"type": "text", "text": "x"}]}}
+    )
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": {"role": "user", "content": [{"type": "input_text", "text": "hello"}]},
+        }
+    )
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+
+    assert integration.responses[0]["input_messages"] == [{"role": "user", "content": "hello"}]
+
+
 # ---- integration test: real patched RealtimeConnection over a fake websocket ----
 
 

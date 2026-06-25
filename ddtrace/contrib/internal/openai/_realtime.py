@@ -111,6 +111,9 @@ class _RealtimeState:
                 audio = _get_attr(event, "audio", None)
                 if audio:
                     self._pending_input.audio_chunks.append(audio)
+            elif event_type == "input_audio_buffer.clear":
+                # Discarded input audio must not be attributed to the next response.
+                self._pending_input.audio_chunks = []
             elif event_type == "conversation.item.create":
                 self._absorb_input_item(_get_attr(event, "item", None))
         except Exception:
@@ -124,6 +127,9 @@ class _RealtimeState:
                 return
             if event_type == "input_audio_buffer.committed":
                 self._pending_input.item_id = _get_attr(event, "item_id", None)
+                return
+            if event_type == "input_audio_buffer.cleared":
+                self._pending_input.audio_chunks = []
                 return
             if event_type == "conversation.item.input_audio_transcription.completed":
                 item_id = _get_attr(event, "item_id", None)
@@ -194,7 +200,7 @@ class _RealtimeState:
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
         if not turn.input.transcript and turn.input.item_id is not None:
-            turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
+            turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
         if turn.span is not None:
             try:
                 if turn.status == "failed":
@@ -209,10 +215,21 @@ class _RealtimeState:
         if self._closed:
             return
         self._closed = True
+        # Tag any in-flight turns (closed before ``response.done``) with whatever partial data we
+        # have so they aren't submitted as empty llm spans.
         for turn in list(self._responses.values()):
-            if turn.span is not None:
+            if turn.span is None:
+                continue
+            try:
+                if not turn.input.transcript and turn.input.item_id is not None:
+                    turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
+                self._tag_response(turn)
+            except Exception:
+                log.debug("error tagging in-flight realtime response span", exc_info=True)
+            finally:
                 turn.span.finish()
         self._responses.clear()
+        self._input_transcripts.clear()
         try:
             self._integration._llmobs_set_tags_from_realtime_session(
                 self._session_span, self._model, self._session_metadata()
@@ -307,6 +324,10 @@ class _RealtimeState:
     def _absorb_input_item(self, item: Any) -> None:
         if item is None:
             return
+        # Only user items contribute to the input turn; skip assistant/system/tool/function items.
+        role = _get_attr(item, "role", None)
+        if role is not None and role != "user":
+            return
         content = _get_attr(item, "content", None) or []
         for part in content:
             part_type = _get_attr(part, "type", "")
@@ -395,7 +416,10 @@ async def patched_async_enter(func, instance, args, kwargs):
     return connection
 
 
-def patched_recv(func, instance, args, kwargs):
+def patched_parse_event(func, instance, args, kwargs):
+    # ``parse_event`` is the single sync observation point for server events: ``recv()``,
+    # connection iteration, and the manual ``recv_bytes()`` + ``parse_event()`` path all funnel
+    # through it (it is synchronous on both the sync and async connection classes).
     event = func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
     if state is not None:
@@ -403,26 +427,22 @@ def patched_recv(func, instance, args, kwargs):
     return event
 
 
-async def patched_async_recv(func, instance, args, kwargs):
-    event = await func(*args, **kwargs)
-    state = getattr(instance, "_dd_realtime_state", None)
-    if state is not None:
-        state.on_server_event(event)
-    return event
-
-
 def patched_send(func, instance, args, kwargs):
+    # Record the client event only after the send succeeds, so a failed send doesn't attribute
+    # unsent audio/text to the next turn.
+    result = func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
     if state is not None:
         state.on_client_event(args[0] if args else kwargs.get("event"))
-    return func(*args, **kwargs)
+    return result
 
 
 async def patched_async_send(func, instance, args, kwargs):
+    result = await func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
     if state is not None:
         state.on_client_event(args[0] if args else kwargs.get("event"))
-    return await func(*args, **kwargs)
+    return result
 
 
 def patched_close(func, instance, args, kwargs):
@@ -451,10 +471,10 @@ _REALTIME_WRAPS = (
     ("RealtimeConnectionManager", "enter", patched_enter),
     ("AsyncRealtimeConnectionManager", "__aenter__", patched_async_enter),
     ("AsyncRealtimeConnectionManager", "enter", patched_async_enter),
-    ("RealtimeConnection", "recv", patched_recv),
+    ("RealtimeConnection", "parse_event", patched_parse_event),
     ("RealtimeConnection", "send", patched_send),
     ("RealtimeConnection", "close", patched_close),
-    ("AsyncRealtimeConnection", "recv", patched_async_recv),
+    ("AsyncRealtimeConnection", "parse_event", patched_parse_event),
     ("AsyncRealtimeConnection", "send", patched_async_send),
     ("AsyncRealtimeConnection", "close", patched_async_close),
 )
