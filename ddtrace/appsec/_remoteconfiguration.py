@@ -122,7 +122,9 @@ class AppSecCallback(RCCallback):
                 for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
         _process_asm_features(for_the_tracer)
         if (for_the_waf_removals or for_the_waf_updates) and asm_config._asm_enabled:
-            core.dispatch("waf.update", (for_the_waf_removals, for_the_waf_updates))
+            # allow_raise so a WAF rejection propagates to the RC client and the
+            # configuration is reported as errored rather than acknowledged.
+            core.dispatch("waf.update", (for_the_waf_removals, for_the_waf_updates), allow_raise=True)
 
 
 # Create singleton instance for global usage

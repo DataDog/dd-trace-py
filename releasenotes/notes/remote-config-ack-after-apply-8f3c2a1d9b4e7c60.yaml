@@ -3,4 +3,6 @@ fixes:
   - |
     remoteconfig: Fixed a configuration being reported as ``acknowledged`` before
     the product applied it. The state is now set to ``acknowledged`` only after the
-    product callback applies the configuration, and to ``error`` if it raises.
+    product callback applies the configuration, and to ``error`` if it fails. In
+    particular, an ASM/WAF configuration that the WAF rejects is now reported as
+    ``error`` instead of ``acknowledged``.
