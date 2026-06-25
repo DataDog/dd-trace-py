@@ -875,8 +875,8 @@ def test_apply_state_acknowledged_after_synchronous_apply(mock_send_request):
 
 
 @mock.patch.object(SyncRemoteConfigClient, "_send_request")
-def test_apply_state_error_when_callback_raises(mock_send_request):
-    """apply_state is reported as ERROR when the product callback raises while applying."""
+def test_apply_state_acknowledged_when_callback_raises(mock_send_request):
+    """A product callback failure is the product's concern; the config stays ACKNOWLEDGED."""
 
     def callback_with_exception(payloads):
         raise Exception("fake error")
@@ -887,13 +887,11 @@ def test_apply_state_error_when_callback_raises(mock_send_request):
     with override_global_config(dict(_remote_config_enabled=False)):
         _process_through_base(rc_client, mock_send_request)
 
-        applied = rc_client._applied_configs[_BASE_TARGET]
-        assert applied.apply_state == 3  # ERROR
-        assert applied.apply_error is not None
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
 
 
-def test_apply_state_error_when_callback_unregistered_before_dispatch():
-    """A config whose product callback is gone at dispatch is reported ERROR, not left pending.
+def test_apply_state_acknowledged_when_callback_unregistered_before_dispatch():
+    """A config whose product callback is gone at dispatch is acknowledged, not left pending.
 
     Otherwise it would be carried over as unchanged on later polls and never re-dispatched,
     staying UNACKNOWLEDGED forever.
@@ -908,5 +906,30 @@ def test_apply_state_error_when_callback_unregistered_before_dispatch():
     # dispatch with no registered callbacks (the product was unregistered after publish)
     rc_client._dispatch_payloads([Payload(meta, target, {"data": 1})], {})
 
-    assert rc_client._applied_configs[target].apply_state == 3  # ERROR
-    assert rc_client._applied_configs[target].apply_error is not None
+    assert rc_client._applied_configs[target].apply_state == 2  # ACKNOWLEDGED
+
+
+def test_apply_state_error_on_malformed_payload():
+    """A target file that cannot be deserialized is the only case reported as ERROR."""
+    import base64
+    import hashlib
+    from types import SimpleNamespace
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_callback("ASM_DATA", mock.MagicMock())
+    target = "datadog/2/ASM_DATA/malformed/config"
+    raw = b"{ this is not valid json"
+    meta = ConfigMetadata(
+        id="malformed",
+        product_name="ASM_DATA",
+        sha256_hash=hashlib.sha256(raw).hexdigest(),
+        length=len(raw),
+        tuf_version=1,
+    )
+    payload = SimpleNamespace(target_files=[SimpleNamespace(path=target, raw=base64.b64encode(raw))])
+    applied: dict = {}
+
+    rc_client._apply_config([], applied, target, meta, payload)
+
+    assert applied[target].apply_state == 3  # ERROR
+    assert applied[target].apply_error is not None

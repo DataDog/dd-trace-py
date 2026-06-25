@@ -355,9 +355,6 @@ class RemoteConfigClient:
                     with StopWatch() as sw:
                         product_callback(product_payload_list)
 
-                    # Applied by the product: mark Acknowledged
-                    self._set_apply_state_for_payloads(product_payload_list, 2)
-
                     if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
                         telemetry_writer.add_log(
                             TELEMETRY_LOG_LEVEL.WARNING,
@@ -369,7 +366,9 @@ class RemoteConfigClient:
                             },
                         )
                 except Exception:
-                    error_message = "Failed to apply configuration for product %r" % product_name
+                    # A product-side failure is surfaced through that product's own
+                    # telemetry; the configuration was still delivered, so it stays
+                    # acknowledged (only malformed payloads are reported as errors).
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
@@ -378,14 +377,9 @@ class RemoteConfigClient:
                         product_payload_list,
                         exc_info=True,
                     )
-                    self._set_apply_state_for_payloads(product_payload_list, 3, error_message)
-            else:
-                # The callback was unregistered between reconcile and dispatch. Report
-                # error rather than leaving the config Unacknowledged forever (it would
-                # be carried over as unchanged on later polls and never re-dispatched).
-                self._set_apply_state_for_payloads(
-                    product_payload_list, 3, "No callback registered for product %r" % product_name
-                )
+            # Delivered to the product (or no product is registered to apply it):
+            # acknowledge it so it is not left Unacknowledged forever.
+            self._set_apply_state_for_payloads(product_payload_list, 2)
 
     def _set_apply_state_for_payloads(
         self, payloads: Sequence[Payload], apply_state: int, apply_error: Optional[str] = None
@@ -684,11 +678,10 @@ class RemoteConfigClient:
         if config.product_name not in self._product_callbacks:
             return
 
-        config_content = self._extract_target_file(payload, target, config)
-        if config_content is None:
-            return
-
         try:
+            config_content = self._extract_target_file(payload, target, config)
+            if config_content is None:
+                return
             log.debug(
                 "[%s][P: %s] Load new configuration: %s. content: %s",
                 os.getpid(),
@@ -698,7 +691,10 @@ class RemoteConfigClient:
             )
             self._accumulate_payload(payload_list, config_content, target, config)
         except Exception:
-            error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
+            # Malformed payload that can't be deserialized: report it as errored. This is
+            # the only case that produces an error state; the product callback's own
+            # outcome is surfaced through that product's telemetry, not here.
+            error_message = "Failed to deserialize configuration %s for product %r" % (config, config.product_name)
             log.debug(error_message, exc_info=True)
             config.apply_state = 3  # Error state
             config.apply_error = error_message
