@@ -9,9 +9,10 @@ through ``RealtimeConnection.send``, and ``recv``/iteration/``recv_bytes()`` all
 - a per-turn **llm child span** started on ``response.created`` and finished on ``response.done``,
   carrying the user/assistant transcripts, audio, and token usage for that turn.
 
-Realtime audio is raw PCM by default, which the UI can't render, so we keep the transcript as the
-message content and only emit a playable ``audio_part`` for renderable formats (handled by the
-shared audio helpers).
+Realtime audio is raw PCM16 (24kHz mono) by default, which the UI can't render directly, so we wrap
+it in a WAV container (lossless, just a header) and emit a playable ``audio/wav`` ``audio_part``
+alongside the transcript. Audio over the per-span-event size budget is dropped (transcript kept).
+G.711 (``audio/pcmu``/``audio/pcma``) is not yet wrapped.
 
 Known limitations (deferred by design):
 - Input audio transcription that completes *after* ``response.done`` is not back-filled onto the
@@ -41,6 +42,8 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.utils import concat_base64_audio
 from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
+from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
@@ -105,6 +108,9 @@ class _RealtimeState:
         self._session_config: dict[str, Any] = {}
         self._input_audio_mime: str = ""
         self._output_audio_mime: str = ""
+        # Realtime PCM is 24kHz mono by spec; overridden from the format object when present.
+        self._input_audio_rate: int = 24000
+        self._output_audio_rate: int = 24000
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
@@ -260,10 +266,18 @@ class _RealtimeState:
 
     def _tag_response(self, turn: _ResponseTurn) -> None:
         input_message = self._build_message(
-            "user", turn.input.transcript or turn.input.text, turn.input.audio_chunks, self._input_audio_mime
+            "user",
+            turn.input.transcript or turn.input.text,
+            turn.input.audio_chunks,
+            self._input_audio_mime,
+            self._input_audio_rate,
         )
         output_message = self._build_message(
-            "assistant", turn.transcript or turn.text, turn.audio_chunks, self._output_audio_mime
+            "assistant",
+            turn.transcript or turn.text,
+            turn.audio_chunks,
+            self._output_audio_mime,
+            self._output_audio_rate,
         )
         self._integration._llmobs_set_tags_from_realtime_response(
             turn.span,
@@ -274,13 +288,22 @@ class _RealtimeState:
             metrics=_usage_metrics(turn.usage),
         )
 
-    def _build_message(self, role: str, content: str, audio_chunks: list[str], mime_type: str) -> Optional[Message]:
+    def _build_message(
+        self, role: str, content: str, audio_chunks: list[str], mime_type: str, sample_rate: int
+    ) -> Optional[Message]:
         audio_part = None
         if audio_chunks:
-            audio_part = format_audio_part_with_guard(concat_base64_audio(audio_chunks), mime_type)
+            audio_bytes = concat_base64_audio(audio_chunks)
+            if is_pcm16_audio_mime(mime_type):
+                # Raw PCM16 isn't renderable on its own; wrap it in a WAV container (lossless) so it
+                # plays in the UI. Realtime PCM is 24kHz mono.
+                audio_part = format_audio_part_with_guard(pcm16_to_wav(audio_bytes, sample_rate), "audio/wav")
+            else:
+                audio_part = format_audio_part_with_guard(audio_bytes, mime_type)
         if not content and not audio_part and audio_chunks:
-            # Audio was captured but isn't renderable (e.g. raw PCM) and there's no transcript;
-            # surface a marker so the turn isn't silently empty.
+            # Audio was captured but couldn't be turned into a playable part (unsupported format or
+            # over the size budget) and there's no transcript; surface a marker so the turn isn't
+            # silently empty.
             content = AUDIO_FALLBACK_MARKER
         if not content and not audio_part:
             return None
@@ -323,9 +346,15 @@ class _RealtimeState:
         if input_format is not None:
             self._input_audio_mime = realtime_audio_format_to_mime(input_format)
             self._session_config["input_audio_format"] = self._input_audio_mime
+            input_rate = _get_attr(input_format, "rate", None)
+            if input_rate:
+                self._input_audio_rate = int(input_rate)
         if output_format is not None:
             self._output_audio_mime = realtime_audio_format_to_mime(output_format)
             self._session_config["output_audio_format"] = self._output_audio_mime
+            output_rate = _get_attr(output_format, "rate", None)
+            if output_rate:
+                self._output_audio_rate = int(output_rate)
         if voice is not None:
             self._session_config["voice"] = str(voice)
 

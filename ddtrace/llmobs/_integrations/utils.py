@@ -1,11 +1,13 @@
 import base64
 from dataclasses import dataclass
 import inspect
+import io
 import json
 import re
 from typing import Any
 from typing import Optional
 from typing import Union
+import wave
 
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
@@ -420,6 +422,30 @@ def concat_base64_audio(b64_chunks: list) -> bytes:
         except (ValueError, TypeError):
             continue
     return bytes(buf)
+
+
+# Raw little-endian PCM16 mime types. These aren't renderable on their own, but can be losslessly
+# wrapped in a WAV container (just a header) to produce a playable ``audio/wav`` part.
+_PCM16_MIME_TYPES = frozenset({"audio/pcm", "audio/pcm16", "audio/l16"})
+
+
+def is_pcm16_audio_mime(mime_type: str) -> bool:
+    return bool(mime_type) and mime_type.strip().lower() in _PCM16_MIME_TYPES
+
+
+def pcm16_to_wav(pcm_bytes: bytes, sample_rate: int = 24000, channels: int = 1) -> bytes:
+    """Wrap raw little-endian PCM16 audio in a WAV container.
+
+    This is lossless and cheap (it only prepends a header), and turns raw PCM — which the UI can't
+    render — into a playable ``audio/wav`` payload.
+    """
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav_file:
+        wav_file.setnchannels(channels)
+        wav_file.setsampwidth(2)  # PCM16 = 2 bytes/sample
+        wav_file.setframerate(sample_rate)
+        wav_file.writeframes(pcm_bytes)
+    return buf.getvalue()
 
 
 def format_audio_part_with_guard(

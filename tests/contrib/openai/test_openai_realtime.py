@@ -13,6 +13,7 @@ import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
+from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 
 
 try:
@@ -30,6 +31,11 @@ def _ns(**kwargs):
 
 def _b64(raw):
     return base64.b64encode(raw).decode("utf-8")
+
+
+def _wav_b64(raw, sample_rate=24000):
+    """Expected base64 of raw PCM16 bytes wrapped in a WAV container."""
+    return base64.b64encode(pcm16_to_wav(raw, sample_rate)).decode("utf-8")
 
 
 class _FakeSpan:
@@ -122,16 +128,28 @@ def _drive_turn(state, input_mime="audio/pcm", output_mime="audio/pcm"):
     )
 
 
-def test_realtime_state_pcm_turn_transcripts_only():
-    """A raw-PCM turn captures transcripts as content and emits no (unrenderable) audio_parts."""
+def test_realtime_state_pcm_turn_wraps_audio_as_wav():
+    """A raw-PCM turn surfaces the transcript as content and the audio as a WAV-wrapped audio_part."""
     integration, state = _new_state()
     _drive_turn(state)
 
     assert len(integration.responses) == 1
     resp = integration.responses[0]
     assert resp["model_name"] == "gpt-realtime-2025"
-    assert resp["input_messages"] == [{"role": "user", "content": "what time is it?"}]
-    assert resp["output_messages"] == [{"role": "assistant", "content": "It's noon."}]
+    assert resp["input_messages"] == [
+        {
+            "role": "user",
+            "content": "what time is it?",
+            "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(b"\x01\x02")}],
+        }
+    ]
+    assert resp["output_messages"] == [
+        {
+            "role": "assistant",
+            "content": "It's noon.",
+            "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(b"\x03\x04")}],
+        }
+    ]
     assert resp["metrics"] == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
     # response span finished on response.done
     assert resp["span"].finished is True
@@ -186,10 +204,28 @@ def test_realtime_state_close_is_idempotent():
     assert len(integration.sessions) == 1
 
 
-def test_realtime_state_pcm_audio_only_fallback_marker():
-    """Audio captured without a transcript and not renderable surfaces an [audio] marker."""
+def test_realtime_state_pcm_audio_only_wraps_as_wav_without_transcript():
+    """Raw PCM audio with no transcript is still captured as a WAV audio_part (no marker needed)."""
     integration, state = _new_state(model="gpt-realtime")
     state.on_server_event(_session_created())
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    state.on_server_event(_ns(type="response.output_audio.delta", response_id="r", delta=_b64(b"\x03")))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+
+    resp = integration.responses[0]
+    assert resp["input_messages"] == [
+        {"role": "user", "content": "", "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(b"\x01\x02")}]}
+    ]
+    assert resp["output_messages"] == [
+        {"role": "assistant", "content": "", "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(b"\x03")}]}
+    ]
+
+
+def test_realtime_state_unwrappable_audio_fallback_marker():
+    """Audio in a non-wrappable format (e.g. G.711) with no transcript surfaces an [audio] marker."""
+    integration, state = _new_state(model="gpt-realtime")
+    state.on_server_event(_session_created(input_mime="audio/pcmu", output_mime="audio/pcmu"))
     state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
     state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
     state.on_server_event(_ns(type="response.output_audio.delta", response_id="r", delta=_b64(b"\x03")))
@@ -366,7 +402,13 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
         name="OpenAI.createRealtimeResponse",
         model_name="gpt-realtime-2025",
         model_provider="openai",
-        input_messages=[{"role": "user", "content": "what time is it?"}],
+        input_messages=[
+            {
+                "role": "user",
+                "content": "what time is it?",
+                "audio_parts": [{"mime_type": "audio/wav", "content": _wav_b64(b"\x01\x02")}],
+            }
+        ],
         output_messages=[{"role": "assistant", "content": "It's noon."}],
         metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
     )

@@ -10,9 +10,11 @@ from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import concat_base64_audio
 from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -150,6 +152,33 @@ def test_format_audio_part_with_guard_oversize():
 def test_format_audio_part_with_guard_empty():
     """No audio bytes yields no AudioPart."""
     assert format_audio_part_with_guard(b"", "audio/wav") is None
+
+
+def test_is_pcm16_audio_mime():
+    """PCM16 mime types are recognized; G.711 and encoded formats are not."""
+    assert is_pcm16_audio_mime("audio/pcm")
+    assert is_pcm16_audio_mime("audio/pcm16")
+    assert is_pcm16_audio_mime("audio/l16")
+    assert is_pcm16_audio_mime("AUDIO/PCM")
+    assert not is_pcm16_audio_mime("audio/pcmu")
+    assert not is_pcm16_audio_mime("audio/wav")
+    assert not is_pcm16_audio_mime("")
+
+
+def test_pcm16_to_wav_wraps_in_container():
+    """pcm16_to_wav prepends a valid RIFF/WAVE header and preserves the PCM payload losslessly."""
+    import io
+    import wave
+
+    pcm = b"\x01\x02\x03\x04\x05\x06\x07\x08"
+    wav_bytes = pcm16_to_wav(pcm, sample_rate=24000, channels=1)
+    assert wav_bytes[:4] == b"RIFF"
+    assert wav_bytes[8:12] == b"WAVE"
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wav_file:
+        assert wav_file.getnchannels() == 1
+        assert wav_file.getsampwidth() == 2
+        assert wav_file.getframerate() == 24000
+        assert wav_file.readframes(wav_file.getnframes()) == pcm
 
 
 def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
