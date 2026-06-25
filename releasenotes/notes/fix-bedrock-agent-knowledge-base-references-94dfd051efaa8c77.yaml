@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where Bedrock Agent tracing failed to translate knowledge base observations when Bedrock returned retrieved references as a list.

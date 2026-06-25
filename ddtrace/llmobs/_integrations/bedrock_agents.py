@@ -451,6 +451,22 @@ def _invocation_input_span(
     return span_event
 
 
+def _extract_retrieved_reference_text(retrieved_references: Any) -> str:
+    if isinstance(retrieved_references, list):
+        if not retrieved_references:
+            return ""
+        retrieved_references = retrieved_references[0]
+    if not isinstance(retrieved_references, dict):
+        return ""
+    text = retrieved_references.get("text")
+    if text is not None:
+        return str(text)
+    content = retrieved_references.get("content", {})
+    if isinstance(content, dict):
+        return str(content.get("text", ""))
+    return ""
+
+
 def _observation_span(
     observation: dict[str, Any], root_span: Span, current_active_span: Optional[LLMObsSpanEvent]
 ) -> Optional[LLMObsSpanEvent]:
@@ -475,7 +491,7 @@ def _observation_span(
     elif observation_type == "KNOWLEDGE_BASE":
         output_chunk = observation.get("knowledgeBaseLookupOutput", {})
         bedrock_metadata = output_chunk.get("metadata", {})
-        output_value = output_chunk.get("retrievedReferences", {}).get("text", "")
+        output_value = _extract_retrieved_reference_text(output_chunk.get("retrievedReferences", {}))
     elif observation_type == "ACTION_GROUP_CODE_INTERPRETER":
         output_chunk = observation.get("codeInterpreterInvocationOutput", {})
         bedrock_metadata = output_chunk.get("metadata", {})

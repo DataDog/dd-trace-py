@@ -1,5 +1,7 @@
 import pytest
 
+from ddtrace import config
+from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
 from tests.contrib.botocore.bedrock_utils import AGENT_ALIAS_ID
 from tests.contrib.botocore.bedrock_utils import AGENT_ID
 from tests.contrib.botocore.bedrock_utils import AGENT_INPUT
@@ -173,3 +175,46 @@ def test_agent_invoke_stream_trace_disabled(bedrock_agent_client, request_vcr, l
             pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["name"] == "Bedrock Agent {}".format(AGENT_ID)
+
+
+def test_agent_knowledge_base_observation_accepts_retrieved_references_list(tracer, bedrock_llmobs, llmobs_events):
+    integration = BedrockIntegration(integration_config=config.botocore)
+    trace_step_id = "knowledge-base-step"
+    retrieved_text = "Knowledge base retrieved reference text."
+    traces = [
+        {
+            "trace": {
+                "orchestrationTrace": {
+                    "invocationInput": {
+                        "traceId": trace_step_id,
+                        "invocationType": "KNOWLEDGE_BASE",
+                        "knowledgeBaseLookupInput": {
+                            "knowledgeBaseId": "knowledge-base-id",
+                            "text": "lookup request",
+                        },
+                    }
+                }
+            }
+        },
+        {
+            "trace": {
+                "orchestrationTrace": {
+                    "observation": {
+                        "traceId": trace_step_id,
+                        "type": "KNOWLEDGE_BASE",
+                        "knowledgeBaseLookupOutput": {
+                            "metadata": {"totalTimeMs": 1},
+                            "retrievedReferences": [{"content": {"text": retrieved_text}}],
+                        },
+                    }
+                }
+            }
+        },
+    ]
+
+    with tracer.trace("Bedrock Agent {}".format(AGENT_ID)) as root_span:
+        integration.translate_bedrock_traces(traces, root_span)
+
+    knowledge_base_spans = [event for event in llmobs_events if event["name"] == "knowledge-base-id"]
+    assert len(knowledge_base_spans) == 1
+    assert knowledge_base_spans[0]["meta"]["output"]["value"] == retrieved_text
