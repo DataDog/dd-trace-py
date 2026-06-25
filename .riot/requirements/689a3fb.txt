@@ -5,7 +5,7 @@
 #    pip-compile --allow-unsafe --no-annotate .riot/requirements/689a3fb.in
 #
 attrs==26.1.0
-certifi==2026.4.22
+certifi==2026.5.20
 coverage[toml]==7.10.7
 elastic-transport==8.17.1
 elasticsearch8==8.0.1
