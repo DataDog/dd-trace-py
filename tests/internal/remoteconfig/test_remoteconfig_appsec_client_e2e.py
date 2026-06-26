@@ -877,16 +877,16 @@ def test_apply_state_acknowledged_after_synchronous_apply(mock_send_request):
 @mock.patch.object(SyncRemoteConfigClient, "_send_request")
 def test_apply_state_acknowledged_when_callback_raises(mock_send_request):
     """A product callback failure is the product's concern; the config stays ACKNOWLEDGED."""
-
-    def callback_with_exception(payloads):
-        raise Exception("fake error")
+    callback = mock.MagicMock(side_effect=Exception("fake error"))
 
     rc_client = SyncRemoteConfigClient()
-    rc_client.register_callback("ASM_FEATURES", callback_with_exception)
+    rc_client.register_callback("ASM_FEATURES", callback)
 
     with override_global_config(dict(_remote_config_enabled=False)):
         _process_through_base(rc_client, mock_send_request)
 
+        # the callback was invoked and raised, yet the config is acknowledged
+        assert callback.call_count == 1
         assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
 
 

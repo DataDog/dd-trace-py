@@ -323,9 +323,15 @@ class RemoteConfigClient:
         background subscriber thread (which still delivers to forked children) so
         each payload is dispatched once. If the subscriber wins the connector read,
         this blocks on the lock until it finishes, then reads an empty batch.
+
+        Failures here are contained (like the background subscriber's periodic) so a
+        connector read error doesn't propagate into the poll's error reporting.
         """
-        with self._dispatch_lock:
-            self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
+        try:
+            with self._dispatch_lock:
+                self._dispatch_payloads(self._global_connector.read(), self._product_callbacks.copy())
+        except Exception:
+            log.error("[%s][P: %s] Error pumping remote config to products", os.getpid(), os.getppid(), exc_info=True)
 
     def _dispatch_payloads(self, payloads: Sequence[Payload], product_callbacks: dict[str, RCCallback]) -> None:
         if not payloads:
