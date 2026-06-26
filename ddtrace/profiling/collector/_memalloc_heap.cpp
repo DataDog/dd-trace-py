@@ -324,10 +324,9 @@ heap_tracker_t::reset_sampling_state_no_cpython(PyMemAllocatorDomain domain)
     ds.allocated_memory = 0;
     // MEM domain samples 4× less frequently than OBJ/RAW to reduce the cost of
     // CPython traceback capture on high-frequency small allocations.
-    const uint32_t effective_rate =
-      (domain == PYMEM_DOMAIN_MEM) ? static_cast<uint32_t>(std::min<uint64_t>(
-                                       static_cast<uint64_t>(sample_size) * MEM_DOMAIN_SAMPLE_RATE_FACTOR, UINT32_MAX))
-                                   : static_cast<uint32_t>(sample_size);
+    const uint32_t effective_rate = static_cast<uint32_t>(
+      (domain == PYMEM_DOMAIN_MEM) ? std::min<uint64_t>(sample_size * MEM_DOMAIN_SAMPLE_RATE_FACTOR, UINT32_MAX)
+                                   : sample_size);
     ds.current_sample_size = next_sample_size_no_cpython(effective_rate);
 }
 
