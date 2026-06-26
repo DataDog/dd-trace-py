@@ -606,6 +606,9 @@ venv = Venv(
                 "pytest-benchmark": latest,
                 "wrapt": [latest, "<2.0.0"],
                 "uwsgi": latest,
+                # Ray Serve cloudpickles objects that reference the global config
+                # (which holds forksafe locks); test_forksafe.py exercises that path.
+                "cloudpickle": latest,
             },
             venvs=[
                 Venv(
@@ -3264,6 +3267,16 @@ venv = Venv(
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", latest],
+            },
+        ),
+        Venv(
+            name="ray_serve",
+            command="pytest {cmdargs} tests/contrib/ray_serve",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "fastapi": latest,
+                "protobuf": "==4.25.8",
+                "ray[serve]": ["~=2.47.1", "~=2.54.1"],
             },
         ),
         Venv(

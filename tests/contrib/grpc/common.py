@@ -47,5 +47,8 @@ class GrpcBaseTestCase(TracerTestCase):
         self._server.start()
 
     def _stop_server(self):
-        self._server.stop(None)
+        # Wait for shutdown so the port is released before the next test rebinds it (avoids a
+        # SO_REUSEPORT race where the new client hits the dying server, causing flaky failures).
+        shutdown_complete = self._server.stop(None)
+        shutdown_complete.wait()
         self._server_pool.shutdown(wait=True)
