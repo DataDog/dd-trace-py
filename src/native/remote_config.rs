@@ -132,6 +132,7 @@ impl RemoteConfigClient {
         tags=None,
         process_tags=None,
         timeout_ms=5000,
+        test_session_token=None,
     ))]
     fn new(
         runtime: PyRef<'_, SharedRuntimePy>,
@@ -146,11 +147,15 @@ impl RemoteConfigClient {
         tags: Option<Vec<(String, String)>>,
         process_tags: Option<Vec<(String, String)>>,
         timeout_ms: u64,
+        test_session_token: Option<String>,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc().clone();
 
         let mut endpoint = Endpoint::from_slice(&agent_url);
         endpoint.timeout_ms = timeout_ms;
+        if let Some(token) = test_session_token {
+            endpoint.test_token = Some(token.into());
+        }
 
         let options = ConfigOptions {
             invariants: ConfigInvariants {
