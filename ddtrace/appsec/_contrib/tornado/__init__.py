@@ -15,6 +15,8 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.http import MediaType
+from ddtrace.internal.utils.http import classify_media_type
 
 
 logger = get_logger(__name__)
@@ -55,14 +57,15 @@ def tornado_call_waf_first(integration: str, handler: Any) -> None:
         if parsed_body:
             parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
         else:
+            media_type = classify_media_type(request_headers.get("content-type"))
             _body: bytes = handler.request.body
             try:
-                if "json" in request_headers.get("content-type", ""):
+                if media_type is MediaType.JSON:
                     parsed_body = json.loads(_body)
             except BaseException:
                 pass  # nosec
             try:
-                if not parsed_body and "xml" in request_headers.get("content-type", ""):
+                if not parsed_body and media_type is MediaType.XML:
                     import ddtrace.vendor.xmltodict as xmltodict
 
                     parsed_body = xmltodict.parse(_body)
