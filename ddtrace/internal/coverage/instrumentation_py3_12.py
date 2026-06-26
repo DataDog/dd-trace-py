@@ -75,8 +75,9 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 # The flag is re-evaluated in CollectInContext.__enter__ via update_disable_optimization().
 # On the True→False transition, _rearm_all_events() re-enables events that were DISABLE'd during
 # the window between our install and the other tool registering (e.g. early conftest imports in
-# pytest happen before coverage.py registers in pytest_configure).  It uses set_local_events()
-# (per-tool) rather than restart_events() (global) so the other tool is unaffected.
+# pytest happen before coverage.py registers in pytest_configure).  It calls restart_events()
+# exactly once, which is safe: test code hasn't run yet at that point, and coverage.py's callbacks
+# return None rather than DISABLE so there is nothing of theirs to corrupt.
 _use_disable_optimization: bool = True
 
 
@@ -96,20 +97,30 @@ def has_other_monitoring_tools() -> bool:
 
 
 def _rearm_all_events() -> None:
-    """Re-enable monitoring events for all instrumented code objects (our tool only).
+    """Re-enable Datadog line events that were DISABLE'd during the early-import window.
 
-    When _event_handler returns DISABLE, Python stops firing events for that code location.
-    This function re-enables them by calling set_local_events() per code object — which only
-    affects our tool_id, leaving other tools' disabled-event state untouched.
+    In CPython 3.12+, returning sys.monitoring.DISABLE from a callback replaces specific
+    bytecode instructions with their non-instrumented variants.  Only restart_events() (or a
+    re-call to set_local_events per code object) rolls them back.  Per-tool set_local_events()
+    does NOT reliably clear instruction-level DISABLE marks across all CPython versions, so we
+    use restart_events() here.
 
     Called on the True→False transition in update_disable_optimization(), i.e. when another
-    sys.monitoring tool (e.g. coverage.py) is detected after events were already DISABLE'd
-    during an early-import window (between our install and the other tool registering).
+    sys.monitoring tool (e.g. coverage.py) is detected AFTER some events were already DISABLE'd
+    during the window between our install and the other tool registering.
+
+    Why restart_events() is safe here:
+    - We are called from CollectInContext.__enter__, at the very start of the first test that
+      runs after the other tool registered.  No test code has executed yet, so any events the
+      other tool would have DISABLE'd (if it uses that optimisation) are for system/import code
+      only, not user test paths.
+    - In practice, coverage.py's callbacks return None rather than DISABLE, so it has no
+      disabled-event state to corrupt; restart_events() is a no-op for it.
+    - We call this at most once (on the single True→False transition).  Once the flag is False,
+      _event_handler returns None going forward and never creates new DISABLE'd events, so
+      subsequent CollectInContext entries skip both restart_events() and _rearm_all_events().
     """
-    if _DD_TOOL_ID is None:
-        return
-    for code in _CODE_HOOKS:
-        sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
+    sys.monitoring.restart_events()
 
 
 def update_disable_optimization() -> bool:
