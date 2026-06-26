@@ -241,7 +241,7 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
 {
     // Initialise per-domain sampling counters.  Each domain draws its first
     // sample target independently; MEM domain uses a higher threshold.
-    for (int d = 0; d < static_cast<int>(domain_states_.size()); ++d) {
+    for (size_t d = 0; d < domain_states_.size(); ++d) {
         reset_sampling_state_no_cpython(static_cast<PyMemAllocatorDomain>(d));
     }
     // Pre-allocate pool capacity to avoid reallocations
@@ -357,7 +357,7 @@ heap_tracker_t::postfork_child()
     Datadog::memalloc_code_cache_clear();
 
     // Reset per-domain sampling state to start fresh after fork.
-    for (int d = 0; d < static_cast<int>(domain_states_.size()); ++d) {
+    for (size_t d = 0; d < domain_states_.size(); ++d) {
         reset_sampling_state_no_cpython(static_cast<PyMemAllocatorDomain>(d));
     }
 }
