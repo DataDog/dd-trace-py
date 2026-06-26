@@ -12,6 +12,7 @@ replayed.  This is buffer-then-evaluate, NOT live forwarding — do not
 module exists to prevent).
 """
 
+import inspect
 from typing import Any
 from typing import AsyncIterator
 from typing import Callable
@@ -47,6 +48,20 @@ def _is_traced_stream(result: Any) -> bool:
 def _is_async_traced_stream(result: Any) -> bool:
     """Return True if *result*'s handler is an AsyncStreamHandler (TracedAsyncStream)."""
     return isinstance(getattr(result, "_self_handler", None), AsyncStreamHandler)
+
+
+def _is_plain_stream(result: Any) -> bool:
+    """Return True for a raw (async) generator stream.
+
+    Older SDKs (e.g. OpenAI <1.6) return a plain generator instead of a TracedStream,
+    so ``_is_traced_stream`` is False yet the stream must still be buffered.
+    """
+    return inspect.isgenerator(result) or inspect.isasyncgen(result)
+
+
+def _is_async_plain_stream(result: Any) -> bool:
+    """Return True if *result* is a raw async generator stream (async ``_drained`` path)."""
+    return inspect.isasyncgen(result)
 
 
 def _text_delta_from_chunk(chunk: Any) -> Optional[str]:

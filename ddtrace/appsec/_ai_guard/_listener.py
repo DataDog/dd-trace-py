@@ -22,7 +22,9 @@ from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_a
 from ddtrace.appsec._ai_guard._openai_responses import _openai_response_create_before
 from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardStream
+from ddtrace.appsec._ai_guard._streaming import _is_async_plain_stream
 from ddtrace.appsec._ai_guard._streaming import _is_async_traced_stream
+from ddtrace.appsec._ai_guard._streaming import _is_plain_stream
 from ddtrace.appsec._ai_guard._streaming import _is_traced_stream
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
@@ -102,23 +104,26 @@ def _openai_listen(client: AIGuardClient):
 def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_after):
     """Build the (sync, async) buffer wrappers for one OpenAI surface; ``evaluate_after`` is the
     reused after-listener. Split needed: async ``create`` returns a coroutine a sync wrapper can't await.
+
+    Both TracedStream results (OpenAI SDK >=1.6) and raw (async) generators (SDK <1.6, which never
+    produce a TracedStream) are buffered; otherwise older streams would forward chunks unevaluated.
     """
 
     def sync_wrapper(func, instance, args, kwargs):
         result = func(*args, **kwargs)
-        if not _is_traced_stream(result):
+        if not (_is_traced_stream(result) or _is_plain_stream(result)):
             return result
 
         def evaluate(resp):
             return evaluate_after(client, kwargs, resp)
 
-        if _is_async_traced_stream(result):
+        if _is_async_traced_stream(result) or _is_async_plain_stream(result):
             return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate)
         return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate)
 
     async def async_wrapper(func, instance, args, kwargs):
         result = await func(*args, **kwargs)
-        if not _is_traced_stream(result):
+        if not (_is_traced_stream(result) or _is_plain_stream(result)):
             return result
 
         def evaluate(resp):

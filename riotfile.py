@@ -4494,6 +4494,16 @@ venv = Venv(
                 "pytest-asyncio": "==0.23.7",
             },
             venvs=[
+                # openai <1.6 never produces a TracedStream -- the contrib returns a plain
+                # (async) generator. This pin exercises the AI Guard streaming-buffer fallback
+                # for that surface. Capped at <=3.12: the old SDK + its pydantic floor don't
+                # import cleanly on 3.13+.
+                Venv(
+                    pys=select_pys(max_version="3.12"),
+                    # httpx <0.28 still accepts the ``proxies`` kwarg that openai 1.3.0 passes
+                    # to ``httpx.Client`` (removed in 0.28).
+                    pkgs={"openai": "==1.3.0", "httpx": "<0.28"},
+                ),
                 # openai 1.102.0 crashes on Python 3.14 parsing its own discriminated-union
                 # response models: it sets ``__discriminator__`` on a bare ``typing.Union``,
                 # which 3.14 made immutable (AttributeError). Fixed in later SDKs, so cap this

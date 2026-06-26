@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace.appsec._ai_guard._listener import _make_openai_stream_wrappers
 from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardAsyncStream
 from ddtrace.appsec._ai_guard._streaming import BufferedAIGuardStream
 from ddtrace.appsec.ai_guard import AIGuardAbortError
@@ -295,3 +296,91 @@ async def test_raw_response_stream_async_buffered_allow(mock_execute_request, as
 
     assert chunks
     assert mock_execute_request.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Plain-generator streams (OpenAI SDK <1.6)
+#
+# SDKs older than 1.6 never produce a TracedStream — the contrib returns a raw
+# (async) generator. These must still be buffered+evaluated, not forwarded live.
+# Tested by driving ``_make_openai_stream_wrappers`` directly so the case is
+# covered regardless of the installed SDK version in the test matrix.
+# ---------------------------------------------------------------------------
+
+
+def _record_eval():
+    evaluated = []
+
+    def reconstruct(chunks):
+        return {"reconstructed": list(chunks)}
+
+    def evaluate_after(client, kwargs, resp):
+        evaluated.append(resp)
+
+    return evaluated, reconstruct, evaluate_after
+
+
+def test_plain_generator_sync_buffered():
+    """A sync plain generator (SDK <1.6) is wrapped, evaluated once, then replayed."""
+    evaluated, reconstruct, evaluate_after = _record_eval()
+    sync_wrapper, _ = _make_openai_stream_wrappers(object(), reconstruct, evaluate_after)
+
+    fake_chunks = ["a", "b", "c"]
+
+    def func(*args, **kwargs):
+        def gen():
+            yield from fake_chunks
+
+        return gen()
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        result = sync_wrapper(func, None, (), {"stream": True})
+        assert isinstance(result, BufferedAIGuardStream)
+        replayed = list(result)  # drains, evaluates, then replays
+    assert replayed == fake_chunks
+    assert evaluated == [{"reconstructed": fake_chunks}]  # evaluated before replay
+
+
+def test_plain_generator_sync_dispatches_async_for_async_generator():
+    """A sync method returning an async generator dispatches to the async buffer."""
+    _, reconstruct, evaluate_after = _record_eval()
+    sync_wrapper, _ = _make_openai_stream_wrappers(object(), reconstruct, evaluate_after)
+
+    async def agen():
+        yield "z"
+
+    result = sync_wrapper(lambda *a, **k: agen(), None, (), {"stream": True})
+    assert isinstance(result, BufferedAIGuardAsyncStream)
+
+
+@pytest.mark.asyncio
+async def test_plain_generator_async_buffered():
+    """An async plain generator (SDK <1.6) is wrapped, evaluated once, then replayed."""
+    evaluated, reconstruct, evaluate_after = _record_eval()
+    _, async_wrapper = _make_openai_stream_wrappers(object(), reconstruct, evaluate_after)
+
+    fake_chunks = ["x", "y"]
+
+    async def func(*args, **kwargs):
+        async def agen():
+            for chunk in fake_chunks:
+                yield chunk
+
+        return agen()
+
+    with override_ai_guard_config(dict(_ai_guard_analyze_stream_responses_enabled=True)):
+        result = await async_wrapper(func, None, (), {"stream": True})
+        assert isinstance(result, BufferedAIGuardAsyncStream)
+        collected = [chunk async for chunk in result]
+    assert collected == fake_chunks
+    assert evaluated == [{"reconstructed": fake_chunks}]
+
+
+def test_non_stream_result_not_wrapped():
+    """A non-stream return value (not a TracedStream, not a generator) passes through unwrapped."""
+    _, reconstruct, evaluate_after = _record_eval()
+    sync_wrapper, _ = _make_openai_stream_wrappers(object(), reconstruct, evaluate_after)
+
+    sentinel = object()
+    result = sync_wrapper(lambda *a, **k: sentinel, None, (), {})
+    assert result is sentinel

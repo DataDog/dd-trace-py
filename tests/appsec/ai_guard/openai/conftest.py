@@ -49,6 +49,17 @@ def _ai_guard_session_init():
         yield
 
 
+def _responses_api_available() -> bool:
+    """True if the installed OpenAI SDK exposes the Responses API (added in ~1.66).
+
+    Older SDKs (e.g. the 1.3.0 pin that exercises the plain-generator streaming path)
+    have no ``responses`` resource, so fixtures that build a Responses client skip.
+    """
+    import openai
+
+    return hasattr(getattr(openai, "resources", None), "responses")
+
+
 @pytest.fixture
 def openai_sdk():
     # Force a dummy API key unconditionally: tests hit the testagent VCR / mock
@@ -122,10 +133,24 @@ def async_openai_client(openai_sdk, openai_url):
 
 
 def _fake_stream_chunks() -> bytes:
+    # ``index`` is required on each choice: openai <1.6 has no default for it, so the
+    # contrib's ``_loop_handler`` (``streamed_chunks[choice.index]``) raises on None.
     chunks = [
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"role": "assistant"}}]},
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {"content": "Hi"}}]},
-        {"id": "chatcmpl-test", "object": "chat.completion.chunk", "choices": [{"delta": {}, "finish_reason": "stop"}]},
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"role": "assistant"}}],
+        },
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {"content": "Hi"}}],
+        },
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+        },
     ]
     lines = [b"data: " + json.dumps(chunk).encode() + b"\n\n" for chunk in chunks]
     lines.append(b"data: [DONE]\n\n")
@@ -344,6 +369,8 @@ class _AsyncResponsesStreamMockTransport(httpx.AsyncBaseTransport):
 
 @pytest.fixture
 def openai_responses_stream_client(openai_sdk):
+    if not _responses_api_available():
+        pytest.skip("Responses API requires openai>=1.66")
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
@@ -352,6 +379,8 @@ def openai_responses_stream_client(openai_sdk):
 
 @pytest.fixture
 def openai_responses_stream_client_buffered(openai_sdk_buffered):
+    if not _responses_api_available():
+        pytest.skip("Responses API requires openai>=1.66")
     return openai_sdk_buffered.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
@@ -360,6 +389,8 @@ def openai_responses_stream_client_buffered(openai_sdk_buffered):
 
 @pytest.fixture
 def async_openai_responses_stream_client_buffered(openai_sdk_buffered):
+    if not _responses_api_available():
+        pytest.skip("Responses API requires openai>=1.66")
     return openai_sdk_buffered.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncResponsesStreamMockTransport()),
@@ -500,6 +531,8 @@ class _AsyncResponseMockTransport(httpx.AsyncBaseTransport):
 
 @pytest.fixture
 def openai_responses_client_mock(openai_sdk):
+    if not _responses_api_available():
+        pytest.skip("Responses API requires openai>=1.66")
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponseMockTransport()),
@@ -508,6 +541,8 @@ def openai_responses_client_mock(openai_sdk):
 
 @pytest.fixture
 def async_openai_responses_client_mock(openai_sdk):
+    if not _responses_api_available():
+        pytest.skip("Responses API requires openai>=1.66")
     return openai_sdk.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncResponseMockTransport()),
