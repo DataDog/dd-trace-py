@@ -5,8 +5,9 @@ import pytest
 
 class TestPytest:
     @pytest.fixture(autouse=True)
-    def fixtures(self, testdir):
+    def fixtures(self, testdir, monkeypatch):
         self.testdir = testdir
+        self.monkeypatch = monkeypatch
 
     @pytest.mark.skipif(
         sys.version_info >= (3, 11, 0),
@@ -28,5 +29,6 @@ class TestPytest:
         """
         )
         file_name = py_file.strpath
+        self.monkeypatch.setenv("DD_CIVISIBILITY_FLAKY_RETRY_ENABLED", "0")
         rec = self.testdir.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
