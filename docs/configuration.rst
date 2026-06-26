@@ -635,6 +635,15 @@ AI Guard
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
 
+   DD_AI_GUARD_OPENAI_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the OpenAI SDK. When set to
+       ``True`` (default) and AI Guard is enabled, OpenAI calls are evaluated. Set to ``False`` to
+       disable AI Guard instrumentation for OpenAI only, without affecting other providers or
+       requiring a tracer version rollback.
+
 Code Security
 -------------
 

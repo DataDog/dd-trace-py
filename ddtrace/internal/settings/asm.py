@@ -353,6 +353,8 @@ class AIGuardConfig(DDConfig):
     _ai_guard_analyze_stream_responses_enabled = DDConfig.var(
         bool, AI_GUARD.ENV_ANALYZE_STREAM_RESPONSES_ENABLED, default=False
     )
+    # Per-LLM kill switch: disables OpenAI AI Guard auto-instrumentation when false.
+    _ai_guard_openai_enabled = DDConfig.var(bool, AI_GUARD.ENV_OPENAI_ENABLED, default=True)
 
     # for tests purposes
     _ai_guard_config_keys = [
@@ -363,6 +365,7 @@ class AIGuardConfig(DDConfig):
         "_ai_guard_max_messages_length",
         "_ai_guard_timeout",
         "_ai_guard_analyze_stream_responses_enabled",
+        "_ai_guard_openai_enabled",
     ]
 
     def reset(self):
