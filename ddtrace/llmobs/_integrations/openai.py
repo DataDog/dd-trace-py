@@ -49,7 +49,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             "createResponse",
             "parseChatCompletion",
             "parseResponse",
-            "createRealtimeSession",
             "createRealtimeResponse",
         )
         if operation_id in traced_operations:
@@ -174,20 +173,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             metadata={"tool_id": tool_id},
         )
 
-    def _llmobs_set_tags_from_realtime_session(
-        self, span: Span, model_name: Optional[str], metadata: Optional[dict[str, Any]]
-    ) -> None:
-        """Tag the long-lived Realtime session span (workflow kind)."""
-        provider = span.get_tag("openai.request.provider") or "OpenAI"
-        _annotate_llmobs_span_data(
-            span,
-            name="{}.{}".format(provider, span.resource) if span.resource else None,
-            kind="workflow",
-            model_name=model_name or "unknown_model",
-            model_provider=self._get_model_provider(span),
-            metadata=metadata or {},
-        )
-
     def _llmobs_set_tags_from_realtime_response(
         self,
         span: Span,
@@ -196,8 +181,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         output_messages: list[Any],
         metadata: Optional[dict[str, Any]],
         metrics: Optional[dict[str, Any]],
+        session_id: Optional[str] = None,
     ) -> None:
-        """Tag a per-response Realtime child span (llm kind) built by the realtime state machine."""
+        """Tag a per-turn Realtime span (llm kind) built by the realtime state machine.
+
+        Each turn is its own trace; ``session_id`` groups all turns of one connection into a single
+        conversation in the UI (there is no parent session span).
+        """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         _annotate_llmobs_span_data(
             span,
@@ -209,6 +199,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             output_messages=output_messages or None,
             metadata=metadata or {},
             metrics=metrics or None,
+            session_id=session_id,
         )
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):

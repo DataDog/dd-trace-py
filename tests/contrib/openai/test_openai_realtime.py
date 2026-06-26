@@ -53,13 +53,12 @@ class _RecordingIntegration:
 
     def __init__(self):
         self.responses = []
-        self.sessions = []
 
     def trace(self, operation_id, **kwargs):
         return _FakeSpan(operation_id)
 
     def _llmobs_set_tags_from_realtime_response(
-        self, span, model_name, input_messages, output_messages, metadata, metrics
+        self, span, model_name, input_messages, output_messages, metadata, metrics, session_id=None
     ):
         self.responses.append(
             {
@@ -69,16 +68,14 @@ class _RecordingIntegration:
                 "output_messages": output_messages,
                 "metadata": metadata,
                 "metrics": metrics,
+                "session_id": session_id,
             }
         )
-
-    def _llmobs_set_tags_from_realtime_session(self, span, model_name, metadata):
-        self.sessions.append({"span": span, "model_name": model_name, "metadata": metadata})
 
 
 def _new_state(model=None):
     integration = _RecordingIntegration()
-    state = _RealtimeState(integration, _FakeSpan("createRealtimeSession"), client=None, model=model)
+    state = _RealtimeState(integration, client=None, model=model)
     return integration, state
 
 
@@ -155,21 +152,29 @@ def test_realtime_state_pcm_turn_wraps_audio_as_wav():
     assert resp["span"].finished is True
 
 
-def test_realtime_state_session_metadata_on_close():
-    """The session span is tagged with the session config and finished on close."""
+def test_realtime_state_turn_carries_session_metadata_and_id():
+    """Each turn span carries the session config as metadata and a stable session_id (no session span)."""
     integration, state = _new_state()
     _drive_turn(state)
-    state.finish_session()
 
-    assert integration.sessions, "expected the session span to be tagged"
-    session = integration.sessions[-1]
-    assert session["model_name"] == "gpt-realtime"
-    assert session["metadata"]["voice"] == "alloy"
-    assert session["metadata"]["input_audio_format"] == "audio/pcm"
-    assert session["metadata"]["output_audio_format"] == "audio/pcm"
-    assert session["metadata"]["instructions"] == "be brief"
-    assert session["metadata"]["output_modalities"] == ["audio"]
-    assert state._session_span.finished is True
+    resp = integration.responses[0]
+    assert resp["metadata"]["voice"] == "alloy"
+    assert resp["metadata"]["input_audio_format"] == "audio/pcm"
+    assert resp["metadata"]["output_audio_format"] == "audio/pcm"
+    assert resp["metadata"]["instructions"] == "be brief"
+    assert resp["metadata"]["output_modalities"] == ["audio"]
+    # session_id groups turns into one conversation; it's stable for the connection.
+    assert resp["session_id"] == state._session_id
+    assert resp["session_id"]
+
+
+def test_realtime_state_session_id_stable_across_turns():
+    """All turns on one connection share the same session_id so the UI groups them."""
+    integration, state = _new_state()
+    _drive_turn(state)
+    _drive_turn(state)
+    assert len(integration.responses) == 2
+    assert integration.responses[0]["session_id"] == integration.responses[1]["session_id"]
 
 
 def test_realtime_state_renderable_audio_emits_audio_parts():
@@ -197,11 +202,12 @@ def test_realtime_state_failed_response_marks_error():
 
 
 def test_realtime_state_close_is_idempotent():
-    """Closing twice only finishes/tags the session once."""
-    integration, state = _new_state(model="gpt-realtime")
+    """Closing twice doesn't re-finalize turns or raise."""
+    integration, state = _new_state()
+    _drive_turn(state)  # one fully-finalized turn
     state.finish_session()
     state.finish_session()
-    assert len(integration.sessions) == 1
+    assert len(integration.responses) == 1
 
 
 def test_realtime_state_pcm_audio_only_wraps_as_wav_without_transcript():
@@ -257,7 +263,67 @@ def test_realtime_state_close_tags_in_flight_response():
     resp = integration.responses[0]
     assert resp["output_messages"] == [{"role": "assistant", "content": "partial "}]
     assert resp["span"].finished is True
-    assert state._session_span.finished is True
+
+
+def test_realtime_state_defers_finalization_until_transcript():
+    """If input transcription lands after response.done, the span is held then finalized with it."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="item_1"))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r1", transcript="noon"))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(id="r1", status="completed", usage=_ns(input_tokens=1, output_tokens=2, total_tokens=3)),
+        )
+    )
+    # transcription hasn't arrived yet -> the turn is held, not finalized
+    assert integration.responses == []
+
+    # the late transcription arrives -> the held turn is finalized with it
+    state.on_server_event(
+        _ns(
+            type="conversation.item.input_audio_transcription.completed",
+            item_id="item_1",
+            transcript="what time is it?",
+        )
+    )
+    assert len(integration.responses) == 1
+    resp = integration.responses[0]
+    assert resp["input_messages"][0]["content"] == "what time is it?"
+    assert resp["span"].finished is True
+
+
+def test_realtime_state_awaiting_flushed_on_next_turn():
+    """A turn still awaiting a transcription is flushed when the next turn starts (no hang)."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="item_1"))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    assert integration.responses == []  # held, awaiting transcription
+
+    # next turn begins -> the prior turn is finalized (without a transcript; audio kept)
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+    assert len(integration.responses) == 1
+    assert integration.responses[0]["input_messages"][0]["audio_parts"][0]["mime_type"] == "audio/wav"
+
+
+def test_realtime_state_awaiting_flushed_on_close():
+    """A turn awaiting a transcription is flushed on session close."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="item_1"))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    assert integration.responses == []
+
+    state.finish_session()
+    assert len(integration.responses) == 1
 
 
 def test_realtime_state_input_buffer_clear_discards_audio():
@@ -371,7 +437,7 @@ def _server_messages():
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
-    """A full realtime turn over the patched connection produces a session + response span."""
+    """A full realtime turn over the patched connection produces one per-turn llm span."""
     messages = _server_messages()
     fake_ws = _FakeWebSocket(messages)
     conn = RealtimeConnection(fake_ws)
@@ -388,16 +454,15 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
     conn.close()
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    by_resource = {s.resource: s for s in spans}
-    assert "createRealtimeSession" in by_resource
-    assert "createRealtimeResponse" in by_resource
+    # No session span anymore — just the per-turn llm span.
+    assert [s.resource for s in spans] == ["createRealtimeResponse"]
 
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
     from tests.llmobs._utils import assert_llmobs_span_data
 
-    response_span = by_resource["createRealtimeResponse"]
+    data = _get_llmobs_data_metastruct(spans[0])
     assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(response_span),
+        data,
         span_kind="llm",
         name="OpenAI.createRealtimeResponse",
         model_name="gpt-realtime-2025",
@@ -411,14 +476,9 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
         ],
         output_messages=[{"role": "assistant", "content": "It's noon."}],
         metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
-    )
-
-    # The session span is a workflow span, so model fields are projected away; assert config metadata.
-    session_span = by_resource["createRealtimeSession"]
-    session_data = _get_llmobs_data_metastruct(session_span)
-    assert_llmobs_span_data(
-        session_data,
-        span_kind="workflow",
-        name="OpenAI.createRealtimeSession",
+        # session config rides on each turn span as metadata now.
         metadata={"voice": "alloy", "output_audio_format": "audio/pcm", "input_audio_format": "audio/pcm"},
     )
+
+    # The turn is grouped into a conversation via session_id.
+    assert data.get("session_id")

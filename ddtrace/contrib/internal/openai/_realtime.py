@@ -3,11 +3,20 @@
 The Realtime API is not request/response, so it can't reuse the streaming path. Instead we wrap
 the connection's ``send``/``parse_event``/``close`` methods (all typed sub-resource sends funnel
 through ``RealtimeConnection.send``, and ``recv``/iteration/``recv_bytes()`` all funnel through
-``parse_event``) and feed each observed event into a ``_RealtimeState`` machine:
+``parse_event``) and feed each observed event into a ``_RealtimeState`` machine.
 
-- a long-lived **session span** (workflow) spanning connect -> close, tagged with session config.
-- a per-turn **llm child span** started on ``response.created`` and finished on ``response.done``,
-  carrying the user/assistant transcripts, audio, and token usage for that turn.
+Each conversation **turn** becomes its own **llm span** (started on ``response.created``), carrying
+the user/assistant transcripts, audio, and token usage for that turn. Every turn span is annotated
+with a per-connection ``session_id`` so the UI groups them into one conversation — there is no
+parent "session" span, which keeps each trace one turn small (no accumulation toward the per-event
+size budget) and renders cleanly. (If the caller wraps the connection in their own ``LLMObs``
+context, the turn spans naturally nest under it.)
+
+A turn span is finalized on ``response.done`` — except that the user's input transcription
+(``conversation.item.input_audio_transcription.completed``) is asynchronous and frequently arrives
+*after* ``response.done``, so when the transcript isn't ready yet we hold the span open and finalize
+it once the transcription lands (matched by input ``item_id``), with fallbacks on the next
+``response.created`` or on close so a span can never leak.
 
 Realtime audio is raw PCM16 (24kHz mono) by default, which the UI can't render directly, so we wrap
 it in a WAV container (lossless, just a header) and emit a playable ``audio/wav`` ``audio_part``
@@ -15,9 +24,6 @@ alongside the transcript. Audio over the per-span-event size budget is dropped (
 G.711 (``audio/pcmu``/``audio/pcma``) is not yet wrapped.
 
 Known limitations (deferred by design):
-- Input audio transcription that completes *after* ``response.done`` is not back-filled onto the
-  (already finished) response span; the transcript is dropped for that turn. Transcription normally
-  completes before the response does.
 - Out-of-band responses created with an inline ``response.create.response.input`` are not paired
   with that explicit input; their input message reflects the pending conversation turn instead.
 - A single pending-input turn is tracked, so multiple committed items or overlapping/parallel
@@ -29,6 +35,7 @@ import importlib
 from types import SimpleNamespace
 from typing import Any
 from typing import Optional
+import uuid
 
 import openai
 
@@ -94,17 +101,18 @@ class _ResponseTurn:
         self.usage: Any = None
         self.model: Optional[str] = None
         self.status: Optional[str] = None
-        self.span = None
+        self.span: Any = None
 
 
 class _RealtimeState:
-    """Drives session + per-response LLMObs spans off the realtime event stream."""
+    """Drives per-turn LLMObs spans (grouped by session_id) off the realtime event stream."""
 
-    def __init__(self, integration: Any, session_span: Any, client: Any = None, model: Optional[str] = None) -> None:
+    def __init__(self, integration: Any, client: Any = None, model: Optional[str] = None) -> None:
         self._integration = integration
-        self._session_span = session_span
         self._client = client
         self._model = model
+        # Per-connection id used to group every turn span into one conversation in the UI.
+        self._session_id = uuid.uuid4().hex
         self._session_config: dict[str, Any] = {}
         self._input_audio_mime: str = ""
         self._output_audio_mime: str = ""
@@ -114,6 +122,8 @@ class _RealtimeState:
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
+        # Turns whose response is done but whose input transcription hasn't arrived yet.
+        self._awaiting: list[Any] = []
         self._closed = False
 
     # -- event entry points -------------------------------------------------
@@ -154,6 +164,11 @@ class _RealtimeState:
                     self._input_transcripts[item_id] = transcript
                 if self._pending_input.item_id == item_id and not self._pending_input.transcript:
                     self._pending_input.transcript = transcript
+                # A finished turn may have been waiting on exactly this transcript — finalize it now.
+                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
+                    turn.input.transcript = turn.input.transcript or transcript
+                    self._awaiting.remove(turn)
+                    self._finalize_turn(turn)
                 return
             if event_type == "response.created":
                 response = _get_attr(event, "response", None)
@@ -192,14 +207,18 @@ class _RealtimeState:
     def _start_response(self, response_id: Optional[str]) -> None:
         if response_id is None:
             return
+        # A new turn starting means a prior turn's input transcription is almost certainly not coming
+        # anymore — flush anything still waiting so its span doesn't hang.
+        self._flush_awaiting()
         turn = _ResponseTurn(self._pending_input)
         self._pending_input = _InputTurn()
         turn.model = self._model
         try:
+            # No parent_context: each turn is its own root trace, grouped by session_id (or nested
+            # under the caller's own LLMObs context if there is one).
             turn.span = self._integration.trace(
                 "createRealtimeResponse",
                 instance=SimpleNamespace(_client=self._client),
-                parent_context=self._session_span,
                 activate=False,
             )
         except Exception:
@@ -217,52 +236,45 @@ class _RealtimeState:
         turn.status = _get_attr(response, "status", None)
         if not turn.input.transcript and turn.input.item_id is not None:
             turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
-        if turn.span is not None:
-            try:
-                if turn.status == "failed":
-                    turn.span.error = 1
-                self._tag_response(turn)
-            except Exception:
-                log.debug("error tagging realtime response span", exc_info=True)
-            finally:
-                turn.span.finish()
+        # If this turn had input audio but its transcription hasn't arrived yet, hold the span open
+        # and finalize it when the transcription lands (or on the next turn / close as a fallback).
+        if not turn.input.transcript and turn.input.item_id is not None:
+            self._awaiting.append(turn)
+            return
+        self._finalize_turn(turn)
+
+    def _flush_awaiting(self) -> None:
+        for turn in self._awaiting:
+            self._finalize_turn(turn)
+        self._awaiting = []
 
     def finish_session(self) -> None:
         if self._closed:
             return
         self._closed = True
-        # Tag any in-flight turns (closed before ``response.done``) with whatever partial data we
-        # have so they aren't submitted as empty llm spans.
+        # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
+        # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
+        self._flush_awaiting()
         for turn in list(self._responses.values()):
-            if turn.span is None:
-                continue
-            try:
-                if not turn.input.transcript and turn.input.item_id is not None:
-                    turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
-                self._tag_response(turn)
-            except Exception:
-                log.debug("error tagging in-flight realtime response span", exc_info=True)
-            finally:
-                turn.span.finish()
+            if not turn.input.transcript and turn.input.item_id is not None:
+                turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
+            self._finalize_turn(turn)
         self._responses.clear()
         self._input_transcripts.clear()
-        try:
-            self._integration._llmobs_set_tags_from_realtime_session(
-                self._session_span, self._model, self._session_metadata()
-            )
-        except Exception:
-            log.debug("error tagging realtime session span", exc_info=True)
-        self._session_span.finish()
 
     # -- tagging helpers ----------------------------------------------------
 
-    def tag_session(self) -> None:
+    def _finalize_turn(self, turn: _ResponseTurn) -> None:
+        if turn.span is None:
+            return
         try:
-            self._integration._llmobs_set_tags_from_realtime_session(
-                self._session_span, self._model, self._session_metadata()
-            )
+            if turn.status == "failed":
+                turn.span.error = 1
+            self._tag_response(turn)
         except Exception:
-            log.debug("error tagging realtime session span", exc_info=True)
+            log.debug("error tagging realtime response span", exc_info=True)
+        finally:
+            turn.span.finish()
 
     def _tag_response(self, turn: _ResponseTurn) -> None:
         input_message = self._build_message(
@@ -284,8 +296,9 @@ class _RealtimeState:
             turn.model,
             [input_message] if input_message else [],
             [output_message] if output_message else [],
-            metadata={},
+            metadata=self._session_metadata(),
             metrics=_usage_metrics(turn.usage),
+            session_id=self._session_id,
         )
 
     def _build_message(
@@ -358,8 +371,6 @@ class _RealtimeState:
         if voice is not None:
             self._session_config["voice"] = str(voice)
 
-        self.tag_session()
-
     def _absorb_input_item(self, item: Any) -> None:
         if item is None:
             return
@@ -397,15 +408,8 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     return metrics or None
 
 
-def _start_realtime_session(integration: Any, client: Any, model: Optional[str], connection: Any) -> _RealtimeState:
-    session_span = integration.trace(
-        "createRealtimeSession",
-        instance=SimpleNamespace(_client=client),
-        activate=False,
-    )
-    state = _RealtimeState(integration, session_span, client=client, model=model)
-    state.tag_session()
-    return state
+def _start_realtime_state(integration: Any, client: Any, model: Optional[str]) -> _RealtimeState:
+    return _RealtimeState(integration, client=client, model=model)
 
 
 # -- wrappers ---------------------------------------------------------------
@@ -436,11 +440,11 @@ def _attach_session(instance, connection):
     if integration is None:
         return
     try:
-        connection._dd_realtime_state = _start_realtime_session(
-            integration, getattr(instance, "_dd_client", None), getattr(instance, "_dd_model", None), connection
+        connection._dd_realtime_state = _start_realtime_state(
+            integration, getattr(instance, "_dd_client", None), getattr(instance, "_dd_model", None)
         )
     except Exception:
-        log.debug("error starting realtime session span", exc_info=True)
+        log.debug("error starting realtime state", exc_info=True)
 
 
 def patched_enter(func, instance, args, kwargs):
