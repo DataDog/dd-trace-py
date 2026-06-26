@@ -49,15 +49,17 @@ def _ai_guard_session_init():
         yield
 
 
-def _responses_api_available() -> bool:
-    """True if the installed OpenAI SDK exposes the Responses API (added in ~1.66).
+@pytest.fixture
+def _require_responses_api():
+    """Skip when the installed OpenAI SDK lacks the Responses API (added in ~1.66).
 
-    Older SDKs (e.g. the 1.3.0 pin that exercises the plain-generator streaming path)
-    have no ``responses`` resource, so fixtures that build a Responses client skip.
+    Older SDKs (e.g. the 1.3.0 pin exercising the plain-generator streaming path) have no
+    ``responses`` resource, so any fixture building a Responses client requests this first.
     """
     import openai
 
-    return hasattr(getattr(openai, "resources", None), "responses")
+    if not hasattr(getattr(openai, "resources", None), "responses"):
+        pytest.skip("Responses API requires openai>=1.66")
 
 
 @pytest.fixture
@@ -368,9 +370,7 @@ class _AsyncResponsesStreamMockTransport(httpx.AsyncBaseTransport):
 
 
 @pytest.fixture
-def openai_responses_stream_client(openai_sdk):
-    if not _responses_api_available():
-        pytest.skip("Responses API requires openai>=1.66")
+def openai_responses_stream_client(openai_sdk, _require_responses_api):
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
@@ -378,9 +378,7 @@ def openai_responses_stream_client(openai_sdk):
 
 
 @pytest.fixture
-def openai_responses_stream_client_buffered(openai_sdk_buffered):
-    if not _responses_api_available():
-        pytest.skip("Responses API requires openai>=1.66")
+def openai_responses_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
     return openai_sdk_buffered.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponsesStreamMockTransport()),
@@ -388,9 +386,7 @@ def openai_responses_stream_client_buffered(openai_sdk_buffered):
 
 
 @pytest.fixture
-def async_openai_responses_stream_client_buffered(openai_sdk_buffered):
-    if not _responses_api_available():
-        pytest.skip("Responses API requires openai>=1.66")
+def async_openai_responses_stream_client_buffered(openai_sdk_buffered, _require_responses_api):
     return openai_sdk_buffered.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncResponsesStreamMockTransport()),
@@ -530,9 +526,7 @@ class _AsyncResponseMockTransport(httpx.AsyncBaseTransport):
 
 
 @pytest.fixture
-def openai_responses_client_mock(openai_sdk):
-    if not _responses_api_available():
-        pytest.skip("Responses API requires openai>=1.66")
+def openai_responses_client_mock(openai_sdk, _require_responses_api):
     return openai_sdk.OpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.Client(transport=_ResponseMockTransport()),
@@ -540,9 +534,7 @@ def openai_responses_client_mock(openai_sdk):
 
 
 @pytest.fixture
-def async_openai_responses_client_mock(openai_sdk):
-    if not _responses_api_available():
-        pytest.skip("Responses API requires openai>=1.66")
+def async_openai_responses_client_mock(openai_sdk, _require_responses_api):
     return openai_sdk.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncResponseMockTransport()),

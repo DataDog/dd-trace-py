@@ -51,10 +51,8 @@ def _is_async_traced_stream(result: Any) -> bool:
 
 
 def _is_plain_stream(result: Any) -> bool:
-    """Return True for a raw (async) generator stream.
-
-    Older SDKs (e.g. OpenAI <1.6) return a plain generator instead of a TracedStream,
-    so ``_is_traced_stream`` is False yet the stream must still be buffered.
+    """Return True for a raw (async) generator stream (e.g. OpenAI <1.6, which never
+    produces a TracedStream); such streams must still be buffered.
     """
     return inspect.isgenerator(result) or inspect.isasyncgen(result)
 
