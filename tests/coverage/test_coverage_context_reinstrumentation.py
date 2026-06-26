@@ -306,7 +306,7 @@ def test_context_after_session_coverage():
     called_in_session_main(1, 2)
     ModuleCodeCollector.stop_coverage()
 
-    session_covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines())  # type: ignore[union-attr]
+    session_covered = _get_relpath_dict(cwd_path, ModuleCodeCollector._instance._get_covered_lines())
 
     # Now use context-based coverage - should still get complete coverage
     with ModuleCodeCollector.CollectInContext() as context1:
@@ -369,6 +369,143 @@ def test_context_after_session_coverage():
         assert 2 in context2_covered["tests/coverage/included_path/in_context_lib.py"], (
             "Context 2 missing in_context_lib.py line 2 - re-instrumentation failed!"
         )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+def test_sequential_contexts_with_other_monitoring_tool():
+    """
+    Test that coverage from one context does not spill into the next when another
+    sys.monitoring tool is active (which disables the DISABLE optimisation).
+
+    This is the key regression test for the auto-detection logic: when another tool
+    (e.g. coverage.py) is registered, _event_handler returns None instead of DISABLE,
+    and restart_events() is not called.  Coverage isolation must still hold.
+    """
+    import os
+    from pathlib import Path
+    import sys
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    # Register another sys.monitoring tool BEFORE install, simulating coverage.py
+    # Pick a free slot that is not in the ddtrace candidate list to avoid interference
+    other_slot = 0
+    sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.callee import called_in_context_main
+    from tests.coverage.included_path.callee import called_in_session_main
+
+    # Context 1: Execute code and collect coverage for both functions
+    with ModuleCodeCollector.CollectInContext() as both_contexts:
+        called_in_session_main(1, 2)
+        called_in_context_main(3, 4)
+        both_contexts_covered = _get_relpath_dict(cwd_path, both_contexts.get_covered_lines())
+
+    # Context 2: Execute only the context code — must NOT contain session code coverage
+    with ModuleCodeCollector.CollectInContext() as context_context:
+        called_in_context_main(3, 4)
+        context_context_covered = _get_relpath_dict(cwd_path, context_context.get_covered_lines())
+
+    # Context 3: Execute only the session code — must NOT contain context code coverage
+    with ModuleCodeCollector.CollectInContext() as session_context:
+        called_in_session_main(1, 2)
+        session_context_covered = _get_relpath_dict(cwd_path, session_context.get_covered_lines())
+
+    # Clean up the fake tool
+    sys.monitoring.free_tool_id(other_slot)
+
+    # Same expected coverage as the no-overlap test
+    expected_both_contexts = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6, 10, 11, 13, 14},
+        "tests/coverage/included_path/lib.py": {1, 2, 5},
+        "tests/coverage/included_path/in_context_lib.py": {1, 2, 5},
+    }
+    expected_context_context = {
+        "tests/coverage/included_path/callee.py": {10, 11, 13, 14},
+        "tests/coverage/included_path/in_context_lib.py": {2},
+    }
+    expected_session_context = {
+        "tests/coverage/included_path/callee.py": {2, 3, 5, 6},
+        "tests/coverage/included_path/lib.py": {2},
+    }
+
+    assert_coverage_matches(both_contexts_covered, expected_both_contexts, file_level_mode, "Context 1 (both)")
+    assert_coverage_matches(context_context_covered, expected_context_context, file_level_mode, "Context 2 (context)")
+    assert_coverage_matches(session_context_covered, expected_session_context, file_level_mode, "Context 3 (session)")
+
+    if not file_level_mode:
+        # Critical isolation check: context 2 must NOT have lib.py (only called in session code)
+        assert "tests/coverage/included_path/lib.py" not in context_context_covered, (
+            "Context 2 should NOT have lib.py — coverage spilled from context 1!"
+        )
+        # Critical isolation check: context 3 must NOT have in_context_lib.py
+        assert "tests/coverage/included_path/in_context_lib.py" not in session_context_covered, (
+            "Context 3 should NOT have in_context_lib.py — coverage spilled from context 1!"
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+def test_repeated_execution_with_other_monitoring_tool():
+    """
+    Test that repeatedly executed code properly isolates coverage between contexts
+    when another sys.monitoring tool is active (DISABLE optimisation disabled).
+
+    Without DISABLE, events keep firing on every line execution.  This test verifies
+    that CoverageLines.add() idempotency and context-stack isolation still work correctly.
+    """
+    import os
+    from pathlib import Path
+    import sys
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    # Register another sys.monitoring tool
+    other_slot = 0
+    sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
+
+    install(include_paths=[include_path])
+
+    from tests.coverage.included_path.lib import called_in_session
+
+    # Context 1: Execute function multiple times
+    with ModuleCodeCollector.CollectInContext() as context1:
+        for i in range(3):
+            result1 = called_in_session(i, i + 1)
+            assert result1 == (i, i + 1)
+        context1_covered = _get_relpath_dict(cwd_path, context1.get_covered_lines())
+
+    # Context 2: Execute the SAME function again
+    with ModuleCodeCollector.CollectInContext() as context2:
+        for i in range(5):
+            result2 = called_in_session(i * 2, i * 3)
+            assert result2 == (i * 2, i * 3)
+        context2_covered = _get_relpath_dict(cwd_path, context2.get_covered_lines())
+
+    sys.monitoring.free_tool_id(other_slot)
+
+    # Both contexts should capture lib.py
+    expected_coverage = {"tests/coverage/included_path/lib.py": {2}}
+
+    assert_coverage_matches(context1_covered, expected_coverage, file_level_mode, "Context 1")
+    assert_coverage_matches(context2_covered, expected_coverage, file_level_mode, "Context 2")
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
@@ -437,3 +574,58 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
     # Verify context 3 captured the false branch
     assert_coverage_matches(context3_covered, {module_path: expected_lines_false_branch}, file_level_mode, "Context 3")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+def test_events_rearmed_when_other_tool_registers_after_early_execution():
+    """
+    Regression test: lines executed BEFORE another sys.monitoring tool registers must still
+    be captured in later per-test contexts.
+
+    Scenario (mirrors pytest with coverage report upload):
+    1. ModuleCodeCollector installed (DISABLE optimisation active, _use_disable_optimization=True).
+    2. Some workspace code is called — _event_handler returns DISABLE, silencing those line events.
+    3. Another sys.monitoring tool registers (simulating coverage.py in pytest_configure).
+    4. Per-test CollectInContext starts — update_disable_optimization() detects the other tool,
+       transitions True→False, and calls _rearm_all_events() to re-enable our disabled events
+       via set_local_events() (per-tool, does not affect the other tool).
+    5. The same code is called again inside the test context — events now fire and are recorded.
+
+    Without the _rearm_all_events() fix, step 5 would produce an empty ITR bitmap for those lines.
+    """
+    import os
+    from pathlib import Path
+    import sys
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    # Step 1: install collector with DISABLE optimisation active (no other tools yet)
+    install(include_paths=[include_path])
+
+    # Step 2: import and execute workspace code — events fire and return DISABLE
+    from tests.coverage.included_path.lib import called_in_session
+
+    called_in_session(0, 1)  # events for lib.py lines are now DISABLE'd
+
+    # Step 3: another monitoring tool registers (simulating coverage.py in pytest_configure)
+    other_slot = 0
+    sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
+
+    # Step 4 & 5: per-test context — must capture the same code executed in step 2
+    with ModuleCodeCollector.CollectInContext() as ctx:
+        called_in_session(2, 3)
+        covered = _get_relpath_dict(cwd_path, ctx.get_covered_lines())
+
+    sys.monitoring.free_tool_id(other_slot)
+
+    # lib.py line 2 (function body) must be in the per-test bitmap
+    expected = {"tests/coverage/included_path/lib.py": {2}}
+    assert_coverage_matches(covered, expected, file_level_mode, "Context after early-window DISABLE")

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI Visibility: Test Impact Analysis per-test coverage and coverage report upload can
+    now run simultaneously. ``CollectInContext`` now dynamically detects other
+    ``sys.monitoring`` tools (e.g. coverage.py) at the start of each test and disables
+    the ``DISABLE`` optimisation when any are present, so ``restart_events()`` is never
+    called in that case, leaving the other tool's monitoring state untouched.
