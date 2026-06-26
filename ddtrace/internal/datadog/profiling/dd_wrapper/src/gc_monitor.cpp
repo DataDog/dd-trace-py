@@ -261,6 +261,12 @@ constexpr size_t kRefTreeMaxNodes = 100'000;      // total nodes across the fore
 constexpr size_t kRefTreeMaxNodesPerRoot = 4'096; // hard cap on a single root's subtree
 constexpr size_t kRefTreeMinNodesPerRoot = 16;    // nodes reserved for *every* root
 
+// Bounds for the object-level graph capture + container-collapse pass. The
+// object graph preserves identity (one node per live PyObject*) so the collapse
+// can follow real references; these caps keep memory/CPU bounded on huge heaps.
+constexpr size_t kMaxObjectGraphEdges = 30'000'000;    // stop recording edges past this (safety valve)
+constexpr size_t kCollapseMaxVisitPerObject = 100'000; // max nodes visited collapsing one holder
+
 // {reference count, total shallow bytes} aggregated for one (holder, held) edge.
 using EdgeAgg = std::pair<uint64_t, uint64_t>;
 using AdjList = std::vector<std::pair<uint32_t, EdgeAgg>>;
@@ -282,6 +288,19 @@ shallow_size(PyObject* obj) noexcept
         }
     }
     return size > 0 ? static_cast<uint64_t>(size) : 0;
+}
+
+// True for the generic builtin container types whose *contents* are what an
+// application object effectively retains. The collapse pass steps *through*
+// these instead of recording an edge to them, so that a chain like
+// "BundleIndex.__dict__ -> {bundle-id dict} -> Bundle" is attributed to
+// BundleIndex as "BundleIndex -> Bundle" rather than disappearing into the
+// process-wide "dict" tally. The Py*_Check macros also match subclasses
+// (defaultdict, OrderedDict, named tuples, ...). GIL must be held.
+bool
+is_transparent_container(PyObject* obj) noexcept
+{
+    return PyDict_Check(obj) || PyList_Check(obj) || PyTuple_Check(obj) || PyAnySet_Check(obj);
 }
 
 // Recursively unroll the aggregated type graph into a tree rooted at `idx`.
@@ -326,25 +345,30 @@ build_subtree(uint32_t idx,
     on_path[idx] = 0;
 }
 
-// Walk every live (GC-tracked) object in `objs`, calling gc.get_referents on
-// each to discover which types its instances hold references to, and aggregate
-// the result into a "holder type -> held type" graph.  The graph is then
-// unrolled into a forest of trees (one per type that has live instances), so
-// that following a chain root -> child -> grandchild reads as "instances of the
-// root type hold references to instances of the child type, which in turn hold
-// references to instances of the grandchild type", together with how many such
-// references exist and how many shallow bytes they retain.
-//
-// Builds `type_table`/`type_counts` (instance counts) from scratch so that held
-// types that are not themselves GC-tracked (e.g. int/str) still get a name and
-// an index.  GIL must be held for the entire call.
+// Object-level reference graph captured under the GIL. Identity is preserved
+// (one node per live PyObject*) so the collapse pass can follow *real* object
+// references -- the .gcdump model -- instead of a lossy type->type aggregate
+// that washes container contents into the process-wide "dict"/"list" tally.
+struct ObjectGraph
+{
+    std::vector<uint32_t> node_type;                      // type index per node (into type_table)
+    std::vector<uint64_t> node_size;                      // shallow size per node
+    std::vector<char> node_transparent;                   // 1 if a generic container to step through
+    std::vector<std::pair<uint32_t, uint32_t>> raw_edges; // (holder node, referent node)
+    std::vector<uint64_t> type_sizes;                     // shallow byte sum per type (parallel to type_table)
+};
+
+// Phase A (GIL held): walk every live object in `objs`, calling gc.get_referents
+// once per object, and record the *object-level* reference graph into `g`
+// (preserving identity) plus the per-type instance counts/sizes. This is the
+// only phase that touches the Python API; the heavier graph processing runs
+// afterwards with the GIL released (see build_collapsed_forest).
 void
-build_reference_tree(PyObject* gc_mod,
-                     PyObject* objs,
-                     int max_depth,
-                     std::vector<std::string>& type_table,
-                     std::vector<uint32_t>& type_counts,
-                     std::vector<TreeNode>& forest)
+build_object_graph(PyObject* gc_mod,
+                   PyObject* objs,
+                   std::vector<std::string>& type_table,
+                   std::vector<uint32_t>& type_counts,
+                   ObjectGraph& g)
 {
     PyObject* get_referents = PyObject_GetAttrString(gc_mod, "get_referents");
     if (get_referents == nullptr) {
@@ -352,12 +376,11 @@ build_reference_tree(PyObject* gc_mod,
         return;
     }
 
-    std::vector<uint64_t> type_sizes;
     std::unordered_map<std::string, uint32_t> name_index;
     std::unordered_map<PyTypeObject*, uint32_t> ptr_index;
 
     // Resolve a type to its index in the parallel type_table/type_counts/
-    // type_sizes vectors, deduplicating by fully-qualified name.  Cached per
+    // type_sizes vectors, deduplicating by fully-qualified name. Cached per
     // PyTypeObject* so the (allocating) name lookup runs once per unique type.
     auto intern = [&](PyTypeObject* tp) -> uint32_t {
         auto pit = ptr_index.find(tp);
@@ -390,21 +413,45 @@ build_reference_tree(PyObject* gc_mod,
             idx = static_cast<uint32_t>(type_table.size());
             type_table.push_back(tname);
             type_counts.push_back(0);
-            type_sizes.push_back(0);
+            g.type_sizes.push_back(0);
             name_index.emplace(std::move(tname), idx);
         }
         ptr_index.emplace(tp, idx);
         return idx;
     };
 
-    std::unordered_map<uint64_t, EdgeAgg> edges;
+    // Intern one node per unique live PyObject*. Referents that are not in
+    // objs (e.g. untracked int/str leaves) still get a node so an edge can
+    // point at them, but they are never expanded (we only call get_referents on
+    // objects in the authoritative objs list).
+    std::unordered_map<PyObject*, uint32_t> obj_index;
+    auto add_node = [&](PyObject* o) -> uint32_t {
+        auto it = obj_index.find(o);
+        if (it != obj_index.end()) {
+            return it->second;
+        }
+        auto idx = static_cast<uint32_t>(g.node_type.size());
+        obj_index.emplace(o, idx);
+        g.node_type.push_back(intern(Py_TYPE(o)));
+        g.node_size.push_back(shallow_size(o));
+        g.node_transparent.push_back(is_transparent_container(o) ? 1 : 0);
+        return idx;
+    };
 
     Py_ssize_t n_objs = PyList_GET_SIZE(objs);
+    obj_index.reserve(static_cast<size_t>(n_objs) * 2);
+    g.node_type.reserve(static_cast<size_t>(n_objs));
+    g.node_size.reserve(static_cast<size_t>(n_objs));
+    g.node_transparent.reserve(static_cast<size_t>(n_objs));
+
     for (Py_ssize_t i = 0; i < n_objs; ++i) {
         PyObject* obj = PyList_GET_ITEM(objs, i); // borrowed
-        uint32_t hidx = intern(Py_TYPE(obj));
-        type_counts[hidx] += 1;
-        type_sizes[hidx] += shallow_size(obj);
+        uint32_t oi = add_node(obj);
+        // Live instance counts/bytes are tallied only for objects in the
+        // authoritative get_objects() set, mirroring the type-tally path.
+        uint32_t htype = g.node_type[oi];
+        type_counts[htype] += 1;
+        g.type_sizes[htype] += g.node_size[oi];
 
         PyObject* refs = PyObject_CallFunctionObjArgs(get_referents, obj, nullptr);
         if (refs != nullptr && PyList_Check(refs)) {
@@ -414,22 +461,123 @@ build_reference_tree(PyObject* gc_mod,
                 if (r == nullptr) {
                     continue;
                 }
-                uint32_t tidx = intern(Py_TYPE(r));
-                uint64_t key = (static_cast<uint64_t>(hidx) << 32) | tidx;
-                auto& agg = edges[key];
-                agg.first += 1;
-                agg.second += shallow_size(r);
+                if (g.raw_edges.size() >= kMaxObjectGraphEdges) {
+                    break; // safety valve on pathologically large heaps
+                }
+                uint32_t ri = add_node(r);
+                g.raw_edges.emplace_back(oi, ri);
             }
         }
         Py_XDECREF(refs);
         PyErr_Clear();
+        if (g.raw_edges.size() >= kMaxObjectGraphEdges) {
+            break;
+        }
     }
 
     Py_DECREF(get_referents);
+}
 
-    // Build the adjacency list, keeping each holder's edges sorted by retained
-    // bytes (desc) so the most memory-significant children come first -- they
-    // are the ones that survive the per-node child cap and node budget.
+// Phase B (GIL released): collapse generic containers on the object graph and
+// build the "holder type -> retained type" forest. Because the walk follows
+// real object references, container contents are attributed to the specific
+// holder that owns them (no process-wide pooling) and chains are real object
+// paths, not type-level stitching. Touches no Python API -- ints only.
+void
+build_collapsed_forest(const ObjectGraph& g,
+                       const std::vector<std::string>& type_table,
+                       const std::vector<uint32_t>& type_counts,
+                       int max_depth,
+                       std::vector<TreeNode>& forest)
+{
+    const size_t n_nodes = g.node_type.size();
+    const size_t n_types = type_table.size();
+    if (n_nodes == 0) {
+        return;
+    }
+
+    // Per-type exclusion flags (string work only -- safe with the GIL released).
+    std::vector<char> type_excluded(n_types, 0);
+    for (size_t i = 0; i < n_types; ++i) {
+        type_excluded[i] = is_excluded_type(type_table[i]) ? 1 : 0;
+    }
+
+    // CSR adjacency from the (holder -> referent) edge list via counting sort.
+    std::vector<uint32_t> adj_off(n_nodes + 1, 0);
+    for (const auto& e : g.raw_edges) {
+        adj_off[e.first + 1] += 1;
+    }
+    for (size_t i = 0; i < n_nodes; ++i) {
+        adj_off[i + 1] += adj_off[i];
+    }
+    std::vector<uint32_t> adj_nodes(g.raw_edges.size());
+    {
+        std::vector<uint32_t> fill(adj_off.begin(), adj_off.begin() + static_cast<std::ptrdiff_t>(n_nodes));
+        for (const auto& e : g.raw_edges) {
+            adj_nodes[fill[e.first]++] = e.second;
+        }
+    }
+
+    // Collapse: from every opaque (non-container), non-excluded holder object,
+    // walk through transparent referents (its __dict__, the dicts/lists/sets it
+    // owns, ...) and record an edge holder_type -> first opaque type reached.
+    // Stop at opaque objects (their own edges are recorded when *they* are the
+    // holder). Edges to excluded "node eater" types are dropped so the tree is
+    // pure application data.
+    std::unordered_map<uint64_t, EdgeAgg> edges;
+    std::vector<uint32_t> seen(n_nodes, 0); // epoch stamp per node (0 = unseen)
+    uint32_t epoch = 0;
+    std::vector<uint32_t> stack;
+
+    for (uint32_t src = 0; src < n_nodes; ++src) {
+        if (g.node_transparent[src] != 0) {
+            continue; // containers are stepped through, never a holder root
+        }
+        uint32_t htype = g.node_type[src];
+        if (type_excluded[htype] != 0) {
+            continue;
+        }
+        ++epoch;
+        seen[src] = epoch;
+        stack.clear();
+        for (uint32_t e = adj_off[src]; e < adj_off[src + 1]; ++e) {
+            stack.push_back(adj_nodes[e]);
+        }
+        size_t visited = 0;
+        while (!stack.empty()) {
+            uint32_t cur = stack.back();
+            stack.pop_back();
+            if (seen[cur] == epoch) {
+                continue;
+            }
+            seen[cur] = epoch;
+            if (++visited > kCollapseMaxVisitPerObject) {
+                break;
+            }
+            if (g.node_transparent[cur] != 0) {
+                for (uint32_t e = adj_off[cur]; e < adj_off[cur + 1]; ++e) {
+                    uint32_t nxt = adj_nodes[e];
+                    if (seen[nxt] != epoch) {
+                        stack.push_back(nxt);
+                    }
+                }
+                continue;
+            }
+            // Reached an opaque object: record the collapsed edge once per
+            // holder (the epoch-dedup guarantees once), then stop -- do not
+            // descend through application objects.
+            uint32_t ttype = g.node_type[cur];
+            if (type_excluded[ttype] == 0) {
+                uint64_t key = (static_cast<uint64_t>(htype) << 32) | ttype;
+                auto& agg = edges[key];
+                agg.first += 1;
+                agg.second += g.node_size[cur];
+            }
+        }
+    }
+
+    // Build the type-level adjacency, each holder's edges sorted by retained
+    // bytes (desc) so the most memory-significant children come first.
     Adj adj;
     adj.reserve(edges.size());
     for (const auto& [key, agg] : edges) {
@@ -442,41 +590,32 @@ build_reference_tree(PyObject* gc_mod,
           lst.begin(), lst.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
     }
 
-    // Roots: every type with at least one live instance, minus the
-    // infrastructure / builtin "node eaters" filtered by is_excluded_type (a
-    // densely connected type such as "function" or "module" would otherwise
-    // consume the entire node budget by itself and crowd out every application
-    // type). Excluded types still appear as children of the types that
-    // reference them, so the relationships are not lost.
+    // Roots: every type with live instances, minus the infrastructure / builtin
+    // "node eaters" (is_excluded_type). Generic containers are excluded too, so
+    // the forest is rooted at application types. Heaviest first so the shared
+    // bonus budget is spent on the types that retain the most memory.
     std::vector<uint32_t> root_order;
-    root_order.reserve(type_counts.size());
-    for (uint32_t idx = 0; idx < type_counts.size(); ++idx) {
-        if (type_counts[idx] > 0 && !is_excluded_type(type_table[idx])) {
+    root_order.reserve(n_types);
+    for (uint32_t idx = 0; idx < n_types; ++idx) {
+        if (type_counts[idx] > 0 && type_excluded[idx] == 0) {
             root_order.push_back(idx);
         }
     }
-    // Heaviest first so the shared bonus budget below is spent on the types that
-    // retain the most memory.
     std::sort(
-      root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) { return type_sizes[a] > type_sizes[b]; });
+      root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) { return g.type_sizes[a] > g.type_sizes[b]; });
 
     // Budget policy. A single global cap lets one densely connected root eat the
-    // whole forest, starving every other type (the bug that hid application
-    // types from "rt"). Instead we split the global cap into:
-    //   * a per-root *floor* (kRefTreeMinNodesPerRoot) reserved for every root
-    //     up front, so even small, low-ranked application types -- the ones that
-    //     usually reveal a leak -- are guaranteed a subtree; and
-    //   * a shared *bonus* pool the heaviest roots draw from, each limited to
-    //     kRefTreeMaxNodesPerRoot total, so no single root can monopolise it.
-    // Every root therefore always appears, and total nodes stay <= kRefTreeMaxNodes.
+    // whole forest, starving every other type. Instead the global cap is split
+    // into a per-root *floor* (kRefTreeMinNodesPerRoot) reserved for every root
+    // so even small, low-ranked application types are guaranteed a subtree, plus
+    // a shared *bonus* pool the heaviest roots draw from, each limited to
+    // kRefTreeMaxNodesPerRoot. Every root appears; total nodes stay <= kRefTreeMaxNodes.
     const size_t n_roots = root_order.size();
-    std::vector<char> on_path(type_table.size(), 0);
+    std::vector<char> on_path(n_types, 0);
     forest.reserve(n_roots);
 
     if (n_roots != 0) {
         size_t floor = kRefTreeMinNodesPerRoot;
-        // If the floors alone would exceed the global cap, shrink the floor so
-        // every root still gets at least one node.
         if (floor * n_roots > kRefTreeMaxNodes) {
             floor = std::max<size_t>(1, kRefTreeMaxNodes / n_roots);
         }
@@ -484,20 +623,16 @@ build_reference_tree(PyObject* gc_mod,
         size_t bonus_pool = kRefTreeMaxNodes > reserved ? kRefTreeMaxNodes - reserved : 0;
 
         for (uint32_t idx : root_order) {
-            // Total nodes this root may grow to: its reserved floor plus
-            // whatever it can claim from the shared bonus pool, capped overall.
             const size_t headroom = kRefTreeMaxNodesPerRoot > floor ? kRefTreeMaxNodesPerRoot - floor : 0;
             const size_t cap = floor + std::min(bonus_pool, headroom);
 
-            // build_subtree always emits the root node itself (it sets the node
-            // fields before consulting the budget) and decrements the budget per
-            // *child*, so the children budget is cap minus the root node.
+            // build_subtree always emits the root node itself and decrements the
+            // budget per *child*, so the children budget is cap minus the root.
             size_t remaining = cap > 0 ? cap - 1 : 0;
             forest.emplace_back();
-            build_subtree(idx, type_counts[idx], type_sizes[idx], 0, max_depth, adj, on_path, remaining, forest.back());
+            build_subtree(
+              idx, type_counts[idx], g.type_sizes[idx], 0, max_depth, adj, on_path, remaining, forest.back());
 
-            // Account for the bonus actually spent; the floor portion is
-            // per-root and not returned to the shared pool.
             const size_t used = cap - remaining; // root node + children emitted
             const size_t bonus_used = used > floor ? used - floor : 0;
             bonus_pool -= bonus_used;
@@ -674,16 +809,20 @@ GCMonitor::take_snapshot()
 
     if (_referrers_enabled) {
         // --------------------------------------------------------------
-        // Reference-tree mode (GIL held for the whole walk).
+        // Reference-tree mode (.gcdump model).
         //
-        // gc.get_objects() materializes the live object list and owns a
-        // reference to every object, keeping them alive for the duration of the
-        // walk.  We then call gc.get_referents() on each object to learn which
-        // types its instances point at, aggregate the result into a "holder
-        // type -> held type" graph and unroll it into a forest of type trees.
-        // This is much heavier than the refcount-free type tally below (a Python
-        // call plus a temporary list per object), so it is gated behind the
-        // referrers flag.
+        // Phase A (GIL held): gc.get_objects() materializes the live object list
+        // and owns a reference to every object, keeping them alive for the walk.
+        // build_object_graph calls gc.get_referents() once per object and
+        // records the *object-level* reference graph (identity preserved). This
+        // is the only Python-touching phase, kept as short as possible.
+        //
+        // Phase B (GIL released): build_collapsed_forest collapses generic
+        // containers and unrolls the forest on the pure-C++ int graph, so the
+        // heavy processing does not block other Python threads. Because it
+        // follows real object references, container contents are attributed to
+        // the specific holder that owns them (e.g. BundleIndex -> Bundle), which
+        // a type-only aggregate cannot do. Gated behind the referrers flag.
         // --------------------------------------------------------------
         PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
         if (objs == nullptr || !PyList_Check(objs)) {
@@ -697,7 +836,8 @@ GCMonitor::take_snapshot()
         const auto t_walk_start = Clock::now();
         timing.get_objects_us = elapsed_us(t_get_objects_start, t_walk_start);
 
-        build_reference_tree(gc_mod, objs, _max_depth, type_table, type_counts, ref_tree);
+        ObjectGraph graph;
+        build_object_graph(gc_mod, objs, type_table, type_counts, graph);
 
         Py_DECREF(objs);
         Py_DECREF(gc_mod);
@@ -706,6 +846,9 @@ GCMonitor::take_snapshot()
         t_name_resolve_start = Clock::now();
         timing.type_scan_us = elapsed_us(t_walk_start, t_name_resolve_start);
         PyGILState_Release(gstate);
+
+        // Phase B runs with the GIL released (no Python API below this point).
+        build_collapsed_forest(graph, type_table, type_counts, _max_depth, ref_tree);
     } else {
         std::unordered_map<PyTypeObject*, uint32_t> type_hist;
 #if PY_VERSION_HEX >= 0x030C0000
