@@ -66,13 +66,7 @@ def _process_payloads(flare: Flare, state: TracerFlareState, payloads: t.Sequenc
                     else:
                         continue
                 flare.revert_configs()
-                # Avoid synchronous dispatching with the rust RC fetcher
-                threading.Thread(
-                    target=flare.send,
-                    args=(flare_action,),
-                    name="tracer-flare-send",
-                    daemon=True,
-                ).start()
+                flare.send(flare_action)
                 state.current_request_start = None
             elif flare_action.is_unset():
                 flare.revert_configs()

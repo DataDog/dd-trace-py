@@ -132,6 +132,7 @@ class RemoteConfigClient:
                 app_version=ddtrace.config.version or "",
                 tags=_build_tags(tracer_version),
                 process_tags=_build_process_tags(),
+                timeout_ms=int(agent_config.trace_agent_timeout_seconds * 1000),
                 test_session_token=_test_session_token(),
             )
             if self._capability_values:
