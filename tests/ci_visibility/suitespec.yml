@@ -71,6 +71,7 @@ suites:
       - '@codeowners'
       - '@testing'
       - tests/testing/*
+      - tests/contrib/pytest/*
       - tests/contrib/internal/coverage/*
     snapshot: true
   selenium:
