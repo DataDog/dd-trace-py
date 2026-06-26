@@ -9,6 +9,7 @@ import random
 import traceback
 import typing as t
 
+from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
@@ -75,12 +76,37 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-try:
-    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
-except AttributeError:
-    # Fallback for pytest < 7.0 - use a simple key
-    # (older pytest versions don't have StashKey)
+_HAS_STASH = hasattr(pytest, "Config") and hasattr(pytest.Config, "stash")
+
+if _HAS_STASH:
+    try:
+        SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    except AttributeError:
+        _HAS_STASH = False
+        SESSION_MANAGER_STASH_KEY = "session_manager_key"
+else:
+    # pytest < 7.0 does not have Config.stash; fall back to a plain attribute name
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+
+
+def _stash_set(config, key, value):
+    """Store a value on a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        config.stash[key] = value
+    else:
+        setattr(config, "_dd_" + str(key), value)
+
+
+def _stash_get(config, key, default=None):
+    """Retrieve a value from a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        return config.stash.get(key, default)
+    return getattr(config, "_dd_" + str(key), default)
+
 
 TEST_FRAMEWORK = "pytest"
 
@@ -1002,10 +1028,73 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
+        # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
+        # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
+        # If not, we perform the full setup+run+teardown lifecycle here.
+        if item.nodeid not in self.tests_by_nodeid:
+            return self._protocol_with_setup(item, nextitem)
+
         item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
         self._do_test_runs(item, nextitem)
         item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
         return True  # Do not run other pytest_runtest_protocol hooks after this one.
+
+    def _protocol_with_setup(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        """Full test protocol including lifecycle setup and teardown.
+
+        Used in pytest 6 where pluggy does not support the ``specname`` parameter on
+        ``@pytest.hookimpl``, so the base class ``pytest_runtest_protocol_wrapper``
+        (which relies on ``specname="pytest_runtest_protocol"``) never fires as a hookwrapper.
+        This method replicates the wrapper's behaviour inline so that EFD retries,
+        span tracking, and event emission all work correctly.
+        """
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
+
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
+        self.tests_by_nodeid[item.nodeid] = test
+        self._handle_itr(item, test_ref, test)
+        self._apply_test_management_markers(item, test)
+
+        with trace_context(self.enable_ddtrace_trace_filter) as _context:
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+            with coverage_collection() as coverage_data:
+                item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+                self._do_test_runs(item, nextitem)
+                item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+
+        test.finish()
+
+        self.manager.coverage_writer.put_coverage(
+            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+        )
+
+        if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
+            test_suite.finish()
+            self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+
+        if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
+            test_module.finish()
+            self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+        return True
 
 
 class RetryReports:
@@ -1079,7 +1168,7 @@ class RetryReports:
         if test.is_flaky_run():
             extra_user_properties += [("dd_flaky", True)]
 
-        final_report = pytest.TestReport(
+        final_report = TestReport(
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
@@ -1230,7 +1319,7 @@ def pytest_load_initial_conftests(
         yield
         return
 
-    early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
+    _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
     # NOTE: Coverage collection decision tree:
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
@@ -1272,7 +1361,7 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
