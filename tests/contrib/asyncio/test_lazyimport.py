@@ -18,23 +18,23 @@ def test_lazy_import():
     assert tracer.context_provider.active() is None
 
 
-@pytest.mark.subprocess()
-def test_asyncio_not_unloaded_by_module_cloning():
-    import asyncio  # noqa: F401
+def test_asyncio_event_loop_registration_with_module_cloning():
+    import os
+    import subprocess
     import sys
 
-    import ddtrace
-    from ddtrace.bootstrap import cloning
-
-    asyncio_module = sys.modules["asyncio"]
-    c_asyncio_module = sys.modules["_asyncio"]
-
-    # Drop asyncio from the import baseline so cleanup treats it as a candidate for
-    # unloading, as it would be when wrapt pulls it in during ddtrace-run setup.
-    ddtrace.LOADED_MODULES = frozenset(m for m in ddtrace.LOADED_MODULES if m not in ("asyncio", "_asyncio"))
-
-    cloning.enabled = True
-    cloning.cleanup_loaded_modules()
-
-    assert sys.modules.get("asyncio") is asyncio_module
-    assert sys.modules.get("_asyncio") is c_asyncio_module
+    # Run in a pristine interpreter (not pytest's, which pre-imports asyncio) so that
+    # asyncio is imported during ddtrace setup and is a genuine candidate for cleanup.
+    # DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE forces module cloning without gevent installed.
+    script = (
+        "import ddtrace.auto\n"
+        "import asyncio\n"
+        "loop = asyncio.new_event_loop()\n"
+        "asyncio.set_event_loop(loop)\n"
+        "assert asyncio.get_event_loop() is loop\n"
+        "print('OK')\n"
+    )
+    env = {**os.environ, "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "1"}
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert "OK" in result.stdout
