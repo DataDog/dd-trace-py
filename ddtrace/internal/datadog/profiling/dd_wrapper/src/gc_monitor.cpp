@@ -307,6 +307,15 @@ is_transparent_container(PyObject* obj) noexcept
 // `on_path` marks the types on the current root-to-node path so a type is never
 // expanded twice along the same chain (cycle guard).  `budget` caps the total
 // number of nodes emitted across the whole forest.
+//
+// Expansion is breadth-first within each node: every eligible direct child is
+// reserved (Phase 1) before any single child is deep-expanded (Phase 2). A
+// purely depth-first walk lets the heaviest child's subtree consume a node's
+// entire budget, hiding its lighter direct siblings entirely -- e.g. a
+// SignalBundler whose top child is the deep signal-class machinery (hung off an
+// aggregator map) would never show the BundleIndex it also holds. Reserving the
+// breadth first guarantees each holder lists all of its direct children, and
+// deep detail is what gets truncated when budget is tight instead.
 void
 build_subtree(uint32_t idx,
               uint64_t ic,
@@ -329,9 +338,14 @@ build_subtree(uint32_t idx,
         return;
     }
     on_path[idx] = 1;
-    size_t added = 0;
+
+    // Phase 1 (breadth): reserve a node for every eligible direct child first.
+    // Children are pre-sorted by retained bytes (desc), so the heaviest survive
+    // when budget is tight, but every direct child is emitted before deep
+    // expansion spends any budget.
+    std::vector<uint32_t> expand_child;
     for (const auto& [child, agg] : it->second) {
-        if (added >= kRefTreeMaxChildren || budget == 0) {
+        if (expand_child.size() >= kRefTreeMaxChildren || budget == 0) {
             break;
         }
         if (on_path[child] != 0) {
@@ -339,9 +353,26 @@ build_subtree(uint32_t idx,
         }
         --budget;
         out.children.emplace_back();
-        build_subtree(child, agg.first, agg.second, depth + 1, max_depth, adj, on_path, budget, out.children.back());
-        ++added;
+        TreeNode& node = out.children.back();
+        node.type_idx = child;
+        node.ic = agg.first;
+        node.ts = agg.second;
+        expand_child.push_back(child);
     }
+
+    // Phase 2 (depth): expand each reserved child in order while budget remains.
+    for (size_t k = 0; k < expand_child.size(); ++k) {
+        build_subtree(expand_child[k],
+                      out.children[k].ic,
+                      out.children[k].ts,
+                      depth + 1,
+                      max_depth,
+                      adj,
+                      on_path,
+                      budget,
+                      out.children[k]);
+    }
+
     on_path[idx] = 0;
 }
 
