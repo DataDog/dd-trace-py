@@ -81,6 +81,10 @@ else:
     COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
+OPTIONALS_DISABLED = os.getenv("_DD_OPTIONALS_DISABLED", "false").lower() in ("1", "yes", "on", "true")
+if OPTIONALS_DISABLED:
+    FAST_BUILD = True
+
 if FAST_BUILD:
     print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
 else:
@@ -1675,7 +1679,9 @@ if not IS_PYSTON:
             )
         )
         ext_modules.append(
-            CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
+            CMakeExtension(
+                "ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=OPTIONALS_DISABLED
+            )
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
@@ -1689,7 +1695,7 @@ if not IS_PYSTON:
                 "ddtrace.profiling.collector._memalloc",
                 source_dir=MEMALLOC_DIR,
                 cmake_args=memalloc_cmake_args,
-                optional=False,
+                optional=OPTIONALS_DISABLED,
             )
         )
 
@@ -1701,7 +1707,7 @@ if not IS_PYSTON:
                     DDUP_DIR / ".." / "cmake",
                     DDUP_DIR / ".." / "dd_wrapper",
                 ],
-                optional=False,
+                optional=OPTIONALS_DISABLED,
             )
         )
 
@@ -1713,7 +1719,7 @@ if not IS_PYSTON:
                     STACK_DIR / ".." / "cmake",
                     STACK_DIR / ".." / "dd_wrapper",
                 ],
-                optional=False,
+                optional=OPTIONALS_DISABLED,
             ),
         )
 
