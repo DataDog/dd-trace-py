@@ -22,9 +22,9 @@ from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
 from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
-from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import _encode_test_parameter
+from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
