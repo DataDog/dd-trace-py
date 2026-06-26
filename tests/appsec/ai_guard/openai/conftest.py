@@ -132,6 +132,49 @@ def _fake_stream_chunks() -> bytes:
     return b"".join(lines)
 
 
+def _fake_tool_call_stream_chunks() -> bytes:
+    """Stream a tool_call across deltas (name first, arguments second) — the shape that must
+    survive reconstruction so the buffered response evaluation actually sees the tool call.
+    """
+    chunks = [
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "type": "function",
+                                "function": {"name": "get_weather", "arguments": ""},
+                            }
+                        ],
+                    },
+                }
+            ],
+        },
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [
+                {"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"city": "Paris"}'}}]}}
+            ],
+        },
+        {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+        },
+    ]
+    lines = [b"data: " + json.dumps(chunk).encode() + b"\n\n" for chunk in chunks]
+    lines.append(b"data: [DONE]\n\n")
+    return b"".join(lines)
+
+
 def _fake_stream_response() -> httpx.Response:
     return httpx.Response(
         status_code=200,
@@ -148,6 +191,19 @@ class _StreamMockTransport(httpx.BaseTransport):
 class _AsyncStreamMockTransport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         return _fake_stream_response()
+
+
+def _fake_tool_call_stream_response() -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        headers={"content-type": "text/event-stream"},
+        stream=httpx.ByteStream(_fake_tool_call_stream_chunks()),
+    )
+
+
+class _ToolCallStreamMockTransport(httpx.BaseTransport):
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        return _fake_tool_call_stream_response()
 
 
 @pytest.fixture
@@ -179,6 +235,14 @@ def async_openai_client_stream_buffered(openai_sdk_buffered):
     return openai_sdk_buffered.AsyncOpenAI(
         api_key="<not-a-real-key>",
         http_client=httpx.AsyncClient(transport=_AsyncStreamMockTransport()),
+    )
+
+
+@pytest.fixture
+def openai_client_stream_tool_calls_buffered(openai_sdk_buffered):
+    return openai_sdk_buffered.OpenAI(
+        api_key="<not-a-real-key>",
+        http_client=httpx.Client(transport=_ToolCallStreamMockTransport()),
     )
 
 

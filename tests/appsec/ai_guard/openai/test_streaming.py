@@ -121,6 +121,24 @@ def test_chat_stream_flag_off_not_buffered(mock_execute_request, openai_client_s
     assert mock_execute_request.call_count == 1  # before-hook only
 
 
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_chat_stream_tool_calls_are_evaluated(mock_execute_request, openai_client_stream_tool_calls_buffered):
+    """A streamed tool_call must survive reconstruction and be evaluated, not silently dropped."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    stream = openai_client_stream_tool_calls_buffered.chat.completions.create(
+        model=CHAT_MODEL, messages=_user_messages(), stream=True
+    )
+    list(stream)
+
+    assert mock_execute_request.call_count == 2  # before-hook + buffered response
+    # The response evaluation (2nd call) must carry the reconstructed tool call.
+    response_messages = mock_execute_request.call_args_list[1].args[1]["data"]["attributes"]["messages"]
+    tool_calls = [tc for msg in response_messages for tc in (msg.get("tool_calls") or [])]
+    assert [tc["function"]["name"] for tc in tool_calls] == ["get_weather"]
+    assert tool_calls[0]["function"]["arguments"] == '{"city": "Paris"}'
+
+
 # ---------------------------------------------------------------------------
 # Chat Completions — async
 # ---------------------------------------------------------------------------
