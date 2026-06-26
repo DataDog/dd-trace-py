@@ -24,7 +24,7 @@ from ddtrace.vendor.debtcollector import deprecate
 config._add(
     "sqlalchemy",
     dict(
-        _default_service=schematize_service_name("sqlite"),
+        _default_service=schematize_service_name("sqlite"), # type: ignore[operator] 
     ),
 )
 
