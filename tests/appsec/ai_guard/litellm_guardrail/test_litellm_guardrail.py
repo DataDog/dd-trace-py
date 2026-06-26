@@ -264,19 +264,29 @@ class TestResolveBlock:
             g = DatadogAIGuardGuardrail(block=True)
             assert g._resolve_block({}) is True
 
-    def test_bool_true_overrides_default(self, guardrail_monitor):
+    def test_dynamic_true_strengthens_monitor_mode(self, guardrail_monitor):
+        """A request param may upgrade monitor mode to blocking."""
         assert guardrail_monitor._resolve_block({"block": True}) is True
 
-    def test_bool_false_overrides_default(self, guardrail):
-        assert guardrail._resolve_block({"block": False}) is False
+    def test_dynamic_false_cannot_weaken_blocking(self, guardrail):
+        """A request param must not be able to disable an enabled blocking policy."""
+        assert guardrail._resolve_block({"block": False}) is True
+
+    def test_dynamic_false_keeps_monitor_mode(self, guardrail_monitor):
+        """block=False in a request param leaves monitor mode unchanged (no weakening)."""
+        assert guardrail_monitor._resolve_block({"block": False}) is False
 
     @pytest.mark.parametrize("value", ["true", "True", "TRUE", "1", "yes"])
-    def test_truthy_strings(self, guardrail, value):
+    def test_truthy_strings_strengthen(self, guardrail_monitor, value):
+        assert guardrail_monitor._resolve_block({"block": value}) is True
+
+    @pytest.mark.parametrize("value", ["false", "False", "FALSE"])
+    def test_false_string_cannot_weaken_blocking(self, guardrail, value):
         assert guardrail._resolve_block({"block": value}) is True
 
     @pytest.mark.parametrize("value", ["false", "False", "FALSE"])
-    def test_false_string(self, guardrail, value):
-        assert guardrail._resolve_block({"block": value}) is False
+    def test_false_string_keeps_monitor_mode(self, guardrail_monitor, value):
+        assert guardrail_monitor._resolve_block({"block": value}) is False
 
 
 class TestRunAIGuardCheck:
@@ -327,11 +337,12 @@ class TestRunAIGuardCheck:
         assert exc_info.value.action == "ABORT"
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_dynamic_param_false_overrides_instance_blocking(self, mock_req, guardrail):
-        """block='false' in dynamic params disables blocking even when instance default is True."""
-        mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=False)
-        # Must not raise — dynamic param disables blocking
-        asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {"block": "false"}))
+    def test_dynamic_param_false_cannot_disable_instance_blocking(self, mock_req, guardrail):
+        """block='false' in dynamic params must not disable an enabled server-side blocking policy."""
+        mock_req.return_value = mock_evaluate_response("DENY", reason="injection", block=True)
+        # Must raise — a request param cannot weaken blocking
+        with pytest.raises(DatadogAIGuardGuardrailException):
+            asyncio.run(guardrail._run_ai_guard_check(self.MSGS, {"block": "false"}))
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_dynamic_param_true_overrides_monitor_mode(self, mock_req, guardrail_monitor):

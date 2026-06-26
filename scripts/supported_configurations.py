@@ -5,6 +5,8 @@ Reads the JSON registry and produces a Python module with:
 - SUPPORTED_CONFIGURATIONS: frozenset of all registered env var names
 - CONFIGURATION_ALIASES: dict mapping env var name to list of aliases
 - DEPRECATED_CONFIGURATIONS: frozenset of deprecated env var names
+- SENSITIVE_CONFIGURATIONS: frozenset of env var names whose value is excluded
+  from configuration telemetry (marked ``"sensitive": true`` in the registry)
 
 Also verifies that every DD_*/_DD_*/OTEL_*/DATADOG_* var accessed in ddtrace/ is registered.
 
@@ -45,6 +47,7 @@ def generate_module(data: dict) -> str:
     entries = {name: configs[name][0] for name in all_names}
     aliases = {name: e["aliases"] for name, e in entries.items() if e.get("aliases")}
     deprecated = sorted(name for name, e in entries.items() if e.get("deprecated"))
+    sensitive = sorted(name for name, e in entries.items() if e.get("sensitive"))
 
     supported = "\n".join(f'        "{n}",' for n in all_names)
 
@@ -67,6 +70,12 @@ def generate_module(data: dict) -> str:
         if deprecated
         else "DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset()"
     )
+    sensitive_lines = "\n".join(f'        "{n}",' for n in sensitive)
+    sensitive_block = (
+        f"SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(\n    {{\n{sensitive_lines}\n    }}\n)"
+        if sensitive
+        else "SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset()"
+    )
 
     return f"""\
 {HEADER}
@@ -80,6 +89,8 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
 {aliases_block}
 
 {deprecated_block}
+
+{sensitive_block}
 """
 
 

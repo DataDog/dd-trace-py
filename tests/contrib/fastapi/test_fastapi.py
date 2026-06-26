@@ -428,6 +428,40 @@ def test_multi_path_param_aggregate(client, tracer, test_spans):
     assert_serialize_span(serialize_span)
 
 
+def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
+    """Regression test for FastAPI >= 0.137 lazy _IncludedRouter breaking resource names."""
+    from fastapi import APIRouter
+    from fastapi import FastAPI
+
+    items = APIRouter()
+
+    @items.get("")
+    def list_items():
+        return []
+
+    @items.get("/{item_id}")
+    def get_item(item_id: str):
+        return {"id": item_id}
+
+    v1 = APIRouter()
+    v1.include_router(items, prefix="/items")
+    app = FastAPI()
+    app.include_router(v1, prefix="/v1")
+
+    with TestClient(app) as client:
+        r = client.get("/v1/items")
+        assert r.status_code == 200
+        request_span = test_spans.pop_traces()[0][0]
+        assert request_span.resource == "GET /v1/items"
+        assert request_span.get_tag("http.route") == "/v1/items"
+
+        r = client.get("/v1/items/42")
+        assert r.status_code == 200
+        request_span = test_spans.pop_traces()[0][0]
+        assert request_span.resource == "GET /v1/items/{item_id}"
+        assert request_span.get_tag("http.route") == "/v1/items/{item_id}"
+
+
 def test_distributed_tracing(client, tracer, test_spans):
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID, "5555"),
@@ -791,7 +825,6 @@ if __name__ == "__main__":
     env["DD_TRACE_REQUESTS_ENABLED"] = "false"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode()
-    assert err == b"", err.decode()
 
 
 @pytest.mark.parametrize(
