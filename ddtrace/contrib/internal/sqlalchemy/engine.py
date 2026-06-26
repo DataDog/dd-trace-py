@@ -21,6 +21,14 @@ from ddtrace.trace import tracer
 from ddtrace.vendor.debtcollector import deprecate
 
 
+config._add(
+    "sqlalchemy",
+    dict(
+        _default_service=schematize_service_name("sqlite"),
+    ),
+)
+
+
 def trace_engine(engine, tracer=None, service=None):
     """
     Add tracing instrumentation to the given sqlalchemy engine or instance.
