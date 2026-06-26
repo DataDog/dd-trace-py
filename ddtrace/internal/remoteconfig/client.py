@@ -253,9 +253,8 @@ class RemoteConfigClient:
         # Track which products are enabled
         self._enabled_products: set[str] = set()
 
-        # Serializes connector read + dispatch between the background subscriber
-        # thread and the synchronous pump in the polling process (forksafe so a
-        # child never inherits a locked mutex). Product callbacks must not re-enter.
+        # Serializes connector read + dispatch between the subscriber thread and the
+        # synchronous pump (forksafe: reset on fork). Product callbacks must not re-enter.
         self._dispatch_lock = forksafe.Lock()
 
         # Single global connector and subscriber for all products
@@ -315,17 +314,9 @@ class RemoteConfigClient:
         self._dispatch_payloads(payloads, product_callbacks)
 
     def _pump_subscriber(self) -> None:
-        """Apply just-published configs synchronously in the polling process.
-
-        Runs at the end of a poll so apply_state is promoted before the next poll
-        reports it (no transient UNACKNOWLEDGED). The product callbacks run here on
-        the poller thread while the lock is held; the lock serializes with the
-        background subscriber thread (which still delivers to forked children) so
-        each payload is dispatched once. If the subscriber wins the connector read,
-        this blocks on the lock until it finishes, then reads an empty batch.
-
-        Failures here are contained (like the background subscriber's periodic) so a
-        connector read error doesn't propagate into the poll's error reporting.
+        """Apply just-published configs synchronously, so apply_state is promoted before
+        the next poll reports it. The lock serializes with the background subscriber thread
+        (kept for forked children); failures are contained like that thread's periodic().
         """
         try:
             with self._dispatch_lock:
@@ -372,9 +363,7 @@ class RemoteConfigClient:
                             },
                         )
                 except Exception:
-                    # A product-side failure is surfaced through that product's own
-                    # telemetry; the configuration was still delivered, so it stays
-                    # acknowledged (only malformed payloads are reported as errors).
+                    # Product-side failure: logged here, surfaced via the product's telemetry
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
@@ -383,8 +372,7 @@ class RemoteConfigClient:
                         product_payload_list,
                         exc_info=True,
                     )
-            # Delivered to the product (or no product is registered to apply it):
-            # acknowledge it so it is not left Unacknowledged forever.
+            # Delivered (or no product to apply it): acknowledge so it isn't stuck pending
             self._set_apply_state_for_payloads(product_payload_list, 2)
 
     def _set_apply_state_for_payloads(
@@ -398,8 +386,7 @@ class RemoteConfigClient:
         for payload in payloads:
             if payload.content is None:
                 continue
-            # apply_state is written here from either the subscriber thread or the poller
-            # thread (via _pump_subscriber) and read by the poller in _build_state.
+            # Written from the subscriber thread or the poller (pump); read by _build_state
             applied = self._applied_configs.get(payload.path)
             if (
                 applied is None
@@ -697,9 +684,7 @@ class RemoteConfigClient:
             )
             self._accumulate_payload(payload_list, config_content, target, config)
         except Exception:
-            # Malformed payload that can't be deserialized: report it as errored. This is
-            # the only case that produces an error state; the product callback's own
-            # outcome is surfaced through that product's telemetry, not here.
+            # Malformed payload that can't be deserialized: the only case reported as errored
             error_message = "Failed to deserialize configuration %s for product %r" % (config, config.product_name)
             log.debug(error_message, exc_info=True)
             config.apply_state = 3  # Error state
