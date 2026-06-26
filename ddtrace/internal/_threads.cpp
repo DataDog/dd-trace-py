@@ -531,7 +531,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 // for cases where the thread is being restarted after a fork to preserve the
 // existing next trigger time).
 static PyObject*
-_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool wait_until_started = true)
 {
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
@@ -708,8 +708,10 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
         return NULL;
     }
 
-    // Wait for the thread to start
-    {
+    // Wait for the thread to start. Skipped on the child fork path
+    // (wait_until_started=false) so application code can resume immediately
+    // after fork instead of blocking on the restarted thread coming up.
+    if (wait_until_started) {
         AllowThreads _(self->_state);
 
         self->_started->wait();
@@ -869,7 +871,13 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // preserve _next_call_time from before the fork. This ensures that
         // a restarted thread fires at the same time it would have without
         // the fork, rather than being pushed back by a full interval.
-        PyObject* started = _PeriodicThread_do_start(self);
+        //
+        // The child path (force=False) must not block on thread startup, since
+        // it runs in the at-fork child hook before application code resumes;
+        // blocking there is what starved Delancie's fork ping under load. The
+        // parent path (force=True) still waits so restored threads are up
+        // before the parent continues.
+        PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
         if (started == NULL)
             return NULL;
         Py_DECREF(started);
