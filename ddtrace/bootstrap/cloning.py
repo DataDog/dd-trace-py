@@ -51,28 +51,32 @@ def cleanup_loaded_modules() -> None:
             return
         del sys.modules[module_name]
 
-    # gevent monkey-patches stdlib modules in place, so application code that
-    # imports them gets the greenlet-friendly versions automatically. ddtrace only
-    # needs its own *unpatched* copies of the threading-related modules it uses on
-    # real threads (e.g. the profiler). Unloading just those modules forces user
-    # code to re-import fresh, gevent-patched copies while ddtrace keeps the ones it
-    # imported before patching. Everything else stays shared; agent socket I/O holds
-    # unpatched primitives captured in ddtrace.internal._unpatched.
+    # We only need to unload the modules that gevent monkey-patches in place, plus a
+    # few that hold references into them. gevent patches these copies after ddtrace has
+    # loaded, so application code must re-import fresh copies while ddtrace keeps the
+    # pre-patch ones it imported (e.g. the profiler's real-thread tracking). Modules
+    # that gevent does not touch are left shared, which avoids the fragile allowlist of
+    # unrelated modules (typing, dataclasses, asyncio, ...) the old broad sweep needed.
+    # ``os`` is patched by gevent too but is imported on interpreter boot and only has
+    # fork hooks replaced, so it is safe to leave shared.
     UNLOAD_MODULES = frozenset(
         [
-            # imported in Python >= 3.10 and patched by gevent
             "time",
-            # we cannot unload the whole concurrent hierarchy, but this
-            # submodule makes use of threading so it is critical to unload when
-            # gevent is used.
-            "concurrent.futures",
-            # We unload the threading module in case it was imported by
-            # CPython on boot.
             "threading",
             "_thread",
-            # reprlib does `from _thread import get_ident` at module level;
-            # unloading it ensures a fresh re-import binds the correct get_ident
-            # after _thread is reloaded, keeping it picklable.
+            "socket",
+            # ssl.SSLContext recurses infinitely if patched twice, so a clean re-import
+            # is required when gevent is installed.
+            "ssl",
+            "select",
+            "selectors",
+            "queue",
+            "signal",
+            "subprocess",
+            # uses threading; must be re-imported against the gevent-patched copy.
+            "concurrent.futures",
+            # reprlib does `from _thread import get_ident` at module level; unloading it
+            # ensures a fresh re-import binds the correct get_ident, keeping it picklable.
             "reprlib",
         ]
     )
