@@ -1,6 +1,7 @@
 import http.client as httplib
 from urllib import parse
 
+from ddtrace.internal._unpatched import unpatched_create_connection
 from ddtrace.internal.runtime import container
 
 
@@ -11,9 +12,19 @@ class HTTPConnectionMixin:
     Currently this mixin performs the following adjustments:
     - insert a base path to requested URLs
     - update headers with container info
+    - pin the underlying socket factory to an unpatched ``create_connection`` so
+      agent communication uses real, blocking sockets even when gevent has
+      monkey-patched the socket module
     """
 
     _base_path = "/"  # type: str
+
+    def __init__(self, *args, **kwargs):
+        # type: (...) -> None
+        super().__init__(*args, **kwargs)
+        # http.client.HTTPConnection.__init__ binds self._create_connection to the
+        # (possibly gevent-patched) socket.create_connection; override it here.
+        self._create_connection = unpatched_create_connection
 
     def putrequest(self, method, url, skip_host=False, skip_accept_encoding=False):
         # type: (str, str, bool, bool) -> None

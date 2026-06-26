@@ -29,9 +29,6 @@ def test_auto():
     assert "subprocess" not in sys.modules
 
     if os.getenv("DD_REMOTE_CONFIGURATION_ENABLED") == "0":
-        # When unloading modules we must have the HTTP clients imported already
-        assert "ddtrace.internal.http" in sys.modules
-
         # emulate socket patching (e.g. by gevent)
         import socket  # noqa:F401
 
@@ -41,8 +38,10 @@ def test_auto():
         from ddtrace.internal.http import HTTPConnection  # noqa:F401
         import ddtrace.internal.uds as uds
 
+        # ddtrace agent I/O captures unpatched socket primitives at import time, so it
+        # keeps working even after the socket module is patched.
         assert HTTPConnection("localhost")._create_connection is not None
-        assert uds.socket.socket is not None
+        assert uds.unpatched_socket is not None
 
 
 def test_pytest_with_gevent_and_ddtrace_auto():

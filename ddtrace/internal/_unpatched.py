@@ -16,6 +16,18 @@ threading_Lock = _threading.Lock
 threading_RLock = _threading.RLock
 threading_Event = _threading.Event
 
+# Acquire references to the socket primitives that gevent replaces when it
+# monkey-patches the socket module. Capturing the attribute objects here (before
+# any call to gevent.monkey.patch_all(), which is only supported after ddtrace is
+# loaded) keeps ddtrace's agent I/O on real, blocking sockets regardless of
+# whether the socket module is later patched. Unlike a module-level reference,
+# these survive in-place patching because gevent reassigns module attributes
+# rather than mutating the captured objects themselves.
+import socket as _socket  # noqa
+
+unpatched_socket = _socket.socket
+unpatched_create_connection = _socket.create_connection
+
 
 previous_loaded_modules = frozenset(sys.modules.keys())
 from subprocess import Popen as unpatched_Popen  # noqa # nosec B404
