@@ -43,6 +43,72 @@ This document describes the design of the Linux `timer_create`-based CPU stack p
 8. Safety and hardening
 -----------------------
 
+### 8.1 Residual EINTR and native syscall risk
+
+The CPU timer profiler uses `SIGPROF`, so it shares the broad syscall
+interruption risk of other signal-based profilers. `SA_RESTART` and CPython's
+PEP 475 retry behavior reduce the risk for Python-level syscall APIs, but they
+do not protect arbitrary native extension code that issues syscalls directly and
+does not retry `EINTR`.
+
+The risk differs by thread type:
+
+- Pure native pthreads that never acquire Python thread state are not expected to
+  be armed. They have no `PyThreadState`, so they should not be discovered by the
+  CPU timer thread registration path.
+- Python-visible threads can be armed. If they call CPython syscall wrappers,
+  PEP 475 usually retries interrupted syscalls when no Python signal exception is
+  raised.
+- Python-visible threads running native extension code can still observe
+  interruption if that native code uses raw syscalls or libc calls without
+  retrying `EINTR`.
+- Threads blocked off-CPU are lower risk because per-thread CPU timers do not
+  advance while the thread is not consuming CPU. On-CPU syscalls and short
+  syscall-heavy loops remain in scope.
+
+Current mitigations:
+
+- Install the `SIGPROF` handler with `SA_RESTART`.
+- Use CPU-time timers rather than wall-clock timers, reducing signal delivery
+  while a thread is blocked off-CPU.
+- Clamp the effective minimum interval to 2 ms. The default remains 10 ms.
+- Keep the feature off by default behind `_DD_PROFILING_STACK_CPU_TIMER_ENABLED`.
+- Use signal-origin cookie validation and foreign `SIGPROF` forwarding.
+- Do not arm pure native threads that are not visible to CPython.
+- Cover Python-level syscall behavior with
+  `test_cpu_timer_syscall_readv_loop_does_not_surface_eintr`.
+- Cover pure native pthread behavior with
+  `test_cpu_timer_does_not_arm_raw_pthread_that_never_enters_python`.
+- Keep a native syscall hazard reproducer in
+  `tests/profiling/cpu_timer_native_syscall_hazard_app.py`. The associated
+  xfail,
+  `test_cpu_timer_raw_native_ppoll_without_eintr_retry_is_not_interrupted`,
+  demonstrates that a Python-visible native function can accumulate a pending
+  CPU timer `SIGPROF`, atomically unblock it inside raw `ppoll`, and observe
+  `EINTR` if it does not retry.
+- Run native-heavy ecosystem workloads before enabling this more broadly.
+
+Required hardening before considering broader rollout:
+
+1. Expand native extension syscall coverage. The current branch has a raw
+   `ppoll` reproducer; add at least `read` or `readv` and `nanosleep` or
+   `clock_nanosleep` variants. Record whether `EINTR` can surface when the
+   extension does not retry it.
+2. Add event-loop and networking stress coverage with CPU timer enabled,
+   including asyncio, uvloop, Trio or AnyIO if available, and representative HTTP
+   client/server workloads.
+3. Add debug counters for skipped thread arming reasons, own and foreign
+   `SIGPROF` counts, ring overflow, reentrant drops, and timer overruns.
+4. Keep the 2 ms minimum interval until the native syscall and ecosystem tests
+   show that a lower interval is safe. Do not expose the interval as public API
+   while this remains experimental.
+5. Document the residual risk for native extensions: packages that do not retry
+   `EINTR` may still be affected by any signal-based CPU profiler.
+6. Consider a current-thread pause/resume API only for Datadog-owned native code
+   or specific integrations. Do not rely on it to protect arbitrary packages.
+7. Consider syscall shielding only if tests or production experiments show a
+   concrete need. It is a larger design than the timer profiler itself.
+
 
 9. Compatibility and fallback behavior
 --------------------------------------
@@ -395,7 +461,187 @@ Implications for dd-trace-py:
 
 ### 11.4 OpenJDK JFR CPU-time profiling
 
+OpenJDK has an in-JVM CPU-time sampling path for JFR. It is related to this
+design because it uses Linux per-thread CPU timers, but it differs from
+dd-trace-py in how it obtains the per-thread CPU clock and how it turns a signal
+into a stack trace.
+
+Source version inspected: `openjdk/jdk` default branch, `jdk-28+4 + 11 commits`,
+sha `892c881258280e08273cafc5c111ac50388200fc`. The public design reference is
+[JEP 509: JFR CPU-Time Profiling](https://openjdk.org/jeps/509).
+
+The JFR event is [`jdk.CPUTimeSample`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/metadata/metadata.xml#L993-L1001).
+In the current metadata it is marked `experimental="true"`, includes both native
+and Java code according to its description, carries the CPU sampling period, and
+has a `biased` field whose description is "The sample is safepoint-biased". The
+sample is present in the default JFR configuration but disabled by default in
+[`default.jfc`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/jdk.jfr/share/conf/jfr/default.jfc#L234-L238),
+with a default throttle setting of `500/s`.
+
+The timer setup lives in [`JfrCPUSamplerThread::create_timer_for_thread`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L672-L691):
+
+- it sets `sigev_notify = SIGEV_THREAD_ID`,
+- it delivers `SIGPROF`,
+- it sets `sigev_value.sival_ptr = nullptr`, so this path does not use a timer
+  cookie,
+- it writes the target Java thread's OS thread id into the `SIGEV_THREAD_ID`
+  target slot,
+- it calls `pthread_getcpuclockid(thread->osthread()->pthread_id(), &clock)`,
+- it calls libc `timer_create(clock, &sev, &timerid)`,
+- it arms the timer with `timer_settime` through [`set_timer_time`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L656-L670).
+
+That clock setup is different from dd-trace-py, java-profiler, and .NET. Those
+implementations encode a Linux tid into a CPU clock id and call the raw
+`timer_create` syscall. OpenJDK instead asks pthreads for the CPU clock id of the
+target pthread with `pthread_getcpuclockid`, then passes that clock id to libc
+`timer_create`. The signal target is still the OS thread selected through
+`SIGEV_THREAD_ID`.
+
+OpenJDK also has explicit lifecycle handling. [`JfrCPUSamplerThread::on_javathread_create`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L304-L321)
+initializes the per-thread CPU-time queue and creates the timer if the signal
+handler is installed. [`on_javathread_terminate`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L323-L338)
+unsets the CPU timer, deallocates the queue, and emits a lost-samples event if
+needed. Thread-local start and exit hooks call into this path from
+[`JfrThreadLocal::on_start`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/support/jfrThreadLocal.cpp#L145-L151)
+and [`JfrThreadLocal::on_exit`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/support/jfrThreadLocal.cpp#L244-L260).
+
+Startup and shutdown are coordinated through VM operations. [`init_timers`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L740-L752)
+checks the existing `SIGPROF` handler before installing OpenJDK's generic signal
+handler. If another non-default, non-ignored, non-OpenJDK handler is already
+installed, it logs that `CPUTimeSample` events will not be recorded. It then runs
+a VM operation over existing Java threads to create timers. [`stop_timer`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L754-L780)
+runs a VM operation that deallocates queues and unsets per-thread timers. The
+unset path calls `timer_delete` in [`JfrThreadLocal::unset_cpu_timer`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/support/jfrThreadLocal.cpp#L595-L600).
+[`stop_signal_handlers`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L695-L702)
+sets a stop bit and waits for active signal handlers to finish.
+
+The signal handling path is deliberately split. [`JfrCPUTimeThreadSampling::handle_timer_signal`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L570-L582)
+accepts only `SI_TIMER`, increments an active-handler count, delegates to the
+sampler, and decrements the count afterward. [`JfrCPUSamplerThread::handle_timer_signal`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrCPUTimeThreadSampler.cpp#L609-L653)
+then:
+
+- finds the current Java thread if valid,
+- accepts only `_thread_in_Java` and `_thread_in_native`,
+- tries to acquire the per-thread CPU-time enqueue lock,
+- computes the actual CPU period using `si_overrun + 1`,
+- builds a sample request from the interrupted context,
+- enqueues the request in the thread-local CPU-time queue,
+- arms a local safepoint poll for Java threads,
+- requests asynchronous processing for native threads.
+
+The stack trace is not fully recorded in the signal handler. The queued request
+is drained later by [`drain_enqueued_cpu_time_requests`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrThreadSampling.cpp#L350-L374),
+which calls [`record_cpu_time_thread`](https://github.com/openjdk/jdk/blob/892c881258280e08273cafc5c111ac50388200fc/src/hotspot/share/jfr/periodic/sampling/jfrThreadSampling.cpp#L300-L332).
+That path computes the top frame, records a JFR stack trace, emits either a
+`CPUTimeSample` or an empty failed event, and reports safepoint latency when the
+current thread is the sampled Java thread.
+
+Implications for dd-trace-py:
+
+- OpenJDK validates the same high-level timing model: Linux per-thread CPU timers
+  can drive CPU-time stack sampling inside a managed runtime.
+- OpenJDK avoids doing full stack trace recording in the signal handler. It
+  enqueues a request and performs stack trace work later through VM/JFR paths.
+- OpenJDK explicitly tracks lost samples, queue-full drops, active signal
+  handlers, and timer creation failures.
+- OpenJDK treats an existing conflicting `SIGPROF` handler as a reason not to
+  record `CPUTimeSample` events. dd-trace-py takes a different approach with
+  cookie validation and foreign-signal forwarding, but the shared fact is that
+  `SIGPROF` ownership must be handled deliberately.
+- The event's `biased` field and the safepoint-drain path make the possible
+  safepoint bias explicit. dd-trace-py's current in-handler frame capture trades
+  that bias concern for CPython frame-read and signal-safety hazards.
+
 ### 11.5 gperftools per-thread timer mode
+
+gperftools is useful prior art because it supports a per-thread POSIX timer mode,
+but that mode is opt-in rather than the default. The default CPU profiler uses
+process-wide interval timers: `ITIMER_PROF` by default, or `ITIMER_REAL` when
+`CPUPROFILE_REALTIME` is set.
+
+Source version inspected: `gperftools/gperftools` default branch,
+`gperftools-2.18.1 + 17 commits`, sha
+`07c5e9226bda1720bdf783a11f5df0f515e3c9d3`.
+
+The public interface documentation in [`profile-handler.h`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.h#L35-L45)
+states the high-level contract:
+
+- all threads in the program are profiled when enabled,
+- registered callbacks must be async-signal-safe,
+- the module requires sole ownership of the configured timer and signal,
+- the timer defaults to `ITIMER_PROF`,
+- `CPUPROFILE_REALTIME` changes it to `ITIMER_REAL`,
+- `CPUPROFILE_PER_THREAD_TIMERS` changes it to a POSIX timer,
+- `CPUPROFILE_TIMER_SIGNAL` can select a custom signal only with per-thread
+  timers.
+
+The user documentation for CPU profiling lists `CPUPROFILE_FREQUENCY` and
+`CPUPROFILE_REALTIME`, and recommends `ITIMER_PROF` over `ITIMER_REAL` unless the
+user has a reason to prefer realtime sampling. That is documented in
+[`docs/cpuprofile.adoc`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/docs/cpuprofile.adoc#L86-L96).
+
+The per-thread timer mode is configured in [`ProfileHandler::ProfileHandler`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L305-L347).
+If either `CPUPROFILE_PER_THREAD_TIMERS` or `CPUPROFILE_TIMER_SIGNAL` is present,
+gperftools enables per-thread timer mode, but only if the weak `timer_create`
+symbol is available. If `timer_create` is not available, the code logs that the
+per-thread timer settings are ignored and suggests preloading or linking
+`librt.so`.
+
+Timer creation is in [`StartLinuxThreadTimer`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L259-L290):
+
+- it zeroes the `sigevent`,
+- it sets `sigev_notify = SIGEV_THREAD_ID`,
+- it targets the current Linux tid with `syscall(SYS_gettid)`,
+- it uses the configured signal number,
+- it uses `CLOCK_THREAD_CPUTIME_ID` for `ITIMER_PROF` mode,
+- it uses `CLOCK_MONOTONIC` for `ITIMER_REAL` mode,
+- it calls libc `timer_create`, not a raw syscall,
+- it stores the resulting timer id in thread-local storage,
+- it arms the timer with `timer_settime`.
+
+The thread-local timer id is important. gperftools creates a TLS key with a
+destructor in [`CreateThreadTimerKey`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L252-L257),
+and the destructor calls `timer_delete` through [`ThreadTimerDestructor`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L241-L249).
+`ProfileHandler::RegisterThread` starts the per-thread timer for the current
+thread when per-thread mode is enabled. The main thread is registered by a module
+initializer, [`profile_main`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L526-L530).
+
+The process-wide timer path is still visible in [`UpdateTimer`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L474-L493).
+When per-thread timer mode is enabled, `UpdateTimer` ignores attempts to enable
+or disable the timer, with the source comment noting that disabling is not
+supported and the per-thread timers are always enabled.
+
+The signal handler model is callback-based. [`ProfileHandler::SignalHandler`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L509-L524)
+saves `errno`, increments the interrupt count, and invokes all registered
+callbacks under `signal_lock_`, then restores `errno`. The public header states
+that callbacks must be async-signal-safe and must not call back into
+`ProfileHandler` functions. It also says callback code must not acquire locks to
+serialize access to data shared with non-handler code. Instead, non-handler code
+should unregister the callback, modify the shared data, and re-register the
+callback.
+
+gperftools also claims sole ownership of the configured timer and signal. Before
+installing its handler, [`IsSignalHandlerAvailable`](https://github.com/gperftools/gperftools/blob/07c5e9226bda1720bdf783a11f5df0f515e3c9d3/src/profile-handler.cc#L495-L507)
+checks that the current handler is `SIG_IGN` or `SIG_DFL`; otherwise profiling is
+disabled. This is closer to OpenJDK's conflict-avoidance model than to
+java-profiler or dd-trace-py's cookie-and-forward model.
+
+Implications for dd-trace-py:
+
+- gperftools confirms another viable Linux `SIGEV_THREAD_ID` design, but it is
+  opt-in and assumes signal/timer ownership rather than coexistence.
+- It uses libc `timer_create` because it creates a timer for the current thread
+  with `CLOCK_THREAD_CPUTIME_ID`; dd-trace-py needs raw syscalls for arbitrary
+  target tids discovered from another thread.
+- TLS destructors are one way to couple per-thread timer deletion to thread exit.
+  dd-trace-py cannot rely only on that model because it also reconciles threads
+  discovered from CPython thread-state walks and has fork/shutdown constraints.
+- The callback contract reinforces a shared rule: signal-handler callbacks must
+  be constrained and cannot freely lock, allocate, or call back into profiler
+  control APIs.
+- gperftools' conflict check is a reminder that `SIGPROF` sharing is a policy
+  decision. dd-trace-py chooses coexistence with origin validation and forwarding
+  where possible.
 
 ### 11.6 ddprof and perf_event_open task-clock profiling
 
