@@ -58,11 +58,21 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
+StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64_t virtual_thread_id)
 {
     static bool failed = false;
     if (failed) {
         return;
+    }
+
+    if (virtual_thread_id != 0 && sample != nullptr) {
+        // Each task (asyncio or greenlet) gets its own virtual thread row in the
+        // Datadog timeline.  The sample started by render_thread_begin carries the
+        // real OS thread identity (e.g. thread_name = "MainThread").  Drop it
+        // without flushing and start a fresh sample below using the task's own ID
+        // and name as its virtual thread identity.
+        SampleManager::drop_sample(sample);
+        sample = nullptr;
     }
 
     if (sample == nullptr) {
@@ -76,9 +86,18 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
             return;
         }
 
-        // Add the thread context into the sample
-        sample->push_threadinfo(
-          static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
+        if (virtual_thread_id != 0) {
+            // Virtual thread identity: task ID and name become the thread identity.
+            // thread_native_id stays as the real OS native thread so it's clear
+            // which thread the task is running on.
+            sample->push_threadinfo(
+              static_cast<int64_t>(virtual_thread_id), static_cast<int64_t>(thread_state.native_id), task_name);
+        } else {
+            // Add the real thread context into the sample
+            sample->push_threadinfo(
+              static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
+        }
+
         sample->push_walltime(thread_state.wall_time_ns, 1);
 
         if (on_cpu) {
@@ -99,6 +118,11 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
     }
 
     sample->push_task_name(task_name);
+    if (virtual_thread_id != 0) {
+        // Also push the numeric task_id so lock-collector samples can be correlated
+        // with these wall-time samples by the backend.
+        sample->push_task_id(static_cast<int64_t>(virtual_thread_id));
+    }
 }
 
 void

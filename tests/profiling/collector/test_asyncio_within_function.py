@@ -96,7 +96,7 @@ def test_asyncio_within_function() -> None:
         profile,
         list(profile.sample),
         pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             span_id=span_id,
             local_root_span_id=local_root_span_id,
             locations=list(

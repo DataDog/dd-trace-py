@@ -99,7 +99,7 @@ def test_asyncio_timeout_at() -> None:
                 samples,
                 expected_sample=pprof_utils.StackEvent(
                     task_name=f"Task-{i}",
-                    thread_name="MainThread",
+                    thread_name=f"Task-{i}",
                     locations=locations,
                 ),
             )

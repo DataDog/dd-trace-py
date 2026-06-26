@@ -75,7 +75,7 @@ def test_uvloop_multi_threaded() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="UvloopThread",
+            thread_name="inner_uvloop",
             task_name="inner_uvloop",
             locations=[
                 pprof_utils.StackLocation(
@@ -108,7 +108,7 @@ def test_uvloop_multi_threaded() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner_pure_asyncio",
             task_name="inner_pure_asyncio",
             locations=[
                 pprof_utils.StackLocation(

@@ -78,7 +78,7 @@ def test_asyncio_weak_links_wall_time() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="Task-not_awaited",
             task_name="Task-not_awaited",
             locations=[
                 loc("sleep"),
@@ -97,7 +97,7 @@ def test_asyncio_weak_links_wall_time() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="Task-awaited",
             task_name="Task-awaited",
             locations=[
                 loc("sleep"),

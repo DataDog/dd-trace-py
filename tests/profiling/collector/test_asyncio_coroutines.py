@@ -77,7 +77,7 @@ def test_asyncio_coroutines() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="main",
             task_name="main",
             locations=[
                 pprof_utils.StackLocation(
@@ -110,7 +110,7 @@ def test_asyncio_coroutines() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background_wait",
             task_name="background_wait",
             locations=[
                 pprof_utils.StackLocation(
@@ -138,7 +138,7 @@ def test_asyncio_coroutines() -> None:
         profile,
         wall_time_samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background_math",
             task_name="background_math",
             locations=[
                 pprof_utils.StackLocation(

@@ -70,7 +70,7 @@ def test_asyncio_context_manager_wall_time() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=None,
                 locations=[
                     pprof_utils.StackLocation(
                         function_name="sleep",
@@ -106,7 +106,7 @@ def test_asyncio_context_manager_wall_time() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=None,
                 locations=[
                     pprof_utils.StackLocation(
                         function_name="sleep",
@@ -137,7 +137,7 @@ def test_asyncio_context_manager_wall_time() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=None,
                 locations=[
                     pprof_utils.StackLocation(
                         function_name="sleep",
@@ -168,7 +168,7 @@ def test_asyncio_context_manager_wall_time() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=None,
                 locations=[
                     pprof_utils.StackLocation(
                         function_name="sleep",
@@ -204,7 +204,7 @@ def test_asyncio_context_manager_wall_time() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=None,
                 locations=[
                     pprof_utils.StackLocation(
                         function_name="sleep",
@@ -236,7 +236,7 @@ def test_asyncio_context_manager_wall_time() -> None:
                 profile,
                 samples,
                 expected_sample=pprof_utils.StackEvent(
-                    thread_name="MainThread",
+                    thread_name=None,
                     locations=[
                         pprof_utils.StackLocation(
                             function_name="sleep",
@@ -266,7 +266,7 @@ def test_asyncio_context_manager_wall_time() -> None:
                 profile,
                 samples,
                 expected_sample=pprof_utils.StackEvent(
-                    thread_name="MainThread",
+                    thread_name=None,
                     locations=[
                         pprof_utils.StackLocation(
                             function_name="sleep",

@@ -64,7 +64,7 @@ def test_asyncio_wait() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 1",
             task_name="inner 1",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
@@ -88,7 +88,7 @@ def test_asyncio_wait() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 2",
             task_name="inner 2",
             span_id=span_id,
             local_root_span_id=local_root_span_id,

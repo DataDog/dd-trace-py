@@ -89,7 +89,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -114,7 +114,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=t1_name,
             task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
@@ -221,7 +221,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -238,7 +238,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=t1_name,
             task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
@@ -339,7 +339,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -364,7 +364,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=t1_name,
             task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
@@ -466,7 +466,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -491,7 +491,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=t1_name,
             task_name=t1_name,
             locations=[
                 pprof_utils.StackLocation(
@@ -591,7 +591,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="main",
             task_name="main",
             locations=[
                 pprof_utils.StackLocation(
@@ -615,7 +615,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -640,7 +640,7 @@ def test_asyncio_start_profiler_from_process_after_task_start() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,
@@ -742,7 +742,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> No
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="background",
             task_name="background",
             locations=[
                 pprof_utils.StackLocation(
@@ -766,7 +766,7 @@ def test_asyncio_import_and_start_profiler_from_process_after_task_start() -> No
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name=EXPECTED_FUNCTION_NAME_TRACKED,

@@ -82,7 +82,7 @@ def test_asyncio_run_frames_captured():
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="Task-1",
             task_name="Task-1",
             locations=[
                 loc("sleep"),
@@ -100,7 +100,7 @@ def test_asyncio_run_frames_captured():
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="short_task",
             task_name="short_task",
             locations=[
                 loc("sleep"),
@@ -123,7 +123,7 @@ def test_asyncio_run_frames_captured():
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 loc("sleep"),
                 loc(

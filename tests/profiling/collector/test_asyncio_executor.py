@@ -49,7 +49,7 @@ def test_asyncio_executor_wall_time() -> None:
         profile,
         task_samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     function_name="asynchronous_function",

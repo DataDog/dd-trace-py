@@ -75,7 +75,7 @@ def test_asyncio_basic() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="main",
             task_name="main",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
@@ -99,7 +99,7 @@ def test_asyncio_basic() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name="main",
                 task_name="main",
                 span_id=span_id,
                 local_root_span_id=local_root_span_id,
@@ -117,7 +117,7 @@ def test_asyncio_basic() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=t2_name,
                 task_name=t2_name,
                 span_id=span_id,
                 local_root_span_id=local_root_span_id,
@@ -135,7 +135,7 @@ def test_asyncio_basic() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=t1_name,
                 task_name=t1_name,
                 span_id=span_id,
                 local_root_span_id=local_root_span_id,
@@ -153,7 +153,7 @@ def test_asyncio_basic() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name="main",
                 task_name="main",
                 span_id=span_id,
                 local_root_span_id=local_root_span_id,

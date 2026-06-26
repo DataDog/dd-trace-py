@@ -72,7 +72,7 @@ def test_asyncio_executor_wall_time() -> None:
         profile,
         task_samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="Task-1",
             task_name="Task-1",
             locations=list(
                 reversed(

@@ -60,7 +60,7 @@ def test_uvloop_variations_install_and_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 1",
             task_name="inner 1",
             locations=[
                 pprof_utils.StackLocation(
@@ -87,7 +87,7 @@ def test_uvloop_variations_install_and_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 2",
             task_name="inner 2",
             locations=[
                 pprof_utils.StackLocation(
@@ -114,7 +114,7 @@ def test_uvloop_variations_install_and_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     # base_events.py is only present when using asyncio, we should not see it here.
@@ -181,7 +181,7 @@ def test_uvloop_variations_uvloop_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 1",
             task_name="inner 1",
             locations=[
                 pprof_utils.StackLocation(
@@ -208,7 +208,7 @@ def test_uvloop_variations_uvloop_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 2",
             task_name="inner 2",
             locations=[
                 pprof_utils.StackLocation(
@@ -235,7 +235,7 @@ def test_uvloop_variations_uvloop_run() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name=None,
             locations=[
                 pprof_utils.StackLocation(
                     # base_events.py is only present when using asyncio, we should not see it here.
@@ -303,7 +303,7 @@ def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 1",
             task_name="inner 1",
             locations=[
                 pprof_utils.StackLocation(
@@ -341,7 +341,7 @@ def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            thread_name="inner 2",
             task_name="inner 2",
             locations=[
                 pprof_utils.StackLocation(
