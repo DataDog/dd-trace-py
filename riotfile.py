@@ -1978,7 +1978,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest_bdd",
-            command="pytest {cmdargs} tests/contrib/pytest_bdd/",
+            command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
             pkgs={
                 "msgpack": latest,
                 "more_itertools": "<8.11.0",
