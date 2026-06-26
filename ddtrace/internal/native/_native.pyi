@@ -964,6 +964,7 @@ class RemoteConfigClient:
         tags: Optional[list[tuple[str, str]]] = None,
         process_tags: Optional[list[tuple[str, str]]] = None,
         timeout_ms: int = 5000,
+        test_session_token: Optional[str] = None,
     ) -> "RemoteConfigClient": ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""

@@ -6031,14 +6031,6 @@
         "internal": true
       }
     ],
-    "_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS": [
-      {
-        "implementation": "A",
-        "type": "map",
-        "default": null,
-        "internal": true
-      }
-    ],
     "_DD_REMOTE_CONFIGURATION_LOG_PAYLOADS": [
       {
         "implementation": "A",
