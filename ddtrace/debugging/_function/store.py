@@ -56,7 +56,7 @@ class FunctionStore(object):
         """
         ft = cast(FunctionType, function)
         uwc = wrapping_context_for(ft)
-        f = uwc.__wrapped__ if uwc is not None else ft
+        f = cast(FunctionType, uwc.__wrapped__) if uwc is not None else ft
         self._store(f)
         return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
@@ -66,7 +66,7 @@ class FunctionStore(object):
         Returns the set of probe IDs for those probes that failed to eject.
         """
         uwc = wrapping_context_for(function)
-        f = uwc.__wrapped__ if uwc is not None else function
+        f = cast(FunctionType, uwc.__wrapped__) if uwc is not None else function
         return {p.probe_id for _, _, p in eject_hooks(f, hooks)}
 
     def inject_hook(self, function: FullyNamedContextWrappedFunction, hook: HookType, line: int, arg: Any) -> bool:

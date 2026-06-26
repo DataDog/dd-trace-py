@@ -676,11 +676,13 @@ def test_wrapping_context_deepcopy_with_lock():
     Regression for: https://github.com/DataDog/dd-trace-py/issues/16443 (follow-up: _thread.lock).
 
     Cadwyn's _versioned() uses @functools.wraps(endpoint) which copies endpoint.__dict__ into
-    the decorator. If __dd_context_wrapped__ is in endpoint.__dict__, it is propagated to the
-    decorator. Deepcopy of a plain function is atomic, but deepcopy of an object whose __dict__
-    was updated from a function (e.g. a route that does self.__dict__.update(endpoint.__dict__))
-    will traverse __dd_context_wrapped__. The _UniversalWrappingContext holds registered
-    WrappingContext instances that may have _thread.lock attributes, causing deepcopy to fail.
+    the decorator. Previously, __dd_context_wrapped__ would be set on endpoint.__dict__ and
+    propagated by functools.wraps. Deepcopy of a plain function is atomic, but deepcopy of an
+    object whose __dict__ was updated from a function (e.g. a route that does
+    self.__dict__.update(endpoint.__dict__)) would traverse the wrapping context. The
+    _UniversalWrappingContext holds registered WrappingContext instances that may have
+    _thread.lock attributes, causing deepcopy to fail. Wrapping metadata is now kept off the
+    function's __dict__ entirely, so decorated.__dict__ stays clean and deepcopy succeeds.
     """
     import functools
     import threading
@@ -706,14 +708,46 @@ def test_wrapping_context_deepcopy_with_lock():
     def decorated(*args, **kwargs):
         return endpoint(*args, **kwargs)
 
-    # decorated.__dict__ now contains __dd_context_wrapped__ (copied via
-    # functools.wraps). A route that does
-    # self.__dict__.update(endpoint.__dict__) will surface it to deepcopy.
+    # A route that does self.__dict__.update(endpoint.__dict__) copies whatever
+    # is in decorated.__dict__ onto the route instance. With the registry-based
+    # approach, decorated.__dict__ is clean, so deepcopy of the route succeeds.
     class Route:
         def __init__(self, f):
             self.__dict__.update(f.__dict__)
 
     copy.deepcopy(Route(decorated))
+
+
+def test_wrapping_context_no_memory_leak():
+    """Ephemeral functions wrapped with a wrapping context must be garbage-collected.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
+
+    The registry must not keep functions alive via the value chain:
+      _registry -> _ContextRecord -> uwc -> uwc.__wrapped__ -> function
+    Wrapping-context metadata is stored as weak references so the cycle
+    function <-> uwc is isolated and collected by the cyclic GC.
+    """
+    import gc
+    import weakref as wr
+
+    dead_refs = []
+
+    def make_and_wrap():
+        def ephemeral():
+            return 42
+
+        wc = DummyWrappingContext(ephemeral)
+        wc.wrap()
+        return wr.ref(ephemeral)
+
+    for _ in range(5):
+        dead_refs.append(make_and_wrap())
+
+    gc.collect()
+
+    alive = sum(1 for r in dead_refs if r() is not None)
+    assert alive == 0, f"{alive} wrapped ephemeral function(s) were not garbage collected"
 
 
 def test_wrapping_context_exc():

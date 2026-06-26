@@ -29,7 +29,9 @@ _wrapped_lock = Lock()
 
 # Maps original code objects to the functions that own them. Written by
 # link_function_to_code; read by functions_for_code in inspection.py.
-_code_to_fn: MutableMapping[CodeType, FunctionType] = {}
+# WeakValueDictionary so that wrapped ephemeral functions are not kept alive by
+# this mapping alone — inspection.py falls back to gc.get_referrers on a miss.
+_code_to_fn: MutableMapping[CodeType, FunctionType] = weakref.WeakValueDictionary()
 
 
 def link_function_to_code(code: CodeType, function: FunctionType) -> None:

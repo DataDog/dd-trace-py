@@ -28,13 +28,31 @@ from ddtrace.internal.wrapping import wrap
 
 
 class _ContextRecord:
-    """Holds all wrapping-context metadata for a single function."""
+    """Holds all wrapping-context metadata for a single function.
 
-    __slots__ = ("uwc", "lazy_contexts")
+    Stores only weak references to context objects so that the WeakKeyDictionary
+    key (the function) is not kept alive by the registry value chain:
+      _registry -> _ContextRecord -> context -> context.__wrapped__ -> function
+    Breaking this path with weak references lets ephemeral functions be garbage
+    collected as soon as all external strong references drop.
+    """
+
+    __slots__ = ("_uwc_ref", "lazy_contexts")
 
     def __init__(self) -> None:
-        self.uwc: t.Optional["_UniversalWrappingContext"] = None
-        self.lazy_contexts: list["LazyWrappingContext"] = []
+        self._uwc_ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = None
+        # WeakSet so that LazyWrappingContext instances (which also hold
+        # __wrapped__ = f) do not prevent the function from being collected.
+        self.lazy_contexts: weakref.WeakSet["LazyWrappingContext"] = weakref.WeakSet()
+
+    @property
+    def uwc(self) -> t.Optional["_UniversalWrappingContext"]:
+        ref = self._uwc_ref
+        return ref() if ref is not None else None
+
+    @uwc.setter
+    def uwc(self, value: t.Optional["_UniversalWrappingContext"]) -> None:
+        self._uwc_ref = weakref.ref(value) if value is not None else None
 
     @classmethod
     def get_or_create(cls, f: FunctionType) -> "_ContextRecord":
@@ -325,10 +343,27 @@ class BaseWrappingContext(ABC):
     __priority__: int = 0
 
     def __init__(self, f: FunctionType):
-        self.__wrapped__ = f
+        # Store a weak reference so that context objects do not keep the wrapped
+        # function alive. CodeType is not GC-tracked in CPython, so the cycle
+        #   f → code.co_consts → bound_methods(uwc) → uwc.__wrapped__ → f
+        # cannot be broken by the cyclic GC. A weak ref here allows f's
+        # reference count to reach zero (and be freed) as soon as all external
+        # strong refs drop, without relying on the cyclic GC at all.
+        self._wrapped_ref: weakref.ref[FunctionType] = weakref.ref(f)
         self._storage: ContextVar[t.Optional[dict[str, t.Any]]] = ContextVar(
             f"{type(self).__name__}__storage", default=None
         )
+
+    @property
+    def __wrapped__(self) -> FunctionType:
+        f = self._wrapped_ref()
+        if f is None:
+            raise RuntimeError(f"{type(self).__name__}.__wrapped__: the wrapped function has been garbage collected")
+        return f
+
+    @__wrapped__.setter
+    def __wrapped__(self, f: FunctionType) -> None:
+        self._wrapped_ref = weakref.ref(f)
 
     def __enter__(self) -> "BaseWrappingContext":
         prev = self._storage.get()
@@ -390,7 +425,10 @@ class WrappingContext(BaseWrappingContext):
     @property
     def __frame__(self) -> FrameType:
         try:
-            return t.cast(FrameType, _UniversalWrappingContext.extract(self.__wrapped__).get("__frame__"))
+            return t.cast(
+                FrameType,
+                _UniversalWrappingContext.extract(t.cast(FunctionType, self.__wrapped__)).get("__frame__"),
+            )
         except ValueError:
             raise AttributeError("Wrapping context not entered")
 
@@ -413,10 +451,12 @@ class WrappingContext(BaseWrappingContext):
             raise ValueError(msg)
 
     def wrap(self) -> None:
-        t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(self.__wrapped__)).register(self)
+        t.cast(
+            _UniversalWrappingContext, _UniversalWrappingContext.wrapped(t.cast(FunctionType, self.__wrapped__))
+        ).register(self)
 
     def unwrap(self) -> None:
-        f = self.__wrapped__
+        f = t.cast(FunctionType, self.__wrapped__)
 
         try:
             _UniversalWrappingContext.extract(f).unregister(self)
@@ -447,14 +487,14 @@ class LazyWrappingContext(WrappingContext):
 
             # If the function is already universally wrapped it's less expensive
             # to do the normal wrapping.
-            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
+            if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
                 super().wrap()
                 return
 
             def trampoline(_: t.Any, args: tuple[t.Any, ...], kwargs: dict[str, t.Any]) -> t.Any:
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
-                    if is_wrapped_with(self.__wrapped__, trampoline):
+                    if is_wrapped_with(t.cast(FunctionType, self.__wrapped__), trampoline):
                         f = t.cast(WrappedFunction, unwrap(f, trampoline))
 
                         self._trampoline = None
@@ -463,10 +503,8 @@ class LazyWrappingContext(WrappingContext):
                         with _registry_lock:
                             record = _registry.get(t.cast(FunctionType, f))
                             if record is not None:
-                                try:
-                                    record.lazy_contexts.remove(self)
-                                except ValueError:
-                                    inconsistent = True
+                                inconsistent = self not in record.lazy_contexts
+                                record.lazy_contexts.discard(self)
                                 if not record.lazy_contexts and record.uwc is None:
                                     _registry.pop(t.cast(FunctionType, f), None)
                         if inconsistent:
@@ -475,27 +513,24 @@ class LazyWrappingContext(WrappingContext):
                         super(LazyWrappingContext, self).wrap()
                 return f(*args, **kwargs)
 
-            wrap(self.__wrapped__, trampoline)
+            wrap(t.cast(FunctionType, self.__wrapped__), trampoline)
 
             self._trampoline = trampoline
 
-            _ContextRecord.get_or_create(self.__wrapped__).lazy_contexts.append(self)
+            _ContextRecord.get_or_create(t.cast(FunctionType, self.__wrapped__)).lazy_contexts.add(self)
 
     def unwrap(self) -> None:
         with self._trampoline_lock:
-            if _UniversalWrappingContext.is_wrapped(self.__wrapped__):
+            if _UniversalWrappingContext.is_wrapped(t.cast(FunctionType, self.__wrapped__)):
                 assert self._trampoline is None  # nosec
                 super().unwrap()
             elif self._trampoline is not None:
                 with _registry_lock:
-                    record = _registry.get(self.__wrapped__)
+                    record = _registry.get(t.cast(FunctionType, self.__wrapped__))
                     if record is not None:
-                        try:
-                            record.lazy_contexts.remove(self)
-                        except ValueError:
-                            pass
+                        record.lazy_contexts.discard(self)
                         if not record.lazy_contexts and record.uwc is None:
-                            _registry.pop(self.__wrapped__, None)
+                            _registry.pop(t.cast(FunctionType, self.__wrapped__), None)
 
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
                 self._trampoline = None
@@ -756,7 +791,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     else:
 
         def wrap(self) -> None:
-            f = self.__wrapped__
+            f = t.cast(FunctionType, self.__wrapped__)
 
             with _registry_lock:
                 if self.is_wrapped(f):
@@ -793,7 +828,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 set_function_code(f, bc.to_code())
 
         def unwrap(self) -> None:
-            f = self.__wrapped__
+            f = t.cast(FunctionType, self.__wrapped__)
 
             with _registry_lock:
                 if not self.is_wrapped(f):
