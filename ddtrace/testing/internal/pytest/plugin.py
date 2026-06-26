@@ -1343,7 +1343,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
 
-    if config.pluginmanager.hasplugin("pytest-bdd"):
+    if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
         config.pluginmanager.register(BddTestOptPlugin(plugin))
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
