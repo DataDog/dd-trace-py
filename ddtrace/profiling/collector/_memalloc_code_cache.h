@@ -13,8 +13,29 @@
  * std::unordered_map in debug builds where Abseil may not be compiled in. */
 #if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 #include "absl/container/flat_hash_map.h"
+
+/* Fibonacci (golden-ratio) hash for PyCodeObject pointers.
+ *
+ * pymalloc allocates PyCodeObject from fixed-size arenas, so pointers cluster
+ * on 8-byte-aligned addresses with many low bits fixed. A naive modulo/shift
+ * hash piles those into the same buckets. Multiplying by 2^64/phi (Knuth
+ * TAOCP 6.4) disperses the clustered low bits across the full 64-bit range.
+ *
+ * absl uses the high bits of the hash as the slot index and the low 7 bits as
+ * a per-slot fingerprint. Fibonacci output is well-distributed in both halves,
+ * so collision probability stays close to the theoretical minimum regardless
+ * of pointer alignment patterns. */
+struct FibHashPyCode
+{
+    size_t operator()(PyCodeObject* p) const noexcept
+    {
+        constexpr uint64_t FIB_MUL = 0x9E3779B97F4A7C15ULL;
+        return static_cast<size_t>(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p)) * FIB_MUL);
+    }
+};
+
 template<typename K, typename V>
-using CodeCacheMap = absl::flat_hash_map<K, V>;
+using CodeCacheMap = absl::flat_hash_map<K, V, FibHashPyCode>;
 #else
 #include <unordered_map>
 template<typename K, typename V>
