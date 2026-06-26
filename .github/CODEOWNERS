@@ -81,6 +81,7 @@ tests/lib-injection                 @DataDog/apm-core-python
 # ddtrace files
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
 ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 ddtrace/ext/ci/                                       @DataDog/ci-app-libraries
