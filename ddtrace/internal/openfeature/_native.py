@@ -20,7 +20,7 @@ VariationType = ffe.FlagType
 ResolutionDetails = ffe.ResolutionDetails
 
 
-def process_ffe_configuration(config):
+def process_ffe_configuration(config) -> bool:
     """
     Process FFE configuration and store as native Configuration object.
 
@@ -30,8 +30,15 @@ def process_ffe_configuration(config):
         config: Configuration dict in format {"flags": {...}} or wrapped format
     """
     try:
-        config_json = json.dumps(config)
-        config_bytes = config_json.encode("utf-8")
+        if isinstance(config, bytes):
+            config_bytes = config
+        elif isinstance(config, bytearray):
+            config_bytes = bytes(config)
+        elif isinstance(config, str):
+            config_bytes = config.encode("utf-8")
+        else:
+            config_json = json.dumps(config)
+            config_bytes = config_json.encode("utf-8")
         native_config = ffe.Configuration(config_bytes)
         _set_ffe_config(native_config)
 
@@ -40,6 +47,7 @@ def process_ffe_configuration(config):
         from ddtrace.internal.openfeature._provider import _notify_providers_config_received
 
         _notify_providers_config_received()
+        return True
     except ValueError as e:
         log.debug(
             "Failed to parse FFE configuration. The native library expects complete server format with: "
@@ -48,6 +56,7 @@ def process_ffe_configuration(config):
             e,
             exc_info=True,
         )
+        return False
 
 
 def resolve_flag(

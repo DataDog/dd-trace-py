@@ -14,6 +14,10 @@ pub mod ffe {
         get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
         EvaluationError, Str, UniversalFlagConfig,
     };
+    use datadog_ffe_ffi::{
+        FfeSourceDeliveryConfig, FfeSourceDeliveryError, FfeSourceDeliveryHandle,
+        FfeSourceDeliveryStatus,
+    };
 
     #[pyclass(frozen)]
     #[pyo3(name = "Configuration")]
@@ -49,6 +53,34 @@ pub mod ffe {
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
+    }
+
+    #[pyclass]
+    #[pyo3(name = "NativeSourceDelivery")]
+    struct NativeSourceDelivery {
+        inner: FfeSourceDeliveryHandle,
+    }
+
+    #[pyclass(frozen)]
+    struct NativeSourceDeliveryStatus {
+        #[pyo3(get)]
+        status: Str,
+        #[pyo3(get)]
+        status_code: Option<u16>,
+        #[pyo3(get)]
+        applied: bool,
+        #[pyo3(get)]
+        unchanged: bool,
+        #[pyo3(get)]
+        skipped: bool,
+        #[pyo3(get)]
+        attempts: u32,
+        #[pyo3(get)]
+        etag: Option<Str>,
+        #[pyo3(get)]
+        error: Option<Str>,
+        #[pyo3(get)]
+        retryable: bool,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,6 +185,105 @@ pub mod ffe {
         }
     }
 
+    #[pymethods]
+    impl NativeSourceDelivery {
+        #[new]
+        fn new(
+            base_url: String,
+            api_key: Option<String>,
+            poll_interval_seconds: f64,
+            request_timeout_seconds: f64,
+            max_retries: u32,
+            backoff_base_seconds: f64,
+        ) -> PyResult<NativeSourceDelivery> {
+            let config = FfeSourceDeliveryConfig {
+                base_url,
+                api_key,
+                poll_interval: duration_from_positive_seconds(
+                    poll_interval_seconds,
+                    "poll_interval_seconds",
+                )?,
+                request_timeout: duration_from_positive_seconds(
+                    request_timeout_seconds,
+                    "request_timeout_seconds",
+                )?,
+                max_retries,
+                backoff_base: duration_from_non_negative_seconds(
+                    backoff_base_seconds,
+                    "backoff_base_seconds",
+                )?,
+            };
+            let inner = FfeSourceDeliveryHandle::new(config).map_err(to_py_value_error)?;
+            Ok(NativeSourceDelivery { inner })
+        }
+
+        fn poll_once(&self) -> NativeSourceDeliveryStatus {
+            match self.inner.poll_once() {
+                Ok(status) => NativeSourceDeliveryStatus::from_status(status),
+                Err(err) => NativeSourceDeliveryStatus::from_error(err),
+            }
+        }
+
+        fn start(&self) -> NativeSourceDeliveryStatus {
+            match self.inner.start() {
+                Ok(status) => NativeSourceDeliveryStatus::from_status(status),
+                Err(err) => NativeSourceDeliveryStatus::from_error(err),
+            }
+        }
+
+        fn shutdown(&self, timeout_seconds: f64) -> NativeSourceDeliveryStatus {
+            let timeout =
+                match duration_from_non_negative_seconds(timeout_seconds, "timeout_seconds") {
+                    Ok(timeout) => timeout,
+                    Err(err) => {
+                        return NativeSourceDeliveryStatus::python_error(err.to_string());
+                    }
+                };
+            match self.inner.shutdown(timeout) {
+                Ok(status) => NativeSourceDeliveryStatus::from_status(status),
+                Err(err) => NativeSourceDeliveryStatus::from_error(err),
+            }
+        }
+
+        #[getter]
+        fn is_ready(&self) -> bool {
+            self.inner.is_ready()
+        }
+
+        #[getter]
+        fn is_started(&self) -> bool {
+            self.inner.is_started()
+        }
+
+        fn resolve_value<'py>(
+            &self,
+            flag_key: &str,
+            expected_type: FlagType,
+            context: Bound<'py, PyAny>,
+        ) -> PyResult<ResolutionDetails> {
+            let context = match context.extract::<EvaluationContext>() {
+                Ok(context) => context,
+                Err(err) => {
+                    return Ok(ResolutionDetails::error(
+                        ErrorCode::InvalidContext,
+                        err.to_string(),
+                    ))
+                }
+            };
+
+            match self
+                .inner
+                .resolve_value(flag_key, expected_type.into(), &context)
+            {
+                Ok(result) => Ok(match result {
+                    Ok(assignment) => assignment.into(),
+                    Err(err) => err.into(),
+                }),
+                Err(err) => Ok(ResolutionDetails::error(ErrorCode::General, err.to_string())),
+            }
+        }
+    }
+
     impl ResolutionDetails {
         fn empty(reason: impl Into<Reason>) -> ResolutionDetails {
             ResolutionDetails {
@@ -177,6 +308,50 @@ pub mod ffe {
                 allocation_key: None,
                 flag_metadata: HashMap::new(),
                 do_log: false,
+            }
+        }
+    }
+
+    impl NativeSourceDeliveryStatus {
+        fn from_status(status: FfeSourceDeliveryStatus) -> Self {
+            NativeSourceDeliveryStatus {
+                status: status.name().into(),
+                status_code: status.status_code(),
+                applied: status.applied(),
+                unchanged: status.unchanged(),
+                skipped: status.skipped(),
+                attempts: status.attempts(),
+                etag: status.etag().map(Into::into),
+                error: None,
+                retryable: false,
+            }
+        }
+
+        fn from_error(error: FfeSourceDeliveryError) -> Self {
+            NativeSourceDeliveryStatus {
+                status: "error".into(),
+                status_code: error.status_code(),
+                applied: false,
+                unchanged: false,
+                skipped: false,
+                attempts: 0,
+                etag: None,
+                error: Some(error.to_string().into()),
+                retryable: error.retryable(),
+            }
+        }
+
+        fn python_error(message: impl Into<Str>) -> Self {
+            NativeSourceDeliveryStatus {
+                status: "error".into(),
+                status_code: None,
+                applied: false,
+                unchanged: false,
+                skipped: false,
+                attempts: 0,
+                etag: None,
+                error: Some(message.into()),
+                retryable: false,
             }
         }
     }
@@ -213,6 +388,23 @@ pub mod ffe {
         }
     }
 
+    impl From<ffe::Assignment> for ResolutionDetails {
+        fn from(value: ffe::Assignment) -> ResolutionDetails {
+            ResolutionDetails {
+                value: Some(value.value),
+                error_code: None,
+                error_message: None,
+                reason: Some(value.reason.into()),
+                variant: Some(value.variation_key),
+                allocation_key: Some(value.allocation_key.clone()),
+                flag_metadata: [("allocation_key".into(), value.allocation_key)]
+                    .into_iter()
+                    .collect(),
+                do_log: value.do_log,
+            }
+        }
+    }
+
     impl From<FlagType> for ffe::ExpectedFlagType {
         fn from(value: FlagType) -> ffe::ExpectedFlagType {
             match value {
@@ -231,7 +423,27 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
     }
+
+    fn duration_from_positive_seconds(value: f64, name: &str) -> PyResult<std::time::Duration> {
+        if !value.is_finite() || value <= 0.0 {
+            return Err(PyValueError::new_err(format!("{name} must be positive")));
+        }
+        Ok(std::time::Duration::from_secs_f64(value))
+    }
+
+    fn duration_from_non_negative_seconds(value: f64, name: &str) -> PyResult<std::time::Duration> {
+        if !value.is_finite() || value < 0.0 {
+            return Err(PyValueError::new_err(format!("{name} must be non-negative")));
+        }
+        Ok(std::time::Duration::from_secs_f64(value))
+    }
+
+    fn to_py_value_error(error: FfeSourceDeliveryError) -> PyErr {
+        PyValueError::new_err(error.to_string())
+    }
+
 }
