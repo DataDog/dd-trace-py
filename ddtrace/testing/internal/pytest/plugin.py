@@ -1101,7 +1101,9 @@ class RetryReports:
         if test.is_flaky_run():
             extra_user_properties += [("dd_flaky", True)]
 
-        final_report = pytest.TestReport(
+        from _pytest.reports import TestReport as _TestReport
+
+        final_report = _TestReport(
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
