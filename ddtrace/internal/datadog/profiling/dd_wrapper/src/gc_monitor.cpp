@@ -127,7 +127,7 @@ serialize_node(std::ostringstream& out, const TreeNode& node, int indent)
 // noisy / unactionable leak candidates.  Objects of these types are still
 // tracked for survivor-count purposes but are never promoted to the suspect
 // list that gets serialised.
-[[maybe_unused]] bool
+bool
 is_excluded_type(const std::string& tname) noexcept
 {
     // Exact matches --------------------------------------------------------
@@ -158,6 +158,21 @@ is_excluded_type(const std::string& tname) noexcept
         "set",
         "frozenset",
         "tuple",
+        // Interpreter-wide "node eaters". Their reference graphs span most of
+        // the heap (a module's globals, a type's MRO/__dict__, a function's
+        // globals + closure, a frame's locals), so as *roots* they dominate the
+        // forest without isolating an actionable application leak. They are
+        // still emitted as children wherever an application type references
+        // them, so chains like "MyType -> dict -> function" are preserved.
+        "function",
+        "builtin_function_or_method",
+        "code",
+        "cell",
+        "frame",
+        "module",
+        "type",
+        "mappingproxy",
+        "classmethod",
     };
     if (exact.count(tname) != 0) {
         return true;
@@ -241,8 +256,10 @@ resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_h
 // types), so even with a per-path cycle guard an unbounded expansion could blow
 // up memory and JSON size.  These caps keep the output bounded regardless of
 // heap shape.
-constexpr size_t kRefTreeMaxChildren = 64;   // top children (by bytes) per node
-constexpr size_t kRefTreeMaxNodes = 100'000; // total nodes across the forest
+constexpr size_t kRefTreeMaxChildren = 64;        // top children (by bytes) per node
+constexpr size_t kRefTreeMaxNodes = 100'000;      // total nodes across the forest
+constexpr size_t kRefTreeMaxNodesPerRoot = 4'096; // hard cap on a single root's subtree
+constexpr size_t kRefTreeMinNodesPerRoot = 16;    // nodes reserved for *every* root
 
 // {reference count, total shallow bytes} aggregated for one (holder, held) edge.
 using EdgeAgg = std::pair<uint64_t, uint64_t>;
@@ -425,28 +442,66 @@ build_reference_tree(PyObject* gc_mod,
           lst.begin(), lst.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
     }
 
-    // Roots: every type with at least one live instance, biggest first so the
-    // node budget is spent on the heaviest types.
+    // Roots: every type with at least one live instance, minus the
+    // infrastructure / builtin "node eaters" filtered by is_excluded_type (a
+    // densely connected type such as "function" or "module" would otherwise
+    // consume the entire node budget by itself and crowd out every application
+    // type). Excluded types still appear as children of the types that
+    // reference them, so the relationships are not lost.
     std::vector<uint32_t> root_order;
     root_order.reserve(type_counts.size());
     for (uint32_t idx = 0; idx < type_counts.size(); ++idx) {
-        if (type_counts[idx] > 0) {
+        if (type_counts[idx] > 0 && !is_excluded_type(type_table[idx])) {
             root_order.push_back(idx);
         }
     }
+    // Heaviest first so the shared bonus budget below is spent on the types that
+    // retain the most memory.
     std::sort(
       root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) { return type_sizes[a] > type_sizes[b]; });
 
+    // Budget policy. A single global cap lets one densely connected root eat the
+    // whole forest, starving every other type (the bug that hid application
+    // types from "rt"). Instead we split the global cap into:
+    //   * a per-root *floor* (kRefTreeMinNodesPerRoot) reserved for every root
+    //     up front, so even small, low-ranked application types -- the ones that
+    //     usually reveal a leak -- are guaranteed a subtree; and
+    //   * a shared *bonus* pool the heaviest roots draw from, each limited to
+    //     kRefTreeMaxNodesPerRoot total, so no single root can monopolise it.
+    // Every root therefore always appears, and total nodes stay <= kRefTreeMaxNodes.
+    const size_t n_roots = root_order.size();
     std::vector<char> on_path(type_table.size(), 0);
-    size_t budget = kRefTreeMaxNodes;
-    forest.reserve(root_order.size());
-    for (uint32_t idx : root_order) {
-        if (budget == 0) {
-            break;
+    forest.reserve(n_roots);
+
+    if (n_roots != 0) {
+        size_t floor = kRefTreeMinNodesPerRoot;
+        // If the floors alone would exceed the global cap, shrink the floor so
+        // every root still gets at least one node.
+        if (floor * n_roots > kRefTreeMaxNodes) {
+            floor = std::max<size_t>(1, kRefTreeMaxNodes / n_roots);
         }
-        --budget;
-        forest.emplace_back();
-        build_subtree(idx, type_counts[idx], type_sizes[idx], 0, max_depth, adj, on_path, budget, forest.back());
+        const size_t reserved = floor * n_roots;
+        size_t bonus_pool = kRefTreeMaxNodes > reserved ? kRefTreeMaxNodes - reserved : 0;
+
+        for (uint32_t idx : root_order) {
+            // Total nodes this root may grow to: its reserved floor plus
+            // whatever it can claim from the shared bonus pool, capped overall.
+            const size_t headroom = kRefTreeMaxNodesPerRoot > floor ? kRefTreeMaxNodesPerRoot - floor : 0;
+            const size_t cap = floor + std::min(bonus_pool, headroom);
+
+            // build_subtree always emits the root node itself (it sets the node
+            // fields before consulting the budget) and decrements the budget per
+            // *child*, so the children budget is cap minus the root node.
+            size_t remaining = cap > 0 ? cap - 1 : 0;
+            forest.emplace_back();
+            build_subtree(idx, type_counts[idx], type_sizes[idx], 0, max_depth, adj, on_path, remaining, forest.back());
+
+            // Account for the bonus actually spent; the floor portion is
+            // per-root and not returned to the shared pool.
+            const size_t used = cap - remaining; // root node + children emitted
+            const size_t bonus_used = used > floor ? used - floor : 0;
+            bonus_pool -= bonus_used;
+        }
     }
 }
 
