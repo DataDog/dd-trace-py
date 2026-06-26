@@ -525,6 +525,36 @@ async def test_double_async_for_with_exception():
 
 
 @pytest.mark.asyncio
+async def test_wrap_async_generator_awaits_suspending_coroutine():
+    # Regression test for the async-generator trampoline await loop.
+    # The body awaits a coroutine that suspends to the event loop multiple
+    # times before the first yield. This drives the SEND/YIELD/RESUME cycle
+    # more than once; the loop previously jumped back to GET_AWAITABLE
+    # instead of SEND, which eventually awaited None and raised
+    # "object NoneType can't be used in 'await' expression".
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def suspends():
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return "ready"
+
+    async def g():
+        value = await suspends()
+        yield value
+        yield value + "!"
+
+    wrap(g, wrapper)
+
+    out = []
+    async for item in g():
+        out.append(item)
+
+    assert out == ["ready", "ready!"]
+
+
+@pytest.mark.asyncio
 async def test_wrap_async_generator_throw_close():
     channel = []
 

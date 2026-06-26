@@ -11,8 +11,12 @@ from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
+
+
+log = get_logger(__name__)
 
 
 SINGLE_KEY_COMMANDS = [
@@ -89,6 +93,42 @@ def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
         return {}
 
 
+def _extract_cluster_conn_tags(instance) -> dict:
+    # startup_nodes is a list in redis-py 4.x and a dict keyed by "host:port" in 5.x;
+    # first node is used as the representative host.
+    # Node values may be ClusterNode objects (.host/.port) or plain dicts depending on the version.
+    try:
+        startup_nodes = instance.nodes_manager.startup_nodes
+
+        if isinstance(startup_nodes, dict):
+            first_node = next(iter(startup_nodes.values()), None)
+        else:
+            first_node = startup_nodes[0] if startup_nodes else None
+
+        if not first_node:
+            return {}
+
+        if isinstance(first_node, dict):
+            host = first_node.get("host")
+            port = first_node.get("port")
+        else:
+            host = first_node.host
+            port = first_node.port
+
+        if not host:
+            return {}
+
+        return {
+            net.TARGET_HOST: host,
+            net.TARGET_PORT: port,
+            net.SERVER_ADDRESS: host,
+            redisx.DB: 0,
+        }
+    except Exception:
+        log.debug("Failed to extract cluster connection tags", exc_info=True)
+        return {}
+
+
 def _build_tags(query, instance, integration_name):
     ret = dict()
     ret[SPAN_KIND] = SpanKind.CLIENT
@@ -97,10 +137,12 @@ def _build_tags(query, instance, integration_name):
     if query is not None:
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         ret[span_name] = query
-    # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if hasattr(instance, "connection_pool"):
         for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs).items():
             ret[key] = value
+    elif hasattr(instance, "nodes_manager"):
+        # RedisCluster has no connection_pool; extract peer tags from nodes_manager instead.
+        ret.update(_extract_cluster_conn_tags(instance))
     return ret
 
 
