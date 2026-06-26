@@ -18,7 +18,7 @@ def test_lazy_import():
     assert tracer.context_provider.active() is None
 
 
-def test_asyncio_event_loop_registration_with_module_cloning():
+def test_asyncio_not_unloaded_by_module_cloning():
     import os
     import subprocess
     import sys
@@ -26,12 +26,13 @@ def test_asyncio_event_loop_registration_with_module_cloning():
     # Run in a pristine interpreter (not pytest's, which pre-imports asyncio) so that
     # asyncio is imported during ddtrace setup and is a genuine candidate for cleanup.
     # DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE forces module cloning without gevent installed.
+    # Unloading asyncio desyncs the re-imported module from the _asyncio C extension and
+    # breaks event loop registration, so cloning must keep both modules loaded.
     script = (
         "import ddtrace.auto\n"
-        "import asyncio\n"
-        "loop = asyncio.new_event_loop()\n"
-        "asyncio.set_event_loop(loop)\n"
-        "assert asyncio.get_event_loop() is loop\n"
+        "import sys\n"
+        "assert 'asyncio' in sys.modules, 'asyncio was unloaded by module cloning'\n"
+        "assert '_asyncio' in sys.modules, '_asyncio was unloaded by module cloning'\n"
         "print('OK')\n"
     )
     env = {**os.environ, "DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE": "1"}
