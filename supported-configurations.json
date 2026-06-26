@@ -49,7 +49,7 @@
     ],
     "DD_AGENT_SERVICE": [
       {
-        "implementation": "B",
+        "implementation": "A",
         "type": "string",
         "default": null,
         "aliases": [
