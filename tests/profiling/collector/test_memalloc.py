@@ -1576,6 +1576,131 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Per-domain sampling counter tests (#18611)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_per_domain_alloc_space_tracks_domain_bytes(tmp_path: Path) -> None:
+    """Each domain's alloc-space should approximate the bytes allocated from that domain.
+
+    With per-domain counters, OBJ bytes only accumulate toward the OBJ threshold and
+    MEM bytes only toward the MEM threshold.  Each domain's alloc-space weight is drawn
+    from the domain's own accumulated byte count, so the totals stay proportional to
+    actual bytes regardless of cross-domain traffic.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_per_domain_alloc_space")
+
+    sample_size = 64 * 1024  # 64 KB base rate
+    obj_total = 16 * 1024 * 1024  # 16 MB via OBJ
+    mem_total = 16 * 1024 * 1024  # 16 MB via MEM
+    chunk = 256 * 1024  # 256 KB per allocation
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_size, mem_domain_enabled=True)
+    obj_live: list[object] = []
+    mem_live: list[object] = []
+
+    with mc:
+        for _ in range(obj_total // chunk):
+            obj_live.append(one(chunk))
+        for _ in range(mem_total // chunk):
+            mem_live.append(_make_mem_domain_object(chunk))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    alloc_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+
+    obj_alloc_space = sum(
+        s.value[alloc_space_idx] for s in alloc_samples if has_function_in_profile_sample(profile, s, one)
+    )
+    mem_alloc_space = sum(
+        s.value[alloc_space_idx]
+        for s in alloc_samples
+        if has_function_in_profile_sample(profile, s, "_make_mem_domain_object")
+    )
+
+    assert obj_alloc_space > 0, "Expected OBJ-domain alloc-space > 0"
+    assert mem_alloc_space > 0, "Expected MEM-domain alloc-space > 0"
+
+    # Each domain's total alloc-space should be within 2× of actual bytes from that domain.
+    # Sampling is unbiased (Horvitz-Thompson), so the aggregate is approximately correct
+    # regardless of cross-domain traffic, but gross contamination (e.g. wrong bytes in
+    # wrong domain counter) would push the ratio outside this band.
+    for domain_name, measured, expected in [
+        ("OBJ", obj_alloc_space, obj_total),
+        ("MEM", mem_alloc_space, mem_total),
+    ]:
+        ratio = measured / expected
+        assert 0.4 <= ratio <= 2.5, (
+            f"{domain_name} alloc-space {measured} should be within 2.5× of actual bytes {expected} "
+            f"(ratio={ratio:.2f}). Domain byte counter may be contaminated by allocations from other domains."
+        )
+
+    del obj_live, mem_live
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_sample_rate_factor(tmp_path: Path) -> None:
+    """MEM domain samples at a lower rate than OBJ (MEM_DOMAIN_SAMPLE_RATE_FACTOR=4).
+
+    With equal bytes allocated via each domain, MEM should produce fewer tracked
+    live allocations than OBJ because MEM fires a sample only every 4× sample_size bytes.
+    Fewer tracked allocations → lower heap-live-samples count in the profile.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_mem_domain_rate_factor")
+
+    sample_size = 128 * 1024  # 128 KB base rate
+    total_per_domain = 32 * 1024 * 1024  # 32 MB each
+    chunk = 256 * 1024  # 256 KB per allocation; large enough to guarantee a sample per ~2 OBJ chunks
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_size, mem_domain_enabled=True)
+    obj_live: list[object] = []
+    mem_live: list[object] = []
+
+    with mc:
+        for _ in range(total_per_domain // chunk):
+            obj_live.append(one(chunk))
+        for _ in range(total_per_domain // chunk):
+            mem_live.append(_make_mem_domain_object(chunk))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+    heap_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+
+    # heap-live-samples counts tracked live allocations (one per sample event that is
+    # still live at snapshot time).  Fewer MEM sample events → fewer tracked MEM allocs
+    # → lower heap-live-samples for the MEM function.
+    obj_live_count = sum(
+        s.value[heap_live_idx] for s in heap_samples if has_function_in_profile_sample(profile, s, one)
+    )
+    mem_live_count = sum(
+        s.value[heap_live_idx]
+        for s in heap_samples
+        if has_function_in_profile_sample(profile, s, "_make_mem_domain_object")
+    )
+
+    assert obj_live_count > 0, "Expected live OBJ allocations in heap profile"
+    assert mem_live_count > 0, "Expected live MEM allocations in heap profile"
+
+    # MEM fires every 4× sample_size bytes → ~4× fewer sample events than OBJ for equal bytes.
+    # heap-live-samples reflects the number of tracked (sampled) live allocations, so
+    # MEM count should be substantially lower than OBJ count.
+    # Allow wide slack (factor of 3 rather than 4) for statistical variance in the
+    # exponential inter-sample interval.
+    ratio = mem_live_count / obj_live_count
+    assert ratio < 0.67, (
+        f"MEM heap-live-samples ({mem_live_count}) should be substantially less than "
+        f"OBJ ({obj_live_count}), ratio={ratio:.2f} (expected ~0.25 from 4× rate factor). "
+        f"MEM_DOMAIN_SAMPLE_RATE_FACTOR may not be applied."
+    )
+
+    del obj_live, mem_live
+
+
+# ---------------------------------------------------------------------------
 # Code cache correctness tests
 # ---------------------------------------------------------------------------
 
