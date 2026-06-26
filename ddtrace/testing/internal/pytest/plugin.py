@@ -82,7 +82,7 @@ except AttributeError:
     # (older pytest versions don't have StashKey)
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
-_HAS_STASH = hasattr(pytest.Config, "stash")
+_HAS_STASH = hasattr(pytest, "Config") and hasattr(pytest.Config, "stash")
 
 
 def _stash_set(config, key, value):
