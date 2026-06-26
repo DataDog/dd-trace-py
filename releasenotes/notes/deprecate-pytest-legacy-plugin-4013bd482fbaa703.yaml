@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    pytest: The legacy pytest plugin (``ddtrace/contrib/internal/pytest``) is deprecated and will be
+    removed in dd-trace-py 5.0.0. This plugin is active only when ``DD_PYTEST_USE_NEW_PLUGIN`` is
+    explicitly set to ``false`` or ``0``. The new pytest plugin (``ddtrace/testing/internal/pytest``)
+    is already the default. To migrate, remove the ``DD_PYTEST_USE_NEW_PLUGIN`` environment variable
+    from your configuration.

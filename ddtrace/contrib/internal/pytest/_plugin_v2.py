@@ -1,3 +1,6 @@
+# DEPRECATED: This module is scheduled for removal in dd-trace-py 5.0.0.
+# Use DD_PYTEST_USE_NEW_PLUGIN=true (or unset; it is now the default) to opt into
+# the new plugin at ddtrace/testing/internal/pytest/.
 from pathlib import Path
 import typing as t
 
@@ -442,7 +445,7 @@ def pytest_configure(config: pytest_Config) -> None:
         deprecate(
             "the DD_PYTEST_USE_NEW_PLUGIN_BETA environment variable is deprecated",
             message="the new pytest plugin is now the default version. No additional configurations are required.",
-            removal_version="3.0.0",
+            removal_version="5.0.0",
             category=DDTraceDeprecationWarning,
         )
 
