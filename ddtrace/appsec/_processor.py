@@ -321,8 +321,15 @@ class AppSecSpanProcessor(SpanProcessor):
             if not data:
                 return None
 
+            sqli_cache_key: Optional[tuple[int, Optional[str]]] = None
+            if rule_type == EXPLOIT_PREVENTION.TYPE.SQLI:
+                sqli_cache_key, is_cached = _asm_request_context.check_rasp_sqli_cache(data)
+                if is_cached:
+                    return None
+
             try:
                 if rule_type is None:
+                    _asm_request_context.clear_rasp_sqli_cache()
                     # Request-related data -> main per-request context.
                     waf_results = self._ddwaf.run(ctx, data, timeout_ms=asm_config._waf_timeout)
                 else:
@@ -334,6 +341,8 @@ class AppSecSpanProcessor(SpanProcessor):
                         log.debug("appsec::processor::waf::rasp_subcontext_unavailable")
                         return None
                     waf_results = self._ddwaf.run(subctx, data, timeout_ms=asm_config._waf_timeout)
+                    if sqli_cache_key is not None:
+                        _asm_request_context.update_rasp_sqli_cache(sqli_cache_key, waf_results)
             except Exception:
                 log.debug("appsec::processor::waf::run", exc_info=True)
                 waf_results = Binding_error
