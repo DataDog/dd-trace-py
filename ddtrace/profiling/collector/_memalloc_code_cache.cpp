@@ -1,7 +1,6 @@
 #include "_memalloc_code_cache.h"
 
 #include <algorithm>
-#include <bit>
 #include <memory>
 
 namespace Datadog {
@@ -13,62 +12,30 @@ namespace Datadog {
 static std::unique_ptr<CodeFunctionCache> g_instance_owned;
 CodeFunctionCache* CodeFunctionCache::instance = nullptr;
 
-static size_t
-clamp_to_pow2_set_count(size_t capacity_hint)
+CodeFunctionCache::CodeFunctionCache(size_t capacity)
+  : max_capacity_(std::clamp(capacity, MIN_CAPACITY, MAX_CAPACITY))
 {
-    /* Capacity is total ways. num_sets = capacity / WAYS_PER_SET, rounded up
-     * to a power of two so set indexing can use a bitmask. */
-    size_t clamped = std::max(capacity_hint, CodeFunctionCache::MIN_CAPACITY);
-    clamped = std::min(clamped, CodeFunctionCache::MAX_CAPACITY);
-
-    size_t target_sets = (clamped + CodeFunctionCache::WAYS_PER_SET - 1) / CodeFunctionCache::WAYS_PER_SET;
-    size_t num_sets = 1;
-    while (num_sets < target_sets) {
-        num_sets <<= 1;
-    }
-    return num_sets;
-}
-
-CodeFunctionCache::CodeFunctionCache(size_t capacity_hint)
-{
-    size_t num_sets = clamp_to_pow2_set_count(capacity_hint);
-    sets_.assign(num_sets, Set{});
-    /* num_sets is a power of two, so countr_zero gives log2(num_sets).
-     * std::countr_zero (<bit>, C++20) is portable across GCC/Clang/MSVC. */
-    log2_set_bits_ = static_cast<uint8_t>(std::countr_zero(num_sets));
-}
-
-size_t
-CodeFunctionCache::set_index(PyCodeObject* code) const
-{
-    /* Fibonacci hashing: multiply by 2^64 / phi (Knuth TAOCP 6.4) and take
-     * the high log2(num_sets) bits. One imul + one shift; uniform on the
-     * clustered low bits of pymalloc-allocated PyCodeObject pointers that
-     * the previous shift-mask scheme piled into a few sets. */
-    constexpr uint64_t FIB_MUL = 0x9E3779B97F4A7C15ULL;
-    uint64_t bits = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(code));
-    return static_cast<size_t>((bits * FIB_MUL) >> (64 - log2_set_bits_));
+    /* Reserve up-front so the map performs no heap allocations on insert until
+     * max_capacity_ entries are present. absl::flat_hash_map::reserve(n) ensures
+     * capacity for at least n elements before the next rehash. */
+    map_.reserve(max_capacity_);
 }
 
 CacheHit
 CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept
 {
-    Set& s = sets_[set_index(code)];
-    for (size_t i = 0; i < WAYS_PER_SET; ++i) {
-        if (s.codes[i] == code) {
-            /* Validate identity to defend against PyCodeObject address reuse:
-             * CPython may free a code object and hand its address to a new one.
-             * On mismatch the slot is stale; report a miss so the caller
-             * re-interns and overwrites it via insert(). */
-            if (s.names[i] == name && s.filenames[i] == filename && s.firstlines[i] == firstlineno) {
-                /* line >= 0 only when the stored lasti matches, letting the
-                 * caller skip parse_linetable; otherwise -1 signals a reparse. */
-                return CacheHit{ s.functions[i], s.lastis[i] == lasti ? s.lines[i] : -1 };
-            }
-            return CacheHit{ nullptr, -1 };
-        }
+    auto it = map_.find(code);
+    if (it == map_.end()) {
+        return { nullptr, -1 };
     }
-    return CacheHit{ nullptr, -1 };
+    const Entry& e = it->second;
+    /* Validate identity to defend against PyCodeObject address reuse:
+     * CPython may free a code object and hand its address to a new one.
+     * On mismatch the entry is stale; report a miss so the caller re-interns. */
+    if (e.name != name || e.filename != filename || e.firstlineno != firstlineno) {
+        return { nullptr, -1 };
+    }
+    return { e.func_id, e.lasti == lasti ? e.line : -1 };
 }
 
 void
@@ -80,44 +47,24 @@ CodeFunctionCache::insert(PyCodeObject* code,
                           int lasti,
                           int line)
 {
-    Set& s = sets_[set_index(code)];
-
-    for (size_t i = 0; i < WAYS_PER_SET; ++i) {
-        if (s.codes[i] == nullptr || s.codes[i] == code) {
-            s.codes[i] = code;
-            s.functions[i] = id;
-            s.names[i] = name;
-            s.filenames[i] = filename;
-            s.firstlines[i] = firstlineno;
-            s.lastis[i] = lasti;
-            s.lines[i] = line;
-            return;
-        }
+    /* Evict one entry when at capacity to keep the map bounded and prevent
+     * a rehash. Eviction policy is effectively random (first occupied slot);
+     * the policy rarely fires in practice — typical workloads have far fewer
+     * than max_capacity_ unique frames on the hot path. */
+    if (map_.size() >= max_capacity_) {
+        map_.erase(map_.begin());
     }
-
-    /* FIFO eviction: overwrite next_evict slot, advance pointer. */
-    size_t way = s.next_evict;
-    s.next_evict = static_cast<uint8_t>((way + 1) % WAYS_PER_SET);
-    s.codes[way] = code;
-    s.functions[way] = id;
-    s.names[way] = name;
-    s.filenames[way] = filename;
-    s.firstlines[way] = firstlineno;
-    s.lastis[way] = lasti;
-    s.lines[way] = line;
+    map_.insert_or_assign(code, Entry{ id, name, filename, firstlineno, lasti, line });
 }
 
 void
 CodeFunctionCache::clear()
 {
-    std::fill(sets_.begin(), sets_.end(), Set{});
+    /* clear() retains reserved capacity, so postfork_child resets entries
+     * without releasing the pre-allocated flat storage. */
+    map_.clear();
 }
 
-/* Note: we do not use std::unordered_map here because STL containers call the
- * default allocator internally. Since our hooks intercept PyObject_Malloc and
- * PyMem_RawMalloc, any allocation inside a hook would immediately re-enter it,
- * causing infinite recursion. The custom fixed-capacity array is bounded and
- * performs no heap allocations after construction. */
 bool
 memalloc_code_cache_init(size_t capacity)
 {
