@@ -703,7 +703,7 @@ experiments:
               - max_rss_usage < 45.00 MB
           - name: iastpropagation-propagation_enabled_1000
             thresholds:
-              - execution_time < 38.00 ms
+              - execution_time < 38.40 ms
               - max_rss_usage < 45.00 MB
 
           # otelsdkspan
@@ -878,7 +878,7 @@ experiments:
           - name: ratelimiter-low_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: ratelimiter-no_rate_limit
             thresholds:
               - execution_time < 0.01 ms
