@@ -73,6 +73,10 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 # execution (slightly slower but still correct, since CoverageLines.add() is idempotent), and
 # restart_events() is never needed.
 # The flag is re-evaluated in CollectInContext.__enter__ via update_disable_optimization().
+# On the True→False transition, _rearm_all_events() re-enables events that were DISABLE'd during
+# the window between our install and the other tool registering (e.g. early conftest imports in
+# pytest happen before coverage.py registers in pytest_configure).  It uses set_local_events()
+# (per-tool) rather than restart_events() (global) so the other tool is unaffected.
 _use_disable_optimization: bool = True
 
 
@@ -91,16 +95,43 @@ def has_other_monitoring_tools() -> bool:
     return False
 
 
+def _rearm_all_events() -> None:
+    """Re-enable monitoring events for all instrumented code objects (our tool only).
+
+    When _event_handler returns DISABLE, Python stops firing events for that code location.
+    This function re-enables them by calling set_local_events() per code object — which only
+    affects our tool_id, leaving other tools' disabled-event state untouched.
+
+    Called on the True→False transition in update_disable_optimization(), i.e. when another
+    sys.monitoring tool (e.g. coverage.py) is detected after events were already DISABLE'd
+    during an early-import window (between our install and the other tool registering).
+    """
+    if _DD_TOOL_ID is None:
+        return
+    for code in _CODE_HOOKS:
+        sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
+
+
 def update_disable_optimization() -> bool:
     """Re-evaluate _use_disable_optimization based on the current sys.monitoring state.
 
     Called from CollectInContext.__enter__ so that the flag is always in sync with the actual
     set of registered monitoring tools (e.g. coverage.py may have started after our install).
 
+    When another tool is detected for the first time (True→False transition), any events that
+    were DISABLE'd during the early-import window (before the other tool registered) are
+    re-armed via _rearm_all_events() so per-test contexts don't miss those lines.
+
     Returns the new value of _use_disable_optimization.
     """
     global _use_disable_optimization
+    prev = _use_disable_optimization
     _use_disable_optimization = not has_other_monitoring_tools()
+    if prev and not _use_disable_optimization:
+        # We were using DISABLE but another tool just appeared.  Re-arm events that were
+        # disabled during the window before the other tool registered, using set_local_events
+        # (per-tool) rather than restart_events() (global) so the other tool is unaffected.
+        _rearm_all_events()
     return _use_disable_optimization
 
 

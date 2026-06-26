@@ -574,3 +574,58 @@ def test_comprehensive_reinstrumentation_with_simple_module():
 
     # Verify context 3 captured the false branch
     assert_coverage_matches(context3_covered, {module_path: expected_lines_false_branch}, file_level_mode, "Context 3")
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Test specific to Python 3.12+ monitoring API")
+@pytest.mark.subprocess(parametrize={"_DD_COVERAGE_FILE_LEVEL": ["true", "false"]})
+def test_events_rearmed_when_other_tool_registers_after_early_execution():
+    """
+    Regression test: lines executed BEFORE another sys.monitoring tool registers must still
+    be captured in later per-test contexts.
+
+    Scenario (mirrors pytest with coverage report upload):
+    1. ModuleCodeCollector installed (DISABLE optimisation active, _use_disable_optimization=True).
+    2. Some workspace code is called — _event_handler returns DISABLE, silencing those line events.
+    3. Another sys.monitoring tool registers (simulating coverage.py in pytest_configure).
+    4. Per-test CollectInContext starts — update_disable_optimization() detects the other tool,
+       transitions True→False, and calls _rearm_all_events() to re-enable our disabled events
+       via set_local_events() (per-tool, does not affect the other tool).
+    5. The same code is called again inside the test context — events now fire and are recorded.
+
+    Without the _rearm_all_events() fix, step 5 would produce an empty ITR bitmap for those lines.
+    """
+    import os
+    from pathlib import Path
+    import sys
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.installer import install
+    from tests.coverage.utils import _get_relpath_dict
+    from tests.coverage.utils import assert_coverage_matches
+
+    cwd_path = os.getcwd()
+    include_path = Path(cwd_path + "/tests/coverage/included_path/")
+    file_level_mode = os.getenv("_DD_COVERAGE_FILE_LEVEL") == "true"
+
+    # Step 1: install collector with DISABLE optimisation active (no other tools yet)
+    install(include_paths=[include_path])
+
+    # Step 2: import and execute workspace code — events fire and return DISABLE
+    from tests.coverage.included_path.lib import called_in_session
+
+    called_in_session(0, 1)  # events for lib.py lines are now DISABLE'd
+
+    # Step 3: another monitoring tool registers (simulating coverage.py in pytest_configure)
+    other_slot = 0
+    sys.monitoring.use_tool_id(other_slot, "fake_coverage_tool")
+
+    # Step 4 & 5: per-test context — must capture the same code executed in step 2
+    with ModuleCodeCollector.CollectInContext() as ctx:
+        called_in_session(2, 3)
+        covered = _get_relpath_dict(cwd_path, ctx.get_covered_lines())
+
+    sys.monitoring.free_tool_id(other_slot)
+
+    # lib.py line 2 (function body) must be in the per-test bitmap
+    expected = {"tests/coverage/included_path/lib.py": {2}}
+    assert_coverage_matches(covered, expected, file_level_mode, "Context after early-window DISABLE")
