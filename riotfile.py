@@ -1856,6 +1856,28 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="faststream",
+            env={
+                "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
+                "DD_DATA_STREAMS_ENABLED": "true",
+            },
+            command="pytest {cmdargs} tests/contrib/faststream",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"faststream[kafka,rabbit,nats,redis,confluent]": ["==0.6.0", latest]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14"),
+                    pkgs={"faststream[kafka,rabbit,nats,redis,confluent]": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="fastapi",
             command="pytest {cmdargs} tests/contrib/fastapi",
             pkgs={

@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    faststream: Adds instrumentation support for ``faststream>=0.6.0``,
+    covering Kafka, Confluent, RabbitMQ, NATS, and Redis brokers. Producer
+    and consumer spans are emitted via FastStream's middleware extension
+    point. Distributed tracing through message headers can be enabled with
+    ``DD_FASTSTREAM_DISTRIBUTED_TRACING=true``, and Data Streams Monitoring
+    is supported when ``DD_DATA_STREAMS_ENABLED=true``. See the
+    ``faststream<https://ddtrace.readthedocs.io/en/stable/integrations.html#faststream>``
+    documentation for more information.

@@ -3,7 +3,8 @@ from ddtrace.internal.settings._config import config
 from ...internal.utils.importlib import require_modules
 
 
-required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka", "google.cloud.pubsub_v1"]
+required_modules = ["confluent_kafka", "botocore", "kombu", "aiokafka", "google.cloud.pubsub_v1", "faststream"]
+
 _processor = None
 
 if config._data_streams_enabled:
@@ -16,6 +17,8 @@ if config._data_streams_enabled:
             from . import botocore  # noqa:F401
         if "kombu" not in missing_modules:
             from . import kombu  # noqa:F401
+        if "faststream" not in missing_modules:
+            from . import faststream  # noqa:F401
         if "google.cloud.pubsub_v1" not in missing_modules:
             from . import google_cloud_pubsub  # noqa:F401
 

@@ -229,6 +229,13 @@ Fastapi
 .. automodule:: ddtrace.contrib.internal.fastapi
 
 
+.. _faststream:
+
+FastStream
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.faststream
+
+
 .. _flask:
 
 Flask
