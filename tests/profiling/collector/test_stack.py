@@ -496,6 +496,7 @@ def test_collect_gevent_thread_task() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
@@ -533,13 +534,13 @@ def test_collect_gevent_thread_task() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    # Each greenlet now has its own virtual thread identity: thread_name equals the
-    # greenlet's own name ("Greenlet-N") rather than the OS thread name ("MainThread").
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=r"Greenlet-\d+$",
+            thread_name=expected_thread_name,
             task_name=r"Greenlet-\d+$",
             locations=[
                 # Since we're using recursive function _fib(), we expect to have
@@ -570,15 +571,8 @@ def test_collect_gevent_thread_task() -> None:
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_gevent_greenlets_get_unique_thread_identity() -> None:
-    """Each gevent greenlet must appear as its own virtual thread row in the timeline.
-
-    The Datadog timeline groups rows by (thread_id, thread_name).  Previously all
-    greenlets shared the OS thread's identity (thread_id=main_thread_id,
-    thread_name="MainThread"), so they all collapsed into one row.  The fix assigns
-    each greenlet its own pseudo thread_id (= gevent.thread.get_ident(greenlet)) and
-    thread_name (= greenlet.name), making each a separate virtual thread in the pprof.
-    """
+def test_gevent_greenlets_emit_task_labels() -> None:
+    """Gevent greenlet wall-time samples must carry task_name and task_id labels."""
     import os
 
     import gevent
@@ -590,8 +584,9 @@ def test_gevent_greenlets_get_unique_thread_identity() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
-    test_name = "test_gevent_greenlets_get_unique_thread_identity"
+    test_name = "test_gevent_greenlets_emit_task_labels"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -606,8 +601,12 @@ def test_gevent_greenlets_get_unique_thread_identity() -> None:
             gevent.sleep(0)
 
     with stack.StackCollector():
-        workers = [gevent.spawn(cpu_work) for _ in range(3)]
-        gevent.joinall(workers, timeout=30)
+        named_greenlets: list[gevent.Greenlet] = []
+        for i in range(3):
+            g = gevent.spawn(cpu_work)
+            g.name = f"Greenlet-{i}"
+            named_greenlets.append(g)
+        gevent.joinall(named_greenlets, timeout=30)
 
     ddup.upload()
 
@@ -616,27 +615,23 @@ def test_gevent_greenlets_get_unique_thread_identity() -> None:
     assert len(samples) > 0
 
     st = profile.string_table
-    wall_type_idx = next(i for i, vt in enumerate(profile.sample_type) if st[vt.type] == "wall-time")
+    # check Greenlet-X is in the task name for each sample
+    greenlet_samples_with_task_name = [s for s in samples if any("Greenlet" in st[label.str] for label in s.label)]
+    assert len(greenlet_samples_with_task_name) > 0, "No greenlet samples with task name found"
 
-    greenlet_samples_with_main_thread = [
-        s
-        for s in profile.sample
-        if s.value[wall_type_idx] > 0
-        and any(st[label.key] == "task name" and "Greenlet" in st[label.str] for label in s.label)
-        and any(st[label.key] == "thread name" and st[label.str] == "MainThread" for label in s.label)
-    ]
+    # check sample with task info also has task id
+    for sample in greenlet_samples_with_task_name:
+        assert any(st[label.key] == "task id" for label in sample.label), (
+            f"No task id found in greenlet sample, labels: {sample.label}"
+        )
 
-    assert len(greenlet_samples_with_main_thread) == 0, (
-        f"Found {len(greenlet_samples_with_main_thread)} greenlet wall-time samples still "
-        "attributed to 'MainThread' — greenlets are not getting their own virtual thread identity"
-    )
-
-    # Verify greenlets appear with their own thread_name matching their task_name.
+    # Greenlet samples must still carry the real OS thread identity (MainThread),
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=r"Greenlet-\d+$",
+            thread_name=expected_thread_name,
             task_name=r"Greenlet-\d+$",
             locations=[
                 pprof_utils.StackLocation(
@@ -690,6 +685,7 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     # Import profiler modules after gevent patching and greenlet creation
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     p = profiler.Profiler()
     p.start()
@@ -706,13 +702,13 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    # Each greenlet now has its own virtual thread identity: thread_name equals the
-    # greenlet's own name rather than the OS thread name ("MainThread").
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=pre_started_greenlet_name,
+            thread_name=expected_thread_name,
             task_name=pre_started_greenlet_name,
             locations=[
                 pprof_utils.StackLocation(

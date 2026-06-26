@@ -90,7 +90,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="cpu_bound_work",
+            thread_name="MainThread",
             task_name="cpu_bound_work",
             local_root_span_id=local_root_span_id,
             locations=[
@@ -108,7 +108,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="io_simulation",
+            thread_name="MainThread",
             task_name="io_simulation",
             local_root_span_id=local_root_span_id,
             locations=[
@@ -126,7 +126,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="mixed_workload",
+            thread_name="MainThread",
             task_name="mixed_workload",
             local_root_span_id=local_root_span_id,
             locations=[
@@ -145,7 +145,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="mixed_workload",
+            thread_name="MainThread",
             task_name="mixed_workload",
             local_root_span_id=local_root_span_id,
             locations=[

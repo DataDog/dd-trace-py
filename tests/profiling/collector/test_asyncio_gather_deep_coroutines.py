@@ -52,7 +52,7 @@ def test_asyncio_gather_deep_coroutines() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=None,
+            thread_name="MainThread",
             locations=list(
                 reversed(
                     [

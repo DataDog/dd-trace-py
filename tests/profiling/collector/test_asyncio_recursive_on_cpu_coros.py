@@ -101,7 +101,7 @@ def test_asyncio_recursive_on_cpu_coros():
         profile,
         list(profile.sample),
         pprof_utils.StackEvent(
-            thread_name=None,
+            thread_name="MainThread",
             span_id=span_id,
             local_root_span_id=local_root_span_id,
             locations=list(

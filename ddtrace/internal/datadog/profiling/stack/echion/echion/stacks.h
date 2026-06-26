@@ -65,11 +65,10 @@ class StackInfo
     TaskName task_name;
     bool on_cpu;
     FrameStack stack;
-    // Numeric virtual thread ID. Non-zero when the sampler wants each task to
-    // appear as its own timeline row rather than sharing the OS thread's row:
-    //   - gevent greenlets:  gevent.thread.get_ident(greenlet) (memory address)
-    //   - asyncio tasks:     id(task) i.e. reinterpret_cast<uintptr_t>(origin)
-    uint64_t virtual_thread_id = 0;
+    // Numeric task identifier emitted as the "task id" label
+    //   - asyncio tasks:    id(task)  i.e. reinterpret_cast<uintptr_t>(origin)
+    //   - gevent greenlets: gevent.thread.get_ident(greenlet) (memory address)
+    uint64_t task_id = 0;
 
     StackInfo(TaskName task_name, bool on_cpu)
       : task_name(std::move(task_name))

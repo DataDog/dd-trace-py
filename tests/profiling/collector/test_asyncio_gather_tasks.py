@@ -67,7 +67,7 @@ def test_asyncio_gather_tasks() -> None:
             profile,
             samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name=t,
+                thread_name="MainThread",
                 task_name=t,
                 locations=[
                     fn_location("sleep"),

@@ -102,7 +102,7 @@ def test_asyncio_as_completed() -> None:
             samples,
             expected_sample=pprof_utils.StackEvent(
                 task_name=f"Task-{i}",
-                thread_name=f"Task-{i}",
+                thread_name="MainThread",
                 locations=locations,
             ),
         )

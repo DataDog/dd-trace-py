@@ -76,7 +76,7 @@ def test_asyncio_mixed_workload() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=None,
+            thread_name="MainThread",
             locations=list(
                 reversed(
                     [
@@ -105,7 +105,7 @@ def test_asyncio_mixed_workload() -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name=None,
+            thread_name="MainThread",
             locations=list(
                 reversed(
                     [
