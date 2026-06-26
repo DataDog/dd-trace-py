@@ -9,6 +9,7 @@ import random
 import traceback
 import typing as t
 
+from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
@@ -1101,9 +1102,7 @@ class RetryReports:
         if test.is_flaky_run():
             extra_user_properties += [("dd_flaky", True)]
 
-        from _pytest.reports import TestReport as _TestReport
-
-        final_report = _TestReport(
+        final_report = TestReport(
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
