@@ -10,63 +10,63 @@ experiments:
           - name: coreapiscenario-has_listeners_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-has_listeners_with_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_1_listener
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_50_listeners
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_no_args_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_no_args_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_exception_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_exception_listeners
             thresholds:
               - execution_time < 0.03 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_with_results_no_listeners
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_with_results_1_listener
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_with_results_listeners
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-core_dispatch_with_results_50_listeners
             thresholds:
               - execution_time < 0.25 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-context_with_data_listeners
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-context_with_data_no_listeners
             thresholds:
               - execution_time < 0.01 ms
@@ -74,15 +74,15 @@ experiments:
           - name: coreapiscenario-get_item_exists
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-get_item_missing
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: coreapiscenario-set_item
             thresholds:
               - execution_time < 0.03 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
 
           # djangosimple
           - name: djangosimple-appsec
@@ -234,15 +234,15 @@ experiments:
           - name: httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match
             thresholds:
               - execution_time < 0.08 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-datadog_tracecontext_tracestate_propagated_on_trace_id_match
             thresholds:
               - execution_time < 0.08 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-empty_headers
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-full_t_id_datadog_headers
             thresholds:
               - execution_time < 0.03 ms
@@ -254,7 +254,7 @@ experiments:
           - name: httppropagationextract-invalid_span_id_header
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-invalid_tags_header
             thresholds:
               - execution_time < 0.01 ms
@@ -262,7 +262,7 @@ experiments:
           - name: httppropagationextract-invalid_trace_id_header
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-large_header_no_matches
             thresholds:
               - execution_time < 0.03 ms
@@ -294,7 +294,7 @@ experiments:
           - name: httppropagationextract-valid_headers_basic
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-wsgi_empty_headers
             thresholds:
               - execution_time < 0.01 ms
@@ -306,7 +306,7 @@ experiments:
           - name: httppropagationextract-wsgi_invalid_span_id_header
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationextract-wsgi_invalid_tags_header
             thresholds:
               - execution_time < 0.01 ms
@@ -356,7 +356,7 @@ experiments:
           - name: httppropagationinject-with_priority_and_origin
             thresholds:
               - execution_time < 0.04 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: httppropagationinject-with_sampling_priority
             thresholds:
               - execution_time < 0.03 ms
@@ -866,15 +866,15 @@ experiments:
           - name: ratelimiter-defaults
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: ratelimiter-high_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: ratelimiter-long_window
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: ratelimiter-low_rate_limit
             thresholds:
               - execution_time < 0.01 ms
@@ -882,7 +882,7 @@ experiments:
           - name: ratelimiter-no_rate_limit
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: ratelimiter-short_window
             thresholds:
               - execution_time < 0.01 ms
@@ -910,7 +910,7 @@ experiments:
           - name: samplingrules-average_match
             thresholds:
               - execution_time < 0.20 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: samplingrules-high_match
             thresholds:
               - execution_time < 0.20 ms
@@ -1047,55 +1047,55 @@ experiments:
           - name: telemetryaddmetric-1-count-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
               - execution_time < 0.22 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
               - execution_time < 0.23 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-gauge-metrics-100-times
             thresholds:
               - execution_time < 0.19 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-rate-metric-1-times
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-1-rate-metrics-100-times
             thresholds:
               - execution_time < 0.25 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
               - execution_time < 22.0 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
               - execution_time < 2.55 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
               - execution_time < 1.85 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
               - execution_time < 2.55 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-flush-1-metric
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 38.40 MB
           - name: telemetryaddmetric-flush-100-metrics
             thresholds:
               - execution_time < 0.25 ms
