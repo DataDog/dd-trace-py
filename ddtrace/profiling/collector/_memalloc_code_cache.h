@@ -5,25 +5,37 @@
 
 #include "sample.hpp"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
-#include <vector>
+
+/* Use absl::flat_hash_map in production builds (open-addressing, contiguous
+ * storage, no per-insert heap allocation once reserved). Fall back to
+ * std::unordered_map in debug builds where Abseil may not be compiled in. */
+#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
+#include "absl/container/flat_hash_map.h"
+template<typename K, typename V>
+using CodeCacheMap = absl::flat_hash_map<K, V>;
+#else
+#include <unordered_map>
+template<typename K, typename V>
+using CodeCacheMap = std::unordered_map<K, V>;
+#endif
 
 namespace Datadog {
 
 /* Result of a cache lookup.
- * func_id == nullptr: cache miss — caller must do a full miss (intern strings, insert).
- * line == -1: lasti didn't match the stored value — caller must resolve the line for this frame.
- * line >= 0: lasti matched; cached line number is valid.
+ * func_id == nullptr: full cache miss — line is undefined; caller must intern strings and insert.
+ * func_id != nullptr, line == -1: function cached but lasti mismatched — caller must re-parse the line table.
+ * func_id != nullptr, line >= 0: full hit — both function_id and line number are valid.
+ *
+ * line is only meaningful when func_id != nullptr.
  *
  * CacheHit is intentionally kept small to make lookup() cheap to return by value.
  * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
 struct CacheHit
 {
     Datadog::function_id func_id; // nullptr = miss
-    int line;                     // -1 = lasti mismatch; >=0 = cached line
+    int line;                     // only valid when func_id != nullptr; -1 = lasti mismatch, >=0 = cached line
 };
 
 /* Keep CacheHit small; increasing its size can force some ABIs to use a hidden
@@ -32,58 +44,51 @@ static_assert(sizeof(CacheHit) <= 16,
               "CacheHit exceeds 16B — consider measuring lookup() "
               "return overhead on supported ABIs before adding fields");
 
-/* CodeFunctionCache caches libdatadog function_id values keyed by
- * PyCodeObject*. Frame walks during heap-profiler sample construction
- * call ProfilesDictionary::insert_str twice and insert_function once
- * per frame, which dominate profiler-side CPU on workloads with
- * repetitive stacks. The cache short-circuits those three libdd calls
- * for any frame whose code object has been seen before.
+/* CodeFunctionCache caches libdatadog function_id values keyed by PyCodeObject*.
+ * Frame walks during heap-profiler sample construction call ProfilesDictionary::insert_str
+ * twice and insert_function once per frame, which dominate profiler-side CPU on workloads
+ * with repetitive stacks. The cache short-circuits those three libdd calls for any frame
+ * whose code object has been seen before.
  *
- * Organization: 2-way set-associative. Sets are indexed by a hash of
- * the PyCodeObject pointer; within a set, ways are linearly scanned.
- * On a set-full insert, FIFO eviction overwrites the next_evict slot.
+ * Implementation: absl::flat_hash_map reserved at construction to max_capacity entries.
+ * Reservation avoids all post-construction heap allocations for the common case (typical
+ * workloads stay well under 1024 unique frames on the hot path). When capacity is exceeded,
+ * one entry is evicted before inserting the new one, keeping map size bounded.
  *
- * Address reuse: the key is a raw PyCodeObject* and CPython may free a
- * code object and reassign its address to a new one. Each entry therefore
- * also stores the code object's identity (name/filename/firstlineno) at
- * insert time; lookup returns a hit only if that identity still matches
- * the live code object, so a reused address is treated as a miss instead
- * of misattributing the frame. The caller supplies the identity (it holds
- * the live object), so the cache never dereferences a stored pointer.
+ * Address reuse: the key is a raw PyCodeObject* and CPython may free a code object and
+ * reassign its address to a new one. Each entry therefore also stores the code object's
+ * identity (name/filename/firstlineno) at insert time; lookup returns a hit only if that
+ * identity still matches the live code object, so a reused address is treated as a miss
+ * instead of misattributing the frame.
  *
- * Concurrency: heap-profiler hooks run under the GIL. The singleton
- * is invoked single-threaded by construction; no internal locking.
+ * Two-tier hit: a lookup can return a partial hit (func_id valid, line == -1) when the
+ * function is cached but lasti changed. The caller re-parses the line table for the current
+ * lasti without re-interning the function — skipping two of the three expensive libdd calls.
  *
- * Lifetime: cleared on postfork_child and profiler stop/restart. libdd
- * function_ids do not expire while their owning ProfilesDictionary
- * lives, which spans the whole profiler lifetime (verified in
- * _memalloc_heap.cpp -- allocs_m holds samples whose locations
+ * Concurrency: heap-profiler hooks run under the GIL; no internal locking needed.
+ *
+ * Lifetime: cleared on postfork_child and profiler stop/restart. libdd function_ids do not
+ * expire while their owning ProfilesDictionary lives, which spans the whole profiler
+ * lifetime (verified in _memalloc_heap.cpp -- allocs_m holds samples whose locations
  * reference function_ids and only clears at postfork_child).
  */
 class CodeFunctionCache
 {
   public:
-    /* WAYS_PER_SET: number of cache slots per set, i.e. the associativity.
-     * 2-way means each set has 2 entries that are linearly scanned on lookup. */
-    static constexpr size_t WAYS_PER_SET = 2;
     static constexpr size_t DEFAULT_CAPACITY = 1024;
     static constexpr size_t MIN_CAPACITY = 64;
     static constexpr size_t MAX_CAPACITY = 1 << 20; // 1M cap as a sanity ceiling
 
-    /* capacity_hint is rounded up so num_sets is a power of two and total
-     * capacity = num_sets * WAYS_PER_SET. Clamped to [MIN, MAX]. */
-    explicit CodeFunctionCache(size_t capacity_hint = DEFAULT_CAPACITY);
+    explicit CodeFunctionCache(size_t capacity);
 
-    /* Returns a CacheHit for code only if present AND its stored identity
-     * still matches the supplied (name, filename, firstlineno), guarding
-     * against PyCodeObject address reuse. Check hit.func_id != nullptr for a
-     * hit; hit.line >= 0 means lasti matched the stored value so the caller
-     * can skip parse_linetable. */
+    /* Returns a CacheHit for code only if present AND its stored identity still matches
+     * the supplied (name, filename, firstlineno), guarding against PyCodeObject address
+     * reuse. Check hit.func_id != nullptr for a hit; hit.line >= 0 means lasti matched
+     * the stored value so the caller can skip parse_linetable. */
     CacheHit lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
 
-    /* Inserts (code, id) together with the identity used to validate future
-     * lookups plus the (lasti, line) pair. If the target set is full, evicts
-     * via FIFO. */
+    /* Inserts (code, id) with the identity used to validate future lookups plus the
+     * (lasti, line) pair. Evicts one entry if the map is at capacity. */
     void insert(PyCodeObject* code,
                 Datadog::function_id id,
                 PyObject* name,
@@ -92,33 +97,25 @@ class CodeFunctionCache
                 int lasti,
                 int line);
 
-    /* Drops every entry. */
+    /* Drops every entry, retaining reserved capacity. */
     void clear();
 
     /* Process-wide singleton, mirrors heap_tracker_t::instance. */
     static CodeFunctionCache* instance;
 
   private:
-    struct Set
+    struct Entry
     {
-        PyCodeObject* codes[WAYS_PER_SET] = { nullptr, nullptr };
-        Datadog::function_id functions[WAYS_PER_SET] = { nullptr, nullptr };
-        /* Identity captured at insert, compared on lookup to detect address
-         * reuse. Stored as opaque values and never dereferenced, so a stale
-         * pointer is safe to compare. */
-        PyObject* names[WAYS_PER_SET] = { nullptr, nullptr };
-        PyObject* filenames[WAYS_PER_SET] = { nullptr, nullptr };
-        int firstlines[WAYS_PER_SET] = { 0, 0 };
-        int lastis[WAYS_PER_SET] = { -1, -1 }; // -1 = no lasti cached
-        int lines[WAYS_PER_SET] = { 0, 0 };
-        /* FIFO eviction: next way to overwrite, alternates 0/1. */
-        uint8_t next_evict = 0;
+        Datadog::function_id func_id;
+        PyObject* name;
+        PyObject* filename;
+        int firstlineno;
+        int lasti;
+        int line;
     };
 
-    std::vector<Set> sets_;
-    uint8_t log2_set_bits_; // log2(num_sets); num_sets is a power of two in [32, 1<<19], so this is in [5, 19]
-
-    size_t set_index(PyCodeObject* code) const;
+    CodeCacheMap<PyCodeObject*, Entry> map_;
+    size_t max_capacity_;
 };
 
 /* Public API for the heap profiler.
