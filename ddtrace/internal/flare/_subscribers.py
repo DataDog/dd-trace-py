@@ -1,5 +1,4 @@
 from datetime import datetime
-import threading
 import typing as t
 from typing import Optional
 
