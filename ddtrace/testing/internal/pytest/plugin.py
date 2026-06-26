@@ -23,6 +23,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -436,7 +437,10 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT")):
+        if (
+            asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT"))
+            and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+        ):
             selected = []
             deselected = []
             for item in items:
