@@ -28,11 +28,10 @@ log = logging.getLogger(__name__)
 log = logging.getLogger(__name__)
 
 
-def install_coverage(workspace_path: Path, use_disable_optimization: bool = True) -> None:
+def install_coverage(workspace_path: Path) -> None:
     ddtrace.internal.coverage.installer.install(
         include_paths=[workspace_path],
         collect_import_time_coverage=True,
-        use_disable_optimization=use_disable_optimization,
     )
     ModuleCodeCollector.start_coverage()
 

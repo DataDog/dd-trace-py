@@ -348,10 +348,9 @@ class TestITR:
         """Regression test: setup_coverage_collection() must be called when coverage_enabled=True
         even when coverage_report_upload_enabled=True.
 
-        Both mechanisms can run simultaneously because when coverage_report_upload_enabled=True,
-        ModuleCodeCollector is installed with use_disable_optimization=False. This means
-        _event_handler never returns sys.monitoring.DISABLE, so restart_events() is never called
-        between tests — leaving coverage.py's sys.monitoring state untouched.
+        Both mechanisms can run simultaneously because CollectInContext.__enter__ dynamically
+        detects other sys.monitoring tools and disables the DISABLE optimisation + restart_events()
+        to avoid corrupting their state.
         """
         pytester.makepyfile(test_placeholder="def test_ok(): pass")
 

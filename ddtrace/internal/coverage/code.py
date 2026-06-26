@@ -101,7 +101,6 @@ class ModuleCodeCollector(ModuleWatchdog):
         cls,
         include_paths: t.Optional[list[Path]] = None,
         collect_import_time_coverage: bool = False,
-        use_disable_optimization: bool = True,
     ):
         if ModuleCodeCollector.is_installed():
             return
@@ -117,13 +116,6 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         cls._instance._include_paths = include_paths
         cls._instance._collect_import_coverage = collect_import_time_coverage
-
-        if _PY_GE_312:
-            from ddtrace.internal.coverage.instrumentation_py3_12 import (  # type: ignore[attr-defined]
-                set_use_disable_optimization,
-            )
-
-            set_use_disable_optimization(use_disable_optimization)
 
         if collect_import_time_coverage:
             ModuleCodeCollector.register_import_exception_hook(
@@ -268,14 +260,14 @@ class ModuleCodeCollector(ModuleWatchdog):
             if _PY_GE_314:
                 _tls_coverage.covered = ctx_covered.get()[-1]
 
-            # For Python 3.12+, re-enable monitoring that was disabled by previous contexts.
-            # Only needed when the disable optimisation is active; when it is off, events are
-            # never disabled so restart_events() would be a no-op — and calling it could corrupt
-            # the state of other sys.monitoring tools (e.g. coverage.py) running concurrently.
+            # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
+            # active and update the DISABLE optimisation flag accordingly.  Then re-enable
+            # monitoring only when the optimisation is active (restart_events is global and
+            # would corrupt other tools' state if called unnecessarily).
             if _PY_GE_312:
-                from ddtrace.internal.coverage.instrumentation_py3_12 import _use_disable_optimization
+                from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
 
-                if _use_disable_optimization:
+                if update_disable_optimization():
                     sys.monitoring.restart_events()
 
             return self

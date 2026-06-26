@@ -1235,19 +1235,19 @@ def pytest_load_initial_conftests(
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
-    # Both can run simultaneously. When coverage_report_upload_enabled=True we pass
-    # use_disable_optimization=False so ModuleCodeCollector never calls restart_events() between
-    # tests — avoiding interference with coverage.py's sys.monitoring state.
+    # Both can run simultaneously. CollectInContext.__enter__ dynamically detects other
+    # sys.monitoring tools (e.g. coverage.py) and disables the DISABLE optimisation + restart_events()
+    # to avoid corrupting their state.
     # The coverage.py startup itself is handled later in pytest_configure.
     if session_manager.settings.coverage_enabled:
-        setup_coverage_collection(use_disable_optimization=not session_manager.settings.coverage_report_upload_enabled)
+        setup_coverage_collection()
 
     yield
 
 
-def setup_coverage_collection(use_disable_optimization: bool = True) -> None:
+def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
-    install_coverage(workspace_path, use_disable_optimization=use_disable_optimization)
+    install_coverage(workspace_path)
 
 
 def pytest_configure(config: pytest.Config) -> None:

@@ -67,21 +67,41 @@ _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.
 # line so Python stops firing that event for this code location — a performance optimisation that
 # avoids redundant callbacks in loops.  CollectInContext.__enter__ then calls restart_events() at
 # the start of each test to re-enable them.
-# Set to False when another sys.monitoring tool (e.g. coverage.py for report upload) is active:
-# restart_events() is a global call that would reset that tool's disabled-event state too, corrupting
-# its data.  Without DISABLE, events keep firing on every execution (slightly slower but still
-# correct, since CoverageLines.add() is idempotent), and restart_events() is never needed.
+# Automatically set to False when another sys.monitoring tool (e.g. coverage.py) is detected via
+# has_other_monitoring_tools(): restart_events() is a global call that would reset that tool's
+# disabled-event state too, corrupting its data.  Without DISABLE, events keep firing on every
+# execution (slightly slower but still correct, since CoverageLines.add() is idempotent), and
+# restart_events() is never needed.
+# The flag is re-evaluated in CollectInContext.__enter__ via update_disable_optimization().
 _use_disable_optimization: bool = True
 
 
-def set_use_disable_optimization(enabled: bool) -> None:
-    """Control whether _event_handler returns sys.monitoring.DISABLE after recording a line.
+def has_other_monitoring_tools() -> bool:
+    """Check whether any non-datadog tool is registered with sys.monitoring.
 
-    Pass False when another sys.monitoring-based coverage tool is running concurrently so that
-    restart_events() calls (which are global) do not corrupt the other tool's state.
+    Iterates all six tool slots (0-5) and returns True if any slot other than ours is occupied.
+    This is used to decide whether the DISABLE optimisation (and the global restart_events() call
+    it requires) is safe to use.
+    """
+    for tool_id in range(6):
+        if tool_id == _DD_TOOL_ID:
+            continue
+        if sys.monitoring.get_tool(tool_id):
+            return True
+    return False
+
+
+def update_disable_optimization() -> bool:
+    """Re-evaluate _use_disable_optimization based on the current sys.monitoring state.
+
+    Called from CollectInContext.__enter__ so that the flag is always in sync with the actual
+    set of registered monitoring tools (e.g. coverage.py may have started after our install).
+
+    Returns the new value of _use_disable_optimization.
     """
     global _use_disable_optimization
-    _use_disable_optimization = enabled
+    _use_disable_optimization = not has_other_monitoring_tools()
+    return _use_disable_optimization
 
 
 def _ensure_registered() -> bool:
