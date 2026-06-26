@@ -1,18 +1,25 @@
+from contextlib import contextmanager
+
 import valkey
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.utils_valkey import _instrument_valkey_cmd
-from ddtrace._trace.utils_valkey import _instrument_valkey_execute_pipeline
+from ddtrace._trace.utils_valkey import _set_span_tags
+from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.valkey_utils import ROW_RETURNING_COMMANDS
 from ddtrace.contrib.internal.valkey_utils import determine_row_count
 from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.ext import SpanTypes
+from ddtrace.ext import valkey as valkeyx
 from ddtrace.internal import core
+from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.trace import tracer
 
 
 config._add(
@@ -25,8 +32,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(valkey, "__version__", "")
 
 
@@ -126,3 +132,54 @@ def instrumented_execute_pipeline(integration_config, is_cluster=False):
             return func(*args, **kwargs)
 
     return _instrumented_execute_pipeline
+
+
+@contextmanager
+def _instrument_valkey_cmd(config_integration, instance, args):
+    query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
+    with (
+        core.context_with_data(
+            "valkey.command",
+            span_name=schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
+            span_type=SpanTypes.VALKEY,
+            resource=query.split(" ")[0] if config_integration.resource_only_command else query,
+        ) as ctx,
+        ctx.span as span,
+    ):
+        set_service_and_source(span, trace_utils.ext_service(None, config_integration), config_integration)
+        _set_span_tags(span, config_integration, args, instance, query)
+        yield ctx
+
+
+@contextmanager
+def _instrument_valkey_execute_pipeline(config_integration, cmds, instance, is_cluster=False):
+    cmd_string = resource = "\n".join(cmds)
+    if config_integration.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
+    with tracer.trace(
+        schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
+        resource=resource,
+        span_type=SpanTypes.VALKEY,
+    ) as span:
+        set_service_and_source(span, trace_utils.ext_service(None, config_integration), config_integration)
+        _set_span_tags(span, config_integration, None, instance, cmd_string)
+        yield span
+
+
+@contextmanager
+def _instrument_valkey_execute_async_cluster_pipeline(config_integration, cmds, instance):
+    cmd_string = resource = "\n".join(cmds)
+    if config_integration.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
+    with tracer.trace(
+        schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
+        resource=resource,
+        span_type=SpanTypes.VALKEY,
+    ) as span:
+        set_service_and_source(
+            span, schematize_service_name(trace_utils.ext_service(None, config_integration)), config_integration
+        )
+        _set_span_tags(span, config_integration, None, instance, cmd_string)
+        yield span
