@@ -22,9 +22,7 @@ from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
 
-_ANTHROPIC_CASSETTES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "..", "contrib", "anthropic", "cassettes"
-)
+_ANTHROPIC_CASSETTES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "contrib", "anthropic", "cassettes")
 
 
 CHAT_MODEL = "claude-3-opus-20240229"
