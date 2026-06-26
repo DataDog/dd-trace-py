@@ -21,13 +21,21 @@ from openfeature.provider import ProviderStatus
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ffe
+from ddtrace.internal.openfeature._cdn import PythonCdnSource
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
+from ddtrace.internal.openfeature._hybrid_source import HybridCdnSource
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
+from ddtrace.internal.openfeature._native_delivery import NativeOwnedCdnSource
+from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
+from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+from ddtrace.internal.openfeature._source import DEFAULT_CDN_BASE_URL
+from ddtrace.internal.openfeature._source import FeatureFlagSourceMode
+from ddtrace.internal.openfeature._source import resolve_feature_flag_source_config
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -105,6 +113,8 @@ class DataDogProvider(AbstractProvider):
         # Event used to block initialize() until config arrives.
         # Also serves as the "config received" flag via is_set().
         self._config_received = threading.Event()
+        self._source_config = resolve_feature_flag_source_config()
+        self._cdn_source: typing.Optional[typing.Union[PythonCdnSource, NativeOwnedCdnSource, HybridCdnSource]] = None
 
         # Cache for reported exposures to prevent duplicates
         # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
@@ -163,15 +173,27 @@ class DataDogProvider(AbstractProvider):
         if not self._enabled:
             return
 
-        # Register for RC config callbacks (in initialize, not __init__, so
-        # re-initialization after shutdown re-registers the provider)
-        _register_provider(self)
+        self._start_exposure_writer()
 
+        if self._source_config.mode is FeatureFlagSourceMode.REMOTE_CONFIG:
+            self._initialize_remote_config()
+            return
+        if self._source_config.mode is FeatureFlagSourceMode.OFFLINE:
+            self._initialize_offline()
+            return
+        self._initialize_cdn()
+
+    def _start_exposure_writer(self) -> None:
         try:
-            # Start the exposure writer for reporting
             start_exposure_writer()
         except ServiceStatusError:
             logger.debug("Exposure writer is already running", exc_info=True)
+
+    def _initialize_remote_config(self) -> None:
+        # Register for RC config callbacks (in initialize, not __init__, so
+        # re-initialization after shutdown re-registers the provider)
+        _register_provider(self)
+        enable_featureflags_rc()
 
         # Fast path: config already available (RC delivered before set_provider)
         config = _get_ffe_config()
@@ -195,6 +217,71 @@ class DataDogProvider(AbstractProvider):
             )
 
         # Config received during wait -- on_configuration_received() already set status
+
+    def _initialize_cdn(self) -> None:
+        from openfeature.exception import ProviderNotReadyError
+
+        _register_provider(self)
+
+        config = _get_ffe_config()
+        if config is not None:
+            logger.debug("FFE configuration already available, provider is READY")
+            self._config_received.set()
+            self._status = ProviderStatus.READY
+            return
+
+        if self._should_wait_for_external_cdn_config():
+            logger.debug(
+                "Waiting up to %.1fs for initial FFE configuration before CDN polling is configured",
+                self._initialization_timeout,
+            )
+            if not self._config_received.wait(timeout=self._initialization_timeout):
+                raise ProviderNotReadyError(
+                    f"Provider timed out after {self._initialization_timeout:.1f}s waiting for "
+                    "initial configuration before CDN polling is configured"
+                )
+            return
+
+        self._cdn_source = self._build_cdn_source()
+        result = self._cdn_source.poll_once()
+        if result.applied and self._cdn_source_ready():
+            self._config_received.set()
+            self._status = ProviderStatus.READY
+            self._cdn_source.start()
+            return
+
+        self._status = ProviderStatus.NOT_READY
+        if result.error is not None:
+            raise ProviderNotReadyError("Provider could not initialize from Feature Flag CDN: %s" % result.error)
+        raise ProviderNotReadyError("Provider could not initialize from Feature Flag CDN")
+
+    def _should_wait_for_external_cdn_config(self) -> bool:
+        cdn = self._source_config.cdn
+        return cdn.base_url == DEFAULT_CDN_BASE_URL and cdn.api_key is None
+
+    def _build_cdn_source(self) -> typing.Union[PythonCdnSource, NativeOwnedCdnSource, HybridCdnSource]:
+        if self._source_config.cdn.delivery == "hybrid":
+            return HybridCdnSource(self._source_config.cdn)
+        if self._source_config.cdn.delivery == "native":
+            return NativeOwnedCdnSource(self._source_config.cdn)
+        return PythonCdnSource(self._source_config.cdn)
+
+    def _cdn_source_ready(self) -> bool:
+        if isinstance(self._cdn_source, (NativeOwnedCdnSource, HybridCdnSource)):
+            return self._cdn_source.is_ready
+        return _get_ffe_config() is not None
+
+    def _initialize_offline(self) -> None:
+        from openfeature.exception import ProviderNotReadyError
+
+        config = _get_ffe_config()
+        if config is not None:
+            self._config_received.set()
+            self._status = ProviderStatus.READY
+            return
+
+        self._status = ProviderStatus.NOT_READY
+        raise ProviderNotReadyError("Provider offline source mode requires startup UFC bytes")
 
     def shutdown(self) -> None:
         """
@@ -220,8 +307,14 @@ class DataDogProvider(AbstractProvider):
         # Clear exposure cache
         self.clear_exposure_cache()
 
+        if self._cdn_source is not None:
+            self._cdn_source.shutdown(timeout=self._initialization_timeout)
+            self._cdn_source = None
+
         # Unregister provider
         _unregister_provider(self)
+        if self._source_config.mode is FeatureFlagSourceMode.REMOTE_CONFIG:
+            disable_featureflags_rc()
         self._status = ProviderStatus.NOT_READY
         self._config_received.clear()
 
@@ -291,16 +384,23 @@ class DataDogProvider(AbstractProvider):
             )
 
         try:
-            # Get the native Configuration object
-            config = _get_ffe_config()
+            if isinstance(self._cdn_source, (NativeOwnedCdnSource, HybridCdnSource)):
+                details = self._cdn_source.resolve_flag(
+                    flag_key=flag_key,
+                    evaluation_context=evaluation_context,
+                    expected_type=variation_type,
+                )
+            else:
+                # Get the native Configuration object
+                config = _get_ffe_config()
 
-            # Resolve flag using native implementation
-            details = resolve_flag(
-                config,
-                flag_key=flag_key,
-                context=evaluation_context,
-                expected_type=variation_type,
-            )
+                # Resolve flag using native implementation
+                details = resolve_flag(
+                    config,
+                    flag_key=flag_key,
+                    context=evaluation_context,
+                    expected_type=variation_type,
+                )
 
             # No configuration available - return error with PROVIDER_NOT_READY code
             # Note: No exposure logging when configuration is missing
