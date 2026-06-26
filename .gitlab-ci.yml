@@ -80,8 +80,8 @@ include:
 system-tests-param:
   extends: .system_tests_param_base
   stage: tests
-  rules:
-    - if: $NIGHTLY_BUILD == "true"
+  # rules:
+  #   - if: $NIGHTLY_BUILD == "true"
   needs:
     - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: false
