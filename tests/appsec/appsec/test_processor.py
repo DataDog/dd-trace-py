@@ -1066,6 +1066,101 @@ def test_rasp_subcontext_fresh_per_non_ssrf_call():
     assert waf.created == 2
 
 
+def _sqli_run_calls(mock_run):
+    return [
+        call
+        for call in mock_run.call_args_list
+        if len(call.args) > 1 and isinstance(call.args[1], dict) and WAF_DATA_NAMES.SQLI_ADDRESS in call.args[1]
+    ]
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.new_subcontext")
+def test_rasp_sqli_negative_result_cached(mock_new_subcontext, mock_run):
+    """Repeated safe SQLi evaluations in one request should not create new subcontexts."""
+    from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.trace import tracer
+
+    mock_new_subcontext.return_value = object()
+    mock_run.return_value = DDWaf_result(0, [], {}, 1.0, 2.0, False, _observator(), {})
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        custom_data = {
+            EXPLOIT_PREVENTION.ADDRESS.SQLI: "SELECT 1",
+            EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: "sqlite",
+        }
+
+        result = processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+        cached_result = processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+
+    assert result is mock_run.return_value
+    assert cached_result is None
+    assert mock_new_subcontext.call_count == 1
+    assert len(_sqli_run_calls(mock_run)) == 1
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.new_subcontext")
+def test_rasp_sqli_cache_cleared_when_addresses_sent_grows(mock_new_subcontext, mock_run):
+    """If the parent WAF context gains request data, the cache is invalidated and the same SQL must be evaluated again."""
+    from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.trace import tracer
+
+    mock_new_subcontext.return_value = object()
+    mock_run.return_value = DDWaf_result(0, [], {}, 1.0, 2.0, False, _observator(), {})
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        custom_data = {
+            EXPLOIT_PREVENTION.ADDRESS.SQLI: "SELECT 1",
+            EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: "sqlite",
+        }
+
+        processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+        _asm_request_context.clear_rasp_sqli_cache()
+        processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+
+    assert mock_new_subcontext.call_count == 2
+    assert len(_sqli_run_calls(mock_run)) == 2
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.new_subcontext")
+def test_rasp_sqli_positive_result_not_cached(mock_new_subcontext, mock_run):
+    """Positive SQLi results must keep reporting normally rather than becoming cache hits."""
+    from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+    from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import _observator
+    from ddtrace.trace import tracer
+
+    mock_new_subcontext.return_value = object()
+    mock_run.side_effect = [
+        DDWaf_result(1, [{}], {}, 1.0, 2.0, False, _observator(), {}),
+        DDWaf_result(1, [{}], {}, 1.0, 2.0, False, _observator(), {}),
+    ]
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        custom_data = {
+            EXPLOIT_PREVENTION.ADDRESS.SQLI: "SELECT 1",
+            EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: "sqlite",
+        }
+
+        processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+        processor._waf_action(span, None, custom_data, rule_type=EXPLOIT_PREVENTION.TYPE.SQLI)
+
+    assert mock_new_subcontext.call_count == 2
+    assert len(_sqli_run_calls(mock_run)) == 2
+
+
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_rasp_bypassed_when_subcontext_unavailable(mock_run):
     """If a RASP subcontext can't be created, the WAF call is bypassed entirely (not run on the
