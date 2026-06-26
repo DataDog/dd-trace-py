@@ -121,7 +121,9 @@ def _patched_add(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.CREATE}"
 
-    with create_context("azure.eventhubs.patched_producer_batch", pin, operation_name, resource_name, config.azure_eventhubs) as ctx:
+    with create_context(
+        "azure.eventhubs.patched_producer_batch", pin, operation_name, resource_name, config.azure_eventhubs
+    ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.CREATE, resource_name, fully_qualified_namespace, "event_data"
         )
@@ -137,7 +139,9 @@ def _patched_send_event(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
-    with create_context("azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs) as ctx:
+    with create_context(
+        "azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs
+    ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data"
         )
@@ -153,7 +157,9 @@ async def _patched_send_event_async(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
-    with create_context("azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs) as ctx:
+    with create_context(
+        "azure.eventhubs.patched_producer_send", pin, operation_name, resource_name, config.azure_eventhubs
+    ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data"
         )
@@ -169,7 +175,9 @@ def _patched_send_batch(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
-    with create_context("azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs) as ctx:
+    with create_context(
+        "azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs
+    ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data_batch"
         )
@@ -185,7 +193,9 @@ async def _patched_send_batch_async(wrapped, instance, args, kwargs):
     fully_qualified_namespace = instance._dd_fully_qualified_namespace
     operation_name = f"{azure_eventhubsx.CLOUD}.{azure_eventhubsx.SERVICE}.{azure_eventhubsx.SEND}"
 
-    with create_context("azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs) as ctx:
+    with create_context(
+        "azure.eventhubs.patched_producer_send_batch", pin, operation_name, resource_name, config.azure_eventhubs
+    ) as ctx:
         dispatch_message_modifier(
             ctx, args, kwargs, azure_eventhubsx.SEND, resource_name, fully_qualified_namespace, "event_data_batch"
         )
