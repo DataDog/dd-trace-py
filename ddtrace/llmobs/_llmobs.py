@@ -843,7 +843,7 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The name of your agent service. Takes precedence over ``ml_app``.
+        :param str agent_service: The name of your agent service. Defaults to ``service`` or ``DD_SERVICE``. Takes precedence over ``ml_app``.
         :param bool integrations_enabled: set to `true` to enable LLM integrations.
         :param bool agentless_enabled: set to `true` to disable sending data that requires a Datadog Agent.
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
@@ -1057,7 +1057,7 @@ class LLMObs(Service):
         :param str ml_app: Deprecated. Use ``agent_service`` instead. Required if ``agent_service`` is not provided.
         :param str eval_name: The name to use for the published evaluator. Defaults to the evaluator name.
         :param dict variable_mapping: A mapping from evaluator variables to span fields.
-        :param str agent_service: The agent service for this evaluator. Required if ``ml_app`` is not provided.
+        :param str agent_service: The agent service for this evaluator.
         :returns: A dictionary containing the evaluator configuration UI URL.
         """
         if not cls._instance or not cls._instance.enabled:
@@ -2188,10 +2188,10 @@ class LLMObs(Service):
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         log.debug(
-            "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
+            "Starting LLMObs span: %s, span_kind: %s, agent_service: %s",
             name,
             operation_kind,
-            agent_service,
+            agent_service or ml_app,
         )
         return span
 
@@ -2215,8 +2215,8 @@ class LLMObs(Service):
                                    If not provided, a default value of "unknown" will be set.
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to
-                                    ``DD_AGENT_SERVICE`` or legacy ``DD_LLMOBS_ML_APP``.
+        :param str agent_service: The agent service that this span belongs to. If not provided, defaults to propagated agent_service from a parent span or context, or
+                                    ``DD_AGENT_SERVICE``, or legacy ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
