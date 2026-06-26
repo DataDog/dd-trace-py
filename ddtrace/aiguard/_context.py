@@ -10,6 +10,7 @@ whether to short-circuit
 
 import contextlib
 import contextvars
+from typing import Iterator
 from typing import Optional
 
 
@@ -21,7 +22,7 @@ def is_aiguard_context_active() -> bool:
     return _AI_GUARD_DEPTH.get() > 0
 
 
-def set_aiguard_context_active() -> contextvars.Token:
+def set_aiguard_context_active() -> contextvars.Token[int]:
     """Mark the current execution context as already under AI Guard evaluation.
 
     Returns an opaque :class:`contextvars.Token` to pair with
@@ -32,7 +33,7 @@ def set_aiguard_context_active() -> contextvars.Token:
     return _AI_GUARD_DEPTH.set(_AI_GUARD_DEPTH.get() + 1)
 
 
-def reset_aiguard_context_active(token: Optional[contextvars.Token]) -> None:
+def reset_aiguard_context_active(token: Optional[contextvars.Token[int]]) -> None:
     """Restore the depth counter to its value before the matching ``set``.
 
     A ``None`` token is a defensive no-op (e.g. cleanup paths that may run
@@ -62,7 +63,7 @@ def reset_aiguard_context_active_current() -> None:
 
 
 @contextlib.contextmanager
-def aiguard_context():
+def aiguard_context() -> Iterator[None]:
     """Mark the current task as under AI Guard evaluation for the block's duration.
 
     Framework integrations (LangChain, Strands) wrap their dispatch + LLM

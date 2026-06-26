@@ -117,7 +117,7 @@ def _block_to_text(block: Any) -> str | None:
     return None
 
 
-def _tool_result_text(tool_result: dict) -> str:
+def _tool_result_text(tool_result: dict[str, Any]) -> str:
     """Extract text from a Bedrock Converse ToolResult.
 
     ``text``/``json`` entries are extracted; other modalities return a
@@ -141,7 +141,7 @@ def _tool_result_text(tool_result: dict) -> str:
 
 
 def _convert_strands_messages(
-    messages: list[dict],
+    messages: list[Any],
     system_prompt: str | None = None,
     exclude_tool_results: bool = False,
 ) -> list[Message]:
@@ -414,7 +414,7 @@ class AIGuardStrandsIntegration:
 
 if _HAS_PLUGIN_API:
 
-    class AIGuardStrandsPlugin(AIGuardStrandsIntegration, _StrandsPlugin):
+    class AIGuardStrandsPlugin(AIGuardStrandsIntegration, _StrandsPlugin):  # type: ignore[misc]
         """AI Guard security plugin for Strands Agents.
 
         Uses the Strands ``Plugin`` API with ``@hook`` decorators.  Pass an
@@ -433,32 +433,32 @@ if _HAS_PLUGIN_API:
                 self, detailed_error=detailed_error, raise_error_on_tool_calls=raise_error_on_tool_calls
             )
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_before_invocation(self, event: _BeforeInvocationEvent) -> None:
             self._on_before_invocation_base(event)
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_after_invocation(self, event: _AfterInvocationEvent) -> None:
             self._on_after_invocation_base(event)
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
             self._on_before_model_call_base(event)
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_after_model_call(self, event: _AfterModelCallEvent) -> None:
             self._on_after_model_call_base(event)
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_before_tool_call(self, event: _BeforeToolCallEvent) -> None:
             self._on_before_tool_call_base(event)
 
-        @hook
+        @hook  # type: ignore[misc]
         def on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
             self._on_after_tool_call_base(event)
 
 
-class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):
+class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):  # type: ignore[misc]
     """AI Guard security hook provider for Strands Agents (legacy).
 
     Uses the Strands ``HookProvider`` API with manual ``register_hooks``.

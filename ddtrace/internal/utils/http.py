@@ -220,7 +220,7 @@ class Response(object):
         self.msg = msg
 
     @classmethod
-    def from_http_response(cls, resp):
+    def from_http_response(cls, resp: Any) -> "Response":
         """
         Build a ``Response`` from the provided ``HTTPResponse`` object.
 

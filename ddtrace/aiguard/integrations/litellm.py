@@ -47,7 +47,7 @@ class DatadogAIGuardGuardrailException(Exception):
         self.__cause__ = cause
 
 
-class DatadogAIGuardGuardrail(CustomGuardrail):
+class DatadogAIGuardGuardrail(CustomGuardrail):  # type: ignore[misc]
     def __init__(
         self,
         block: Optional[bool] = None,
@@ -71,7 +71,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         result: list[Message] = []
         # FIFO queue: synthetic ids assigned to legacy function_call tool-calls,
         # consumed in order by the matching function-role response messages.
-        pending_fc_ids: deque = deque()
+        pending_fc_ids: deque[str] = deque()
         fc_counter = 0
 
         for msg in messages:
@@ -220,7 +220,9 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         except AIGuardClientError:
             verbose_proxy_logger.error("Datadog AI Guard: Error calling AI Guard service", exc_info=True)
 
-    async def _on_request(self, data: dict, call_type: CallTypesLiteral) -> Optional[Union[Exception, str, dict]]:
+    async def _on_request(
+        self, data: dict[str, Any], call_type: CallTypesLiteral
+    ) -> Optional[Union[Exception, str, dict[str, Any]]]:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
 
         request_messages = self.get_guardrails_messages_for_call_type(
@@ -238,7 +240,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         add_guardrail_to_applied_guardrails_header(request_data=data, guardrail_name=self.guardrail_name)
         return data
 
-    async def _on_response(self, data: dict, response: LLMResponseTypes) -> Any:
+    async def _on_response(self, data: dict[str, Any], response: LLMResponseTypes) -> Any:
         dynamic_params = self.get_guardrail_dynamic_request_body_params(request_data=data)
 
         response_messages: list[Message] = []
@@ -260,8 +262,8 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         return None
 
     async def async_pre_call_hook(
-        self, user_api_key_dict: UserAPIKeyAuth, cache: "DualCache", data: dict, call_type: CallTypesLiteral
-    ) -> Optional[Union[Exception, str, dict]]:
+        self, user_api_key_dict: UserAPIKeyAuth, cache: "DualCache", data: dict[str, Any], call_type: CallTypesLiteral
+    ) -> Optional[Union[Exception, str, dict[str, Any]]]:
         verbose_proxy_logger.debug("Datadog AI Guard: Pre-Call Hook for call_type: %s", call_type)
         event_type: GuardrailEventHooks = GuardrailEventHooks.pre_call
         if not self.should_run_guardrail(data=data, event_type=event_type):
@@ -269,7 +271,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         return await self._on_request(data, call_type)
 
     async def async_moderation_hook(
-        self, data: dict, user_api_key_dict: UserAPIKeyAuth, call_type: CallTypesLiteral
+        self, data: dict[str, Any], user_api_key_dict: UserAPIKeyAuth, call_type: CallTypesLiteral
     ) -> Any:
         verbose_proxy_logger.debug("Datadog AI Guard: Moderation Hook for call_type: %s", call_type)
         event_type: GuardrailEventHooks = GuardrailEventHooks.during_call
@@ -278,7 +280,7 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         return await self._on_request(data, call_type)
 
     async def async_post_call_success_hook(
-        self, data: dict, user_api_key_dict: UserAPIKeyAuth, response: LLMResponseTypes
+        self, data: dict[str, Any], user_api_key_dict: UserAPIKeyAuth, response: LLMResponseTypes
     ) -> Any:
         verbose_proxy_logger.debug("Datadog AI Guard: Post-Call Success Hook")
         event_type: GuardrailEventHooks = GuardrailEventHooks.post_call

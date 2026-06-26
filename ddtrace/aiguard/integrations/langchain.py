@@ -1,5 +1,7 @@
 import json
 from typing import Any
+from typing import Callable
+from typing import Optional
 from typing import Sequence
 import uuid
 
@@ -33,7 +35,7 @@ action_agents_classes = (
 )
 
 
-def _langchain_patch(client: AIGuardClient):
+def _langchain_patch(client: AIGuardClient) -> None:
     from functools import partial
 
     # langchain < 1.0: agents subclass one of the action-agent classes and
@@ -58,7 +60,7 @@ def _langchain_patch(client: AIGuardClient):
         logger.debug("Failed to instrument langgraph ToolNode", exc_info=True)
 
 
-def _langchain_unpatch():
+def _langchain_unpatch() -> None:
     try:
         import langchain.agents  # noqa: F401
     except ImportError:
@@ -86,17 +88,23 @@ def _langchain_unpatch():
         logger.debug("Failed to unpatch langgraph ToolNode", exc_info=True)
 
 
-def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
+def _langchain_agent_plan(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
     action = func(*args, **kwargs)
     return _handle_agent_action_result(client, action, args, kwargs)
 
 
-async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kwargs):
+async def _langchain_agent_aplan(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
     action = await func(*args, **kwargs)
     return _handle_agent_action_result(client, action, args, kwargs)
 
 
-def _langchain_toolnode_run_one(client: AIGuardClient, func, instance, args, kwargs):
+def _langchain_toolnode_run_one(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
     """``ToolNode._run_one`` wrapper for langchain >= 1.0 ``create_agent`` agents.
 
     Evaluates the tool call *before* the tool executes so a blocking decision
@@ -106,13 +114,15 @@ def _langchain_toolnode_run_one(client: AIGuardClient, func, instance, args, kwa
     return func(*args, **kwargs)
 
 
-async def _langchain_toolnode_arun_one(client: AIGuardClient, func, instance, args, kwargs):
+async def _langchain_toolnode_arun_one(
+    client: AIGuardClient, func: Callable[..., Any], instance: Any, args: Any, kwargs: Any
+) -> Any:
     """Async variant of :func:`_langchain_toolnode_run_one`."""
     _evaluate_langchain_tool_call(client, args, kwargs)
     return await func(*args, **kwargs)
 
 
-def _try_parse_json(value: dict, attribute: str) -> Any:
+def _try_parse_json(value: dict[str, Any], attribute: str) -> Any:
     json_str = value.get(attribute, None)
     if json_str is None:
         return None
@@ -184,7 +194,7 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     return result
 
 
-def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
+def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, kwargs: Any) -> Any:
     try:
         from langchain_core.agents import AgentAction
         from langchain_core.agents import AgentActionMessageLog
@@ -238,7 +248,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, args, kwargs):
     return result
 
 
-def _get_tool_runtime_messages(tool_runtime) -> list:
+def _get_tool_runtime_messages(tool_runtime: Any) -> list[Any]:
     """Extract the conversation history from a langgraph ``ToolRuntime``.
 
     The agent state's last message is the ``AIMessage`` carrying the tool
@@ -264,7 +274,7 @@ def _get_tool_runtime_messages(tool_runtime) -> list:
     return list(messages)
 
 
-def _evaluate_langchain_tool_call(client: AIGuardClient, args, kwargs):
+def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any) -> None:
     """Evaluate a single tool call decided by a langchain >= 1.0 agent.
 
     ``langgraph``'s ``ToolNode._run_one`` / ``_arun_one`` execute one tool call
@@ -299,7 +309,7 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args, kwargs):
         logger.debug("Failed to evaluate tool call", exc_info=True)
 
 
-def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
+def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists: Any) -> Optional[Any]:
     set_aiguard_context_active()
     for messages in message_lists:
         result = _evaluate_langchain_messages(client, messages)
@@ -308,7 +318,7 @@ def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
     return None
 
 
-def _langchain_llm_generate_before(client: AIGuardClient, prompts):
+def _langchain_llm_generate_before(client: AIGuardClient, prompts: Any) -> Optional[Any]:
     """``langchain.llm.[a]generate.before`` listener — see chatmodel variant."""
     from langchain_core.messages import HumanMessage
 
@@ -320,7 +330,7 @@ def _langchain_llm_generate_before(client: AIGuardClient, prompts):
     return None
 
 
-def _langchain_generate_finally(*args, **kwargs):
+def _langchain_generate_finally(*args: Any, **kwargs: Any) -> None:
     """Paired ``.finally`` listener for the four langchain ``generate`` events.
 
     Releases the AI Guard active counter that the matching ``.before``
@@ -333,13 +343,13 @@ def _langchain_generate_finally(*args, **kwargs):
     reset_aiguard_context_active_current()
 
 
-def _langchain_chatmodel_stream_before(client: AIGuardClient, instance, args, kwargs):
+def _langchain_chatmodel_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
     input_arg = get_argument_value(args, kwargs, 0, "input")
     messages = instance._convert_input(input_arg).to_messages()
     return _evaluate_langchain_messages(client, messages)
 
 
-def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
+def _langchain_llm_stream_before(client: AIGuardClient, instance: Any, args: Any, kwargs: Any) -> Optional[Any]:
     from langchain_core.messages import HumanMessage
 
     input_arg = get_argument_value(args, kwargs, 0, "input")
@@ -347,7 +357,7 @@ def _langchain_llm_stream_before(client: AIGuardClient, instance, args, kwargs):
     return _evaluate_langchain_messages(client, [HumanMessage(content=prompt)])
 
 
-def _langchain_stream_started(*args, **kwargs):
+def _langchain_stream_started(*args: Any, **kwargs: Any) -> None:
     """Paired ``.stream.started`` listener for langchain stream events.
 
     Acquires the AI Guard active-context counter for the duration of stream
@@ -361,7 +371,7 @@ def _langchain_stream_started(*args, **kwargs):
     set_aiguard_context_active()
 
 
-def _evaluate_langchain_messages(client: AIGuardClient, messages):
+def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> Optional[Any]:
     """Evaluate a model call and re-raise ``AIGuardAbortError`` on a block.
 
     Re-raises so the contrib's ``core.dispatch(..., allow_raise=True)``

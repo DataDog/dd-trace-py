@@ -64,7 +64,7 @@ class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
     tags: list[str]
-    sds: list
+    sds: list[Any]
     tag_probs: dict[str, float]
 
 
@@ -108,7 +108,7 @@ class AIGuardAbortError(DDBlockException):
         action: str,
         reason: str,
         tags: Optional[list[str]] = None,
-        sds: Optional[list] = None,
+        sds: Optional[list[Any]] = None,
         tag_probs: Optional[dict[str, float]] = None,
     ):
         self.action = action
@@ -267,7 +267,7 @@ class AIGuardClient:
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
-                    result = response.get_json() or {}
+                    result = response.get_json() or {}  # type: ignore[no-untyped-call]
                 except Exception as e:
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
@@ -362,7 +362,7 @@ class AIGuardClient:
         try:
             conn = get_connection(url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", url, json_body, self._headers)
+            conn.request("POST", url, json_body, self._headers)  # type: ignore[no-untyped-call]
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:

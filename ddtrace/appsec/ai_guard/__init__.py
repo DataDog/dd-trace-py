@@ -35,7 +35,7 @@ _PUBLIC = frozenset(
 
 def __getattr__(name: str) -> typing.Any:
     if name in _PUBLIC:
-        deprecate(
+        deprecate(  # type: ignore[no-untyped-call]
             prefix="ddtrace.appsec.ai_guard is deprecated",
             message="Import from ddtrace.aiguard instead.",
             removal_version="5.0.0",

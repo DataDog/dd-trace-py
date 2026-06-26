@@ -7,7 +7,7 @@ logger = ddlogger.get_logger(__name__)
 _AI_GUARD_TO_BE_LOADED: bool = True
 
 
-def load_ai_guard():
+def load_ai_guard() -> None:
     """Lazily load the ai_guard module listeners."""
     global _AI_GUARD_TO_BE_LOADED
     if _AI_GUARD_TO_BE_LOADED:

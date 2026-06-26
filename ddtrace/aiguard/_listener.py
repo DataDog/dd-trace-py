@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from functools import partial
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -37,7 +38,7 @@ from ddtrace.internal.settings.asm import ai_guard_config
 logger = ddlogger.get_logger(__name__)
 
 
-def ai_guard_listen():
+def ai_guard_listen() -> None:
     client = new_ai_guard_client()
     _langchain_listen(client)
     _openai_listen(client)
@@ -45,7 +46,7 @@ def ai_guard_listen():
     core.on("set_http_meta_for_asm", _on_set_http_meta_for_ai_guard)
 
 
-def _langchain_listen(client: AIGuardClient):
+def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.patch", partial(_langchain_patch, client))
     core.on("langchain.unpatch", _langchain_unpatch)
 
@@ -81,14 +82,14 @@ def _langchain_listen(client: AIGuardClient):
     core.on("langchain.llm.stream.finally", _langchain_generate_finally)
 
 
-def _openai_listen(client: AIGuardClient):
+def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
     core.on("openai.chat.completions.create.after", partial(_openai_chat_completion_after, client))
     core.on("openai.responses.create.before", partial(_openai_response_create_before, client))
     core.on("openai.responses.create.after", partial(_openai_response_create_after, client))
 
 
-def _anthropic_listen(client: AIGuardClient):
+def _anthropic_listen(client: AIGuardClient) -> None:
     core.on("anthropic.messages.create.before", partial(_anthropic_messages_create_before, client))
     core.on("anthropic.messages.create.after", partial(_anthropic_messages_create_after, client))
     core.on("anthropic.patch", partial(_install_anthropic_wrappers, client))
@@ -123,24 +124,24 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     from ddtrace.contrib.internal.trace_utils import wrap
     from ddtrace.internal.utils.version import parse_version
 
-    def sync_wrapper(func, instance, args, kwargs):
+    def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
         result = func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result
 
-        def evaluate(resp):
+        def evaluate(resp: Any) -> Any:
             return _anthropic_messages_create_after(client, kwargs, resp)
 
         if _is_async_traced_stream(result):
             return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
         return BufferedAIGuardStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
-    async def async_wrapper(func, instance, args, kwargs):
+    async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
         result = await func(*args, **kwargs)
         if not _is_traced_stream(result):
             return result
 
-        def evaluate(resp):
+        def evaluate(resp: Any) -> Any:
             return _anthropic_messages_create_after(client, kwargs, resp)
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
