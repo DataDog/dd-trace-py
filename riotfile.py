@@ -94,7 +94,6 @@ _base_env = {
     "DD_PATCH_MODULES": "unittest:false",
     "CMAKE_BUILD_PARALLEL_LEVEL": "12",
     "CARGO_BUILD_JOBS": "12",
-    "DD_PYTEST_USE_NEW_PLUGIN": "true",
     "DD_TRACE_COMPUTE_STATS": "false",
     "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
@@ -562,7 +561,6 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/crashtracker/",
             pkgs={
@@ -593,7 +591,6 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v -n auto {cmdargs} tests/internal/",
             pkgs={
@@ -1301,9 +1298,6 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    env={
-                        "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                    },
                     pys=["3.9"],
                     pkgs={
                         "flask": "~=0.12.0",
@@ -1906,101 +1900,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pytest",
-            command=(
-                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
-                " --ignore=tests/contrib/pytest/snapshot/"
-            ),
-            pkgs={
-                "pytest-randomly": latest,
-                "pytest-xdist": latest,
-            },
-            env={
-                "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-            venvs=[
-                Venv(
-                    pys="3.9",
-                    pkgs={
-                        "msgpack": latest,
-                        "more_itertools": "<8.11.0",
-                        "pytest-mock": "==2.0.0",
-                        "httpx": "<0.28.0",
-                    },
-                    venvs=[
-                        Venv(
-                            pkgs={
-                                "pytest": ["~=6.0"],
-                                "pytest-cov": "==2.9.0",
-                            },
-                        ),
-                        Venv(
-                            pkgs={
-                                "pytest": ["~=7.0", latest],
-                                "pytest-cov": "==2.12.0",
-                            },
-                        ),
-                    ],
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={
-                        "pytest": [
-                            "~=6.0",
-                            "~=7.0",
-                            latest,
-                        ],
-                        "msgpack": latest,
-                        "asynctest": "==0.13.0",
-                        "more_itertools": "<8.11.0",
-                        "httpx": "<0.28.0",
-                    },
-                ),
-            ],
-        ),
-        Venv(
-            # Snapshot tests for the v2 pytest plugin run separately so they get their own CI job
-            # with the test agent service, and to avoid mixing snapshot vs non-snapshot coverage.
-            # DD_PYTEST_USE_NEW_PLUGIN=false loads the v2 plugin (ddtrace/contrib/internal/pytest).
-            # test_pytest_snapshot.py is permanently skipped (_USE_PLUGIN_V2=True hardcoded);
-            # test_pytest_snapshot_v2.py and test_pytest_xdist_snapshot.py always run.
-            name="pytest:snapshot",
-            command="pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/",
-            pkgs={
-                "pytest-randomly": latest,
-                "pytest-xdist": latest,
-            },
-            env={
-                "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-            venvs=[
-                # pytest~=6.0 is excluded: anyio (via httpx) registers a pytest plugin that
-                # imports _pytest.scope, which only exists in pytest>=7.2. Version compatibility
-                # with older pytest is covered by the main pytest venv.
-                Venv(
-                    pys="3.9",
-                    pkgs={
-                        "pytest": ["~=7.2", "~=8.0"],
-                        "msgpack": latest,
-                        "more_itertools": "<8.11.0",
-                        "httpx": "<0.28.0",
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={
-                        "pytest": ["~=7.2", "~=8.0", latest],
-                        "msgpack": latest,
-                        "asynctest": "==0.13.0",
-                        "more_itertools": "<8.11.0",
-                        "httpx": "<0.28.0",
-                    },
-                ),
-            ],
-        ),
-        Venv(
             name="testing",
             command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
@@ -2012,7 +1911,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "true",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
                 # Disable coverage report upload for this suite: these tests exercise the
                 # coverage upload functionality themselves, so having the plugin also run
@@ -2076,9 +1974,6 @@ venv = Venv(
                 ],
                 "asynctest": "==0.13.0",
             },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
             pys="3.9",
         ),
         Venv(
@@ -2089,9 +1984,6 @@ venv = Venv(
                 "more_itertools": "<8.11.0",
                 "pytest": "==7.4.4",
                 "pytest-randomly": latest,
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -2114,33 +2006,6 @@ venv = Venv(
                     },
                 ),
             ],
-        ),
-        Venv(
-            name="pytest_benchmark",
-            pys=select_pys(),
-            command="pytest {cmdargs} --no-cov tests/contrib/pytest_benchmark/",
-            pkgs={
-                "msgpack": latest,
-                "pytest-randomly": latest,
-                "pytest-benchmark": [
-                    ">=3.1.0,<=4.0.0",
-                ],
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        ),
-        Venv(
-            name="pytest:flaky",
-            pys=select_pys(),
-            command="pytest {cmdargs} --no-cov -p no:flaky tests/contrib/pytest_flaky/",
-            pkgs={
-                "flaky": latest,
-                "pytest-randomly": latest,
-            },
-            env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
         ),
         Venv(
             name="grpc",
@@ -3520,7 +3385,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
@@ -3535,7 +3399,6 @@ venv = Venv(
             },
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),

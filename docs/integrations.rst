@@ -490,7 +490,7 @@ Pyramid
 
 pytest
 ^^^^^^
-.. automodule:: ddtrace.contrib.internal.pytest
+.. automodule:: ddtrace.testing.internal.pytest
 
 
 .. _pytest_bdd:

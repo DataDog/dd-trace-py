@@ -5,7 +5,6 @@ from unittest import mock
 import pytest
 
 import ddtrace
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -39,9 +38,8 @@ class TestPytest(TracerTestCase):
         class CIVisibilityPlugin:
             @staticmethod
             def pytest_configure(config):
-                if is_enabled(config):
+                if CIVisibility.enabled:
                     with _patch_dummy_writer():
-                        assert CIVisibility.enabled
                         CIVisibility.disable()
                         CIVisibility.enable(tracer=self.tracer, config=ddtrace.config.pytest)
 
