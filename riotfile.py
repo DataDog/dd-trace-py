@@ -1900,7 +1900,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="testing",
+            name="pytest",
             command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,

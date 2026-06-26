@@ -56,7 +56,7 @@ suites:
       - '@dd_coverage'
       - tests/coverage/*
     snapshot: true
-  testing:
+  pytest:
     retry: 2
     venvs_per_job: 1
     paths:
