@@ -21,6 +21,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
@@ -79,6 +80,22 @@ def _build_process_tags() -> list[tuple[str, str]]:
     return pairs
 
 
+def _test_session_token() -> Optional[str]:
+    """Resolve the dd-apm-test-agent session token for Remote Config requests.
+
+    Reads the token from the canonical ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` env
+    var (the same carrier the trace writer uses) directly, rather than importing
+    the writer module — the writer pulls in ``settings.asm``, and dragging that
+    into the RC client's runtime path is an unnecessary coupling. The native client
+    forwards the token via ``Endpoint.test_token`` (the ``X-Datadog-Test-Session-Token``
+    header); without it the agent will not match session-scoped configs to this client.
+    """
+    additional_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    if not additional_headers:
+        return None
+    return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
+
+
 class RemoteConfigClient:
     """Adapter over the native (libdatadog) Remote Configuration client."""
 
@@ -114,6 +131,7 @@ class RemoteConfigClient:
                 app_version=ddtrace.config.version or "",
                 tags=_build_tags(tracer_version),
                 process_tags=_build_process_tags(),
+                test_session_token=_test_session_token(),
             )
             if self._capability_values:
                 self._native.add_capabilities(self._capability_values)
