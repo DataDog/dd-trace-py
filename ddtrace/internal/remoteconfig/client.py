@@ -17,6 +17,7 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
@@ -90,7 +91,7 @@ def _test_session_token() -> Optional[str]:
     forwards the token via ``Endpoint.test_token`` (the ``X-Datadog-Test-Session-Token``
     header); without it the agent will not match session-scoped configs to this client.
     """
-    additional_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
     if not additional_headers:
         return None
     return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
