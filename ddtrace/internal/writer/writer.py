@@ -49,7 +49,6 @@ from ..utils.formats import parse_tags_str
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
-from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentlessWriterClient
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
@@ -107,6 +106,8 @@ class NoEncodableSpansError(Exception):
 # 2s timeout, the java tracer has a 10s timeout, so we set the window size
 # to 10 buckets of 1s duration.
 DEFAULT_SMA_WINDOW = 10
+
+_SUPPORTED_OUTPUT_VERSIONS = ("v0.4", "v0.5")
 
 
 def _human_size(nbytes: float) -> str:
@@ -767,14 +768,14 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
-        if self._api_version not in WRITER_CLIENTS:
+        if self._api_version not in _SUPPORTED_OUTPUT_VERSIONS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",
                 self._api_version,
-                ", ".join(sorted(WRITER_CLIENTS.keys())),
+                ", ".join(_SUPPORTED_OUTPUT_VERSIONS),
             )
-            self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
+            self._api_version = "v0.5"
+        client = AgentWriterClientV4(buffer_size, max_payload_size)
 
         super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
@@ -822,7 +823,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._compute_stats_enabled,
             self._stats_opt_out,
         )
-        builder.set_input_format(self._api_version).set_output_format(self._api_version)
+        builder.set_input_format("v0.4").set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
             builder.set_otlp_endpoint(self._otlp_endpoint)
             otlp_headers = self._parse_otlp_headers()
@@ -886,39 +887,39 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_endpoint=self._otlp_endpoint,
         )
 
-    def _downgrade(self, status, client):
-        if client.ENDPOINT == "v0.5/traces":
-            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
+    def _downgrade(self, status) -> bool:
+        if self._api_version == "v0.5":
             self._api_version = "v0.4"
-            self._exporter = self._create_exporter()
-
-            # Since we have to change the encoding in this case, the payload
-            # would need to be converted to the downgraded encoding before
-            # sending it, but we chuck it away instead.
+            try:
+                self._exporter = self._create_exporter()
+            except Exception:
+                self._api_version = "v0.5"  # restore on failure so state stays consistent
+                raise
             _safelog(
                 log.warning,
-                "Calling endpoint '%s' but received %s; downgrading API. "
-                "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
-                "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
-                "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
-                client.ENDPOINT,
+                "Calling endpoint '%s' but received %s; downgrading API to v0.4. "
+                "To avoid this from happening in the future, either ensure that the Datadog agent has a "
+                "v0.5/traces endpoint available, or explicitly set the trace API version to v0.4.",
+                "v0.5/traces",
                 status,
             )
+            return True
         else:
             _safelog(
                 log.error,
                 "unsupported endpoint '%s': received response %s from intake (%s)",
-                client.ENDPOINT,
+                self._endpoint,
                 status,
                 self.intake_url,
             )
+            return False
 
-    def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
+    def _intake_endpoint(self):
+        return "{}/{}".format(self.intake_url, self._endpoint)
 
     @property
     def _endpoint(self):
-        return self._clients[0].ENDPOINT
+        return "{}/traces".format(self._api_version)
 
     @property
     def _encoder(self):
@@ -947,6 +948,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
+        response_body = None
         try:
             response_body = self._exporter.send(payload)
         except native.RequestError as e:
@@ -956,7 +958,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             except:  # noqa:E722 if the error message is invalid we want to log the full error
                 raise e
             if code == 404 or code == 415:
-                self._downgrade(code, client)
+                if self._downgrade(code):
+                    # Payload is v0.4-encoded bytes; retry with the downgraded exporter.
+                    response_body = self._exporter.send(payload)
             else:
                 raise e
         finally:
@@ -1063,7 +1067,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             msg = "failed to send, dropping %d traces to intake at %s: %s"
             log_args = (
                 n_traces,
-                self._intake_endpoint(client),
+                self._intake_endpoint(),
                 str(e),
             )
             # Append the payload if requested

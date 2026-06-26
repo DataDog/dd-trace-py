@@ -339,7 +339,7 @@ def test_trace_with_invalid_payload_generates_error_log():
                 "failed to send, dropping %d traces to intake at %s: %s",
                 0,
                 "http://localhost:8126/v0.5/traces",
-                "Invalid format: Unable to read payload len",
+                "Invalid format: Unable to read array len for trace count",
                 extra={"send_to_telemetry": False},
             )
         ]
@@ -360,7 +360,7 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
                 "failed to send, dropping %d traces to intake at %s: %s, payload %s",
                 0,
                 "http://localhost:8126/v0.5/traces",
-                "Invalid format: Unable to read payload len",
+                "Invalid format: Unable to read array len for trace count",
                 "6261645f7061796c6f6164",
                 extra={"send_to_telemetry": False},
             )
@@ -389,12 +389,11 @@ def test_trace_with_failing_encoder_generates_error_log():
 def test_api_version_downgrade_generates_no_warning_logs():
     import mock
 
-    from ddtrace.internal.utils.http import Response
     from ddtrace.trace import tracer as t
 
-    t._span_aggregator.writer.api_version = "v0.5"
-    t._span_aggregator.writer._downgrade(Response(status=404), t._span_aggregator.writer._clients[0])
-    assert t._span_aggregator.writer._endpoint == "v0.4/traces"
+    t._span_aggregator.writer._api_version = "v0.5"
+    t._span_aggregator.writer._downgrade(404)
+    assert t._span_aggregator.writer._api_version == "v0.4"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()

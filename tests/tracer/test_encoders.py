@@ -22,16 +22,12 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
-from ddtrace.internal._encoding import ListStringTable
-from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
-from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
@@ -119,38 +115,8 @@ class RefMsgpackEncoderV04(RefMsgpackEncoder):
         return d
 
 
-class RefMsgpackEncoderV05(RefMsgpackEncoder):
-    def __init__(self, *args, **kwargs):
-        super(RefMsgpackEncoderV05, self).__init__(*args, **kwargs)
-        self.string_table = ListStringTable()
-        self.string_table.index(ORIGIN_KEY)
-
-    def _index_or_value(self, value):
-        if value is None:
-            return 0
-
-        if isinstance(value, str):
-            return self.string_table.index(value)
-
-        if isinstance(value, dict):
-            return {self._index_or_value(k): self._index_or_value(v) for k, v in value.items()}
-
-        return value
-
-    def normalize(self, span):
-        return tuple(self._index_or_value(_) for _ in span_to_tuple(span))
-
-    def encode(self, obj):
-        try:
-            return super(RefMsgpackEncoderV05, self).encode([list(self.string_table), obj])
-        finally:
-            self.string_table = ListStringTable()
-            self.string_table.index(ORIGIN_KEY)
-
-
 REF_MSGPACK_ENCODERS = {
     "v0.4": RefMsgpackEncoderV04,
-    "v0.5": RefMsgpackEncoderV05,
 }
 
 
@@ -359,36 +325,6 @@ def decode(obj, reconstruct=True):
 
 def allencodings(f):
     return pytest.mark.parametrize("encoding", MSGPACK_ENCODERS.keys())(f)
-
-
-def test_msgpack_encoding_after_an_exception_was_raised():
-    """Ensure that the encoder's state is consistent after an Exception is raised during encoding"""
-    # Encode a trace after a rollback/BufferFull occurs exception
-    rolledback_encoder = MsgpackEncoderV05(1 << 12, 1 << 12)
-    trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
-    rand_string = rands(size=20, chars=string.ascii_letters)
-    # trace only has one span
-    trace[0]._set_attribute("some_tag", rand_string)
-    try:
-        # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
-        # BufferFull is not raised since only one span is being encoded
-        rolledback_encoder.put(trace)
-    except BufferItemTooLarge:
-        pass
-    else:
-        pytest.fail("Encoding the trace did not overflow the trace buffer. We should increase the size of the span.")
-    # Successfully encode a small trace
-    small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
-    # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
-    rolledback_encoder.put(small_trace)
-
-    # Encode a trace without triggering a rollback/BufferFull exception
-    ref_encoder = MsgpackEncoderV05(1 << 20, 1 << 20)
-    ref_encoder.put(small_trace)
-
-    # Ensure the two encoders have the same state
-    assert rolledback_encoder.encode() == ref_encoder.encode()
 
 
 @allencodings
@@ -713,10 +649,9 @@ def test_span_event_encoding_msgpack():
     span._add_event("We are going to the moon", time_unix_nano=2234567890123456)
 
     # Get test parameters from environment variables
-    version = os.getenv("DD_TRACE_API_VERSION")
     trace_native_span_events = os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
 
-    encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
+    encoder = MSGPACK_ENCODERS["v0.4"](1 << 20, 1 << 20)
     encoder.put([span])
     encoded_traces = encoder.encode()
     assert encoded_traces, "Expected encoded traces but got empty list"
@@ -737,12 +672,7 @@ def test_span_event_encoding_msgpack():
         {"name": "We are going to the moon", "time_unix_nano": 2234567890123456},
     ]
 
-    if version == "v0.5":
-        encoded_span_meta = decoded_trace[0][0][9]
-        assert b"events" in encoded_span_meta
-        decoded_events = json.loads(encoded_span_meta[b"events"])
-        assert decoded_events == expected_events_json
-    elif trace_native_span_events:
+    if trace_native_span_events:
         encoded_span_meta = decoded_trace[0][0]
         assert b"span_events" in encoded_span_meta
         assert encoded_span_meta[b"span_events"] == expected_top_level_span_encoding
@@ -753,87 +683,10 @@ def test_span_event_encoding_msgpack():
         assert decoded_events == expected_events_json
 
 
-def test_span_link_v05_encoding():
-    encoder = MSGPACK_ENCODERS["v0.5"](1 << 20, 1 << 20)
-
-    span = Span(
-        "s1",
-        context=Context(sampling_priority=1),
-        links=[
-            SpanLink(trace_id=16, span_id=17),
-            SpanLink(
-                trace_id=(2**127) - 1,
-                span_id=(2**64) - 1,
-                tracestate="congo=t61rcWkgMzE",
-                flags=0,
-                attributes={
-                    "moon": "ears",
-                    "link.name": "link_name",
-                    "link.kind": "link_kind",
-                    "key2": ["false", 2, ["hello", 4, {"5"}]],
-                },
-            ),
-        ],
-    )
-    span._add_span_pointer(
-        pointer_kind="some-kind",
-        pointer_direction=_SpanPointerDirection.UPSTREAM,
-        pointer_hash="some-hash",
-    )
-
-    assert len(span._get_links()) == 3
-
-    # Finish the span to ensure a duration exists.
-    span.finish()
-
-    encoder.put([span])
-    encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty traces"
-    decoded_trace = decode(encoded_traces[0][0])
-    assert len(decoded_trace) == 1
-    assert len(decoded_trace[0]) == 1
-
-    encoded_span_meta = decoded_trace[0][0][9]
-    assert b"_dd.span_links" in encoded_span_meta
-    # Parse the JSON so the comparison is order-independent for attribute keys
-    # (HashMap iteration order in Rust is non-deterministic).
-    decoded_links = json.loads(encoded_span_meta[b"_dd.span_links"])
-    assert decoded_links == [
-        {"trace_id": "00000000000000000000000000000010", "span_id": "0000000000000011"},
-        {
-            "trace_id": "7fffffffffffffffffffffffffffffff",
-            "span_id": "ffffffffffffffff",
-            "attributes": {
-                "key2.0": "false",
-                "key2.1": "2",
-                "key2.2.0": "hello",
-                "key2.2.1": "4",
-                "key2.2.2.0": "5",
-                "link.kind": "link_kind",
-                "link.name": "link_name",
-                "moon": "ears",
-            },
-            "tracestate": "congo=t61rcWkgMzE",
-            "flags": 0,
-        },
-        {
-            "trace_id": "00000000000000000000000000000000",
-            "span_id": "0000000000000000",
-            "attributes": {
-                "link.kind": "span-pointer",
-                "ptr.dir": "u",
-                "ptr.hash": "some-hash",
-                "ptr.kind": "some-kind",
-            },
-        },
-    ]
-
-
 @pytest.mark.parametrize(
     "Encoder,item",
     [
         (MsgpackEncoderV04, b"meta"),
-        (MsgpackEncoderV05, 9),
     ],
 )
 def test_encoder_propagates_dd_origin(tracer, Encoder, item):
@@ -884,7 +737,7 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+@pytest.mark.parametrize("encoder_cls", [AgentlessTraceJSONEncoder])
 def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
     encoder = encoder_cls(buffer_size, buffer_size)
@@ -906,7 +759,7 @@ def test_encoder_buffer_size_limit(encoder_cls):
         encoder.put(trace)
 
 
-@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+@pytest.mark.parametrize("encoder_cls", [AgentlessTraceJSONEncoder])
 def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
     encoder = encoder_cls(max_item_size << 1, max_item_size)
@@ -916,80 +769,6 @@ def test_encoder_buffer_item_size_limit(encoder_cls):
     with pytest.raises(BufferItemTooLarge):
         span.set_tag("test", "a" * (max_item_size + 1))
         encoder.put([span])
-
-
-def test_custom_msgpack_encode_v05():
-    encoder = MsgpackEncoderV05(2 << 20, 2 << 20)
-    assert encoder.max_size == 2 << 20
-    assert encoder.max_item_size == 2 << 20
-    trace = [
-        Span(name="v05-test", service="foo", resource="GET"),
-        Span(name="v05-test", service="foo", resource="POST"),
-        Span(name=None, service="bar"),
-    ]
-
-    encoder.put(trace)
-    assert len(encoder) == 1
-
-    num_bytes = encoder.size
-    flush_traces = encoder.flush()
-    assert flush_traces, "Expected flush traces but got empty list"
-    [(encoded, num_traces)] = flush_traces
-    assert num_traces == 1
-    assert num_bytes == len(encoded)
-    st, ts = decode(encoded, reconstruct=False)
-
-    def filter_mut(ts):
-        return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
-
-    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
-    assert filter_mut(ts) == [
-        [
-            [2, 3, 4, 0, 0, 0, {}, {}, 0],
-            [2, 3, 5, 0, 0, 0, {}, {}, 0],
-            [6, 0, 0, 0, 0, 0, {}, {}, 0],
-        ]
-    ]
-
-
-def string_table_test(t, origin_key=False):
-    assert len(t) == 1 + origin_key
-
-    assert 0 == t.index("")
-    if origin_key:
-        assert 1 == t.index(ORIGIN_KEY)
-
-    id1 = t.index("foobar")
-    assert len(t) == 2 + origin_key
-    assert id1 == t.index("foobar")
-    assert len(t) == 2 + origin_key
-    id2 = t.index("foobaz")
-    assert len(t) == 3 + origin_key
-    assert id2 == t.index("foobaz")
-    assert len(t) == 3 + origin_key
-    assert id1 != id2
-
-
-def test_msgpack_string_table():
-    t = MsgpackStringTable(1 << 10)
-
-    string_table_test(t, origin_key=1)
-
-    size = t.size
-    encoded = t.flush()
-    assert size == len(encoded)
-    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
-
-    assert len(t) == 2
-    assert "foobar" not in t
-
-
-def test_list_string_table():
-    t = ListStringTable()
-
-    string_table_test(t)
-
-    assert list(t) == ["", "foobar", "foobaz"]
 
 
 @contextlib.contextmanager

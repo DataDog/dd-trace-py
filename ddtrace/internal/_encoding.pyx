@@ -28,7 +28,6 @@ from .settings._agent import config as agent_config
 
 
 DEF MSGPACK_ARRAY_LENGTH_PREFIX_SIZE = 5
-DEF MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE = 6
 
 cdef object log = get_logger(__name__)
 
@@ -176,190 +175,6 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         return ret
 
     raise TypeError("Unhandled text type: %r" % type(text))
-
-cdef class StringTable(object):
-    cdef dict _table
-    cdef stdint.uint32_t _next_id
-
-    def __init__(self):
-        self._table = {"": 0}
-        self.insert("")
-        self._next_id = 1
-
-    cdef insert(self, object string):
-        pass
-
-    cdef stdint.uint32_t _index(self, object string) except? -1:
-        cdef stdint.uint32_t _id
-        cdef int ret
-
-        if string is None:
-            return 0
-
-        ret = PyDict_Contains(self._table, string)
-        if ret == -1:
-            return ret
-        if ret:
-            return PyLong_AsLong(<object>PyDict_GetItem(self._table, string))
-
-        _id = self._next_id
-        ret = PyDict_SetItem(self._table, string, PyLong_FromLong(_id))
-        if ret == -1:
-            return ret
-        self.insert(string)
-        self._next_id += 1
-        return _id
-
-    cpdef stdint.uint32_t index(self, object string) except? -1:
-        return self._index(string)
-
-    cdef reset(self):
-        PyDict_Clear(self._table)
-        PyDict_SetItem(self._table, "", 0)
-        self.insert("")
-        self._next_id = 1
-
-    def __len__(self):
-        return PyLong_FromLong(self._next_id)
-
-    def __contains__(self, object string):
-        return PyBool_FromLong(PyDict_Contains(self._table, string))
-
-
-cdef class ListStringTable(StringTable):
-    cdef list _list
-
-    def __init__(self):
-        self._list = []
-        super(ListStringTable, self).__init__()
-
-    cdef insert(self, object string):
-        PyList_Append(self._list, string)
-
-    def __iter__(self):
-        return iter(self._list)
-
-
-cdef class MsgpackStringTable(StringTable):
-    cdef msgpack_packer pk
-    cdef int max_size
-    cdef int _sp_len
-    cdef stdint.uint32_t _sp_id
-    cdef object _lock
-    cdef size_t _reset_size
-
-    def __init__(self, max_size):
-        self.pk.buf_size = min(max_size, 1 << 20)
-        self.pk.buf = <char*> PyMem_Malloc(self.pk.buf_size)
-        if self.pk.buf == NULL:
-            raise MemoryError("Unable to allocate internal buffer.")
-        self.max_size = max_size
-        self.pk.length = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE
-        self._sp_len = 0
-        self._lock = threading.RLock()
-        super(MsgpackStringTable, self).__init__()
-
-        self.index(ORIGIN_KEY)
-        self._reset_size = self.pk.length
-
-    def __dealloc__(self):
-        PyMem_Free(self.pk.buf)
-        self.pk.buf = NULL
-
-    cdef insert(self, object string):
-        cdef int ret
-
-        # Before inserting, truncate the string if it is greater than MAX_SPAN_META_VALUE_LEN
-        string = truncate_string(string)
-
-        if self.pk.length + len(string) > self.max_size:
-            raise ValueError(
-                "Cannot insert '%s': string table is full (current size: %d, size after insert: %d, max size: %d)." % (
-                    string, self.pk.length, (self.pk.length + len(string)), self.max_size
-                )
-            )
-
-        ret = pack_text(&self.pk, string)
-        if ret != 0:
-            raise RuntimeError("Failed to add string to msgpack string table")
-
-    cdef savepoint(self):
-        self._sp_len = self.pk.length
-        self._sp_id = self._next_id
-
-    cdef rollback(self):
-        if self._sp_len > 0:
-            self.pk.length = self._sp_len
-            self._next_id = self._sp_id
-
-        # After rolling back the string table next_id we must remove all stale string -> _id pairs
-        # This will resolve two classes of encoding errors:
-        #  - multiple strings referencing the same string table index. In this scenario
-        #    two different strings in the encoded trace could be serialized with the same _id. In this scenario
-        #    two different strings could reference one string in the encoded trace (string swapping).
-        # - when the string table references an index of the string table that is not serialized. The encoded
-        #    trace can not be decoded without accessing an invalid index. In this scenario the agent will
-        #    return a 400 status code.
-        self._table = {s: idx for s, idx in self._table.items() if idx < self._next_id}
-
-    cdef get_bytes(self):
-        cdef int ret
-        cdef stdint.uint32_t table_size
-        cdef int offset
-        cdef int old_pos
-        with self._lock:
-            table_size = self._next_id
-            offset = MSGPACK_STRING_TABLE_LENGTH_PREFIX_SIZE - array_prefix_size(table_size)
-            old_pos = self.pk.length
-
-            # Update table size prefix
-            self.pk.length = offset
-            ret = msgpack_pack_array(&self.pk, table_size)
-            if ret:
-                return None
-            # Add root array size prefix
-            self.pk.length = offset = offset - 1
-            ret = msgpack_pack_array(&self.pk, 2)
-            if ret:
-                return None
-            self.pk.length = old_pos
-
-            return PyBytes_FromStringAndSize(self.pk.buf + offset, self.pk.length - offset)
-
-    @property
-    def size(self):
-        with self._lock:
-            return self.pk.length - MSGPACK_ARRAY_LENGTH_PREFIX_SIZE + array_prefix_size(self._next_id)
-
-    cdef append_raw(self, long src, Py_ssize_t size):
-        cdef int res
-        with self._lock:
-            if self.size + size > self.max_size:
-                raise BufferFull(
-                    "Cannot append raw bytes: string table is full (current size: %d, max size: %d)." % (
-                        self.size, self.max_size
-                    )
-                )
-            res = msgpack_pack_raw_body(&self.pk, <char *>PyLong_AsLong(src), size)
-            if res != 0:
-                raise RuntimeError("Failed to append raw bytes to msgpack string table")
-
-    cdef reset(self):
-        StringTable.reset(self)
-        assert self._next_id == 1
-
-        PyDict_SetItem(self._table, ORIGIN_KEY, 1)
-        self._next_id = 2
-        self.pk.length = self._reset_size
-        self._sp_len = 0
-
-    cpdef flush(self):
-        with self._lock:
-            try:
-                return self.get_bytes()
-            finally:
-                self.reset()
-
 
 cdef class BufferedEncoder(object):
     content_type: str = None
@@ -597,59 +412,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cdef void * get_dd_origin_ref(self, str dd_origin):
         return string_to_buff(dd_origin)
 
-    cdef inline int _pack_links(self, list span_links):
-        ret = msgpack_pack_array(&self.pk, len(span_links))
-        if ret != 0:
-            return ret
-
-        for link in span_links:
-            # SpanLink.to_dict() returns all serializable span link fields
-            # v0.4 encoding is disabled by default. SpanLinks.to_dict() is optimized for the v0.5 format.
-            d = link.to_dict()
-            # Encode 128 bit trace ids usings two 64bit integers
-            tid = int(d["trace_id"][:16], 16)
-            if tid > 0:
-                d["trace_id_high"] = tid
-            d["trace_id"] = int(d["trace_id"][16:], 16)
-            # span id should be uint64 in v0.4 (it is hex in v0.5)
-            d["span_id"] = int(d["span_id"], 16)
-            if "flags" in d:
-                # If traceflags set, the high bit (bit 31) should be set to 1 (uint32).
-                # This helps us distinguish between when the sample decision is zero or not set
-                d["flags"] = d["flags"] | (1 << 31)
-
-            ret = msgpack_pack_map(&self.pk, len(d))
-            if ret != 0:
-                return ret
-
-            for k, v in d.items():
-                # pack the name of a span link field (ex: trace_id, span_id, flags, ...)
-                ret = pack_text(&self.pk, k)
-                if ret != 0:
-                    return ret
-                # pack the value of a span link field (values can be number, string or dict)
-                if isinstance(v, (int, float)):
-                    ret = pack_number(&self.pk, v)
-                elif isinstance(v, str):
-                    ret = pack_text(&self.pk, v)
-                elif k == "attributes":
-                    # span links can contain attributes, this is analougous to span tags
-                    # attributes are serialized as a nested dict with string keys and values
-                    attributes = v.items()
-                    ret = msgpack_pack_map(&self.pk, len(attributes))
-                    for attr_k, attr_v in attributes:
-                        ret = pack_text(&self.pk, attr_k)
-                        if ret != 0:
-                            return ret
-                        ret = pack_text(&self.pk, attr_v)
-                        if ret != 0:
-                            return ret
-                else:
-                    raise ValueError(f"Failed to encode SpanLink. {k}={v} contains an unsupported type, {type(v)}")
-                if ret != 0:
-                    return ret
-        return 0
-
     cdef inline int _pack_span_events(self, list span_events) except? -1:
         cdef int ret
         cdef int L
@@ -702,7 +464,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         return ret
 
     cdef inline int _pack_meta(
-        self, object meta, char *dd_origin, str span_events, uint64_t span_id,
+        self, object meta, char *dd_origin, str span_events, uint64_t span_id, str span_links_json = "",
     ) except? -1:
         cdef Py_ssize_t L
         cdef int ret
@@ -722,7 +484,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             else:
                 log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
 
-        L = len(m) + (dd_origin is not NULL) + (len(span_events) > 0)
+        L = len(m) + (dd_origin is not NULL) + (len(span_events) > 0) + (len(span_links_json) > 0)
         if L > ITEM_LIMIT:
             raise ValueError("dict is too large")
 
@@ -745,6 +507,12 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 ret = pack_text(&self.pk, SPAN_EVENTS_KEY)
                 if ret == 0:
                     ret = pack_text(&self.pk, span_events)
+                if ret != 0:
+                    return ret
+            if span_links_json:
+                ret = pack_text(&self.pk, SPAN_LINKS_KEY)
+                if ret == 0:
+                    ret = pack_text(&self.pk, span_links_json)
         return ret
 
     cdef inline int _pack_metrics(self, object metrics, uint64_t span_id) except? -1:
@@ -789,8 +557,8 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_metrics
         cdef uint64_t span_id = span.span_id
         cdef dict _meta_struct
-        cdef list span_links_list
         cdef list span_events_list
+        cdef str span_links_json
 
         cdef dict span_meta = span._get_str_attributes()
         cdef dict span_metrics = span._get_numeric_attributes()
@@ -805,15 +573,18 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         has_meta_struct = <bint> span._has_meta_structs()
         has_links = <bint> span._has_links()
         if has_links:
-            span_links_list = span._get_links()
+            span_links_json = json_dumps([link.to_dict() for link in span._get_links()])
+        else:
+            span_links_json = ""
         has_meta = <bint> (
             len(span_meta) > 0
             or dd_origin is not NULL
             or (not self.top_level_span_event_encoding and has_span_events)
+            or has_links
         )
 
-        # do not include in meta
-        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_links + has_meta_struct
+        # span_links are encoded in meta as _dd.span_links JSON (not top-level), so not counted here
+        L = 7 + has_span_type + has_meta + has_metrics + has_error + has_parent_id + has_meta_struct
         if self.top_level_span_event_encoding:
             L += has_span_events
 
@@ -893,14 +664,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-            if has_links:
-                ret = pack_bytes(&self.pk, <char *> b"span_links", 10)
-                if ret != 0:
-                    return ret
-                ret = self._pack_links(span_links_list)
-                if ret != 0:
-                    return ret
-
             if has_span_events and self.top_level_span_event_encoding:
                 ret = pack_bytes(&self.pk, <char *> b"span_events", 11)
                 if ret != 0:
@@ -917,7 +680,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([dict(event) for event in span_events_list])
-                ret = self._pack_meta(span_meta, <char *> dd_origin, span_events, span_id)
+                ret = self._pack_meta(span_meta, <char *> dd_origin, span_events, span_id, span_links_json)
                 if ret != 0:
                     return ret
 
@@ -1030,177 +793,6 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             raise ValueError(f"Unsupported type for SpanEvent attribute: {type(attr)}")
 
         return ret
-
-cdef class MsgpackEncoderV05(MsgpackEncoderBase):
-    cdef MsgpackStringTable _st
-
-    def __cinit__(self, size_t max_size, size_t max_item_size):
-        self._st = MsgpackStringTable(max_size)
-
-    cpdef flush(self):
-        with self._lock:
-            try:
-                self._st.append_raw(
-                    PyLong_FromLong(<long> self.get_buffer()),
-                    <Py_ssize_t> super(MsgpackEncoderV05, self).size,
-                )
-                return [(self._st.flush(), len(self))]
-            finally:
-                self._reset_buffer()
-
-    @property
-    def size(self):
-        """Return the size in bytes of the encoder buffer."""
-        with self._lock:
-            return self._st.size + super(MsgpackEncoderV05, self).size
-
-    cpdef put(self, list trace):
-        with self._lock:
-            try:
-                self._st.savepoint()
-                super(MsgpackEncoderV05, self).put(trace)
-            except Exception:
-                self._st.rollback()
-                raise
-
-    cdef inline int _pack_string(self, object string) except? -1:
-        string = truncate_string(string)
-        return msgpack_pack_uint32(&self.pk, self._st._index(string))
-
-    cdef void * get_dd_origin_ref(self, str dd_origin):
-        return <void *> PyLong_AsLong(self._st._index(dd_origin))
-
-    cdef int pack_span(self, object span, unsigned long long trace_id_64bits, void *dd_origin) except? -1:
-        cdef int ret
-        cdef list meta, metrics
-        cdef list span_links_list
-        cdef list span_events_list
-        cdef uint64_t span_id = span.span_id
-
-        ret = msgpack_pack_array(&self.pk, 12)
-        if ret != 0:
-            return ret
-
-        ret = self._pack_string(span.service)
-        if ret != 0:
-            return ret
-        ret = self._pack_string(span.name)
-        if ret != 0:
-            return ret
-        ret = self._pack_string(span.resource)
-        if ret != 0:
-            return ret
-
-        ret = msgpack_pack_unsigned_long_long(&self.pk, trace_id_64bits)
-        if ret != 0:
-            return ret
-
-        ret = msgpack_pack_uint64(&self.pk, span_id if span_id is not None else 0)
-        if ret != 0:
-            return ret
-
-        _ = span.parent_id
-        ret = msgpack_pack_uint64(&self.pk, _ if _ is not None else 0)
-        if ret != 0:
-            return ret
-
-        _ = span.start_ns
-        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
-        ret = msgpack_pack_int64(&self.pk, _)
-        if ret != 0:
-            return ret
-
-        _ = span.duration_ns
-        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
-        ret = msgpack_pack_int64(&self.pk, _)
-        if ret != 0:
-            return ret
-
-        _ = span.error
-        ret = msgpack_pack_int32(&self.pk, _ if _ is not None else 0)
-        if ret != 0:
-            return ret
-
-        span_links = ""
-        if span._has_links():
-            span_links_list = span._get_links()
-            span_links = json_dumps([link.to_dict() for link in span_links_list])
-
-        span_events = ""
-        if span._has_events():
-            span_events_list = span._get_events()
-            span_events = json_dumps([dict(event) for event in span_events_list])
-
-        # Filter meta to only str/bytes values
-        meta = []
-        for k, v in span._get_str_attributes().items():
-            if PyUnicode_Check(v) or PyBytesLike_Check(v):
-                meta.append((k, v))
-            else:
-                log.warning("[span ID %d] Meta key %r has non-string value %r, skipping", span_id, k, v)
-
-        ret = msgpack_pack_map(
-            &self.pk,
-            len(meta) + (dd_origin is not NULL) + (len(span_links) > 0) + (len(span_events) > 0)
-        )
-        if ret != 0:
-            return ret
-        if meta:
-            for k, v in meta:
-                ret = self._pack_string(k)
-                if ret != 0:
-                    return ret
-                ret = self._pack_string(v)
-                if ret != 0:
-                    return ret
-        if dd_origin is not NULL:
-            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> 1)
-            if ret != 0:
-                return ret
-            ret = msgpack_pack_uint32(&self.pk, <stdint.uint32_t> dd_origin)
-            if ret != 0:
-                return ret
-        if span_links:
-            ret = self._pack_string(SPAN_LINKS_KEY)
-            if ret != 0:
-                return ret
-            ret = self._pack_string(span_links)
-            if ret != 0:
-                return ret
-        if span_events:
-            ret = self._pack_string(SPAN_EVENTS_KEY)
-            if ret != 0:
-                return ret
-            ret = self._pack_string(span_events)
-            if ret != 0:
-                return ret
-
-        # Filter metrics to only number values
-        metrics = []
-        for k, v in span._get_numeric_attributes().items():
-            if PyLong_Check(v) or PyFloat_Check(v):
-                metrics.append((k, v))
-            else:
-                log.warning("[span ID %d] Metric key %r has non-numeric value %r, skipping", span_id, k, v)
-
-        ret = msgpack_pack_map(&self.pk, len(metrics))
-        if ret != 0:
-            return ret
-        if metrics:
-            for k, v in metrics:
-                ret = self._pack_string(k)
-                if ret != 0:
-                    return ret
-                ret = pack_number(&self.pk, v)
-                if ret != 0:
-                    return ret
-
-        ret = self._pack_string(span.span_type)
-        if ret != 0:
-            return ret
-
-        return 0
-
 
 cdef class Packer(object):
     """Slightly modified version of the v0.6.2 msgpack Packer
