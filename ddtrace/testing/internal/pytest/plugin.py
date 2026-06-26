@@ -23,6 +23,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -424,18 +425,68 @@ class TestOptPlugin:
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
     ) -> None:
-        if not self.manager.atf_all_flaky_tests:
-            return
-        selected = []
-        deselected = []
-        for item in items:
-            if item_to_test_ref(item) in self.manager.test_properties:
-                selected.append(item)
-            else:
-                deselected.append(item)
-        if deselected:
-            config.hook.pytest_deselected(items=deselected)
-        items[:] = selected
+        if self.manager.atf_all_flaky_tests:
+            selected = []
+            deselected = []
+            for item in items:
+                if item_to_test_ref(item) in self.manager.test_properties:
+                    selected.append(item)
+                else:
+                    deselected.append(item)
+            if deselected:
+                config.hook.pytest_deselected(items=deselected)
+            items[:] = selected
+
+        if (
+            asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT"))
+            and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
+        ):
+            selected = []
+            deselected = []
+            for item in items:
+                test_ref = item_to_test_ref(item)
+                test_props = self.manager.test_properties.get(test_ref)
+                if (
+                    self.manager.is_skippable_test(test_ref)
+                    and not _is_test_unskippable(item)
+                    and not (test_props and test_props.attempt_to_fix)
+                ):
+                    deselected.append(item)
+                    self.session.tests_skipped_by_itr += 1
+                else:
+                    selected.append(item)
+            if deselected:
+                config.hook.pytest_deselected(items=deselected)
+                items[:] = selected
+
+    def pytest_ignore_collect(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
+        """Skip collection of entire test files whose suite is ITR-skippable.
+
+        This fires before the file is imported, saving the cost of module import and test discovery.
+        We only ignore a file when we are sure it is safe to do so:
+          - the ITR deselect mode is active, and
+          - no test in the file carries the unskippable marker (checked via a fast text scan — if the
+            marker string is present anywhere in the source we fall back to normal collection so that
+            pytest_collection_modifyitems can handle the file test-by-test).
+        """
+        if not asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT")):
+            return None
+
+        if collection_path.suffix != ".py":
+            return None
+
+        try:
+            source = collection_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return None
+
+        if ITR_UNSKIPPABLE_REASON in source:
+            return None
+
+        if self.manager.is_skippable_suite_path(collection_path):
+            return True
+
+        return None
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -934,8 +985,11 @@ class TestOptPlugin:
             test.mark_forced_run()
             return
 
+        if asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT")):
+            # Skippable tests are already deselected in pytest_collection_modifyitems.
+            return
+
         if test.is_attempt_to_fix():
-            # if the test is an attempt-to-fix, behave as it if were not selected for skipping.
             return
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
@@ -1238,7 +1292,7 @@ def pytest_load_initial_conftests(
     # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
     # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
     # when we know if pytest-cov is available.
-    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
+    if session_manager.settings.coverage_enabled:  # and not session_manager.settings.coverage_report_upload_enabled:
         # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
 
