@@ -164,6 +164,22 @@ def unpatch():
         _u(starlette.background.BackgroundTasks, "add_task")
 
 
+def _is_duplicate_route_call(scope: dict, instance: Any) -> bool:
+    seen_routes = scope["datadog"].setdefault("_dd_seen_routes", set())
+    # Route objects are app-lifetime singletons so id() is stable for the duration of the request.
+    if id(instance) in seen_routes:
+        return True
+    seen_routes.add(id(instance))
+    return False
+
+
+def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
+    effective_route_context = scope.get("fastapi", {}).get("effective_route_context")
+    if effective_route_context is None:
+        return None
+    return getattr(effective_route_context, "path_format", None)
+
+
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
@@ -178,16 +194,31 @@ def traced_handler(wrapped, instance, args, kwargs):
         log.warning("datadog context not present in ASGI request scope, trace middleware may be missing")
         return wrapped(*args, **kwargs)
 
-    # Add the path to the resource_paths list
-    if "resource_paths" not in scope["datadog"]:
-        scope["datadog"]["resource_paths"] = [instance.path]
-    else:
-        scope["datadog"]["resource_paths"].append(instance.path)
+    # FastAPI >= 0.137 calls super().handle() from APIRoute.handle, causing traced_handler to fire
+    # twice for the same route instance on a single request, which doubles resource_paths.
+    if _is_duplicate_route_call(scope, instance):
+        return wrapped(*args, **kwargs)
 
     request_spans: list[Span] = scope["datadog"].get("request_spans", [])
+
+    full_path = _get_fastapi_effective_path(scope)
+
+    # Only accumulate resource_paths for the pre-0.137 path; when full_path is available,
+    # the composed path is read directly from effective_route_context and resource_paths
+    # is never consumed.
+    if full_path is None:
+        if "resource_paths" not in scope["datadog"]:
+            scope["datadog"]["resource_paths"] = [instance.path]
+        else:
+            scope["datadog"]["resource_paths"].append(instance.path)
+
     resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
-    if len(request_spans) == len(resource_paths):
+    if full_path is not None:
+        if request_spans:
+            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
+            request_spans[0]._set_attribute(http.ROUTE, full_path)
+    elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
         for index, span in enumerate(request_spans):
             # We want to set the full resource name on the first request span

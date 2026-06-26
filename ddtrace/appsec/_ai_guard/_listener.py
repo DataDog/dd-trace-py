@@ -93,6 +93,12 @@ def _langchain_listen(client: AIGuardClient):
 
 
 def _openai_listen(client: AIGuardClient):
+    # Per-LLM kill switch (DD_AI_GUARD_OPENAI_ENABLED, true by default). When set
+    # to false, skip registering OpenAI listeners so AI Guard never evaluates
+    # OpenAI calls, without affecting other providers or requiring a tracer rollback.
+    if not ai_guard_config._ai_guard_openai_enabled:
+        logger.debug("AI Guard OpenAI auto-instrumentation disabled via DD_AI_GUARD_OPENAI_ENABLED=false")
+        return
     core.on("openai.chat.completions.create.before", partial(_openai_chat_completion_before, client))
     core.on("openai.chat.completions.create.after", partial(_openai_chat_completion_after, client))
     core.on("openai.responses.create.before", partial(_openai_response_create_before, client))
