@@ -354,10 +354,6 @@ def test_chat_completion_raw_response_stream(openai, openai_vcr, test_spans):
             user="ddtrace-test",
             n=None,
         )
-        # Consume the raw stream so the underlying VCR connection is released. An
-        # unconsumed stream pins an open VCRHTTPConnection to this cassette, which
-        # leaks into later tests under pytest-randomly orderings and makes their
-        # unrelated requests (e.g. the test-agent snapshot) fail to match.
         for _ in resp.parse():
             pass
 
@@ -380,14 +376,7 @@ async def test_achat_completion_raw_response_stream(openai, openai_vcr, test_spa
             user="ddtrace-test",
             n=None,
         )
-        # Consume the raw stream so the underlying VCR connection is released. An
-        # unconsumed stream pins an open VCRHTTPConnection to this cassette, which
-        # leaks into later tests under pytest-randomly orderings and makes their
-        # unrelated requests (e.g. the test-agent snapshot) fail to match.
-        stream = resp.parse()
-        if asyncio.iscoroutine(stream):
-            stream = await stream
-        async for _ in stream:
+        async for _ in resp.parse():
             pass
 
     assert len(test_spans.pop_traces()) == 0
