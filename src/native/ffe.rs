@@ -14,6 +14,9 @@ pub mod ffe {
         get_assignment, now, AssignmentReason, AssignmentValue, Configuration, EvaluationContext,
         EvaluationError, Str, UniversalFlagConfig,
     };
+    use datadog_ffe_ffi::{
+        FfeSourceApplyError, FfeSourcePollOutcome, FfeSourceState, FfeSourceStateConfig,
+    };
 
     #[pyclass(frozen)]
     #[pyo3(name = "Configuration")]
@@ -49,6 +52,34 @@ pub mod ffe {
         flag_metadata: HashMap<Str, Str>,
         #[pyo3(get)]
         do_log: bool,
+    }
+
+    #[pyclass]
+    #[pyo3(name = "HybridSourceState")]
+    struct HybridSourceState {
+        inner: FfeSourceState,
+    }
+
+    #[pyclass(frozen)]
+    struct HybridSourcePollOutcome {
+        #[pyo3(get)]
+        status: Str,
+        #[pyo3(get)]
+        status_code: Option<u16>,
+        #[pyo3(get)]
+        applied: bool,
+        #[pyo3(get)]
+        unchanged: bool,
+        #[pyo3(get)]
+        skipped: bool,
+        #[pyo3(get)]
+        attempts: u32,
+        #[pyo3(get)]
+        etag: Option<Str>,
+        #[pyo3(get)]
+        error: Option<Str>,
+        #[pyo3(get)]
+        retryable: bool,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,6 +184,79 @@ pub mod ffe {
         }
     }
 
+    #[pymethods]
+    impl HybridSourceState {
+        #[new]
+        fn new(
+            base_url: String,
+            api_key: Option<String>,
+            request_timeout_seconds: f64,
+            max_retries: u32,
+            backoff_base_seconds: f64,
+        ) -> PyResult<HybridSourceState> {
+            let config = FfeSourceStateConfig {
+                base_url,
+                api_key,
+                request_timeout: duration_from_positive_seconds(
+                    request_timeout_seconds,
+                    "request_timeout_seconds",
+                )?,
+                max_retries,
+                backoff_base: duration_from_non_negative_seconds(
+                    backoff_base_seconds,
+                    "backoff_base_seconds",
+                )?,
+            };
+            let inner = FfeSourceState::new(config).map_err(to_py_source_state_value_error)?;
+            Ok(HybridSourceState { inner })
+        }
+
+        fn poll_once(&self) -> HybridSourcePollOutcome {
+            match self.inner.poll_once() {
+                Ok(outcome) => HybridSourcePollOutcome::from_outcome(outcome),
+                Err(err) => HybridSourcePollOutcome::from_error(err),
+            }
+        }
+
+        #[getter]
+        fn is_ready(&self) -> bool {
+            self.inner.is_ready()
+        }
+
+        #[getter]
+        fn last_etag(&self) -> Option<String> {
+            self.inner.last_etag()
+        }
+
+        fn resolve_value<'py>(
+            &self,
+            flag_key: &str,
+            expected_type: FlagType,
+            context: Bound<'py, PyAny>,
+        ) -> PyResult<ResolutionDetails> {
+            let context = match context.extract::<EvaluationContext>() {
+                Ok(context) => context,
+                Err(err) => {
+                    return Ok(ResolutionDetails::error(
+                        ErrorCode::InvalidContext,
+                        err.to_string(),
+                    ))
+                }
+            };
+
+            match self
+                .inner
+                .resolve_value(flag_key, expected_type.into(), &context)
+            {
+                Ok(result) => Ok(match result {
+                    Ok(assignment) => assignment.into(),
+                    Err(err) => err.into(),
+                }),
+                Err(err) => Ok(ResolutionDetails::error(ErrorCode::General, err.to_string())),
+            }
+        }
+    }
+
     impl ResolutionDetails {
         fn empty(reason: impl Into<Reason>) -> ResolutionDetails {
             ResolutionDetails {
@@ -179,6 +283,37 @@ pub mod ffe {
                 do_log: false,
             }
         }
+    }
+
+    impl HybridSourcePollOutcome {
+        fn from_outcome(outcome: FfeSourcePollOutcome) -> Self {
+            HybridSourcePollOutcome {
+                status: outcome.name().into(),
+                status_code: Some(outcome.status_code()),
+                applied: outcome.applied(),
+                unchanged: outcome.unchanged(),
+                skipped: false,
+                attempts: outcome.attempts(),
+                etag: outcome.etag().map(Into::into),
+                error: None,
+                retryable: false,
+            }
+        }
+
+        fn from_error(error: FfeSourceApplyError) -> Self {
+            HybridSourcePollOutcome {
+                status: "error".into(),
+                status_code: error.status_code(),
+                applied: false,
+                unchanged: false,
+                skipped: false,
+                attempts: 0,
+                etag: None,
+                error: Some(error.to_string().into()),
+                retryable: error.retryable(),
+            }
+        }
+
     }
 
     impl From<EvaluationError> for ResolutionDetails {
@@ -213,6 +348,23 @@ pub mod ffe {
         }
     }
 
+    impl From<ffe::Assignment> for ResolutionDetails {
+        fn from(value: ffe::Assignment) -> ResolutionDetails {
+            ResolutionDetails {
+                value: Some(value.value),
+                error_code: None,
+                error_message: None,
+                reason: Some(value.reason.into()),
+                variant: Some(value.variation_key),
+                allocation_key: Some(value.allocation_key.clone()),
+                flag_metadata: [("allocation_key".into(), value.allocation_key)]
+                    .into_iter()
+                    .collect(),
+                do_log: value.do_log,
+            }
+        }
+    }
+
     impl From<FlagType> for ffe::ExpectedFlagType {
         fn from(value: FlagType) -> ffe::ExpectedFlagType {
             match value {
@@ -231,7 +383,26 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
+    }
+
+    fn duration_from_positive_seconds(value: f64, name: &str) -> PyResult<std::time::Duration> {
+        if !value.is_finite() || value <= 0.0 {
+            return Err(PyValueError::new_err(format!("{name} must be positive")));
+        }
+        Ok(std::time::Duration::from_secs_f64(value))
+    }
+
+    fn duration_from_non_negative_seconds(value: f64, name: &str) -> PyResult<std::time::Duration> {
+        if !value.is_finite() || value < 0.0 {
+            return Err(PyValueError::new_err(format!("{name} must be non-negative")));
+        }
+        Ok(std::time::Duration::from_secs_f64(value))
+    }
+
+    fn to_py_source_state_value_error(error: FfeSourceApplyError) -> PyErr {
+        PyValueError::new_err(error.to_string())
     }
 }
