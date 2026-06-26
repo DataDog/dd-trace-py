@@ -2,7 +2,6 @@ import logging
 import sys
 import warnings
 
-import ddtrace
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.settings import env
@@ -52,40 +51,13 @@ def cleanup_loaded_modules() -> None:
             return
         del sys.modules[module_name]
 
-    # Unload all the modules that we have imported, except for the ddtrace one.
-    # NB: this means that every `import threading` anywhere in `ddtrace/` code
-    # uses a copy of that module that is distinct from the copy that user code
-    # gets when it does `import threading`. The same applies to every module
-    # not in `KEEP_MODULES`.
-    KEEP_MODULES = frozenset(
-        [
-            "atexit",
-            "copyreg",  # pickling issues for tracebacks with gevent
-            "ddtrace",
-            "concurrent",
-            "importlib._bootstrap",  # special import that must not be unloaded
-            "typing",
-            "_operator",  # pickling issues with typing module
-            "re",  # referenced by the typing module
-            "sre_constants",  # imported by re at runtime
-            "logging",
-            "attr",
-            "google",
-            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
-            "wrapt",
-            "bytecode",  # needed by before-fork hooks
-            "pathlib",  # used in singledispatch
-            "dataclasses",  # for product loaded remotely that use dataclasses
-        ]
-    )
-    for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
-        if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
-            continue
-
-        drop(m)
-
-    # TODO: The better strategy is to identify the core modules in LOADED_MODULES
-    # that should not be unloaded, and then unload as much as possible.
+    # gevent monkey-patches stdlib modules in place, so application code that
+    # imports them gets the greenlet-friendly versions automatically. ddtrace only
+    # needs its own *unpatched* copies of the threading-related modules it uses on
+    # real threads (e.g. the profiler). Unloading just those modules forces user
+    # code to re-import fresh, gevent-patched copies while ddtrace keeps the ones it
+    # imported before patching. Everything else stays shared; agent socket I/O holds
+    # unpatched primitives captured in ddtrace.internal._unpatched.
     UNLOAD_MODULES = frozenset(
         [
             # imported in Python >= 3.10 and patched by gevent

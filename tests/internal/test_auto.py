@@ -24,9 +24,11 @@ def test_auto():
 
     import ddtrace.auto  # noqa:F401
 
+    # ddtrace keeps its own unpatched copy of the threading-family modules so it can run
+    # on real threads under gevent. Other stdlib modules (socket, subprocess, ...) are left
+    # shared: gevent patches them in place for application code, and ddtrace holds unpatched
+    # primitives captured in ddtrace.internal._unpatched.
     assert "threading" not in sys.modules
-    assert "socket" not in sys.modules
-    assert "subprocess" not in sys.modules
 
     if os.getenv("DD_REMOTE_CONFIGURATION_ENABLED") == "0":
         # emulate socket patching (e.g. by gevent)
