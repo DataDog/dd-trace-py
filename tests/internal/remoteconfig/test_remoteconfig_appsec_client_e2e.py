@@ -5,6 +5,7 @@ import os
 
 import mock
 from mock.mock import ANY
+import pytest
 
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
@@ -12,6 +13,7 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 import ddtrace.internal.remoteconfig._connectors
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.client import RemoteConfigError
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -933,3 +935,23 @@ def test_apply_state_error_on_malformed_payload():
 
     assert applied[target].apply_state == 3  # ERROR
     assert applied[target].apply_error is not None
+
+
+def test_corrupt_payload_fails_poll_and_is_not_an_apply_error():
+    """Integrity failures (base64/hash) fail the whole poll; they are not per-config errors,
+    so a later poll with corrected bytes for the same metadata can still be applied.
+    """
+    import base64
+    from types import SimpleNamespace
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_callback("ASM_DATA", mock.MagicMock())
+    target = "datadog/2/ASM_DATA/corrupt/config"
+    raw = b'{"valid": "json"}'
+    meta = ConfigMetadata(id="corrupt", product_name="ASM_DATA", sha256_hash="deadbeef", length=len(raw), tuf_version=1)
+    payload = SimpleNamespace(target_files=[SimpleNamespace(path=target, raw=base64.b64encode(raw))])
+    applied: dict = {}
+
+    with pytest.raises(RemoteConfigError):
+        rc_client._apply_config([], applied, target, meta, payload)
+    assert target not in applied  # not recorded as a per-config error

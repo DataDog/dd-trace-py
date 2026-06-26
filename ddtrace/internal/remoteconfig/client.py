@@ -533,7 +533,10 @@ class RemoteConfigClient:
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[dict[str, Any]]:
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[bytes]:
+        """Return the raw (base64-decoded, hash-verified) target bytes. Integrity failures
+        raise RemoteConfigError (fails the whole poll); JSON parsing is left to the caller.
+        """
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -552,10 +555,7 @@ class RemoteConfigClient:
                 "mismatch between target {!r} hashes {!r} != {!r}".format(target, computed_hash, config.sha256_hash)
             )
 
-        try:
-            return json.loads(raw)
-        except Exception:
-            raise RemoteConfigError("invalid JSON content for target {!r}".format(target))
+        return raw
 
     def _build_payload(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         self._client_tracer["extra_services"] = list(ddtrace.config._get_extra_services())
@@ -671,17 +671,14 @@ class RemoteConfigClient:
         if config.product_name not in self._product_callbacks:
             return
 
+        # Integrity failures (base64/hash) raise here and fail the whole poll (retryable)
+        raw = self._extract_target_file(payload, target, config)
+        if raw is None:
+            return
+
         try:
-            config_content = self._extract_target_file(payload, target, config)
-            if config_content is None:
-                return
-            log.debug(
-                "[%s][P: %s] Load new configuration: %s. content: %s",
-                os.getpid(),
-                os.getppid(),
-                target,
-                config_content,
-            )
+            config_content = json.loads(raw)
+            log.debug("[%s][P: %s] Load new configuration: %s", os.getpid(), os.getppid(), target)
             self._accumulate_payload(payload_list, config_content, target, config)
         except Exception:
             # Malformed payload that can't be deserialized: the only case reported as errored
@@ -792,17 +789,17 @@ class RemoteConfigClient:
         payload_list: list[Payload] = []
         self._reconcile_configurations(payload_list, applied_configs, client_configs, payload)
 
-        # 3. Snapshot before publishing so the subscriber can match payloads
-        self._last_targets_version = last_targets_version
-        self._applied_configs = applied_configs
-        self._backend_state = backend_state
-
-        # 4. Publish all payloads to the global connector
-        self._publish_configuration(payload_list)
+        # 3. Publish, then snapshot, atomically: a failed publish leaves the previous state
+        #    intact (poll is retried), and no consumer sees a payload before _applied_configs.
+        with self._dispatch_lock:
+            self._publish_configuration(payload_list)
+            self._last_targets_version = last_targets_version
+            self._applied_configs = applied_configs
+            self._backend_state = backend_state
 
         self._add_apply_config_to_cache()
 
-        # 5. Apply synchronously so apply_state is promoted before the next poll reports it
+        # 4. Apply synchronously so apply_state is promoted before the next poll reports it
         self._pump_subscriber()
 
     def request(self) -> bool:
