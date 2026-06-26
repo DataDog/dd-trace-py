@@ -4,9 +4,9 @@ from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
 import sys
+from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import OrderedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
@@ -32,7 +32,7 @@ def _get_llmobs_span_options(name, model_name, func):
     return traced_model_name, span_name
 
 
-def _get_span_inputs(args: OrderedDict) -> dict:
+def _get_span_inputs(args: dict[str, Any]) -> dict[str, Any]:
     return {arg: value for arg, value in args.items() if arg != "self"}
 
 
