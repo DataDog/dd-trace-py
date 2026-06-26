@@ -99,8 +99,6 @@ ddtrace/testing/                                      @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/freezegun                               @DataDog/ci-app-libraries
-tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
-tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
 tests/contrib/selenium                                @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
