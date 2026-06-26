@@ -82,6 +82,28 @@ except AttributeError:
     # (older pytest versions don't have StashKey)
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
+_HAS_STASH = hasattr(pytest.Config, "stash")
+
+
+def _stash_set(config, key, value):
+    """Store a value on a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        config.stash[key] = value
+    else:
+        setattr(config, "_dd_" + str(key), value)
+
+
+def _stash_get(config, key, default=None):
+    """Retrieve a value from a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        return config.stash.get(key, default)
+    return getattr(config, "_dd_" + str(key), default)
+
+
 TEST_FRAMEWORK = "pytest"
 
 # Mapping of external rerun plugin names to the -p flag that disables them.
@@ -1230,7 +1252,7 @@ def pytest_load_initial_conftests(
         yield
         return
 
-    early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
+    _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
     # NOTE: Coverage collection decision tree:
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
@@ -1272,7 +1294,7 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
