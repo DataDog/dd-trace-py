@@ -76,14 +76,17 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-try:
-    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
-except AttributeError:
-    # Fallback for pytest < 7.0 - use a simple key
-    # (older pytest versions don't have StashKey)
-    SESSION_MANAGER_STASH_KEY = "session_manager_key"
-
 _HAS_STASH = hasattr(pytest, "Config") and hasattr(pytest.Config, "stash")
+
+if _HAS_STASH:
+    try:
+        SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    except AttributeError:
+        _HAS_STASH = False
+        SESSION_MANAGER_STASH_KEY = "session_manager_key"
+else:
+    # pytest < 7.0 does not have Config.stash; fall back to a plain attribute name
+    SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
 
 def _stash_set(config, key, value):

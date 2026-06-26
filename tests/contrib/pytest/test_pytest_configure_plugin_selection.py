@@ -14,6 +14,8 @@ from unittest import mock
 import pytest
 
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
+from ddtrace.testing.internal.pytest.plugin import _HAS_STASH
+from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import TestOptPluginWithProtocol
 from ddtrace.testing.internal.pytest.plugin import pytest_configure
@@ -37,7 +39,10 @@ def _make_mock_config(plugin_names=(), atr_enabled=False, efd_enabled=False, atf
     session_manager.settings.auto_test_retries.enabled = atr_enabled
     session_manager.settings.early_flake_detection.enabled = efd_enabled
     session_manager.settings.test_management.enabled = atf_enabled
-    config.stash.get.return_value = session_manager
+    if _HAS_STASH:
+        config.stash.get.return_value = session_manager
+    else:
+        setattr(config, "_dd_" + SESSION_MANAGER_STASH_KEY, session_manager)
     return config, session_manager
 
 
