@@ -1575,3 +1575,27 @@ def test_response_output_suppressed_on_plain_error():
         span.error = 1
         openai_set_meta_tags_from_response(span, kwargs, None, None)
         assert _output_contents(span) == [""]
+
+
+def test_openai_kill_switch_enabled_registers_listeners():
+    """DD_AI_GUARD_OPENAI_ENABLED defaults to true: all OpenAI listeners register."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=True)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._openai_listen(Mock())
+            assert mock_on.call_count == 4
+
+
+def test_openai_kill_switch_disabled_skips_listeners():
+    """DD_AI_GUARD_OPENAI_ENABLED=false: no OpenAI listeners are registered."""
+    from unittest.mock import Mock
+
+    from ddtrace.aiguard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=False)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._openai_listen(Mock())
+            mock_on.assert_not_called()
