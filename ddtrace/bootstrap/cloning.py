@@ -80,8 +80,10 @@ def cleanup_loaded_modules() -> None:
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
             "dataclasses",  # for product loaded remotely that use dataclasses
-            "asyncio",  # the _asyncio C extension caches the event loop policy getter; see _asyncio below
-            "_asyncio",  # unloading desyncs the C get_event_loop from the re-imported Python set_event_loop
+            # The _asyncio C extension caches the event loop policy getter; unloading
+            # desyncs it from a re-imported asyncio and breaks event loop registration.
+            "asyncio",
+            "_asyncio",
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

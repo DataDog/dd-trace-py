@@ -404,8 +404,7 @@ def test_no_args():
     assert b"usage:" in p.stdout.read()
 
 
-MODULES_TO_CHECK = ["asyncio"]
-MODULES_TO_CHECK_PARAMS = dict(
+ASYNCIO_PRODUCT_PARAMS = dict(
     DD_TRACE_ENABLED=["1", "0"],
     DD_PROFILING_ENABLED=["1", "0"],
     DD_DYNAMIC_INSTRUMENTATION_ENABLED=["1", "0"],
@@ -414,38 +413,29 @@ MODULES_TO_CHECK_PARAMS = dict(
 
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
-    parametrize=MODULES_TO_CHECK_PARAMS,
+    parametrize=ASYNCIO_PRODUCT_PARAMS,
     err=None,
 )
-def test_ddtrace_run_imports():
-    import os
-    import sys
+def test_ddtrace_run_asyncio_event_loop():
+    import asyncio
 
-    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
-
-    for module in MODULES_TO_CHECK:
-        assert module not in sys.modules, module
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    assert asyncio.get_event_loop() is loop
 
 
 @pytest.mark.subprocess(
-    env=dict(MODULES_TO_CHECK=",".join(MODULES_TO_CHECK)),
-    parametrize=MODULES_TO_CHECK_PARAMS,
+    parametrize=ASYNCIO_PRODUCT_PARAMS,
     err=None,
 )
-def test_ddtrace_auto_imports():
-    import os
-    import sys
-
-    MODULES_TO_CHECK = os.environ["MODULES_TO_CHECK"].split(",")
-
-    for module in MODULES_TO_CHECK:
-        assert module not in sys.modules, module
+def test_ddtrace_auto_asyncio_event_loop():
+    import asyncio
 
     import ddtrace.auto  # noqa: F401
 
-    for module in MODULES_TO_CHECK:
-        assert module not in sys.modules, module
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    assert asyncio.get_event_loop() is loop
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="1"))

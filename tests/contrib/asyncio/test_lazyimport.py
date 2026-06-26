@@ -20,11 +20,6 @@ def test_lazy_import():
 
 @pytest.mark.subprocess()
 def test_asyncio_not_unloaded_by_module_cloning():
-    # The _asyncio C extension caches asyncio.events.get_event_loop_policy at init. If
-    # module cloning unloads asyncio, a later `import asyncio` builds a second module whose
-    # Python set_event_loop() no longer agrees with the cached C get_event_loop(), so event
-    # loop registration silently breaks (observed with gevent on Linux). asyncio and the
-    # _asyncio extension must therefore survive cloning as the same module objects.
     import asyncio  # noqa: F401
     import sys
 
@@ -34,8 +29,8 @@ def test_asyncio_not_unloaded_by_module_cloning():
     asyncio_module = sys.modules["asyncio"]
     c_asyncio_module = sys.modules["_asyncio"]
 
-    # Treat asyncio as imported during ddtrace setup (as wrapt does under ddtrace-run) so
-    # that cleanup considers it a candidate for unloading regardless of test import order.
+    # Drop asyncio from the import baseline so cleanup treats it as a candidate for
+    # unloading, as it would be when wrapt pulls it in during ddtrace-run setup.
     ddtrace.LOADED_MODULES = frozenset(m for m in ddtrace.LOADED_MODULES if m not in ("asyncio", "_asyncio"))
 
     cloning.enabled = True
