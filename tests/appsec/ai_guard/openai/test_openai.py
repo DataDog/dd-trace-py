@@ -3,6 +3,7 @@
 import asyncio
 import gc
 import threading
+from types import SimpleNamespace
 from unittest.mock import patch
 import warnings
 
@@ -16,6 +17,11 @@ from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_messages
 from ddtrace.appsec._ai_guard._openai_chat import _convert_openai_response
 from ddtrace.appsec._ai_guard._openai_chat import _openai_chat_completion_before
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.trace import tracer
 from tests.appsec.ai_guard.openai._span_helpers import assert_block_emits_both_spans
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
@@ -1504,3 +1510,92 @@ def test_chat_sync_before_block_records_request_model_on_llm_span(
     assert llm_span.get_tag("openai.request.model") == CHAT_MODEL
     assert llm_span.get_tag("openai.request.endpoint") == "/v1/chat/completions"
     assert llm_span.get_tag("openai.request.method") == "POST"
+
+
+# ---------------------------------------------------------------------------
+# APPSEC-68147: model output must still be recorded in LLMObs when AI Guard
+# blocks AFTER the model call (the response exists; the block errors the span).
+# ---------------------------------------------------------------------------
+
+
+def _fake_chat_response(content="ok"):
+    """Minimal non-streamed ChatCompletion-shaped object for the chat extractor."""
+    message = SimpleNamespace(role="assistant", content=content, tool_calls=None, reasoning_content=None)
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)], model=CHAT_MODEL)
+
+
+def _fake_response_api_response(text="ok"):
+    """Minimal Responses-API-shaped object for the response extractor."""
+    content = SimpleNamespace(type="output_text", text=text, refusal=None)
+    item = SimpleNamespace(type="message", role="assistant", content=[content])
+    return SimpleNamespace(output=[item], model=CHAT_MODEL)
+
+
+def _output_contents(span):
+    return [m.get("content") for m in (get_llmobs_output_messages(span) or [])]
+
+
+def _llm_span():
+    """An LLM-kind span (kind is normally set by the integration at span start)."""
+    span = tracer.trace("openai.request", span_type="llm")
+    _annotate_llmobs_span_data(span, kind="llm")
+    return span
+
+
+def test_chat_output_recorded_when_ai_guard_blocked():
+    """An errored span (error=1) still records output when a response exists."""
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_chat(span, kwargs, _fake_chat_response("blocked body"))
+        assert _output_contents(span) == ["blocked body"]
+
+
+def test_chat_output_suppressed_on_plain_error():
+    """A genuine error leaves no response, so output is blanked."""
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_chat(span, kwargs, None)
+        assert _output_contents(span) == [""]
+
+
+def test_response_output_recorded_when_ai_guard_blocked():
+    """Responses API: errored span still records output when a response exists."""
+    kwargs = {"input": "hi", "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_response(span, kwargs, _fake_response_api_response("blocked body"), None)
+        assert _output_contents(span) == ["blocked body"]
+
+
+def test_response_output_suppressed_on_plain_error():
+    kwargs = {"input": "hi", "model": CHAT_MODEL}
+    with _llm_span() as span:
+        span.error = 1
+        openai_set_meta_tags_from_response(span, kwargs, None, None)
+        assert _output_contents(span) == [""]
+
+
+def test_openai_kill_switch_enabled_registers_listeners():
+    """DD_AI_GUARD_OPENAI_ENABLED defaults to true: all OpenAI listeners register."""
+    from unittest.mock import Mock
+
+    from ddtrace.appsec._ai_guard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=True)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._openai_listen(Mock())
+            assert mock_on.call_count == 4
+
+
+def test_openai_kill_switch_disabled_skips_listeners():
+    """DD_AI_GUARD_OPENAI_ENABLED=false: no OpenAI listeners are registered."""
+    from unittest.mock import Mock
+
+    from ddtrace.appsec._ai_guard import _listener
+
+    with override_ai_guard_config(dict(_ai_guard_openai_enabled=False)):
+        with patch.object(_listener.core, "on") as mock_on:
+            _listener._openai_listen(Mock())
+            mock_on.assert_not_called()

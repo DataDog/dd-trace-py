@@ -185,12 +185,18 @@ class DatadogAIGuardGuardrail(CustomGuardrail):
         return result
 
     def _resolve_block(self, dynamic_params: dict[str, Any]) -> bool:
+        # Blocking is a trusted server-side policy (litellm config / DD_AI_GUARD_BLOCK).
+        # Request-body dynamic params may only strengthen it (monitor -> block), never weaken
+        # it, so a proxy caller cannot disable enforcement on its own request.
+        server_block = ai_guard_config._ai_guard_block if self._block is None else bool(self._block)
         raw = dynamic_params.get("block")
         if raw is None:
-            if self._block is None:
-                return ai_guard_config._ai_guard_block
-            return bool(self._block)
-        return raw if isinstance(raw, bool) else str(raw).lower() != "false"
+            return server_block
+        # AIDEV-NOTE: intentionally fail-secure — only the literal "false" is treated as
+        # "don't add block"; any other value errs toward blocking. The `or server_block`
+        # below means dynamic params can never weaken server policy regardless.
+        dynamic_block = raw if isinstance(raw, bool) else str(raw).lower() != "false"
+        return server_block or dynamic_block
 
     async def _run_ai_guard_check(
         self,
