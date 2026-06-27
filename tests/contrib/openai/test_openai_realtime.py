@@ -371,7 +371,9 @@ class _FakeWebSocket:
         self.sent = []
 
     def recv(self, decode=False):
-        return self._messages.pop(0)
+        # The real SDK calls recv(decode=False) and (in openai>=1.66) asserts it returns bytes.
+        msg = self._messages.pop(0)
+        return msg.encode("utf-8") if isinstance(msg, str) else msg
 
     def send(self, data):
         self.sent.append(data)
