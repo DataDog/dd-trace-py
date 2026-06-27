@@ -32,8 +32,10 @@ Known limitations (deferred by design):
 """
 
 import importlib
+from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
+from typing import Callable
 from typing import Optional
 import uuid
 
@@ -395,7 +397,7 @@ class _RealtimeState:
 def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     if not usage:
         return None
-    metrics = {}
+    metrics: dict[str, Any] = {}
     input_tokens = _get_attr(usage, "input_tokens", None)
     output_tokens = _get_attr(usage, "output_tokens", None)
     total_tokens = _get_attr(usage, "total_tokens", None)
@@ -422,7 +424,7 @@ def _integration() -> Any:
     return integration
 
 
-def patched_connect(func, instance, args, kwargs):
+def patched_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     manager = func(*args, **kwargs)
     if _integration() is None:
         return manager
@@ -435,7 +437,7 @@ def patched_connect(func, instance, args, kwargs):
     return manager
 
 
-def _attach_session(instance, connection):
+def _attach_session(instance: Any, connection: Any) -> None:
     integration = _integration()
     if integration is None:
         return
@@ -447,19 +449,21 @@ def _attach_session(instance, connection):
         log.debug("error starting realtime state", exc_info=True)
 
 
-def patched_enter(func, instance, args, kwargs):
+def patched_enter(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     connection = func(*args, **kwargs)
     _attach_session(instance, connection)
     return connection
 
 
-async def patched_async_enter(func, instance, args, kwargs):
+async def patched_async_enter(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     connection = await func(*args, **kwargs)
     _attach_session(instance, connection)
     return connection
 
 
-def patched_parse_event(func, instance, args, kwargs):
+def patched_parse_event(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     # ``parse_event`` is the single sync observation point for server events: ``recv()``,
     # connection iteration, and the manual ``recv_bytes()`` + ``parse_event()`` path all funnel
     # through it (it is synchronous on both the sync and async connection classes).
@@ -470,7 +474,7 @@ def patched_parse_event(func, instance, args, kwargs):
     return event
 
 
-def patched_send(func, instance, args, kwargs):
+def patched_send(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     # Record the client event only after the send succeeds, so a failed send doesn't attribute
     # unsent audio/text to the next turn.
     result = func(*args, **kwargs)
@@ -480,7 +484,9 @@ def patched_send(func, instance, args, kwargs):
     return result
 
 
-async def patched_async_send(func, instance, args, kwargs):
+async def patched_async_send(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     result = await func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
     if state is not None:
@@ -488,7 +494,7 @@ async def patched_async_send(func, instance, args, kwargs):
     return result
 
 
-def patched_close(func, instance, args, kwargs):
+def patched_close(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     try:
         return func(*args, **kwargs)
     finally:
@@ -497,7 +503,9 @@ def patched_close(func, instance, args, kwargs):
             state.finish_session()
 
 
-async def patched_async_close(func, instance, args, kwargs):
+async def patched_async_close(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     try:
         return await func(*args, **kwargs)
     finally:
@@ -523,8 +531,8 @@ _REALTIME_WRAPS = (
 )
 
 
-def _realtime_modules():
-    modules = []
+def _realtime_modules() -> list[ModuleType]:
+    modules: list[ModuleType] = []
     for path in _REALTIME_MODULE_PATHS:
         try:
             modules.append(importlib.import_module(path))
@@ -533,7 +541,7 @@ def _realtime_modules():
     return modules
 
 
-def patch_realtime():
+def patch_realtime() -> None:
     for module in _realtime_modules():
         for class_name, method_name, wrapper in _REALTIME_WRAPS:
             cls = getattr(module, class_name, None)
@@ -545,7 +553,7 @@ def patch_realtime():
                 log.debug("failed to wrap realtime %s.%s", class_name, method_name, exc_info=True)
 
 
-def unpatch_realtime():
+def unpatch_realtime() -> None:
     for module in _realtime_modules():
         for class_name, method_name, _ in _REALTIME_WRAPS:
             cls = getattr(module, class_name, None)

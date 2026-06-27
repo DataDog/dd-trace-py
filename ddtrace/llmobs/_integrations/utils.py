@@ -370,9 +370,17 @@ _NON_RENDERABLE_AUDIO_MIME_TYPES = frozenset(
     }
 )
 
-# Inline audio above this many bytes is dropped from the span event to stay within the 5 MB
-# per-span-event limit (oversize events have their whole I/O dropped backend-side).
+# Budget for inline audio measured on the *base64-encoded* size (what actually rides the span
+# event), so the guard reflects the real payload after encoding. Kept below the 5 MB per-span-event
+# limit with headroom for the rest of the event (oversize events have their whole I/O dropped
+# backend-side). 4 MiB encoded ≈ 3 MiB of raw audio.
 LLMOBS_AUDIO_INLINE_MAX_BYTES = 4 * 1024 * 1024
+
+
+def _base64_encoded_len(num_bytes: int) -> int:
+    """Length of ``num_bytes`` after standard base64 encoding (4 chars per 3 bytes, padded)."""
+    return ((num_bytes + 2) // 3) * 4
+
 
 # OpenAI Realtime audio ``format`` values (legacy string form) that don't map to ``audio/<format>``.
 _REALTIME_AUDIO_FORMAT_MIME_TYPES = {
@@ -458,9 +466,12 @@ def format_audio_part_with_guard(
     """
     if not audio_bytes or not is_renderable_audio_mime(mime_type):
         return None
-    if len(audio_bytes) > max_bytes:
+    # Compare the *encoded* size: format_audio_part base64-encodes the bytes (~4/3 expansion), and
+    # that encoded content is what counts against the per-span-event limit.
+    encoded_len = _base64_encoded_len(len(audio_bytes))
+    if encoded_len > max_bytes:
         logger.debug(
-            "Audio (%d bytes) exceeds inline budget %d; omitting inline audio content", len(audio_bytes), max_bytes
+            "Audio (%d encoded bytes) exceeds inline budget %d; omitting inline audio content", encoded_len, max_bytes
         )
         return None
     return format_audio_part(audio_bytes, mime_type)

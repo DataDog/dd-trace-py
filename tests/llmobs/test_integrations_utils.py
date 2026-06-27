@@ -149,6 +149,12 @@ def test_format_audio_part_with_guard_oversize():
     assert format_audio_part_with_guard(b"\x00" * 100, "audio/wav", max_bytes=10) is None
 
 
+def test_format_audio_part_with_guard_uses_encoded_size():
+    """The guard measures base64-encoded size: 8 raw bytes -> 12 encoded, over a 10-byte budget."""
+    # Under the budget by raw size (8 <= 10) but over once base64-encoded (12 > 10) -> dropped.
+    assert format_audio_part_with_guard(b"\x00" * 8, "audio/wav", max_bytes=10) is None
+
+
 def test_format_audio_part_with_guard_empty():
     """No audio bytes yields no AudioPart."""
     assert format_audio_part_with_guard(b"", "audio/wav") is None
