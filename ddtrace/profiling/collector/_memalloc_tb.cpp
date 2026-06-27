@@ -107,29 +107,33 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         if (code == NULL) {
             continue;
         }
-        int line = memalloc_get_lineno(frame, code);
 
         /* Identity used to validate cache hits against PyCodeObject address
          * reuse. Cheap borrowed-reference / field reads only (no allocation). */
         PyObject* code_name = DataDog::get_code_name(code);
         PyObject* code_filename = code->co_filename;
         int code_firstlineno = code->co_firstlineno;
+        int lasti = DataDog::get_lasti(frame, code);
 
         /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
-         * insert_function) Sample::push_frame would otherwise make. */
+         * insert_function) Sample::push_frame would otherwise make. A hit with
+         * hit.line >= 0 also lets us skip parse_linetable for this frame. */
         if (cache != nullptr) {
-            std::optional<Datadog::function_id> cached =
-              cache->lookup(code, code_name, code_filename, code_firstlineno);
-            if (cached) {
-                sample.push_frame(*cached, 0, line);
+            Datadog::CacheHit hit = cache->lookup(code, code_name, code_filename, code_firstlineno, lasti);
+            if (hit.func_id != nullptr) {
+                /* Reuse the cached line when lasti matched (line >= 0); otherwise
+                 * parse the line table once for this (now mismatched) lasti. */
+                int line = hit.line >= 0 ? hit.line : memalloc_resolve_lineno(code, lasti);
+                sample.push_frame(hit.func_id, 0, line);
                 ++pushed_frames;
                 continue;
             }
         }
 
-        /* Cache miss: intern explicitly so we can cache the resulting
-         * function_id. Drops the frame on intern failure to match the
-         * silent-skip behavior of Sample::push_frame_impl. */
+        /* Cache miss: resolve the line, then intern explicitly so we can cache
+         * the resulting function_id. Drops the frame on intern failure to match
+         * the silent-skip behavior of Sample::push_frame_impl. */
+        int line = memalloc_resolve_lineno(code, lasti);
         std::string_view name_sv = unicode_to_sv_no_alloc(code_name);
         std::string_view filename_sv = unicode_to_sv_no_alloc(code_filename);
 
@@ -144,7 +148,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         }
 
         if (cache != nullptr) {
-            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno);
+            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno, lasti, line);
         }
         sample.push_frame(*func_id, 0, line);
         ++pushed_frames;
