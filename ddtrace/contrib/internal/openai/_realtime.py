@@ -121,6 +121,9 @@ class _RealtimeState:
         # Realtime PCM is 24kHz mono by spec; overridden from the format object when present.
         self._input_audio_rate: int = 24000
         self._output_audio_rate: int = 24000
+        # Whether the session enabled input-audio transcription. We only defer a turn's span to wait
+        # for a transcript when it's actually configured — otherwise no transcript is ever coming.
+        self._input_transcription_enabled: bool = False
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
@@ -169,6 +172,14 @@ class _RealtimeState:
                 # A finished turn may have been waiting on exactly this transcript — finalize it now.
                 for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
                     turn.input.transcript = turn.input.transcript or transcript
+                    self._awaiting.remove(turn)
+                    self._finalize_turn(turn)
+                return
+            if event_type == "conversation.item.input_audio_transcription.failed":
+                # Transcription won't arrive for this item; finalize any turn waiting on it so its
+                # span doesn't hang (would otherwise wait until the next turn or close).
+                item_id = _get_attr(event, "item_id", None)
+                for turn in [t for t in self._awaiting if t.input.item_id == item_id]:
                     self._awaiting.remove(turn)
                     self._finalize_turn(turn)
                 return
@@ -237,10 +248,11 @@ class _RealtimeState:
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
         if not turn.input.transcript and turn.input.item_id is not None:
-            turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
-        # If this turn had input audio but its transcription hasn't arrived yet, hold the span open
-        # and finalize it when the transcription lands (or on the next turn / close as a fallback).
-        if not turn.input.transcript and turn.input.item_id is not None:
+            turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
+        # Hold the span open for a late input transcription ONLY when transcription is actually
+        # enabled — otherwise no transcript is ever coming and waiting would needlessly delay the
+        # span (every turn until the next one, and the last turn until close).
+        if not turn.input.transcript and turn.input.item_id is not None and self._input_transcription_enabled:
             self._awaiting.append(turn)
             return
         self._finalize_turn(turn)
@@ -259,7 +271,7 @@ class _RealtimeState:
         self._flush_awaiting()
         for turn in list(self._responses.values()):
             if not turn.input.transcript and turn.input.item_id is not None:
-                turn.input.transcript = self._input_transcripts.pop(turn.input.item_id, "")
+                turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
             self._finalize_turn(turn)
         self._responses.clear()
         self._input_transcripts.clear()
@@ -269,6 +281,10 @@ class _RealtimeState:
     def _finalize_turn(self, turn: _ResponseTurn) -> None:
         if turn.span is None:
             return
+        # Drop the cached transcript for this turn's input item so the map can't grow across a long
+        # session (every finalize path goes through here).
+        if turn.input.item_id is not None:
+            self._input_transcripts.pop(turn.input.item_id, None)
         try:
             if turn.status == "failed":
                 turn.span.error = 1
@@ -353,7 +369,11 @@ class _RealtimeState:
             input_format = _get_attr(audio_input, "format", None)
             output_format = _get_attr(audio_output, "format", None)
             voice = _get_attr(audio_output, "voice", None)
+            if _get_attr(audio_input, "transcription", None) is not None:
+                self._input_transcription_enabled = True
         # Legacy flat fields (older SDKs).
+        if _get_attr(session, "input_audio_transcription", None) is not None:
+            self._input_transcription_enabled = True
         input_format = input_format if input_format is not None else _get_attr(session, "input_audio_format", None)
         output_format = output_format if output_format is not None else _get_attr(session, "output_audio_format", None)
         voice = voice if voice is not None else _get_attr(session, "voice", None)
@@ -405,6 +425,8 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
         metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
     if output_tokens is not None:
         metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens  # mirror the chat/responses fallback
     if total_tokens is not None:
         metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return metrics or None
@@ -514,6 +536,38 @@ async def patched_async_close(
             state.finish_session()
 
 
+def _is_connection_closed(exc: BaseException) -> bool:
+    # Match by class name to avoid importing/handling the optional `websockets` dependency here.
+    return "ConnectionClosed" in type(exc).__name__
+
+
+def patched_recv(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    # Server events are observed via parse_event; here we only need to catch the connection closing
+    # (which raises out of recv) so the session is finalized even when the caller iterates/recvs
+    # without using `with`/`close()`. finish_session is idempotent, so this is safe alongside close.
+    try:
+        return func(*args, **kwargs)
+    except BaseException as exc:
+        if _is_connection_closed(exc):
+            state = getattr(instance, "_dd_realtime_state", None)
+            if state is not None:
+                state.finish_session()
+        raise
+
+
+async def patched_async_recv(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    try:
+        return await func(*args, **kwargs)
+    except BaseException as exc:
+        if _is_connection_closed(exc):
+            state = getattr(instance, "_dd_realtime_state", None)
+            if state is not None:
+                state.finish_session()
+        raise
+
+
 # (class_name, method_name, wrapper)
 _REALTIME_WRAPS = (
     ("Realtime", "connect", patched_connect),
@@ -524,9 +578,11 @@ _REALTIME_WRAPS = (
     ("AsyncRealtimeConnectionManager", "enter", patched_async_enter),
     ("RealtimeConnection", "parse_event", patched_parse_event),
     ("RealtimeConnection", "send", patched_send),
+    ("RealtimeConnection", "recv", patched_recv),
     ("RealtimeConnection", "close", patched_close),
     ("AsyncRealtimeConnection", "parse_event", patched_parse_event),
     ("AsyncRealtimeConnection", "send", patched_async_send),
+    ("AsyncRealtimeConnection", "recv", patched_async_recv),
     ("AsyncRealtimeConnection", "close", patched_async_close),
 )
 

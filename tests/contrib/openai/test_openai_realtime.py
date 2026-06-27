@@ -17,11 +17,14 @@ from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 
 
 try:
+    from openai.resources.realtime.realtime import AsyncRealtimeConnection
     from openai.resources.realtime.realtime import RealtimeConnection
 except ImportError:
     try:
+        from openai.resources.beta.realtime.realtime import AsyncRealtimeConnection
         from openai.resources.beta.realtime.realtime import RealtimeConnection
     except ImportError:
+        AsyncRealtimeConnection = None
         RealtimeConnection = None
 
 
@@ -79,7 +82,7 @@ def _new_state(model=None):
     return integration, state
 
 
-def _session_created(input_mime="audio/pcm", output_mime="audio/pcm"):
+def _session_created(input_mime="audio/pcm", output_mime="audio/pcm", transcription=True):
     return _ns(
         type="session.created",
         session=_ns(
@@ -87,7 +90,10 @@ def _session_created(input_mime="audio/pcm", output_mime="audio/pcm"):
             instructions="be brief",
             output_modalities=["audio"],
             audio=_ns(
-                input=_ns(format=_ns(type=input_mime)),
+                input=_ns(
+                    format=_ns(type=input_mime),
+                    transcription=_ns(model="whisper-1") if transcription else None,
+                ),
                 output=_ns(format=_ns(type=output_mime), voice="alloy"),
             ),
         ),
@@ -360,6 +366,59 @@ def test_realtime_state_absorb_input_item_skips_non_user_role():
     assert integration.responses[0]["input_messages"] == [{"role": "user", "content": "hello"}]
 
 
+def test_realtime_state_no_defer_when_transcription_disabled():
+    """With input transcription off, a turn finalizes at response.done (not held for a transcript)."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="item_1"))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r1", transcript="hi"))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+
+    # Finalized immediately — not parked in _awaiting waiting for a transcript that never comes.
+    assert len(integration.responses) == 1
+    assert state._awaiting == []
+
+
+def test_realtime_state_transcription_failed_finalizes_awaiting():
+    """A transcription.failed event finalizes the turn waiting on that item (no indefinite hang)."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created())  # transcription enabled
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id="item_1"))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    assert integration.responses == []  # awaiting the transcript
+
+    state.on_server_event(_ns(type="conversation.item.input_audio_transcription.failed", item_id="item_1"))
+    assert len(integration.responses) == 1
+    assert state._awaiting == []
+
+
+def test_realtime_state_input_transcripts_no_leak():
+    """The input-transcript cache doesn't accumulate across normal turns."""
+    integration, state = _new_state()
+    _drive_turn(state)
+    _drive_turn(state)
+    assert len(integration.responses) == 2
+    assert state._input_transcripts == {}
+
+
+def test_realtime_state_usage_total_tokens_fallback():
+    """When usage omits total_tokens, it's derived from input + output."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(id="r1", status="completed", usage=_ns(input_tokens=4, output_tokens=6, total_tokens=None)),
+        )
+    )
+    assert integration.responses[0]["metrics"] == {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
+
+
 # ---- integration test: real patched RealtimeConnection over a fake websocket ----
 
 
@@ -483,4 +542,104 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
     )
 
     # The turn is grouped into a conversation via session_id.
+    assert data.get("session_id")
+
+
+class _FakeConnectionClosedOK(Exception):
+    """Name contains 'ConnectionClosed' so the close-detection wrapper matches it."""
+
+
+class _ClosingFakeWebSocket(_FakeWebSocket):
+    """Like _FakeWebSocket, but recv raises a connection-closed error once messages run out."""
+
+    def recv(self, decode=False):
+        if not self._messages:
+            raise _FakeConnectionClosedOK()
+        return super().recv(decode=decode)
+
+
+def _awaiting_turn_messages():
+    # transcription enabled + a committed audio turn whose transcript never arrives -> the turn is
+    # parked in _awaiting and must be finalized when the connection closes.
+    return [
+        json.dumps(
+            {
+                "type": "session.created",
+                "event_id": "e0",
+                "session": {
+                    "type": "realtime",
+                    "model": "gpt-realtime",
+                    "audio": {"input": {"format": {"type": "audio/pcm"}, "transcription": {"model": "whisper-1"}}},
+                },
+            }
+        ),
+        json.dumps({"type": "input_audio_buffer.committed", "event_id": "e1", "item_id": "item_1"}),
+        json.dumps({"type": "response.created", "event_id": "e2", "response": {"id": "resp_1"}}),
+        json.dumps({"type": "response.done", "event_id": "e3", "response": {"id": "resp_1", "status": "completed"}}),
+    ]
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_recv_close_finalizes_without_explicit_close(openai, openai_llmobs, test_spans):
+    """If the connection closes mid-iteration (no with/close()), the awaiting span is still finalized."""
+    msgs = _awaiting_turn_messages()
+    conn = RealtimeConnection(_ClosingFakeWebSocket(msgs))
+    client = openai.OpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+
+    # Drive events then let recv raise on close — never call conn.close().
+    with pytest.raises(_FakeConnectionClosedOK):
+        while True:
+            conn.recv()
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.resource for s in spans] == ["createRealtimeResponse"]
+
+
+class _FakeAsyncWebSocket:
+    """Minimal async websocket double."""
+
+    def __init__(self, server_messages):
+        self._messages = list(server_messages)
+        self.sent = []
+
+    async def recv(self, decode=False):
+        msg = self._messages.pop(0)
+        return msg.encode("utf-8") if isinstance(msg, str) else msg
+
+    async def send(self, data):
+        self.sent.append(data)
+
+    async def close(self, code=1000, reason=""):
+        self.closed = True
+
+
+@pytest.mark.skipif(AsyncRealtimeConnection is None, reason="openai realtime API not available")
+@pytest.mark.asyncio
+async def test_realtime_async_integration_spans(openai, openai_llmobs, test_spans):
+    """The async connection path (async send/recv/close) produces a per-turn llm span."""
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+    from tests.llmobs._utils import assert_llmobs_span_data
+
+    msgs = _server_messages()
+    conn = AsyncRealtimeConnection(_FakeAsyncWebSocket(msgs))
+    client = openai.AsyncOpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+
+    await conn.input_audio_buffer.append(audio=_b64(b"\x01\x02"))
+    for _ in range(len(msgs)):
+        await conn.recv()
+    await conn.close()
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.resource for s in spans] == ["createRealtimeResponse"]
+    data = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(
+        data,
+        span_kind="llm",
+        name="OpenAI.createRealtimeResponse",
+        model_name="gpt-realtime-2025",
+        output_messages=[{"role": "assistant", "content": "It's noon."}],
+        metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+    )
     assert data.get("session_id")
