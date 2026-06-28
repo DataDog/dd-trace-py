@@ -1410,6 +1410,29 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _make_obj_domain_object(size_bytes: int) -> object:
+    """Return an object whose primary allocation goes through PYMEM_DOMAIN_OBJ.
+
+    On Python 3.13+, tuples store their elements inline via PyObject_GC_New which
+    routes through PYMEM_DOMAIN_OBJ.  We use ``size_bytes // ptr_size`` elements so
+    the total memory footprint is approximately ``size_bytes`` bytes.
+
+    On Python 3.12, bytearray's internal buffer was allocated via PyObject_Malloc
+    (PYMEM_DOMAIN_OBJ); from Python 3.13 it moved to PyMem_Realloc
+    (PYMEM_DOMAIN_MEM), so we switch allocation vehicles at the same boundary.
+
+    Using ``size_bytes // ptr_size`` elements on Python 3.13+ (rather than
+    ``size_bytes`` elements) ensures both branches allocate approximately the same
+    number of bytes, which matters for tests that compare alloc-space totals.
+    """
+    if PY_313_OR_ABOVE:
+        ptr_size: int = struct.calcsize("P")
+        n: int = size_bytes // ptr_size
+        return (None,) * n
+    else:
+        return bytearray(size_bytes)
+
+
 def _make_mem_domain_object(size_bytes: int) -> object:
     """Return an object whose primary allocation goes through PYMEM_DOMAIN_MEM.
 
@@ -1602,7 +1625,7 @@ def test_per_domain_alloc_space_tracks_domain_bytes(tmp_path: Path) -> None:
 
     with mc:
         for _ in range(obj_total // chunk):
-            obj_live.append(one(chunk))
+            obj_live.append(_make_obj_domain_object(chunk))
         for _ in range(mem_total // chunk):
             mem_live.append(_make_mem_domain_object(chunk))
 
@@ -1612,7 +1635,9 @@ def test_per_domain_alloc_space_tracks_domain_bytes(tmp_path: Path) -> None:
     alloc_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
 
     obj_alloc_space = sum(
-        s.value[alloc_space_idx] for s in alloc_samples if has_function_in_profile_sample(profile, s, one)
+        s.value[alloc_space_idx]
+        for s in alloc_samples
+        if has_function_in_profile_sample(profile, s, "_make_obj_domain_object")
     )
     mem_alloc_space = sum(
         s.value[alloc_space_idx]
