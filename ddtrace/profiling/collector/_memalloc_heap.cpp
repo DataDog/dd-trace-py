@@ -124,6 +124,10 @@ class heap_tracker_t
     /* Get the sampling interval R */
     uint64_t get_sample_size() const { return sample_size; }
 
+    /* MEM-domain allocations are small and very frequent; sample at a lower
+     * rate to avoid paying the CPython stack-walk cost too often. */
+    static constexpr uint32_t MEM_DOMAIN_SAMPLE_RATE_FACTOR = 4;
+
     /* Traceback pool operations */
     std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
                                                                           size_t weighted_size,
@@ -144,10 +148,6 @@ class heap_tracker_t
 
     /* Heap profiler sampling interval (base rate R, in bytes) */
     uint64_t sample_size;
-
-    /* MEM-domain allocations are small and very frequent; sample at a lower
-     * rate to avoid paying the CPython stack-walk cost too often. */
-    static constexpr uint32_t MEM_DOMAIN_SAMPLE_RATE_FACTOR = 4;
 
     /* Per-instance PRNG engine used by next_sample_size_no_cpython.
      * std::minstd_rand stores all state in the object (no global locks), so it
@@ -491,7 +491,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // represents w real allocations of that size in the population.
     double s = static_cast<double>(size > 0 ? size : 1);
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size() *
-                                   (domain == PYMEM_DOMAIN_MEM ? 4u : 1u)); // 4 = MEM_DOMAIN_SAMPLE_RATE_FACTOR
+                                   (domain == PYMEM_DOMAIN_MEM ? heap_tracker_t::MEM_DOMAIN_SAMPLE_RATE_FACTOR : 1u));
     double p = 1.0 - std::exp(-s / r);
     int64_t heap_count = static_cast<int64_t>(1.0 / p);
     tb->sample.push_heap(allocated_memory_val, heap_count);
