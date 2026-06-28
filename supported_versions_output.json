@@ -327,7 +327,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.137.1",
+        "max_tracer_supported": "0.138.1",
         "auto-instrumented": true
     },
     {
@@ -681,7 +681,7 @@
     {
         "dependency": "ray",
         "integration": "ray_serve",
-        "minimum_tracer_supported": "2.47.1",
+        "minimum_tracer_supported": "2.46.0",
         "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
