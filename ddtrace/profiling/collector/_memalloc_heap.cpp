@@ -474,7 +474,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // represents w real allocations of that size in the population.
     double s = static_cast<double>(size > 0 ? size : 1);
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size() *
-                                   (domain == PYMEM_DOMAIN_MEM ? heap_tracker_t::MEM_DOMAIN_SAMPLE_RATE_FACTOR : 1u));
+                                   (domain == PYMEM_DOMAIN_MEM ? 4u : 1u)); // 4 = MEM_DOMAIN_SAMPLE_RATE_FACTOR
     double p = 1.0 - std::exp(-s / r);
     int64_t heap_count = static_cast<int64_t>(1.0 / p);
     tb->sample.push_heap(allocated_memory_val, heap_count);
