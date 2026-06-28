@@ -454,12 +454,6 @@
       ]
     },
     {
-      "integration_name": "pytest_benchmark",
-      "dependency_names": [
-        "pytest_benchmark"
-      ]
-    },
-    {
       "integration_name": "ray",
       "dependency_names": [
         "ray"
