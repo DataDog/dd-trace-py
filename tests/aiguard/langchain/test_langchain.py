@@ -18,7 +18,7 @@ from langchain_core.prompts import MessagesPlaceholder
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
-from ddtrace.aiguard.integrations.langchain import _convert_messages
+from ddtrace.aiguard.integrations._langchain import _convert_messages
 from ddtrace.internal.utils.version import parse_version
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config

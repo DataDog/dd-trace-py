@@ -4,7 +4,7 @@ Two entry points are provided:
 
 **Plugin (recommended)**::
 
-    from ddtrace.aiguard import AIGuardStrandsPlugin
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin
 
     agent = Agent(
         model=model,
@@ -13,7 +13,7 @@ Two entry points are provided:
 
 **HookProvider (legacy)**::
 
-    from ddtrace.aiguard import AIGuardStrandsHookProvider
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsHookProvider
 
     agent = Agent(
         model=model,
@@ -39,15 +39,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from strands.hooks import AfterInvocationEvent as _AfterInvocationEvent
-from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
-from strands.hooks import AfterToolCallEvent as _AfterToolCallEvent
-from strands.hooks import BeforeInvocationEvent as _BeforeInvocationEvent
-from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
-from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
-from strands.hooks import HookProvider as _StrandsHookProvider
-from strands.hooks import HookRegistry as _StrandsHookRegistry
 
+# AIDEV-NOTE: strands-agents is optional. Guard its imports so this module
+# always imports cleanly — ``ddtrace.aiguard.__getattr__`` imports it directly
+# and relies on both classes being defined (real when strands is present, stub
+# otherwise). ``_HAS_STRANDS`` covers the hooks API (HookProvider); the separate
+# ``_HAS_PLUGIN_API`` covers the newer Plugin API (strands-agents>=1.29.0).
+try:
+    from strands.hooks import AfterInvocationEvent as _AfterInvocationEvent
+    from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
+    from strands.hooks import AfterToolCallEvent as _AfterToolCallEvent
+    from strands.hooks import BeforeInvocationEvent as _BeforeInvocationEvent
+    from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
+    from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
+    from strands.hooks import HookProvider as _StrandsHookProvider
+    from strands.hooks import HookRegistry as _StrandsHookRegistry
+
+    _HAS_STRANDS = True
+except ImportError:
+    _HAS_STRANDS = False
 
 try:
     from strands.plugins import Plugin as _StrandsPlugin
@@ -457,24 +467,51 @@ if _HAS_PLUGIN_API:
         def on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
             self._on_after_tool_call_base(event)
 
+else:
 
-class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):  # type: ignore[misc]
-    """AI Guard security hook provider for Strands Agents (legacy).
+    class AIGuardStrandsPlugin:  # type: ignore[no-redef]
+        """Stub used when the Strands Plugin API is unavailable (strands-agents missing or < 1.29.0)."""
 
-    Uses the Strands ``HookProvider`` API with manual ``register_hooks``.
-    Pass an instance via the ``hooks`` parameter::
+        def __init__(self, *args: Any, **kwargs: Any):
+            logger.warning(
+                "AIGuardStrandsPlugin could not be loaded. "
+                "Please install strands-agents>=1.29.0: pip install 'strands-agents>=1.29.0'"
+            )
 
-        agent = Agent(hooks=[AIGuardStrandsHookProvider()])
 
-    .. note::
-        Prefer :class:`AIGuardStrandsPlugin` with ``plugins=`` for new code.
-    """
+if _HAS_STRANDS:
 
-    def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
-        """Register AI Guard callbacks for agent lifecycle events."""
-        registry.add_callback(_BeforeInvocationEvent, self._on_before_invocation_base)
-        registry.add_callback(_AfterInvocationEvent, self._on_after_invocation_base)
-        registry.add_callback(_BeforeModelCallEvent, self._on_before_model_call_base)
-        registry.add_callback(_AfterModelCallEvent, self._on_after_model_call_base)
-        registry.add_callback(_AfterToolCallEvent, self._on_after_tool_call_base)
-        registry.add_callback(_BeforeToolCallEvent, self._on_before_tool_call_base)
+    class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):  # type: ignore[misc]
+        """AI Guard security hook provider for Strands Agents (legacy).
+
+        Uses the Strands ``HookProvider`` API with manual ``register_hooks``.
+        Pass an instance via the ``hooks`` parameter::
+
+            agent = Agent(hooks=[AIGuardStrandsHookProvider()])
+
+        .. note::
+            Prefer :class:`AIGuardStrandsPlugin` with ``plugins=`` for new code.
+        """
+
+        def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
+            """Register AI Guard callbacks for agent lifecycle events."""
+            registry.add_callback(_BeforeInvocationEvent, self._on_before_invocation_base)
+            registry.add_callback(_AfterInvocationEvent, self._on_after_invocation_base)
+            registry.add_callback(_BeforeModelCallEvent, self._on_before_model_call_base)
+            registry.add_callback(_AfterModelCallEvent, self._on_after_model_call_base)
+            registry.add_callback(_AfterToolCallEvent, self._on_after_tool_call_base)
+            registry.add_callback(_BeforeToolCallEvent, self._on_before_tool_call_base)
+
+else:
+
+    class AIGuardStrandsHookProvider:  # type: ignore[no-redef]
+        """Stub used when strands-agents is not installed."""
+
+        def __init__(self, *args: Any, **kwargs: Any):
+            logger.warning(
+                "AIGuardStrandsHookProvider could not be loaded. "
+                "Please install strands-agents: pip install strands-agents"
+            )
+
+        def register_hooks(self, registry: Any, **kwargs: Any) -> None:
+            pass

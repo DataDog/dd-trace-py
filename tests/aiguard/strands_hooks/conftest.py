@@ -29,7 +29,7 @@ def pytest_configure():
 @pytest.fixture
 def ai_guard_strands_hook():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        from ddtrace.aiguard import AIGuardStrandsHookProvider
+        from ddtrace.aiguard.integrations.strands import AIGuardStrandsHookProvider
 
         yield AIGuardStrandsHookProvider()
 
@@ -37,7 +37,7 @@ def ai_guard_strands_hook():
 @pytest.fixture
 def ai_guard_strands_plugin():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        from ddtrace.aiguard import AIGuardStrandsPlugin
+        from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin
 
         yield AIGuardStrandsPlugin()
 
@@ -119,7 +119,7 @@ def after_tool_event(tool_use, tool_result, messages=None):
 
 def make_hook(**kwargs):
     """Create an AIGuardStrandsHookProvider with the given parameters."""
-    from ddtrace.aiguard import AIGuardStrandsHookProvider
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsHookProvider
 
     with override_ai_guard_config(_AI_GUARD_CONFIG):
         return AIGuardStrandsHookProvider(**kwargs)
@@ -127,7 +127,7 @@ def make_hook(**kwargs):
 
 def make_plugin(**kwargs):
     """Create an AIGuardStrandsPlugin with the given parameters."""
-    from ddtrace.aiguard import AIGuardStrandsPlugin
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin
 
     with override_ai_guard_config(_AI_GUARD_CONFIG):
         return AIGuardStrandsPlugin(**kwargs)

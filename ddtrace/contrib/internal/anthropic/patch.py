@@ -122,7 +122,7 @@ def patch() -> None:
     anthropic._datadog_integration = integration
 
     # AIDEV-NOTE: AI Guard mirrors this wrap-target list in
-    # ddtrace/aiguard/_listener.py::_install_anthropic_wrappers to
+    # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
     # install its outermost streaming buffer. If you add/rename a target or
     # change the >= (0, 37) beta gate below, update that list too or the new
     # surface goes unbuffered for stream-response evaluation.

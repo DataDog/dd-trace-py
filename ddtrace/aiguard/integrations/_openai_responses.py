@@ -32,7 +32,7 @@ from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
 from ddtrace.aiguard._context import is_aiguard_context_active
-from ddtrace.aiguard.integrations.openai import _wrap_abort_error
+from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
 

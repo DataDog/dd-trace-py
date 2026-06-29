@@ -10,10 +10,10 @@ import pytest
 from ddtrace import config
 from ddtrace.aiguard import AIGuardAbortError
 import ddtrace.aiguard._initialization as ai_guard_mod
-from ddtrace.aiguard.integrations.anthropic import _anthropic_messages_create_after
-from ddtrace.aiguard.integrations.anthropic import _anthropic_messages_create_before
-from ddtrace.aiguard.integrations.anthropic import _convert_anthropic_messages
-from ddtrace.aiguard.integrations.anthropic import _convert_anthropic_response
+from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
+from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
+from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_messages
+from ddtrace.aiguard.integrations._anthropic import _convert_anthropic_response
 from ddtrace.contrib.internal.anthropic.patch import ANTHROPIC_VERSION
 from ddtrace.llmobs._integrations import AnthropicIntegration
 from ddtrace.llmobs._utils import get_llmobs_output_messages
@@ -1694,8 +1694,8 @@ def test_before_listener_fails_open_on_converter_error():
         def evaluate(self, messages, options):
             self.calls += 1
 
-    from ddtrace.aiguard.integrations import anthropic as anthropic_mod
-    from ddtrace.aiguard.integrations.anthropic import _anthropic_messages_create_before
+    from ddtrace.aiguard.integrations import _anthropic as anthropic_mod
+    from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 
     client = _SpyClient()
     # Monkey-patch the converter to raise; the listener must catch and
@@ -1720,7 +1720,7 @@ def test_before_listener_empty_messages_emits_telemetry():
         def evaluate(self, messages, options):
             self.calls += 1
 
-    from ddtrace.aiguard.integrations.anthropic import _anthropic_messages_create_before
+    from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 
     client = _SpyClient()
     with patch("ddtrace.aiguard.integrations.anthropic.telemetry.telemetry_writer.add_log") as mock_log:

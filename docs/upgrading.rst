@@ -131,3 +131,11 @@ imports accordingly::
     from ddtrace.appsec.ai_guard import AIGuardClient
     # with
     from ddtrace.aiguard import AIGuardClient
+
+The Strands Agents classes are the exception: they are not re-exported from the top-level
+package and must be imported from the ``ddtrace.aiguard.integrations.strands`` submodule::
+
+    # replace
+    from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin, AIGuardStrandsHookProvider
+    # with
+    from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin, AIGuardStrandsHookProvider

@@ -504,7 +504,7 @@ def test_block_error_class_identity_under_concurrent_lazy_import():
     import sys
 
     import ddtrace.aiguard.integrations as _ai_guard_pkg
-    import ddtrace.aiguard.integrations.openai as _openai_mod
+    import ddtrace.aiguard.integrations._openai as _openai_mod
 
     def _resolve_cls() -> type:
         # ``_wrap_abort_error`` triggers the lazy ``_openai_errors`` import

@@ -1082,61 +1082,63 @@ class TestConstructorParameters:
 
 
 class TestLazyImport:
-    """Regression test: importing siblings of ``AIGuardStrandsPlugin`` from
-    ``ddtrace.aiguard`` must not eagerly load the strands integration.
+    """Regression test: importing ``ddtrace.aiguard`` must not load the strands
+    integration. The strands classes live only in
+    ``ddtrace.aiguard.integrations.strands`` and are NOT re-exported by the
+    top-level package precisely to keep them out of its import graph.
 
     Eager loading binds ``BeforeModelCallEvent`` (and friends) to whatever
     class object exists at that moment. Under ``ddtrace.auto`` the user's
     later ``import strands`` re-instantiates the event dataclasses with new
     class identities, leaving the plugin's @hook callbacks registered against
     the wrong (stale) classes — so they never fire when the agent dispatches.
-    The integration must be loaded lazily, after the user has imported
-    ``strands`` themselves.
+    The integration must be loaded only when the user explicitly imports the
+    submodule, after they have imported ``strands`` themselves.
     """
 
-    def test_ai_guard_abort_error_import_does_not_load_strands_integration(self):
+    def _run(self, snippet: str):
         import subprocess
         import sys
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                (
-                    "import sys;"
-                    "from ddtrace.aiguard import AIGuardAbortError;"
-                    "loaded = 'ddtrace.aiguard.integrations.strands' in sys.modules;"
-                    "print('LOADED' if loaded else 'NOT_LOADED')"
-                ),
-            ],
-            capture_output=True,
-            text=True,
+        return subprocess.run([sys.executable, "-c", snippet], capture_output=True, text=True)
+
+    def test_aiguard_package_import_does_not_load_strands_integration(self):
+        result = self._run(
+            "import sys;"
+            "import ddtrace.aiguard;"
+            "from ddtrace.aiguard import AIGuardAbortError;"
+            "loaded = 'ddtrace.aiguard.integrations.strands' in sys.modules;"
+            "print('LOADED' if loaded else 'NOT_LOADED')"
         )
         assert "NOT_LOADED" in result.stdout, (
-            "Importing AIGuardAbortError must not eagerly load the strands integration. "
+            "Importing ddtrace.aiguard must not eagerly load the strands integration. "
             f"stdout={result.stdout!r}, stderr={result.stderr!r}"
         )
 
-    def test_strands_plugin_access_loads_integration(self):
-        import subprocess
-        import sys
+    def test_strands_classes_not_exposed_on_top_level_package(self):
+        result = self._run(
+            "import ddtrace.aiguard;"
+            "\ntry:\n"
+            "    ddtrace.aiguard.AIGuardStrandsPlugin\n"
+            "    print('EXPOSED')\n"
+            "except AttributeError:\n"
+            "    print('NOT_EXPOSED')\n"
+        )
+        assert "NOT_EXPOSED" in result.stdout, (
+            "The strands classes must not be importable from the top-level package; "
+            "import them from ddtrace.aiguard.integrations.strands instead. "
+            f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+        )
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                (
-                    "import sys;"
-                    "from ddtrace.aiguard import AIGuardStrandsPlugin;"
-                    "assert AIGuardStrandsPlugin is not None;"
-                    "loaded = 'ddtrace.aiguard.integrations.strands' in sys.modules;"
-                    "print('LOADED' if loaded else 'NOT_LOADED')"
-                ),
-            ],
-            capture_output=True,
-            text=True,
+    def test_explicit_submodule_import_loads_integration(self):
+        result = self._run(
+            "import sys;"
+            "from ddtrace.aiguard.integrations.strands import AIGuardStrandsPlugin;"
+            "assert AIGuardStrandsPlugin is not None;"
+            "loaded = 'ddtrace.aiguard.integrations.strands' in sys.modules;"
+            "print('LOADED' if loaded else 'NOT_LOADED')"
         )
         assert "LOADED" in result.stdout, (
-            "Accessing AIGuardStrandsPlugin must trigger the lazy import. "
+            "Importing AIGuardStrandsPlugin from the submodule must load the integration. "
             f"stdout={result.stdout!r}, stderr={result.stderr!r}"
         )

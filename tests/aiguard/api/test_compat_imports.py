@@ -15,15 +15,11 @@ import ddtrace.aiguard as new_pkg
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 
-# Strands symbols are resolved lazily and may be stubs when strands isn't installed;
-# the import-identity assertions below cover them too, so list them explicitly.
 _PUBLIC_SYMBOLS = [
     "new_ai_guard_client",
     "AIGuardClient",
     "AIGuardClientError",
     "AIGuardAbortError",
-    "AIGuardStrandsPlugin",
-    "AIGuardStrandsHookProvider",
     "ContentPart",
     "Evaluation",
     "Function",
@@ -33,6 +29,14 @@ _PUBLIC_SYMBOLS = [
     "ToolCall",
 ]
 
+# The Strands classes are NOT re-exported from the top-level ``ddtrace.aiguard``
+# package; they live in ``ddtrace.aiguard.integrations.strands`` (and may be
+# stubs when strands isn't installed). The deprecated path forwards them there.
+_STRANDS_SYMBOLS = [
+    "AIGuardStrandsPlugin",
+    "AIGuardStrandsHookProvider",
+]
+
 
 @pytest.mark.parametrize("name", _PUBLIC_SYMBOLS)
 def test_old_path_reexports_new_symbol(name):
@@ -40,6 +44,20 @@ def test_old_path_reexports_new_symbol(name):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DDTraceDeprecationWarning)
         assert getattr(old_pkg, name) is getattr(new_pkg, name)
+
+
+@pytest.mark.parametrize("name", _STRANDS_SYMBOLS)
+def test_old_path_reexports_strands_symbol_from_submodule(name):
+    old_pkg = importlib.import_module("ddtrace.appsec.ai_guard")
+    strands_mod = importlib.import_module("ddtrace.aiguard.integrations.strands")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DDTraceDeprecationWarning)
+        assert getattr(old_pkg, name) is getattr(strands_mod, name)
+
+
+@pytest.mark.parametrize("name", _STRANDS_SYMBOLS)
+def test_strands_symbols_not_on_top_level_package(name):
+    assert not hasattr(new_pkg, name)
 
 
 def test_old_path_access_warns():
