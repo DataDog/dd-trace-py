@@ -2,8 +2,8 @@
 
 The SDK resolves the nearest agent ancestor at span activation (O(1) one-level lookup,
 inheriting the parent's already-resolved attribution) and surfaces it as
-``meta.agent_attribution`` on every emitted span event. Spans with no agent ancestor emit
-an ``{"attempted": "true"}`` sentinel.
+``meta.agent_attribution`` only on spans that have an agent ancestor. Spans with no agent
+ancestor omit the block entirely.
 """
 
 
@@ -52,22 +52,22 @@ def test_sub_agent_attributes_to_enclosing_agent(llmobs, llmobs_events):
     }
 
 
-def test_top_level_agent_emits_sentinel(llmobs, llmobs_events):
+def test_top_level_agent_omits_block(llmobs, llmobs_events):
     with llmobs.agent(name="root_agent"):
         pass
-    assert _event_by_name(llmobs_events, "root_agent")["meta"]["agent_attribution"] == {"attempted": "true"}
+    assert "agent_attribution" not in _event_by_name(llmobs_events, "root_agent")["meta"]
 
 
-def test_top_level_llm_emits_sentinel(llmobs, llmobs_events):
+def test_top_level_llm_omits_block(llmobs, llmobs_events):
     with llmobs.llm(name="root_llm", model_name="test-model"):
         pass
-    assert _event_by_name(llmobs_events, "root_llm")["meta"]["agent_attribution"] == {"attempted": "true"}
+    assert "agent_attribution" not in _event_by_name(llmobs_events, "root_llm")["meta"]
 
 
-def test_tool_outside_agent_emits_sentinel(llmobs, llmobs_events):
-    """A workflow with a tool but no agent anywhere in the chain: both get the sentinel."""
+def test_tool_outside_agent_omits_block(llmobs, llmobs_events):
+    """A workflow with a tool but no agent anywhere in the chain: neither gets the block."""
     with llmobs.workflow(name="lonely_workflow"):
         with llmobs.tool(name="lonely_tool"):
             pass
-    assert _event_by_name(llmobs_events, "lonely_workflow")["meta"]["agent_attribution"] == {"attempted": "true"}
-    assert _event_by_name(llmobs_events, "lonely_tool")["meta"]["agent_attribution"] == {"attempted": "true"}
+    assert "agent_attribution" not in _event_by_name(llmobs_events, "lonely_workflow")["meta"]
+    assert "agent_attribution" not in _event_by_name(llmobs_events, "lonely_tool")["meta"]

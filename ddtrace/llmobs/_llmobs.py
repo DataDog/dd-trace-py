@@ -718,9 +718,8 @@ class LLMObs(Service):
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
-        # Surface the agent attribution resolved at activation. The block is always present:
-        # the resolved parent agent when there is one, else an `attempted` sentinel that lets
-        # the backend distinguish "no agent parent" from "older SDK that never resolved".
+        # Surface the agent attribution resolved at activation, but only on spans that
+        # actually have a resolved agent parent. Spans without one are left untouched.
         agent_name = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME)
         agent_span_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID)
         if agent_name is not None or agent_span_id is not None:
@@ -728,8 +727,6 @@ class LLMObs(Service):
                 "parent_agent_name": agent_name,
                 "parent_agent_span_id": agent_span_id,
             }
-        else:
-            meta["agent_attribution"] = {"attempted": "true"}
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         tags = self._llmobs_tags(span)
         _dd_attrs = {
