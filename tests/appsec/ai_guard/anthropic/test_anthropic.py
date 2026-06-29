@@ -2,10 +2,12 @@
 
 import json
 import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from ddtrace import config
 import ddtrace.appsec._ai_guard as ai_guard_mod
 from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_after
 from ddtrace.appsec._ai_guard._anthropic import _anthropic_messages_create_before
@@ -13,6 +15,9 @@ from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_messages
 from ddtrace.appsec._ai_guard._anthropic import _convert_anthropic_response
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.contrib.internal.anthropic.patch import ANTHROPIC_VERSION
+from ddtrace.llmobs._integrations import AnthropicIntegration
+from ddtrace.llmobs._utils import get_llmobs_output_messages
+from ddtrace.trace import tracer
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 
@@ -1806,3 +1811,41 @@ def test_response_text_and_image():
     assert isinstance(result[0]["content"], list)
     assert result[0]["content"][0]["type"] == "text"
     assert result[0]["content"][1]["type"] == "image_url"
+
+
+# ---------------------------------------------------------------------------
+# APPSEC-68147: model output must still be recorded in LLMObs when AI Guard
+# blocks AFTER the model call (the response exists; the block errors the span).
+# ---------------------------------------------------------------------------
+
+
+def _fake_anthropic_response(text="ok"):
+    """Minimal Anthropic Message-shaped object for the output extractor."""
+    block = SimpleNamespace(type="text", text=text)
+    return SimpleNamespace(role="assistant", content=[block], usage=SimpleNamespace(input_tokens=1, output_tokens=1))
+
+
+def _anthropic_output_contents(span):
+    return [m.get("content") for m in (get_llmobs_output_messages(span) or [])]
+
+
+def test_output_recorded_when_ai_guard_blocked():
+    """An errored span (error=1) still records output when a response exists."""
+    integration = AnthropicIntegration(integration_config=config.anthropic)
+    integration._base_url = None  # normally set during trace(); not needed for this unit test
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with tracer.trace("anthropic.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags(span, [], kwargs, _fake_anthropic_response("blocked body"), "")
+        assert _anthropic_output_contents(span) == ["blocked body"]
+
+
+def test_output_suppressed_on_plain_error():
+    """A genuine error leaves no response, so output is blanked."""
+    integration = AnthropicIntegration(integration_config=config.anthropic)
+    integration._base_url = None  # normally set during trace(); not needed for this unit test
+    kwargs = {"messages": _user_messages(), "model": CHAT_MODEL}
+    with tracer.trace("anthropic.request", span_type="llm") as span:
+        span.error = 1
+        integration._llmobs_set_tags(span, [], kwargs, None, "")
+        assert _anthropic_output_contents(span) == [""]
