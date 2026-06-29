@@ -64,6 +64,8 @@ class LLMObsSpanData(TypedDict, total=False):
 
     name: str
     parent_id: str
+    parent_agent_name: str
+    parent_agent_span_id: str
     trace_id: str
     ml_app: str
     session_id: str
