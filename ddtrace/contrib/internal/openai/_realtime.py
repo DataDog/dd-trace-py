@@ -1,31 +1,31 @@
 """Instrumentation for the OpenAI Realtime API (bidirectional WebSocket event stream).
 
 The Realtime API is not request/response, so it can't reuse the streaming path. Instead we wrap
-the connection's ``send``/``parse_event``/``close`` methods (all typed sub-resource sends funnel
-through ``RealtimeConnection.send``, and ``recv``/iteration/``recv_bytes()`` all funnel through
-``parse_event``) and feed each observed event into a ``_RealtimeState`` machine.
+the connection's send/parse_event/close methods (all typed sub-resource sends funnel through
+RealtimeConnection.send, and recv/iteration/recv_bytes() all funnel through parse_event) and feed
+each observed event into a _RealtimeState machine.
 
-Each conversation **turn** becomes its own **llm span** (started on ``response.created``), carrying
-the user/assistant transcripts, audio, and token usage for that turn. Every turn span is annotated
-with a per-connection ``session_id`` so the UI groups them into one conversation — there is no
-parent "session" span, which keeps each trace one turn small (no accumulation toward the per-event
-size budget) and renders cleanly. (If the caller wraps the connection in their own ``LLMObs``
-context, the turn spans naturally nest under it.)
+Each conversation turn becomes its own llm span (started on response.created), carrying the
+user/assistant transcripts, audio, and token usage for that turn. Every turn span is annotated with
+a per-connection session_id so the UI groups them into one conversation - there is no parent
+"session" span, which keeps each trace one turn small (no accumulation toward the per-event size
+budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
+turn spans naturally nest under it.)
 
-A turn span is finalized on ``response.done`` — except that the user's input transcription
-(``conversation.item.input_audio_transcription.completed``) is asynchronous and frequently arrives
-*after* ``response.done``, so when the transcript isn't ready yet we hold the span open and finalize
-it once the transcription lands (matched by input ``item_id``), with fallbacks on the next
-``response.created`` or on close so a span can never leak.
+A turn span is finalized on response.done - except that the user's input transcription
+(conversation.item.input_audio_transcription.completed) is asynchronous and frequently arrives after
+response.done, so when the transcript isn't ready yet we hold the span open and finalize it once the
+transcription lands (matched by input item_id), with fallbacks on the next response.created or on
+close so a span can never leak.
 
 Realtime audio is raw PCM16 (24kHz mono) by default, which the UI can't render directly, so we wrap
-it in a WAV container (lossless, just a header) and emit a playable ``audio/wav`` ``audio_part``
-alongside the transcript. Audio over the per-span-event size budget is dropped (transcript kept).
-G.711 (``audio/pcmu``/``audio/pcma``) is not yet wrapped.
+it in a WAV container (lossless, just a header) and emit a playable audio/wav audio_part alongside
+the transcript. Audio over the per-span-event size budget is dropped (transcript kept). G.711
+(audio/pcmu, audio/pcma) is not yet wrapped.
 
 Known limitations (deferred by design):
-- Out-of-band responses created with an inline ``response.create.response.input`` are not paired
-  with that explicit input; their input message reflects the pending conversation turn instead.
+- Out-of-band responses created with an inline response.create.response.input are not paired with
+  that explicit input; their input message reflects the pending conversation turn instead.
 - A single pending-input turn is tracked, so multiple committed items or overlapping/parallel
   responses may be collapsed or paired by arrival order. The Realtime API serializes turns in
   normal use.
