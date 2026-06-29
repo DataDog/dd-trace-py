@@ -3,8 +3,9 @@ features:
   - |
     LLM Observability: The OpenAI integration now automatically instruments the Realtime API
     (``client.realtime.connect(...)``, both sync and async). Each conversation turn is captured as its
-    own ``llm`` span carrying the user and assistant transcripts as message content, token usage, and
-    the session config (model, voice, audio formats); all turns of a connection share a ``session_id``
+    own ``llm`` span carrying the user and assistant transcripts as message content, token usage, tool
+    calls (function calls and MCP calls, plus the results), and the session config (model, voice, audio
+    formats); all turns of a connection share a ``session_id``
     so they group into one conversation in the UI. Audio is captured as playable ``audio_parts``:
     raw PCM16 (the default) and G.711 telephony audio (``audio/pcmu``/``audio/pcma``, used for
     phone-call integrations) are both wrapped in a WAV container (audio over the per-span size limit

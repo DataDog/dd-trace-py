@@ -251,6 +251,85 @@ def test_realtime_state_g711_input_wrapped_as_wav():
     ]
 
 
+def test_realtime_state_function_call_captured():
+    """A function call (and the result the app feeds back) is captured as tool_calls/tool_results."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    # Turn 1: the model calls a function (no speech) -> response.done carries a function_call item.
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[_ns(type="function_call", name="get_weather", arguments='{"city": "Paris"}', call_id="call_1")],
+            ),
+        )
+    )
+    out1 = integration.responses[0]["output_messages"]
+    assert out1 == [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"name": "get_weather", "arguments": {"city": "Paris"}, "tool_id": "call_1", "type": "function"}
+            ],
+        }
+    ]
+
+    # App returns the tool result, then the model speaks the answer.
+    state.on_client_event(
+        {
+            "type": "conversation.item.create",
+            "item": {"type": "function_call_output", "call_id": "call_1", "output": "sunny"},
+        }
+    )
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r2")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r2", transcript="It's sunny."))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r2", status="completed")))
+    resp2 = integration.responses[1]
+    assert resp2["input_messages"] == [
+        {
+            "role": "user",
+            "content": "",
+            "tool_results": [{"tool_id": "call_1", "result": "sunny", "type": "function_call_output"}],
+        }
+    ]
+    assert resp2["output_messages"] == [{"role": "assistant", "content": "It's sunny."}]
+
+
+def test_realtime_state_mcp_call_captured():
+    """An MCP call is captured as a tool_call plus its inline server-side result as a tool_result."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(transcription=False))
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(
+            type="response.done",
+            response=_ns(
+                id="r1",
+                status="completed",
+                output=[
+                    _ns(
+                        type="mcp_call",
+                        id="mcp_1",
+                        name="search",
+                        arguments='{"q": "x"}',
+                        output="result text",
+                        error=None,
+                    )
+                ],
+            ),
+        )
+    )
+    out = integration.responses[0]["output_messages"][0]
+    assert out["tool_calls"] == [{"name": "search", "arguments": {"q": "x"}, "tool_id": "mcp_1", "type": "mcp_call"}]
+    assert out["tool_results"] == [
+        {"name": "search", "result": "result text", "tool_id": "mcp_1", "type": "mcp_tool_result"}
+    ]
+
+
 def test_realtime_state_unwrappable_audio_fallback_marker():
     """Audio in a format we can't wrap (not PCM16/G.711) with no transcript surfaces an [audio] marker."""
     integration, state = _new_state(model="gpt-realtime")

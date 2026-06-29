@@ -6,8 +6,10 @@ RealtimeConnection.send, and recv/iteration/recv_bytes() all funnel through pars
 each observed event into a _RealtimeState machine.
 
 Each conversation turn becomes its own llm span (started on response.created), carrying the
-user/assistant transcripts, audio, and token usage for that turn. Every turn span is annotated with
-a per-connection session_id so the UI groups them into one conversation - there is no parent
+user/assistant transcripts, audio, token usage, and any tool calls for that turn (function calls and
+MCP calls the model made, plus the function_call_output results the app fed back). Every turn span
+is annotated with a per-connection session_id so the UI groups them into one conversation - there is
+no parent
 "session" span, which keeps each trace one turn small (no accumulation toward the per-event size
 budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
 turn spans naturally nest under it.)
@@ -59,7 +61,10 @@ from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolResult
 
 
 log = get_logger(__name__)
@@ -94,6 +99,8 @@ class _InputTurn:
         self.text: str = ""
         self.transcript: str = ""
         self.item_id: Optional[str] = None
+        # Tool results the app fed back (function_call_output) before the next response.
+        self.tool_results: list[ToolResult] = []
 
 
 class _ResponseTurn:
@@ -108,6 +115,9 @@ class _ResponseTurn:
         self.model: Optional[str] = None
         self.status: Optional[str] = None
         self.span: Any = None
+        # Function/MCP calls the model made this turn (+ inline MCP results).
+        self.tool_calls: list[ToolCall] = []
+        self.tool_results: list[ToolResult] = []
 
 
 class _RealtimeState:
@@ -251,6 +261,7 @@ class _RealtimeState:
         turn.usage = _get_attr(response, "usage", None)
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
+        turn.tool_calls, turn.tool_results = _extract_response_tools(response)
         if not turn.input.transcript and turn.input.item_id is not None:
             turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
         # Hold the span open for a late input transcription ONLY when transcription is actually
@@ -306,6 +317,12 @@ class _RealtimeState:
             self._input_audio_mime,
             self._input_audio_rate,
         )
+        # Attach tool results the app fed back (function_call_output) to the input message.
+        if turn.input.tool_results:
+            if input_message is None:
+                input_message = Message(role="user", content="")
+            input_message["tool_results"] = turn.input.tool_results
+
         output_message = self._build_message(
             "assistant",
             turn.transcript or turn.text,
@@ -313,6 +330,16 @@ class _RealtimeState:
             self._output_audio_mime,
             self._output_audio_rate,
         )
+        # Attach the model's tool calls (and inline MCP results) to the output message. A turn can be
+        # tool-call-only with no audio/text, so create the message if _build_message returned None.
+        if turn.tool_calls or turn.tool_results:
+            if output_message is None:
+                output_message = Message(role="assistant", content="")
+            if turn.tool_calls:
+                output_message["tool_calls"] = turn.tool_calls
+            if turn.tool_results:
+                output_message["tool_results"] = turn.tool_results
+
         self._integration._llmobs_set_tags_from_realtime_response(
             turn.span,
             turn.model,
@@ -406,7 +433,18 @@ class _RealtimeState:
     def _absorb_input_item(self, item: Any) -> None:
         if item is None:
             return
-        # Only user items contribute to the input turn; skip assistant/system/tool/function items.
+        # A tool result the app feeds back becomes a tool_result on the next turn's input.
+        if _get_attr(item, "type", None) == "function_call_output":
+            output = _get_attr(item, "output", None)
+            self._pending_input.tool_results.append(
+                ToolResult(
+                    tool_id=str(_get_attr(item, "call_id", "") or ""),
+                    result=str(output) if output is not None else "",
+                    type="function_call_output",
+                )
+            )
+            return
+        # Only user items contribute to the input turn; skip assistant/system items.
         role = _get_attr(item, "role", None)
         if role is not None and role != "user":
             return
@@ -422,6 +460,51 @@ class _RealtimeState:
                 transcript = _get_attr(part, "transcript", None)
                 if transcript:
                     self._pending_input.transcript += str(transcript)
+
+
+def _extract_response_tools(response: Any) -> tuple[list[ToolCall], list[ToolResult]]:
+    """Pull function_call / mcp_call tool usage from a response.done's output items.
+
+    Function calls become ToolCalls (the app returns their result later via function_call_output,
+    captured on the next turn's input). MCP calls run server-side, so their result is inline on the
+    item and is captured as a ToolResult alongside the call.
+    """
+    tool_calls: list[ToolCall] = []
+    tool_results: list[ToolResult] = []
+    for item in _get_attr(response, "output", None) or []:
+        item_type = _get_attr(item, "type", "")
+        if item_type == "function_call":
+            tool_calls.append(
+                ToolCall(
+                    name=str(_get_attr(item, "name", "") or ""),
+                    arguments=safe_load_json(str(_get_attr(item, "arguments", "") or "")),
+                    tool_id=str(_get_attr(item, "call_id", "") or _get_attr(item, "id", "") or ""),
+                    type="function",
+                )
+            )
+        elif item_type == "mcp_call":
+            call_id = str(_get_attr(item, "id", "") or "")
+            name = str(_get_attr(item, "name", "") or "")
+            tool_calls.append(
+                ToolCall(
+                    name=name,
+                    arguments=safe_load_json(str(_get_attr(item, "arguments", "") or "")),
+                    tool_id=call_id,
+                    type="mcp_call",
+                )
+            )
+            output = _get_attr(item, "output", None)
+            error = _get_attr(item, "error", None)
+            if output is not None or error is not None:
+                tool_results.append(
+                    ToolResult(
+                        name=name,
+                        result=str(output if output is not None else error),
+                        tool_id=call_id,
+                        type="mcp_tool_result",
+                    )
+                )
+    return tool_calls, tool_results
 
 
 def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
