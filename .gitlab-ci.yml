@@ -67,21 +67,17 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
-    rules:
-      - if: $NIGHTLY_BUILD == "true"
   - project: 'DataDog/system-tests'
-    ref: nccatoni/gitlab
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      ref: nccatoni/gitlab
-      # condition: '$NIGHTLY_BUILD == "true"'
+      condition: '$NIGHTLY_BUILD == "true"'
 
 system-tests-param:
   extends: .system_tests_param_base
   stage: tests
-  # rules:
-  #   - if: $NIGHTLY_BUILD == "true"
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
   needs:
     - job: "build linux: [amd64, cp311-cp311, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: false
