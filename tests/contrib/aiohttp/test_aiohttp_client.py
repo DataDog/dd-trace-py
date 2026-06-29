@@ -265,6 +265,9 @@ async def test_client_response_not_retained_after_request():
     from aiohttp.test_utils import TestClient
     from aiohttp.test_utils import TestServer
 
+    # RSS is used instead of weakref/tracemalloc because aiohttp holds ClientResponse
+    # references in C extensions that are invisible to the Python GC. A retained body
+    # shows up as ~1 MB of RSS growth per request.
     PAYLOAD_SIZE = 1 * 1024 * 1024  # 1 MB
     ITERS = 15
     THRESHOLD_MB = 8  # bug retains all bodies: ~15 MB; fixed: ~2 MB
