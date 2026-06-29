@@ -2,7 +2,10 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_parent_id
 from tests.contrib.google_adk.conftest import create_test_message
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -155,10 +158,11 @@ class TestLLMObsGoogleADK:
         """Regression test for issue #18698.
 
         If the operation-specific extractor raises on malformed response data, the agent span must
-        still be annotated with its kind so it is not dropped (which would orphan its child spans).
+        still be annotated with its kind so it survives event preparation. A dropped agent span
+        orphans its child spans, so we also assert a child span stays parented to the agent.
         """
         integration = adk._datadog_integration
-        span = integration.trace(
+        agent_span = integration.trace(
             "Runner.run_async",
             provider="google",
             model="gemini-2.5-pro",
@@ -166,14 +170,25 @@ class TestLLMObsGoogleADK:
             submit_to_llmobs=True,
         )
 
+        # A child LLM span started while the agent span is active should be parented to it.
+        child_span = integration.trace("models.generate_content", kind="llm", submit_to_llmobs=True)
+        _annotate_llmobs_span_data(child_span, kind="llm")
+
+        # The public entry point swallows-and-logs extractor exceptions, mirroring production.
         with mock.patch.object(integration, "_llmobs_set_tags_agent", side_effect=ValueError("malformed Gemini Part")):
-            # The public entry point swallows-and-logs extractor exceptions, mirroring production.
-            integration.llmobs_set_tags(span, args=[], kwargs={}, response=None, operation="agent")
+            integration.llmobs_set_tags(agent_span, args=[], kwargs={}, response=None, operation="agent")
 
-        span.finish()
+        child_span.finish()
+        agent_span.finish()
 
-        llmobs_data = _get_llmobs_data_metastruct(span)
-        assert llmobs_data["meta"]["span"]["kind"] == "agent"
+        # The agent span keeps its kind and is not dropped during event preparation: a generated
+        # event is cached on the span, which is exactly what keeps child spans from being orphaned.
+        agent_data = _get_llmobs_data_metastruct(agent_span)
+        assert agent_data["meta"]["span"]["kind"] == "agent"
+        assert agent_span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) is not None
+
+        # The child resolves its parent to the (surviving) agent span rather than being orphaned.
+        assert get_llmobs_parent_id(child_span) == str(agent_span.span_id)
 
     def test_code_execution(self, mock_invocation_context, test_spans, google_adk_llmobs):
         """Test that code execution creates a valid LLMObs span event."""
