@@ -15,12 +15,6 @@ from ._api_client import ToolCall
 from ._api_client import new_ai_guard_client
 
 
-# AIDEV-NOTE: the Strands plugin/hook classes are intentionally NOT re-exported
-# here — import them from ``ddtrace.aiguard.integrations.strands``. Re-exporting
-# would let ``import ddtrace.aiguard`` load strands before the user's
-# ``from strands import Agent``, binding the plugin's @hook callbacks to event
-# dataclasses that ``ddtrace.auto`` later re-instantiates (so they never fire).
-# Regression: tests/aiguard/strands_hooks/test_strands.py::TestLazyImport.
 __all__ = [
     "new_ai_guard_client",
     "AIGuardClient",
