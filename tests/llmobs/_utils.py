@@ -20,7 +20,9 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -324,6 +326,25 @@ def _expected_llmobs_non_llm_span_event(
     return span_event
 
 
+def _expected_agent_attribution(span):
+    """Independently compute the agent_attribution block expected on a span event.
+
+    Walks the LLMObs ancestor chain to the nearest "agent" span (full walk) — this must
+    match the implementation, which achieves the same result via one-level inheritance at
+    activation. Returns the resolved block, or the `attempted` sentinel when no agent
+    ancestor exists.
+    """
+    ancestor = _get_nearest_llmobs_ancestor(span)
+    while ancestor is not None:
+        if get_llmobs_span_kind(ancestor) == "agent":
+            return {
+                "parent_agent_name": get_llmobs_span_name(ancestor) or ancestor.name,
+                "parent_agent_span_id": str(ancestor.span_id),
+            }
+        ancestor = _get_nearest_llmobs_ancestor(ancestor)
+    return {"attempted": "true"}
+
+
 def _llmobs_base_span_event(
     span,
     span_kind,
@@ -372,6 +393,7 @@ def _llmobs_base_span_event(
             "sampling_decision": mock.ANY,
         },
     }
+    span_event["meta"]["agent_attribution"] = _expected_agent_attribution(span)
     if session_id:
         span_event["session_id"] = session_id
     if error:

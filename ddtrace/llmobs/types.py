@@ -128,6 +128,7 @@ class _Meta(TypedDict, total=False):
     tool: _ToolField
     tool_definitions: list[ToolDefinition]
     intent: str
+    agent_attribution: dict[str, Optional[str]]
 
 
 class _SpanLink(TypedDict):
