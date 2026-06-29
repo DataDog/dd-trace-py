@@ -64,10 +64,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         new_message_role: str = getattr(new_message, "role", "")
         message = ""
         for part in new_message_parts:
-            message += extract_message_from_part_google_genai(part, new_message_role, span_id=span.span_id).get(
-                "content", ""
-            )
-        result = extract_messages_from_adk_events(response, span_id=span.span_id)
+            message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
+        result = extract_messages_from_adk_events(response)
 
         _annotate_llmobs_span_data(
             span,
