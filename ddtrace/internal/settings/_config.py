@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 import re
 import sys
@@ -411,6 +413,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             envs=["DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
         ),
+        "_llmobs_sample_rate": _ConfigItem(
+            default=1.0,
+            envs=["DD_LLMOBS_SAMPLE_RATE"],
+            modifier=float,
+        ),
     }
 
 
@@ -685,7 +692,6 @@ class Config(object):
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
@@ -771,6 +777,14 @@ class Config(object):
             self._integration_configs[name] = IntegrationConfig(self, name)
             return self._integration_configs[name]
         raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
+
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        # (AIPTS-1715): The config object is a process-global singleton.
+        # If pickled by value, the config would drag its entire state
+        # into the payload, recursing in __getattr__.
+        # We have to pickle it by reference instead, so that the singleton can be re-resolved
+        # in the destination process when being unpickled.
+        return (_get_global_config, ())
 
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
@@ -883,6 +897,11 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+def _get_global_config() -> Config:
+    """Re-resolve the process-global config singleton when unpickling."""
+    return config
 
 
 config = Config()
