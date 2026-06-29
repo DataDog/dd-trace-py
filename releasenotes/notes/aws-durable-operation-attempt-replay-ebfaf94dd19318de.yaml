@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    aws_durable_execution_sdk_python: This fix resolves an issue where the ``aws.durable.operation_attempt``
+    span tag was reported off by one for replayed durable operations, causing a resumed (replayed) execution
+    to record a different attempt number than the original execution for the same operation. Replayed
+    operations now report the same 0-indexed attempt number as a fresh execution.
