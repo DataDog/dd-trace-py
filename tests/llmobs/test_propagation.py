@@ -764,12 +764,30 @@ def test_inject_no_agent_attribution_without_agent(llmobs):
 
 
 def test_inject_unsafe_agent_name_skips_name_keeps_id(llmobs):
-    """An agent name with tagset-illegal chars is skipped; the digit-safe id still propagates."""
-    with llmobs.agent(name="Researcher, v2=x") as agent_span:
+    """An agent name with a comma (illegal in tagset values) is skipped; the id still propagates."""
+    with llmobs.agent(name="Researcher, v2") as agent_span:
         ctx = Context(trace_id=1, span_id=2)
         llmobs._inject_llmobs_context(ctx, {})
     assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
     assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
+
+
+def test_inject_agent_name_with_equals_propagates(llmobs):
+    """`=` is legal in tagset values (only illegal in keys), so a name with `=` must propagate."""
+    with llmobs.agent(name="model=gpt4") as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) == "model=gpt4"
+
+
+def test_inject_agent_name_with_equals_survives_header_roundtrip(llmobs):
+    """A name with `=` encodes into x-datadog-tags and decodes back unchanged (value-until-comma)."""
+    with llmobs.agent(name="model=gpt4") as agent_span:
+        headers = llmobs.inject_distributed_headers({}, span=agent_span)
+    tags_header = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_parent_agent_name=model=gpt4" in tags_header
+    assert "_dd.propagation_error" not in tags_header
 
 
 def test_inject_unsafe_agent_name_does_not_drop_header(llmobs):
@@ -778,7 +796,7 @@ def test_inject_unsafe_agent_name_does_not_drop_header(llmobs):
     The agent_attribution id key is digit-safe and the name key is skipped when unsafe, so
     the full _dd.p.* tagset still encodes and ml_app / llmobs_trace_id survive on the wire.
     """
-    with llmobs.agent(name="Researcher, v2=x") as agent_span:
+    with llmobs.agent(name="Researcher, v2") as agent_span:
         headers = llmobs.inject_distributed_headers({}, span=agent_span)
     tags_header = headers.get("x-datadog-tags", "")
     # Header is present and still carries the pre-existing llmobs keys (not dropped).

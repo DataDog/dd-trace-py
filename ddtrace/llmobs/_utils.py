@@ -407,9 +407,11 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
         return None, None
 
     if isinstance(active, Span):
-        if get_llmobs_span_kind(active) == "agent":
-            return (get_llmobs_span_name(active) or active.name, str(active.span_id))
+        # Read the meta_struct once: this runs on every span activation (hot path).
         data = _get_llmobs_data_metastruct(active)
+        kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+        if kind == "agent":
+            return (data.get(LLMOBS_STRUCT.NAME) or active.name, str(active.span_id))
         return (
             data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
             data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
@@ -425,15 +427,16 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
 def _agent_name_wire_safe(name: str) -> bool:
     """Return True if ``name`` can be written to the x-datadog-tags tagset without raising.
 
-    ``encode_tagset_values`` raises on commas, ``=``, or any byte outside 0x20-0x7E, and on
-    the shared 512B budget being exceeded. A raise drops the ENTIRE header (taking ml_app,
-    llmobs_trace_id, parent_id, sample rate with it), so an unsafe agent name must be skipped
-    rather than sanitized. When the name is skipped only the id propagates and the backend
-    resolves the real name by span_id (the documented fallback).
+    ``encode_tagset_values`` raises on commas or any byte outside 0x20-0x7E, and on the shared
+    512B budget being exceeded (``=`` is legal in tagset *values*, only illegal in keys). A
+    raise drops the ENTIRE header (taking ml_app, llmobs_trace_id, parent_id, sample rate with
+    it), so an unsafe agent name must be skipped rather than sanitized. When the name is
+    skipped only the id propagates and the backend resolves the real name by span_id (the
+    documented fallback).
     """
     if len(name.encode("utf-8")) > 256:  # conservative slice of the 512B shared tagset budget
         return False
-    return all(0x20 <= ord(c) <= 0x7E and c not in (",", "=") for c in name)
+    return all(0x20 <= ord(c) <= 0x7E and c != "," for c in name)
 
 
 def get_llmobs_parent_id(span: Span) -> Optional[str]:
