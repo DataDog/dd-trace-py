@@ -49,9 +49,13 @@ module and need to make CI / docs happy.
 
 ### 1. Add the entry to `supported-configurations.json`
 
-Find the right alphabetical slot and add a single-element array. Match the
-`implementation` letter and `type` of sibling variables in the same product
-(e.g. AI Guard booleans use `"implementation": "A"`).
+Find the right alphabetical slot and add a single-element array. Set `type` to
+mirror the `DDConfig.var(...)` type. Do NOT infer the `implementation` letter
+from neighbouring variables — it is owned by the central Configuration Registry
+(see step 6). Use `"A"` for a brand-new key; if the key already exists in the
+registry, reuse its letter, and if a maintainer must create a new
+implementation version (because the type/default differs from an existing
+cross-language entry), reference that version's letter.
 
 ```json
 "DD_AI_GUARD_OPENAI_ENABLED": [
@@ -67,8 +71,10 @@ Field notes:
 - `type`: one of `boolean`, `string`, `int`, etc. — mirror the `DDConfig.var(...)` type.
 - `default`: the **string** form of the default (`"true"`, `"16"`, or `null`
   for no default). Must match the code default exactly.
-- `implementation`: copy the letter used by neighbouring vars of the same
-  product; it groups how the config is implemented across the codebase.
+- `implementation`: the version letter assigned by the central Configuration
+  Registry (step 6), NOT inferred from neighbouring vars. A product prefix like
+  `DD_TRACE_`/`DD_APPSEC_` legitimately mixes multiple letters, so copying a
+  sibling can write the wrong value and only the central CI will catch it.
 - Optional keys seen in the registry: `aliases`, `deprecated`, `sensitive`
   (excludes the value from config telemetry). Add these only when applicable.
 
@@ -125,7 +131,7 @@ The agent CANNOT do this — it is an external web application. Tell the user:
 
 > ⚠️ **Action required:** Add this configuration to the cross-language
 > feature-parity registry so it is tracked across tracer languages:
-> https://feature-parity.us1.prod.dog/configurations?viewType=configurations
+> https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations
 
 ---
 
