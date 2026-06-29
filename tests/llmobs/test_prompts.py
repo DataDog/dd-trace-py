@@ -451,6 +451,32 @@ class TestPromptManagement:
         assert exc_info.value.status == 0
         assert "connection failed" in exc_info.value.detail
 
+    def test_request_status_error_records_crud_telemetry(self):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(500, {"detail": "boom"})
+        with mock_patch, patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record:
+            with pytest.raises(PromptServerError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptServerError", 500)
+
+    def test_request_transport_error_records_crud_telemetry(self):
+        manager = _make_manager()
+        with (
+            patch.object(manager, "_http_request", side_effect=RuntimeError("connection failed")),
+            patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record,
+        ):
+            with pytest.raises(PromptAPIError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptAPIError", 0)
+
+    def test_request_missing_api_key_records_crud_telemetry(self):
+        manager = _make_manager()
+        manager._headers["DD-API-KEY"] = ""
+        with patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record:
+            with pytest.raises(PromptAuthError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptAuthError", 0)
+
     @pytest.mark.parametrize(
         "response,call,expected",
         [

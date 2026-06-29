@@ -318,39 +318,43 @@ class PromptManager:
         timeout: Optional[float] = None,
         require_app_key: bool = True,
     ) -> Any:
-        if not self._headers.get("DD-API-KEY"):
-            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
-        if require_app_key and not self._app_key:
-            raise PromptAuthError(0, "DD_APP_KEY is required for prompt write operations")
-
-        headers = {
-            **self._headers,
-            "Content-Type": "application/json",
-        }
-        if self._app_key:
-            headers["DD-APPLICATION-KEY"] = self._app_key
-
-        encoded_body = json.dumps(body).encode("utf-8") if body else None
         try:
-            status, response_body = self._http_request(
-                method, path, body=encoded_body, headers=headers, timeout=timeout
-            )
-        except Exception as e:
-            raise PromptAPIError(0, str(e))
+            if not self._headers.get("DD-API-KEY"):
+                raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
+            if require_app_key and not self._app_key:
+                raise PromptAuthError(0, "DD_APP_KEY is required for prompt write operations")
 
-        if 200 <= status < 300:
-            if not response_body:
-                return {}
+            headers = {
+                **self._headers,
+                "Content-Type": "application/json",
+            }
+            if self._app_key:
+                headers["DD-APPLICATION-KEY"] = self._app_key
+
+            encoded_body = json.dumps(body).encode("utf-8") if body else None
             try:
-                return _normalize_response_ids(json.loads(response_body))
-            except (json.JSONDecodeError, ValueError):
-                raise PromptServerError(status, "invalid JSON in response body")
+                status, response_body = self._http_request(
+                    method, path, body=encoded_body, headers=headers, timeout=timeout
+                )
+            except Exception as e:
+                raise PromptAPIError(0, str(e))
 
-        detail = extract_error_detail(response_body)
-        exc_cls = _STATUS_EXCEPTIONS.get(status)
-        if exc_cls is None:
-            exc_cls = PromptServerError if status >= 500 else PromptAPIError
-        raise exc_cls(status, detail)
+            if 200 <= status < 300:
+                if not response_body:
+                    return {}
+                try:
+                    return _normalize_response_ids(json.loads(response_body))
+                except (json.JSONDecodeError, ValueError):
+                    raise PromptServerError(status, "invalid JSON in response body")
+
+            detail = extract_error_detail(response_body)
+            exc_cls = _STATUS_EXCEPTIONS.get(status)
+            if exc_cls is None:
+                exc_cls = PromptServerError if status >= 500 else PromptAPIError
+            raise exc_cls(status, detail)
+        except PromptAPIError as e:
+            telemetry.record_prompt_crud_error(method, type(e).__name__, e.status)
+            raise
 
     def _evict_prompt_caches(self, prompt_id: str) -> None:
         self._hot_cache.evict_prompt(prompt_id)

@@ -34,6 +34,7 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_CRUD_ERROR = "prompt.crud.error"
     COST_TAGS_ANNOTATED = "cost_tags.annotated"
     COST_TAGS_SUBMITTED = "cost_tags.submitted"
 
@@ -279,6 +280,17 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_crud_error(method: str, error_type: str, status: int):
+    """Record a prompt CRUD API error."""
+    tags = [("method", method), ("error_type", error_type), ("status", str(status))]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_CRUD_ERROR,
         value=1,
         tags=tuple(tags),
     )
