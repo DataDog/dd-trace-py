@@ -35,11 +35,9 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
-        # Commit the span kind before the operation-specific extraction below, which may raise on
-        # malformed response data. The caller swallows-and-logs that exception, so if the kind is
-        # not already set the span gets dropped for "missing span kind" and its children orphaned.
-        # The kind/model/provider values are independent of the extraction (set at span start), so
-        # annotating first lets an extraction failure degrade to empty I/O instead of a dropped span.
+        # Set the span kind before the extraction below, which may raise on malformed data. The
+        # caller swallows that exception, so kind must be set first or the span is dropped for
+        # "missing span kind" and its children orphaned (#18698).
         _annotate_llmobs_span_data(
             span,
             kind=operation,
