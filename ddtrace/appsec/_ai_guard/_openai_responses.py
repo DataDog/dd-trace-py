@@ -415,12 +415,11 @@ def _convert_openai_response_output(resp: Any) -> list[Message]:
 def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]) -> None:
     """Listener for ``openai.responses.create.before``.
 
-    Streaming Responses requests are skipped here — streaming coverage is the
-    remit of the streaming-Responses follow-up, which mirrors the
-    chat-completions streaming integration's gating-removal pattern.
+    Streaming requests are evaluated only when the flag is on (the response is then buffered
+    and evaluated at stream end); otherwise they are skipped.
     """
-    if kwargs.get("stream"):
-        logger.debug("AI Guard openai responses before-hook skipped: streaming not yet supported")
+    if kwargs.get("stream") and not ai_guard_config._ai_guard_analyze_stream_responses_enabled:
+        logger.debug("AI Guard openai responses before-hook skipped: streaming response evaluation disabled")
         return None
 
     if is_aiguard_context_active():
