@@ -444,9 +444,10 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
         )
 
     # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
+    ctx = active
     return (
-        active._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
-        active._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
     )
 
 
