@@ -432,21 +432,21 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "1.1.10",
+        "max_tracer_supported": "1.2.6",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "4.0.3",
+        "max_tracer_supported": "4.1.1",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-prebuilt",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.1.8",
-        "max_tracer_supported": "1.0.13",
+        "max_tracer_supported": "1.1.0",
         "auto-instrumented": true
     },
     {
@@ -681,7 +681,7 @@
     {
         "dependency": "ray",
         "integration": "ray_serve",
-        "minimum_tracer_supported": "2.47.1",
+        "minimum_tracer_supported": "2.46.0",
         "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false

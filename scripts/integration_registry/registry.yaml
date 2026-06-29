@@ -559,13 +559,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.1.10
+      max: 1.2.6
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.0.3
+      max: 4.1.1
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.0.13
+      max: 1.1.0
 
 - integration_name: litellm
   is_external_package: true
@@ -874,7 +874,7 @@ integrations:
   - ray
   tested_versions_by_dependency:
     ray:
-      min: 2.47.1
+      min: 2.46.0
       max: 2.54.1
 
 - integration_name: redis
