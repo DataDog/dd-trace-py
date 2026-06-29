@@ -4,6 +4,7 @@ import inspect
 import io
 import json
 import re
+import struct
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -454,6 +455,56 @@ def pcm16_to_wav(pcm_bytes: bytes, sample_rate: int = 24000, channels: int = 1) 
         wav_file.setframerate(sample_rate)
         wav_file.writeframes(pcm_bytes)
     return buf.getvalue()
+
+
+# G.711 telephony audio (8kHz, 8-bit companded). Realtime uses these for phone-call integrations
+# (Twilio/SIP). We decode to PCM16 so it can be WAV-wrapped and played in the UI; the stdlib `wave`
+# module can't emit G.711-tagged WAV, and `audioop` (ulaw2lin/alaw2lin) was removed in Python 3.13.
+_G711_MIME_TO_VARIANT = {
+    "audio/pcmu": "ulaw",
+    "audio/g711_ulaw": "ulaw",
+    "audio/pcma": "alaw",
+    "audio/g711_alaw": "alaw",
+}
+G711_SAMPLE_RATE = 8000  # G.711 is always 8kHz mono.
+
+
+def g711_variant(mime_type: str) -> Optional[str]:
+    """Return "ulaw"/"alaw" for a G.711 MIME type, else ``None``."""
+    return _G711_MIME_TO_VARIANT.get((mime_type or "").strip().lower())
+
+
+def _ulaw_decode_sample(byte: int) -> int:
+    """Decode one G.711 μ-law byte to a signed 16-bit linear PCM sample (CCITT G.711)."""
+    byte = ~byte & 0xFF
+    sample = ((byte & 0x0F) << 3) + 0x84
+    sample <<= (byte & 0x70) >> 4
+    return (0x84 - sample) if (byte & 0x80) else (sample - 0x84)
+
+
+def _alaw_decode_sample(byte: int) -> int:
+    """Decode one G.711 A-law byte to a signed 16-bit linear PCM sample (CCITT G.711)."""
+    byte ^= 0x55
+    sample = (byte & 0x0F) << 4
+    seg = (byte & 0x70) >> 4
+    if seg == 0:
+        sample += 8
+    elif seg == 1:
+        sample += 0x108
+    else:
+        sample = (sample + 0x108) << (seg - 1)
+    return sample if (byte & 0x80) else -sample
+
+
+# Precompute 256-entry decode tables (the input domain is a single byte).
+_ULAW_TABLE = [_ulaw_decode_sample(i) for i in range(256)]
+_ALAW_TABLE = [_alaw_decode_sample(i) for i in range(256)]
+
+
+def g711_to_pcm16(data: bytes, variant: str) -> bytes:
+    """Decode G.711 ("ulaw"/"alaw") bytes to raw little-endian PCM16."""
+    table = _ALAW_TABLE if variant == "alaw" else _ULAW_TABLE
+    return b"".join(struct.pack("<h", table[b]) for b in data)
 
 
 def format_audio_part_with_guard(

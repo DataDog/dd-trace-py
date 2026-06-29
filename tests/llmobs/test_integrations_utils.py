@@ -10,6 +10,8 @@ from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import concat_base64_audio
 from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.utils import g711_variant
 from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
@@ -153,6 +155,29 @@ def test_format_audio_part_with_guard_uses_encoded_size():
     """The guard measures base64-encoded size: 8 raw bytes -> 12 encoded, over a 10-byte budget."""
     # Under the budget by raw size (8 <= 10) but over once base64-encoded (12 > 10) -> dropped.
     assert format_audio_part_with_guard(b"\x00" * 8, "audio/wav", max_bytes=10) is None
+
+
+def test_g711_variant():
+    """G.711 MIME types resolve to their companding variant; others are None."""
+    assert g711_variant("audio/pcmu") == "ulaw"
+    assert g711_variant("audio/g711_ulaw") == "ulaw"
+    assert g711_variant("audio/pcma") == "alaw"
+    assert g711_variant("audio/g711_alaw") == "alaw"
+    assert g711_variant("AUDIO/PCMU") == "ulaw"
+    assert g711_variant("audio/pcm") is None
+    assert g711_variant("") is None
+
+
+def test_g711_to_pcm16_decodes():
+    """G.711 bytes decode to little-endian PCM16 (2 bytes/sample) with the standard zero values."""
+    import struct
+
+    # μ-law 0xFF and A-law 0xD5 are the encodings of (near-)silence.
+    assert struct.unpack("<h", g711_to_pcm16(b"\xff", "ulaw"))[0] == 0
+    assert struct.unpack("<h", g711_to_pcm16(b"\xd5", "alaw"))[0] == 8
+    # One output sample (2 bytes) per input byte; μ-law and A-law differ for the same byte.
+    assert len(g711_to_pcm16(b"\x01\x02\x03", "ulaw")) == 6
+    assert g711_to_pcm16(b"\x12\x34", "ulaw") != g711_to_pcm16(b"\x12\x34", "alaw")
 
 
 def test_format_audio_part_with_guard_empty():

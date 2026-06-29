@@ -20,8 +20,9 @@ close so a span can never leak.
 
 Realtime audio is raw PCM16 (24kHz mono) by default, which the UI can't render directly, so we wrap
 it in a WAV container (lossless, just a header) and emit a playable audio/wav audio_part alongside
-the transcript. Audio over the per-span-event size budget is dropped (transcript kept). G.711
-(audio/pcmu, audio/pcma) is not yet wrapped.
+the transcript. G.711 telephony audio (audio/pcmu, audio/pcma - used for phone-call integrations)
+is decoded to PCM16 and likewise WAV-wrapped. Audio over the per-span-event size budget is dropped
+(transcript kept); any other unsupported format falls back to an [audio] marker.
 
 Known limitations (deferred by design):
 - Out-of-band responses created with an inline response.create.response.input are not paired with
@@ -49,8 +50,11 @@ from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.utils import G711_SAMPLE_RATE
 from ddtrace.llmobs._integrations.utils import concat_base64_audio
 from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.utils import g711_variant
 from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
@@ -325,10 +329,16 @@ class _RealtimeState:
         audio_part = None
         if audio_chunks:
             audio_bytes = concat_base64_audio(audio_chunks)
+            g711 = g711_variant(mime_type)
             if is_pcm16_audio_mime(mime_type):
                 # Raw PCM16 isn't renderable on its own; wrap it in a WAV container (lossless) so it
                 # plays in the UI. Realtime PCM is 24kHz mono.
                 audio_part = format_audio_part_with_guard(pcm16_to_wav(audio_bytes, sample_rate), "audio/wav")
+            elif g711 is not None:
+                # G.711 telephony audio (phone-call integrations): decode to PCM16, then WAV-wrap at
+                # the fixed 8kHz G.711 rate so it's playable.
+                pcm = g711_to_pcm16(audio_bytes, g711)
+                audio_part = format_audio_part_with_guard(pcm16_to_wav(pcm, G711_SAMPLE_RATE), "audio/wav")
             else:
                 audio_part = format_audio_part_with_guard(audio_bytes, mime_type)
         if not content and not audio_part and audio_chunks:

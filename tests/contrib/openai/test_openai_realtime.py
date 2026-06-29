@@ -13,6 +13,7 @@ import pytest
 
 from ddtrace.contrib.internal.openai import _realtime
 from ddtrace.contrib.internal.openai._realtime import _RealtimeState
+from ddtrace.llmobs._integrations.utils import g711_to_pcm16
 from ddtrace.llmobs._integrations.utils import pcm16_to_wav
 
 
@@ -234,10 +235,26 @@ def test_realtime_state_pcm_audio_only_wraps_as_wav_without_transcript():
     ]
 
 
+def test_realtime_state_g711_input_wrapped_as_wav():
+    """G.711 telephony audio (audio/pcmu) is decoded to PCM16 and WAV-wrapped at 8kHz."""
+    integration, state = _new_state()
+    state.on_server_event(_session_created(input_mime="audio/pcmu", output_mime="audio/pcmu", transcription=False))
+    raw = b"\xff\xff\x7f\x7f"
+    state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(raw)})
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r", transcript="hello"))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r", status="completed")))
+
+    expected = base64.b64encode(pcm16_to_wav(g711_to_pcm16(raw, "ulaw"), 8000)).decode("utf-8")
+    assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": expected}
+    ]
+
+
 def test_realtime_state_unwrappable_audio_fallback_marker():
-    """Audio in a non-wrappable format (e.g. G.711) with no transcript surfaces an [audio] marker."""
+    """Audio in a format we can't wrap (not PCM16/G.711) with no transcript surfaces an [audio] marker."""
     integration, state = _new_state(model="gpt-realtime")
-    state.on_server_event(_session_created(input_mime="audio/pcmu", output_mime="audio/pcmu"))
+    state.on_server_event(_session_created(input_mime="audio/basic", output_mime="audio/basic", transcription=False))
     state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(b"\x01\x02")})
     state.on_server_event(_ns(type="response.created", response=_ns(id="r")))
     state.on_server_event(_ns(type="response.output_audio.delta", response_id="r", delta=_b64(b"\x03")))
