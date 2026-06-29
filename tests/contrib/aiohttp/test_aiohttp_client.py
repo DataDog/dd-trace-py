@@ -292,8 +292,8 @@ async def test_client_response_not_retained_after_request():
         gc.collect()
         growth = rss_mb() - before
         assert growth < THRESHOLD_MB, (
-            f"Memory leak detected (GH-18781): RSS grew {growth} MB over {ITERS} x {PAYLOAD_SIZE // (1024 * 1024)} MB "
-            f"requests (threshold {THRESHOLD_MB} MB). The tracer may be retaining ClientResponse objects."
+            f"RSS grew {growth} MB over {ITERS} x {PAYLOAD_SIZE // (1024 * 1024)} MB requests "
+            f"(threshold {THRESHOLD_MB} MB) — tracer may be retaining ClientResponse objects"
         )
     finally:
         await client.close()
