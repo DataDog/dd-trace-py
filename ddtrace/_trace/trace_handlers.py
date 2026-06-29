@@ -391,14 +391,11 @@ def _on_traced_request_context_started_flask(ctx):
     flask_config = ctx.get_item("flask_config")
     flask_request = ctx.get_item("flask_request")
     _set_flask_request_tags(flask_request, current_span, flask_config)
-    # Propagate route tags to the outer req_span so requests killed before start_response
-    # (e.g. gunicorn SIGABRT) still carry the route pattern resource.
-    try:
-        req_span = ctx.find_item("req_span")
-        if req_span is not None and req_span is not current_span:
-            _set_flask_request_tags(flask_request, req_span, flask_config)
-    except Exception:
-        log.debug("failed to propagate flask request tags to outer WSGI req_span", exc_info=True)
+    # The active span here is flask.application. Also update the outer request
+    # span before start_response so timed-out workers keep the route resource.
+    req_span = ctx.find_item("req_span")
+    if req_span is not None and req_span is not current_span:
+        _set_flask_request_route_tags(flask_request, req_span)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -524,6 +521,20 @@ def _set_flask_request_tags(request, span, flask_config):
         if span.name.split(".")[-1] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
+        _set_flask_request_route_tags(request, span)
+
+        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
+            for k, v in request.view_args.items():
+                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
+                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
+                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
+            trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
+    except Exception:
+        log.debug('failed to set tags for "flask.request" span', exc_info=True)
+
+
+def _set_flask_request_route_tags(request, span):
+    try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
             span.resource = " ".join((request.method, request.endpoint))
@@ -538,15 +549,8 @@ def _set_flask_request_tags(request, span, flask_config):
                     FLASK_RESOURCE_FULL,
                     " ".join((request.method, request.script_root + request.url_rule.rule)),
                 )
-
-        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
-            for k, v in request.view_args.items():
-                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
-                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
-            trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
     except Exception:
-        log.debug('failed to set tags for "flask.request" span', exc_info=True)
+        log.debug('failed to set route tags for "flask.request" span', exc_info=True)
 
 
 def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
