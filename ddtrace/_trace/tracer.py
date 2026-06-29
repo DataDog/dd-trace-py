@@ -8,6 +8,8 @@ import logging
 import os
 from os import getpid
 from threading import Lock
+from typing import Any
+from typing import AsyncGenerator
 from typing import Callable
 from typing import Optional
 from typing import TypeVar
@@ -800,13 +802,30 @@ class Tracer(object):
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
     ) -> AnyCallable:
-        """Wrap a generator function with tracing."""
+        """Wrap an async generator function with tracing."""
 
         @functools.wraps(f)
         async def func_wrapper(*args, **kwargs):
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                async for value in f(*args, **kwargs):
-                    yield value
+                # Delegate to the wrapped async generator: forward sent values,
+                # thrown exceptions, and close requests. This is required so that
+                # `try/finally` cleanup inside the generator runs; otherwise, the wrapper
+                # can fail when used with `contextlib.asynccontextmanager`.
+                agen: AsyncGenerator[Any, Any] = f(*args, **kwargs)
+                to_send: Any = None
+                to_throw: Optional[BaseException] = None
+                while True:
+                    try:
+                        item: Any = await (agen.athrow(to_throw) if to_throw is not None else agen.asend(to_send))
+                    except StopAsyncIteration:
+                        return
+                    try:
+                        to_send, to_throw = (yield item), None
+                    except GeneratorExit:
+                        await agen.aclose()
+                        raise
+                    except BaseException as exc:
+                        to_throw = exc
 
         return cast(AnyCallable, func_wrapper)
 

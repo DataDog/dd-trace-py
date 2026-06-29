@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 import pytest
@@ -609,6 +610,24 @@ def test_activate_distributed_context_without_sample_rate(llmobs):
     llmobs._instance._activate_llmobs_distributed_context({}, ctx)
     active_ctx = llmobs._instance._llmobs_context_provider.active()
     assert PROPAGATED_SAMPLE_RATE not in active_ctx._meta
+
+
+def test_activate_distributed_context_root_sentinel_no_warning(llmobs, caplog):
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = ROOT_PARENT_ID
+    with caplog.at_level(logging.DEBUG, logger="ddtrace.llmobs._llmobs"):
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert "Failed to parse LLMObs parent ID from request headers." not in caplog.text
+
+
+def test_activate_distributed_context_garbage_parent_id_still_warns(llmobs, caplog):
+    ctx = Context(trace_id=123456789, span_id=987654321)
+    ctx._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = _DECIMAL_TRACE_ID
+    ctx._meta[PROPAGATED_PARENT_ID_KEY] = "not-a-number"
+    with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._llmobs"):
+        llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    assert "Failed to parse LLMObs parent ID from request headers." in caplog.text
 
 
 def test_propagated_sample_rate_stored_in_meta_struct(llmobs):
