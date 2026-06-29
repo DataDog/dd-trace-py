@@ -73,7 +73,7 @@ include:
       stage: "tests"
       condition: '$NIGHTLY_BUILD == "true"'
 
-system-tests-param:
+system_tests_param:
   extends: .system_tests_param_base
   stage: tests
   rules:
