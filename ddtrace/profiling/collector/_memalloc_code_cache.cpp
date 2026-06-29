@@ -21,7 +21,7 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity)
     map_.reserve(max_capacity_);
 }
 
-CacheHit
+CacheResult
 CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept
 {
     auto it = map_.find(code);
