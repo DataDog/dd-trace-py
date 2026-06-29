@@ -75,8 +75,7 @@ raw_ppoll_with_pending_sigprof_impl(long burn_ms, long timeout_ms, int use_raw_s
 #else
         rc = ppoll(NULL, 0, &timeout, &wait_mask);
 #endif
-    }
-    else {
+    } else {
         rc = ppoll(NULL, 0, &timeout, &wait_mask);
     }
     const int saved_errno = errno;
@@ -101,18 +100,16 @@ py_raw_ppoll_with_pending_sigprof(PyObject* self, PyObject* args, PyObject* kwar
     int use_raw_syscall = 1;
     static char* kwlist[] = { "burn_ms", "timeout_ms", "release_gil", "use_raw_syscall", NULL };
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|llpp", kwlist, &burn_ms, &timeout_ms, &release_gil,
-                                     &use_raw_syscall)) {
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|llpp", kwlist, &burn_ms, &timeout_ms, &release_gil, &use_raw_syscall)) {
         return NULL;
     }
 
     int result;
     if (release_gil) {
-        Py_BEGIN_ALLOW_THREADS
-        result = raw_ppoll_with_pending_sigprof_impl(burn_ms, timeout_ms, use_raw_syscall);
+        Py_BEGIN_ALLOW_THREADS result = raw_ppoll_with_pending_sigprof_impl(burn_ms, timeout_ms, use_raw_syscall);
         Py_END_ALLOW_THREADS
-    }
-    else {
+    } else {
         result = raw_ppoll_with_pending_sigprof_impl(burn_ms, timeout_ms, use_raw_syscall);
     }
 
@@ -149,27 +146,26 @@ py_raw_pthread_burn_cpu(PyObject* self, PyObject* args)
         return PyLong_FromLong(rc);
     }
 
-    Py_BEGIN_ALLOW_THREADS
-    rc = pthread_join(thread, NULL);
+    Py_BEGIN_ALLOW_THREADS rc = pthread_join(thread, NULL);
     Py_END_ALLOW_THREADS
 
-    return PyLong_FromLong(rc);
+      return PyLong_FromLong(rc);
 }
 
 static PyMethodDef module_methods[] = {
-    { "raw_ppoll_with_pending_sigprof", (PyCFunction)py_raw_ppoll_with_pending_sigprof,
+    { "raw_ppoll_with_pending_sigprof",
+      (PyCFunction)py_raw_ppoll_with_pending_sigprof,
       METH_VARARGS | METH_KEYWORDS,
       "Block SIGPROF, burn thread CPU, then atomically unblock SIGPROF inside ppoll without retrying EINTR." },
-    { "raw_pthread_burn_cpu", py_raw_pthread_burn_cpu, METH_VARARGS,
+    { "raw_pthread_burn_cpu",
+      py_raw_pthread_burn_cpu,
+      METH_VARARGS,
       "Start and join a raw pthread that burns CPU without entering Python." },
     { NULL, NULL, 0, NULL },
 };
 
 static struct PyModuleDef module_definition = {
-    PyModuleDef_HEAD_INIT,
-    "native_cpu_timer_syscall_hazards",
-    "Native helpers for CPU timer syscall hazard tests.",
-    -1,
+    PyModuleDef_HEAD_INIT, "native_cpu_timer_syscall_hazards", "Native helpers for CPU timer syscall hazard tests.", -1,
     module_methods,
 };
 
