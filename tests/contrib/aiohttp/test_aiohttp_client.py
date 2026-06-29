@@ -1,4 +1,3 @@
-import gc
 import os
 
 import aiohttp
@@ -257,7 +256,8 @@ async def test_base_url(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_client_response_not_retained_after_request():
-    """Regression test for GH-18781: tracer must not retain ClientResponse objects."""
+    """Regression test: tracer must not retain ClientResponse objects after a request."""
+    import gc
     import resource
     import sys
 
