@@ -50,6 +50,8 @@ class ChatMessage(TypedDict):
 
 
 class PromptResponse(TypedDict, total=False):
+    # Mirrors the backend PromptTemplate struct (dd-source domain/prompt.go);
+    # not all fields are populated by every CRUD route.
     id: str
     prompt_id: str
     title: str
