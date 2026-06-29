@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where traces buffered before ``os.fork()`` could be sent twice, once by the parent and once by the child.

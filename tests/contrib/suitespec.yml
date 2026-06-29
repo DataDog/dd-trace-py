@@ -169,6 +169,8 @@ components:
     - ddtrace/ext/memcached.py
   pynamodb:
     - ddtrace/contrib/internal/pynamodb/*
+  pytorch:
+    - ddtrace/contrib/internal/pytorch/*
   pyodbc:
     - ddtrace/contrib/internal/pyodbc/*
   pyramid:
@@ -177,6 +179,8 @@ components:
   ray:
     - ddtrace/contrib/internal/ray/*
     - ddtrace/contrib/ray.py
+  ray_serve:
+    - ddtrace/contrib/internal/ray_serve/*
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
@@ -1126,6 +1130,18 @@ suites:
       - '@pynamodb'
       - tests/contrib/pynamodb/*
     snapshot: true
+  pytorch:
+    venvs_per_job: 1
+    skip_venv_artifacts: true
+    skip_pip_cache: true
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytorch'
+      - tests/contrib/pytorch/*
+    snapshot: true
   pyodbc:
     parallelism: 1
     paths:
@@ -1156,8 +1172,23 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray/*
       - tests/snapshots/tests.contrib.ray.*
+    pattern: ^ray$
+    snapshot: true
+  ray_serve:
+    parallelism: 6
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ray'
+      - tests/contrib/ray_serve/*
+      - tests/contrib/ray_serve/multi_app/*
+      - tests/snapshots/tests.contrib.ray_serve.*
+    pattern: ^ray_serve$
     snapshot: true
   redis:
     parallelism: 5
