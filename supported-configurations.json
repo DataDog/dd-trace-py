@@ -2481,6 +2481,16 @@
         "default": "false"
       }
     ],
+    "DD_MISTRALAI_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_MISTRALAI_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_MLFLOW_SERVICE": [
       {
         "implementation": "A",
@@ -4397,6 +4407,13 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_TRACE_MISTRALAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_MLFLOW_ENABLED": [
