@@ -105,6 +105,11 @@ cdef extern from "code_provenance_interface.hpp":
     void code_provenance_set_file_path(string_view file_path)
 
 
+cdef extern from "upload_thread.hpp":
+    void ddup_upload_thread_start(double interval_s, PyObject* tick)
+    void ddup_upload_thread_stop() nogil
+
+
 # Create wrappers for cython
 cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
     if not str_arg:
@@ -442,6 +447,21 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
 
     with nogil:
         ddup_upload()
+
+
+def start_upload_thread(interval: float, tick) -> None:
+    # Start the profiler's own native upload thread. `tick` is a no-argument
+    # callable invoked every `interval` seconds; it returns the next interval in
+    # seconds. The thread is self-contained in the profiling native code and
+    # does not rely on dd-trace-py's PeriodicThread machinery.
+    ddup_upload_thread_start(<double>interval, <PyObject*>tick)
+
+
+def stop_upload_thread() -> None:
+    # Release the GIL while stopping so the native worker can finish any
+    # in-flight tick (which needs the GIL) before it observes the stop request.
+    with nogil:
+        ddup_upload_thread_stop()
 
 
 cdef class SampleHandle:
