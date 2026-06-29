@@ -289,11 +289,15 @@ def test_realtime_state_function_call_captured():
     state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r2", transcript="It's sunny."))
     state.on_server_event(_ns(type="response.done", response=_ns(id="r2", status="completed")))
     resp2 = integration.responses[1]
+    # The result is labeled with the originating call's function name (carried over by call_id), so
+    # the UI shows "Tool result: get_weather" rather than "unknown".
     assert resp2["input_messages"] == [
         {
             "role": "user",
             "content": "",
-            "tool_results": [{"tool_id": "call_1", "result": "sunny", "type": "function_call_output"}],
+            "tool_results": [
+                {"tool_id": "call_1", "result": "sunny", "type": "function_call_output", "name": "get_weather"}
+            ],
         }
     ]
     assert resp2["output_messages"] == [{"role": "assistant", "content": "It's sunny."}]

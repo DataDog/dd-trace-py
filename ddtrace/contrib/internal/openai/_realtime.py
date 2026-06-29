@@ -141,6 +141,8 @@ class _RealtimeState:
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
+        # call_id -> function name, so a later function_call_output can be labeled with its tool name.
+        self._tool_call_names: dict[str, str] = {}
         # Turns whose response is done but whose input transcription hasn't arrived yet.
         self._awaiting: list[Any] = []
         self._closed = False
@@ -262,6 +264,12 @@ class _RealtimeState:
         turn.model = _get_attr(response, "model", None) or turn.model or self._model
         turn.status = _get_attr(response, "status", None)
         turn.tool_calls, turn.tool_results = _extract_response_tools(response)
+        # Remember each function call's name so the function_call_output the app returns later can be
+        # labeled with it (the output event itself only carries the call_id).
+        for tool_call in turn.tool_calls:
+            call_id = tool_call.get("tool_id")
+            if call_id and tool_call.get("type") == "function":
+                self._tool_call_names[call_id] = tool_call.get("name", "")
         if not turn.input.transcript and turn.input.item_id is not None:
             turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
         # Hold the span open for a late input transcription ONLY when transcription is actually
@@ -290,6 +298,7 @@ class _RealtimeState:
             self._finalize_turn(turn)
         self._responses.clear()
         self._input_transcripts.clear()
+        self._tool_call_names.clear()
 
     # -- tagging helpers ----------------------------------------------------
 
@@ -436,13 +445,17 @@ class _RealtimeState:
         # A tool result the app feeds back becomes a tool_result on the next turn's input.
         if _get_attr(item, "type", None) == "function_call_output":
             output = _get_attr(item, "output", None)
-            self._pending_input.tool_results.append(
-                ToolResult(
-                    tool_id=str(_get_attr(item, "call_id", "") or ""),
-                    result=str(output) if output is not None else "",
-                    type="function_call_output",
-                )
+            call_id = str(_get_attr(item, "call_id", "") or "")
+            result = ToolResult(
+                tool_id=call_id,
+                result=str(output) if output is not None else "",
+                type="function_call_output",
             )
+            # Label the result with the function name carried by the originating call.
+            name = self._tool_call_names.pop(call_id, None)
+            if name:
+                result["name"] = name
+            self._pending_input.tool_results.append(result)
             return
         # Only user items contribute to the input turn; skip assistant/system items.
         role = _get_attr(item, "role", None)
