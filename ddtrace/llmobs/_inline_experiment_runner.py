@@ -111,6 +111,72 @@ def comparator_from_spec(kind: str = "structural", ignore: Optional[list[str]] =
 
 
 # --------------------------------------------------------------------------- #
+# Evaluators — richer per-case checks that stack behind the comparator guard.
+# AIDEV-NOTE: `evaluate_one` deliberately MIRRORS the engine's per-type evaluator
+# dispatch (`Experiment._evaluate_record._run_single_evaluator` in _experiment.py) so a
+# local `replay --evaluate` yields the same verdict as `replay --publish` (which routes
+# through the engine). The engine path is intentionally left untouched — it carries
+# retries / semaphore / instance state we don't need locally. If the engine's dispatch
+# changes, keep this in sync. See RFC "Replay data sources" / Open Question #5.
+# --------------------------------------------------------------------------- #
+def resolve_evaluators(evaluators: Any) -> list[Any]:
+    """Resolve the decorator's lazy ``evaluators`` into a concrete list.
+
+    Accepts a list/tuple (used as-is) or a zero-arg callable returning a list (called
+    here — never at import, so a credentialed evaluator is built only by an activated
+    runner). ``None`` -> ``[]``.
+    """
+    if evaluators is None:
+        return []
+    if isinstance(evaluators, (list, tuple)):
+        return list(evaluators)
+    if callable(evaluators):
+        produced = evaluators()
+        return list(produced) if produced else []
+    return [evaluators]
+
+
+def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> dict[str, Any]:
+    """Score a single evaluator for one replayed case; return a normalized verdict row.
+
+    Returns ``{name, value, assessment, reasoning, error}``. The recorded baseline is the
+    evaluator's ``expected_output``; the new output is ``output_data``.
+    """
+    from ddtrace.llmobs._experiment import BaseAsyncEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorContext
+    from ddtrace.llmobs._experiment import EvaluatorResult
+    from ddtrace.llmobs._experiment import _is_class_evaluator
+    from ddtrace.llmobs._experiment import _is_function_evaluator
+
+    name = getattr(evaluator, "name", None) or getattr(evaluator, "__name__", None) or repr(evaluator)
+    context = EvaluatorContext(input_data=input_data, output_data=new, expected_output=recorded)
+    try:
+        if isinstance(evaluator, BaseAsyncEvaluator):
+            result: Any = asyncio.run(evaluator.evaluate(context))
+        elif _is_class_evaluator(evaluator):  # BaseEvaluator, including LLMJudge
+            result = evaluator.evaluate(context)
+        elif asyncio.iscoroutinefunction(evaluator):
+            result = asyncio.run(evaluator(input_data, new, recorded))
+        elif _is_function_evaluator(evaluator):
+            result = evaluator(input_data, new, recorded)
+        else:
+            return {"name": name, "value": None, "assessment": None, "reasoning": None, "error": "unsupported type"}
+    except Exception as e:  # noqa: BLE001 - surface eval errors per-row, never abort the replay
+        return {"name": name, "value": None, "assessment": None, "reasoning": None, "error": "%r" % (e,)}
+
+    if isinstance(result, EvaluatorResult):
+        return {
+            "name": name,
+            "value": result.value,
+            "assessment": result.assessment,
+            "reasoning": result.reasoning,
+            "error": None,
+        }
+    assessment = ("pass" if result else "fail") if isinstance(result, bool) else None
+    return {"name": name, "value": result, "assessment": assessment, "reasoning": None, "error": None}
+
+
+# --------------------------------------------------------------------------- #
 # Replay
 # --------------------------------------------------------------------------- #
 def _invoke(spec: dict[str, Any], input_kwargs: dict[str, Any]) -> Any:
@@ -134,12 +200,17 @@ def _invoke(spec: dict[str, Any], input_kwargs: dict[str, Any]) -> Any:
 
 
 def replay(
-    name: str, comparator: Callable[[Any, Any], bool] = exact, cases: Optional[list[dict[str, Any]]] = None
+    name: str,
+    comparator: Callable[[Any, Any], bool] = exact,
+    cases: Optional[list[dict[str, Any]]] = None,
+    score_evaluators: bool = False,
 ) -> list[dict[str, Any]]:
     """Re-drive a subject over its captured cases; return per-case result rows.
 
     Each row: ``{input, recorded, new, status}`` where status is
-    MATCH / CHANGED / ERROR / NO_END.
+    MATCH / CHANGED / ERROR / NO_END. When ``score_evaluators`` is set, the subject's
+    attached ``evaluators`` (resolved lazily here) are scored on each replayed case and
+    added as ``row["evals"]`` — a list of ``{name, value, assessment, reasoning, error}``.
     """
     spec = _REGISTRY.get(name, {})
     entry = spec.get("start")
@@ -148,6 +219,8 @@ def replay(
     has_end = "end" in spec
     start_output_fn = spec.get("start_output")
     cases = cases if cases is not None else spec.get("cases", [])
+    # Lazy: only resolve (and thus construct) evaluators when explicitly scoring.
+    evaluators = resolve_evaluators(spec.get("evaluators")) if score_evaluators else []
 
     results: list[dict[str, Any]] = []
     for case in cases:
@@ -170,5 +243,7 @@ def replay(
             new = _start_output(start_output_fn, ret)  # single-function unit: return is the output
         row["new"] = _normalize(new)
         row["status"] = "MATCH" if comparator(recorded, row["new"]) else "CHANGED"
+        if evaluators:  # score richer checks against the (recorded -> new) pair for this case
+            row["evals"] = [evaluate_one(ev, recorded, row["new"], case["input"]) for ev in evaluators]
         results.append(row)
     return results

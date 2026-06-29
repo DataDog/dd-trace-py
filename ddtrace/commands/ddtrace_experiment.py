@@ -94,6 +94,14 @@ def _print_report(name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
             "  %-8s %-32s %-22s %-22s"
             % (r["status"], _trunc(r["input"], 32), _trunc(r["recorded"], 22), _trunc(r["new"], 22))
         )
+        for ev in r.get("evals", []):
+            if ev["error"]:
+                verdict = "error: %s" % ev["error"]
+            else:
+                verdict = ev["assessment"] or ev["value"]
+                if ev["assessment"] == "fail":
+                    counts["EVAL_FAIL"] = counts.get("EVAL_FAIL", 0) + 1
+            print("      eval %-24s %s" % (_trunc(ev["name"], 24), _trunc(verdict, 46)))
     print("  " + "-" * 92)
     print("  " + "  ".join("%s=%d" % (k, v) for k, v in counts.items()) + "\n")
     return counts
@@ -133,6 +141,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     rep.add_argument("--ml-app", default=None, help="ml_app for --publish (default: $DD_LLMOBS_ML_APP)")
     rep.add_argument("--project", default=None, help="project name for --publish")
     rep.add_argument("--experiment-name", default=None, help="experiment name for --publish")
+    rep.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="also score the boundary's attached `evaluators` locally and print verdicts "
+        "(may call provider APIs for LLM judges); a failing evaluator gates the exit code. "
+        "On --publish, evaluators always run through the Experiments engine.",
+    )
 
     lst = sub.add_parser("list", help="import the target and list registered experiment subjects")
     lst.add_argument("target", help="module[:entrypoint] to import")
@@ -223,13 +238,14 @@ def main() -> None:
         if name not in ie.registered_experiments():
             print("  (skipping %r — not registered by %r)" % (name, args.target))
             continue
-        counts = _print_report(name, runner.replay(name, comparator, cases=cases))
+        counts = _print_report(name, runner.replay(name, comparator, cases=cases, score_evaluators=args.evaluate))
         for k, v in counts.items():
             total[k] = total.get(k, 0) + v
     ie._set_mode(ie.Mode.OFF)
 
-    # CI-friendly: non-zero exit if anything changed, errored, or never reached its end.
-    sys.exit(1 if (total.get("CHANGED") or total.get("ERROR") or total.get("NO_END")) else 0)
+    # CI-friendly: non-zero exit if anything changed, errored, never reached its end, or
+    # (when --evaluate) a user evaluator returned a failing assessment.
+    sys.exit(1 if (total.get("CHANGED") or total.get("ERROR") or total.get("NO_END") or total.get("EVAL_FAIL")) else 0)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ from ddtrace.llmobs._inline_experiment import _ExperimentStop
 from ddtrace.llmobs._inline_experiment import _set_mode
 from ddtrace.llmobs._inline_experiment import _start_output
 from ddtrace.llmobs._inline_experiment_runner import _invoke
+from ddtrace.llmobs._inline_experiment_runner import resolve_evaluators
 
 
 log = get_logger(__name__)
@@ -83,11 +84,16 @@ def run_as_experiment(
         description="Inline-experiment baseline for %r (captured locally)." % name,
         records=records,
     )
+    # The always-on `regression_match` guard runs first; the subject's attached evaluators
+    # (resolved lazily here — never at import) stack on top. The engine dispatches each by
+    # type (BaseEvaluator / LLMJudge / plain fn) and emits one eval metric per evaluator.
+    spec = _REGISTRY.get(name, {})
+    user_evaluators = resolve_evaluators(spec.get("evaluators"))
     experiment = LLMObs.experiment(
         experiment_name or ("inline-%s" % name),
         _make_task(name),
         dataset,
-        evaluators=[_make_evaluator(comparator)],
+        evaluators=[_make_evaluator(comparator), *user_evaluators],
         project_name=project_name,
         tags={"source": "ddtrace-experiment"},
     )

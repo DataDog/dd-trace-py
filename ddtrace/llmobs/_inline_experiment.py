@@ -57,7 +57,7 @@ _mode: Mode = Mode.OFF
 # trace. Independent of activation; only a deliberate runner sets it (default off).
 _trace: bool = False
 
-# name -> {"start", "inputs", "start_output", "end", "end_output", "fixtures", "cases"}
+# name -> {"start", "inputs", "start_output", "end", "end_output", "fixtures", "evaluators", "cases"}
 _REGISTRY: dict[str, dict[str, Any]] = {}
 
 # Pairs a start (one function) with an end (possibly another) across one call tree;
@@ -267,6 +267,7 @@ def experiment_start(
     output: Optional[Callable[..., Any]] = None,
     fixtures: Optional[Callable[..., Any]] = None,
     trace_link: Optional[Callable[..., Any]] = None,
+    evaluators: Optional[Any] = None,
 ) -> Callable[..., Any]:
     """Mark the ENTRY point of an experiment subject.
 
@@ -285,12 +286,20 @@ def experiment_start(
         outside (so there is no active span at the decorator boundary), e.g. a function that
         returns its own span context. With ``trace_link`` set, no synthetic span is created.
         Applies to the single-function shape.
+    :param evaluators: Optional richer checks scored alongside the ``regression_match``
+        comparator — SDK evaluators (``BaseEvaluator`` / ``LLMJudge``) or plain functions
+        ``(input_data, output_data, expected_output) -> bool | EvaluatorResult``. Accepts a
+        ``list`` (plain functions) **or** a zero-arg callable returning the list — the same
+        lazy pattern as ``fixtures``, so a credentialed evaluator is never constructed by a
+        production import. Resolved only by an activated runner (``replay --evaluate`` scores
+        them locally; ``replay --publish`` scores them through the Experiments engine), never
+        when the decorator is a no-op.
 
     Inert (pure passthrough) unless a runner has activated CAPTURE/REPLAY.
     """
 
     def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
-        _spec(name).update(start=fn, inputs=inputs, start_output=output, fixtures=fixtures)
+        _spec(name).update(start=fn, inputs=inputs, start_output=output, fixtures=fixtures, evaluators=evaluators)
 
         def _finish_capture(
             case_inputs: dict[str, Any], reached_end: bool, result: Any, trace: Optional[dict[str, Any]]

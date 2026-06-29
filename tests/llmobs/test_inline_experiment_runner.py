@@ -151,6 +151,102 @@ def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
     assert ev({}, {"v": 5}, {"v": 9, "extra": 1}) is False  # extra field -> no match
 
 
+# --- evaluators ------------------------------------------------------------ #
+def test_resolve_evaluators():
+    def fn(input_data, output_data, expected_output):
+        return True
+
+    assert runner.resolve_evaluators(None) == []
+    assert runner.resolve_evaluators([fn]) == [fn]  # list used as-is
+    assert runner.resolve_evaluators(lambda: [fn]) == [fn]  # thunk is called
+    assert runner.resolve_evaluators(fn) == [fn]  # bare single -> wrapped
+
+
+def test_evaluate_one_dispatches_function_class_and_errors():
+    from ddtrace.llmobs._experiment import BaseEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorResult
+
+    def eq(input_data, output_data, expected_output):  # plain function returning bool
+        return output_data == expected_output
+
+    r = runner.evaluate_one(eq, recorded=1, new=1, input_data={})
+    assert r["name"] == "eq" and r["assessment"] == "pass" and r["value"] is True
+
+    class MyJudge(BaseEvaluator):  # class evaluator returning a full EvaluatorResult
+        def __init__(self):
+            super().__init__(name="myjudge")
+
+        def evaluate(self, ctx):
+            ok = ctx.output_data == ctx.expected_output
+            return EvaluatorResult(value=ok, assessment="pass" if ok else "fail", reasoning="r")
+
+    r = runner.evaluate_one(MyJudge(), recorded="a", new="b", input_data={})
+    assert r["name"] == "myjudge" and r["assessment"] == "fail" and r["reasoning"] == "r"
+
+    def boom(input_data, output_data, expected_output):  # an evaluator error becomes a row, never propagates
+        raise ValueError("x")
+
+    r = runner.evaluate_one(boom, recorded=1, new=1, input_data={})
+    assert r["error"] and r["assessment"] is None
+
+
+def test_replay_scores_attached_evaluators_only_when_enabled():
+    _set_mode(Mode.CAPTURE)
+
+    def at_least_as_long(input_data, output_data, expected_output):
+        return len(output_data) >= len(expected_output)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [at_least_as_long])
+    def f(x):
+        return x
+
+    f("hello")
+    _set_mode(Mode.REPLAY)
+
+    assert "evals" not in runner.replay("e", runner.exact)[0]  # off by default
+    rows = runner.replay("e", runner.exact, score_evaluators=True)
+    assert rows[0]["evals"][0]["name"] == "at_least_as_long" and rows[0]["evals"][0]["assessment"] == "pass"
+
+
+def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
+    import ddtrace.llmobs as llmobs_pkg
+    from ddtrace.llmobs import _inline_experiment_sdk as sdk
+
+    captured: dict = {}
+
+    class _Exp:
+        url = "http://exp"
+
+        def run(self):
+            pass
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, **kw):
+            return object()
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            captured["evaluators"] = evaluators
+            return _Exp()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    def my_check(input_data, output_data, expected_output):
+        return output_data == expected_output
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [my_check])
+    def f(x):
+        return x
+
+    sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural)
+    evs = captured["evaluators"]
+    assert evs[0].__name__ == "regression_match"  # always-on guard first
+    assert evs[1] is my_check  # user evaluator stacked on top
+
+
 # --- CLI helpers ----------------------------------------------------------- #
 def test_cli_arg_parser():
     p = cli._build_arg_parser()
@@ -160,6 +256,8 @@ def test_cli_arg_parser():
     assert a.command == "replay" and a.ignore == "a,b" and a.comparator == "structural"
     a = p.parse_args(["replay", "myapp", "--publish", "--project", "p", "--ml-app", "m"])
     assert a.publish is True and a.project == "p" and a.ml_app == "m"
+    assert p.parse_args(["replay", "myapp", "--evaluate"]).evaluate is True
+    assert p.parse_args(["replay", "myapp"]).evaluate is False
     assert p.parse_args(["list", "myapp"]).command == "list"
 
 
@@ -170,3 +268,17 @@ def test_cli_print_report_counts(capsys):
     ]
     counts = cli._print_report("e", rows)
     assert counts == {"MATCH": 1, "CHANGED": 1}
+
+
+def test_cli_print_report_counts_eval_fail(capsys):
+    rows = [
+        {
+            "input": {},
+            "recorded": 1,
+            "new": 1,
+            "status": "MATCH",
+            "evals": [{"name": "judge", "value": False, "assessment": "fail", "reasoning": None, "error": None}],
+        },
+    ]
+    counts = cli._print_report("e", rows)
+    assert counts["MATCH"] == 1 and counts["EVAL_FAIL"] == 1  # a failing eval is counted for the exit gate

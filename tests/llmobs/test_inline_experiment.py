@@ -39,6 +39,24 @@ def test_capture_single_function_unit_with_output_extractor():
     assert captured_cases("e") == [{"input": {"x": 3}, "output": 6}]
 
 
+def test_evaluators_stored_on_spec_and_not_resolved_when_off():
+    from ddtrace.llmobs._inline_experiment import _REGISTRY
+
+    calls = []
+
+    def boom():  # a thunk that would blow up if resolved — stands in for a credentialed LLMJudge
+        calls.append(1)
+        raise RuntimeError("must never be constructed in a production import / no-op call")
+
+    @experiment_start(name="e", evaluators=boom)
+    def f(x):
+        return x + 1
+
+    assert _REGISTRY["e"]["evaluators"] is boom  # stored verbatim, lazily
+    assert f(1) == 2  # OFF mode: pure passthrough
+    assert calls == []  # the thunk is never resolved at import or during a no-op call
+
+
 def test_capture_selective_inputs_excludes_live_infra():
     _set_mode(Mode.CAPTURE)
 
