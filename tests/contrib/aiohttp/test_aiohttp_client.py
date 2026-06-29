@@ -1,7 +1,5 @@
 import gc
 import os
-import resource
-import sys
 
 import aiohttp
 import pytest
@@ -259,22 +257,17 @@ async def test_base_url(snapshot_context):
 
 @pytest.mark.asyncio
 async def test_client_response_not_retained_after_request():
-    """Regression test for GH-18781.
+    """Regression test for GH-18781: tracer must not retain ClientResponse objects."""
+    import resource
+    import sys
 
-    ddtrace >= 4.9 (PR #17576) stored a strong reference to the full ClientResponse
-    object in HttpClientRequestEvent.set_response, preventing GC of response bodies
-    and causing ~1 MB of growth per request. Measured via RSS so that C-level
-    allocations (e.g. multidict, aiohttp internals) are captured.
-    """
     from aiohttp import web
     from aiohttp.test_utils import TestClient
     from aiohttp.test_utils import TestServer
 
     PAYLOAD_SIZE = 1 * 1024 * 1024  # 1 MB
     ITERS = 15
-    # Allow up to 8x the payload for baseline allocations; with the bug every body
-    # is retained so growth ≈ ITERS * PAYLOAD_SIZE ≈ 15 MB.
-    THRESHOLD_MB = 8
+    THRESHOLD_MB = 8  # bug retains all bodies: ~15 MB; fixed: ~2 MB
 
     app = web.Application()
     payload = b"x" * PAYLOAD_SIZE
