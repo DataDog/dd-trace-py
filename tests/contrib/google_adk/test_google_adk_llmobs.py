@@ -151,6 +151,30 @@ class TestLLMObsGoogleADK:
             metrics={},
         )
 
+    def test_agent_span_kept_when_extraction_raises(self, adk, test_spans, google_adk_llmobs):
+        """Regression test for issue #18698.
+
+        If the operation-specific extractor raises on malformed response data, the agent span must
+        still be annotated with its kind so it is not dropped (which would orphan its child spans).
+        """
+        integration = adk._datadog_integration
+        span = integration.trace(
+            "Runner.run_async",
+            provider="google",
+            model="gemini-2.5-pro",
+            kind="agent",
+            submit_to_llmobs=True,
+        )
+
+        with mock.patch.object(integration, "_llmobs_set_tags_agent", side_effect=ValueError("malformed Gemini Part")):
+            # The public entry point swallows-and-logs extractor exceptions, mirroring production.
+            integration.llmobs_set_tags(span, args=[], kwargs={}, response=None, operation="agent")
+
+        span.finish()
+
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        assert llmobs_data["meta"]["span"]["kind"] == "agent"
+
     def test_code_execution(self, mock_invocation_context, test_spans, google_adk_llmobs):
         """Test that code execution creates a valid LLMObs span event."""
         from google.adk.code_executors.code_execution_utils import CodeExecutionInput

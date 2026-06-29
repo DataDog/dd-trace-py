@@ -330,6 +330,47 @@ def test_normalize_contents_google_genai(contents, expected):
             assert len(actual["parts"]) == len(expected_item["parts"])
 
 
+def test_extract_message_from_part_inline_data():
+    """inline_data parts are summarized by mime type instead of falling through to a class repr."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.Part(inline_data=types.Blob(mime_type="image/png", data=b"\x89PNG"))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[inline data: image/png]"
+
+
+def test_extract_message_from_part_file_data():
+    """file_data parts surface the file uri instead of a class repr."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.Part(file_data=types.FileData(file_uri="gs://bucket/image.png", mime_type="image/png"))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[file data: gs://bucket/image.png]"
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        types.Part(),  # empty part
+        types.Part(thought_signature=b"opaque-reasoning-signature"),  # thought-signature-only part
+    ],
+)
+def test_extract_message_from_part_unhandled_is_empty_not_unsupported(part):
+    """Unhandled parts produce empty content rather than a confusing 'Unsupported file type' string.
+
+    Regression coverage for issue #18698: an unhandled Gemini Part must not raise or emit a class
+    repr, since in the google_adk agent path that previously contributed to dropping the agent span.
+    """
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(part, "model")
+
+    assert "Unsupported file type" not in message.get("content", "")
+    assert message.get("content", "") == ""
+
+
 def test_google_genai_chat_send_message(mock_generate_content, genai_client, snapshot_context):
     with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")

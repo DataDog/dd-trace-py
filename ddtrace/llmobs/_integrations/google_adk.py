@@ -35,19 +35,24 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
-        if operation == "agent":
-            self._llmobs_set_tags_agent(span, args, kwargs, response)
-        elif operation == "tool":
-            self._llmobs_set_tags_tool(span, args, kwargs, response)
-        elif operation == "code_execute":
-            self._llmobs_set_tags_code_execute(span, args, kwargs, response)
-
+        # Commit the span kind before the operation-specific extraction below, which may raise on
+        # malformed response data. The caller swallows-and-logs that exception, so if the kind is
+        # not already set the span gets dropped for "missing span kind" and its children orphaned.
+        # The kind/model/provider values are independent of the extraction (set at span start), so
+        # annotating first lets an extraction failure degrade to empty I/O instead of a dropped span.
         _annotate_llmobs_span_data(
             span,
             kind=operation,
             model_name=span.get_tag("google_adk.request.model") or "",
             model_provider=span.get_tag("google_adk.request.provider") or "",
         )
+
+        if operation == "agent":
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
+        elif operation == "tool":
+            self._llmobs_set_tags_tool(span, args, kwargs, response)
+        elif operation == "code_execute":
+            self._llmobs_set_tags_code_execute(span, args, kwargs, response)
 
     def _llmobs_set_tags_agent(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]

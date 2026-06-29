@@ -216,7 +216,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
             name=str(_get_attr(function_response, "name", "") or ""),
-            result=result if isinstance(result, str) else json.dumps(result),
+            result=result if isinstance(result, str) else (safe_json(result) or ""),
             tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
@@ -237,7 +237,23 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = safe_json({"outcome": str(outcome), "output": str(output)}) or ""
         return message
 
-    return Message(content="Unsupported file type: {}".format(type(part)), role=role)
+    inline_data = _get_attr(part, "inline_data", None)
+    if inline_data:
+        mime_type = str(_get_attr(inline_data, "mime_type", "") or "")
+        message["content"] = "[inline data: {}]".format(mime_type) if mime_type else "[inline data]"
+        return message
+
+    file_data = _get_attr(part, "file_data", None)
+    if file_data:
+        descriptor = str(_get_attr(file_data, "file_uri", "") or _get_attr(file_data, "mime_type", "") or "")
+        message["content"] = "[file data: {}]".format(descriptor) if descriptor else "[file data]"
+        return message
+
+    # Parts with no renderable content (e.g. empty parts, or thought-signature-only parts that
+    # carry reasoning metadata but no text) are left with empty content rather than a confusing
+    # "Unsupported file type" placeholder. Returning a valid message also keeps the google_adk
+    # agent-span extraction from raising, which would otherwise drop the whole span (issue #18698).
+    return message
 
 
 def llmobs_get_metadata_vertexai(kwargs, instance):
