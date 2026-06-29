@@ -15,9 +15,10 @@ CodeFunctionCache* CodeFunctionCache::instance = nullptr;
 CodeFunctionCache::CodeFunctionCache(size_t capacity)
   : max_capacity_(std::clamp(capacity, MIN_CAPACITY, MAX_CAPACITY))
 {
-    /* Reserve up-front so the map performs no heap allocations on insert until
-     * max_capacity_ entries are present. absl::flat_hash_map::reserve(n) ensures
-     * capacity for at least n elements before the next rehash. */
+    /* Reserve buckets up-front so the map does not rehash until max_capacity_
+     * entries are present. std::unordered_map::reserve(n) sizes the bucket array
+     * for at least n elements; note that, being node-based, each insert still
+     * allocates a node regardless of this reservation. */
     map_.reserve(max_capacity_);
 }
 

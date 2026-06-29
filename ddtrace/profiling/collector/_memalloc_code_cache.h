@@ -8,18 +8,14 @@
 #include <cstddef>
 #include <cstdint>
 
-/* Use absl::flat_hash_map in production builds (open-addressing, contiguous
- * storage, no per-insert heap allocation once reserved). Fall back to
- * std::unordered_map in debug builds where Abseil may not be compiled in. */
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
-#include "absl/container/flat_hash_map.h"
-template<typename K, typename V>
-using CodeCacheMap = absl::flat_hash_map<K, V>;
-#else
+/* DoE variant D: always use std::unordered_map as the code-cache container,
+ * regardless of build type or whether Abseil is compiled in. This isolates the
+ * effect of the container choice (node-based std::unordered_map vs the custom
+ * set-associative cache and vs absl::flat_hash_map) on the allocator-hook hot
+ * path. The rest of the file (heap map, etc.) is unchanged from variant B. */
 #include <unordered_map>
 template<typename K, typename V>
 using CodeCacheMap = std::unordered_map<K, V>;
-#endif
 
 namespace Datadog {
 
@@ -50,10 +46,11 @@ static_assert(sizeof(CacheHit) <= 16,
  * with repetitive stacks. The cache short-circuits those three libdd calls for any frame
  * whose code object has been seen before.
  *
- * Implementation: absl::flat_hash_map reserved at construction to max_capacity entries.
- * Reservation avoids all post-construction heap allocations for the common case (typical
- * workloads stay well under 1024 unique frames on the hot path). When capacity is exceeded,
- * one entry is evicted before inserting the new one, keeping map size bounded.
+ * Implementation (variant D): std::unordered_map with buckets reserved at construction
+ * to max_capacity entries. Unlike a flat/open-addressing map, std::unordered_map is
+ * node-based, so each insert still heap-allocates a node even after reserve(); only the
+ * bucket array is preallocated. When capacity is exceeded, one entry is evicted before
+ * inserting the new one, keeping map size bounded.
  *
  * Address reuse: the key is a raw PyCodeObject* and CPython may free a code object and
  * reassign its address to a new one. Each entry therefore also stores the code object's
