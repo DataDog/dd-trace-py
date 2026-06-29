@@ -209,7 +209,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             processing_interval = config._trace_writer_interval_seconds
         if timeout is None:
             timeout = agent_config.trace_agent_timeout_seconds
-        super(HTTPWriter, self).__init__(interval=processing_interval)
+        super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
@@ -545,10 +545,38 @@ class AgentlessTraceWriter(HTTPWriter):
     """
 
     HTTP_METHOD = "POST"
-    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
-    INTAKE_HOST = "public-trace-http-intake.logs"
     # Agentless payloads must be under 15 MB.
     MAX_BUFFER_SIZE = 15 << 20  # 15 MB
+    INTAKE_URLS: dict[str, str] = {
+        "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
+        "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
+        "us3.datadoghq.com": "https://trace.browser-intake-us3-datadoghq.com",
+        "us5.datadoghq.com": "https://trace.browser-intake-us5-datadoghq.com",
+        "ap1.datadoghq.com": "https://browser-intake-ap1-datadoghq.com",
+        "ap2.datadoghq.com": "https://browser-intake-ap2-datadoghq.com",
+        "uk1.datadoghq.com": "https://browser-intake-uk1-datadoghq.com",
+        "datad0g.com": "https://public-trace-http-intake.logs.datad0g.com",
+    }
+    FALLBACK_INTAKE_URL_TEMPLATE = "https://browser-intake-{}.{}"
+
+    @staticmethod
+    def compute_intake_url(site: str) -> str:
+        url = AgentlessTraceWriter.INTAKE_URLS.get(site)
+        if url is not None:
+            return url
+        # Fallback: strip the TLD, replace remaining dots with dashes, reattach TLD.
+        # e.g. "ddog-gov.com"    -> "browser-intake-ddog-gov.com"
+        #      "us2.ddog-gov.com" -> "browser-intake-us2-ddog-gov.com"
+        prefix, _, tld = site.rpartition(".")
+        url = AgentlessTraceWriter.FALLBACK_INTAKE_URL_TEMPLATE.format(prefix.replace(".", "-"), tld)
+        log.warning(
+            "Datadog site %r is not explicitly supported for agentless tracing. "
+            "Attempting to use %r. To resolve this, upgrade to a newer version of "
+            "ddtrace that supports this site, or disable agentless trace export.",
+            site,
+            url,
+        )
+        return url
 
     def __init__(
         self,
@@ -748,7 +776,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        super(NativeWriter, self).__init__(interval=processing_interval)
+        super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._buffer_size = buffer_size
@@ -1112,7 +1140,7 @@ def create_trace_writer(
         return LogWriter()
 
     if agentless:
-        intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+        intake_url = AgentlessTraceWriter.compute_intake_url(config._dd_site.lower())
         verify_url(intake_url)
         return AgentlessTraceWriter(
             intake_url=intake_url,
