@@ -502,53 +502,50 @@
         }
     },
     {
-        "dependency": "stdlib.asyncio",
-        "aliases": [
-            "pytest-asyncio"
-        ],
+        "dependency": "pytest-asyncio",
         "integration": "asyncio",
         "auto-instrumented": true,
         "python_versions": {
             "3.9": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.21.1",
+                "maximum_package_version": "0.21.1",
                 "tested_versions": [
-                    ""
+                    "0.21.1"
                 ]
             },
             "3.10": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.21.1",
+                "maximum_package_version": "0.21.1",
                 "tested_versions": [
-                    ""
+                    "0.21.1"
                 ]
             },
             "3.11": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.21.1",
+                "maximum_package_version": "0.21.1",
                 "tested_versions": [
-                    ""
+                    "0.21.1"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.21.1",
+                "maximum_package_version": "0.21.1",
                 "tested_versions": [
-                    ""
+                    "0.21.1"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "1.2.0",
+                "maximum_package_version": "1.2.0",
                 "tested_versions": [
-                    ""
+                    "1.2.0"
                 ]
             },
             "3.14": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "1.2.0",
+                "maximum_package_version": "1.2.0",
                 "tested_versions": [
-                    ""
+                    "1.2.0"
                 ]
             }
         },
@@ -4931,39 +4928,36 @@
         }
     },
     {
-        "dependency": "stdlib.sqlite3",
-        "aliases": [
-            "pysqlite3-binary"
-        ],
+        "dependency": "pysqlite3-binary",
         "integration": "sqlite3",
         "auto-instrumented": true,
         "python_versions": {
             "3.9": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.5.2.post3",
+                "maximum_package_version": "0.5.2.post3",
                 "tested_versions": [
-                    ""
+                    "0.5.2.post3"
                 ]
             },
             "3.10": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.5.2.post3",
+                "maximum_package_version": "0.5.2.post3",
                 "tested_versions": [
-                    ""
+                    "0.5.2.post3"
                 ]
             },
             "3.11": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.5.2.post3",
+                "maximum_package_version": "0.5.2.post3",
                 "tested_versions": [
-                    ""
+                    "0.5.2.post3"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "",
-                "maximum_package_version": "",
+                "minimum_package_version": "0.5.2.post3",
+                "maximum_package_version": "0.5.2.post3",
                 "tested_versions": [
-                    ""
+                    "0.5.2.post3"
                 ]
             }
         }

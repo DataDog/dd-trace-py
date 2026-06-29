@@ -77,7 +77,7 @@ def _aggregate_python_version_bounds(python_versions: dict) -> tuple[str, str]:
 def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[str, dict[str, str]]]]:
     """
     Reads supported_versions.json (potentially multiple entries per integration),
-    returning {integration: {dependency: {'min': str, 'max': str}}} or None on error.
+    returning {integration: {dependency_or_alias: {'min': str, 'max': str}}} or None on error.
     """
     supported_data: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
 
@@ -89,10 +89,13 @@ def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[
             dependency_name = entry.get("dependency", "").strip()
             min_version, max_version = _aggregate_python_version_bounds(entry.get("python_versions", {}))
 
-            supported_data[integration_name][dependency_name] = {
+            version_bounds = {
                 "min": _normalize_version_string(min_version) if min_version else "N/A",
                 "max": _normalize_version_string(max_version) if max_version else "N/A",
             }
+            dependency_names = [dependency_name] + [alias.strip() for alias in entry.get("aliases", [])]
+            for name in dependency_names:
+                supported_data[integration_name][name] = dict(version_bounds)
 
     except Exception as e:
         print(f"Error reading supported versions file {filepath.relative_to(PROJECT_ROOT)}: {e}", file=sys.stderr)

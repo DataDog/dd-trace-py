@@ -135,7 +135,23 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
 
         integration_name = riot_venv.name.split(":", 1)[0]
 
-        if is_stdlib_package(integration_name):
+        dependency_names = get_dependency_names(integration_name)
+        found_dependency_version = False
+
+        if dependency_names:
+            locked_versions = parse_locked_versions(requirements_path)
+            for dependency in dependency_names:
+                version = locked_versions.get(dependency.lower())
+                if version:
+                    found_dependency_version = True
+                    tested_versions[integration_name][dependency].add(
+                        TestedVersion(
+                            version=version,
+                            python_version=riot_venv.python_version,
+                        )
+                    )
+
+        if is_stdlib_package(integration_name) and not found_dependency_version:
             tested_versions[integration_name][f"stdlib.{integration_name}"].add(
                 TestedVersion(
                     version="",
@@ -143,21 +159,6 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
                 )
             )
             continue
-
-        dependency_names = get_dependency_names(integration_name)
-        if not dependency_names:
-            continue
-
-        locked_versions = parse_locked_versions(requirements_path)
-        for dependency in dependency_names:
-            version = locked_versions.get(dependency.lower())
-            if version:
-                tested_versions[integration_name][dependency].add(
-                    TestedVersion(
-                        version=version,
-                        python_version=riot_venv.python_version,
-                    )
-                )
 
     return tested_versions
 
