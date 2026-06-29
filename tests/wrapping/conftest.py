@@ -30,6 +30,23 @@ for _name in os.listdir(os.path.dirname(__file__)):
         collect_ignore.append(_name)
 
 
+def pytest_collection_modifyitems(items):
+    """Guardrail: every test must run over all wrapping mechanisms.
+
+    A test that forgets the ``mech`` argument (and does not parametrize it via
+    ``xfail_mechanism``) would silently run once instead of once per mechanism --
+    a coverage hole the differential design exists to prevent. ``mech`` appears in
+    ``fixturenames`` for both forms, so its absence means the test opted out by
+    mistake. Fail collection loudly rather than under-test in silence.
+    """
+    missing = [item.nodeid for item in items if "mech" not in item.fixturenames]
+    if missing:
+        raise pytest.UsageError(
+            "wrapping tests must take a `mech` argument (run over every mechanism); these do not:\n  "
+            + "\n  ".join(missing)
+        )
+
+
 @pytest.fixture(params=list(ALL_MECHANISMS.values()), ids=list(ALL_MECHANISMS))
 def mech(request):
     """The wrapping mechanism under test. Every test taking a ``mech`` argument is
