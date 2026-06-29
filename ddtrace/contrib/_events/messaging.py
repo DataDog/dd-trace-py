@@ -7,13 +7,17 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.propagation.http import HTTPPropagator
 
 
 class MessagingEvents(str, Enum):
     PUBLISH = "messaging.publish"
     CONSUME = "messaging.consume"
     ACTION = "messaging.action"
+
+
+AIO_PIKA_PUBLISH_EVENT = f"{MessagingEvents.PUBLISH.value}.aio_pika"
+AIO_PIKA_CONSUME_EVENT = f"{MessagingEvents.CONSUME.value}.aio_pika"
+AIO_PIKA_ACTION_EVENT = f"{MessagingEvents.ACTION.value}.aio_pika"
 
 
 @dataclass
@@ -56,10 +60,9 @@ class MessagingPublishEvent(TracingEvent):
 class MessagingConsumeEvent(TracingEvent):
     """Event for messaging consume/receive operations.
 
-    Pass ``headers`` as a plain ``dict[str, str]`` decoded from the
-    wire format by the integration patch.  Distributed-tracing context is
-    extracted from ``headers`` during construction (via ``HTTPPropagator``)
-    and stored as ``distributed_context`` so the span is parented correctly.
+    Pass ``headers`` as a plain ``dict[str, str]`` decoded from the wire format
+    by the integration patch.  The messaging subscriber extracts distributed
+    context from those headers before starting the span.
 
     DSM reads ``headers``, ``body``, and ``destination`` directly from the
     event — it does not require an APM span and works when APM tracing is
@@ -89,9 +92,6 @@ class MessagingConsumeEvent(TracingEvent):
             provider=self.messaging_system,
             direction=SpanDirection.PROCESSING,
         )
-        if self.distributed_tracing_enabled and self.headers:
-            self.distributed_context = HTTPPropagator.extract(self.headers)  # type: ignore[no-untyped-call]
-            self.use_active_context = False
 
 
 @dataclass

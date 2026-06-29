@@ -286,21 +286,18 @@ async def test_publish_sets_connection_tags_for_peer_service(patch_aio_pika):
 
 
 @pytest.mark.asyncio
-async def test_resource_name_uses_exchange_for_publish(patch_aio_pika, tracer, test_spans):
-    """Verify publish span resource is the exchange name."""
+async def test_destination_name_uses_exchange_for_publish(patch_aio_pika, test_spans):
     async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
         msg = make_message("resource name test")
         await exchange.publish(msg, routing_key=routing_key)
 
     spans = test_spans.pop()
-    publish_spans = [s for s in spans if "publish" in s.name]
-    assert len(publish_spans) >= 1
-    assert publish_spans[0].resource == publish_spans[0].name
+    publish_span = next(s for s in spans if s.name == "rabbitmq.publish")
+    assert publish_span.get_tag("messaging.destination.name") == exchange.name
 
 
 @pytest.mark.asyncio
-async def test_resource_name_uses_queue_for_get(patch_aio_pika, tracer, test_spans):
-    """Verify get span resource is the queue name."""
+async def test_destination_name_uses_queue_for_get(patch_aio_pika, test_spans):
     async with aio_pika_ctx() as (channel, exchange, queue, routing_key):
         msg = make_message("resource name get test")
         await exchange.publish(msg, routing_key=routing_key)
@@ -310,6 +307,5 @@ async def test_resource_name_uses_queue_for_get(patch_aio_pika, tracer, test_spa
         await incoming.ack()
 
     spans = test_spans.pop()
-    get_spans = [s for s in spans if "get" in s.name]
-    assert len(get_spans) >= 1
-    assert get_spans[0].resource == get_spans[0].name
+    get_span = next(s for s in spans if s.name == "rabbitmq.get")
+    assert get_span.get_tag("messaging.destination.name") == queue.name

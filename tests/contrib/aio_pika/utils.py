@@ -52,6 +52,8 @@ async def aio_pika_ctx():
         queue = await channel.declare_queue(
             queue_name,
             durable=False,
+            # RabbitMQ 4.3 rejects transient non-exclusive queues by default.
+            exclusive=True,
             auto_delete=True,
         )
         await queue.bind(exchange, routing_key=routing_key)

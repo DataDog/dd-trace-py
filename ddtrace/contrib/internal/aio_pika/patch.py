@@ -6,9 +6,11 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.messaging import AIO_PIKA_ACTION_EVENT
+from ddtrace.contrib._events.messaging import AIO_PIKA_CONSUME_EVENT
+from ddtrace.contrib._events.messaging import AIO_PIKA_PUBLISH_EVENT
 from ddtrace.contrib._events.messaging import MessagingActionEvent
 from ddtrace.contrib._events.messaging import MessagingConsumeEvent
-from ddtrace.contrib._events.messaging import MessagingEvents
 from ddtrace.contrib._events.messaging import MessagingPublishEvent
 from ddtrace.ext import net
 from ddtrace.internal import core
@@ -38,36 +40,28 @@ def _supported_versions() -> dict[str, str]:
     return {"aio_pika": ">=9.0.0"}
 
 
-def _extract_conn_tags(instance: Any) -> tuple[dict[str, str], dict[str, float]]:
+def _extract_conn_attributes(instance: Any) -> dict[str, Any]:
     """Extract connection host/port from an aio-pika object.
 
     Chain: instance.channel (aio_pika.Channel) -> ._connection (aio_pika.Connection)
            -> .url (yarl.URL)
-
-    Returns a (tags, metrics) tuple so the host string and numeric port land
-    in the correct span storage buckets (_meta vs _metrics).
     """
     try:
         url = instance.channel._connection.url
-        tags: dict[str, str] = {}
-        metrics: dict[str, float] = {}
+        attributes: dict[str, Any] = {}
         if url.host:
-            tags[net.TARGET_HOST] = url.host
+            attributes[net.TARGET_HOST] = url.host
         if url.port:
-            metrics[net.TARGET_PORT] = float(url.port)
-        return tags, metrics
+            attributes[net.TARGET_PORT] = url.port
+        return attributes
     except AttributeError:
         log.debug(
-            "aio_pika: could not extract connection tags from %r — "
+            "aio_pika: could not extract connection attributes from %r — "
             "the integration may be patching an unexpected object type",
             instance,
             exc_info=True,
         )
-        return {}, {}
-
-
-def _context_name(base_event: str) -> str:
-    return f"{base_event}.{config.aio_pika.integration_name}"
+        return {}
 
 
 async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -83,7 +77,7 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
     exchange_name = getattr(instance, "name", "") or ""
     routing_key = args[1] if len(args) > 1 else kwargs.get("routing_key", "") or ""
     destination = exchange_name or routing_key
-    conn_tags, conn_metrics = _extract_conn_tags(instance)
+    conn_attributes = _extract_conn_attributes(instance)
 
     event = MessagingPublishEvent(
         messaging_system=_MESSAGING_SYSTEM,
@@ -93,11 +87,10 @@ async def traced_publish(func: Callable[..., Any], instance: Any, args: tuple[An
         headers=message.headers,
         body=getattr(message, "body", b"") or b"",
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
-        tags=conn_tags,
-        metrics=conn_metrics,
+        attributes=conn_attributes,
     )
 
-    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.PUBLISH.value)):
+    with core.context_with_event(event, context_name_override=AIO_PIKA_PUBLISH_EVENT):
         return await func(*args, **kwargs)
 
 
@@ -136,7 +129,7 @@ async def traced_consumer(
         distributed_tracing_enabled=config.aio_pika.distributed_tracing_enabled,
     )
 
-    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.CONSUME.value)):
+    with core.context_with_event(event, context_name_override=AIO_PIKA_CONSUME_EVENT):
         return await func(*args, **kwargs)
 
 
@@ -174,7 +167,7 @@ async def traced_get(func: Callable[..., Any], instance: Any, args: tuple[Any, .
         span_operation="get",
     )
 
-    with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.CONSUME.value)):
+    with core.context_with_event(event, context_name_override=AIO_PIKA_CONSUME_EVENT):
         if func_error is not None:
             raise func_error
 
@@ -198,7 +191,7 @@ def _make_action_wrapper(operation: str) -> Callable[..., Any]:
             operation=operation,
         )
 
-        with core.context_with_event(event, context_name_override=_context_name(MessagingEvents.ACTION.value)):
+        with core.context_with_event(event, context_name_override=AIO_PIKA_ACTION_EVENT):
             return await func(*args, **kwargs)
 
     return _traced_action

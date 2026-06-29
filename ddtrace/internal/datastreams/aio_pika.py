@@ -1,4 +1,6 @@
 from ddtrace import config
+from ddtrace.contrib._events.messaging import AIO_PIKA_CONSUME_EVENT
+from ddtrace.contrib._events.messaging import AIO_PIKA_PUBLISH_EVENT
 from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import DsmPathwayCodec
 from ddtrace.internal.datastreams.utils import _calculate_byte_size
@@ -55,5 +57,5 @@ def handle_aio_pika_consume(ctx: core.ExecutionContext) -> None:  # type: ignore
 
 
 if config._data_streams_enabled:
-    core.on("context.started.messaging.publish.aio_pika", handle_aio_pika_produce)
-    core.on("context.started.messaging.consume.aio_pika", handle_aio_pika_consume)
+    core.on(f"context.started.{AIO_PIKA_PUBLISH_EVENT}", handle_aio_pika_produce)
+    core.on(f"context.started.{AIO_PIKA_CONSUME_EVENT}", handle_aio_pika_consume)
