@@ -2,9 +2,6 @@
 
 fixes:
   - |
-    aiohttp: Fixed a memory leak introduced in ddtrace 4.9 (PR #17576) where the aiohttp
-    client integration retained a strong reference to the full ``ClientResponse`` object
-    (including its body) after each request. Sequential requests with large response bodies
-    caused linear RSS growth of approximately one body per request. The fix extracts only
-    the three scalar fields needed for tracing (status code, reason phrase, response headers)
-    and drops the object reference immediately. Reported in GH-18781.
+    aiohttp: Fixed a memory leak (GH-18781) introduced in ddtrace 4.9 where the aiohttp
+    client integration retained a strong reference to each ``ClientResponse`` object,
+    preventing GC of response bodies and causing linear RSS growth on sequential requests.
