@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: Reduces allocator churn in the native stack collector by
+    reusing the cycle-detection set across stack-unwind calls.

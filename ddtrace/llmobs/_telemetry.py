@@ -6,6 +6,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
+from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -76,6 +77,7 @@ def record_llmobs_enabled(
     auto: bool,
     instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
+    sample_rate: float,
 ):
     tags = _base_tags(error)
     tags.extend(
@@ -85,6 +87,7 @@ def record_llmobs_enabled(
             ("auto", str(int(auto))),
             ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
             ("ml_app", ml_app or "N/A"),
+            ("sample_rate", str(sample_rate)),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -102,7 +105,7 @@ def record_span_started():
     )
 
 
-def record_span_created(span: Span):
+def record_span_created(span: Span, export_mode: LLMObsExportMode):
     is_root_span = get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_tags = get_llmobs_tags(span) or {}
     has_session_id = get_llmobs_session_id(span) is not None
@@ -112,6 +115,7 @@ def record_span_created(span: Span):
     span_kind = get_llmobs_span_kind(span)
     model_provider = get_llmobs_model_provider(span)
     ml_app = get_llmobs_ml_app(span)
+    intake = export_mode.value
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -121,6 +125,7 @@ def record_span_created(span: Span):
         ("integration", integration or "N/A"),
         ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
+        ("intake", intake),
     ]
     if not autoinstrumented:
         tags.append(("decorator", str(int(decorator))))

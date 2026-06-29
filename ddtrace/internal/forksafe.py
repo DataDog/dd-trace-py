@@ -41,7 +41,7 @@ def set_forked():
     _forked = True
 
 
-def has_forked():
+def has_forked() -> bool:
     return _forked
 
 
@@ -86,21 +86,21 @@ def unregister(after_in_child: typing.Callable[[], None]) -> None:
     try:
         _registry.remove(after_in_child)
     except ValueError:
-        log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
+        log.info("after_in_child hook %r was unregistered without first being registered", after_in_child)
 
 
 def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
     try:
         _registry_after_parent.remove(after_in_parent)
     except ValueError:
-        log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
+        log.info("after_in_parent hook %r was unregistered without first being registered", after_in_parent)
 
 
 def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
     try:
         _registry_before_fork.remove(before_fork)
     except ValueError:
-        log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
+        log.info("before_in_child hook %r was unregistered without first being registered", before_fork)
 
 
 # Availability: Unix, not WASI, not Android, not iOS.
@@ -133,6 +133,19 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
     def _reset_object(self) -> None:
         self.__wrapped__ = self._self_wrapped_class()
+
+    def __reduce__(self) -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
+        # A lock/event is process-local, and so it cannot be carried across a process
+        # boundary (e.g. by cloudpickle in Ray Serve).
+        # The `_thread.lock` primitive is itself unpicklable, so
+        # we reconstruct a fresh, unlocked ResetObject, rather than serializing it
+        # in the destination process.
+        return (ResetObject, (self._self_wrapped_class,))
+
+    # wrapt's ObjectProxy routes __reduce_ex__ to the wrapped object, which is
+    # unpicklable for locks; override it so the picklers use __reduce__ above.
+    def __reduce_ex__(self, protocol: "typing.SupportsIndex") -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
+        return self.__reduce__()
 
 
 _resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()

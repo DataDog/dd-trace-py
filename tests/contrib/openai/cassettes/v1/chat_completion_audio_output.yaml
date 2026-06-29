@@ -1,0 +1,37 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "Say hello."}], "model": "gpt-4o-audio-preview",
+      "modalities": ["text", "audio"], "audio": {"voice": "alloy", "format": "wav"}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    content: "{\n  \"id\": \"chatcmpl-audio-test\",\n  \"object\": \"chat.completion\",\n
+      \ \"created\": 1734567890,\n  \"model\": \"gpt-4o-audio-preview-2024-12-17\",\n
+      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+      \"assistant\",\n        \"content\": null,\n        \"audio\": {\n          \"id\":
+      \"audio_abc123\",\n          \"data\": \"QUJDRA==\",\n          \"transcript\":
+      \"Hello! How can I help you today?\",\n          \"expires_at\": 1734571490\n
+      \       }\n      },\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\":
+      {\n    \"prompt_tokens\": 9,\n    \"completion_tokens\": 12,\n    \"total_tokens\":
+      21\n  }\n}\n"
+    headers:
+      Content-Type:
+      - application/json
+      access-control-allow-origin:
+      - '*'
+      openai-version:
+      - '2020-10-01'
+    http_version: HTTP/1.1
+    status_code: 200
+version: 1

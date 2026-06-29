@@ -1,4 +1,5 @@
 from fastapi import Request
+from fastapi import WebSocket
 from fastapi.responses import PlainTextResponse
 import pytest
 
@@ -51,3 +52,21 @@ def test_core_callback_request_body(fastapi_application, client, tracer, test_sp
         )
         assert resp.status_code == 200
         assert get_response_body(resp) == '{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}'
+
+
+def test_websocket_not_broken_by_appsec(fastapi_application, client, tracer, test_spans):
+    """Regression test for https://github.com/DataDog/dd-trace-py/issues/18279.
+
+    AppSec's body-parsing hook must not consume the websocket.connect message.
+    """
+
+    @fastapi_application.websocket("/ws")
+    async def ws_endpoint(ws: WebSocket):
+        await ws.accept()
+        await ws.send_text("hello")
+        await ws.close()
+
+    with override_global_config(dict(_asm_enabled=True)):
+        with client.websocket_connect("/ws") as ws:
+            data = ws.receive_text()
+        assert data == "hello"

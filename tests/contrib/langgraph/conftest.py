@@ -52,7 +52,6 @@ def langchain():
 
 @pytest.fixture
 def langgraph_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {

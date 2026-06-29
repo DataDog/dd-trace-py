@@ -46,6 +46,23 @@ for pkg in $pkgs; do
 
     scripts/compile-and-prune-test-requirements
 
+    # Supply-chain hardening (TEST-CD, APMLP-1362): verify that none of the
+    # newly resolved pins (including transitive dependencies that pip-tools
+    # picks up) are younger than the cooldown. This is defense-in-depth on
+    # top of the cooldown applied in freshvenvs.py, since pip-tools has no
+    # --exclude-newer flag of its own.
+    REGENERATED_LOCKFILES=()
+    for h in "${RIOT_HASHES[@]}"; do
+        if [[ -f ".riot/requirements/${h}.txt" ]]; then
+            REGENERATED_LOCKFILES+=(".riot/requirements/${h}.txt")
+        fi
+    done
+
+    if [[ ${#REGENERATED_LOCKFILES[@]} -gt 0 ]]; then
+        echo "Validating cooldown on ${#REGENERATED_LOCKFILES[@]} regenerated lockfile(s)"
+        python scripts/check_lockfile_cooldown.py "${REGENERATED_LOCKFILES[@]}"
+    fi
+
     # Only process one package per run
     break
 done

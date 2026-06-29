@@ -189,6 +189,16 @@ def rasp(endpoint: str):
     return f"Unknown endpoint: {endpoint}"
 
 
+@app.route("/multi-param/<first>.<last>/", methods=["GET"])
+def multi_param_segment(first: str, last: str):
+    return {"first": first, "last": last}
+
+
+@app.route("/files/<path:file_path>", methods=["GET"])
+def files_catch_all(file_path: str):
+    return {"file_path": file_path}
+
+
 @app.route("/redirect/<string:route>/<int:port>", methods=["GET", "POST"])
 def redirect(route: str, port: int):
     import urllib.request
@@ -306,6 +316,34 @@ def redirect_httpx_async(route: str, port: int):
 
         response = asyncio.run(_request())
         payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
+@app.route("/redirect_urllib3/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect_urllib3(route: str, port: int):
+    import urllib3
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.data.decode()
+    body = body_str if body_str else None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        http = urllib3.PoolManager()
+        response = http.request(
+            method,
+            full_url,
+            body=body.encode() if body is not None else None,
+            headers=headers,
+            timeout=DOWNSTREAM_HTTP_TIMEOUT,
+        )
+        payload = {"payload": response.data.decode(errors="ignore")}
     except Exception as e:
         import traceback
 

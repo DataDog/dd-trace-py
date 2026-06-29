@@ -1,17 +1,26 @@
 from collections import Counter
 from contextlib import contextmanager
 import sys
+from unittest import mock
 
 import pytest
 
 import ddtrace
 from ddtrace.debugging._exception import replay
+from ddtrace.debugging._session import Session
 from ddtrace.internal.packages import _third_party_packages
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.settings.exception_replay import ExceptionReplayConfig
 from tests.debugging.mocking import exception_replay
 from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages
+
+
+@pytest.fixture(autouse=True)
+def clear_exception_ident_limiter():
+    replay.EXCEPTION_IDENT_LIMITER.clear()
+    yield
+    replay.EXCEPTION_IDENT_LIMITER.clear()
 
 
 def test_tb_frames_from_exception_chain():
@@ -475,6 +484,127 @@ def test_replay_functions_benchmark(benchmark):
             assert called
 
         benchmark(run_replay_functions)
+
+
+def test_limit_exception_allows_after_hourglass_expires():
+    """limit_exception returns False when a known exception's HG has stopped trickling."""
+    exc_ident = 99999
+
+    # First call: registers HG and returns False (new exception)
+    assert replay.limit_exception(exc_ident) is False
+
+    # Force the hourglass to stop trickling by setting _end_at to the past
+    hg = replay.EXCEPTION_IDENT_LIMITER[exc_ident]
+    hg._end_at = 0  # in the past → trickling() will return False
+
+    # Second call: HG exists, not trickling → turns it and returns False
+    assert replay.limit_exception(exc_ident) is False
+
+
+def test_limit_exception_evicts_when_over_1024():
+    """limit_exception evicts old entries when EXCEPTION_IDENT_LIMITER exceeds 1024."""
+    # Flood with 1025 distinct idents to trigger the eviction path
+    for i in range(1025):
+        replay.limit_exception(i)
+
+    # Eviction fires at >1024: deletes the 256 oldest, leaving at most 1025 - 256 = 769
+    assert len(replay.EXCEPTION_IDENT_LIMITER) <= 1025 - 256
+
+
+def test_get_tb_frames_skips_none_tb_in_chain():
+    """get_tb_frames_from_exception_chain skips chain entries with tb=None."""
+    try:
+        raise ValueError("test")
+    except ValueError as e:
+        real_tb = e.__traceback__
+
+    # Build a chain where one entry has tb=None
+    chain = replay.ExceptionChain([(ValueError("no tb"), None), (ValueError("with tb"), real_tb)])
+    frames = list(replay.get_tb_frames_from_exception_chain(chain))
+
+    # Only the entry with a real tb should yield frames
+    assert len(frames) > 0
+    assert all(f is not None for _, f in frames)
+
+
+def test_can_capture_returns_true_in_debug_session():
+    """can_capture returns True without consuming rate limit when in a debug session."""
+    mock_root = mock.Mock()
+    mock_root.get_tag.return_value = None  # info_captured is None
+    mock_span = mock.Mock()
+    mock_span._local_root = mock_root
+
+    with mock.patch.object(Session, "from_trace", return_value=[mock.Mock()]):
+        assert replay.can_capture(mock_span)
+
+
+def test_can_capture_raises_on_unexpected_tag_value():
+    """can_capture raises ValueError when CAPTURE_TRACE_TAG has an unexpected value (lines 252-253)."""
+    mock_root = mock.Mock()
+    mock_root.get_tag.return_value = "unexpected"
+    mock_span = mock.Mock()
+    mock_span._local_root = mock_root
+
+    with pytest.raises(ValueError, match="unexpected value"):
+        replay.can_capture(mock_span)
+
+
+def test_attach_snapshot_returns_false_when_no_collector():
+    """_attach_tb_frame_snapshot_to_span returns False when no collector is available (lines 309-310)."""
+    tb = None
+    try:
+        raise ValueError("test")
+    except ValueError as e:
+        tb = e.__traceback__
+
+    import uuid
+
+    handler = replay.SpanExceptionHandler()
+    exc_id = uuid.uuid4()
+    mock_span = mock.Mock()
+
+    with mock.patch.object(replay.SignalUploader, "get_collector", return_value=None):
+        assert not handler._attach_tb_frame_snapshot_to_span(mock_span, tb, exc_id, only_user_code=False)
+
+
+def test_on_span_exception_skips_empty_chain():
+    """on_span_exception returns early when the exception chain is empty (line 342)."""
+    mock_span = mock.Mock()
+    mock_span.get_tag.return_value = None
+
+    handler = replay.SpanExceptionHandler()
+
+    # Patch unwind_exception_chain to return an empty chain
+    with mock.patch.object(replay, "unwind_exception_chain", return_value=(replay.ExceptionChain(), None)):
+        with mock.patch.object(replay, "can_capture", return_value=True):
+            handler.on_span_exception(mock_span, ValueError, ValueError("x"), None)
+
+    mock_span._set_attribute.assert_not_called()
+
+
+def test_span_exception_handler_enable_idempotent():
+    """SpanExceptionHandler.enable is a no-op when already enabled (lines 388-389)."""
+    with mock.patch.object(replay.SignalUploader, "register"), mock.patch("ddtrace.internal.core.on"):
+        try:
+            replay.SpanExceptionHandler.enable()
+            first_instance = replay.SpanExceptionHandler._instance
+            # Second call must be a no-op
+            replay.SpanExceptionHandler.enable()
+            assert replay.SpanExceptionHandler._instance is first_instance
+        finally:
+            with (
+                mock.patch("ddtrace.internal.core.reset_listeners"),
+                mock.patch.object(replay.SignalUploader, "unregister"),
+            ):
+                replay.SpanExceptionHandler.disable()
+
+
+def test_span_exception_handler_disable_idempotent():
+    """SpanExceptionHandler.disable is a no-op when not enabled (lines 403-404)."""
+    assert replay.SpanExceptionHandler._instance is None
+    # Should not raise
+    replay.SpanExceptionHandler.disable()
+    assert replay.SpanExceptionHandler._instance is None
 
 
 def test_unwind_exception_chain_circular_reference():

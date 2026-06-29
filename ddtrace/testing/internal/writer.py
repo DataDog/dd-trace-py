@@ -32,6 +32,38 @@ TSerializable = t.TypeVar("TSerializable", bound=TestItem[t.Any, t.Any])
 
 EventSerializer = t.Callable[[TSerializable], Event]
 
+_MAX_META_TAG_VALUE_LENGTH = 5000
+
+
+def _truncate_meta_string_values(meta: dict[str, t.Any]) -> dict[str, t.Any]:
+    return {key: value[:_MAX_META_TAG_VALUE_LENGTH] if isinstance(value, str) else value for key, value in meta.items()}
+
+
+def _truncate_payload_metadata(metadata: dict[str, dict[str, str]]) -> dict[str, dict[str, t.Any]]:
+    return {event_type: _truncate_meta_string_values(event_metadata) for event_type, event_metadata in metadata.items()}
+
+
+def _truncate_event_meta(event: Event) -> Event:
+    content = event.get("content")
+    if not isinstance(content, dict):
+        return event
+
+    meta = content.get("meta")
+    if not isinstance(meta, dict):
+        return event
+
+    return {
+        **event,
+        "content": {
+            **content,
+            "meta": _truncate_meta_string_values(meta),
+        },
+    }
+
+
+def _truncate_events_meta(events: list[Event]) -> list[Event]:
+    return [_truncate_event_meta(event) for event in events]
+
 
 class BaseWriter(ABC):
     # After this many consecutive failed flushes (each already retried internally),
@@ -54,6 +86,10 @@ class BaseWriter(ABC):
         self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
+        # Connectors registered here are closed from both the background thread
+        # (via _task_teardown) and the caller thread (via wait_finish), covering
+        # all thread-local HTTPConnections opened via BackendConnector.
+        self._connectors: list[t.Any] = []
 
     def put_event(self, event: Event) -> None:
         with self.lock:
@@ -109,6 +145,17 @@ class BaseWriter(ABC):
             log.warning(
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
+        # Close the caller thread's thread-local connection for each registered
+        # connector (BackendConnector is threading.local, so this closes the
+        # connection opened by any sync flush that ran on the caller thread).
+        for connector in self._connectors:
+            connector.close()
+
+    def _task_teardown(self) -> None:
+        # Close the background thread's thread-local connection for each
+        # registered connector.
+        for connector in self._connectors:
+            connector.close()
 
     def _periodic_task(self) -> None:
         while True:
@@ -123,6 +170,7 @@ class BaseWriter(ABC):
             if self.should_finish.is_set():
                 break
 
+        self._task_teardown()
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
@@ -240,6 +288,7 @@ class TestOptWriter(BaseWriter):
         }
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        self._connectors = [self.connector]
 
         self.serializers: dict[type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -255,13 +304,15 @@ class TestOptWriter(BaseWriter):
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _encode_events(self, events: list[Event]) -> bytes:
-        payload = {
+    def _test_cycle_payload(self, events: list[Event]) -> Event:
+        return {
             "version": 1,
-            "metadata": self.metadata,
-            "events": events,
+            "metadata": _truncate_payload_metadata(self.metadata),
+            "events": _truncate_events_meta(events),
         }
-        return msgpack_packb(payload)
+
+    def _encode_events(self, events: list[Event]) -> bytes:
+        return msgpack_packb(self._test_cycle_payload(events))
 
     def _send_events(self, events: list[Event]) -> bool:
         with StopWatch() as serialization_time:
@@ -308,7 +359,7 @@ class PayloadFileTestOptWriter(TestOptWriter):
     def _send_events(self, events: list[Event]) -> bool:
         write_payload_file(
             output_dir=self._output_dir,
-            payload={"version": 1, "metadata": self.metadata, "events": events},
+            payload=self._test_cycle_payload(events),
             kind="tests",
         )
         return True
@@ -321,6 +372,7 @@ class TestCoverageWriter(BaseWriter):
         super().__init__(min_flush_events=_get_min_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
+        self._connectors = [self.connector]
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]

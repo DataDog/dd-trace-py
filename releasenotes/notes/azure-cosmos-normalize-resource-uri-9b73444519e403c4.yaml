@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    azure_cosmos: This fix resolves an issue where ``cosmosdb.query`` span resource names included per-item
+    identifiers (such as document, user, and permission ids) from the request URI, which caused unbounded
+    resource cardinality. The integration now redacts those ids by replacing them with ``?`` while keeping
+    the database (``dbs``) and collection (``colls``) names intact. For example,
+    ``Read /dbs/myDb/colls/myColl/docs/item1`` is now reported as ``Read /dbs/myDb/colls/myColl/docs/?``.

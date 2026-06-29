@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the AppSec body-parsing hook consumed the
+    ``websocket.connect`` ASGI message, causing ASGI/FastAPI WebSocket connections
+    to fail with HTTP 500 when AppSec was enabled.
