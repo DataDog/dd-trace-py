@@ -51,18 +51,18 @@ namespace Datadog {
  *
  * line is only meaningful when func_id != nullptr.
  *
- * CacheHit is intentionally kept small to make lookup() cheap to return by value.
+ * CacheResult is intentionally kept small to make lookup() cheap to return by value.
  * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
-struct CacheHit
+struct CacheResult
 {
     Datadog::function_id func_id; // nullptr = miss
     int line;                     // only valid when func_id != nullptr; -1 = lasti mismatch, >=0 = cached line
 };
 
-/* Keep CacheHit small; increasing its size can force some ABIs to use a hidden
+/* Keep CacheResult small; increasing its size can force some ABIs to use a hidden
  * return pointer (sret), adding per-lookup overhead on the allocator-hook hot path. */
-static_assert(sizeof(CacheHit) <= 16,
-              "CacheHit exceeds 16B — consider measuring lookup() "
+static_assert(sizeof(CacheResult) <= 16,
+              "CacheResult exceeds 16B — consider measuring lookup() "
               "return overhead on supported ABIs before adding fields");
 
 /* CodeFunctionCache caches libdatadog function_id values keyed by PyCodeObject*.
@@ -102,11 +102,11 @@ class CodeFunctionCache
 
     explicit CodeFunctionCache(size_t capacity);
 
-    /* Returns a CacheHit for code only if present AND its stored identity still matches
+    /* Returns a CacheResult for code only if present AND its stored identity still matches
      * the supplied (name, filename, firstlineno), guarding against PyCodeObject address
-     * reuse. Check hit.func_id != nullptr for a hit; hit.line >= 0 means lasti matched
+     * reuse. Check result.func_id != nullptr for a hit; result.line >= 0 means lasti matched
      * the stored value so the caller can skip parse_linetable. */
-    CacheHit lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
+    CacheResult lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
 
     /* Inserts (code, id) with the identity used to validate future lookups plus the
      * (lasti, line) pair. Evicts one entry if the map is at capacity. */
