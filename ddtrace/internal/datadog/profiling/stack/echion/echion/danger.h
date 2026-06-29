@@ -21,6 +21,20 @@
 #include <sys/types.h>
 #endif
 
+using ProfilingFaultRecover = bool (*)(int signo, siginfo_t* si, void* ucontext);
+
+int
+init_profiling_fault_handler();
+
+bool
+profiling_fault_handler_still_installed();
+
+void
+register_profiling_fault_recover(ProfilingFaultRecover recover);
+
+void
+unregister_profiling_fault_recover(ProfilingFaultRecover recover);
+
 int
 init_segv_catcher();
 
@@ -53,6 +67,7 @@ struct ThreadAltStack
     void* mem = nullptr;
     size_t size = 0;
     bool ready = false;
+    bool owns_mapping = false;
 
     int ensure_installed()
     {
@@ -64,6 +79,7 @@ struct ThreadAltStack
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && !(cur.ss_flags & SS_DISABLE)) {
             ready = true;
+            owns_mapping = false;
             return 0;
         }
 
@@ -87,13 +103,14 @@ struct ThreadAltStack
         this->mem = stack_mem;
         this->size = kAltStackSize;
         this->ready = true;
+        this->owns_mapping = true;
 
         return 0;
     }
 
     ~ThreadAltStack()
     {
-        if (!ready) {
+        if (!ready || !owns_mapping || mem == nullptr) {
             return;
         }
 

@@ -2,6 +2,8 @@
 #include <echion/tasks.h>
 #include <echion/threads.h>
 
+#include "cpu_timer.hpp"
+
 #include <echion/echion_sampler.h>
 
 #include <algorithm>
@@ -459,12 +461,17 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     // CPython iterates over both:
     // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
     // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
-    // First, get tasks from this thread's linked-list (if tstate_addr is set)
-    // Note: We continue processing even if one source fails to maximize partial results
-    if (tstate != nullptr && this->tstate_addr != 0) {
+    // First, get tasks from this thread's linked-list (if tstate_addr is set).
+    // CPU timer samples may only have the remote PyThreadState address, because
+    // the signal handler cannot safely copy/interrogate task state. The per-thread
+    // linked list is enough to discover the running task for logical stack stitching.
+    // Note: We continue processing even if one source fails to maximize partial results.
+    if (this->tstate_addr != 0) {
         (void)get_tasks_from_thread_linked_list(echion, tasks);
+    }
 
-        // Second, get tasks from interpreter's linked-list (lingering tasks)
+    // Second, get tasks from interpreter's linked-list (lingering tasks).
+    if (tstate != nullptr) {
         (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
     }
 
@@ -707,29 +714,19 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     }
 }
 
-// ----------------------------------------------------------------------------
-Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+namespace {
+
+void
+render_unwound_stacks(EchionSampler& echion, ThreadInfo& thread)
 {
     auto& renderer = echion.renderer();
-    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
-
-    microsecond_t previous_cpu_time = cpu_time;
-    auto update_cpu_time_success = update_cpu_time();
-    if (!update_cpu_time_success) {
-        return ErrorKind::CpuTimeError;
-    }
-
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
-
-    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
     // 2. Greenlets stacks (if any)
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
-    if (!current_tasks.empty()) {
-        for (auto& task_stack_info : current_tasks) {
+    if (!thread.current_tasks.empty()) {
+        for (auto& task_stack_info : thread.current_tasks) {
             task_stack_info->task_name.visit_string(
               [&](std::string_view task_name) { renderer.render_task_begin(task_name, task_stack_info->on_cpu); });
 
@@ -738,9 +735,9 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
             renderer.render_stack_end();
         }
 
-        current_tasks.clear();
-    } else if (!current_greenlets.empty()) {
-        for (auto& greenlet_stack : current_greenlets) {
+        thread.current_tasks.clear();
+    } else if (!thread.current_greenlets.empty()) {
+        for (auto& greenlet_stack : thread.current_greenlets) {
             greenlet_stack->task_name.visit_string(
               [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
 
@@ -750,11 +747,140 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
             renderer.render_stack_end();
         }
 
-        current_greenlets.clear();
+        thread.current_greenlets.clear();
     } else {
-        python_stack.render(echion);
+        thread.python_stack.render(echion);
         renderer.render_stack_end();
     }
+}
+
+bool
+contains_frame(const FrameStack& stack, Frame::Key cache_key)
+{
+    return std::any_of(stack.begin(), stack.end(), [&](const Frame& frame) { return frame.cache_key == cache_key; });
+}
+
+FrameStack
+merge_captured_stack_with_task_stack(const FrameStack& captured_stack, const FrameStack& task_stack)
+{
+    FrameStack merged;
+    size_t captured_prefix_size = captured_stack.size();
+
+    for (size_t i = 0; i < captured_stack.size(); i++) {
+        if (contains_frame(task_stack, captured_stack[i].cache_key)) {
+            captured_prefix_size = i;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < captured_prefix_size && merged.size() < max_frames; i++) {
+        merged.push_back(captured_stack[i]);
+    }
+    for (const auto& frame : task_stack) {
+        if (merged.size() >= max_frames) {
+            break;
+        }
+        merged.push_back(frame);
+    }
+
+    if (merged.empty()) {
+        return captured_stack;
+    }
+    return merged;
+}
+
+void
+mark_cpu_timer_task_stack(FrameStack& captured_stack, std::vector<std::unique_ptr<StackInfo>>& current_tasks)
+{
+    if (current_tasks.empty()) {
+        return;
+    }
+
+    size_t selected = 0;
+    bool found = false;
+    for (size_t i = 0; i < current_tasks.size(); i++) {
+        if (current_tasks[i]->on_cpu) {
+            selected = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        for (size_t i = 0; i < current_tasks.size(); i++) {
+            for (const auto& captured_frame : captured_stack) {
+                if (contains_frame(current_tasks[i]->stack, captured_frame.cache_key)) {
+                    selected = i;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                break;
+            }
+        }
+    }
+
+    current_tasks[selected]->on_cpu = true;
+    current_tasks[selected]->stack =
+      merge_captured_stack_with_task_stack(captured_stack, current_tasks[selected]->stack);
+    if (selected != 0) {
+        std::swap(current_tasks[0], current_tasks[selected]);
+    }
+}
+
+} // namespace
+
+// ----------------------------------------------------------------------------
+Result<void>
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, bool include_cpu_time)
+{
+    auto& renderer = echion.renderer();
+    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
+
+    if (include_cpu_time) {
+        microsecond_t previous_cpu_time = cpu_time;
+        auto update_cpu_time_success = update_cpu_time();
+        if (!update_cpu_time_success) {
+            return ErrorKind::CpuTimeError;
+        }
+
+        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    }
+
+    this->unwind(echion, tstate);
+    render_unwound_stacks(echion, *this);
+
+    return Result<void>::ok();
+}
+
+Result<void>
+ThreadInfo::sample_cpu_timer(EchionSampler& echion,
+                             PyThreadState* tstate,
+                             FrameStack&& captured_stack,
+                             microsecond_t cpu_time_us)
+{
+    auto& renderer = echion.renderer();
+    renderer.render_cpu_sample_begin(name, cpu_time_us, thread_id, native_id);
+
+    current_tasks.clear();
+    current_greenlets.clear();
+    FrameStack timer_stack = captured_stack;
+    python_stack = std::move(captured_stack);
+
+    // AIDEV-NOTE: timer_create CPU samples are captured in a signal handler as
+    // raw physical frames only. Do async task and greenlet stitching here on the
+    // sampler thread, using the same ThreadInfo machinery as wall samples.
+    if (asyncio_loop) {
+        (void)unwind_tasks(echion, tstate);
+        // Task state is inspected on the sampler thread, potentially after the
+        // signal-captured code already yielded. Preserve the captured physical
+        // on-CPU frames and attach them to the matching logical task stack.
+        mark_cpu_timer_task_stack(timer_stack, current_tasks);
+    } else {
+        unwind_greenlets(echion, tstate, native_id);
+    }
+
+    render_unwound_stacks(echion, *this);
 
     return Result<void>::ok();
 }
@@ -831,14 +957,41 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
         if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
             threads.insert(tstate.prev);
 
+#if PY_VERSION_HEX >= 0x030e0000
+        const uint64_t native_thread_id = tstate.native_thread_id;
+#else
+        const uint64_t native_thread_id = 0;
+#endif
+
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
             auto it = echion.thread_info_map().find(tstate.thread_id);
             if (it == echion.thread_info_map().end()) {
-                // We failed to find ThreadInfo for thread_id, maybe there's a
-                // race condition between this call and `register_thread()`.
-                continue;
+                if (native_thread_id == 0) {
+                    // We failed to find ThreadInfo for thread_id, maybe there's a
+                    // race condition between this call and `register_thread()`.
+                    continue;
+                }
+
+                auto maybe_thread_info = ThreadInfo::create(tstate.thread_id, native_thread_id, "Thread");
+                if (!maybe_thread_info) {
+                    continue;
+                }
+                it = echion.thread_info_map().emplace(tstate.thread_id, std::move(*maybe_thread_info)).first;
+            }
+
+            // AIDEV-NOTE: timer_create CPU timers are per native thread, while the
+            // historical ThreadInfo map is metadata for wall sampling. A thread can
+            // have ThreadInfo from best-effort registration but no armed CPU timer,
+            // for example an already-existing main thread when profiling starts from
+            // an auxiliary thread. Reconcile CPU timer arming from the PyThreadState
+            // walk so wall-sampler discovery is the safety net. PyThreadState exposes
+            // native_thread_id on CPython 3.14+, matching the CPU timer support floor.
+            if (native_thread_id != 0 &&
+                !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, native_thread_id)) {
+                Datadog::CpuTimer::Engine::get().register_thread(
+                  tstate.thread_id, native_thread_id, "Thread", tstate_addr);
             }
 
             // Update the tstate_addr for thread info, so we can access

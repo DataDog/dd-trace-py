@@ -1,6 +1,7 @@
 #include "sampler.hpp"
 
 #include "constants.hpp"
+#include "cpu_timer.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
@@ -285,13 +286,15 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
 
+        const bool include_wall_sampler_cpu_time = !CpuTimer::Engine::get().replaces_wall_sampler_cpu_time();
+
         // When max_threads_per_sample is set, we collect all threads first, then apply
         // reservoir sampling (Algorithm R) to select a uniform random subset, and only
         // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
         if (max_threads_per_sample == 0) {
             for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
                 for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                    auto success = thread.sample(*echion, tstate, wall_time_us);
+                    auto success = thread.sample(*echion, tstate, wall_time_us, include_wall_sampler_cpu_time);
                     if (success) {
                         Sample::profile_borrow().stats().increment_sample_count();
                     }
@@ -369,12 +372,15 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         continue;
                     }
                 }
-                auto success = it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us);
+                auto success = it->second->sample(
+                  *echion, &thread_candidates[i], effective_wall_time_us, include_wall_sampler_cpu_time);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
             }
         }
+
+        CpuTimer::Engine::get().drain(*echion);
 
         // Collect greenlet count before acquiring the profile lock to avoid
         // holding two locks simultaneously (greenlet lock then profile lock).
@@ -431,7 +437,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Generally speaking system "sleep" times will wait _at least_ as long as the specified time, so
         // in actual fact the duration may be more than we indicated.  This tends to be more true on busy
         // systems.
-        std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
+        auto sleep_interval_us = sample_interval_us.load();
+        auto cpu_timer_interval_us = CpuTimer::Engine::get().interval_us();
+        if (cpu_timer_interval_us > 0 && cpu_timer_interval_us < sleep_interval_us) {
+            sleep_interval_us = cpu_timer_interval_us;
+        }
+        std::this_thread::sleep_until(sample_time_now + microseconds(sleep_interval_us));
     }
 
     // Signal that the thread is exiting
@@ -474,6 +485,8 @@ Sampler::postfork_child()
     new (&thread_exit_mutex) std::mutex();
     new (&thread_exit_cv) std::condition_variable();
 
+    CpuTimer::Engine::get().postfork_child();
+
     // Reset pause state - the parent's sampling thread (and any in-progress
     // pause) doesn't exist in the child.
     pause_requested_.store(false);
@@ -506,6 +519,8 @@ Sampler::postfork_child()
     auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, thread_name.c_str());
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
+        CpuTimer::Engine::get().register_thread(
+          current_thread_id, native_id, thread_name.c_str(), PyGILState_GetThisThreadState());
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
                   << ") " << thread_name << std::endl;
@@ -595,44 +610,51 @@ Sampler::one_time_setup()
 }
 
 void
-Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
+Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate)
 {
-    // Registering threads requires coordinating with one of echion's global locks, which we take here.
-    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
+    {
+        // Registering threads requires coordinating with one of echion's global locks, which we take here.
+        const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
 
-    static bool has_errored = false;
-    auto it = echion->thread_info_map().find(id);
-    if (it == echion->thread_info_map().end()) {
-        auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
-        if (maybe_thread_info) {
-            echion->thread_info_map().emplace(id, std::move(*maybe_thread_info));
-        } else {
-            if (!has_errored) {
-                has_errored = true;
-                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
-                          << name << std::endl;
+        static bool has_errored = false;
+        auto it = echion->thread_info_map().find(id);
+        if (it == echion->thread_info_map().end()) {
+            auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
+            if (maybe_thread_info) {
+                echion->thread_info_map().emplace(id, std::move(*maybe_thread_info));
+            } else {
+                if (!has_errored) {
+                    has_errored = true;
+                    std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id
+                              << ") " << name << std::endl;
+                }
             }
-        }
-    } else {
-        auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
-        if (maybe_thread_info) {
-            it->second = std::move(*maybe_thread_info);
         } else {
-            if (!has_errored) {
-                has_errored = true;
-                std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id << ") "
-                          << name << std::endl;
+            auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
+            if (maybe_thread_info) {
+                it->second = std::move(*maybe_thread_info);
+            } else {
+                if (!has_errored) {
+                    has_errored = true;
+                    std::cerr << "Failed to register thread: " << std::hex << id << std::dec << " (" << native_id
+                              << ") " << name << std::endl;
+                }
             }
         }
     }
+
+    CpuTimer::Engine::get().register_thread(id, native_id, name, tstate);
 }
 
 void
 Sampler::unregister_thread(uint64_t id)
 {
-    // unregistering threads requires coordinating with one of echion's global locks, which we take here.
-    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
-    echion->thread_info_map().erase(id);
+    {
+        // unregistering threads requires coordinating with one of echion's global locks, which we take here.
+        const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
+        echion->thread_info_map().erase(id);
+    }
+    CpuTimer::Engine::get().unregister_thread(id);
 }
 
 bool
@@ -640,6 +662,8 @@ Sampler::start()
 {
     static std::once_flag once;
     std::call_once(once, [this]() { this->one_time_setup(); });
+
+    CpuTimer::Engine::get().start();
 
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
@@ -687,6 +711,8 @@ Sampler::stop()
     if (!exited) {
         std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
     }
+
+    CpuTimer::Engine::get().shutdown(*echion);
 }
 
 PauseResult

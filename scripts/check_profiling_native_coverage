@@ -48,6 +48,7 @@ NATIVE_EXTENSIONS: frozenset[str] = frozenset(
         ".cc",
         ".h",
         ".hpp",  # C / C++
+        ".pxd",  # Cython declarations
         ".pyx",  # Cython
         ".cmake",  # CMake modules
         ".sh",  # build scripts
