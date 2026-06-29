@@ -3105,6 +3105,15 @@ class LLMObs(Service):
                 sampling_decision.value if hasattr(sampling_decision, "value") else sampling_decision
             )
 
+        # Propagate the nearest agent so spans in the downstream process attribute correctly.
+        # The id is always digit-safe; the name is arbitrary user text, so skip it (id-only)
+        # when it would raise in the tagset encoder rather than drop the whole header.
+        parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
+        if parent_agent_span_id is not None:
+            span_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = parent_agent_span_id
+        if parent_agent_name is not None and _agent_name_wire_safe(parent_agent_name):
+            span_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = parent_agent_name
+
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
@@ -3167,6 +3176,10 @@ class LLMObs(Service):
             parent_llmobs_trace_id = context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             propagated_sample_rate = context._meta.get(PROPAGATED_SAMPLE_RATE)
             propagated_sampling_decision = context._meta.get(PROPAGATED_SAMPLING_DECISION)
+            # The hand-built llmobs_context below does not inherit inbound _dd.p.* tags, so
+            # the agent attribution keys must be copied onto it explicitly (mirrors trace_id).
+            propagated_agent_id = context._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY)
+            propagated_agent_name = context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
             # `PROPAGATED_LLMOBS_TRACE_ID_KEY` on `Context._meta` is wire-format (decimal).
             # Store the inbound value as-is and defer normalization to the reader
             # (`_activate_llmobs_span`, Context-parent branch) so we never apply
@@ -3182,6 +3195,10 @@ class LLMObs(Service):
                     llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
                 if propagated_sampling_decision is not None:
                     llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+                if propagated_agent_id is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+                if propagated_agent_name is not None:
+                    llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
@@ -3191,6 +3208,10 @@ class LLMObs(Service):
                 llmobs_context._meta[PROPAGATED_SAMPLE_RATE] = propagated_sample_rate
             if propagated_sampling_decision is not None:
                 llmobs_context._meta[PROPAGATED_SAMPLING_DECISION] = propagated_sampling_decision
+            if propagated_agent_id is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = propagated_agent_id
+            if propagated_agent_name is not None:
+                llmobs_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = propagated_agent_name
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)
