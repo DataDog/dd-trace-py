@@ -11,12 +11,12 @@ def test_exporter_failure():
     s.flush()
 
 
-def test_thread_name():
+def test_start_stop():
     s = scheduler.Scheduler()
     s.start()
-    assert s._worker is not None
-    assert s._worker.name == "ddtrace.profiling.scheduler:Scheduler"
+    assert s.status == scheduler.SchedulerStatus.RUNNING
     s.stop()
+    assert s.status == scheduler.SchedulerStatus.STOPPED
 
 
 def test_before_flush():

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.19)
 
-# This builds a C-extension for Python using Cython and a native dependency.  The exact name of the extension has
+# This builds a C-extension for Python using Cython and a native dependency. The exact name of the extension has
 # consequences for the build path, which is in turn used by setup.py to build the wheel. Otherwise, we have to propagate
 # a lot of state all around. Thus, we use the same name as the Python package (i.e., the caller sets EXTENSION_NAME)
 # ddup is used by a default for standalone/test builds.
@@ -32,6 +32,14 @@ set_target_properties(
 
 find_package(Python3 COMPONENTS Interpreter Development)
 
+# The native upload thread (upload_thread.cpp) uses std::thread and pthread_atfork. pthread_atfork in particular only
+# exists in libc_nonshared.a on glibc, so it is not resolved at load time unless we link against pthread.
+find_package(Threads REQUIRED)
+
+if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
+    message(FATAL_ERROR "pthread compatible library not found")
+endif()
+
 # Make sure we have necessary Python variables
 if(NOT Python3_INCLUDE_DIRS)
     message(FATAL_ERROR "Python3_INCLUDE_DIRS not found")
@@ -55,7 +63,7 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx)
 
 # Specify the target C-extension that we want to build
-add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
+add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC} ${CMAKE_CURRENT_LIST_DIR}/upload_thread.cpp)
 
 add_ddup_config(${EXTENSION_NAME})
 
@@ -89,11 +97,11 @@ endif()
 
 target_include_directories(
     ${EXTENSION_NAME}
-    PRIVATE ../dd_wrapper/include
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ../dd_wrapper/include
             ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
             ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
