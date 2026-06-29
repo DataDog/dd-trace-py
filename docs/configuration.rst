@@ -616,7 +616,8 @@ AI Guard
      type: Boolean
      default: False
      description: |
-       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic
+       When set to ``True`` and AI Guard is enabled, streamed responses from Anthropic and
+       OpenAI (Chat Completions, including the ``with_raw_response`` helper, and Responses)
        are fully buffered before any chunk is returned to the caller. The complete response is
        evaluated; if the evaluation results in a block (DENY or ABORT), no chunks are delivered
        and ``AIGuardAbortError`` is raised. When set to ``False`` (default), only request inputs
@@ -634,6 +635,15 @@ AI Guard
        behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
+
+   DD_AI_GUARD_OPENAI_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the OpenAI SDK. When set to
+       ``True`` (default) and AI Guard is enabled, OpenAI calls are evaluated. Set to ``False`` to
+       disable AI Guard instrumentation for OpenAI only, without affecting other providers or
+       requiring a tracer version rollback.
 
 Code Security
 -------------
