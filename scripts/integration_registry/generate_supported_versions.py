@@ -15,12 +15,16 @@ sys.path.append(str(PROJECT_ROOT))
 
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: E402
 
+import riotfile  # noqa: E402
+
 
 CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
 DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
 SUPPORTED_VERSIONS_PATH = PROJECT_ROOT / "supported_versions.json"
 
 REQUIREMENTS_DIR = PROJECT_ROOT / ".riot" / "requirements"
+# Allows to get the version of a depency in a riot requirement files when it is formatted
+# like anyio==4.9.0
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
 PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
 LATEST = ""
@@ -87,8 +91,6 @@ PATCH_MODULES = get_patch_modules()
 
 def get_riot_hash_to_venvs() -> dict[str, RiotVenv]:
     """Map each generated riot requirements hash to its riot venv metadata."""
-    import riotfile
-
     riot_venvs = {}
     for instance in riotfile.venv.instances():
         if not instance.name:
@@ -116,10 +118,9 @@ def is_concrete_python_version(python_version: str) -> bool:
     return PYTHON_VERSION_RE.match(python_version) is not None
 
 
-def collect_tested_versions() -> tuple[dict[str, dict[str, set[TestedVersion]]], set[str]]:
+def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
     """Collect tested dependency versions by integration and Python version."""
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
-    python_versions = set()
     riot_hash_to_venvs = get_riot_hash_to_venvs()
 
     for requirements_path in sorted(REQUIREMENTS_DIR.glob("*.txt")):
@@ -132,7 +133,6 @@ def collect_tested_versions() -> tuple[dict[str, dict[str, set[TestedVersion]]],
         if not is_concrete_python_version(riot_venv.python_version):
             continue
 
-        python_versions.add(riot_venv.python_version)
         integration_name = riot_venv.name.split(":", 1)[0]
 
         if is_stdlib_package(integration_name):
@@ -158,7 +158,8 @@ def collect_tested_versions() -> tuple[dict[str, dict[str, set[TestedVersion]]],
                         python_version=riot_venv.python_version,
                     )
                 )
-    return tested_versions, python_versions
+
+    return tested_versions
 
 
 def _version_sort_key(version: str) -> tuple[int, Version]:
@@ -178,14 +179,11 @@ def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
     for package in packages:
         if package.lower() in venv_packages and LATEST in venv_packages[package.lower()]:
             return True
-
     return any(_venv_sets_latest_for_package(child_venv, suite_name) for child_venv in venv.venvs)
 
 
 def get_pinned_integrations(integration_names: set[str]) -> set[str]:
     """Return integrations that do not have any riot venv setting the dependency to latest."""
-    import riotfile
-
     pinned_integrations = set()
     integrations_setting_latest = set()
 
@@ -228,7 +226,7 @@ def build_python_versions(
     return python_versions
 
 
-def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]]):
+def build_supported_versions_entries(tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]]):
     """Build the JSON payload for supported_versions.json."""
     entries = []
     integration_names = set(get_integration_names())
@@ -263,7 +261,7 @@ def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[Tested
             )
 
             if integration_name in pinned_integrations:
-                entry["pinned"] = "true"
+                entry["pinned"] = True
 
             entries.append(entry)
 
@@ -272,8 +270,10 @@ def to_json_data(tested_versions_per_integration: dict[str, dict[str, set[Tested
 
 def main() -> None:
     """Generate supported_versions.json from riot requirement lock files."""
-    tested_versions_per_integration, _ = collect_tested_versions()
-    SUPPORTED_VERSIONS_PATH.write_text(json.dumps(to_json_data(tested_versions_per_integration), indent=4) + "\n")
+    tested_versions_per_integration = collect_tested_versions()
+    SUPPORTED_VERSIONS_PATH.write_text(
+        json.dumps(build_supported_versions_entries(tested_versions_per_integration), indent=4) + "\n"
+    )
 
 
 if __name__ == "__main__":
