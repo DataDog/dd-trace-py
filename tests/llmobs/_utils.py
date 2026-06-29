@@ -334,8 +334,8 @@ def _expected_agent_attribution(span):
 
     Walks the LLMObs ancestor chain to the nearest "agent" span (full walk) — this must
     match the implementation, which achieves the same result via one-level inheritance at
-    activation. Returns the resolved block, or the `attempted` sentinel when no agent
-    ancestor exists.
+    activation. Returns the resolved block, or ``None`` when no agent ancestor exists (the
+    span event omits the block entirely in that case).
     """
     ancestor = _get_nearest_llmobs_ancestor(span)
     while ancestor is not None:
@@ -345,7 +345,7 @@ def _expected_agent_attribution(span):
                 "parent_agent_span_id": str(ancestor.span_id),
             }
         ancestor = _get_nearest_llmobs_ancestor(ancestor)
-    return {"attempted": "true"}
+    return None
 
 
 def _llmobs_base_span_event(
@@ -396,7 +396,9 @@ def _llmobs_base_span_event(
             "sampling_decision": mock.ANY,
         },
     }
-    span_event["meta"]["agent_attribution"] = _expected_agent_attribution(span)
+    expected_agent_attribution = _expected_agent_attribution(span)
+    if expected_agent_attribution is not None:
+        span_event["meta"]["agent_attribution"] = expected_agent_attribution
     if session_id:
         span_event["session_id"] = session_id
     if error:
