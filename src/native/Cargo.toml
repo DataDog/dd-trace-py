@@ -11,13 +11,13 @@ opt-level = 's'
 codegen-units = 1
 
 [features]
-crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc", "dep:libdd-common"]
+crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc", "dep:libdd-common"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:datadog-ffe"]
 stats = ["dep:libdd-ddsketch"]
 
 [dependencies]
-anyhow = { version = "1.0", optional = true }
+anyhow = { version = "1.0" }
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
@@ -29,6 +29,12 @@ serde = "1.0"
 datadog-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0", optional = true, version = "1.0.0", features = ["pyo3"] }
 serde_json = "1.0"
 datadog-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0" }
+# Explicit revision for testing
+libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "c06b8a8e8ac384e73baea86c8effda52821cb638", features = ["client"] }
+datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "c06b8a8e8ac384e73baea86c8effda52821cb638", features = ["one_way_shm_futex"] }
+libdd-common-local = { git = "https://github.com/DataDog/libdatadog", rev = "c06b8a8e8ac384e73baea86c8effda52821cb638", package = "libdd-common" }
+native-proc-macro = { path = "native_proc_macro" }
+strum = { version = "0.26", default-features = false }
 libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0" }
 libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0", optional = true }
 libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v35.0.0", optional = true }

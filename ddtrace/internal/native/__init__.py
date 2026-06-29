@@ -16,6 +16,11 @@ from ._native import IoError  # noqa: F401
 from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
+from ._native import RemoteConfigCapabilities  # noqa: F401
+from ._native import RemoteConfigChange  # noqa: F401
+from ._native import RemoteConfigClient  # noqa: F401
+from ._native import RemoteConfigProduct  # noqa: F401
+from ._native import RemoteConfigReader  # noqa: F401
 from ._native import RequestError  # noqa: F401
 from ._native import RequestFailedError  # noqa: F401
 from ._native import SerializationError  # noqa: F401

@@ -284,7 +284,6 @@ def appsec_application_server(
     env["DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS"] = "0.5"
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = remote_configuration_enabled
     if token:
-        env["_DD_REMOTE_CONFIGURATION_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:%s," % (token,)
         env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = "X-Datadog-Test-Session-Token:{}".format(token)
     if appsec_enabled:
         env["DD_APPSEC_ENABLED"] = appsec_enabled
