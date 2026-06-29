@@ -138,6 +138,13 @@
         ]
       }
     ],
+    "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -171,6 +178,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_AI_GUARD_OPENAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_TIMEOUT": [
@@ -5983,6 +5997,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
         "internal": true
       }
     ],

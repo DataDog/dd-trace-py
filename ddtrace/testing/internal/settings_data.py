@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from dataclasses import field
+import logging
 import typing as t
+
+from ddtrace.internal.settings import env
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -16,15 +22,20 @@ class EarlyFlakeDetectionSettings:
 
     @classmethod
     def from_attributes(cls, efd_attributes: dict[str, t.Any]) -> EarlyFlakeDetectionSettings:
-        efd_settings = cls(
-            enabled=efd_attributes["enabled"],
-            slow_test_retries_5s=efd_attributes["slow_test_retries"]["5s"],
-            slow_test_retries_10s=efd_attributes["slow_test_retries"]["10s"],
-            slow_test_retries_30s=efd_attributes["slow_test_retries"]["30s"],
-            slow_test_retries_5m=efd_attributes["slow_test_retries"]["5m"],
-            faulty_session_threshold=efd_attributes["faulty_session_threshold"],
+        # Tolerate a partial response: each missing field falls back to its default instead of raising. A raise here
+        # propagates up to Settings.from_attributes and is swallowed by APIClient.get_settings, which then returns a
+        # default Settings() with *every* feature disabled — so one missing optional field would silently turn off all
+        # of Test Optimization.
+        defaults = cls()
+        slow_test_retries = efd_attributes.get("slow_test_retries") or {}
+        return cls(
+            enabled=bool(efd_attributes.get("enabled", defaults.enabled)),
+            slow_test_retries_5s=slow_test_retries.get("5s", defaults.slow_test_retries_5s),
+            slow_test_retries_10s=slow_test_retries.get("10s", defaults.slow_test_retries_10s),
+            slow_test_retries_30s=slow_test_retries.get("30s", defaults.slow_test_retries_30s),
+            slow_test_retries_5m=slow_test_retries.get("5m", defaults.slow_test_retries_5m),
+            faulty_session_threshold=efd_attributes.get("faulty_session_threshold", defaults.faulty_session_threshold),
         )
-        return efd_settings
 
 
 @dataclass
@@ -40,11 +51,28 @@ class TestManagementSettings:
 
     @classmethod
     def from_attributes(cls, test_management_attributes: dict[str, t.Any]) -> TestManagementSettings:
-        test_management_settings = cls(
-            enabled=test_management_attributes["enabled"],
-            attempt_to_fix_retries=test_management_attributes["attempt_to_fix_retries"],
+        # Tolerate a partial response (see EarlyFlakeDetectionSettings.from_attributes for why).
+        defaults = cls()
+        attempt_to_fix_retries_env = env.get("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+        if attempt_to_fix_retries_env:
+            if not attempt_to_fix_retries_env.isdigit():
+                log.warning("Invalid number of Attempt to Fix retries set: %s", attempt_to_fix_retries_env)
+                attempt_to_fix_retries = test_management_attributes.get(
+                    "attempt_to_fix_retries", defaults.attempt_to_fix_retries
+                )
+                log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
+            else:
+                attempt_to_fix_retries = int(attempt_to_fix_retries_env)
+                log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
+        else:
+            attempt_to_fix_retries = test_management_attributes.get(
+                "attempt_to_fix_retries", defaults.attempt_to_fix_retries
+            )
+            log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
+        return cls(
+            enabled=bool(test_management_attributes.get("enabled", defaults.enabled)),
+            attempt_to_fix_retries=attempt_to_fix_retries,
         )
-        return test_management_settings
 
 
 @dataclass
@@ -62,8 +90,10 @@ class Settings:
 
     @classmethod
     def from_attributes(cls, attributes: dict[str, t.Any]) -> Settings:
-        efd_attributes: dict[str, t.Any] = t.cast(dict[str, t.Any], attributes.get("early_flake_detection"))
-        test_management_attributes: dict[str, t.Any] = t.cast(dict[str, t.Any], attributes.get("test_management"))
+        # Default missing sections to an empty dict so a fully-absent section degrades to that feature's defaults
+        # rather than passing None into the sub-parser (and raising).
+        efd_attributes: dict[str, t.Any] = attributes.get("early_flake_detection") or {}
+        test_management_attributes: dict[str, t.Any] = attributes.get("test_management") or {}
         efd_settings = EarlyFlakeDetectionSettings.from_attributes(efd_attributes)
         test_management_settings = TestManagementSettings.from_attributes(
             test_management_attributes=test_management_attributes
@@ -96,5 +126,6 @@ class TestProperties:
     quarantined: bool = False
     disabled: bool = False
     attempt_to_fix: bool = False
+    active: bool = False
 
     __test__ = False
