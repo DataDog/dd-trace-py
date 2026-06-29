@@ -267,7 +267,8 @@ async def test_client_response_not_retained_after_request():
     allocations (e.g. multidict, aiohttp internals) are captured.
     """
     from aiohttp import web
-    from aiohttp.test_utils import TestServer, TestClient
+    from aiohttp.test_utils import TestClient
+    from aiohttp.test_utils import TestServer
 
     PAYLOAD_SIZE = 1 * 1024 * 1024  # 1 MB
     ITERS = 15
