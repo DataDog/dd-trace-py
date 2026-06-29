@@ -1,0 +1,17 @@
+---
+fixes:
+  - |
+    profiling: Fixed a crash (SIGSEGV) in the stack profiler that could occur on
+    shutdown when fast memory copying was enabled. The final profile flush
+    triggered one-time code-provenance imports while the native sampler was still
+    walking frames during interpreter teardown, which could read freed objects.
+    Code provenance is now pre-computed at startup, the native sampler is paused
+    before the final flush, and the sampling thread now stops as soon as the
+    interpreter begins finalizing.
+  - |
+    profiling: The stack profiler now detects when another component (for example
+    PyTorch or CUDA) takes over the ``SIGSEGV`` handler after profiling has
+    started. When this happens it automatically falls back to a syscall-based
+    memory copy instead of crashing, so the previously required
+    ``_DD_PROFILING_STACK_FAST_COPY=0`` workaround is no longer needed in those
+    environments.

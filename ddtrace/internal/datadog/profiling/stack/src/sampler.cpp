@@ -24,6 +24,13 @@
 
 using namespace Datadog;
 
+// Py_IsFinalizing is public API since 3.13; _Py_IsFinalizing on older versions.
+#if PY_VERSION_HEX >= 0x30d0000
+#define dd_py_is_finalizing Py_IsFinalizing
+#else
+#define dd_py_is_finalizing _Py_IsFinalizing
+#endif
+
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <ctime>
@@ -257,8 +264,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // State for detecting a foreign SIGSEGV handler taking over (see below).
+    auto handler_check_time_prev = sample_time_prev;
+    int foreign_handler_streak = 0;
+    bool handler_fallback_done = false;
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // If the interpreter is shutting down, stop sampling immediately. During
+        // finalization, frames and code objects are freed out from under us, so
+        // unwinding a thread would read freed memory and fault (PROF-14568). The
+        // profiler's own shutdown normally stops this thread first, but this guard
+        // covers teardown paths that don't (e.g. uWSGI --skip-atexit, hard exits).
+        if (dd_py_is_finalizing()) {
+            break;
+        }
+
         // Check if a pause has been requested (e.g., for signal handler swapping).
         // Block until resumed or the thread is asked to stop.
         if (pause_requested_.load(std::memory_order_acquire)) {
@@ -281,6 +302,31 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
+
+        // safe_memcpy's fault recovery only works while we own the SIGSEGV handler.
+        // Some libraries (notably PyTorch/CUDA) install their own SIGSEGV handler
+        // after the profiler starts; if one persists, a fault on a stale read would
+        // crash instead of being recovered (PROF-14568). At a low cadence, check
+        // whether our handler is still installed; if a foreign handler holds it for
+        // two consecutive checks (avoiding transient swaps such as faulthandler
+        // re-enabling, which our hooks reinstall over), fall back to process_vm_readv
+        // (Linux) / mach_vm_read_overwrite (macOS), which return errors instead of
+        // faulting. We degrade to dropped samples rather than crashing.
+        if (fast_copy_active && !handler_fallback_done && sample_time_now - handler_check_time_prev > seconds(1)) {
+            handler_check_time_prev = sample_time_now;
+            if (segv_handler_installed()) {
+                foreign_handler_streak = 0;
+            } else if (++foreign_handler_streak >= 2) {
+                // Attempt the fallback only once: if process_vm_readv is also
+                // unavailable, set_fast_copy_enabled returns false and there is
+                // nothing more we can do, so do not retry/log every second.
+                handler_fallback_done = true;
+                std::cerr << "ddtrace stack profiler: SIGSEGV handler was taken over by another "
+                             "component; falling back to syscall-based memory copy to avoid crashing."
+                          << std::endl;
+                set_fast_copy_enabled(false);
+            }
+        }
 
         // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
