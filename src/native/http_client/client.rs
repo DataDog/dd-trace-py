@@ -20,8 +20,21 @@ use libdd_shared_runtime::SharedRuntime;
 #[cfg(not(unix))]
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, pybacked::PyBackedBytes};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, sync::OnceLock, time::Duration};
 use url::Url;
+
+/// Install the ring crypto provider once.
+///
+/// `libdd-http-client` uses `reqwest/rustls-no-provider` so no provider is
+/// auto-installed. This mirrors `libdd-common`'s connector init: ring is
+/// installed lazily on first client construction. In FIPS builds the caller
+/// must install `aws_lc_rs` before the first `HTTPClient` is created.
+fn ensure_crypto_provider() {
+    static ONCE: OnceLock<()> = OnceLock::new();
+    ONCE.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
@@ -135,6 +148,7 @@ impl HttpClientPy {
         retry_jitter: bool,
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
+        ensure_crypto_provider();
         let rt = runtime.as_arc().clone();
 
         // Parse the base URL to validate it and extract the canonical base origin.
