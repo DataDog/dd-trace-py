@@ -100,8 +100,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             metadata=self._extract_metadata(config, GENERATE_METADATA_PARAMS),
-            input_messages=self._extract_input_messages(args, kwargs, config),
-            output_messages=self._extract_output_messages(response),
+            input_messages=self._extract_input_messages(args, kwargs, config, span_id=span.span_id),
+            output_messages=self._extract_output_messages(response, span_id=span.span_id),
             metrics=extract_generation_metrics_google_genai(response),
             **({"tool_definitions": tools} if tools else {}),
         )
@@ -111,32 +111,36 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         _annotate_llmobs_span_data(
             span,
             metadata=self._extract_metadata(config, EMBED_METADATA_PARAMS),
-            input_documents=self._extract_embedding_input_documents(args, kwargs, config),
+            input_documents=self._extract_embedding_input_documents(args, kwargs, config, span_id=span.span_id),
             output_value=self._extract_embedding_output_value(response),
             metrics=extract_embedding_metrics_google_genai(response),
         )
 
-    def _extract_input_messages(self, args: list[Any], kwargs: dict[str, Any], config) -> list[Message]:
+    def _extract_input_messages(
+        self, args: list[Any], kwargs: dict[str, Any], config, span_id: Optional[int] = None
+    ) -> list[Message]:
         messages: list[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
-            messages.extend(self._extract_messages_from_contents(system_instruction, "system"))
+            messages.extend(self._extract_messages_from_contents(system_instruction, "system", span_id=span_id))
 
         contents = kwargs.get("contents")
-        messages.extend(self._extract_messages_from_contents(contents, "user"))
+        messages.extend(self._extract_messages_from_contents(contents, "user", span_id=span_id))
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> list[Message]:
+    def _extract_messages_from_contents(
+        self, contents, default_role: str, span_id: Optional[int] = None
+    ) -> list[Message]:
         messages: list[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
-                messages.append(extract_message_from_part_google_genai(part, role))
+                messages.append(extract_message_from_part_google_genai(part, role, span_id=span_id))
         return messages
 
-    def _extract_output_messages(self, response) -> list[Message]:
+    def _extract_output_messages(self, response, span_id: Optional[int] = None) -> list[Message]:
         if not response:
             return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
@@ -148,7 +152,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             parts = _get_attr(content, "parts", []) or []
             role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
             for part in parts:
-                message = extract_message_from_part_google_genai(part, role)
+                message = extract_message_from_part_google_genai(part, role, span_id=span_id)
                 messages.append(message)
         return messages
 
@@ -159,9 +163,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
         return ""
 
-    def _extract_embedding_input_documents(self, args, kwargs, config) -> list[Document]:
+    def _extract_embedding_input_documents(self, args, kwargs, config, span_id: Optional[int] = None) -> list[Document]:
         contents = kwargs.get("contents")
-        messages = self._extract_messages_from_contents(contents, "user")
+        messages = self._extract_messages_from_contents(contents, "user", span_id=span_id)
         documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 

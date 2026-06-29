@@ -182,7 +182,7 @@ def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
-def extract_message_from_part_google_genai(part, role: str) -> Message:
+def extract_message_from_part_google_genai(part, role: str, span_id: Optional[int] = None) -> Message:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
     returns a dict representing a message with format {"role": role, "content": content}
@@ -259,7 +259,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     # other non-text metadata) are left with empty content rather than a confusing "Unsupported
     # file type" placeholder. The debug log keeps any future/unrecognized part shapes discoverable
     # without surfacing noise to users.
-    log.debug("google_genai part has no recognized content to extract: %r", type(part))
+    log.debug("google_genai part has no recognized content to extract: %r (span_id=%s)", type(part), span_id)
     return message
 
 
@@ -350,12 +350,13 @@ def get_system_instructions_vertexai(model_instance):
     return system_instructions
 
 
-def extract_messages_from_adk_events(events) -> list[Message]:
+def extract_messages_from_adk_events(events, span_id: Optional[int] = None) -> list[Message]:
     """
     Extract messages from Google ADK Event objects.
 
     Args:
         events: list of ADK Event objects or single Event object
+        span_id: id of the span the messages are extracted for, used for debug logging
 
     Returns:
         list of message dictionaries with format {"role": role, "content": content, ...}
@@ -379,7 +380,7 @@ def extract_messages_from_adk_events(events) -> list[Message]:
 
         for part in parts:
             # Reuse the existing Google GenAI part extraction logic
-            message = extract_message_from_part_google_genai(part, role)
+            message = extract_message_from_part_google_genai(part, role, span_id=span_id)
             if message:
                 messages.append(message)
 
