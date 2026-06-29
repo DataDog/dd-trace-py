@@ -9,13 +9,12 @@ must be indistinguishable from the original.
 
 Layout:
   * ``mechanisms.py`` — the four wrap adapters (internal_wrap, tracer_wrap, wrapt,
-    wrapping_context).
-  * ``_harness.py`` — the ``mechanisms`` / ``mechanisms_param`` parametrization and
-    async run helpers.
-  * ``conftest.py`` — version-gated collection (collect_ignore) for the
+    wrapping_context), collected into ``ALL_MECHANISMS``, plus the
+    ``xfail_mechanism`` helper for declaring known per-mechanism failures.
+  * ``conftest.py`` — the ``mech`` fixture that runs each test over all four
+    mechanisms, and version-gated collection (collect_ignore) for the
     ``test_*_py<NN>.py`` files.
-  * ``test_*.py`` — tests grouped by callable category.
-
-See ``README.md`` for the full layout, the known-failure (xfail) table, and how
-to run the suite.
+  * ``_harness.py`` — async run helpers (``run``, ``aiterate``) and ``wraps_deco``.
+  * ``test_*.py`` — tests grouped by callable category. A known failure is declared
+    at the test site with ``@xfail_mechanism("<mechanism>", reason=...)``.
 """

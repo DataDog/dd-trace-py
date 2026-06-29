@@ -2,13 +2,14 @@
 
 Test files that use syntax introduced in a specific Python version would raise a
 ``SyntaxError`` *at import time* on older interpreters, before any ``skipif`` could
-run. So we skip collecting them here, mirroring
-``tests/appsec/iast/aspects/conftest.py``.
+run. So we skip collecting them here via ``collect_ignore`` -- the same strategy as
+``tests/appsec/iast/aspects/conftest.py`` (which hard-codes one file + version),
+generalized below to a filename convention so new gated files need no edit here.
 
 The ``test_*_py<major><minor>.py`` naming convention is made executable below: each
-such file is parsed for its version suffix and ignored on anything older, so adding
-a new gated file needs no edit here (only the matching ruff exclude in pyproject.toml,
-which cannot run Python logic).
+such file is parsed for its version suffix and ignored on anything older. Adding a
+gated file therefore only needs the matching ruff exclude in pyproject.toml (which
+cannot run Python logic), not an edit here.
 """
 
 import os

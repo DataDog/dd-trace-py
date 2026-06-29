@@ -1,8 +1,10 @@
 """Coroutines and async generators: await delegation and async lifecycle.
 
 Async generators that ``await`` around their ``yield`` exercise the SEND-based
-await machinery that PR #18741 fixed; the internal bytecode trampoline corrupts
-it on 3.11+ (immune on 3.9/3.10), so those cases xfail for ``internal_wrap``.
+await machinery that PR #18741 fixed for the internal bytecode trampoline; those
+cases now pass for every mechanism. The remaining known failures here are
+``wrapping_context``'s asend/athrow/aclose on 3.10 only (see the ``xfail_mechanism``
+markers).
 """
 
 import asyncio

@@ -599,8 +599,6 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-xdist": latest,
-                "hypothesis": latest,
-                "pytest-asyncio": latest,
                 "wrapt": [latest, "<2.0.0"],
             },
         ),

@@ -115,6 +115,9 @@ def xfail_mechanism(*names, reason, condition=True):
     interpreter version, e.g. ``condition=sys.version_info >= (3, 11)`` (when false the
     test simply runs and is expected to pass).
     """
+    unknown = set(names) - set(ALL_MECHANISMS)
+    if unknown:
+        raise ValueError(f"unknown mechanism(s) {sorted(unknown)}; expected from {sorted(ALL_MECHANISMS)}")
     xfail = pytest.mark.xfail(reason=reason, strict=True)
     return pytest.mark.parametrize(
         "mech",
