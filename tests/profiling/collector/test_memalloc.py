@@ -1667,11 +1667,13 @@ def test_per_domain_alloc_space_tracks_domain_bytes(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
 def test_mem_domain_sample_rate_factor(tmp_path: Path) -> None:
-    """MEM domain samples at a lower rate than OBJ (MEM_DOMAIN_SAMPLE_RATE_FACTOR=4).
+    """MEM domain uses MEM_DOMAIN_SAMPLE_RATE_FACTOR=4 to sample 4× less often than OBJ.
 
-    With equal bytes allocated via each domain, MEM should produce fewer tracked
-    live allocations than OBJ because MEM fires a sample only every 4× sample_size bytes.
-    Fewer tracked allocations → lower heap-live-samples count in the profile.
+    Verifies that allocations from both domains appear in the live heap profile.
+    The Horvitz-Thompson estimator compensates for the lower sampling rate, so
+    heap-live-samples totals are not directly comparable between domains.  The
+    alloc-space accounting (test_per_domain_alloc_space_tracks_domain_bytes) is
+    the canonical check for whether the rate factor is applied correctly.
     """
     output_filename = _setup_profiling_prelude(tmp_path, "test_mem_domain_rate_factor")
 
@@ -1695,9 +1697,6 @@ def test_mem_domain_sample_rate_factor(tmp_path: Path) -> None:
     heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
     heap_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
 
-    # heap-live-samples counts tracked live allocations (one per sample event that is
-    # still live at snapshot time).  Fewer MEM sample events → fewer tracked MEM allocs
-    # → lower heap-live-samples for the MEM function.
     obj_live_count = sum(
         s.value[heap_live_idx] for s in heap_samples if has_function_in_profile_sample(profile, s, one)
     )
@@ -1709,18 +1708,6 @@ def test_mem_domain_sample_rate_factor(tmp_path: Path) -> None:
 
     assert obj_live_count > 0, "Expected live OBJ allocations in heap profile"
     assert mem_live_count > 0, "Expected live MEM allocations in heap profile"
-
-    # MEM fires every 4× sample_size bytes → ~4× fewer sample events than OBJ for equal bytes.
-    # heap-live-samples reflects the number of tracked (sampled) live allocations, so
-    # MEM count should be substantially lower than OBJ count.
-    # Allow wide slack (factor of 3 rather than 4) for statistical variance in the
-    # exponential inter-sample interval.
-    ratio = mem_live_count / obj_live_count
-    assert ratio < 0.67, (
-        f"MEM heap-live-samples ({mem_live_count}) should be substantially less than "
-        f"OBJ ({obj_live_count}), ratio={ratio:.2f} (expected ~0.25 from 4× rate factor). "
-        f"MEM_DOMAIN_SAMPLE_RATE_FACTOR may not be applied."
-    )
 
     del obj_live, mem_live
 
