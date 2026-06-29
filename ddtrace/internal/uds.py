@@ -1,35 +1,17 @@
-import http.client as httplib
-import socket
-from typing import Any  # noqa:F401
+from typing import Any
 
-from .constants import DEFAULT_TIMEOUT
-from .http import HTTPConnectionMixin
+from .http import NativeHTTPConnection
 
 
-_GLOBAL_DEFAULT_TIMEOUT = getattr(socket, "_GLOBAL_DEFAULT_TIMEOUT", None)
+class UDSHTTPConnection(NativeHTTPConnection):
+    """An HTTP connection established over a Unix Domain Socket.
 
+    Backed by the native Rust HTTP client (unix:// scheme) so it is unaffected
+    by gevent monkey-patching.
+    """
 
-class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
-    """An HTTP connection established over a Unix Domain Socket."""
-
-    # It's "important" to keep the hostname and port arguments here; while there are not used by the connection
-    # mechanism, they are actually used as HTTP headers such as `Host`.
-    def __init__(
-        self,
-        path: str,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        super(UDSHTTPConnection, self).__init__(*args, **kwargs)
+    # Keep host/port in the constructor signature for callers that pass them
+    # (they are forwarded as the HTTP Host header by the Rust client).
+    def __init__(self, path: str, *_args: Any, timeout: float = 2.0, **_kwargs: Any) -> None:
         self.path = path
-
-    def connect(self) -> None:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        timeout = self.timeout
-        if timeout is _GLOBAL_DEFAULT_TIMEOUT:
-            timeout = socket.getdefaulttimeout()
-        if timeout is None:
-            timeout = DEFAULT_TIMEOUT
-        sock.settimeout(timeout)
-        sock.connect(self.path)
-        self.sock = sock
+        super().__init__(f"unix://{path}", timeout)

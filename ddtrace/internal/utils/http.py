@@ -71,14 +71,12 @@ def classify_media_type(content_type: Optional[str]) -> MediaType:
 
 
 if TYPE_CHECKING:
-    import http.client as httplib
-
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
 
 ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
-Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
+Connector = Callable[[], ContextManager[ConnectionType]]
 
 
 log = logging.getLogger(__name__)
@@ -169,7 +167,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     """
 
     @contextmanager
-    def _connector_context() -> Generator[Union["httplib.HTTPConnection", "httplib.HTTPSConnection"], None, None]:
+    def _connector_context() -> Generator[ConnectionType, None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
