@@ -1,4 +1,7 @@
+import gc
 import os
+import resource
+import sys
 
 import aiohttp
 import pytest
@@ -252,3 +255,51 @@ async def test_base_url(snapshot_context):
         async with aiohttp.ClientSession(base_url="http://{}".format(SOCKET)) as session:
             async with session.get("/status/200") as resp:
                 assert resp.status == 200
+
+
+@pytest.mark.asyncio
+async def test_client_response_not_retained_after_request():
+    """Regression test for GH-18781.
+
+    ddtrace >= 4.9 (PR #17576) stored a strong reference to the full ClientResponse
+    object in HttpClientRequestEvent.set_response, preventing GC of response bodies
+    and causing ~1 MB of growth per request. Measured via RSS so that C-level
+    allocations (e.g. multidict, aiohttp internals) are captured.
+    """
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer, TestClient
+
+    PAYLOAD_SIZE = 1 * 1024 * 1024  # 1 MB
+    ITERS = 15
+    # Allow up to 8x the payload for baseline allocations; with the bug every body
+    # is retained so growth ≈ ITERS * PAYLOAD_SIZE ≈ 15 MB.
+    THRESHOLD_MB = 8
+
+    app = web.Application()
+    payload = b"x" * PAYLOAD_SIZE
+    app.router.add_get("/", lambda r: web.Response(body=payload))
+    server = TestServer(app)
+    client = TestClient(server)
+    await client.start_server()
+    url = str(client.make_url("/"))
+
+    try:
+        gc.collect()
+
+        def rss_mb():
+            usage = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            return int(usage / (1024 * 1024)) if sys.platform == "darwin" else int(usage / 1024)
+
+        before = rss_mb()
+        async with aiohttp.ClientSession() as session:
+            for _ in range(ITERS):
+                async with session.get(url) as resp:
+                    await resp.read()
+        gc.collect()
+        growth = rss_mb() - before
+        assert growth < THRESHOLD_MB, (
+            f"Memory leak detected (GH-18781): RSS grew {growth} MB over {ITERS} x {PAYLOAD_SIZE // (1024 * 1024)} MB "
+            f"requests (threshold {THRESHOLD_MB} MB). The tracer may be retaining ClientResponse objects."
+        )
+    finally:
+        await client.close()
