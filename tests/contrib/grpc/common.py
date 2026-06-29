@@ -44,14 +44,19 @@ class GrpcBaseTestCase(TracerTestCase):
         self._server_pool = logging_pool.pool(1)
         self._server = grpc.server(self._server_pool)
         # gRPC core releases the listening socket asynchronously after a previous server's shutdown
-        # Event fires, so rebinding the worker's fixed port can transiently fail. Retry the bind to
-        # avoid a flaky "Failed to bind to address" RuntimeError between tests.
+        # Event fires, so rebinding the worker's fixed port can transiently fail. add_insecure_port
+        # raises RuntimeError (port 0 from Core) on failure, so retry with a short backoff to avoid
+        # a flaky "Failed to bind to address" between tests.
+        last_exc = None
         for _ in range(10):
-            if self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT)) != 0:
+            try:
+                self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
                 break
-            time.sleep(0.1)
+            except RuntimeError as exc:
+                last_exc = exc
+                time.sleep(0.1)
         else:
-            raise RuntimeError("Failed to bind to address [::]:%d after multiple attempts" % (_GRPC_PORT))
+            raise RuntimeError("Failed to bind to address [::]:%d after multiple attempts" % (_GRPC_PORT)) from last_exc
         add_HelloServicer_to_server(_HelloServicer(), self._server)
         self._server.start()
 
