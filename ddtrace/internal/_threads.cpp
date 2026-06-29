@@ -43,6 +43,12 @@ struct module_state
 
     // Mapping of active periodic thread IDs to their PeriodicThread objects.
     PyObject* periodic_threads{ nullptr };
+    // Private list of PeriodicThread objects that have been restarted
+    // asynchronously in a forked child but have not yet registered a new thread
+    // id in periodic_threads. Lets an immediate second fork (and atexit) still
+    // see and restart/stop them. Backported from #18636.
+    PyObject* pending_periodic_threads{ nullptr };
+    std::mutex pending_periodic_threads_mutex;
 
     // Sentinel returned by a periodic target to request a clean stop of the
     // loop without error. Checked by PeriodicThread__periodic after each call.
@@ -57,6 +63,39 @@ struct module_state
         return at_exit.load(std::memory_order_acquire) || py_is_finalizing();
     }
 };
+
+// ----------------------------------------------------------------------------
+// Pending fork-restart registry helpers (backported from #18636). A child fork
+// hook restarts periodic threads non-blocking, so the replacement OS thread has
+// not yet registered itself in periodic_threads when _after_fork returns. These
+// helpers track such workers until they register, so a second fork's
+// _before_fork() snapshot and the atexit handler can still find them.
+static int
+append_pending_periodic_thread(module_state* state, PeriodicThread* self)
+{
+    if (state == nullptr || state->pending_periodic_threads == NULL)
+        return 0;
+
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    return PyList_Append(state->pending_periodic_threads, (PyObject*)self);
+}
+
+static int
+remove_pending_periodic_thread(module_state* state, PeriodicThread* self)
+{
+    if (state == nullptr || state->pending_periodic_threads == NULL)
+        return 0;
+
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    Py_ssize_t size = PyList_GET_SIZE(state->pending_periodic_threads);
+    for (Py_ssize_t i = size - 1; i >= 0; i--) {
+        PyObject* item = PyList_GET_ITEM(state->pending_periodic_threads, i); // Borrowed reference.
+        if (item == (PyObject*)self && PySequence_DelItem(state->pending_periodic_threads, i) < 0)
+            return -1;
+    }
+
+    return 0;
+}
 
 // ----------------------------------------------------------------------------
 /**
@@ -531,7 +570,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 // for cases where the thread is being restarted after a fork to preserve the
 // existing next trigger time).
 static PyObject*
-_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
+_PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false, bool wait_until_started = true)
 {
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
@@ -594,8 +633,15 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                     Py_DECREF(self->ident);
                     self->ident = PyLong_FromLong((long)PyThreadState_Get()->thread_id);
 
-                    // Map the PeriodicThread object to its thread ID
-                    PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self);
+                    // Map the PeriodicThread object to its thread ID. Once it is
+                    // registered, drop any pending fork-restart record for this
+                    // worker so it is now tracked via the active map only.
+                    if (PyDict_SetItem(state->periodic_threads, self->ident, (PyObject*)self) == 0) {
+                        if (remove_pending_periodic_thread(state, self) < 0)
+                            PyErr_Clear();
+                    } else {
+                        PyErr_Clear();
+                    }
                 }
 
                 // Set the native thread name for better debugging and profiling
@@ -708,8 +754,10 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
         return NULL;
     }
 
-    // Wait for the thread to start
-    {
+    // Wait for the thread to start. Skipped on the child fork path
+    // (wait_until_started=false) so application code can resume immediately
+    // after fork instead of blocking on the restarted thread coming up.
+    if (wait_until_started) {
         AllowThreads _(self->_state);
 
         self->_started->wait();
@@ -734,14 +782,36 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
         return NULL;
     }
 
+    // GIL-fast-path: if the worker is permanently stopped (not fork-paused),
+    // awake() is a best-effort no-op. Surfacing a RuntimeError here would make a
+    // timing-dependent race (stop() vs in-flight awake()) visible to callers,
+    // which is worse than silently doing nothing. Backported from #18636.
+    if (self->_stopping && !self->_skip_shutdown)
+        Py_RETURN_NONE;
+
+    bool stopped = false;
     {
         AllowThreads _(self->_state);
-        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-        self->_served->clear();
-        self->_request->set(REQUEST_REASON_AWAKE);
+        // Set up the wait under _awake_mutex. stop() also takes this mutex, so
+        // either we observe its _stopping write here, or our set(AWAKE) is
+        // ordered before its set(STOP) and the worker's cleanup _served->set()
+        // (loop exit) wakes us.
+        {
+            std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-        self->_served->wait();
+            if (self->_stopping && !self->_skip_shutdown) {
+                stopped = true;
+            } else {
+                self->_served->clear();
+                self->_request->set(REQUEST_REASON_AWAKE);
+            }
+        }
+
+        // Wait outside the mutex so a periodic callback that calls stop() on
+        // itself (Timer._periodic) does not deadlock against us.
+        if (!stopped)
+            self->_served->wait();
     }
 
     Py_RETURN_NONE;
@@ -756,8 +826,17 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    self->_stopping = true;
-    self->_request->set(REQUEST_REASON_STOP);
+    // Order _stopping + set(STOP) against awake()'s setup (clear _served, set
+    // AWAKE) under _awake_mutex. Without this, a concurrent awake() could clear
+    // _served after the worker has already exited and set it on cleanup, then
+    // wait forever. Backported from #18636.
+    {
+        AllowThreads _(self->_state);
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+
+        self->_stopping = true;
+        self->_request->set(REQUEST_REASON_STOP);
+    }
 
     Py_RETURN_NONE;
 }
@@ -778,7 +857,12 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     PyObject* timeout = Py_None;
 
-    if (args != NULL && kwargs != NULL) {
+    // CPython passes kwargs == NULL when the caller uses only positional
+    // arguments. The previous guard skipped parsing in that case, silently
+    // dropping the timeout: join(0.1) fell through to the Py_None branch and
+    // waited forever. PyArg_ParseTupleAndKeywords accepts kwargs == NULL, so we
+    // only need args to be non-NULL to attempt parsing. Backported from #18636.
+    if (args != NULL) {
         static const char* argnames[] = { "timeout", NULL };
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|O", (char**)argnames, &timeout))
             return NULL;
@@ -869,9 +953,32 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // preserve _next_call_time from before the fork. This ensures that
         // a restarted thread fires at the same time it would have without
         // the fork, rather than being pushed back by a full interval.
-        PyObject* started = _PeriodicThread_do_start(self);
-        if (started == NULL)
+        //
+        // The child path (force=False) must not block on thread startup, since
+        // it runs in the at-fork child hook before application code resumes;
+        // blocking there is what starved Delancie's fork ping under load. The
+        // parent path (force=True) still waits so restored threads are up
+        // before the parent continues.
+        //
+        // Because the child path returns before the replacement thread registers
+        // in periodic_threads, record it in the pending list first so an
+        // immediate second fork (and atexit) can still find and restart it.
+        bool pending_restart_registered = false;
+        if (!force && self->_state != nullptr && self->_state->pending_periodic_threads != NULL) {
+            if (append_pending_periodic_thread(self->_state, self) == 0)
+                pending_restart_registered = true;
+            else
+                PyErr_Clear();
+        }
+
+        PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
+        if (started == NULL) {
+            if (pending_restart_registered) {
+                if (remove_pending_periodic_thread(self->_state, self) < 0)
+                    PyErr_Clear();
+            }
             return NULL;
+        }
         Py_DECREF(started);
     } else {
         // No restart: the common cleanup above is sufficient for fork-specific
@@ -1017,12 +1124,39 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
 {
     module_state* state = (module_state*)PyModule_GetState(module);
 
-    // Stop and join all running periodic threads. We snapshot the values first
-    // to avoid mutation of the dict during iteration (threads remove themselves
-    // from periodic_threads when they stop).
+    // Stop and join all running or pending periodic threads. Snapshot pending
+    // fork-restarts first so a worker moving pending -> active concurrently
+    // cannot be missed between the two snapshots, then append the active ones.
     if (state != nullptr && state->periodic_threads != NULL) {
-        PyObject* threads = PyDict_Values(state->periodic_threads);
+        PyObject* threads = PyList_New(0);
         if (threads != NULL) {
+            if (state->pending_periodic_threads != NULL) {
+                std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+                Py_ssize_t pending_n = PyList_GET_SIZE(state->pending_periodic_threads);
+                for (Py_ssize_t i = 0; i < pending_n; i++) {
+                    PyObject* thread = PyList_GET_ITEM(state->pending_periodic_threads, i); // Borrowed reference.
+                    if (PyList_Append(threads, thread) < 0) {
+                        PyErr_Clear();
+                        break;
+                    }
+                }
+            }
+
+            PyObject* active_threads = PyDict_Values(state->periodic_threads);
+            if (active_threads != NULL) {
+                Py_ssize_t active_n = PyList_Size(active_threads);
+                for (Py_ssize_t i = 0; i < active_n; i++) {
+                    PyObject* thread = PyList_GET_ITEM(active_threads, i); // Borrowed reference.
+                    if (PyList_Append(threads, thread) < 0) {
+                        PyErr_Clear();
+                        break;
+                    }
+                }
+                Py_DECREF(active_threads);
+            } else {
+                PyErr_Clear();
+            }
+
             Py_ssize_t n = PyList_Size(threads);
 
             // Send the stop signal to all threads.
@@ -1068,12 +1202,28 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
 }
 
 // ----------------------------------------------------------------------------
+// Snapshot of periodic threads restarted non-blocking in a forked child that
+// have not yet registered in periodic_threads. Consumed by threads.py
+// _before_fork() so a second fork restores them. Backported from #18636.
+static PyObject*
+_threads_pending_threads(PyObject* module, PyObject* Py_UNUSED(args))
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+    if (state == nullptr || state->pending_periodic_threads == NULL)
+        return PyList_New(0);
+
+    std::lock_guard<std::mutex> _lock(state->pending_periodic_threads_mutex);
+    return PyList_GetSlice(state->pending_periodic_threads, 0, PyList_GET_SIZE(state->pending_periodic_threads));
+}
+
+// ----------------------------------------------------------------------------
 static int
 _threads_traverse(PyObject* module, visitproc visit, void* arg)
 {
     module_state* state = (module_state*)PyModule_GetState(module);
     if (state != nullptr) {
         Py_VISIT(state->periodic_threads);
+        Py_VISIT(state->pending_periodic_threads);
         Py_VISIT(state->PERIODIC_STOP);
     }
     return 0;
@@ -1086,6 +1236,7 @@ _threads_clear(PyObject* module)
     module_state* state = (module_state*)PyModule_GetState(module);
     if (state != nullptr) {
         Py_CLEAR(state->periodic_threads);
+        Py_CLEAR(state->pending_periodic_threads);
         Py_CLEAR(state->PERIODIC_STOP);
     }
     return 0;
@@ -1096,11 +1247,17 @@ static void
 _threads_free(void* module)
 {
     _threads_clear((PyObject*)module);
+    // module_state owns a std::mutex (non-trivial), so run its destructor after
+    // clearing the PyObject fields (it was created with placement new).
+    module_state* state = (module_state*)PyModule_GetState((PyObject*)module);
+    if (state != nullptr)
+        state->~module_state();
 }
 
 // ----------------------------------------------------------------------------
 static PyMethodDef _threads_methods[] = {
     { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { "_pending_threads", _threads_pending_threads, METH_NOARGS, "Return pending periodic thread restart snapshot" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
@@ -1138,6 +1295,10 @@ PyInit__threads(void)
 
         state->periodic_threads = PyDict_New();
         if (state->periodic_threads == NULL)
+            goto error;
+
+        state->pending_periodic_threads = PyList_New(0);
+        if (state->pending_periodic_threads == NULL)
             goto error;
 
         // Register the atexit hook — the sole writer of module_state::at_exit.
