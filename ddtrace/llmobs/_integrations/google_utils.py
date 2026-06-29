@@ -216,7 +216,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
             name=str(_get_attr(function_response, "name", "") or ""),
-            result=result if isinstance(result, str) else (safe_json(result) or ""),
+            result=result if isinstance(result, str) else json.dumps(result),
             tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
