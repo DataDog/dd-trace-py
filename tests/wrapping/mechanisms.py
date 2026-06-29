@@ -13,6 +13,8 @@ object) and bind differently to methods, so each adapter knows how to:
 All adapters are pure transparent pass-throughs.
 """
 
+import pytest
+
 from ddtrace.internal.wrapping import wrap as _internal_wrap
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
@@ -95,6 +97,32 @@ class WraptWrap:
 
 
 ALL_MECHANISMS = {m.name: m for m in (InternalWrap(), TracerWrap(), WraptWrap(), WrappingContextMech())}
+
+
+def xfail_mechanism(*names, reason, condition=True):
+    """Parametrize a test over every mechanism, strict-xfailing the named one(s).
+
+    Use this in place of the ``mech`` fixture when a test is a known failure for a
+    specific mechanism. It is plain ``pytest.mark.parametrize`` + ``pytest.param(marks=...)``
+    -- the documented way to xfail one parametrized value -- so the test source shows
+    exactly what is expected to fail and for which mechanism::
+
+        @xfail_mechanism("internal_wrap", reason="G22: wrap() drops the generator return value")
+        def test_x(mech): ...
+
+    ``strict`` is always on: when the underlying defect is fixed the case XPASSes and
+    fails CI, which is the signal to delete the marker. ``condition`` gates the xfail by
+    interpreter version, e.g. ``condition=sys.version_info >= (3, 11)`` (when false the
+    test simply runs and is expected to pass).
+    """
+    xfail = pytest.mark.xfail(reason=reason, strict=True)
+    return pytest.mark.parametrize(
+        "mech",
+        [
+            pytest.param(mech, id=name, marks=xfail if condition and name in names else ())
+            for name, mech in ALL_MECHANISMS.items()
+        ],
+    )
 
 
 def wrap_property(mech, cls, attr):

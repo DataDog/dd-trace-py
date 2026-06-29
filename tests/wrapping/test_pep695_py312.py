@@ -5,11 +5,9 @@ Collected only on 3.12+ (see conftest.py). Generic callables carry
 the code object and must keep both intact.
 """
 
-from tests.wrapping._harness import mechanisms
 from tests.wrapping._harness import run
 
 
-@mechanisms
 def test_generic_function(mech):
     def f[T](x: T) -> T:
         return x
@@ -17,7 +15,6 @@ def test_generic_function(mech):
     assert mech.wrap_function(f)(7) == 7
 
 
-@mechanisms
 def test_generic_function_type_params_preserved(mech):
     def f[T](x: T) -> T:
         return x
@@ -26,7 +23,6 @@ def test_generic_function_type_params_preserved(mech):
     assert [tp.__name__ for tp in g.__type_params__] == ["T"]
 
 
-@mechanisms
 def test_generic_function_uses_type_param(mech):
     def f[T](x: T):
         return (x, T.__name__)
@@ -34,7 +30,6 @@ def test_generic_function_uses_type_param(mech):
     assert mech.wrap_function(f)(7) == (7, "T")
 
 
-@mechanisms
 def test_generic_method(mech):
     class C:
         def m[U](self, x: U) -> U:
@@ -44,7 +39,6 @@ def test_generic_method(mech):
     assert C().m(7) == 7
 
 
-@mechanisms
 def test_method_on_generic_class(mech):
     class C[T]:
         def m(self, x):
@@ -54,7 +48,6 @@ def test_method_on_generic_class(mech):
     assert C().m(7) == 7
 
 
-@mechanisms
 def test_generic_coroutine(mech):
     import asyncio
 

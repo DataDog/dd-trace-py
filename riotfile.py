@@ -589,8 +589,6 @@ venv = Venv(
             ],
         ),
         Venv(
-            # Asserts every dd-trace-py wrapping mechanism is transparent across
-            # callable shapes (see tests/wrapping/README.md).
             name="wrapping",
             env={
                 # Opt into the future @tracer.wrap span-name behaviour so wrapping a

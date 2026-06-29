@@ -6,17 +6,14 @@ wraps the underlying generator function; ``contextlib`` then decorates it.
 """
 
 import contextlib
+import sys
 
 import pytest
 
-from tests.wrapping._harness import AGEN_ITER_XFAIL
-from tests.wrapping._harness import AGEN_SEND_XFAIL
-from tests.wrapping._harness import mechanisms
-from tests.wrapping._harness import mechanisms_param
 from tests.wrapping._harness import run
+from tests.wrapping.mechanisms import xfail_mechanism
 
 
-@mechanisms
 def test_sync_contextmanager_enter_exit(mech):
     log = []
 
@@ -32,7 +29,6 @@ def test_sync_contextmanager_enter_exit(mech):
     assert log == ["cleanup"]
 
 
-@mechanisms
 def test_sync_contextmanager_exit_with_exception(mech):
     log = []
 
@@ -49,7 +45,6 @@ def test_sync_contextmanager_exit_with_exception(mech):
     assert log == ["cleanup"]
 
 
-@mechanisms_param(xfail=AGEN_ITER_XFAIL)
 def test_async_contextmanager_enter_exit(mech):
     import asyncio
 
@@ -73,7 +68,11 @@ def test_async_contextmanager_enter_exit(mech):
     assert run(driver()) == ["cleanup"]
 
 
-@mechanisms_param(xfail=AGEN_SEND_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
+    condition=sys.version_info[:2] == (3, 10),
+)
 def test_async_contextmanager_exit_with_exception(mech):
     # PR #18718: the body raises, so __aexit__ throws into the generator at its
     # yield; the finally must still run and the exception must propagate.

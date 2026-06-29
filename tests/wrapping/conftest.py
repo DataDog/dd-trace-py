@@ -15,6 +15,10 @@ import os
 import re
 import sys
 
+import pytest
+
+from tests.wrapping.mechanisms import ALL_MECHANISMS
+
 
 _VERSION_SUFFIX = re.compile(r"_py(\d)(\d+)\.py$")
 
@@ -23,3 +27,14 @@ for _name in os.listdir(os.path.dirname(__file__)):
     _match = _VERSION_SUFFIX.search(_name)
     if _match and sys.version_info < (int(_match.group(1)), int(_match.group(2))):
         collect_ignore.append(_name)
+
+
+@pytest.fixture(params=list(ALL_MECHANISMS.values()), ids=list(ALL_MECHANISMS))
+def mech(request):
+    """The wrapping mechanism under test. Every test taking a ``mech`` argument is
+    automatically run once per mechanism (internal_wrap, tracer_wrap, wrapt, wrapping_context).
+
+    A test that is a known failure for a specific mechanism uses ``xfail_mechanism()``
+    (see ``mechanisms.py``) instead of this fixture, which parametrizes ``mech`` itself.
+    """
+    return request.param

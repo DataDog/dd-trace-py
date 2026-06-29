@@ -4,15 +4,13 @@ Drives each lifecycle operation explicitly and asserts the exact sequence the
 wrapped generator must produce.
 """
 
+import sys
+
 import pytest
 
-from tests.wrapping._harness import G22_XFAIL
-from tests.wrapping._harness import WCTX_UNSTARTED_XFAIL
-from tests.wrapping._harness import mechanisms
-from tests.wrapping._harness import mechanisms_param
+from tests.wrapping.mechanisms import xfail_mechanism
 
 
-@mechanisms
 def test_iterate(mech):
     def g():
         yield 1
@@ -22,7 +20,6 @@ def test_iterate(mech):
     assert list(mech.wrap_function(g)()) == [1, 2, 3]
 
 
-@mechanisms
 def test_send(mech):
     def g():
         x = yield 0
@@ -36,7 +33,6 @@ def test_send(mech):
     gen.close()
 
 
-@mechanisms
 def test_throw_recovered(mech):
     def g():
         while True:
@@ -51,7 +47,6 @@ def test_throw_recovered(mech):
     gen.close()
 
 
-@mechanisms
 def test_throw_propagates(mech):
     def g():
         yield 1
@@ -63,7 +58,6 @@ def test_throw_propagates(mech):
         gen.throw(KeyError("boom"))
 
 
-@mechanisms
 def test_close_runs_finally(mech):
     log = []
 
@@ -80,7 +74,11 @@ def test_close_runs_finally(mech):
     assert log == ["cleanup"]
 
 
-@mechanisms_param(xfail=WCTX_UNSTARTED_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="WrappingContext.throw() on an unstarted generator crashes on 3.11+ (internal AttributeError)",
+    condition=sys.version_info >= (3, 11),
+)
 def test_throw_on_unstarted_generator(mech):
     def g():
         yield 1
@@ -91,7 +89,6 @@ def test_throw_on_unstarted_generator(mech):
         gen.throw(RuntimeError("boom"))
 
 
-@mechanisms
 def test_yield_from(mech):
     def g():
         yield from range(5)
@@ -99,7 +96,10 @@ def test_yield_from(mech):
     assert list(mech.wrap_function(g)()) == [0, 1, 2, 3, 4]
 
 
-@mechanisms_param(xfail=G22_XFAIL)
+@xfail_mechanism(
+    "internal_wrap",
+    reason="G22: internal wrap() drops generator return value (generators.py @stopiter returns None)",
+)
 def test_return_value_via_stopiteration(mech):
     def g():
         yield 1
@@ -112,7 +112,10 @@ def test_return_value_via_stopiteration(mech):
     assert exc_info.value.value == "RETVAL"
 
 
-@mechanisms_param(xfail=G22_XFAIL)
+@xfail_mechanism(
+    "internal_wrap",
+    reason="G22: internal wrap() drops generator return value (generators.py @stopiter returns None)",
+)
 def test_yield_from_return_value_wrapped_delegatee(mech):
     # The wrapped generator is the delegatee (sub); an unwrapped parent receives
     # its return value via `yield from`.
@@ -129,7 +132,10 @@ def test_yield_from_return_value_wrapped_delegatee(mech):
     assert list(parent()) == [1, ("got", "SUB")]
 
 
-@mechanisms_param(xfail=G22_XFAIL)
+@xfail_mechanism(
+    "internal_wrap",
+    reason="G22: internal wrap() drops generator return value (generators.py @stopiter returns None)",
+)
 def test_yield_from_return_value_wrapped_delegator(mech):
     # The wrapped generator is the delegator (parent): its OWN return value is the
     # one produced by `yield from`. Covers the wrapped-delegator case that wrapping
@@ -148,7 +154,6 @@ def test_yield_from_return_value_wrapped_delegator(mech):
     assert exc_info.value.value == "SUB"
 
 
-@mechanisms
 def test_yield_from_throw_delegates_into_subgenerator(mech):
     def sub():
         try:

@@ -7,10 +7,8 @@ break / continue are illegal inside an except* block, so we assign and return af
 
 import pytest
 
-from tests.wrapping._harness import mechanisms
 
 
-@mechanisms
 def test_except_star_in_function_body(mech):
     def f(x):
         result = None
@@ -23,7 +21,6 @@ def test_except_star_in_function_body(mech):
     assert mech.wrap_function(f)(7) == ("caught", 1)
 
 
-@mechanisms
 def test_except_star_reraises_unmatched(mech):
     def f():
         try:

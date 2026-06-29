@@ -8,10 +8,7 @@ dd-trace's own kind detection break.
 
 import inspect
 
-from tests.wrapping._harness import mechanisms
 
-
-@mechanisms
 def test_signature_preserved(mech):
     def f(a, b, c=3, *args, k, **kwargs):
         return (a, b, c, args, k, kwargs)
@@ -20,7 +17,6 @@ def test_signature_preserved(mech):
     assert str(inspect.signature(g)) == "(a, b, c=3, *args, k, **kwargs)"
 
 
-@mechanisms
 def test_positional_only_signature_preserved(mech):
     def f(a, b, /, c=3):
         return (a, b, c)
@@ -29,7 +25,6 @@ def test_positional_only_signature_preserved(mech):
     assert str(inspect.signature(g)) == "(a, b, /, c=3)"
 
 
-@mechanisms
 def test_name_and_doc_preserved(mech):
     def f(a):
         """the docstring"""
@@ -40,7 +35,6 @@ def test_name_and_doc_preserved(mech):
     assert g.__doc__ == "the docstring"
 
 
-@mechanisms
 def test_annotations_preserved(mech):
     def f(a: int, b: str = "x") -> tuple:
         return (a, b)
@@ -52,7 +46,6 @@ def test_annotations_preserved(mech):
     assert params["b"].annotation is str
 
 
-@mechanisms
 def test_isgeneratorfunction_detected(mech):
     def g():
         yield 1
@@ -60,7 +53,6 @@ def test_isgeneratorfunction_detected(mech):
     assert inspect.isgeneratorfunction(mech.wrap_function(g))
 
 
-@mechanisms
 def test_iscoroutinefunction_detected(mech):
     async def c():
         return 1
@@ -68,7 +60,6 @@ def test_iscoroutinefunction_detected(mech):
     assert inspect.iscoroutinefunction(mech.wrap_function(c))
 
 
-@mechanisms
 def test_isasyncgenfunction_detected(mech):
     async def ag():
         yield 1

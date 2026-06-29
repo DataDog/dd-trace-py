@@ -4,10 +4,8 @@ Collected only on 3.10+ (see conftest.py); the match statement compiles to opcod
 the wrapping trampolines must preserve.
 """
 
-from tests.wrapping._harness import mechanisms
 
 
-@mechanisms
 def test_match_in_function_body(mech):
     def f(x):
         match x:
@@ -24,7 +22,6 @@ def test_match_in_function_body(mech):
     assert g(99) == ("other", 99)
 
 
-@mechanisms
 def test_match_in_generator_body(mech):
     def g(x):
         match x:

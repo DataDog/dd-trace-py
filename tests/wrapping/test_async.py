@@ -6,19 +6,16 @@ it on 3.11+ (immune on 3.9/3.10), so those cases xfail for ``internal_wrap``.
 """
 
 import asyncio
+import sys
 
 import pytest
 
-from tests.wrapping._harness import AGEN_ITER_XFAIL
-from tests.wrapping._harness import AGEN_SEND_XFAIL
 from tests.wrapping._harness import aiterate
-from tests.wrapping._harness import mechanisms
-from tests.wrapping._harness import mechanisms_param
 from tests.wrapping._harness import run
+from tests.wrapping.mechanisms import xfail_mechanism
 
 
 # --- coroutines ------------------------------------------------------------
-@mechanisms
 def test_coroutine_return(mech):
     async def c(x):
         await asyncio.sleep(0)
@@ -27,7 +24,6 @@ def test_coroutine_return(mech):
     assert run(mech.wrap_function(c)(5)) == 10
 
 
-@mechanisms
 def test_coroutine_raises(mech):
     async def c():
         await asyncio.sleep(0)
@@ -37,7 +33,6 @@ def test_coroutine_raises(mech):
         run(mech.wrap_function(c)())
 
 
-@mechanisms
 def test_coroutine_awaits_multiple_times(mech):
     class _MultiSuspend:
         def __await__(self):
@@ -51,7 +46,6 @@ def test_coroutine_awaits_multiple_times(mech):
     assert run(mech.wrap_function(c)()) == "done"
 
 
-@mechanisms
 def test_coroutine_cancellation_runs_finally(mech):
     log = []
 
@@ -74,7 +68,6 @@ def test_coroutine_cancellation_runs_finally(mech):
 
 
 # --- async generators ------------------------------------------------------
-@mechanisms
 def test_async_generator_no_await(mech):
     # An async generator that never awaits is immune to PR #18741 on all versions.
     async def ag():
@@ -84,7 +77,6 @@ def test_async_generator_no_await(mech):
     assert run(aiterate(mech.wrap_function(ag)())) == [1, 2]
 
 
-@mechanisms_param(xfail=AGEN_ITER_XFAIL)
 def test_async_generator_iterate(mech):
     async def ag():
         for i in range(3):
@@ -94,7 +86,11 @@ def test_async_generator_iterate(mech):
     assert run(aiterate(mech.wrap_function(ag)())) == [0, 1, 2]
 
 
-@mechanisms_param(xfail=AGEN_SEND_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
+    condition=sys.version_info[:2] == (3, 10),
+)
 def test_async_generator_asend(mech):
     async def ag():
         x = yield 0
@@ -111,7 +107,11 @@ def test_async_generator_asend(mech):
     assert run(driver()) == [0, 10, 20]
 
 
-@mechanisms_param(xfail=AGEN_SEND_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
+    condition=sys.version_info[:2] == (3, 10),
+)
 def test_async_generator_athrow_recovered(mech):
     async def ag():
         while True:
@@ -131,7 +131,11 @@ def test_async_generator_athrow_recovered(mech):
     assert run(driver()) == ("value", "recovered")
 
 
-@mechanisms_param(xfail=AGEN_SEND_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="WrappingContext async-gen asend/athrow/aclose broken on 3.10 (TypeError: NoneType not callable)",
+    condition=sys.version_info[:2] == (3, 10),
+)
 def test_async_generator_aclose_runs_finally(mech):
     log = []
 
@@ -153,7 +157,6 @@ def test_async_generator_aclose_runs_finally(mech):
     assert run(driver()) == ["cleanup"]
 
 
-@mechanisms_param(xfail=AGEN_ITER_XFAIL)
 def test_async_generator_multi_suspend_before_yield(mech):
     # The exact PR #18741 shape: await more than once before the first yield.
     async def ag():

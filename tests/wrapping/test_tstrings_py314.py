@@ -10,11 +10,13 @@ so it raises AssertionError for ANY function whose body contains a t-string. The
 trampoline-based ``internal_wrap`` is immune (it never re-encodes the body).
 """
 
-from tests.wrapping._harness import TSTRING_XFAIL
-from tests.wrapping._harness import mechanisms_param
+from tests.wrapping.mechanisms import xfail_mechanism
 
 
-@mechanisms_param(xfail=TSTRING_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="bytecode lib can't re-encode PEP 750 t-string opcodes; WrappingContext.wrap() crashes",
+)
 def test_tstring_in_function_body(mech):
     def f(x):
         template = t"value={x}"
@@ -24,7 +26,10 @@ def test_tstring_in_function_body(mech):
     assert g(7) == (("value=", ""), (7,))
 
 
-@mechanisms_param(xfail=TSTRING_XFAIL)
+@xfail_mechanism(
+    "wrapping_context",
+    reason="bytecode lib can't re-encode PEP 750 t-string opcodes; WrappingContext.wrap() crashes",
+)
 def test_tstring_in_generator_body(mech):
     def g(x):
         template = t"value={x}"
