@@ -1,4 +1,9 @@
+from __future__ import annotations
+
+import json
+import logging
 import re
+import typing as t
 
 import pytest
 
@@ -6,6 +11,8 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 
+
+log = logging.getLogger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
@@ -40,3 +47,31 @@ def item_to_test_ref(item: pytest.Item) -> TestRef:
     test_ref = TestRef(suite_ref, custom_test or default_test)
 
     return test_ref
+
+
+def _encode_test_parameter(parameter: t.Any) -> str:
+    param_repr = repr(parameter)
+    # if the representation includes an id() we'll remove it
+    # because it isn't constant across executions
+    return re.sub(r" at 0[xX][0-9a-fA-F]+", "", param_repr)
+
+
+def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
+    callspec: t.Optional[pytest.python.CallSpec2] = getattr(item, "callspec", None)
+
+    if callspec is None:
+        return None
+
+    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
+    for param_name, param_val in item.callspec.params.items():
+        try:
+            parameters["arguments"][param_name] = _encode_test_parameter(param_val)
+        except Exception:
+            parameters["arguments"][param_name] = "Could not encode"
+            log.warning("Failed to encode %r", param_name, exc_info=True)
+
+    try:
+        return json.dumps(parameters, sort_keys=True)
+    except TypeError:
+        log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
+        return None
