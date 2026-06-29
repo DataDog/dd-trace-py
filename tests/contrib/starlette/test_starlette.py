@@ -701,14 +701,7 @@ def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):
 
 
 def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
-    """CORS preflight on a sub-app route must not produce a raw-path span resource.
-
-    When CORSMiddleware wraps a parent app that mounts a sub-app, the router
-    never runs for OPTIONS preflight requests, so resource_paths is empty.
-    _resolve_route_resource walks the parent's route list, finds the Mount as a
-    PARTIAL match, and uses its prefix ("/api") — giving "OPTIONS /api" instead of
-    the raw path "OPTIONS /api/hello/world".
-    """
+    """CORS preflight on a sub-app route must use the mounted route template."""
     from starlette.applications import Starlette
     from starlette.middleware import Middleware
     from starlette.middleware.cors import CORSMiddleware
@@ -744,19 +737,18 @@ def test_cors_preflight_sub_app_resource_not_raw_path(tracer, test_spans):
 
     assert r.status_code == 200
     request_span = next(test_spans.filter_spans(name="starlette.request"))
-    # Resource must not contain the raw path segment — the fix resolves to the mount prefix.
     assert "world" not in request_span.resource, f"Resource must not be the raw path, got: {request_span.resource!r}"
-    assert request_span.resource == "OPTIONS /api", (
-        f"Expected mount prefix 'OPTIONS /api' for sub-app CORS preflight, got: {request_span.resource!r}"
+    assert request_span.resource == "OPTIONS /api/hello/{name}", (
+        "Expected mounted route pattern 'OPTIONS /api/hello/{name}' "
+        f"for sub-app CORS preflight, got: {request_span.resource!r}"
     )
-    # http.route is NOT set for a partial (Mount) match — only full Route matches warrant it.
-    assert request_span.get_tag("http.route") is None, (
-        f"Expected http.route to be unset for a partial Mount match, got: {request_span.get_tag('http.route')!r}"
+    assert request_span.get_tag("http.route") == "/api/hello/{name}", (
+        f"Expected http.route tag '/api/hello/{{name}}', got: {request_span.get_tag('http.route')!r}"
     )
 
 
 def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
-    """_resolve_route_resource is called in both wrapped_send and the outer finally block.
+    """Starlette route resolution is safe before span finish and request teardown.
 
     The two calls must be safe: the second call must not corrupt the span resource
     or raise an exception. The final resource on the span must be the route pattern.
@@ -770,14 +762,14 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
     from starlette.routing import Route
     from starlette.testclient import TestClient
 
-    import ddtrace.contrib.internal.asgi.middleware as asgi_middleware
+    import ddtrace.contrib.internal.starlette.patch as starlette_patch_module
 
     call_count = []
-    original_fn = asgi_middleware.TraceMiddleware._resolve_route_resource
+    original_fn = starlette_patch_module._resolve_route_resource
 
-    def counting_fn(self_obj, scope, span):
+    def counting_fn(scope, span):
         call_count.append(1)
-        return original_fn(self_obj, scope, span)
+        return original_fn(scope, span)
 
     async def handler(request):
         return PlainTextResponse("ok")
@@ -794,7 +786,7 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
         ],
     )
 
-    with mock.patch.object(asgi_middleware.TraceMiddleware, "_resolve_route_resource", counting_fn):
+    with mock.patch.object(starlette_patch_module, "_resolve_route_resource", counting_fn):
         with TestClient(app) as client:
             r = client.options(
                 "/resource/42",
@@ -805,9 +797,7 @@ def test_cors_preflight_resolve_route_idempotent(tracer, test_spans):
             )
 
     assert r.status_code == 200
-    # Must have been called (at least once via wrapped_send, possibly again via finally)
-    assert len(call_count) >= 1, "_resolve_route_resource was never called"
-    # The final resource must be the route pattern, not the raw path
+    assert len(call_count) >= 2, "_resolve_route_resource was not called before finish and teardown"
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.resource == "OPTIONS /resource/{item_id}", (
         f"Expected route pattern after idempotent calls, got: {request_span.resource!r}"
