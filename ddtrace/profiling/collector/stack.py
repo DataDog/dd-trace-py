@@ -96,6 +96,20 @@ class StackCollector(collector.Collector):
         self._init()
         LOG.debug("Profiling StackCollector started")
 
+    def pause_for_shutdown_flush(self) -> None:
+        """Pause the native sampler ahead of the profiler's final flush.
+
+        During shutdown the final flush can import modules and tear down objects
+        while the sampler is still unwinding live frames; reading a freed
+        ``PyCodeObject*`` then faults inside ``safe_memcpy`` (PROF-14568). Pausing
+        the sampler closes that window. Best-effort: the sampler is stopped right
+        after the flush regardless, and ``pause_sampling`` may time out under load.
+        """
+        try:
+            stack.pause_sampling()
+        except Exception:
+            LOG.debug("Failed to pause stack sampler before shutdown flush", exc_info=True)
+
     def _stop_service(self) -> None:
         LOG.debug("Profiling StackCollector stopping")
         if self._native_call_monitor is not None:
