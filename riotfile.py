@@ -3017,13 +3017,22 @@ venv = Venv(
         Venv(
             name="openai_agents",
             command="pytest {cmdargs} tests/contrib/openai_agents",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "openai-agents": ["~=0.0.0", latest],
             },
+            venvs=[
+                # openai-agents >= 0.9.0 requires Python >= 3.10, so the 0.14+ pins run on 3.10+ only.
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.0.0", "~=0.8.0"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"openai-agents": ["~=0.14.0", latest]},
+                ),
+            ],
         ),
         Venv(
             name="langchain",

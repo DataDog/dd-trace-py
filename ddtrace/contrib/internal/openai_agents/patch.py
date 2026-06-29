@@ -48,7 +48,6 @@ async def _patched_run_single_turn(func, instance, args, kwargs):
 
 
 def _has_module_level_run_loop() -> bool:
-    # agents >= 0.8.0 introduces the agents.run_internal.run_loop module (see wrap-targets note below).
     try:
         from agents.run_internal import run_loop  # noqa: F401
 

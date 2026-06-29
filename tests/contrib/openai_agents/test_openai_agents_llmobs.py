@@ -1,8 +1,11 @@
+from types import SimpleNamespace
 from typing import Optional
 
 import mock
 import pytest
 
+from ddtrace.contrib.internal.openai_agents.patch import get_version
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
 from tests.llmobs._utils import _assert_span_link
@@ -775,3 +778,76 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
             args=(simple_agent,),
             kwargs={"input": "What is the capital of France?"},
         )
+
+
+@pytest.mark.skipif(
+    parse_version(get_version()) < (0, 8, 0),
+    reason="agents < 0.8.0 ran the per-turn fn as the AgentRunner instance method; no module-level run_loop to wrap",
+)
+def test_patch_wraps_module_level_call_site_targets(agents):
+    """patch() wraps both module-level per-turn targets on agents >= 0.8.0 (rationale in the
+    wrap-targets note in patch.py). Guards against the silent no-op the pre-fix instance-method-only
+    wrap caused; per-version manifest capture is covered by the cassette tests across the pinned versions.
+    """
+    import agents.run
+    from agents.run_internal import run_loop
+
+    from ddtrace.contrib.trace_utils import iswrapped
+
+    assert iswrapped(agents.run.run_single_turn), "patch() must wrap the agents.run re-export"
+    assert iswrapped(run_loop.run_single_turn_streamed), "patch() must wrap run_single_turn_streamed on run_loop"
+
+
+@pytest.mark.asyncio
+async def test_manifest_capture_failure_does_not_break_user_run(agents, tracer, openai_agents_llmobs):
+    """A failure while capturing the agent manifest must never surface in the user's ``Runner.run``.
+
+    The agents SDK does not guard the wrapped call site, so ``_patched_run_single_turn`` swallows any
+    exception raised while resolving or tagging the agent and still returns the wrapped function's
+    result. Exercised with an agent whose attribute access raises during resolution; no real SDK call
+    reproduces this, so it stays a focused unit.
+    """
+    from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
+
+    class _BoomAgent:
+        name = "Boom"
+        handoffs = []
+
+        @property
+        def tools(self):
+            raise ValueError("boom")
+
+    async def inner(*args, **kwargs):
+        return "RESULT"
+
+    with tracer.trace("test_root"):
+        result = await _patched_run_single_turn(inner, None, (), {"agent": _BoomAgent()})
+
+    assert result == "RESULT"
+
+
+def test_scanner_prefers_public_agent_over_execution_agent(agents):
+    """The agent scanner returns the declared ``public_agent``, not a rewritten ``execution_agent``.
+
+    AgentBindings (agents >= 0.14) carries both; the manifest must reflect the user's declared config.
+    On a normal run they are the same object, so only a unit with them deliberately divergent pins this.
+    """
+    integration = agents._datadog_integration
+    public_agent = SimpleNamespace(name="Public", instructions="x", tools=[], handoffs=[])
+    execution_agent = SimpleNamespace(name="Execution", instructions="x", tools=[], handoffs=[])
+    bindings = SimpleNamespace(public_agent=public_agent, execution_agent=execution_agent)
+
+    assert integration._extract_agent_from_call((), {"bindings": bindings}) is public_agent
+
+
+def test_scanner_ignores_run_result_streaming_without_agent(agents):
+    """A RunResultStreaming-like object must not be duck-typed as an Agent.
+
+    A streamed turn passes the stream result positionally; it exposes ``current_agent`` but not the
+    name+tools+handoffs an Agent has. Real streamed runs also pass the agent at arg[1], so only a unit
+    with the stream object alone pins that it is not mistaken for an Agent (would yield a bogus manifest).
+    """
+    integration = agents._datadog_integration
+    stream_result = SimpleNamespace(current_agent=SimpleNamespace(name="x", instructions="", tools=[], handoffs=[]))
+
+    assert integration._extract_agent_from_call((stream_result,), {}) is None
