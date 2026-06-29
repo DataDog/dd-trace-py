@@ -1,8 +1,14 @@
 ---
 features:
   - |
-    LLM Observability: Added ``agent_service`` and ``DD_AGENT_SERVICE`` as the preferred SDK configuration
-    names for the LLMObs application identity. Existing ``ml_app`` and ``DD_LLMOBS_ML_APP`` configuration
-    remains supported but is deprecated and will be removed in the next major version of ddtrace.
-    For SDK paths that use default LLMObs configuration, ``DD_SERVICE`` and then the default ML app name remain
-    fallbacks when neither ``agent_service`` nor ``ml_app`` is specified.
+    LLM Observability: Added ``agent_service`` as a preferred alias for the ``ml_app``
+    argument across SDK methods (``LLMObs.enable(...)``, span constructors, decorators,
+    ``submit_evaluation(...)``, ``get_spans(...)``, and ``publish_evaluator(...)``). When provided,
+    ``agent_service`` takes precedence over the deprecated ``ml_app`` argument and over ``service``.
+    When neither ``agent_service`` nor ``ml_app`` is set, application identity continues to resolve from
+    a propagated parent value, then ``DD_LLMOBS_ML_APP``, then ``DD_SERVICE``.
+upgrade:
+  - |
+    LLM Observability: Deprecates the ``ml_app`` argument and ``DD_LLMOBS_ML_APP`` environment variable,
+    which will be removed in the next major version of ddtrace. Use ``agent_service`` and ``DD_SERVICE``
+    instead to group traces belonging to a root agentic service (i.e. previously known as ML application).

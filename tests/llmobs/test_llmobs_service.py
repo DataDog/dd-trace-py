@@ -90,6 +90,32 @@ def test_service_enable_agent_service_precedence(tracer):
         llmobs_service.disable()
 
 
+def test_service_enable_agent_service_precedence_over_service(tracer):
+    """agent_service takes precedence over both ml_app and service when enabling."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        llmobs_service.enable(
+            _tracer=tracer,
+            agentless_enabled=False,
+            service="<service>",
+            ml_app="<legacy-ml-app>",
+            agent_service="<agent-service>",
+        )
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<agent-service>"
+        llmobs_service.disable()
+
+
+def test_service_enable_service_used_as_ml_app_fallback(tracer):
+    """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    with override_global_config(dict(_dd_api_key="<not-a-real-api-key>")):
+        llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
+        with llmobs_service.workflow() as span:
+            pass
+        assert get_llmobs_ml_app(span) == "<service>"
+        llmobs_service.disable()
+
+
 @pytest.mark.subprocess(
     env={"DD_API_KEY": "<not-a-real-key>", "DD_LLMOBS_ML_APP": "<ml-app-name>"},
 )
@@ -1332,6 +1358,21 @@ def test_agent_service_override(llmobs):
     with llmobs.retrieval(name="test_retrieval", agent_service="test_app") as span:
         pass
     assert_llmobs_span_data(_get_llmobs_data_metastruct(span), span_kind="retrieval", tags={"ml_app": "test_app"})
+
+
+def test_agent_service_tag_mirrors_ml_app(llmobs):
+    """Every span carries an agent_service tag that always equals the ml_app tag, including overrides."""
+    # Inherited/default identity: agent_service mirrors whatever ml_app resolves to.
+    with llmobs.workflow(name="inherited") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["agent_service"] == tags["ml_app"]
+    # Explicit agent_service overrides a legacy ml_app on both tags (no stale agent_service value).
+    with llmobs.task(name="override", ml_app="legacy_app", agent_service="test_app") as span:
+        pass
+    tags = get_llmobs_tags(span)
+    assert tags["ml_app"] == "test_app"
+    assert tags["agent_service"] == "test_app"
 
 
 def test_export_span_specified_span_is_incorrect_type_raises(llmobs):

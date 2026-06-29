@@ -867,7 +867,8 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: The name of your agent service. Takes precedence over ``ml_app``.
+        :param str agent_service: The name of your agent service. Takes precedence over ``ml_app`` and
+                                  ``service``, in that order.
         :param bool integrations_enabled: set to `true` to enable LLM integrations.
         :param bool agentless_enabled: set to `true` to disable sending data that requires a Datadog Agent.
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
@@ -2135,6 +2136,7 @@ class LLMObs(Service):
             "service": span.service or "",
             "source": "integration",
             "ml_app": ml_app,
+            "agent_service": ml_app,
             "ddtrace.version": __version__,
             "language": "python",
         }
@@ -2240,8 +2242,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2277,8 +2278,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2308,8 +2308,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2339,8 +2338,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2370,8 +2368,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2407,8 +2404,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2444,8 +2440,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2481,8 +2476,7 @@ class LLMObs(Service):
         :param str session_id: The ID of the underlying user session. Required for tracking sessions.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
-                                    propagated agent service from a parent span or context, ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, ``DD_SERVICE``, or the default ML app name.
+                           propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
         :param str experiment_id: The ID of the experiment to associate with this span and its children.
         :returns: The Span object representing the traced operation.
         """
@@ -2835,12 +2829,12 @@ class LLMObs(Service):
         span_with_tag_value: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
-        agent_service: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
         metadata: Optional[dict[str, object]] = None,
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
         eval_scope: str = "span",
+        agent_service: Optional[str] = None,
     ) -> None:
         """
         Submits a custom evaluation metric for a given span or trace.
@@ -3024,13 +3018,13 @@ class LLMObs(Service):
         span_kind: Optional[str] = None,
         span_name: Optional[str] = None,
         ml_app: Optional[str] = None,
-        agent_service: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         from_date: str = "now-7d",
         to_date: str = "now",
         sort: str = "timestamp",
         include_attachments: bool = True,
         limit: int = 10,
+        agent_service: Optional[str] = None,
     ) -> list[dict]:
         """
         Retrieves LLM span events from the Datadog platform API.
@@ -3042,8 +3036,8 @@ class LLMObs(Service):
                                ``tool``, ``task``, ``embedding``, ``retrieval``.
         :param str span_name: Filter by span name.
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
-        :param str agent_service: Filter by agent service name. Defaults to ``DD_AGENT_SERVICE``,
-                                    legacy ``DD_LLMOBS_ML_APP``, service name, or the default ML app name.
+        :param str agent_service: Filter by agent service name. Defaults to ``DD_LLMOBS_ML_APP``,
+                                    service name, or the default ML app name.
         :param dict tags: Filter by tag key-value pairs, e.g. ``{"utterance_id": "123"}``.
         :param str from_date: Start of the time range. Accepts ISO 8601, date math
                                (e.g. ``"now-7d"``), or millisecond timestamps. Default: ``"now-7d"``.

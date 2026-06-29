@@ -47,16 +47,6 @@
         "default": "0"
       }
     ],
-    "DD_AGENT_SERVICE": [
-      {
-        "implementation": "A",
-        "type": "string",
-        "default": null,
-        "aliases": [
-          "DD_LLMOBS_ML_APP"
-        ]
-      }
-    ],
     "DD_AIOBOTOCORE_SERVICE": [
       {
         "implementation": "A",
