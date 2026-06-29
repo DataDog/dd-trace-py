@@ -1,4 +1,12 @@
+from collections.abc import Awaitable
+from collections.abc import Callable
+from typing import Any
+
 from mistralai import client
+from mistralai.client.chat import Chat
+from mistralai.client.embeddings import Embeddings
+from mistralai.client.models.chatcompletionresponse import ChatCompletionResponse
+from mistralai.client.models.embeddingresponse import EmbeddingResponse
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -7,10 +15,10 @@ from ddtrace.llmobs._integrations import MistralAIIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 
-config._add("mistralai", {})
+config._add("mistralai", {})  # type: ignore[no-untyped-call]
 
 
-def _supported_versions():
+def _supported_versions() -> dict[str, str]:
     return {"mistralai": ">=2.0.0"}
 
 
@@ -18,7 +26,7 @@ def get_version() -> str:
     return getattr(client, "__version__", "")
 
 
-def _kwargs_with_server_url(instance, kwargs):
+def _kwargs_with_server_url(instance: Chat | Embeddings, kwargs: dict[str, Any]) -> dict[str, Any]:
     if "server_url" in kwargs:
         return kwargs
     sdk_configuration = getattr(instance, "sdk_configuration", None)
@@ -30,7 +38,12 @@ def _kwargs_with_server_url(instance, kwargs):
     return kwargs
 
 
-def traced_chat_generate(func, instance, args, kwargs):
+def traced_chat_generate(
+    func: Callable[..., ChatCompletionResponse],
+    instance: Chat,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> ChatCompletionResponse:
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
@@ -47,10 +60,15 @@ def traced_chat_generate(func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=resp, operation="llm")
+            integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="llm")
 
 
-async def traced_async_chat_generate(func, instance, args, kwargs):
+async def traced_async_chat_generate(
+    func: Callable[..., Awaitable[ChatCompletionResponse]],
+    instance: Chat,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> ChatCompletionResponse:
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
@@ -67,10 +85,15 @@ async def traced_async_chat_generate(func, instance, args, kwargs):
             resp = await func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=resp, operation="llm")
+            integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="llm")
 
 
-def traced_embed_generate(func, instance, args, kwargs):
+def traced_embed_generate(
+    func: Callable[..., EmbeddingResponse],
+    instance: Embeddings,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> EmbeddingResponse:
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
@@ -87,10 +110,17 @@ def traced_embed_generate(func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=resp, operation="embedding")
+            integration.llmobs_set_tags(
+                span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="embedding"
+            )
 
 
-async def async_traced_embed_generate(func, instance, args, kwargs):
+async def async_traced_embed_generate(
+    func: Callable[..., Awaitable[EmbeddingResponse]],
+    instance: Embeddings,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> EmbeddingResponse:
     integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
@@ -107,10 +137,12 @@ async def async_traced_embed_generate(func, instance, args, kwargs):
             resp = await func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=enriched_kwargs, response=resp, operation="embedding")
+            integration.llmobs_set_tags(
+                span, args=list(args), kwargs=enriched_kwargs, response=resp, operation="embedding"
+            )
 
 
-def patch():
+def patch() -> None:
     if getattr(client, "_datadog_patch", False):
         return
 
@@ -124,7 +156,7 @@ def patch():
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
 
-def unpatch():
+def unpatch() -> None:
     if not getattr(client, "_datadog_patch", False):
         return
 
