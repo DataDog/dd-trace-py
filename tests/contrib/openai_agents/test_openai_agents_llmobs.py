@@ -454,6 +454,10 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
     )
 
 
+@pytest.mark.skipif(
+    parse_version(get_version()) >= (0, 14, 0),
+    reason="hosted WebSearchTool response shape changed on agents >= 0.14; cassette targets the older shape",
+)
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_ootb_tools(
     agents, openai_agents_llmobs, test_spans, request_vcr, weather_agent
