@@ -5,6 +5,7 @@ descriptor binding (``self`` / ``cls``).
 """
 
 import asyncio
+import inspect
 
 from tests.wrapping._harness import aiterate
 from tests.wrapping._harness import run
@@ -18,6 +19,26 @@ def test_instance_method(mech):
 
     mech.install_method(C, "m", "instance_method")
     assert C().m(5) == ("instance", 5)
+
+
+def test_wrapping_method_preserves_class_hierarchy(mech):
+    # Wrapping a method must not disturb the class itself: isinstance/issubclass
+    # checks, the MRO, method-vs-function detection, and override dispatch all hold.
+    class Base:
+        def method(self, x):
+            return ("base", x)
+
+    class Child(Base):
+        def method(self, x):
+            return ("child", x)
+
+    mech.install_method(Child, "method", "instance_method")
+    obj = Child()
+    assert isinstance(obj, Base)
+    assert issubclass(Child, Base)
+    assert Child.__mro__ == (Child, Base, object)
+    assert inspect.ismethod(obj.method)
+    assert obj.method(7) == ("child", 7)
 
 
 def test_classmethod(mech):

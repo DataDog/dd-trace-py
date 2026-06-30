@@ -13,6 +13,8 @@ object) and bind differently to methods, so each adapter knows how to:
 All adapters are pure transparent pass-throughs.
 """
 
+import types
+
 import pytest
 
 from ddtrace.internal.wrapping import wrap as _internal_wrap
@@ -83,17 +85,26 @@ class TracerWrap:
 
 
 class WraptWrap:
+    # dd-trace-py's exposed wrapt-based wrapping API is ``trace_utils.wrap``
+    # (re-exported at ``ddtrace.contrib.trace_utils.wrap``), which *is*
+    # ``wrapt.wrap_function_wrapper`` -- the entry point ~60 contrib integrations
+    # call. We drive that here rather than the raw ``wrapt.FunctionWrapper``
+    # constructor, so the matrix exercises our API footprint, not wrapt internals.
+    # ``wrap_function_wrapper`` resolves a *named* target and installs a
+    # FunctionWrapper, so a bare function is hosted on a namespace to give it a name.
     name = "wrapt"
 
     def wrap_function(self, fn):
-        import wrapt
+        from ddtrace.contrib.internal.trace_utils import wrap
 
-        return wrapt.FunctionWrapper(fn, _noop_wrapt)
+        holder = types.SimpleNamespace(target=fn)
+        wrap(holder, "target", _noop_wrapt)
+        return holder.target
 
     def install_method(self, cls, attr, binding):
-        import wrapt
+        from ddtrace.contrib.internal.trace_utils import wrap
 
-        wrapt.wrap_function_wrapper(cls, attr, _noop_wrapt)
+        wrap(cls, attr, _noop_wrapt)
 
 
 ALL_MECHANISMS = {m.name: m for m in (InternalWrap(), TracerWrap(), WraptWrap(), WrappingContextMech())}
