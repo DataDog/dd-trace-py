@@ -148,7 +148,8 @@ def _configure_ddtrace_native_logger():
             kwargs["max_files"] = get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int, report_telemetry=True)
 
         logger.configure(**kwargs)
-        default_log_level = "debug" if trace_debug else "warning"
+        # "info" instead of "debug" to avoid flooding by default
+        default_log_level = "info" if trace_debug else "warning"
         logger.set_log_level(get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", default_log_level, report_telemetry=True))
     except Exception:
         log.warning("Failed to initialize native logger", exc_info=True)
