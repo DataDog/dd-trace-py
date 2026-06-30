@@ -48,6 +48,8 @@ libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v37.
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
+libddwaf = { git = "https://github.com/florentinl/libddwaf-rust", branch = "main", version = "2.0.0" }
+libddwaf-sys = { git = "https://github.com/florentinl/libddwaf-rust", branch = "main", version = "2.0.0" }
 
 [build-dependencies]
 pyo3-build-config = "0.28"
