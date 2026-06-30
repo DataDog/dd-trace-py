@@ -37,7 +37,7 @@ def reset_packages_caches():
     from ddtrace.internal import packages as _p
 
     def _clear() -> None:
-        for fn in (_p.get_distributions, _p._package_for_root_module_mapping):
+        for fn in (_p.get_distributions, _p._package_for_root_module_mapping, _p._bazel_manifest_site_packages):
             inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
             if inner is not None and hasattr(inner, "__callonce_result__"):
                 del inner.__callonce_result__
@@ -50,7 +50,12 @@ def reset_packages_caches():
 
 @pytest.fixture
 def isolated_metadata_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Restrict ``importlib.metadata.distributions()`` to a single directory."""
+    """Restrict ``importlib.metadata.distributions()`` to a single directory.
+
+    Also marks ``tmp_path`` as the Bazel runfiles root: the no-RECORD directory
+    scan (Strategy 2) is intentionally gated to verified runfiles dirs, so these
+    Bazel-mirroring fixtures must advertise themselves as runfiles.
+    """
     import importlib.metadata as importlib_metadata
 
     def _fixed_path(*args, **kwargs):
@@ -60,6 +65,7 @@ def isolated_metadata_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
         )
 
     monkeypatch.setattr(importlib_metadata.Distribution, "discover", staticmethod(_fixed_path))
+    monkeypatch.setenv("RUNFILES_DIR", str(tmp_path))
     return tmp_path
 
 
@@ -94,6 +100,284 @@ def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | N
     (di / "METADATA").write_text(metadata_body)
     (di / "RECORD").write_text("")
     return di
+
+
+def _write_dist_info_no_record(root: Path, name: str, version: str, top_level: str | None = None) -> Path:
+    """Write a dist-info *without* a RECORD file.
+
+    Mirrors Bazel's ``rules_python``, which omits RECORD for hermeticity, so
+    ``dist.files`` is falsy and the dist lands in the no-RECORD fallback path.
+    """
+    di = root / f"{name.replace('-', '_')}-{version}.dist-info"
+    di.mkdir(parents=True)
+    (di / "METADATA").write_text(f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
+    if top_level is not None:
+        (di / "top_level.txt").write_text(top_level + "\n")
+    return di
+
+
+def test_packages_distributions_failure_does_not_abort_fallback(
+    isolated_metadata_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raising ``packages_distributions()`` must not break the fallback.
+
+    When one bad no-RECORD dist makes ``packages_distributions()`` raise,
+    Strategy 1 should degrade to empty and Strategy 2 (directory scan) should
+    still resolve the otherwise-good Bazel packages.
+    """
+    root = isolated_metadata_path
+    _write_dist_info_no_record(root, "good-bazel-pkg", "1.0", top_level="good_bazel_pkg")
+    (root / "good_bazel_pkg").mkdir()
+    (root / "good_bazel_pkg" / "__init__.py").write_text("")
+
+    from ddtrace.internal import packages as _p
+
+    def _boom() -> dict:
+        raise RuntimeError("packages_distributions blew up")
+
+    monkeypatch.setattr(_p, "get_package_distributions", _boom)
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert mapping.get("good_bazel_pkg") is not None
+    assert mapping["good_bazel_pkg"].name == "good-bazel-pkg"
+
+
+def test_directory_scan_skipped_outside_bazel_runfiles(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The no-RECORD directory scan must not run outside Bazel runfiles.
+
+    A no-RECORD dist's dir can hold its own ``.dist-info`` plus unrelated
+    top-level code (minimal/layered site-packages). Outside a verified runfiles
+    tree the single-``.dist-info`` guard is not a real isolation guarantee, so
+    the scan is skipped and those unrelated siblings are not misattributed to
+    the dist (which would mark app frames as third-party).
+    """
+    import importlib.metadata as importlib_metadata
+
+    sp = tmp_path / "site-packages"
+    sp.mkdir(parents=True)
+    _write_dist_info_no_record(sp, "lonely-pkg", "1.0")
+    (sp / "lonely_pkg").mkdir()
+    (sp / "lonely_pkg" / "__init__.py").write_text("")
+    # Unrelated top-level code that merely shares the directory.
+    (sp / "unrelated_app").mkdir()
+    (sp / "unrelated_app" / "__init__.py").write_text("")
+
+    def _fixed(*args, **kwargs):
+        kwargs.setdefault("path", [str(sp)])
+        return importlib_metadata.MetadataPathFinder.find_distributions(
+            importlib_metadata.DistributionFinder.Context(**kwargs)
+        )
+
+    monkeypatch.setattr(importlib_metadata.Distribution, "discover", staticmethod(_fixed))
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.delenv("RUNFILES_MANIFEST_FILE", raising=False)
+
+    from ddtrace.internal import packages as _p
+
+    monkeypatch.setattr(_p, "get_package_distributions", lambda: {})
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    # Scan skipped entirely: neither the unrelated sibling nor the dist's own
+    # package is mapped via the directory scan.
+    assert "unrelated_app" not in mapping
+    assert "lonely_pkg" not in mapping
+
+
+def test_directory_scan_runs_in_bazel_runfiles_tree(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inside a ``*.runfiles`` tree the scan runs even without RUNFILES_DIR.
+
+    Identifies the runfiles tree purely by the ``*.runfiles`` ancestor (only
+    ``RUNFILES_MANIFEST_FILE`` is set), so the dist's package is mapped.
+    """
+    import importlib.metadata as importlib_metadata
+
+    sp = tmp_path / "app.runfiles" / "lonely" / "site-packages"
+    sp.mkdir(parents=True)
+    _write_dist_info_no_record(sp, "lonely-pkg", "1.0")
+    (sp / "lonely_pkg").mkdir()
+    (sp / "lonely_pkg" / "__init__.py").write_text("")
+
+    def _fixed(*args, **kwargs):
+        kwargs.setdefault("path", [str(sp)])
+        return importlib_metadata.MetadataPathFinder.find_distributions(
+            importlib_metadata.DistributionFinder.Context(**kwargs)
+        )
+
+    monkeypatch.setattr(importlib_metadata.Distribution, "discover", staticmethod(_fixed))
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.setenv("RUNFILES_MANIFEST_FILE", str(tmp_path / "app.runfiles_manifest"))
+
+    from ddtrace.internal import packages as _p
+
+    monkeypatch.setattr(_p, "get_package_distributions", lambda: {})
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert mapping["lonely_pkg"].name == "lonely-pkg"
+
+
+def test_directory_scan_recognizes_manifest_mode_runfiles(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Manifest-mode runfiles (``RUNFILES_MANIFEST_FILE`` only) are recognized.
+
+    The dependency dir can sit outside any ``*.runfiles`` tree; its real path
+    is listed in the MANIFEST. ``_bazel_manifest_site_packages`` extracts the
+    site-packages root from the manifest so the scan still runs for it.
+    """
+    import importlib.metadata as importlib_metadata
+
+    # Dependency dir deliberately NOT under a *.runfiles tree.
+    sp = tmp_path / "execroot" / "dep" / "site-packages"
+    sp.mkdir(parents=True)
+    _write_dist_info_no_record(sp, "manifest-pkg", "1.0")
+    (sp / "manifest_pkg").mkdir()
+    (sp / "manifest_pkg" / "__init__.py").write_text("")
+
+    manifest = tmp_path / "app.runfiles_manifest"
+    manifest.write_text(f"app/manifest_pkg/__init__.py {sp / 'manifest_pkg' / '__init__.py'}\n")
+
+    def _fixed(*args, **kwargs):
+        kwargs.setdefault("path", [str(sp)])
+        return importlib_metadata.MetadataPathFinder.find_distributions(
+            importlib_metadata.DistributionFinder.Context(**kwargs)
+        )
+
+    monkeypatch.setattr(importlib_metadata.Distribution, "discover", staticmethod(_fixed))
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.setenv("RUNFILES_MANIFEST_FILE", str(manifest))
+
+    from ddtrace.internal import packages as _p
+
+    monkeypatch.setattr(_p, "get_package_distributions", lambda: {})
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert mapping["manifest_pkg"].name == "manifest-pkg"
+
+
+def test_bazel_manifest_parses_escaped_entries(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Escaped manifest lines (paths with spaces/backslashes) must be parsed.
+
+    Bazel writes a leading-space escaped form when a path contains a space,
+    newline or backslash (common on Windows). Splitting naively on the first
+    space drops the real path and the dependency dir is rejected. The escaped
+    real path must be unescaped and its ``site-packages`` root recorded.
+    """
+    sp = tmp_path / "dir with space" / "site-packages"
+    sp.mkdir(parents=True)
+    target = sp / "pkg" / "__init__.py"
+
+    # Bazel escaped form: " <escaped_link> <escaped_target>" with \b for
+    # backslash and \s for space (backslash first so it is not double-escaped).
+    def _escape(s: str) -> str:
+        return s.replace("\\", r"\b").replace(" ", r"\s").replace("\n", r"\n")
+
+    manifest = tmp_path / "app.runfiles_manifest"
+    manifest.write_text(f" {_escape('app/pkg/__init__.py')} {_escape(str(target))}\n")
+
+    monkeypatch.delenv("RUNFILES_DIR", raising=False)
+    monkeypatch.setenv("RUNFILES_MANIFEST_FILE", str(manifest))
+
+    from ddtrace.internal import packages as _p
+
+    roots = _p._bazel_manifest_site_packages()
+
+    assert str(sp.resolve()) in roots
+    assert _p._is_bazel_runfiles_dir(sp)
+
+
+def test_scan_skips_lone_unrelated_dist_info(
+    isolated_metadata_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The directory scan must verify the lone .dist-info belongs to the dist.
+
+    A no-RECORD ``.egg-info``/editable dist can live in a minimal shared
+    site-packages whose only ``.dist-info`` belongs to an *unrelated* package.
+    The single-.dist-info guard alone would pass and wrongly attribute every
+    unmapped module in that dir to the egg dist.
+    """
+    root = isolated_metadata_path
+    # An unrelated, regular dist provides the only .dist-info in the dir. It has
+    # a real RECORD, so it resolves via the main loop, not the fallback.
+    di_unrelated = _write_dist_info(root, "unrelated-pkg", "9.9")
+    (di_unrelated / "RECORD").write_text("unrelated_pkg/__init__.py,,\n")
+    (root / "unrelated_pkg").mkdir()
+    (root / "unrelated_pkg" / "__init__.py").write_text("")
+    # A no-RECORD egg-info dist sharing the same directory (the fallback path).
+    egg = root / "editable_pkg.egg-info"
+    egg.mkdir()
+    (egg / "PKG-INFO").write_text("Metadata-Version: 2.1\nName: editable-pkg\nVersion: 0.1\n")
+    # An unrelated top-level module that must NOT be attributed to editable-pkg.
+    (root / "totally_unrelated").mkdir()
+    (root / "totally_unrelated" / "__init__.py").write_text("")
+
+    from ddtrace.internal import packages as _p
+
+    monkeypatch.setattr(_p, "get_package_distributions", lambda: {})
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    # The egg's directory scan must be skipped: the lone .dist-info belongs to
+    # unrelated-pkg, not editable-pkg.
+    assert "totally_unrelated" not in mapping
+    assert "unrelated_pkg" in mapping
+
+
+def test_none_distribution_name_is_tolerated(
+    isolated_metadata_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``None`` entry in packages_distributions values must not crash.
+
+    Some environments yield ``None`` in the distribution-name list; calling
+    ``.lower()`` on it used to raise outside the per-dist guard and collapse
+    the whole mapping.
+    """
+    root = isolated_metadata_path
+    _write_dist_info_no_record(root, "good-bazel-pkg", "1.0")
+    (root / "good_bazel_pkg").mkdir()
+    (root / "good_bazel_pkg" / "__init__.py").write_text("")
+
+    from ddtrace.internal import packages as _p
+
+    monkeypatch.setattr(
+        _p,
+        "get_package_distributions",
+        lambda: {"somemod": [None], "good_bazel_pkg": ["good-bazel-pkg"]},
+    )
+
+    mapping = _p._package_for_root_module_mapping()
+
+    assert mapping is not None
+    assert mapping.get("good_bazel_pkg") is not None
+    assert mapping["good_bazel_pkg"].name == "good-bazel-pkg"
 
 
 def test_filename_to_package_resolves_shared_intermediate_namespace(

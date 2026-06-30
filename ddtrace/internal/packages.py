@@ -10,6 +10,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace.internal.module import origin
+from ddtrace.internal.settings import env
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
 
@@ -236,6 +237,107 @@ def _relative_to_known_root(path: Path) -> t.Optional[Path]:
     return None
 
 
+def _in_bazel() -> bool:
+    """Whether the process is running under Bazel runfiles (dir or manifest mode)."""
+    return bool(env.get("RUNFILES_DIR") or env.get("RUNFILES_MANIFEST_FILE"))
+
+
+def _manifest_real_path(line: str) -> t.Optional[str]:
+    r"""The real (target) path from one Bazel runfiles MANIFEST line.
+
+    Two formats exist (see the Bazel runfiles manifest spec):
+      - plain ``<runfiles_path> <real_path>`` (split on the first space), and
+      - an escaped form used when either path contains a space, newline, or
+        backslash: the line starts with a space and both fields escape ``\\s``
+        (space), ``\\n`` (newline) and ``\\b`` (backslash). The latter is common
+        on Windows output paths.
+
+    Returns ``None`` for lines without a separate real path (relative to
+    ``RUNFILES_DIR``, not useful in manifest-only mode).
+    """
+    if line.startswith(" "):
+        parts = line[1:].split(" ", 1)
+        if len(parts) != 2:
+            return None
+        # Unescape in the same order Bazel does; \b last so a literal backslash
+        # written as \b is not mistaken for another escape.
+        return parts[1].replace(r"\s", " ").replace(r"\n", "\n").replace(r"\b", "\\")
+    parts = line.split(" ", 1)
+    if len(parts) != 2:
+        return None
+    return parts[1]
+
+
+@callonce
+def _bazel_manifest_site_packages() -> frozenset[str]:
+    """Resolved ``site-packages`` dirs referenced by ``RUNFILES_MANIFEST_FILE``.
+
+    In manifest mode (``RUNFILES_MANIFEST_FILE`` set, ``RUNFILES_DIR`` unset) the
+    dependency dirs are real filesystem paths that need not live under a
+    ``*.runfiles`` tree, so the ``.runfiles`` ancestor heuristic misses them.
+    Parse the manifest's real-path column for ``site-packages`` components and
+    collect those dirs so they can be recognized as genuine runfiles roots.
+    """
+    manifest = env.get("RUNFILES_MANIFEST_FILE")
+    if not manifest:
+        return frozenset()
+    marker = "/site-packages/"
+    raw_roots: set[str] = set()
+    try:
+        with open(manifest, encoding="utf-8", errors="surrogateescape") as f:
+            for raw in f:
+                real = _manifest_real_path(raw.rstrip("\n"))
+                if real is None:
+                    continue
+
+                # On Windows the manifest real path uses backslash separators,
+                # so normalize before searching for the site-packages marker.
+                real = real.replace("\\", "/")
+                idx = real.find(marker)
+                if idx != -1:
+                    raw_roots.add(real[: idx + len(marker) - 1])
+    except OSError:
+        return frozenset()
+
+    resolved: set[str] = set()
+    for r in raw_roots:
+        try:
+            resolved.add(str(Path(r).resolve()))
+        except OSError:
+            resolved.add(r)
+    return frozenset(resolved)
+
+
+def _is_bazel_runfiles_dir(path: Path) -> bool:
+    """Whether ``path`` is a dependency dir inside the Bazel runfiles tree.
+
+    Returns ``False`` when not running under Bazel so the Bazel-only directory
+    scan never runs against an arbitrary (possibly shared) dir whose lone
+    ``.dist-info`` would otherwise capture unrelated sibling modules. Under
+    Bazel a dir qualifies if it is below ``RUNFILES_DIR``, has a ``*.runfiles``
+    ancestor, or is a manifest-listed ``site-packages`` real path.
+    """
+    if not _in_bazel():
+        return False
+    runfiles_dir = env.get("RUNFILES_DIR")
+    if runfiles_dir:
+        try:
+            path.relative_to(runfiles_dir)
+            return True
+        except ValueError:
+            pass
+    if any(parent.suffix == ".runfiles" for parent in path.parents):
+        return True
+    manifest_roots = _bazel_manifest_site_packages()
+    if not manifest_roots:
+        return False
+    try:
+        resolved = str(path.resolve())
+    except OSError:
+        resolved = str(path)
+    return resolved in manifest_roots
+
+
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
@@ -275,9 +377,13 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     # AIDEV-NOTE: per-dist try/except -- one bad dist used to collapse the whole
     # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
+    no_files_dists: list[importlib_metadata.Distribution] = []
+
+    d: t.Optional[Distribution] = None
     for dist in dists:
         try:
             if not (files := dist.files):
+                no_files_dists.append(dist)
                 continue
             metadata = dist.metadata
             name = metadata["name"]
@@ -295,6 +401,102 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     mapping[root] = d
         except Exception as exc:
             _warn_bad_dist(dist, exc)
+
+    # Fallback for environments where RECORD files are absent (e.g. Bazel's
+    # rules_python, which deliberately omits RECORD for hermeticity).
+    #
+    # Strategy 1: packages_distributions: fast, covers most packages.
+    # Strategy 2: directory scan of the dist's isolated site-packages: covers
+    #   the remainder, but only when the site-packages dir contains exactly one
+    #   .dist-info (true in Bazel's per-package isolated layout; unsafe in a
+    #   normal shared site-packages where multiple dists share one directory).
+    if no_files_dists:
+        # Strategy 1: packages_distributions maps module_name -> [dist_name, ...]
+        # A single no-RECORD / malformed dist can make packages_distributions()
+        # raise; that must not abort the whole fallback and leave good packages
+        # unresolved (breaking is_third_party / code provenance). Degrade to an
+        # empty Strategy 1 result and let the directory scan (Strategy 2) run.
+        try:
+            pkg_dists = get_package_distributions()
+        except Exception:
+            LOG.debug("packages_distributions() failed; falling back to directory scan", exc_info=True)
+            pkg_dists = {}
+
+        # Invert to dist_name_lower -> Distribution (lazily, only for no-files dists).
+        name_to_dist_obj: dict[str, Distribution] = {}
+        for _dist in no_files_dists:
+            try:
+                _n = _dist.metadata["name"]
+                _v = _dist.metadata["version"]
+                if _n and _v:
+                    name_to_dist_obj[_n.lower()] = Distribution(name=_n, version=_v)
+            except Exception as exc:
+                _warn_bad_dist(_dist, exc)
+
+        for module_name, dist_names in pkg_dists.items():
+            if module_name in mapping:
+                continue
+
+            resolved: list[Distribution] = []
+            for dist_name in dist_names:
+                if not dist_name:
+                    continue
+                d = name_to_dist_obj.get(dist_name.lower())
+                if d is not None and d not in resolved:
+                    resolved.append(d)
+
+            # Skip ambiguous roots provided by more than one no-RECORD dist:
+            # mapping such a top-level module to a single dist would let code
+            # provenance attribute another dist's files to the chosen one.
+            if len(resolved) != 1:
+                continue
+            mapping[module_name] = resolved[0]
+
+        # Strategy 2: directory scan of each no-RECORD dist's isolated
+        # site-packages dir, gated to verified Bazel runfiles dependency dirs.
+        for _dist in no_files_dists:
+            try:
+                _n = _dist.metadata["name"]
+                _v = _dist.metadata["version"]
+                if not (_n and _v):
+                    continue
+                site_packages = t.cast(Path, _dist.locate_file(""))
+                # Gate the scan to verified Bazel runfiles dependency dirs. The
+                # heuristic below assumes Bazel's per-package isolated layout
+                # (one dist owning the whole dir); outside runfiles a minimal or
+                # layered site-packages can hold this dist's lone .dist-info plus
+                # *unrelated* top-level code, which the scan would then wrongly
+                # attribute to this dist (marking those app frames third-party).
+                if not _is_bazel_runfiles_dir(site_packages):
+                    continue
+                # Safety guard: only treat this as an isolated site-packages if it
+                # contains exactly one .dist-info directory (Bazel's per-package
+                # layout guarantee). A shared site-packages has many .dist-info dirs
+                # and scanning it would produce wildly incorrect mappings.
+                dist_infos = (
+                    [child for child in site_packages.iterdir() if child.suffix == ".dist-info"]
+                    if site_packages.is_dir()
+                    else []
+                )
+                if len(dist_infos) != 1:
+                    continue
+                # The lone .dist-info must be _dist's own metadata, not an
+                # unrelated dist that merely happens to be alone in a minimal
+                # shared dir (e.g. _dist is an .egg-info/editable install).
+                # Otherwise we would attribute that dir's unrelated modules to
+                # _dist. Compare against _dist's metadata dir name.
+                own_meta = getattr(_dist, "_path", None)
+                if own_meta is None or dist_infos[0].name != Path(own_meta).name:
+                    continue
+                d = Distribution(name=_n, version=_v)
+                for child in site_packages.iterdir():
+                    root = child.name
+                    if child.suffix in (".dist-info", ".egg-info") or root == ".." or root.startswith("__"):
+                        continue
+                    if root not in mapping:
+                        mapping[root] = d
+            except Exception as exc:
+                _warn_bad_dist(_dist, exc)
 
     return mapping
 
