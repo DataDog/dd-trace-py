@@ -227,6 +227,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "crewai": "crewai",
     "openai_agents": "openai_agents",
     "mcp": "mcp",
+    "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
 }

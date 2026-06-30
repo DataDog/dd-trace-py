@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from inspect import iscoroutinefunction
 from inspect import isfunction
 from types import FunctionType
@@ -140,10 +141,9 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
 
     if iscoroutinefunction(middleware):
         # Handle async middleware - create async wrapper
+        @functools.wraps(middleware)
         async def traced_async_middleware_func(*args, **kwargs):
             # The first argument for all middleware is the request object
-            # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
-            # DEV: This is a function, so no `self` argument, so request is at position 0
             request = get_argument_value(args, kwargs, 0, "request", optional=True)
 
             with core.context_with_data(

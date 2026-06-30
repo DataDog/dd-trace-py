@@ -3,9 +3,8 @@
 Runs the sequence of scripts required to update supported versions
 and the integration registry.
 
-1. Regenerates the supported versions JSON data (freshvenvs.py).
-2. Generates the supported versions CSV table (generate_table.py).
-3. Updates the integration registry YAML with the new versions (update_integration_registry_versions.py).
+1. Regenerates the supported versions JSON data.
+2. Updates the integration registry YAML with the new versions.
 """
 
 import pathlib
@@ -15,8 +14,9 @@ import sys
 
 SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.resolve()
-PATH_FRESHVENVS_SCRIPT = PROJECT_ROOT / "scripts" / "freshvenvs.py"
-PATH_GENERATE_TABLE_SCRIPT = PROJECT_ROOT / "scripts" / "generate_table.py"
+PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT = (
+    PROJECT_ROOT / "scripts" / "integration_registry" / "generate_supported_versions.py"
+)
 PATH_UPDATE_REGISTRY_SCRIPT = (
     PROJECT_ROOT / "scripts" / "integration_registry" / "_update_integration_registry_versions.py"
 )
@@ -60,25 +60,19 @@ def main() -> int:
     print(f"\nStarting Version Update Workflow (from: {PROJECT_ROOT.name})")
     print("=" * 60)
 
-    # Step 1: Regenerate intermediate version data
-    if not _run_script(PATH_FRESHVENVS_SCRIPT, "generate"):
-        print(f"\nWorkflow aborted: {PATH_FRESHVENVS_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
+    # Step 1: Regenerate supported version data
+    if not _run_script(PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT):
+        print(f"\nWorkflow aborted: {PATH_GENERATE_SUPPORTED_VERSIONS_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)
         return 1
 
-    # Step 2: Generate the supported versions table CSV
-    if not _run_script(PATH_GENERATE_TABLE_SCRIPT):
-        print(f"\nWorkflow aborted: {PATH_GENERATE_TABLE_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
-        print("=" * 60)
-        return 1
-
-    # Step 3: Update the registry YAML using the generated table of tested dependency versions
+    # Step 2: Update the registry YAML using the generated supported dependency versions
     if not _run_script(PATH_UPDATE_REGISTRY_SCRIPT):
         print(f"\nWorkflow aborted: {PATH_UPDATE_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)
         return 1
 
-    # Step 4: Format the registry YAML
+    # Step 3: Format the registry YAML
     if not _run_script(PATH_FORMAT_REGISTRY_SCRIPT):
         print(f"\nWorkflow aborted: {PATH_FORMAT_REGISTRY_SCRIPT.relative_to(PROJECT_ROOT)} failed.")
         print("=" * 60)
