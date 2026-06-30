@@ -22,20 +22,20 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity)
 }
 
 CacheResult
-CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept
+CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept
 {
     auto it = map_.find(code);
     if (it == map_.end()) {
-        return { nullptr };
+        return { nullptr, -1 };
     }
     const Entry& e = it->second;
     /* Validate identity to defend against PyCodeObject address reuse:
      * CPython may free a code object and hand its address to a new one.
      * On mismatch the entry is stale; report a miss so the caller re-interns. */
     if (e.name != name || e.filename != filename || e.firstlineno != firstlineno) {
-        return { nullptr };
+        return { nullptr, -1 };
     }
-    return { e.func_id };
+    return { e.func_id, lasti == e.lasti ? e.line : -1 };
 }
 
 void
@@ -43,7 +43,9 @@ CodeFunctionCache::insert(PyCodeObject* code,
                           Datadog::function_id id,
                           PyObject* name,
                           PyObject* filename,
-                          int firstlineno)
+                          int firstlineno,
+                          int lasti,
+                          int line)
 {
     /* Evict one entry when at capacity to keep the map bounded and prevent
      * a rehash. Eviction policy is effectively random (first occupied slot);
@@ -52,7 +54,7 @@ CodeFunctionCache::insert(PyCodeObject* code,
     if (map_.size() >= max_capacity_) {
         map_.erase(map_.begin());
     }
-    map_.insert_or_assign(code, Entry{ id, name, filename, firstlineno });
+    map_.insert_or_assign(code, Entry{ id, name, filename, firstlineno, lasti, line });
 }
 
 void
