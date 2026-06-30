@@ -58,6 +58,51 @@ def test_submit_evaluation_no_source_otel_when_is_otel_missing(llmobs, mock_llmo
     assert "source:otel" not in call_args["tags"]
 
 
+def test_submit_evaluation_tag_join_with_is_otel_true(llmobs, mock_llmobs_eval_metric_writer):
+    """is_otel=True in SpanWithTagValue sets source:otel."""
+    llmobs.submit_evaluation(
+        span_with_tag_value={"tag_key": "session_id", "tag_value": "abc123", "is_otel": True},
+        label="quality",
+        metric_type="score",
+        value=0.9,
+        ml_app="test-app",
+    )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once()
+    call_args = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert "source:otel" in call_args["tags"]
+
+
+def test_submit_evaluation_tag_join_no_source_otel_when_is_otel_false(llmobs, mock_llmobs_eval_metric_writer):
+    """is_otel=False in SpanWithTagValue suppresses source:otel."""
+    llmobs.submit_evaluation(
+        span_with_tag_value={"tag_key": "session_id", "tag_value": "abc123", "is_otel": False},
+        label="quality",
+        metric_type="score",
+        value=0.9,
+        ml_app="test-app",
+    )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once()
+    call_args = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert "source:otel" not in call_args["tags"]
+
+
+def test_submit_evaluation_tag_join_no_source_otel_when_is_otel_missing(llmobs, mock_llmobs_eval_metric_writer):
+    """Omitting is_otel from SpanWithTagValue does not set source:otel."""
+    llmobs.submit_evaluation(
+        span_with_tag_value={"tag_key": "session_id", "tag_value": "abc123"},
+        label="quality",
+        metric_type="score",
+        value=0.9,
+        ml_app="test-app",
+    )
+
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_once()
+    call_args = mock_llmobs_eval_metric_writer.enqueue.call_args[0][0]
+    assert "source:otel" not in call_args["tags"]
+
+
 def test_export_span_sets_is_otel_false_for_ddtrace_span(llmobs):
     """export_span() sets is_otel=False for spans created via the ddtrace LLMObs API."""
     with llmobs.llm(model_name="test-model", name="test-span", model_provider="test-provider") as span:
