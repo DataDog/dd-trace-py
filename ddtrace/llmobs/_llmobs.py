@@ -2014,7 +2014,6 @@ class LLMObs(Service):
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span"
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
-
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
