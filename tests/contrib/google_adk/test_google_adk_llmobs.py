@@ -241,3 +241,52 @@ class TestLLMObsGoogleADK:
             },
             name="Google ADK Code Execute",
         )
+
+    @pytest.mark.asyncio
+    async def test_run_live_reads_metadata_from_session_object(self, adk, test_spans, google_adk_llmobs):
+        """run_live's deprecated ``session=`` form: session metadata is read off the Session object.
+
+        When called as ``run_live(session=session, ...)`` there is no explicit ``user_id``/``session_id``
+        kwarg, so the integration falls back to ``session.id``/``user_id``/``app_name``.
+        """
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        class FakeSession:
+            id = "live-session"
+            user_id = "live-user"
+            app_name = "LiveADKApp"
+
+        class FakeAgent:
+            name = "live_agent"
+            model = None
+            tools: list = []
+
+        class FakeRunner:
+            # No app_name on the runner forces the fallback to session.app_name.
+            app_name = None
+            agent = FakeAgent()
+
+        async def fake_run_live(*args, **kwargs):
+            for _ in ():  # an async generator that yields nothing
+                yield _
+
+        kwargs = {"session": FakeSession(), "live_request_queue": object()}
+        async for _ in _traced_agent_run_async(fake_run_live, FakeRunner(), (), kwargs):
+            pass
+
+        # The original call kwargs are left untouched by the wrapper.
+        assert set(kwargs) == {"session", "live_request_queue"}
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="agent",
+            name="live_agent",
+            tags={
+                "ml_app": "<ml-app-name>",
+                "session_id": "live-session",
+                "user_id": "live-user",
+                "app_name": "LiveADKApp",
+            },
+        )
