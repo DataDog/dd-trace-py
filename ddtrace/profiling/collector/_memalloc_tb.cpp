@@ -116,14 +116,11 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         int lasti = DataDog::get_lasti(frame, code);
 
         /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
-         * insert_function) Sample::push_frame would otherwise make. A non-null
-         * func_id with line >= 0 also lets us skip parse_linetable for this frame. */
+         * insert_function) Sample::push_frame would otherwise make. */
         if (cache != nullptr) {
-            Datadog::CacheResult result = cache->lookup(code, code_name, code_filename, code_firstlineno, lasti);
+            Datadog::CacheResult result = cache->lookup(code, code_name, code_filename, code_firstlineno);
             if (result.func_id != nullptr) {
-                /* Reuse the cached line when lasti matched (line >= 0); otherwise
-                 * parse the line table once for this (now mismatched) lasti. */
-                int line = result.line >= 0 ? result.line : memalloc_resolve_lineno(code, lasti);
+                int line = memalloc_resolve_lineno(code, lasti);
                 sample.push_frame(result.func_id, 0, line);
                 ++pushed_frames;
                 continue;
@@ -148,7 +145,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         }
 
         if (cache != nullptr) {
-            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno, lasti, line);
+            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno);
         }
         sample.push_frame(*func_id, 0, line);
         ++pushed_frames;
