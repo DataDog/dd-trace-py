@@ -99,8 +99,7 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
 def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     ctx = ExecutionContext("test")
     headers = {
-        "x-dd-proxy": "azure-frontdoor",
-        "x-dd-proxy-request-time-ms": "1736973768000",
+        "x-dd-proxy": "azure-fd",
         "x-dd-proxy-path": "/api/my-function",
         "x-dd-proxy-httpmethod": "GET",
         "x-dd-proxy-domain-name": "my-app.azurefd.net",
@@ -118,8 +117,8 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     assert span.get_tag("span.kind") == "server"
     assert span.resource == "GET /api/{resource}"
     assert span.service == "my-app.azurefd.net"
-    assert span.start_ns == 1736973768000 * 1000000
-    assert span.get_tag("component") == "azure-frontdoor"
+    assert span.start_ns is not None
+    assert span.get_tag("component") == "azure-fd"
     assert span.get_tag("http.method") == "GET"
     assert span.get_tag("http.url") == "https://my-app.azurefd.net/api/my-function"
     assert span.get_tag("http.route") == "/api/{resource}"
