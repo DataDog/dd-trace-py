@@ -45,18 +45,14 @@ using CodeCacheMap = std::unordered_map<K, V>;
 namespace Datadog {
 
 /* Result of a cache lookup.
- * func_id == nullptr: full cache miss — line is undefined; caller must intern strings and insert.
- * func_id != nullptr, line == -1: function cached but lasti mismatched — caller must re-parse the line table.
- * func_id != nullptr, line >= 0: full hit — both function_id and line number are valid.
- *
- * line is only meaningful when func_id != nullptr.
+ * func_id == nullptr: miss — caller must intern strings and insert.
+ * func_id != nullptr: hit — func_id is valid.
  *
  * CacheResult is intentionally kept small to make lookup() cheap to return by value.
  * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
 struct CacheResult
 {
     Datadog::function_id func_id; // nullptr = miss
-    int line;                     // only valid when func_id != nullptr; -1 = lasti mismatch, >=0 = cached line
 };
 
 /* Keep CacheResult small; increasing its size can force some ABIs to use a hidden
@@ -82,10 +78,6 @@ static_assert(sizeof(CacheResult) <= 16,
  * identity still matches the live code object, so a reused address is treated as a miss
  * instead of misattributing the frame.
  *
- * Two-tier hit: a lookup can return a partial hit (func_id valid, line == -1) when the
- * function is cached but lasti changed. The caller re-parses the line table for the current
- * lasti without re-interning the function — skipping two of the three expensive libdd calls.
- *
  * Concurrency: heap-profiler hooks run under the GIL; no internal locking needed.
  *
  * Lifetime: cleared on postfork_child and profiler stop/restart. libdd function_ids do not
@@ -103,20 +95,17 @@ class CodeFunctionCache
     explicit CodeFunctionCache(size_t capacity);
 
     /* Returns a CacheResult for code only if present AND its stored identity still matches
-     * the supplied (name, filename, firstlineno), guarding against PyCodeObject address
-     * reuse. Check result.func_id != nullptr for a hit; result.line >= 0 means lasti matched
-     * the stored value so the caller can skip parse_linetable. */
-    CacheResult lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
+     * the supplied (name, filename, firstlineno), guarding against PyCodeObject address reuse.
+     * Check result.func_id != nullptr for a hit. */
+    CacheResult lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept;
 
-    /* Inserts (code, id) with the identity used to validate future lookups plus the
-     * (lasti, line) pair. Evicts one entry if the map is at capacity. */
+    /* Inserts (code, id) with the identity used to validate future lookups.
+     * Evicts one entry if the map is at capacity. */
     void insert(PyCodeObject* code,
                 Datadog::function_id id,
                 PyObject* name,
                 PyObject* filename,
-                int firstlineno,
-                int lasti,
-                int line);
+                int firstlineno);
 
     /* Drops every entry, retaining reserved capacity. */
     void clear();
@@ -131,8 +120,6 @@ class CodeFunctionCache
         PyObject* name;
         PyObject* filename;
         int firstlineno;
-        int lasti;
-        int line;
     };
 
     CodeCacheMap<PyCodeObject*, Entry> map_;
