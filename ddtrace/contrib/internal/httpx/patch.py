@@ -30,6 +30,16 @@ HTTPX_VERSION = parse_version(httpx.__version__)
 HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
 
 
+def _set_response_with_body(event: HttpClientRequestEvent, resp: httpx.Response) -> None:
+    # httpx fully buffers the response body before returning here (non-streaming requests),
+    # so parsing it is safe and doesn't consume anything downstream consumers still need to read.
+    event.set_response(resp)
+    try:
+        event.response_body = resp.json()
+    except Exception:
+        event.response_body = None
+
+
 def get_version() -> str:
     return getattr(httpx, "__version__", "")
 
@@ -138,7 +148,7 @@ async def _wrapped_async_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                _set_response_with_body(ctx.event, resp)
 
 
 def _wrapped_sync_send(
@@ -169,7 +179,7 @@ def _wrapped_sync_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                _set_response_with_body(ctx.event, resp)
 
 
 def patch() -> None:
