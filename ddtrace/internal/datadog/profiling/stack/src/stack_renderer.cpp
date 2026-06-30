@@ -99,12 +99,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
     }
 
     sample->push_task_name(task_name);
-    // Push the numeric task_id (id(asyncio_task) or gevent.thread.get_ident(greenlet))
-    // so the backend can correlate these wall-time samples with lock-collector samples
-    // that carry the same task_id.  Skip only when zero (no task id available).
-    if (task_id != 0) {
-        sample->push_task_id(static_cast<int64_t>(task_id));
-    }
+    sample->push_task_id(task_id);
 }
 
 void

@@ -235,10 +235,9 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     }
 
     for (auto& leaf_task : leaf_tasks) {
-        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
-        // Use the task object's address as its virtual thread ID so each asyncio
-        // task appears as its own timeline row
-        stack_info->task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
+        // Must match _task.task_object_address() so lock and stack samples correlate.
+        auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
+        auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
         auto& stack = stack_info->stack;
 
         // Safety: prevent infinite loops from cycles in task chain maps
@@ -670,8 +669,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     // copy_type() which returns non-zero on failure.
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
-        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
-        stack_info->task_id = snap.greenlet_id;
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
         auto& stack = stack_info->stack;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
