@@ -23,7 +23,11 @@ AGENT_MANIFEST_METADATA = {
             "model": "gemini-2.5-pro",
             "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
             "name": "test_agent",
-            "session_management": {"session_id": "test-session", "user_id": "test-user"},
+            "session_management": {
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             "tools": [
                 {"description": "A tiny search tool stub.", "name": "search_docs"},
                 {"description": "Simple arithmetic tool.", "name": "multiply"},
@@ -73,7 +77,12 @@ class TestLLMObsGoogleADK:
             input_value='{"query": "test"}',
             output_value='{"results": ["Found reference for: test"]}',
             metadata={"description": "A tiny search tool stub."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="search_docs",
         )
 
@@ -83,7 +92,12 @@ class TestLLMObsGoogleADK:
             input_value='{"a": 5, "b": 3}',
             output_value='{"product": 15}',
             metadata={"description": "Simple arithmetic tool."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="multiply",
         )
 
@@ -92,7 +106,14 @@ class TestLLMObsGoogleADK:
             span_kind="agent",
             error=error,
             input_value="Say hello",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             name="test_agent",
             metadata=AGENT_MANIFEST_METADATA,
             output_value=mock.ANY,
@@ -135,7 +156,12 @@ class TestLLMObsGoogleADK:
             input_value='{"query": "recurring revenue"}',
             output_value='{"results": ["Found reference for: recurring revenue"]}',
             metadata={"description": "A tiny search tool stub."},
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
             name="search_docs",
         )
 
@@ -144,7 +170,14 @@ class TestLLMObsGoogleADK:
             span_kind="agent",
             error=error,
             input_value="Can you search for information about recurring revenue?",
-            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+                "user_id": "test-user",
+                "app_name": "TestADKApp",
+            },
             name="test_agent",
             metadata=AGENT_MANIFEST_METADATA,
             output_value=mock.ANY,

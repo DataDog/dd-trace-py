@@ -43,6 +43,10 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
         **kwargs,
     )
 
+    # Propagate the ADK session id to this span (and its child tool/code-execute spans) at creation
+    # time, before the wrapped coroutine produces those children.
+    integration.set_session_id(span, kwargs.get("session_id"))
+
     try:
         agen = wrapped(*args, **kwargs)
     except Exception:
@@ -61,9 +65,11 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
             raise
         finally:
             kwargs["instance"] = instance.agent
+            kwargs["app_name"] = getattr(instance, "app_name", None)
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events, operation="agent")
             span.finish()
             del kwargs["instance"]
+            del kwargs["app_name"]
 
     return _generator()
 
