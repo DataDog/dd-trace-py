@@ -67,6 +67,18 @@ def pytest_collection_modifyitems(items):
         )
 
 
+@pytest.fixture(autouse=True)
+def _dummy_tracer(tracer):
+    """Ensure every test in this suite uses a DummyWriter, not the NativeWriter.
+
+    ``tracer_wrap`` cases call ``ddtrace.tracer.wrap()`` which creates real spans.
+    Without this fixture the global tracer would try to flush them to a local agent,
+    making CI noisy/slow/flaky when no agent is listening. Depending on the
+    ``tracer`` fixture from ``tests/conftest.py`` is enough -- it installs a
+    DummyWriter for the duration of the test and tears it down cleanly after.
+    """
+
+
 @pytest.fixture(params=list(ALL_MECHANISMS.values()), ids=list(ALL_MECHANISMS))
 def mech(request):
     """The wrapping mechanism under test. Every test taking a ``mech`` argument is
