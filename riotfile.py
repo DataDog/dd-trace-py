@@ -3030,7 +3030,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
-                    pkgs={"openai-agents": ["~=0.14.0"]},
+                    pkgs={"openai-agents": ["~=0.14.0", latest]},
                 ),
             ],
         ),
