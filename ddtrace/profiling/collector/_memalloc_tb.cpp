@@ -127,19 +127,15 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             }
         }
 
-        /* Cache miss: resolve the line, then intern explicitly so we can cache
-         * the resulting function_id. Drops the frame on intern failure to match
-         * the silent-skip behavior of Sample::push_frame_impl. */
+        /* Cache miss: push via the string-view overload, which interns name and
+         * filename and returns the function_id on success. Drop the frame on
+         * intern failure (nullopt return) to match push_frame_impl's silent-skip
+         * behavior. */
         int line = memalloc_resolve_lineno(code, lasti);
         std::string_view name_sv = unicode_to_sv_no_alloc(code_name);
         std::string_view filename_sv = unicode_to_sv_no_alloc(code_filename);
 
-        std::optional<Datadog::string_id> name_id = Datadog::intern_string(name_sv);
-        std::optional<Datadog::string_id> filename_id = Datadog::intern_string(filename_sv);
-        if (!name_id || !filename_id) {
-            continue;
-        }
-        std::optional<Datadog::function_id> func_id = Datadog::intern_function(*name_id, *filename_id);
+        auto func_id = sample.push_frame(name_sv, filename_sv, 0, line);
         if (!func_id) {
             continue;
         }
@@ -147,7 +143,6 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         if (cache != nullptr) {
             cache->insert(code, *func_id, code_name, code_filename, code_firstlineno);
         }
-        sample.push_frame(*func_id, 0, line);
         ++pushed_frames;
     }
 }
