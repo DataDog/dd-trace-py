@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: Add ``ddtrace.llmobs.experimental.comparison`` — a helper that exposes
+    the built-in inline-experiment comparisons (``structural`` / ``exact`` / ``ignoring``) as
+    evaluators, so they can be dropped into the ``evaluators`` argument of ``experiment_start``
+    alongside ``LLMJudge`` / ``BaseEvaluator`` / custom functions. This unifies the model —
+    a comparison is just an evaluator — while ``structural`` remains the zero-config default
+    that drives the per-case ``MATCH`` / ``CHANGED`` verdict and the ``--comparator`` /
+    ``--ignore`` CLI flags remain as shortcuts. These APIs are experimental and may change or
+    be removed without notice.

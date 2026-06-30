@@ -111,6 +111,40 @@ def comparator_from_spec(kind: str = "structural", ignore: Optional[list[str]] =
 
 
 # --------------------------------------------------------------------------- #
+# Comparisons-as-evaluators — the unified surface.
+# A comparator is `(recorded, new) -> bool`; an evaluator is
+# `(input_data, output_data, expected_output) -> bool | EvaluatorResult`. `as_evaluator`
+# is the single adapter between the two (recorded baseline == expected_output, new ==
+# output_data). The always-on guard and any user-attached comparison both go through it,
+# so "a comparison" is just one kind of evaluator. See RFC §"Comparisons as evaluators".
+# --------------------------------------------------------------------------- #
+def as_evaluator(comparator: Callable[[Any, Any], bool], name: str = "regression_match") -> Callable[..., bool]:
+    """Wrap a `(recorded, new)` comparator as a `(input, output, expected)` evaluator.
+
+    The evaluator's ``__name__`` becomes the eval-metric label.
+    """
+
+    def _comparison(input_data: Any, output_data: Any, expected_output: Any) -> bool:
+        return bool(comparator(expected_output, output_data))
+
+    _comparison.__name__ = name
+    return _comparison
+
+
+def comparison(
+    kind: str = "structural", ignore: Optional[list[str]] = None, name: Optional[str] = None
+) -> Callable[..., bool]:
+    """A built-in comparison as an evaluator, droppable into ``evaluators=``.
+
+    The generalized form of the ``--comparator`` knob: ``comparison("exact")``,
+    ``comparison("ignoring", ignore=["ts"])``, ``comparison()`` (structural). Defaults the
+    metric label to ``"<kind>_match"`` so multiple comparisons don't collide; the always-on
+    default guard keeps the reserved ``"regression_match"`` label.
+    """
+    return as_evaluator(comparator_from_spec(kind, ignore), name or ("%s_match" % kind))
+
+
+# --------------------------------------------------------------------------- #
 # Evaluators — richer per-case checks that stack behind the comparator guard.
 # AIDEV-NOTE: `evaluate_one` deliberately MIRRORS the engine's per-type evaluator
 # dispatch (`Experiment._evaluate_record._run_single_evaluator` in _experiment.py) so a

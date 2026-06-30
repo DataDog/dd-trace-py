@@ -22,6 +22,7 @@ from ddtrace.llmobs._inline_experiment import _ExperimentStop
 from ddtrace.llmobs._inline_experiment import _set_mode
 from ddtrace.llmobs._inline_experiment import _start_output
 from ddtrace.llmobs._inline_experiment_runner import _invoke
+from ddtrace.llmobs._inline_experiment_runner import as_evaluator
 from ddtrace.llmobs._inline_experiment_runner import resolve_evaluators
 
 
@@ -49,14 +50,12 @@ def _make_task(name: str) -> Callable[..., Any]:
 
 
 def _make_evaluator(comparator: Callable[[Any, Any], bool]) -> Callable[..., Any]:
-    """Wrap a comparator as a boolean experiment evaluator. The function name becomes
-    the eval-metric label in the UI.
+    """Wrap a comparator as the always-on ``regression_match`` guard evaluator.
+
+    Thin alias over the shared ``as_evaluator`` adapter so the guard and any
+    user-attached ``comparison(...)`` share one comparator->evaluator implementation.
     """
-
-    def regression_match(input_data: Any, output_data: Any, expected_output: Any) -> bool:
-        return bool(comparator(expected_output, output_data))
-
-    return regression_match
+    return as_evaluator(comparator, name="regression_match")
 
 
 def experiment_url(experiment: Any) -> Optional[str]:

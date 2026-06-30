@@ -22,6 +22,7 @@ Example::
 
 from ddtrace.llmobs._inline_experiment import experiment_end
 from ddtrace.llmobs._inline_experiment import experiment_start
+from ddtrace.llmobs._inline_experiment_runner import comparison
 
 
-__all__ = ["experiment_start", "experiment_end"]
+__all__ = ["experiment_start", "experiment_end", "comparison"]

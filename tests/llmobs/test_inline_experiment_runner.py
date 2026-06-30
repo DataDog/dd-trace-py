@@ -36,6 +36,41 @@ def test_comparator_from_spec():
         runner.comparator_from_spec("bogus")
 
 
+# --- comparisons as evaluators --------------------------------------------- #
+def test_as_evaluator_maps_recorded_to_expected_and_names():
+    ev = runner.as_evaluator(runner.exact)
+    assert ev.__name__ == "regression_match"  # default guard label
+    # evaluator shape (input_data, output_data, expected_output); recorded baseline == expected
+    assert ev({}, "x", "x") is True and ev({}, "y", "x") is False
+
+
+def test_comparison_factory_builds_named_evaluators():
+    ex = runner.comparison("exact")
+    assert ex.__name__ == "exact_match"
+    assert ex({}, {"v": 1}, {"v": 1}) is True and ex({}, {"v": 1}, {"v": 2}) is False
+
+    ig = runner.comparison("ignoring", ignore=["ts"])
+    assert ig.__name__ == "ignoring_match"
+    assert ig({}, {"v": 1, "ts": "new"}, {"v": 1, "ts": "old"}) is True  # ts ignored
+
+    st = runner.comparison()  # default kind is structural
+    assert st.__name__ == "structural_match"
+    assert st({}, {"v": 2, "shape": [9]}, {"v": 1, "shape": [1]}) is True  # same shape, different values
+
+
+def test_comparison_used_as_attached_evaluator():
+    _set_mode(Mode.CAPTURE)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [runner.comparison("exact")])
+    def f(x):
+        return {"v": x}
+
+    f(1)
+    _set_mode(Mode.REPLAY)
+    rows = runner.replay("e", runner.structural, score_evaluators=True)
+    assert rows[0]["evals"][0]["name"] == "exact_match" and rows[0]["evals"][0]["assessment"] == "pass"
+
+
 # --- replay ---------------------------------------------------------------- #
 def test_replay_single_function_match_text_drift_and_structural_change():
     state = {"drift": ""}
