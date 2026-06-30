@@ -7,7 +7,6 @@ and forwards the raw bytes to the native FFE processor.
 
 from collections import OrderedDict
 from collections.abc import MutableMapping
-from importlib.metadata import version
 import threading
 import typing
 
@@ -28,6 +27,9 @@ from ddtrace.internal.openfeature._flageval_metrics import FlagEvalHook
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._native import VariationType
 from ddtrace.internal.openfeature._native import resolve_flag
+from ddtrace.internal.openfeature._span_enrichment import METADATA_DO_LOG
+from ddtrace.internal.openfeature._span_enrichment import METADATA_SERIAL_ID
+from ddtrace.internal.openfeature._span_enrichment import SpanEnrichmentHook
 from ddtrace.internal.openfeature.writer import get_exposure_writer
 from ddtrace.internal.openfeature.writer import start_exposure_writer
 from ddtrace.internal.openfeature.writer import stop_exposure_writer
@@ -35,12 +37,14 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings.openfeature import config as ffe_config
 
 
-# Handle different import paths between openfeature-sdk versions
-# Versions 0.7.0+ reorganized submodules
-pkg_version = version("openfeature-sdk")
-if pkg_version >= "0.7.0":
+# Handle different import paths between openfeature-sdk versions.
+# Versions 0.7.0+ reorganized submodules (AbstractProvider moved to
+# openfeature.provider). A string comparison of the version is unsafe -- e.g.
+# "0.10.0" >= "0.7.0" is False lexicographically -- so resolve by import
+# instead, which is correct for any version-string format.
+try:
     from openfeature.provider import AbstractProvider
-else:
+except ImportError:
     from openfeature.provider.provider import AbstractProvider
 
 
@@ -129,6 +133,13 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics = FlagEvalMetrics()
             self._flag_eval_hook = FlagEvalHook(self._flag_eval_metrics)
 
+        # APM span enrichment hook (experimental, distinct gate, OFF by default).
+        # Constructed ONLY when the gate is on, so nothing is allocated and
+        # nothing subscribes to span finish when it is off (DG-005).
+        self._span_enrichment_hook: typing.Optional[SpanEnrichmentHook] = None
+        if self._enabled and ffe_config.experimental_flagging_provider_span_enrichment_enabled:
+            self._span_enrichment_hook = SpanEnrichmentHook()
+
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -143,6 +154,8 @@ class DataDogProvider(AbstractProvider):
         hooks: list[typing.Any] = []
         if self._flag_eval_hook is not None:
             hooks.append(self._flag_eval_hook)
+        if self._span_enrichment_hook is not None:
+            hooks.append(self._span_enrichment_hook)
         return hooks
 
     def initialize(self, evaluation_context: EvaluationContext) -> None:
@@ -216,6 +229,13 @@ class DataDogProvider(AbstractProvider):
             self._flag_eval_metrics.shutdown()
             self._flag_eval_metrics = None
             self._flag_eval_hook = None
+
+        # Tear down the span-enrichment hook: unsubscribe the span-finish
+        # callback (symmetric subscribe<->unsubscribe -- avoids a duplicate
+        # subscription on provider reconfigure).
+        if self._span_enrichment_hook is not None:
+            self._span_enrichment_hook.destroy()
+            self._span_enrichment_hook = None
 
         # Clear exposure cache
         self.clear_exposure_cache()
@@ -358,6 +378,12 @@ class DataDogProvider(AbstractProvider):
             flag_metadata: dict[str, typing.Any] = {}
             if details.allocation_key:
                 flag_metadata[METADATA_ALLOCATION_KEY] = details.allocation_key
+
+            # Thread serial id + do_log into flag_metadata for span enrichment.
+            # The span-enrichment hook reads these from details.flag_metadata.
+            if details.serial_id is not None:
+                flag_metadata[METADATA_SERIAL_ID] = details.serial_id
+            flag_metadata[METADATA_DO_LOG] = details.do_log
 
             # Check if variant is None/empty to determine if we should use default value.
             # For JSON flags, value can be null which is valid, so we check variant instead.

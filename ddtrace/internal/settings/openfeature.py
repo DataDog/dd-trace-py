@@ -17,6 +17,15 @@ class OpenFeatureConfig(DDConfig):
         default=False,
     )
 
+    # Experimental APM span enrichment with feature-flag evaluation metadata.
+    # DISTINCT from DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED and OFF by default.
+    # When enabled, the provider attaches ffe_* tags to the root APM span.
+    experimental_flagging_provider_span_enrichment_enabled = DDConfig.var(
+        bool,
+        "DD_EXPERIMENTAL_FLAGGING_PROVIDER_SPAN_ENRICHMENT_ENABLED",
+        default=False,
+    )
+
     # Feature flag exposure intake configuration
     ffe_intake_enabled = DDConfig.var(
         bool,
@@ -41,6 +50,7 @@ class OpenFeatureConfig(DDConfig):
 
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
+        "experimental_flagging_provider_span_enrichment_enabled",
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
