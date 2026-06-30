@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    profiling: the memory allocation profiler now attributes allocations to the
+    gevent greenlet that made them. Previously every greenlet running on a
+    gevent worker shared a single OS-thread lane in the memory timeline, so
+    per-greenlet allocation activity could not be distinguished. Allocation
+    samples now carry the greenlet's task id and name, matching the attribution
+    already available for the stack profiler.
