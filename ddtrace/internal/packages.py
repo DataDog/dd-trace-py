@@ -338,6 +338,77 @@ def _is_bazel_runfiles_dir(path: Path) -> bool:
     return resolved in manifest_roots
 
 
+def _is_namespace_module(base: Path, module_name: str) -> bool:
+    """Whether ``base/module_name`` is a namespace package (dir, no __init__.py).
+
+    Used by the no-RECORD fallback to avoid pinning a shared namespace
+    top-level (e.g. ``google``) to a single distribution. A regular package
+    (has ``__init__.py``) or a single-file module is not a namespace.
+    """
+    pkg_dir = base / module_name
+    try:
+        return pkg_dir.is_dir() and not (pkg_dir / "__init__.py").exists()
+    except OSError:
+        return False
+
+
+# Bound the recursion that walks nested no-RECORD namespace packages, so a
+# pathological/deep tree (or symlink loop) cannot stall the mapping build.
+_NAMESPACE_SCAN_MAX_DEPTH = 16
+
+
+def _add_namespace_subentries(
+    ns_dir: Path,
+    prefix: str,
+    dist: Distribution,
+    mapping: dict[str, Distribution],
+    depth: int = 0,
+) -> None:
+    """Recursively map sub-entries of a no-RECORD namespace package.
+
+    Two distributions can share intermediate namespace levels: e.g.
+    ``google-cloud-storage`` ships ``google/cloud/storage`` and
+    ``google-cloud-bigquery`` ships ``google/cloud/bigquery``, both under the
+    ``google/cloud`` namespace. Keying only one level deep collapses both to
+    ``google/cloud`` and drops the second dist, so ``CodeProvenance`` records
+    only the first runfiles path and the other dependency's frames stay
+    classified as user code. We descend through nested namespace dirs (those
+    without ``__init__.py``) until we reach a concrete package (has
+    ``__init__.py``) or a module file, mapping a key at each level so every
+    distribution keeps at least one distinct entry and its path is recorded.
+
+    A nested namespace level (a directory without ``__init__.py``) is itself
+    shareable, so it is NOT mapped to ``dist``; only concrete packages (with
+    ``__init__.py``) and module files are. We descend through the bare
+    namespace dirs so each distribution's concrete leaf gets its own
+    dist-specific key, and ``filename_to_package`` then resolves files by the
+    deepest matching prefix.
+    """
+    if depth >= _NAMESPACE_SCAN_MAX_DEPTH:
+        return
+    try:
+        children = list(ns_dir.iterdir())
+    except OSError:
+        return
+    for child in children:
+        name = child.name
+        if name.startswith("__"):
+            continue
+        is_dir = child.is_dir()
+        is_module_file = child.suffix == ".py" and not is_dir
+        if not (is_dir or is_module_file):
+            continue
+        key = f"{prefix}/{name}"
+        if is_dir and not (child / "__init__.py").exists():
+            # Shared intermediate namespace level: never pin it to a single
+            # dist (that misattributes a sibling dist's files to whichever was
+            # scanned first). Recurse so the concrete leaf below gets a
+            # dist-specific key instead.
+            _add_namespace_subentries(child, key, dist, mapping, depth + 1)
+        elif key not in mapping:
+            mapping[key] = dist
+
+
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
@@ -421,15 +492,39 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         except Exception:
             LOG.debug("packages_distributions() failed; falling back to directory scan", exc_info=True)
             pkg_dists = {}
+        # Top-level roots that the directory scan sees as namespace packages
+        # (no __init__.py) in any no-RECORD dist. A bare namespace root is
+        # inherently shareable across dists, so it must never be mapped to a
+        # single dist -- even when packages_distributions() resolves only one
+        # (the other dist may omit top_level.txt and so be invisible to it).
+        # Collected during Strategy 2 and stripped from the mapping afterwards.
+        namespace_roots: set[str] = set()
 
-        # Invert to dist_name_lower -> Distribution (lazily, only for no-files dists).
+        # Roots that some no-RECORD dist regularly owns (has __init__.py or a
+        # top-level module file). A regular owner always wins the bare root over
+        # a shared namespace.
+        regular_owners: dict[str, Distribution] = {}
+
+        # Roots that the packages_distributions() fallback (Strategy 1) added.
+        # Only these may be stripped as shared namespace roots; a RECORD-backed
+        # or regular-package owner of the same root must be preserved.
+        strategy1_added: set[str] = set()
+
+        # Invert to dist_name_lower -> Distribution and its base dir (lazily,
+        # only for no-files dists). The base dir lets Strategy 1 tell a bare
+        # namespace top-level from a regular package on its own.
         name_to_dist_obj: dict[str, Distribution] = {}
+        name_to_base: dict[str, Path] = {}
         for _dist in no_files_dists:
             try:
                 _n = _dist.metadata["name"]
                 _v = _dist.metadata["version"]
                 if _n and _v:
                     name_to_dist_obj[_n.lower()] = Distribution(name=_n, version=_v)
+                    try:
+                        name_to_base[_n.lower()] = t.cast(Path, _dist.locate_file(""))
+                    except Exception:  # nosec - base dir is best-effort
+                        pass
             except Exception as exc:
                 _warn_bad_dist(_dist, exc)
 
@@ -445,15 +540,31 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                 if d is not None and d not in resolved:
                     resolved.append(d)
 
-            # Skip ambiguous roots provided by more than one no-RECORD dist:
-            # mapping such a top-level module to a single dist would let code
-            # provenance attribute another dist's files to the chosen one.
+            # Skip ambiguous namespace roots: when a top-level module (e.g.
+            # "google") is provided by more than one no-RECORD distribution,
+            # mapping it to a single dist would let code provenance attribute
+            # another dist's files to the chosen one (it resolves the root via
+            # the first matching sys.path entry). Rely on the path-aware
+            # sub-entries added by the directory scan (Strategy 2) instead.
             if len(resolved) != 1:
                 continue
+            # Also skip a bare namespace top-level even when a single dist
+            # reports it: a sibling namespace dist may omit top_level.txt (and
+            # so be invisible here), and the Strategy 2 scan that would strip
+            # this root is skipped outside Bazel. Pinning it would make the
+            # longest-prefix lookup attribute the sibling's "google/<other>/..."
+            # files to this dist. The directory scan still adds the path-aware
+            # sub-entries (e.g. "google/cloud") when it does run.
+            base = name_to_base.get(resolved[0].name.lower())
+            if base is not None and _is_namespace_module(base, module_name):
+                continue
             mapping[module_name] = resolved[0]
+            strategy1_added.add(module_name)
 
-        # Strategy 2: directory scan of each no-RECORD dist's isolated
-        # site-packages dir, gated to verified Bazel runfiles dependency dirs.
+        # Strategy 2: directory scan. We do NOT skip dists already covered by
+        # Strategy 1: namespace packages get only their top-level module mapped
+        # there (e.g. "google"), but _root_module returns sub-entries like
+        # "google/cloud", which only the directory scan below can add.
         for _dist in no_files_dists:
             try:
                 _n = _dist.metadata["name"]
@@ -493,10 +604,43 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                     root = child.name
                     if child.suffix in (".dist-info", ".egg-info") or root == ".." or root.startswith("__"):
                         continue
-                    if root not in mapping:
-                        mapping[root] = d
+                    is_namespace_pkg = child.is_dir() and not (child / "__init__.py").exists()
+                    if not is_namespace_pkg:
+                        # Regular package/module (has __init__.py, or a module
+                        # file): the whole top-level dir/file belongs to this
+                        # dist, so it is the legitimate owner of the bare root.
+                        regular_owners.setdefault(root, d)
+                        if root not in mapping:
+                            mapping[root] = d
+                        continue
+                    # Namespace packages (no __init__.py) must NOT map their bare
+                    # top-level root (e.g. "google"): it is shared across dists,
+                    # so attributing it to one would misclassify another dist's
+                    # files. Add the path-aware sub-entries instead, descending
+                    # through nested namespace levels so that dists sharing an
+                    # intermediate level (e.g. "google/cloud") still each get a
+                    # distinct, recorded key.
+                    namespace_roots.add(root)
+                    _add_namespace_subentries(child, root, d, mapping)
             except Exception as exc:
                 _warn_bad_dist(_dist, exc)
+
+        # Reconcile bare namespace roots that Strategy 1 mapped to a single
+        # dist. The directory scan is authoritative about ownership:
+        #   - If some dist regularly owns the root (has __init__.py or a module
+        #     file), the bare root belongs to that regular owner; point the
+        #     Strategy 1 entry at it (it may have guessed a namespace dist).
+        #   - Otherwise the root is purely a shared namespace; drop the bare
+        #     entry so only the path-aware sub-entries (e.g. "google/cloud")
+        #     remain and no dist's "google" dir is recorded under another.
+        # We only touch Strategy 1's own additions, so a RECORD-backed owner
+        # (mapped by the main loop) is never disturbed.
+        for ns_root_name in namespace_roots & strategy1_added:
+            owner = regular_owners.get(ns_root_name)
+            if owner is not None:
+                mapping[ns_root_name] = owner
+            else:
+                mapping.pop(ns_root_name, None)
 
     return mapping
 
