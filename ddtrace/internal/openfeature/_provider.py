@@ -38,7 +38,7 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 # Versions 0.7.0+ reorganized submodules
 try:
     from openfeature.provider import AbstractProvider
-except ImportError:
+except ModuleNotFoundError:
     from openfeature.provider.provider import AbstractProvider
 
 
