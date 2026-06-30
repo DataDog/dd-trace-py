@@ -35,7 +35,7 @@ from .utils import set_latency_metrics
 
 logger = get_logger(__name__)
 
-config._add("vllm", dict(_default_service=schematize_service_name("vllm")))
+config._add("vllm", dict(_default_service=schematize_service_name("vllm")))  # type: ignore[operator]
 
 
 def traced_engine_init(func, instance, args, kwargs):

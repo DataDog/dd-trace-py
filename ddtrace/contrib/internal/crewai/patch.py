@@ -19,7 +19,7 @@ def get_version() -> str:
 logger = get_logger(__name__)
 
 
-config._add("crewai", dict(_default_service=schematize_service_name("crewai")))
+config._add("crewai", dict(_default_service=schematize_service_name("crewai")))  # type: ignore[operator]
 
 
 def _supported_versions() -> dict[str, str]:

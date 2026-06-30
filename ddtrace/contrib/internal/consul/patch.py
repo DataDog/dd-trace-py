@@ -24,7 +24,7 @@ _KV_FUNCS = ["put", "get", "delete"]
 
 config._add(
     "consul",
-    dict(_default_service=schematize_service_name("consul")),
+    dict(_default_service=schematize_service_name("consul")),  # type: ignore[operator]
 )
 
 

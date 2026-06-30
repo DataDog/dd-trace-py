@@ -16,7 +16,7 @@ __IMapUnordered = gevent.pool.IMapUnordered
 
 config._add(
     "gevent",
-    dict(_default_service=schematize_service_name("gevent")),
+    dict(_default_service=schematize_service_name("gevent")),  # type: ignore[operator]
 )
 
 

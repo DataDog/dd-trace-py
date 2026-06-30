@@ -13,7 +13,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
 
-config._add("pydantic_ai", dict(_default_service=schematize_service_name("pydantic_ai")))
+config._add("pydantic_ai", dict(_default_service=schematize_service_name("pydantic_ai")))  # type: ignore[operator]
 
 
 def get_version() -> str:

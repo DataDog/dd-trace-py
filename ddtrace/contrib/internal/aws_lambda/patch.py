@@ -18,7 +18,7 @@ from ddtrace.trace import tracer
 
 config._add(
     "aws_lambda",
-    dict(_default_service=schematize_service_name("aws_lambda")),
+    dict(_default_service=schematize_service_name("aws_lambda")),  # type: ignore[operator]
 )
 
 

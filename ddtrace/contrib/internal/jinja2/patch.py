@@ -20,7 +20,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 config._add(
     "jinja2",
     {
-        "_default_service": schematize_service_name("jinja2"),
+        "_default_service": schematize_service_name("jinja2"),  # type: ignore[operator]
         "service_name": env.get("DD_JINJA2_SERVICE"),
     },
 )

@@ -19,7 +19,7 @@ from ddtrace.internal.utils import get_argument_value
 config._add(
     "logging",
     dict(
-        _default_service=schematize_service_name("logging"),
+        _default_service=schematize_service_name("logging"),  # type: ignore[operator]
         tracer=None,
     ),
 )

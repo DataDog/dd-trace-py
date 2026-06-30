@@ -42,7 +42,7 @@ def get_version() -> str:
 config._add(
     "kombu",
     {
-        "_default_service": schematize_service_name("kombu"),
+        "_default_service": schematize_service_name("kombu"),  # type: ignore[operator]
         "distributed_tracing_enabled": asbool(env.get("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
         "service_name": config.service or env.get("DD_KOMBU_SERVICE", default=DEFAULT_SERVICE),
     },

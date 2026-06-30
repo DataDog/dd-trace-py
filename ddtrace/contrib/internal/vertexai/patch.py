@@ -16,7 +16,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 
-config._add("vertexai", dict(_default_service=schematize_service_name("vertexai")))
+config._add("vertexai", dict(_default_service=schematize_service_name("vertexai")))  # type: ignore[operator]
 
 
 def get_version() -> str:

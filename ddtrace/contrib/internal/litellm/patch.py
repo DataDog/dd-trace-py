@@ -15,7 +15,7 @@ from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
-config._add("litellm", dict(_default_service=schematize_service_name("litellm")))
+config._add("litellm", dict(_default_service=schematize_service_name("litellm")))  # type: ignore[operator]
 
 
 def get_version() -> str:

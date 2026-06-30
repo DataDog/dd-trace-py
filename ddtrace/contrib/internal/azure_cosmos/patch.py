@@ -14,7 +14,7 @@ from ddtrace.internal.utils import get_argument_value
 
 config._add(
     "azure_cosmos",
-    dict(_default_service=schematize_service_name("azure_cosmos")),
+    dict(_default_service=schematize_service_name("azure_cosmos")),  # type: ignore[operator]
 )
 
 

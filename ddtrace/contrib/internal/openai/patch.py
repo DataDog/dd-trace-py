@@ -22,7 +22,7 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-config._add("openai", dict(_default_service=schematize_service_name("openai")))
+config._add("openai", dict(_default_service=schematize_service_name("openai")))  # type: ignore[operator]
 
 
 def get_version() -> str:

@@ -9,7 +9,7 @@ from ddtrace.internal.schema import schematize_service_name
 
 config._add(
     "loguru",
-    dict(_default_service=schematize_service_name("loguru")),
+    dict(_default_service=schematize_service_name("loguru")),  # type: ignore[operator]
 )
 
 

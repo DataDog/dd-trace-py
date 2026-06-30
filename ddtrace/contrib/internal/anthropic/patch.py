@@ -33,7 +33,7 @@ def _supported_versions() -> dict[str, str]:
     return {"anthropic": ">=0.28.0"}
 
 
-config._add("anthropic", dict(_default_service=schematize_service_name("anthropic")))
+config._add("anthropic", dict(_default_service=schematize_service_name("anthropic")))  # type: ignore[operator]
 
 
 def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:

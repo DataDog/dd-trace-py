@@ -12,7 +12,7 @@ from .schema_iterator import SchemaExtractor
 
 config._add(
     "avro",
-    dict(_default_service=schematize_service_name("avro")),
+    dict(_default_service=schematize_service_name("avro")),  # type: ignore[operator]
 )
 
 

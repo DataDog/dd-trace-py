@@ -32,7 +32,7 @@ def _supported_versions() -> dict[str, str]:
     return {"langchain_core": ">=0.1"}
 
 
-config._add("langchain", dict(_default_service=schematize_service_name("langchain")))
+config._add("langchain", dict(_default_service=schematize_service_name("langchain")))  # type: ignore[operator]
 
 
 def _extract_model_name(instance: Any) -> Optional[str]:

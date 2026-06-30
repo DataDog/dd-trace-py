@@ -13,7 +13,7 @@ from .trace import TracePlugin
 config._add(
     "bottle",
     dict(
-        _default_service=schematize_service_name("bottle"),
+        _default_service=schematize_service_name("bottle"),  # type: ignore[operator]
         distributed_tracing=asbool(env.get("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
     ),
 )

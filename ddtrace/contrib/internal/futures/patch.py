@@ -8,9 +8,9 @@ from ddtrace.internal.wrapping import wrap as _w
 from .threading import _wrap_submit
 
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "futures",
-    dict(_default_service=schematize_service_name("futures")),
+    dict(_default_service=schematize_service_name("futures")),  # type: ignore[operator]
 )
 
 

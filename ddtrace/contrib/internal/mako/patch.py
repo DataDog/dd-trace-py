@@ -17,9 +17,9 @@ from ddtrace.trace import tracer
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "mako",
-    dict(_default_service=schematize_service_name("mako")),
+    dict(_default_service=schematize_service_name("mako")),  # type: ignore[operator]
 )
 
 

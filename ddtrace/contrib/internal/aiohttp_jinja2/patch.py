@@ -14,7 +14,7 @@ from ddtrace.trace import tracer
 
 config._add(
     "aiohttp_jinja2",
-    dict(_default_service=schematize_service_name("aiohttp_jinja2")),
+    dict(_default_service=schematize_service_name("aiohttp_jinja2")),  # type: ignore[operator]
 )
 
 

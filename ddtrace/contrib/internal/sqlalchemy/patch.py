@@ -9,9 +9,9 @@ from ddtrace.internal.settings.asm import config as asm_config
 from .engine import _wrap_create_engine
 
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "sqlalchemy",
-    dict(_default_service=schematize_service_name("sqlalchemy")),
+    dict(_default_service=schematize_service_name("sqlalchemy")),  # type: ignore[operator]
 )
 
 

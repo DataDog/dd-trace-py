@@ -14,7 +14,7 @@ from ddtrace.trace import tracer
 
 config._add(
     "asyncio",
-    dict(_default_service=schematize_service_name("asyncio")),
+    dict(_default_service=schematize_service_name("asyncio")),  # type: ignore[operator]
 )
 
 

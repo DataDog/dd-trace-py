@@ -16,7 +16,7 @@ config._add(
     "falcon",
     dict(
         distributed_tracing=asbool(env.get("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
-        _default_service=schematize_service_name("falcon"),
+        _default_service=schematize_service_name("falcon"),  # type: ignore[operator]
     ),
 )
 

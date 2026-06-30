@@ -21,7 +21,7 @@ _get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
 _lock_ctor = dogpile_lock.Lock.__init__
 
 
-config._add("dogpile_cache", dict(_default_service=schematize_service_name("dogpile_cache")))
+config._add("dogpile_cache", dict(_default_service=schematize_service_name("dogpile_cache")))  # type: ignore[operator]
 
 
 def get_version() -> str:

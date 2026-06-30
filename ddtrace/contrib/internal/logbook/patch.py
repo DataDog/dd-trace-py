@@ -10,7 +10,7 @@ from ddtrace.internal.utils import get_argument_value
 
 config._add(
     "logbook",
-    dict(_default_service=schematize_service_name("logbook")),
+    dict(_default_service=schematize_service_name("logbook")),  # type: ignore[operator]
 )
 
 

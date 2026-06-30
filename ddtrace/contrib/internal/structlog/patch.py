@@ -11,7 +11,7 @@ from ddtrace.internal.utils import set_argument_value
 
 config._add(
     "structlog",
-    dict(_default_service=schematize_service_name("structlog")),
+    dict(_default_service=schematize_service_name("structlog")),  # type: ignore[operator]
 )
 
 
