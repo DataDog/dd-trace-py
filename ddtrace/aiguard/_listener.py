@@ -108,7 +108,9 @@ def _openai_listen(client: AIGuardClient) -> None:
     core.on("openai.unpatch", _uninstall_openai_wrappers)
 
 
-def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_after):
+def _make_openai_stream_wrappers(
+    client: AIGuardClient, reconstruct: Callable[..., Any], evaluate_after: Callable[..., Any]
+) -> tuple[Callable[..., Any], Callable[..., Any]]:
     """Build the (sync, async) buffer wrappers for one OpenAI surface; ``evaluate_after`` is the
     reused after-listener. Split needed: async ``create`` returns a coroutine a sync wrapper can't await.
 
@@ -116,24 +118,24 @@ def _make_openai_stream_wrappers(client: AIGuardClient, reconstruct, evaluate_af
     produce a TracedStream) are buffered; otherwise older streams would forward chunks unevaluated.
     """
 
-    def sync_wrapper(func, instance, args, kwargs):
+    def sync_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
         result = func(*args, **kwargs)
         if not (_is_traced_stream(result) or _is_plain_stream(result)):
             return result
 
-        def evaluate(resp):
+        def evaluate(resp: Any) -> Any:
             return evaluate_after(client, kwargs, resp)
 
         if _is_async_traced_stream(result) or _is_async_plain_stream(result):
             return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate)
         return BufferedAIGuardStream(result, reconstruct=reconstruct, evaluate=evaluate)
 
-    async def async_wrapper(func, instance, args, kwargs):
+    async def async_wrapper(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> Any:
         result = await func(*args, **kwargs)
         if not (_is_traced_stream(result) or _is_plain_stream(result)):
             return result
 
-        def evaluate(resp):
+        def evaluate(resp: Any) -> Any:
             return evaluate_after(client, kwargs, resp)
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct, evaluate=evaluate)
@@ -220,12 +222,13 @@ def _install_openai_raw_wrappers(client: AIGuardClient) -> None:
 
         original_parse = api_response.parse
 
-        def evaluate(resp):
+        def evaluate(resp: Any) -> Any:
             return _openai_chat_completion_after(client, kwargs, resp)
 
+        buffered_parse: Callable[..., Any]
         if is_async:
 
-            async def buffered_parse(*pa, **pk):
+            async def buffered_parse_async(*pa: Any, **pk: Any) -> Any:
                 stream = original_parse(*pa, **pk)
                 if asyncio.iscoroutine(stream):
                     stream = await stream
@@ -235,9 +238,10 @@ def _install_openai_raw_wrappers(client: AIGuardClient) -> None:
                 _inject_parse_cache(api_response, buffered)
                 return buffered
 
+            buffered_parse = buffered_parse_async
         else:
 
-            def buffered_parse(*pa, **pk):
+            def buffered_parse_sync(*pa: Any, **pk: Any) -> Any:
                 stream = original_parse(*pa, **pk)
                 if isinstance(stream, BufferedAIGuardStream):
                     return stream
@@ -245,29 +249,35 @@ def _install_openai_raw_wrappers(client: AIGuardClient) -> None:
                 _inject_parse_cache(api_response, buffered)
                 return buffered
 
+            buffered_parse = buffered_parse_sync
+
         try:
             api_response.parse = buffered_parse
         except Exception:
             logger.debug("AI Guard openai: failed to wrap raw-response parse", exc_info=True)
 
-    def raw_init_sync(func, instance, args, kwargs):
+    def raw_init_sync(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> None:
         func(*args, **kwargs)  # runs the contrib __init__ wrapper (wraps instance.create)
         if not hasattr(instance, "create"):
             return
 
-        def raw_create(create_func, create_instance, create_args, create_kwargs):
+        def raw_create(
+            create_func: Callable[..., Any], create_instance: Any, create_args: Any, create_kwargs: Any
+        ) -> Any:
             api_response = create_func(*create_args, **create_kwargs)
             _wrap_raw_create(api_response, create_kwargs, is_async=False)
             return api_response
 
         wrap(instance, "create", raw_create)
 
-    def raw_init_async(func, instance, args, kwargs):
+    def raw_init_async(func: Callable[..., Any], instance: Any, args: Any, kwargs: Any) -> None:
         func(*args, **kwargs)
         if not hasattr(instance, "create"):
             return
 
-        def raw_create(create_func, create_instance, create_args, create_kwargs):
+        def raw_create(
+            create_func: Callable[..., Any], create_instance: Any, create_args: Any, create_kwargs: Any
+        ) -> Any:
             async def _await_and_wrap() -> Any:
                 api_response = await create_func(*create_args, **create_kwargs)
                 _wrap_raw_create(api_response, create_kwargs, is_async=True)

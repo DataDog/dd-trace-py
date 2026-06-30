@@ -364,7 +364,7 @@ class AIGuardClient:
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
             conn.request("POST", url, json_body, self._headers)  # type: ignore[no-untyped-call]
             resp = conn.getresponse()
-            return Response.from_http_response(resp)
+            return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
         finally:
             conn.close()
 
