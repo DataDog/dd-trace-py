@@ -1,0 +1,4 @@
+features:
+  - |
+    Profiling: Code Provenance ("My Code" feature) is now supported for more distribution strategies,
+    specifically for Bazel rules-based applications.
