@@ -2,5 +2,3 @@
 fixes:
   - |
     tracing: This fix resolves an issue where `_dd.svc_src` was incorrectly set in some cases.
-    When the final service **matches** the integration’s `_default_service`, `svc_src` should be the integration name (e.g. `"openai"`, `"rq"`).
-    When the service is **manually overridden** to something else, `svc_src` should be `"m"` (manual).
