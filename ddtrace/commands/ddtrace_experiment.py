@@ -97,6 +97,7 @@ def _print_report(name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
         for ev in r.get("evals", []):
             if ev["error"]:
                 verdict = "error: %s" % ev["error"]
+                counts["EVAL_ERROR"] = counts.get("EVAL_ERROR", 0) + 1  # the check didn't run -> gate CI
             else:
                 verdict = ev["assessment"] or ev["value"]
                 if ev["assessment"] == "fail":
@@ -244,8 +245,9 @@ def main() -> None:
     ie._set_mode(ie.Mode.OFF)
 
     # CI-friendly: non-zero exit if anything changed, errored, never reached its end, or
-    # (when --evaluate) a user evaluator returned a failing assessment.
-    sys.exit(1 if (total.get("CHANGED") or total.get("ERROR") or total.get("NO_END") or total.get("EVAL_FAIL")) else 0)
+    # (when --evaluate) a user evaluator failed OR errored (a check that didn't run isn't a pass).
+    gate = ("CHANGED", "ERROR", "NO_END", "EVAL_FAIL", "EVAL_ERROR")
+    sys.exit(1 if any(total.get(k) for k in gate) else 0)
 
 
 if __name__ == "__main__":

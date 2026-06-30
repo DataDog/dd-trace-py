@@ -204,7 +204,7 @@ def test_evaluate_one_dispatches_function_class_and_errors():
     def eq(input_data, output_data, expected_output):  # plain function returning bool
         return output_data == expected_output
 
-    r = runner.evaluate_one(eq, recorded=1, new=1, input_data={})
+    (r,) = runner.evaluate_one(eq, recorded=1, new=1, input_data={})  # one evaluator -> one row
     assert r["name"] == "eq" and r["assessment"] == "pass" and r["value"] is True
 
     class MyJudge(BaseEvaluator):  # class evaluator returning a full EvaluatorResult
@@ -215,14 +215,36 @@ def test_evaluate_one_dispatches_function_class_and_errors():
             ok = ctx.output_data == ctx.expected_output
             return EvaluatorResult(value=ok, assessment="pass" if ok else "fail", reasoning="r")
 
-    r = runner.evaluate_one(MyJudge(), recorded="a", new="b", input_data={})
+    (r,) = runner.evaluate_one(MyJudge(), recorded="a", new="b", input_data={})
     assert r["name"] == "myjudge" and r["assessment"] == "fail" and r["reasoning"] == "r"
 
     def boom(input_data, output_data, expected_output):  # an evaluator error becomes a row, never propagates
         raise ValueError("x")
 
-    r = runner.evaluate_one(boom, recorded=1, new=1, input_data={})
+    (r,) = runner.evaluate_one(boom, recorded=1, new=1, input_data={})
     assert r["error"] and r["assessment"] is None
+
+
+def test_evaluate_one_expands_multi_evaluator_result():
+    from ddtrace.llmobs._experiment import BaseEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorResult
+    from ddtrace.llmobs._experiment import MultiEvaluatorResult
+
+    class Multi(BaseEvaluator):  # one evaluator emitting several named sub-metrics
+        def __init__(self):
+            super().__init__(name="quality")
+
+        def evaluate(self, ctx):
+            return MultiEvaluatorResult(
+                {
+                    "precision": EvaluatorResult(value=True, assessment="pass"),
+                    "recall": EvaluatorResult(value=False, assessment="fail"),
+                }
+            )
+
+    rows = runner.evaluate_one(Multi(), recorded="a", new="b", input_data={})
+    # expands to one row per sub-metric, prefixed by the evaluator name (mirrors --publish)
+    assert {r["name"]: r["assessment"] for r in rows} == {"quality-precision": "pass", "quality-recall": "fail"}
 
 
 def test_replay_scores_attached_evaluators_only_when_enabled():
@@ -317,3 +339,18 @@ def test_cli_print_report_counts_eval_fail(capsys):
     ]
     counts = cli._print_report("e", rows)
     assert counts["MATCH"] == 1 and counts["EVAL_FAIL"] == 1  # a failing eval is counted for the exit gate
+
+
+def test_cli_print_report_counts_eval_error(capsys):
+    rows = [
+        {
+            "input": {},
+            "recorded": 1,
+            "new": 1,
+            "status": "MATCH",
+            "evals": [{"name": "judge", "value": None, "assessment": None, "reasoning": None, "error": "boom"}],
+        },
+    ]
+    counts = cli._print_report("e", rows)
+    # an evaluator that errored (the check didn't run) is counted so it can gate the exit code
+    assert counts["MATCH"] == 1 and counts["EVAL_ERROR"] == 1

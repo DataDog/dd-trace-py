@@ -170,15 +170,46 @@ def resolve_evaluators(evaluators: Any) -> list[Any]:
     return [evaluators]
 
 
-def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> dict[str, Any]:
-    """Score a single evaluator for one replayed case; return a normalized verdict row.
+def _normalize_eval_result(name: str, result: Any) -> list[dict[str, Any]]:
+    """Flatten an evaluator return into one or more verdict rows.
 
-    Returns ``{name, value, assessment, reasoning, error}``. The recorded baseline is the
-    evaluator's ``expected_output``; the new output is ``output_data``.
+    Mirrors the engine: a ``MultiEvaluatorResult`` emits one row per sub-value, labeled
+    ``<name>-<key>`` (or the bare key when ``prefix=False``); an ``EvaluatorResult`` carries
+    its value/assessment/reasoning; a bare bool becomes pass/fail.
+    """
+    from ddtrace.llmobs._experiment import EvaluatorResult
+    from ddtrace.llmobs._experiment import MultiEvaluatorResult
+
+    if isinstance(result, MultiEvaluatorResult):
+        rows: list[dict[str, Any]] = []
+        for key, sub in result.values.items():
+            label = ("%s-%s" % (name, key)) if result.prefix else key
+            rows.extend(_normalize_eval_result(label, sub))
+        return rows
+    if isinstance(result, EvaluatorResult):
+        return [
+            {
+                "name": name,
+                "value": result.value,
+                "assessment": result.assessment,
+                "reasoning": result.reasoning,
+                "error": None,
+            }
+        ]
+    assessment = ("pass" if result else "fail") if isinstance(result, bool) else None
+    return [{"name": name, "value": result, "assessment": assessment, "reasoning": None, "error": None}]
+
+
+def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> list[dict[str, Any]]:
+    """Score a single evaluator for one replayed case; return one or more verdict rows.
+
+    Each row is ``{name, value, assessment, reasoning, error}``. One evaluator yields one row,
+    except a ``MultiEvaluatorResult`` which expands to one row per sub-metric (matching the
+    ``--publish`` engine path). The recorded baseline is the evaluator's ``expected_output``;
+    the new output is ``output_data``.
     """
     from ddtrace.llmobs._experiment import BaseAsyncEvaluator
     from ddtrace.llmobs._experiment import EvaluatorContext
-    from ddtrace.llmobs._experiment import EvaluatorResult
     from ddtrace.llmobs._experiment import _is_class_evaluator
     from ddtrace.llmobs._experiment import _is_function_evaluator
 
@@ -194,20 +225,11 @@ def evaluate_one(evaluator: Any, recorded: Any, new: Any, input_data: Any) -> di
         elif _is_function_evaluator(evaluator):
             result = evaluator(input_data, new, recorded)
         else:
-            return {"name": name, "value": None, "assessment": None, "reasoning": None, "error": "unsupported type"}
+            return [{"name": name, "value": None, "assessment": None, "reasoning": None, "error": "unsupported type"}]
     except Exception as e:  # noqa: BLE001 - surface eval errors per-row, never abort the replay
-        return {"name": name, "value": None, "assessment": None, "reasoning": None, "error": "%r" % (e,)}
+        return [{"name": name, "value": None, "assessment": None, "reasoning": None, "error": "%r" % (e,)}]
 
-    if isinstance(result, EvaluatorResult):
-        return {
-            "name": name,
-            "value": result.value,
-            "assessment": result.assessment,
-            "reasoning": result.reasoning,
-            "error": None,
-        }
-    assessment = ("pass" if result else "fail") if isinstance(result, bool) else None
-    return {"name": name, "value": result, "assessment": assessment, "reasoning": None, "error": None}
+    return _normalize_eval_result(name, result)
 
 
 # --------------------------------------------------------------------------- #
@@ -278,6 +300,6 @@ def replay(
         row["new"] = _normalize(new)
         row["status"] = "MATCH" if comparator(recorded, row["new"]) else "CHANGED"
         if evaluators:  # score richer checks against the (recorded -> new) pair for this case
-            row["evals"] = [evaluate_one(ev, recorded, row["new"], case["input"]) for ev in evaluators]
+            row["evals"] = [v for ev in evaluators for v in evaluate_one(ev, recorded, row["new"], case["input"])]
         results.append(row)
     return results
