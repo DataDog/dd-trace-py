@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.client.request",
-    "service": "global-service-name",
+    "service": "httpx",
     "resource": "http.client.request",
     "trace_id": 0,
     "span_id": 1,
@@ -9,11 +9,12 @@
     "type": "http",
     "error": 0,
     "meta": {
+      "_dd.base_service": "global-service-name",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de7a6200000000",
+      "_dd.p.tid": "6a43e80d00000000",
       "_dd.peer.service.source": "out.host",
       "_dd.svc_src": "httpx",
-      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp20up8grj,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpiuty9ah,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
@@ -22,7 +23,7 @@
       "language": "python",
       "out.host": "localhost",
       "peer.service": "localhost",
-      "runtime-id": "18476baa354448328ff9469e144a7c73",
+      "runtime-id": "7405fbc6e3fa4a5699c4d162cc0112ff",
       "span.kind": "client"
     },
     "metrics": {
@@ -30,8 +31,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 40472.0
+      "process_id": 61607.0
     },
-    "duration": 1810000,
-    "start": 1776188002445818388
+    "duration": 2316041,
+    "start": 1782835213415346466
   }]]
