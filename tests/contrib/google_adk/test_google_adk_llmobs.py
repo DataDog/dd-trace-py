@@ -203,7 +203,7 @@ class TestLLMObsGoogleADK:
         assert len(spans) == 1
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(spans[0]),
-            span_kind="code_execute",
+            span_kind="tool",
             input_value='print("hello world")',
             output_value="hello world\n",
             metadata={},

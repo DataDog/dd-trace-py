@@ -303,7 +303,8 @@ def extract_message_from_part_vertexai(part, role=None) -> Message:
             function_response_dict = type(function_response).to_dict(function_response)
         result = function_response_dict.get("response", "")
         if not isinstance(result, str):
-            result = json.dumps(result)
+            # default=str so non-serializable payloads (e.g. bytes) don't raise.
+            result = json.dumps(result, default=str)
         tool_result_info = ToolResult(
             name=function_response_dict.get("name", ""),
             result=result,
