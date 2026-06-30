@@ -15,10 +15,6 @@ from ddtrace.aiguard._streaming import _is_async_plain_stream
 from ddtrace.aiguard._streaming import _is_async_traced_stream
 from ddtrace.aiguard._streaming import _is_plain_stream
 from ddtrace.aiguard._streaming import _is_traced_stream
-from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
-from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
-from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
-from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_after
 from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 from ddtrace.aiguard.integrations._langchain import _langchain_chatmodel_generate_before
@@ -29,6 +25,10 @@ from ddtrace.aiguard.integrations._langchain import _langchain_llm_stream_before
 from ddtrace.aiguard.integrations._langchain import _langchain_patch
 from ddtrace.aiguard.integrations._langchain import _langchain_stream_started
 from ddtrace.aiguard.integrations._langchain import _langchain_unpatch
+from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_after
+from ddtrace.aiguard.integrations._openai_chat import _openai_chat_completion_before
+from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_after
+from ddtrace.aiguard.integrations._openai_responses import _openai_response_create_before
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
