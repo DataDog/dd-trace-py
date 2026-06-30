@@ -7,10 +7,25 @@
 
 #include <echion/cache.h>
 #include <echion/frame.h>
+#include <echion/set_assoc_cache.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 
 #include "stack_renderer.hpp"
+
+// DoE switch (dd-trace-py#18301 follow-up): select the frame-cache container.
+// Defined here so this bench branch's wheel uses the custom set-associative
+// cache; comment out the next line to fall back to the upstream LRUCache
+// (std::list + std::unordered_map) baseline.
+#define ECHION_FRAME_CACHE_SETASSOC 1
+
+#ifdef ECHION_FRAME_CACHE_SETASSOC
+template<typename K, typename V>
+using FrameCacheImpl = SetAssocCache<K, V>;
+#else
+template<typename K, typename V>
+using FrameCacheImpl = LRUCache<K, V>;
+#endif
 
 // Forward declaration
 class Frame;
@@ -55,7 +70,7 @@ class EchionSampler
 
     // Caches
     StringTable string_table_;
-    LRUCache<uintptr_t, Frame> frame_cache_;
+    FrameCacheImpl<uintptr_t, Frame> frame_cache_;
 
     // Stack renderer for outputting samples
     Datadog::StackRenderer renderer_;
@@ -105,7 +120,7 @@ class EchionSampler
     const StringTable& string_table() const { return string_table_; }
 
     // Accessor for frame cache operations
-    LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
+    FrameCacheImpl<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
     void postfork_child()
     {
