@@ -1678,7 +1678,7 @@ class _ExplodingMessage(dict):
 
 def test_converter_failure_reraises_and_emits_telemetry():
     """A raw converter failure raises and emits an error telemetry log."""
-    with patch("ddtrace.aiguard.integrations.anthropic.telemetry.telemetry_writer.add_error_log") as mock_log:
+    with patch("ddtrace.aiguard.integrations._anthropic.telemetry.telemetry_writer.add_error_log") as mock_log:
         with pytest.raises(RuntimeError):
             _convert_anthropic_messages(None, [_ExplodingMessage()])
         assert mock_log.called, "converter must emit an error telemetry log on failure"
@@ -1723,7 +1723,7 @@ def test_before_listener_empty_messages_emits_telemetry():
     from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before
 
     client = _SpyClient()
-    with patch("ddtrace.aiguard.integrations.anthropic.telemetry.telemetry_writer.add_log") as mock_log:
+    with patch("ddtrace.aiguard.integrations._anthropic.telemetry.telemetry_writer.add_log") as mock_log:
         result = _anthropic_messages_create_before(client, {"messages": []})
         assert result is None
         assert client.calls == 0
