@@ -7,7 +7,6 @@ from typing import Union
 from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
-from ddtrace.contrib._events.http import JsonType
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
@@ -38,7 +37,6 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     target_host: Optional[str] = event_field(default=None)
     retries_remain: Optional[Union[int, str]] = event_field(default=None)
     server_address: Optional[str] = event_field(default=None)
-    response_body: JsonType = event_field(default=None)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
