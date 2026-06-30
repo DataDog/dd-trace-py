@@ -30,6 +30,7 @@ config._add(
         disable_stream_timing_for_mem_leak=asbool(
             _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
         ),
+        _default_service="aiohttp-web",
     ),
 )
 
