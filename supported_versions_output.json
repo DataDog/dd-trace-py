@@ -514,6 +514,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "mistralai",
+        "integration": "mistralai",
+        "minimum_tracer_supported": "2.4.9",
+        "max_tracer_supported": "2.4.9",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "mlflow",
         "integration": "mlflow",
         "minimum_tracer_supported": "2.11.4",
@@ -681,7 +688,7 @@
     {
         "dependency": "ray",
         "integration": "ray_serve",
-        "minimum_tracer_supported": "2.47.1",
+        "minimum_tracer_supported": "2.46.0",
         "max_tracer_supported": "2.54.1",
         "pinned": "true",
         "auto-instrumented": false
@@ -733,7 +740,7 @@
         "dependency": "sqlalchemy",
         "integration": "sqlalchemy",
         "minimum_tracer_supported": "1.3.24",
-        "max_tracer_supported": "2.0.43",
+        "max_tracer_supported": "2.0.51",
         "auto-instrumented": false
     },
     {
