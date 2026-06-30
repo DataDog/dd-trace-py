@@ -96,6 +96,80 @@ def _write_dist_info(root: Path, name: str, version: str, metadata_body: str | N
     return di
 
 
+def test_filename_to_package_resolves_shared_intermediate_namespace(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end lookup must attribute each shared-namespace file correctly.
+
+    The regression that kept recurring: the directory scan stores deep keys
+    (``google/cloud/storage`` / ``google/cloud/bigquery``) but ``_root_module``
+    only yields the fixed 2-level key ``google/cloud``, so ``filename_to_package``
+    resolved every ``google/cloud/...`` file to whichever dist was scanned
+    first. With longest-prefix matching each file resolves to its own dist.
+    """
+    from ddtrace.internal import packages as _p
+
+    # Lay both dists under a common ``site-packages`` parent so the Bazel
+    # runfiles heuristic in _relative_to_known_root resolves the files.
+    sp = tmp_path / "runfiles" / "site-packages"
+    sp.mkdir(parents=True)
+    (sp / "google" / "cloud" / "storage").mkdir(parents=True)
+    (sp / "google" / "cloud" / "storage" / "__init__.py").write_text("")
+    (sp / "google" / "cloud" / "storage" / "blob.py").write_text("")
+    (sp / "google" / "cloud" / "bigquery").mkdir(parents=True)
+    (sp / "google" / "cloud" / "bigquery" / "__init__.py").write_text("")
+    (sp / "google" / "cloud" / "bigquery" / "client.py").write_text("")
+
+    mapping = {
+        "google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0"),
+        "google/cloud/bigquery": _p.Distribution(name="google-cloud-bigquery", version="2.0"),
+    }
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    _p.filename_to_package.cache_clear()
+
+    storage_pkg = _p.filename_to_package(sp / "google" / "cloud" / "storage" / "blob.py")
+    bigquery_pkg = _p.filename_to_package(sp / "google" / "cloud" / "bigquery" / "client.py")
+
+    assert storage_pkg is not None and storage_pkg.name == "google-cloud-storage"
+    assert bigquery_pkg is not None and bigquery_pkg.name == "google-cloud-bigquery"
+
+    _p.filename_to_package.cache_clear()
+
+
+def test_filename_to_package_does_not_attribute_source_roots_to_dependency(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep prefix matching must not leak dependency namespaces onto user code.
+
+    In Bazel a binary's own source/workspace roots are on ``sys.path`` too. A
+    user file ``<workspace>/google/cloud/storage/app.py`` shares the namespace
+    prefix of a ``google-cloud-storage`` dependency, but it is NOT under a
+    ``site-packages`` root, so it must resolve to user code (None), not the
+    dependency.
+    """
+    from ddtrace.internal import packages as _p
+
+    workspace = tmp_path / "workspace"
+    (workspace / "google" / "cloud" / "storage").mkdir(parents=True)
+    (workspace / "google" / "cloud" / "storage" / "app.py").write_text("")
+
+    mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    # The workspace root is on sys.path, mirroring a Bazel py_binary.
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [workspace])
+    _p.filename_to_package.cache_clear()
+
+    pkg = _p.filename_to_package(workspace / "google" / "cloud" / "storage" / "app.py")
+
+    assert pkg is None
+
+    _p.filename_to_package.cache_clear()
+
+
 def test_get_distributions_skips_bad_dist_warns_once_returns_partial_map(
     isolated_metadata_path: Path,
     reset_packages_caches,
