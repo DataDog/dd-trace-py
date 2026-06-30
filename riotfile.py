@@ -4502,7 +4502,6 @@ venv = Venv(
         Venv(
             name="ai_guard_openai",
             command="pytest {cmdargs} tests/aiguard/openai/",
-            pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
             },
