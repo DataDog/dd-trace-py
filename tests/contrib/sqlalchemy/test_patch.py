@@ -1,6 +1,7 @@
 import sqlalchemy
 from sqlalchemy import text
 
+from ddtrace.contrib.internal.sqlalchemy.engine import trace_engine
 from ddtrace.contrib.internal.sqlalchemy.patch import get_version
 from ddtrace.contrib.internal.sqlalchemy.patch import patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
@@ -59,3 +60,29 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         assert version != ""
 
         emit_integration_and_version_to_test_agent("sqlalchemy", version)
+
+
+class SQLAlchemyTraceEngineTestCase(TracerTestCase):
+    def test_trace_engine_is_idempotent(self):
+        engine = sqlalchemy.create_engine("sqlite:///:memory:")
+
+        try:
+            trace_engine(engine)
+            trace_engine(engine)
+
+            assert len(engine.dispatch.before_cursor_execute) == 1
+            assert len(engine.dispatch.after_cursor_execute) == 1
+            error_event = "handle_error" if sqlalchemy.__version__[0] != "0" else "dbapi_error"
+            error_listeners = getattr(engine.dispatch, error_event, None)
+            if error_listeners is not None:
+                assert len(error_listeners) == 1
+
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1")).fetchall()
+
+            traces = self.pop_traces()
+            assert len(traces) == 1
+            assert len(traces[0]) == 1
+            assert traces[0][0].name == "sqlite.query"
+        finally:
+            engine.dispose()

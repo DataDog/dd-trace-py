@@ -5,7 +5,6 @@ from functools import lru_cache
 from http.client import HTTPSConnection
 from io import StringIO
 import json
-from operator import itemgetter
 import pathlib
 import sys
 from typing import Any
@@ -26,6 +25,17 @@ import riotfile  # noqa: I001,E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 LATEST = ""
+
+# Supply-chain hardening (TEST-CD, APMLP-1362): when deciding whether the
+# packages we test against are "outdated" with respect to PyPI, we ignore
+# any release that was published less than COOLDOWN_DAYS ago. This prevents
+# the daily "update riot lockfiles" workflow from pulling in a freshly
+# published (and potentially compromised) version before the broader
+# community / security tooling has had a chance to flag it.
+#
+# 2 days = 48h matches the cross-language cooldown standard documented in
+# the supply-chain hardening epic (APMLP-1343).
+COOLDOWN_DAYS = 2
 
 supported_versions = []
 pinned_packages = set()
@@ -48,10 +58,10 @@ class Capturing(list):
 
 def parse_args():
     """
-    usage: python scripts/freshvenvs.py <output> OR <generate>
+    usage: python scripts/freshvenvs.py <output>
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=["output", "generate"], help="mode: output or generate")
+    parser.add_argument("mode", choices=["output"], help="mode: output")
     return parser.parse_args()
 
 
@@ -144,9 +154,30 @@ def _propagate_venv_names_to_child_venvs(all_venvs: list[Any]) -> list[Any]:
     return all_venvs
 
 
+def _parse_pypi_upload_time(upload_timestamp: str) -> Optional[dt.datetime]:
+    """Best-effort parse of a PyPI ``upload_time_iso_8601`` timestamp.
+
+    PyPI usually returns ``YYYY-MM-DDTHH:MM:SS.fffZ`` but some old releases
+    omit the microseconds component, so we try both formats and return
+    ``None`` if neither matches.
+    """
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ"):
+        try:
+            return dt.datetime.strptime(upload_timestamp, fmt).replace(tzinfo=dt.timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
 @lru_cache(maxsize=256)
 def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[str]]:
-    """Return the (earliest, latest) supported versions of a given package"""
+    """Return the (earliest, latest) supported versions of a given package.
+
+    The returned ``latest`` is the most recent PyPI release that is at least
+    ``COOLDOWN_DAYS`` old. Versions younger than that are ignored so the
+    automated lockfile-refresh workflow does not pull in a release before
+    the supply-chain "cooldown" period has elapsed (see TEST-CD).
+    """
     with Capturing() as output:
         _internal.main(["index", "versions", contrib_module])
     if not output:
@@ -179,6 +210,17 @@ def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[
         if conn is not None:
             conn.close()
 
+    current_time = dt.datetime.now(dt.timezone.utc)
+    cooldown = dt.timedelta(days=COOLDOWN_DAYS)
+    two_years = dt.timedelta(days=365 * 2)
+
+    # The first version in ``versions`` that is at least COOLDOWN_DAYS old.
+    # Falls back to the absolute latest if we can't determine the age (for
+    # example, PyPI's JSON API didn't return release files for any of the
+    # candidates), since that preserves the prior behaviour rather than
+    # silently disabling the outdated-package detection.
+    latest_after_cooldown: Optional[str] = None
+
     for version in versions:
         version_info = version_infos.get(version, [])
         if not version_info:
@@ -188,14 +230,22 @@ def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[
         if not upload_timestamp:
             continue
 
-        upload_time = dt.datetime.strptime(upload_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-        upload_time = upload_time.replace(tzinfo=dt.timezone.utc)
-        current_time = dt.datetime.now(dt.timezone.utc)
+        upload_time = _parse_pypi_upload_time(upload_timestamp)
+        if upload_time is None:
+            continue
+
         version_age = current_time - upload_time
-        if version_age > dt.timedelta(days=365 * 2):
+
+        if latest_after_cooldown is None and version_age >= cooldown:
+            latest_after_cooldown = version
+
+        if version_age > two_years:
             earliest_within_window = version
             break
-    return earliest_within_window, versions[0]
+
+    if latest_after_cooldown is None:
+        latest_after_cooldown = versions[0]
+    return earliest_within_window, latest_after_cooldown
 
 
 def _get_riot_hash_to_venv_name() -> dict[str, str]:
@@ -348,59 +398,15 @@ def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_
     print(" ".join(outdated_packages))
 
 
-def generate_supported_versions(contrib_modules, all_used_versions):
-    """
-    Generate supported versions JSON
-    """
-    patched = {}
-    for contrib_module in contrib_modules:
-        for dependency in sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module])):
-            versions = []
-            if dependency not in all_used_versions:
-                # special case, some dependencies such as dogpile_cache can be installed
-                # e.g. dogpile.cache or dogpile-cache or dogpile_cache, just use the one with versions
-                for dep in INTEGRATION_TO_DEPENDENCY_MAPPING.get(contrib_module, [contrib_module]):
-                    if dep in all_used_versions:
-                        versions = all_used_versions[dep]
-                        break
-            else:
-                versions = all_used_versions[dependency]
-            ordered = sorted([Version(v) for v in versions], reverse=True)
-            if not ordered:
-                continue
-            json_format = {
-                "dependency": dependency or contrib_module,
-                "integration": contrib_module,
-                "minimum_tracer_supported": str(ordered[-1]),
-                "max_tracer_supported": str(ordered[0]),
-            }
-
-            if contrib_module in pinned_packages:
-                json_format["pinned"] = "true"
-
-            if contrib_module not in patched:
-                patched[contrib_module] = _is_module_autoinstrumented(contrib_module)
-            json_format["auto-instrumented"] = patched[contrib_module]
-            supported_versions.append(json_format)
-
-    supported_versions_output = sorted(supported_versions, key=itemgetter("integration"))
-    with open("supported_versions_output.json", "w") as file:
-        json.dump(supported_versions_output, file, indent=4)
-
-
 def main():
-    args = parse_args()
+    parse_args()
     contribs = _get_contrib_modules()
     all_updatable_contribs = _get_updatable_packages_implementing(contribs)  # MODULE names
     riot_hash_to_venv_name = _get_riot_hash_to_venv_name()
     envs = _get_riot_envs_including_any(contribs)
 
-    if args.mode == "output":
-        bounds = _get_version_bounds(contribs)
-        output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
-    elif args.mode == "generate":
-        all_used_versions = _get_all_used_versions(envs, contribs, riot_hash_to_venv_name)
-        generate_supported_versions(contribs, all_used_versions)
+    bounds = _get_version_bounds(contribs)
+    output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
 
 
 if __name__ == "__main__":

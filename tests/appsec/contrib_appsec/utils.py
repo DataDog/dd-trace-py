@@ -583,6 +583,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         #
         # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
         # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Skipped on Tornado: ``execute()`` hard-codes the span name via
+        # ``schematize_url_operation("tornado.request", ...)`` and does not read
+        # ``config.tornado.request_span_name``, so the span name can't be overridden by integration config.
         # Normalized-route emission is still verified by ``test_normalized_route``.
         custom_name = "custom.framework.request"
         with (
@@ -1103,10 +1106,34 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             (json.dumps(LARGE_BODY), "application/json", "tst-037-003"),
+            # HTTP media types are case-insensitive (RFC 9110): mixed-case must still be parsed/blocked
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "Application/JSON", "tst-037-003"),
+            # Content-Type parameters (e.g. charset) must not skip body inspection
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json; charset=utf-8", "tst-037-003"),
+            # structured-suffix JSON types (application/*+json, e.g. RFC 7807) must be parsed
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/vnd.api+json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
                 "text/xml",
+                "tst-037-003",
+            ),
+            # mixed-case xml must still be parsed/blocked
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "Text/XML",
+                "tst-037-003",
+            ),
+            # structured-suffix XML types (application/*+xml) must be parsed
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "application/atom+xml",
+                "tst-037-003",
+            ),
+            # xml Content-Type parameters (e.g. charset) must not skip body inspection
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "text/xml; charset=utf-8",
                 "tst-037-003",
             ),
             # form body must be blocked
@@ -1114,6 +1141,14 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             (
                 '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
                 'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
+            # mixed-case Content-Type on a multipart inner part must still be parsed
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: Application/JSON\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
                 "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
@@ -1139,9 +1174,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "json",
             "text_json",
             "json_large",
+            "json_mixed_case_content_type",
+            "json_charset_param_content_type",
+            "json_structured_suffix_content_type",
             "xml",
+            "xml_mixed_case_content_type",
+            "xml_structured_suffix_content_type",
+            "xml_charset_param_content_type",
             "form",
             "form_multipart",
+            "form_multipart_mixed_case_part",
             "form_multipart_duplicate_keys",
             "text",
             "no_attack",

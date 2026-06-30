@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: LLM span data can now be exported to the Datadog Agent over the APM
+    trace, and is reliably delivered even when the APM trace is not sampled. This has no
+    effect on APM sampling decisions or billing.
+upgrade:
+  - |
+    LLM Observability: when APM and LLMObs are both enabled, the APM trace writer now uses the
+    ``v0.4`` trace API version (``v0.5`` cannot carry the LLMObs span data). Setting
+    ``DD_TRACE_API_VERSION=v0.5`` with LLMObs enabled logs a warning and downgrades to
+    ``v0.4``. No user action is required.

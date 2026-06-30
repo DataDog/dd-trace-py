@@ -4,6 +4,7 @@ import mock
 from mock import patch
 import pytest
 
+from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_span_kind
@@ -379,6 +380,26 @@ class TestLLMObsAnthropic:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "unknown"
+
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_bedrock_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
+        """model_provider resolves to 'amazon' for the Bedrock base_url (AnthropicBedrock)."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="https://bedrock-runtime.us-east-1.amazonaws.com")
+        llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_model_provider(spans[0]) == "amazon"
+
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_vertex_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
+        """model_provider resolves to 'google' for the Vertex base_url (AnthropicVertex)."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.Anthropic(base_url="https://us-central1-aiplatform.googleapis.com/v1")
+        llm.messages.create(model="claude-3-opus-20240229", max_tokens=15, messages=[{"role": "user", "content": "Hi"}])
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert get_llmobs_model_provider(spans[0]) == "google"
 
     def test_completion(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
@@ -1612,10 +1633,10 @@ class TestLLMObsAnthropic:
             ],
         )
 
-    def test_tool_with_deep_schema_has_schema_truncated(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
-        """Tool schemas exceeding MAX_TOOL_SCHEMA_DEPTH should be truncated at the depth limit,
-        replacing over-limit containers with empty containers while preserving name, description,
-        and all fields within the limit. Tools with shallow schemas are unaffected.
+    def test_tool_with_deep_schema_has_schema_stringified(self, anthropic, anthropic_llmobs, test_spans, request_vcr):
+        """Tool schemas that exceed the maximum nested depth are stringified at the point where
+        they exceed the limit, preserving all data as a JSON string while keeping shallower
+        structure intact. Tools with shallow schemas are unaffected.
         """
         llm = anthropic.Anthropic()
         with request_vcr.use_cassette("anthropic_completion_tools_deep_schema.yaml"):
@@ -1667,7 +1688,11 @@ class TestLLMObsAnthropic:
                                                 "properties": {
                                                     "l4": {
                                                         "type": "object",
-                                                        "properties": {"l5": {}},
+                                                        "properties": (
+                                                            '{"l5": {"properties": {"l6": {"properties":'
+                                                            ' {"l7": {"type": "string"}}, "type": "object"}},'
+                                                            ' "type": "object"}}'
+                                                        ),
                                                     }
                                                 },
                                             }
@@ -1689,7 +1714,6 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
     integration = AnthropicIntegration(MagicMock())
-    integration._base_url = "https://api.anthropic.com"
 
     response = MagicMock()
     response.usage.input_tokens = 12
@@ -1698,6 +1722,7 @@ def test_shadow_tags_chat_when_llmobs_disabled(tracer):
     response.usage.cache_read_input_tokens = None
 
     with tracer.trace("anthropic.request") as span:
+        span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
         span._set_attribute("anthropic.request.model", "claude-3-sonnet")
         integration._set_apm_shadow_tags(span, [], {}, response=response)
 
@@ -1716,7 +1741,6 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
 
     integration = AnthropicIntegration(MagicMock())
-    integration._base_url = "https://api.anthropic.com"
 
     response = MagicMock()
     response.usage.input_tokens = 12
@@ -1725,8 +1749,55 @@ def test_shadow_tags_chat_with_cache_tokens(tracer):
     response.usage.cache_read_input_tokens = 3
 
     with tracer.trace("anthropic.request") as span:
+        span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
         span._set_attribute("anthropic.request.model", "claude-3-sonnet")
         integration._set_apm_shadow_tags(span, [], {}, response=response)
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 3
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 5
+
+
+@pytest.mark.parametrize(
+    "base_url,expected",
+    [
+        ("https://api.anthropic.com", "anthropic"),
+        ("https://bedrock-runtime.us-east-1.amazonaws.com", "amazon"),
+        ("https://us-central1-aiplatform.googleapis.com/v1", "google"),
+        ("https://myresource.services.ai.azure.com/anthropic/", "anthropic"),
+        ("http://localhost:8000", "unknown"),
+        ("", "unknown"),
+        (None, "unknown"),
+    ],
+)
+def test_get_model_provider_from_base_url(tracer, base_url, expected):
+    """_get_model_provider maps the per-span base_url to the expected provider."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+    integration = AnthropicIntegration(MagicMock())
+    with tracer.trace("anthropic.request") as span:
+        if base_url is not None:
+            span._set_ctx_item(REQUEST_BASE_URL, base_url)
+        assert integration._get_model_provider(span) == expected
+
+
+def test_get_model_provider_is_per_span(tracer):
+    """Provider is resolved per-span, so a later request on the singleton integration
+    cannot overwrite an earlier (e.g. deferred streaming) span's provider.
+    """
+    from unittest.mock import MagicMock
+
+    from ddtrace.llmobs._integrations.anthropic import AnthropicIntegration
+
+    integration = AnthropicIntegration(MagicMock())
+    with tracer.trace("bedrock.request") as bedrock_span:
+        bedrock_span._set_ctx_item(REQUEST_BASE_URL, "https://bedrock-runtime.us-east-1.amazonaws.com")
+        assert integration._get_model_provider(bedrock_span) == "amazon"
+
+    with tracer.trace("default.request") as default_span:
+        default_span._set_ctx_item(REQUEST_BASE_URL, "https://api.anthropic.com")
+        assert integration._get_model_provider(default_span) == "anthropic"
+
+    # The first span still resolves independently after the second request.
+    assert integration._get_model_provider(bedrock_span) == "amazon"

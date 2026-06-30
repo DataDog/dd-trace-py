@@ -526,6 +526,36 @@ async def test_double_async_for_with_exception():
 
 
 @pytest.mark.asyncio
+async def test_wrap_async_generator_awaits_suspending_coroutine():
+    # Regression test for the async-generator trampoline await loop.
+    # The body awaits a coroutine that suspends to the event loop multiple
+    # times before the first yield. This drives the SEND/YIELD/RESUME cycle
+    # more than once; the loop previously jumped back to GET_AWAITABLE
+    # instead of SEND, which eventually awaited None and raised
+    # "object NoneType can't be used in 'await' expression".
+    def wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    async def suspends():
+        for _ in range(3):
+            await asyncio.sleep(0)
+        return "ready"
+
+    async def g():
+        value = await suspends()
+        yield value
+        yield value + "!"
+
+    wrap(g, wrapper)
+
+    out = []
+    async for item in g():
+        out.append(item)
+
+    assert out == ["ready", "ready!"]
+
+
+@pytest.mark.asyncio
 async def test_wrap_async_generator_throw_close():
     channel = []
 
@@ -1300,4 +1330,66 @@ async def test_lazy_async_wrapper_throw_forwarding():
         assert received_cancel, (
             f"[call {call_index}] CancelledError was not forwarded to the inner "
             "coroutine by the lazy wrapper; throw() interception is broken"
+        )
+
+
+def test_wrapping_context_foot_has_valid_linenos():
+    """Regression test: CONTEXT_FOOT.bind() must pass lineno to avoid None line numbers.
+
+    The CONTEXT_FOOT assembly (exception-handler epilogue injected by
+    _UniversalWrappingContext.wrap) was previously emitted without line-number
+    information.  inspect.stack() / inspect.getframeinfo() raises TypeError when
+    it encounters a frame whose f_lineno is None, so any tool that inspects the
+    call stack from inside a WrappingContext-wrapped function (e.g. IAST's
+    report_stack) would crash.
+    """
+    stack_from_inside: list = []
+
+    def foo():
+        stack_from_inside.extend(inspect.stack())
+        return 42
+
+    wc = DummyWrappingContext(foo)
+    wc.wrap()
+
+    result = foo()
+    assert result == 42
+
+    for frame_info in stack_from_inside:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "CONTEXT_FOOT was bound without line-number information"
+        )
+
+
+def test_wrapping_context_foot_has_valid_linenos_on_exception():
+    """Same lineno regression check when the wrapped function raises an exception.
+
+    The CONTEXT_FOOT assembly is only executed when an exception propagates, so
+    the lineno fix must also cover the exception path.
+    """
+    stack_from_handler: list = []
+
+    class _Sentinel(Exception):
+        pass
+
+    class CaptureOnExit(WrappingContext):
+        def __exit__(self, exc_type, exc_value, traceback):
+            stack_from_handler.extend(inspect.stack())
+            return super().__exit__(exc_type, exc_value, traceback)
+
+    def foo():
+        raise _Sentinel("boom")
+
+    CaptureOnExit(foo).wrap()
+
+    with pytest.raises(_Sentinel):
+        foo()
+
+    for frame_info in stack_from_handler:
+        lineno = frame_info.lineno
+        assert lineno is not None, (
+            f"Frame {frame_info.filename}:{frame_info.function} has lineno=None — "
+            "CONTEXT_FOOT exception path was bound without line-number information"
         )
