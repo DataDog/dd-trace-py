@@ -10,15 +10,10 @@ ExperimentConfigType = dict[str, JSONType]
 
 
 class ExportedLLMObsSpan(TypedDict):
-    """Identifies an LLMObs span for use with ``LLMObs.submit_evaluation()``.
-
-    Use ``LLMObs.export_span()`` to generate this dictionary — it sets ``is_otel``
-    automatically. When constructing manually, set ``is_otel`` explicitly.
-    """
-
     span_id: str
     trace_id: str
-    is_otel: bool  # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
+    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
+    is_otel: bool
 
 
 class Document(TypedDict, total=False):

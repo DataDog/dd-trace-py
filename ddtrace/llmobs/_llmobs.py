@@ -32,6 +32,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -2013,12 +2014,11 @@ class LLMObs(Service):
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span"
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
-            from ddtrace.internal.constants import SPAN_API_OTEL as _SPAN_API_OTEL
 
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
-                is_otel=getattr(span, "_span_api", None) == _SPAN_API_OTEL,
+                is_otel=span._span_api == SPAN_API_OTEL,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -2832,7 +2832,7 @@ class LLMObs(Service):
                         "`span` must be a dictionary containing both span_id and trace_id keys. "
                         "LLMObs.export_span() can be used to generate this dictionary from a given span."
                     )
-                join_on["span"] = span
+                join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
             elif span_with_tag_value is not None:
                 if (
                     not isinstance(span_with_tag_value, dict)
