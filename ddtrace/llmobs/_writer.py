@@ -409,7 +409,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
-            conn.request(method, url, encoded_body, headers)
+            conn.request(method, self._endpoint + path, encoded_body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -434,7 +434,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s, %s", url, content_type)
-            conn.request(method, url, body, headers)
+            conn.request(method, self._endpoint + path, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:

@@ -84,7 +84,7 @@ class NativeHTTPConnection:
         self._pending_body = body
         _headers: dict[str, str] = dict(headers)
         container.update_headers(_headers)
-        self._pending_headers = list(_headers.items())
+        self._pending_headers = [(k, str(v)) for k, v in _headers.items()]
 
     def getresponse(self) -> HTTPResponse:
         if self._method is None:

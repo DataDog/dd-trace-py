@@ -18,6 +18,7 @@ from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
@@ -796,7 +797,7 @@ def test_flush_connection_timeout_connect(writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
     ):
-        exc_type = (OSError, NetworkError)
+        exc_type = (OSError, NetworkError, HttpClientError)
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -809,7 +810,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-        with pytest.raises((socket.timeout, IoError)):
+        with pytest.raises((socket.timeout, IoError, HttpClientError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -889,7 +890,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
     ):
-        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
@@ -901,7 +902,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
     with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
-        exc_types = (httplib.IncompleteRead, NetworkError)
+        exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -926,7 +927,7 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = (OSError, NetworkError)
+        error = (OSError, NetworkError, HttpClientError)
         with pytest.raises(error):
             writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
