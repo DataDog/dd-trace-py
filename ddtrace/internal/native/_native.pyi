@@ -383,6 +383,13 @@ class TraceExporterBuilder:
         :param url: The full URL of the OTLP endpoint (e.g. "http://localhost:4318/v1/traces").
         """
         ...
+    def set_otlp_protocol(self, protocol: str) -> TraceExporterBuilder:
+        """
+        Select the OTLP export protocol: "http/json" or "http/protobuf".
+        Any other value raises ValueError.
+        :param protocol: The OTLP protocol ("http/json" or "http/protobuf").
+        """
+        ...
     def set_otlp_headers(self, headers: list[tuple[str, str]]) -> TraceExporterBuilder:
         """
         Set additional HTTP headers for OTLP trace export requests.
