@@ -557,6 +557,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+ "bytes",
  "datadog-ffe",
  "libc",
  "libdd-capabilities-impl",
@@ -564,6 +565,7 @@ dependencies = [
  "libdd-crashtracker",
  "libdd-data-pipeline",
  "libdd-ddsketch",
+ "libdd-http-client",
  "libdd-library-config",
  "libdd-log",
  "libdd-profiling-ffi",
@@ -579,6 +581,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1608,6 +1611,7 @@ dependencies = [
  "libdd-telemetry",
  "libdd-tinybytes",
  "libdd-trace-normalization",
+ "libdd-trace-obfuscation",
  "libdd-trace-protobuf",
  "libdd-trace-stats",
  "libdd-trace-utils",
@@ -1640,6 +1644,19 @@ dependencies = [
  "libdd-common",
  "serde",
  "tracing",
+]
+
+[[package]]
+name = "libdd-http-client"
+version = "37.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "bytes",
+ "fastrand",
+ "libdd-common",
+ "reqwest",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

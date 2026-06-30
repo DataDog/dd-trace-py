@@ -1,4 +1,0 @@
----
-other:
-  - |
-    tracing: Upgrades the libdatadog native dependency from v35.0.0 to v37.0.0.
