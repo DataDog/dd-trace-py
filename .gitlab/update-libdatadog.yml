@@ -1,0 +1,110 @@
+# Bump libdatadog to its latest `main` commit, validate the native build, let
+# Claude attempt a bounded repair if it breaks, and open a PR. The brain is
+# scripts/update-libdatadog.py — this job only provides auth + a clean env.
+#
+# Runs on the testrunner image because it carries the Rust toolchain the
+# `rust ci` job relies on (cargo build/clippy/test). Two credentials are wired:
+#   - AI Gateway (authanywhere --audience rapid-ai-platform) for the repair loop
+#   - GitHub (dd-octo-sts, gitlab.libdatadog-update.create-pr policy) for the PR
+# The octo-sts policy must be merged to `main` first (octo-sts reads policies
+# from the default branch).
+#
+# Triggered manually, or automatically when an upstream pipeline (e.g.
+# libdatadog) passes UPDATE_LIBDATADOG_VERSION=true.
+
+include:
+  - local: ".gitlab/testrunner.yml"
+
+"update libdatadog":
+  stage: tests
+  extends: .testrunner
+  timeout: 40m
+  needs: []
+  interruptible: false
+  rules:
+    # Runs automatically on every main commit and on upstream triggers; the script's
+    # drift gate decides whether to actually proceed (default: >= 5 commits behind
+    # libdatadog main). No allow_failure: a non-convergent repair fails the job red.
+    - if: '$UPDATE_LIBDATADOG_VERSION == "true"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  variables:
+    ARTIFACTS_DIR: "${CI_PROJECT_DIR}/libdatadog-update"
+    # Commits of libdatadog drift required before a bump proceeds. Configurable;
+    # an upstream trigger can set 0 to force a bump regardless of drift.
+    LIBDATADOG_MIN_DRIFT: "5"
+    # The PR commit is created server-side via the GitHub API (see the script),
+    # so GitHub attributes it to the dd-octo-sts bot and signs it ("Verified") —
+    # no local git author/committer, push remote, or token-in-URL needed.
+  before_script:
+    - !reference [.testrunner, before_script]
+  script:
+    # Cheap drift gate FIRST, before any expensive setup: only proceed when
+    # libdatadog main is >= LIBDATADOG_MIN_DRIFT commits ahead of our pin.
+    # Exit 100 (from --check-drift) means "skip" -> finish the job green as a no-op.
+    - |
+      set +e
+      scripts/update-libdatadog.py --check-drift
+      rc=$?
+      set -e
+      if [ "$rc" -eq 100 ]; then echo "Below drift threshold — nothing to do."; exit 0; fi
+      if [ "$rc" -ne 0 ]; then echo "Drift check errored (rc=$rc)"; exit "$rc"; fi
+    # Download authanywhere + install Node LTS and the Claude CLI (for the repair
+    # loop). Slow steps first so the short-lived AI token is minted last.
+    # auth artifacts live in $HOME (OUTSIDE the repo working tree) so they can
+    # never appear in `git status` and thus never be committed.
+    - |
+      if [ "$(uname -m)" = "x86_64" ]; then ARCH="amd64"; else ARCH="arm64"; fi
+      curl -fsSL -o "$HOME/authanywhere" "https://binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${ARCH}"
+      chmod +x "$HOME/authanywhere"
+      curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+      # The testrunner image sets NPM_CONFIG_PREFIX, which nvm refuses to run with.
+      unset NPM_CONFIG_PREFIX
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      nvm install --lts
+      npm install -g @anthropic-ai/claude-code
+    # GitHub token for the PR (used only by the script's GitHub API calls — never
+    # placed in a git remote URL). Best-effort: if unavailable, the script still
+    # bumps + validates and just lists the changes instead of opening a PR.
+    # Written to $HOME (outside the repo, not an artifact) so after_script can revoke it.
+    - |
+      if command -v dd-octo-sts >/dev/null 2>&1; then
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.libdatadog-update.create-pr > "$HOME/.dd_octo_sts_token" || true
+        if [ -s "$HOME/.dd_octo_sts_token" ]; then
+          export GH_TOKEN="$(cat "$HOME/.dd_octo_sts_token")"
+        else
+          echo "dd-octo-sts produced no token (is gitlab.libdatadog-update.create-pr merged to main?); PR creation will be skipped."
+        fi
+      else
+        echo "dd-octo-sts not found in image; PR creation will be skipped (changes listed only)."
+      fi
+    # Mint the AI Gateway token immediately before use (short expiry), re-source
+    # nvm so the claude CLI is on PATH, then run the update.
+    - |
+      unset NPM_CONFIG_PREFIX
+      export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      raw_token="$("$HOME/authanywhere" --audience rapid-ai-platform)"
+      export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
+      export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
+      export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-update\nx-dd-tag-dd.team: apm-python'
+      # Live: a green run opens a verified PR via the GitHub API (no-op if already
+      # on latest main, or skipped if no token was minted).
+      # --skip-python: cargo is the real native signal here; the full Python suite
+      #   runs in PR CI (and `pip install -e .` isn't viable from this uv env).
+      scripts/update-libdatadog.py --skip-python
+  after_script:
+    # Preserve the testrunner's core-backtrace step, then revoke the GitHub token
+    # immediately via the broker (rather than waiting out its short lifetime).
+    # after_script runs in a fresh shell, so the token is read from the file.
+    - !reference [.testrunner, after_script]
+    - if [[ -s "$HOME/.dd_octo_sts_token" ]]; then dd-octo-sts revoke -t "$(cat "$HOME/.dd_octo_sts_token")" || true; fi
+    - rm -f "$HOME/.dd_octo_sts_token"
+  artifacts:
+    when: always
+    paths:
+      - libdatadog-update/
+    expire_in: 1 month

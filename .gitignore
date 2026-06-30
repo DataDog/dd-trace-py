@@ -232,3 +232,7 @@ src/native/target*
 
 # file created when running scripts/lint
 uv.lock
+
+# scripts/update-libdatadog.py ephemeral outputs (artifacts dir + local auth binary)
+/libdatadog-update/
+/authanywhere
