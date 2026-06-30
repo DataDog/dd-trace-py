@@ -138,6 +138,13 @@
         ]
       }
     ],
+    "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -171,6 +178,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_AI_GUARD_OPENAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_TIMEOUT": [
@@ -2467,6 +2481,16 @@
         "default": "false"
       }
     ],
+    "DD_MISTRALAI_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_MISTRALAI_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_MLFLOW_SERVICE": [
       {
         "implementation": "A",
@@ -2838,6 +2862,13 @@
         "default": "1000000"
       }
     ],
+    "DD_PROFILING_PYTORCH_MAX_FRAMES": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "128"
+      }
+    ],
     "DD_PROFILING_SAMPLE_POOL_CAPACITY": [
       {
         "implementation": "A",
@@ -3003,6 +3034,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_PYTORCH_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "",
+        "aliases": [
+          "DD_PYTORCH_SERVICE_NAME"
+        ]
       }
     ],
     "DD_PYNAMODB_SERVICE": [
@@ -3513,6 +3554,20 @@
       {
         "implementation": "B",
         "type": "boolean",
+        "default": null
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TEST_OPTIMIZATION_DISCOVERY_FILE": [
+      {
+        "implementation": "A",
+        "type": "string",
         "default": null
       }
     ],
@@ -4354,6 +4409,13 @@
         "default": null
       }
     ],
+    "DD_TRACE_MISTRALAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_MLFLOW_ENABLED": [
       {
         "implementation": "A",
@@ -4606,6 +4668,13 @@
       }
     ],
     "DD_TRACE_RAY_CORE_API": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_TRACE_PYTORCH_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -5540,6 +5609,14 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": [
       {
         "implementation": "A",
@@ -5940,6 +6017,14 @@
         "internal": true
       }
     ],
+    "_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_TEST_SKIP_QUARANTINED_TESTS": [
       {
         "implementation": "A",
@@ -5985,7 +6070,31 @@
         "version": "B",
         "type": "boolean",
         "default": "false",
-        "propertyKeys": ["trace_stats_computation_experimental_client_obfuscation_enabled"]
+        "propertyKeys": [
+          "trace_stats_computation_experimental_client_obfuscation_enabled"
+        ]
+      }
+    ],
+    "DD_PYTORCH_JOB_ID": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
+    "_DD_RAY_RUN_METADATA": [
+      {
+        "implementation": "A",
+        "type": "json",
+        "default": null,
+        "internal": true
+      }
+    ],
+    "DD_TRAINING_STEP_PROFILING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ]
   }

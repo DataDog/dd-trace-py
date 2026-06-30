@@ -1,0 +1,8 @@
+fixes:
+  - |
+    elasticsearch: Fix zombie spans on TransportError. When a request failed, the
+    generator coroutine holding the open span was not explicitly closed, leaving the
+    span open until Python GC ran — producing spans with grossly inflated durations
+    on non-CPython runtimes (e.g. PyPy). Both the sync and async wrappers now call
+    ``coro.close()`` immediately on the error path. Affects Elasticsearch and
+    OpenSearch integrations.
