@@ -74,8 +74,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
         result = extract_messages_from_adk_events(response)
 
-        # Surface the ADK session metadata (user id, app name) as searchable span tags. The session
-        # id is propagated separately at span creation via set_session_id so it reaches child spans.
+        # Surface the ADK session metadata (user id, app name) as searchable span tags.
         session_tags = {}
         user_id = kwargs.get("user_id")
         if user_id:
