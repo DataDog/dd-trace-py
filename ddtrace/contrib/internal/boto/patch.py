@@ -44,6 +44,7 @@ AWS_AUTH_TRACED_ARGS = {"path", "data", "host"}
 config._add(
     "boto",
     {
+        "_default_service": schematize_service_name("boto"),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )

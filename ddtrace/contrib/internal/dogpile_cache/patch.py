@@ -9,6 +9,7 @@ except AttributeError:
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 
 from .lock import _wrap_lock_ctor
 from .region import _wrap_get_create
@@ -20,7 +21,7 @@ _get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
 _lock_ctor = dogpile_lock.Lock.__init__
 
 
-config._add("dogpile_cache", dict())
+config._add("dogpile_cache", dict(_default_service=schematize_service_name("dogpile_cache")))
 
 
 def get_version() -> str:

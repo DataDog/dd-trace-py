@@ -27,6 +27,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.ext import aws_durable as aws_durable_ext
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils import get_argument_value
@@ -41,6 +42,7 @@ log = get_logger(__name__)
 config._add(
     "aws_durable_execution_sdk_python",
     dict(
+        _default_service=schematize_service_name("aws_durable_execution_sdk_python"),
         # Persist a ``_datadog_*`` checkpoint on suspend so the next invocation
         # can resume the trace. Opt-out for customers who don't want synthetic
         # ops appearing in their durable state.

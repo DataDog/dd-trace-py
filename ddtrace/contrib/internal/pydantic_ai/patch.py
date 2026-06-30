@@ -7,12 +7,13 @@ from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContex
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 
 
-config._add("pydantic_ai", {})
+config._add("pydantic_ai", dict(_default_service=schematize_service_name("pydantic_ai")))
 
 
 def get_version() -> str:

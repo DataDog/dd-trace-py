@@ -2,6 +2,7 @@ import bottle
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
@@ -12,6 +13,7 @@ from .trace import TracePlugin
 config._add(
     "bottle",
     dict(
+        _default_service=schematize_service_name("bottle"),
         distributed_tracing=asbool(env.get("DD_BOTTLE_DISTRIBUTED_TRACING", default=True)),
     ),
 )

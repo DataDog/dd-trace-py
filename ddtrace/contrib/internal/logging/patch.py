@@ -12,12 +12,14 @@ from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 
 
 config._add(
     "logging",
     dict(
+        _default_service=schematize_service_name("logging"),
         tracer=None,
     ),
 )

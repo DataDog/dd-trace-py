@@ -7,12 +7,13 @@ from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIAsyncStreamH
 from ddtrace.contrib.internal.google_genai._utils import GoogleGenAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
 
-config._add("google_genai", {})
+config._add("google_genai", dict(_default_service=schematize_service_name("google_genai")))
 
 
 def _supported_versions():

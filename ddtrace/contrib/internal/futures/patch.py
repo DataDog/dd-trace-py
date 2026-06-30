@@ -1,9 +1,17 @@
 import sys
 
+from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 
 from .threading import _wrap_submit
+
+
+config._add(
+    "futures",
+    dict(_default_service=schematize_service_name("futures")),
+)
 
 
 def get_version() -> str:

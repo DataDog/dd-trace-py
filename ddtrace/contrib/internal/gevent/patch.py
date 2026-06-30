@@ -1,6 +1,9 @@
 import gevent
 import gevent.pool
 
+from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
+
 from .greenlet import TracedGreenlet
 from .greenlet import TracedIMap
 from .greenlet import TracedIMapUnordered
@@ -9,6 +12,12 @@ from .greenlet import TracedIMapUnordered
 __Greenlet = gevent.Greenlet
 __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
+
+
+config._add(
+    "gevent",
+    dict(_default_service=schematize_service_name("gevent")),
+)
 
 
 def get_version() -> str:

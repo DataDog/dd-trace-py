@@ -6,6 +6,7 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
@@ -55,7 +56,7 @@ def _supported_versions() -> dict[str, str]:
     return {"langgraph": "*"}
 
 
-config._add("langgraph", {})
+config._add("langgraph", dict(_default_service=schematize_service_name("langgraph")))
 
 
 def _get_node_name(instance):

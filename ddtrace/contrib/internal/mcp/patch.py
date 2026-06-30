@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
@@ -32,6 +33,7 @@ log = get_logger(__name__)
 config._add(
     "mcp",
     {
+        "_default_service": schematize_service_name("mcp"),
         "distributed_tracing": asbool(env.get("DD_MCP_DISTRIBUTED_TRACING", default=True)),
         "capture_intent": asbool(env.get("DD_MCP_CAPTURE_INTENT", default=False)),
     },

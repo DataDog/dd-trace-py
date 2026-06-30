@@ -4,11 +4,12 @@ from wrapt import wrap_function_wrapper as _w
 import ddtrace
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.internal.schema import schematize_service_name
 
 
 config._add(
     "loguru",
-    dict(),
+    dict(_default_service=schematize_service_name("loguru")),
 )
 
 

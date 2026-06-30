@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.hostname import get_hostname
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -30,6 +31,7 @@ _MLFLOW_ATEXIT_REGISTERED = False
 config._add(
     "mlflow",
     dict(
+        _default_service=schematize_service_name("mlflow"),
         trace_run_tags=_get_config("DD_TRACE_MLFLOW_RUN_TAGS", default=False, modifier=asbool),
         log_injection=_get_config(
             "DD_TRACE_MLFLOW_LOGS_INJECTION",

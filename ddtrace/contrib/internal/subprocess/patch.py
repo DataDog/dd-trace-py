@@ -17,6 +17,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_propagation_envs
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._telemetry import config as telemetry_config
@@ -31,7 +32,10 @@ log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=env.get("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(
+        _default_service=schematize_service_name("subprocess"),
+        sensitive_wildcards=env.get("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(","),
+    ),
 )
 
 
