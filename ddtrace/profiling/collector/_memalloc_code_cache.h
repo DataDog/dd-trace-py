@@ -101,11 +101,7 @@ class CodeFunctionCache
 
     /* Inserts (code, id) with the identity used to validate future lookups.
      * Evicts one entry if the map is at capacity. */
-    void insert(PyCodeObject* code,
-                Datadog::function_id id,
-                PyObject* name,
-                PyObject* filename,
-                int firstlineno);
+    void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
 
     /* Drops every entry, retaining reserved capacity. */
     void clear();

@@ -314,9 +314,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     long max_nframe;
     long long int heap_sample_size;
     int enable_mem_domain;
+    int heap_code_cache_enabled;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lLp", &max_nframe, &heap_sample_size, &enable_mem_domain)) {
+    if (!PyArg_ParseTuple(args, "lLpp", &max_nframe, &heap_sample_size, &enable_mem_domain, &heap_code_cache_enabled)) {
         // Don't set an error string, ParseTuple will set it to a TypeError already.
         return nullptr;
     }
@@ -333,7 +334,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size, (bool)heap_code_cache_enabled)) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
         return nullptr;
     }
