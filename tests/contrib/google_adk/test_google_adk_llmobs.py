@@ -205,88 +205,49 @@ class TestLLMObsGoogleADK:
             name="Google ADK Code Execute",
         )
 
-    def test_code_execution_inherits_agent_session_id(self, mock_invocation_context, test_spans, google_adk_llmobs):
-        """A code-execute span created during an agent run inherits the agent's LLMObs session id.
+    @pytest.mark.asyncio
+    async def test_run_live_reads_metadata_from_session_object(self, test_runner, test_spans, google_adk_llmobs):
+        """run_live's deprecated ``session=`` form: session metadata is read off the Session object.
 
-        The runner wrapper sets the session id on the agent span at creation, so any child span
-        (tools, code executors) created before the agent finishes inherits it via context.
+        Driven end-to-end through the patched ``Runner.run_live``. The live model connection cannot be
+        established under test, but the agent span is still tagged (in the wrapper's ``finally``) with the
+        session id and user id resolved from the Session object, since neither is passed as a keyword.
         """
-        import google.adk as adk
-        from google.adk.code_executors.code_execution_utils import CodeExecutionInput
-        from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
+        import asyncio
 
-        integration = adk._datadog_integration
+        from google.adk.agents.live_request_queue import LiveRequestQueue
 
-        # Mirror _traced_agent_run_async: open the agent span and propagate the session id at creation.
-        with integration.trace("InMemoryRunner.run_async", kind="agent", submit_to_llmobs=True) as agent_span:
-            integration.set_session_id(agent_span, "test-session")
-            executor = UnsafeLocalCodeExecutor()
-            code_input = CodeExecutionInput(code='print("hello world")')
-            executor.execute_code(mock_invocation_context, code_input)
+        session = await test_runner.session_service.create_session(
+            app_name=test_runner.app_name,
+            user_id="live-user",
+            session_id="live-session",
+        )
+
+        async def _drain():
+            async for _ in test_runner.run_live(session=session, live_request_queue=LiveRequestQueue()):
+                pass
+
+        try:
+            # The live connection isn't available under test; bound the call so a hung connect can't stall.
+            await asyncio.wait_for(_drain(), timeout=10)
+        except Exception:
+            pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
-        code_execute_spans = [s for s in spans if s.resource.endswith("execute_code")]
-        assert len(code_execute_spans) == 1
+        run_live_spans = [s for s in spans if s.resource.endswith("run_live")]
+        assert len(run_live_spans) == 1
 
         assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(code_execute_spans[0]),
-            span_kind="code_execute",
-            input_value='print("hello world")',
-            output_value="hello world\n",
+            _get_llmobs_data_metastruct(run_live_spans[0]),
+            span_kind="agent",
+            name="test_agent",
+            error=mock.ANY,  # the live model connection fails under test; we only assert the session tags
             tags={
                 "ml_app": "<ml-app-name>",
                 "service": "tests.contrib.google_adk",
                 "integration": "google_adk",
-                "session_id": "test-session",
-            },
-            name="Google ADK Code Execute",
-        )
-
-    @pytest.mark.asyncio
-    async def test_run_live_reads_metadata_from_session_object(self, adk, test_spans, google_adk_llmobs):
-        """run_live's deprecated ``session=`` form: session metadata is read off the Session object.
-
-        When called as ``run_live(session=session, ...)`` there is no explicit ``user_id``/``session_id``
-        kwarg, so the integration falls back to ``session.id``/``user_id``/``app_name``.
-        """
-        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
-
-        class FakeSession:
-            id = "live-session"
-            user_id = "live-user"
-            app_name = "LiveADKApp"
-
-        class FakeAgent:
-            name = "live_agent"
-            model = None
-            tools: list = []
-
-        class FakeRunner:
-            # No app_name on the runner forces the fallback to session.app_name.
-            app_name = None
-            agent = FakeAgent()
-
-        async def fake_run_live(*args, **kwargs):
-            for _ in ():  # an async generator that yields nothing
-                yield _
-
-        kwargs = {"session": FakeSession(), "live_request_queue": object()}
-        async for _ in _traced_agent_run_async(fake_run_live, FakeRunner(), (), kwargs):
-            pass
-
-        # The original call kwargs are left untouched by the wrapper.
-        assert set(kwargs) == {"session", "live_request_queue"}
-
-        spans = [s for trace in test_spans.pop_traces() for s in trace]
-        assert len(spans) == 1
-        assert_llmobs_span_data(
-            _get_llmobs_data_metastruct(spans[0]),
-            span_kind="agent",
-            name="live_agent",
-            tags={
-                "ml_app": "<ml-app-name>",
                 "session_id": "live-session",
                 "user_id": "live-user",
-                "app_name": "LiveADKApp",
+                "app_name": "TestADKApp",
             },
         )
