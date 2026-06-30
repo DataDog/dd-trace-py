@@ -1,4 +1,5 @@
 import importlib
+import json
 
 from flask.testing import FlaskClient
 import pytest
@@ -7,6 +8,7 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from tests.appsec.contrib_appsec import utils
 from tests.utils import TracerTestCase
+from tests.utils import override_global_config
 from tests.utils import scoped_tracer
 
 
@@ -131,6 +133,8 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         "/login",
         "/login_sdk",
         "/rasp/<string:endpoint>/",
+        "/multi-param/<first>.<last>/",
+        "/files/<path:file_path>",
     }
 
     @staticmethod
@@ -139,6 +143,9 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
 
         path = re.sub(r"<int:[a-z_]+>", "123", path)
         path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
+        # Bare <name> (no converter) and <path:name> catch-all — substitute a safe test value.
+        path = re.sub(r"<path:[a-z_]+>", "test/path", path)
+        path = re.sub(r"<[a-z_]+>", "test", path)
         return path
 
     # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
@@ -350,6 +357,36 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
             assert span.get_tag(FLASK_URL_RULE) == "/asm/<int:param_int>/<string:param_str>"
             assert span.resource == "GET /asm/<int:param_int>/<string:param_str>"
             assert get_tag(FLASK_RESOURCE_FULL) is None
+
+    def test_api10_redirect_urllib3(self, interface, api10_http_server_port, entry_span):
+        # Direct urllib3 (PoolManager) redirect analysis. The downstream call follows a 3xx
+        # redirect; the intermediate redirect response must still be inspected by the SSRF
+        # response WAF. urllib3 bottoms out in http.client.HTTPConnection.getresponse, so the
+        # redirect status + headers rules fire from there (not from the urllib3 _make_request
+        # wrapper). This guards the removal of the dead urllib3 redirect branch (APPSEC-68563).
+        INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"
+        INSPECTED_REDIRECT_RESP_STATUS = "apiA-100-007"
+
+        url = f"/redirect_urllib3/redirect-source/{api10_http_server_port}"
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=utils.rules.RULES_EXPLOIT_PREVENTION,
+                _dr_sample_rate=1.0,
+            )
+        ):
+            self.update_tracer(interface)
+            response = interface.client.get(url)
+            assert self.status(response) == 200, f"{self.status(response)} is not 200 {self.body(response)}"
+            redirect_response_payload = json.loads(self.body(response)).get("payload")
+            api_response_payload = json.loads(redirect_response_payload).get("payload")
+            assert api_response_payload == "api10-response-body", api_response_payload
+
+            self.check_rules_triggered(
+                sorted([INSPECTED_REDIRECT_RESP_HEADERS, INSPECTED_REDIRECT_RESP_STATUS]), entry_span
+            )
 
 
 class Test_Flask_RC(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats_RC):

@@ -8,9 +8,11 @@ from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from tests.appsec.contrib_appsec.flask_app.app import app as flat_app
 from tests.appsec.contrib_appsec.flask_app.app import buggy_endpoint
 from tests.appsec.contrib_appsec.flask_app.app import exception_group_block
+from tests.appsec.contrib_appsec.flask_app.app import files_catch_all
 from tests.appsec.contrib_appsec.flask_app.app import index
 from tests.appsec.contrib_appsec.flask_app.app import login_user
 from tests.appsec.contrib_appsec.flask_app.app import login_user_sdk
+from tests.appsec.contrib_appsec.flask_app.app import multi_param_segment
 from tests.appsec.contrib_appsec.flask_app.app import multi_view
 from tests.appsec.contrib_appsec.flask_app.app import new_service
 from tests.appsec.contrib_appsec.flask_app.app import rasp
@@ -18,6 +20,7 @@ from tests.appsec.contrib_appsec.flask_app.app import redirect
 from tests.appsec.contrib_appsec.flask_app.app import redirect_httpx
 from tests.appsec.contrib_appsec.flask_app.app import redirect_httpx_async
 from tests.appsec.contrib_appsec.flask_app.app import redirect_requests
+from tests.appsec.contrib_appsec.flask_app.app import redirect_urllib3
 from tests.appsec.contrib_appsec.flask_app.app import service_renaming
 
 
@@ -36,6 +39,10 @@ def _make_root_app():
     app.route("/login_sdk/", methods=["GET"])(login_user_sdk)
     app.route("/exception-group-block", methods=["GET"])(exception_group_block)
     app.route("/buggy_endpoint/", methods=None)(buggy_endpoint)
+    # RFC-1103 normalized-route coverage: these live on the root app (not a DM sub-app) so
+    # script_root is empty and url_rule.rule already carries the full path.
+    app.route("/multi-param/<first>.<last>/", methods=["GET"])(multi_param_segment)
+    app.route("/files/<path:file_path>", methods=["GET"])(files_catch_all)
     app.before_request(service_renaming)
     return app
 
@@ -80,6 +87,7 @@ redirect_subapp = _make_redirect_subapp(redirect, "redirect_sub")
 redirect_requests_subapp = _make_redirect_subapp(redirect_requests, "redirect_requests_sub")
 redirect_httpx_subapp = _make_redirect_subapp(redirect_httpx, "redirect_httpx_sub")
 redirect_httpx_async_subapp = _make_redirect_subapp(redirect_httpx_async, "redirect_httpx_async_sub")
+redirect_urllib3_subapp = _make_redirect_subapp(redirect_urllib3, "redirect_urllib3_sub")
 
 
 # Assign DM back onto root.wsgi_app so root.test_client() still drives the dispatcher.
@@ -93,6 +101,7 @@ root.wsgi_app = DispatcherMiddleware(
         "/redirect_requests": redirect_requests_subapp,
         "/redirect_httpx": redirect_httpx_subapp,
         "/redirect_httpx_async": redirect_httpx_async_subapp,
+        "/redirect_urllib3": redirect_urllib3_subapp,
     },
 )
 

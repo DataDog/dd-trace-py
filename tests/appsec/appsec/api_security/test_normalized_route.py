@@ -2,6 +2,8 @@ import pytest
 
 from ddtrace.appsec._api_security._normalized_route import normalize_route
 from ddtrace.appsec._api_security._normalized_route import normalize_route_django
+from ddtrace.appsec._api_security._normalized_route import normalize_route_flask
+from ddtrace.appsec._api_security._normalized_route import normalize_route_tornado
 
 
 @pytest.mark.parametrize(
@@ -106,6 +108,34 @@ def test_normalize_route_param_name_with_reserved_char_is_url_encoded():
         # Static-constant URL-encoding (rule 3).
         ("path with space", "/path%20with%20space"),
         ("safe.-~_", "/safe.-~_"),
+        # re_path() with multi-params in a single segment: RFC-1103 rule 5 combining via `+`.
+        # Character classes ([^/-]+, [^/]+) inside named groups are parsed transparently.
+        (
+            r"^api_security/multi-params-in-segment/(?P<id>[^/-]+)-(?P<format>[^/]+)$",
+            "/api_security/multi-params-in-segment/{id+format}",
+        ),
+        (
+            r"^api_security/optional-params/(?P<id>[^/-]+)-(?P<format>[^/]+)$",
+            "/api_security/optional-params/{id+format}",
+        ),
+        # re_path() single named group with a character class body — existing behaviour preserved.
+        (r"^api_security/params/(?P<id>[^/]+)$", "/api_security/params/{id}"),
+        # Splitting resumes after the char class; segments on both sides are emitted.
+        (r"^items/(?P<id>[^/]+)/detail$", "/items/{id}/detail"),
+        # \/ is a literal slash — same as an unescaped / for splitting purposes.
+        (r"^foo\/bar$", "/foo/bar"),
+        # /?-terminated route with a char class inside the param group.
+        (r"^api/(?P<id>[^/-]+)-(?P<fmt>[^/]+)/?$", "/api/{id+fmt}"),
+        # Named group whose body matches slashes: kept as one segment, emits a single {param}.
+        (r"^foo/(?P<x>[^/]+/[^/]+)/bar$", "/foo/{x}/bar"),
+        # \/ inside a char class within a named group — handled transparently.
+        (r"^foo/(?P<x>[^\/]+)/bar$", "/foo/{x}/bar"),
+        # \\ (escaped backslash) before a separator slash — backslash ends up URL-encoded.
+        (r"^foo\\/bar$", "/foo%5C/bar"),
+        # Structural \/ positions: leading, trailing, and optional-trailing.
+        (r"^\/foo$", "/foo"),
+        (r"^foo\/$", "/foo/"),
+        (r"^foo\/?$", "/foo"),
     ],
 )
 def test_normalize_route_django_happy_path(route, expected):
@@ -125,8 +155,10 @@ def test_normalize_route_django_happy_path(route, expected):
         "files/<path:tail>extra",
         # Unnamed regex group — we don't guess a placeholder, omit the tag.
         "asm/(?:nogrp)",
-        # Bare character class outside a named group — same rationale.
+        # Bare character class outside a named group — ambiguous to normalize.
         "[abc]",
+        # re_path with a top-level char class segment (not inside a group).
+        r"^[^/]+/resource$",
         # Malformed path() converter.
         "asm/<unterminated",
         # Reserved Django converter syntax: empty name.
@@ -301,6 +333,164 @@ def test_normalize_route_django_fast_path_skips_non_eligible_shapes(route):
     assert _normalize_route_django_fast_path(route) is None
 
 
+# ---------------------------------------------------------------------------
+# Flask / Werkzeug normalizer  (import is at the top of the file)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Simple single-param with default (string) converter — fast path
+        ("/users/<id>", "/users/{id}"),
+        # Converter types stripped
+        ("/users/<string:id>", "/users/{id}"),
+        ("/posts/<int:post_id>", "/posts/{post_id}"),
+        ("/price/<float:value>", "/price/{value}"),
+        ("/token/<uuid:tok>", "/token/{tok}"),
+        # Multi-segment, with and without trailing slash — fast path
+        ("/asm/<int:param_int>/<string:param_str>/", "/asm/{param_int}/{param_str}/"),
+        ("/asm/<int:param_int>/<string:param_str>", "/asm/{param_int}/{param_str}"),
+        # Trailing slash preserved when declared (rule 1)
+        ("/api/", "/api/"),
+        # Root
+        ("/", "/"),
+        # Pure static with RFC-safe chars
+        ("/static/about", "/static/about"),
+        # Static URL-encoding (rule 3)
+        ("/path with space", "/path%20with%20space"),
+        ("/safe.-~_", "/safe.-~_"),
+        ("/é", "/%C3%A9"),
+        # Multi-param-in-segment — slow path (rule 5 combines with `+`)
+        ("/multi-param/<first>.<last>/", "/multi-param/{first+last}/"),
+        ("/users/<first>-<last>", "/users/{first+last}"),
+        ("/files/<a>.<b>.<c>", "/files/{a+b+c}"),
+        # Static prefix before a single param is dropped (rule 5 single-param)
+        ("/api_<version>", "/{version}"),
+        # Catch-all `<path:name>` — slow path (rule 5 catch-all exception)
+        ("/files/<path:file_path>", "/files/{file_path}"),
+        ("/<path:tail>", "/{tail}"),
+        # Catch-all with static prefix in same segment — static discarded, name survives (rule 5)
+        ("/download/prefix-<path:tail>", "/download/{tail}"),
+        # Trailing slash on catch-all
+        ("/files/<path:fp>/", "/files/{fp}/"),
+        # `any()` converter — stripped to param name uniformly
+        ("/section/<any(v1,v2):section>", "/section/{section}"),
+        # Converter with `:` in args; backtracking in [^>]+ finds the correct split point.
+        ("/x/<custom_conv([a:b]+):slug>", "/x/{slug}"),
+        # Param named "path" with no converter: NOT a catch-all (no ``path:`` prefix), fast path.
+        ("/files/<path>", "/files/{path}"),
+    ],
+)
+def test_normalize_route_flask_happy_path(route, expected):
+    assert normalize_route_flask(route) == expected
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        None,
+        "",
+        "no-leading-slash",
+        "/double//slash",
+        "/<path:tail>/and-after",  # non-terminal catch-all: rule 5 violation → omit tag
+    ],
+)
+def test_normalize_route_flask_returns_none_on_invalid(route):
+    assert normalize_route_flask(route) is None
+
+
+def test_normalize_route_flask_path_params_accepted_but_unused():
+    # Flask has no optional path elements; path_params is accepted for API parity only.
+    assert normalize_route_flask("/users/<int:id>", {"id": 42}) == "/users/{id}"
+    assert normalize_route_flask("/users/<int:id>", None) == "/users/{id}"
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Fast path: single simple-converter param per segment
+        ("/asm/<int:param_int>/<string:param_str>/", "/asm/{param_int}/{param_str}/"),
+        ("/users/<string:name>/", "/users/{name}/"),
+        ("/login/", "/login/"),
+        ("/login", "/login"),
+        ("/", "/"),
+        # Param named "path" with no converter: NOT a catch-all → fast path
+        ("/files/<path>", "/files/{path}"),
+    ],
+)
+def test_normalize_route_flask_fast_path(route, expected):
+    from ddtrace.appsec._api_security._normalized_route import _FLASK_FAST_PATH_REGEX
+    from ddtrace.appsec._api_security._normalized_route import _normalize_route_flask_cached
+
+    assert _FLASK_FAST_PATH_REGEX.match(route), f"expected fast path for {route!r}"
+    assert _normalize_route_flask_cached(route) == expected
+    # Public entry point must produce the same result (validates input-validation + cache wiring).
+    assert normalize_route_flask(route) == expected
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        "/multi-param/<first>.<last>/",  # multi-param segment
+        "/files/<path:file_path>",  # path catch-all
+        "/section/<any(v1,v2):section>",  # any() converter
+        "/api_<version>",  # static prefix + param
+    ],
+)
+def test_normalize_route_flask_fast_path_skips_non_eligible_shapes(route):
+    from ddtrace.appsec._api_security._normalized_route import _FLASK_FAST_PATH_REGEX
+
+    assert not _FLASK_FAST_PATH_REGEX.match(route), f"expected slow path for {route!r}"
+
+
+def test_normalize_route_flask_dm_assembly_via_handler():
+    """Handler reads flask.resource.full (set by DispatcherMiddleware sub-apps) to assemble the full route."""
+    from unittest.mock import MagicMock
+    from unittest.mock import patch
+
+    from ddtrace.appsec._constants import API_SECURITY
+    from ddtrace.appsec._handlers import _on_set_http_meta_for_normalized_route
+    from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+    from tests.utils import override_global_config
+
+    span = MagicMock()
+    # Simulate sub-app: url_rule.rule = "/<int:id>", script_root = "/asm"
+    # => FLASK_RESOURCE_FULL = "GET /asm/<int:id>"
+    span.get_tag.side_effect = lambda t: "GET /asm/<int:id>" if t == FLASK_RESOURCE_FULL else None
+    span._set_attribute = MagicMock()
+
+    asm_ctx = MagicMock()
+    asm_ctx.normalized_route_emitted = False
+
+    with (
+        override_global_config(dict(_asm_enabled=True, _api_security_enabled=True)),
+        patch("ddtrace.appsec._handlers.get_active_asm_context", return_value=asm_ctx),
+        patch("ddtrace.appsec._handlers.core.find_item") as mock_find,
+    ):
+        integration_config = MagicMock()
+        integration_config.integration_name = "flask"
+        mock_find.return_value = integration_config
+
+        _on_set_http_meta_for_normalized_route(
+            span=span,
+            request_ip=None,
+            raw_uri=None,
+            route="/<int:id>",  # sub-app-local route (no script_root prefix)
+            method="GET",
+            request_headers=None,
+            request_cookies=None,
+            parsed_query=None,
+            request_path_params=None,
+            request_body=None,
+            status_code=None,
+            response_headers=None,
+            response_cookies=None,
+        )
+
+    span._set_attribute.assert_called_once_with(API_SECURITY.NORMALIZED_ROUTE, "/asm/{id}")
+
+
 @pytest.mark.parametrize(
     "route",
     [
@@ -438,3 +628,198 @@ def test_normalize_route_django_paramN_reserves_path_converter_names(route, expe
 )
 def test_normalize_route_django_nested_non_capturing_doesnt_drift_args_index(route, args_tuple, expected):
     assert normalize_route_django(route, args_tuple) == expected
+
+
+# ---------------------------------------------------------------------------
+# Tornado normalizer
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("route", "path_params", "expected"),
+    [
+        # Root route (no groups).
+        ("/", {}, "/"),
+        # Non-capturing group with a static body → unwrapped to literal text (not {paramN}).
+        ("/foo/(?:bar)/", {}, "/foo/bar/"),
+        ("/api/(?:v1.0)/items", {}, "/api/v1.0/items"),
+        # Static route with optional trailing slash: ``/?`` is not "declared with trailing slash".
+        ("/asm/?", {}, "/asm"),
+        # Static route with explicit trailing slash: kept.
+        ("/static/", {}, "/static/"),
+        # Named groups (dict path_params).
+        ("/asm/%s/%s/?", {"param_int": "137", "param_str": "abc"}, "/asm/{param_int}/{param_str}"),
+        ("/new_service/%s/?", {"service_name": "svc"}, "/new_service/{service_name}"),
+        # Named groups, no trailing slash in route: output also has no trailing slash.
+        ("/users/%s", {"id": "42"}, "/users/{id}"),
+        # Explicit trailing slash preserved when route has one (no ``?``).
+        ("/api/%s/", {"v": "1"}, "/api/{v}/"),
+        # Multi-param segment: two ``%s`` in one URL segment combined with ``+`` (rule 5).
+        ("/multi-param/%s.%s/?", {"first": "john", "last": "doe"}, "/multi-param/{first+last}"),
+        # Three params in one segment.
+        ("/x/%s.%s.%s", {"a": "1", "b": "2", "c": "3"}, "/x/{a+b+c}"),
+        # Wildcard regex (.*) collapses to a single ``%s``; normalizer emits one atomic element.
+        ("/files/%s", {"file_path": "some/deep/path"}, "/files/{file_path}"),
+        # Positional groups (list path_params): auto-generate param1, param2, …
+        ("/asm/%s/%s/?", ["137", "abc"], "/asm/{param1}/{param2}"),
+        ("/redirect/%s/%s/?", ["route", "8080"], "/redirect/{param1}/{param2}"),
+        # Positional empty list → same as no path_params (zero placeholders).
+        ("/asm/?", [], "/asm"),
+        # No path_params at all (None): auto-generate names.
+        ("/asm/%s/%s/?", None, "/asm/{param1}/{param2}"),
+        # Static-constant URL-encoding (rule 3): unsafe chars encoded.
+        ("/path with space", {}, "/path%20with%20space"),
+        ("/safe.-~_", {}, "/safe.-~_"),
+        # RFC-1103 example: any-framework fallback ``*`` → ``%s`` after _regex_to_route.
+        ("/%s", None, "/{param1}"),
+        # ``/?`` route (just optional slash): strips to empty body → returns ``"/"``.
+        ("/?", {}, "/"),
+    ],
+)
+def test_normalize_route_tornado_happy_path(route, path_params, expected):
+    assert normalize_route_tornado(route, path_params) == expected
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        None,
+        "",
+        "no-leading-slash",
+        "/double//slash",
+    ],
+)
+def test_normalize_route_tornado_returns_none_on_invalid(route):
+    assert normalize_route_tornado(route) is None
+
+
+def test_normalize_route_tornado_mismatch_dict_too_few_keys():
+    # Dict has fewer keys than ``%s`` in route → cannot map params → return None.
+    assert normalize_route_tornado("/asm/%s/%s/?", {"only_one": "x"}) is None
+
+
+def test_normalize_route_tornado_mismatch_dict_too_many_keys():
+    # Dict has more keys than ``%s`` in route → same ``!=`` check → return None.
+    assert normalize_route_tornado("/x/%s", {"a": "1", "b": "2"}) is None
+
+
+def test_normalize_route_tornado_mismatch_list_wrong_length():
+    # List length doesn't match placeholder count → return None.
+    assert normalize_route_tornado("/asm/%s/%s/?", ["just_one"]) is None
+
+
+def test_normalize_route_tornado_empty_dict_no_placeholders():
+    # Empty dict path_params with no ``%s`` in route is the normal static-route case.
+    assert normalize_route_tornado("/asm/?", {}) == "/asm"
+    assert normalize_route_tornado("/", {}) == "/"
+
+
+def test_normalize_route_tornado_param_name_reserved_char_encoded():
+    # RFC rule 4: reserved chars in parameter names must be URL-encoded.
+    assert normalize_route_tornado("/x/%s", {"foo+bar": "v"}) == "/x/{foo%2Bbar}"
+    assert normalize_route_tornado("/x/%s", {"a/b": "v"}) == "/x/{a%2Fb}"
+
+
+def test_normalize_route_tornado_caching_by_route_and_names():
+    # Same route + same param-name tuple → same cached object (lru_cache hit).
+    r1 = normalize_route_tornado("/asm/%s/%s/?", {"param_int": "1", "param_str": "a"})
+    r2 = normalize_route_tornado("/asm/%s/%s/?", {"param_int": "2", "param_str": "b"})
+    assert r1 is r2 == "/asm/{param_int}/{param_str}"
+
+
+# --- Fix 2: optional groups (RFC-1103 rule 6 per-request filtering) ---
+
+
+@pytest.mark.parametrize(
+    ("route", "path_params", "expected"),
+    [
+        # Named optional group that did not match → segment dropped.
+        ("/opt/%s?", {"id": None}, "/opt"),
+        ("/opt/%s?", {"id": ""}, "/opt"),
+        # Named optional group that matched → segment kept.
+        ("/opt/%s?", {"id": "42"}, "/opt/{id}"),
+        # Positional optional group that did not match → segment dropped.
+        ("/opt/%s?", [None], "/opt"),
+        ("/opt/%s?", [""], "/opt"),
+        # Positional optional group that matched → segment kept.
+        ("/opt/%s?", ["42"], "/opt/{param1}"),
+        # Two params in one segment, first absent → only second emitted (no ``+``).
+        ("/x/%s.%s", {"a": None, "b": "y"}, "/x/{b}"),
+        # Both absent in a segment → segment dropped entirely.
+        ("/x/%s.%s/suffix", {"a": None, "b": None}, "/x/suffix"),
+        # Multi-segment route, middle optional absent.
+        ("/a/%s?/b", {"id": None}, "/a/b"),
+        # Tornado returns bytes from url_unescape(encoding=None); b"" is also absent.
+        ("/opt/%s?", {"id": b""}, "/opt"),
+        ("/opt/%s?", [b""], "/opt"),
+        # Non-empty bytes → present (not absent).
+        ("/opt/%s?", {"id": b"42"}, "/opt/{id}"),
+    ],
+)
+def test_normalize_route_tornado_optional_group_filtering(route, path_params, expected):
+    assert normalize_route_tornado(route, path_params) == expected
+
+
+# --- Regex syntax in static segments ---
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        # Alternation inside a non-capturing group → structural ambiguity → None.
+        "/api/(?:v1|v2)/%s",
+        "/complex/(?:new|existing)/",
+        # Bare | alternation at segment level → None.
+        "/foo|bar/items",
+        # Lookahead group → None.
+        "/items/(?=\\d+)/detail",
+        # Nested alternation — ``|`` inside an inner group is also detected → None.
+        "/x/(?:a(?:b|c))/detail",
+    ],
+)
+def test_normalize_route_tornado_ambiguous_static_segment_returns_none(route):
+    assert normalize_route_tornado(route, {"id": "1"} if "%s" in route else {}) is None
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Character class → anonymous dynamic parameter.
+        ("/api/[a-z]+/%s", "/api/{param1}/{id}"),
+        # Bare wildcard patterns → anonymous dynamic parameter.
+        ("/assets/.+", "/assets/{param1}"),
+        ("/items/.*", "/items/{param1}"),
+        # Regex shorthand → anonymous dynamic parameter.
+        (r"/items/\d+/", "/items/{param1}/"),
+        (r"/prefix/\w+/suffix", "/prefix/{param1}/suffix"),
+        # Character class containing ``/`` — smarter split keeps [^/]+ intact.
+        ("/items/[^/]+/detail", "/items/{param1}/detail"),
+        # Non-capturing group without alternation, class containing ``/`` — also intact.
+        ("/items/(?:[^/]+)/detail", "/items/{param1}/detail"),
+        # Brace quantifier ``{n,m}`` → anonymous dynamic parameter.
+        ("/x/a{3}", "/x/{param1}"),
+        ("/x/\\d{2,4}", "/x/{param1}"),
+        # Multiple bare dynamic segments → param1, param2, …
+        ("/a/.+/b/.+", "/a/{param1}/b/{param2}"),
+        # Mixed: named %s param + bare dynamic → named first, then paramN continues.
+        ("/users/%s/posts/\\d+", "/users/{id}/posts/{param1}"),
+    ],
+)
+def test_normalize_route_tornado_anonymous_dynamic_segment(route, expected):
+    # path_params: named %s routes get a dict, bare-only routes get {}.
+    pp = {"id": "42"} if "%s" in route else {}
+    assert normalize_route_tornado(route, pp) == expected
+
+
+@pytest.mark.parametrize(
+    ("route", "expected"),
+    [
+        # Escaped paren ``\(`` means a literal ``(`` in the URL path — NOT regex syntax.
+        # The backslash is stripped and ``(`` is URL-encoded as ``%28``.
+        (r"/items/\(v1\)/item", "/items/%28v1%29/item"),
+        # Escaped dot ``\.`` → literal ``.`` → already in STATIC_SAFE, no encoding.
+        (r"/v1\.0/items", "/v1.0/items"),
+    ],
+)
+def test_normalize_route_tornado_escaped_chars_in_static_segment(route, expected):
+    assert normalize_route_tornado(route, {}) == expected

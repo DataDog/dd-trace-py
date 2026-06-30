@@ -62,3 +62,32 @@ def test_event_handler_returns_disable_for_missing_code():
 
     # Should still return DISABLE (graceful handling)
     assert result == sys.monitoring.DISABLE, f"Handler should return DISABLE even for missing code, got {result}"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_ensure_registered_claims_a_candidate_slot():
+    """Test that _ensure_registered() claims a slot from _DD_CANDIDATE_SLOTS (4, 3, 1)."""
+    import sys
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    # Free any slot we previously acquired
+    if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
+        sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+    m._DD_TOOL_ID = None
+
+    result = m._ensure_registered()
+
+    try:
+        assert result is True, "_ensure_registered() must return True on success"
+        assert m._DD_TOOL_ID is not None, "_ensure_registered() must set _DD_TOOL_ID"
+        assert m._DD_TOOL_ID in m._DD_CANDIDATE_SLOTS, (
+            f"Acquired slot {m._DD_TOOL_ID} is not in candidate slots {m._DD_CANDIDATE_SLOTS}"
+        )
+        assert sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog", (
+            f"Expected 'datadog' at slot {m._DD_TOOL_ID}, got {sys.monitoring.get_tool(m._DD_TOOL_ID)}"
+        )
+    finally:
+        if m._DD_TOOL_ID is not None and sys.monitoring.get_tool(m._DD_TOOL_ID) == "datadog":
+            sys.monitoring.free_tool_id(m._DD_TOOL_ID)
+        m._DD_TOOL_ID = None

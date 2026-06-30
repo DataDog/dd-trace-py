@@ -45,9 +45,9 @@ Datadog::ProfilerStats::reset_state()
     sampling_event_count = 0;
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
-    string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
     heap_tracker_size = std::nullopt;
+    heap_tracker_cap_drops = std::nullopt;
     asyncio_task_count = std::nullopt;
     greenlet_count = std::nullopt;
     sample_capture_cpu_time_us = 0;
@@ -103,18 +103,6 @@ Datadog::ProfilerStats::get_string_table_count() const
 }
 
 void
-Datadog::ProfilerStats::set_string_table_ephemeral_count(size_t count)
-{
-    string_table_ephemeral_count = count;
-}
-
-std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_ephemeral_count() const
-{
-    return string_table_ephemeral_count;
-}
-
-void
 Datadog::ProfilerStats::set_heap_tracker_size(size_t count)
 {
     heap_tracker_size = count;
@@ -124,6 +112,18 @@ std::optional<size_t>
 Datadog::ProfilerStats::get_heap_tracker_size() const
 {
     return heap_tracker_size;
+}
+
+void
+Datadog::ProfilerStats::set_heap_tracker_cap_drops(size_t count)
+{
+    heap_tracker_cap_drops = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_heap_tracker_cap_drops() const
+{
+    return heap_tracker_cap_drops;
 }
 
 void
@@ -184,13 +184,6 @@ Datadog::ProfilerStats::get_internal_metadata_json()
         internal_metadata_json += ",";
     }
 
-    auto maybe_string_table_ephemeral_count = get_string_table_ephemeral_count();
-    if (maybe_string_table_ephemeral_count) {
-        internal_metadata_json += R"("string_table_ephemeral_count": )";
-        append_to_string(internal_metadata_json, *maybe_string_table_ephemeral_count);
-        internal_metadata_json += ",";
-    }
-
     internal_metadata_json += R"("sample_count": )";
     append_to_string(internal_metadata_json, sample_count);
     internal_metadata_json += ",";
@@ -210,6 +203,13 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     if (maybe_heap_tracker_count) {
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
+        internal_metadata_json += ",";
+    }
+
+    auto maybe_heap_cap_drops = get_heap_tracker_cap_drops();
+    if (maybe_heap_cap_drops) {
+        internal_metadata_json += R"("heap_tracker_cap_drops": )";
+        append_to_string(internal_metadata_json, *maybe_heap_cap_drops);
         internal_metadata_json += ",";
     }
 

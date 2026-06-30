@@ -1,4 +1,5 @@
 import ctypes
+import gc
 import os
 import platform
 from threading import Barrier
@@ -6,6 +7,7 @@ from threading import Event
 from threading import Thread
 from time import monotonic
 from time import sleep
+import weakref
 
 import pytest
 
@@ -95,6 +97,53 @@ def test_periodic_awake_after_stop_returns_not_hangs():
 
     # Must return promptly. Before the fix this hung forever.
     t.awake()
+
+
+def _collect_until_cleared(ref, attempts=5):
+    for _ in range(attempts):
+        gc.collect()
+        if ref() is None:
+            return True
+        sleep(0.01)
+    return ref() is None
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_before_start():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "unstarted PeriodicThread bound-method cycle was not collected"
+
+
+def test_periodic_thread_bound_method_cycle_is_collectible_after_join():
+    class Owner:
+        def __init__(self):
+            self.thread = periodic.PeriodicThread(60.0, self.periodic)
+
+        def periodic(self):
+            pass
+
+        def run_and_stop(self):
+            self.thread.start()
+            self.thread.stop()
+            self.thread.join()
+
+    owner = Owner()
+    owner_ref = weakref.ref(owner)
+    owner.run_and_stop()
+
+    del owner
+
+    assert _collect_until_cleared(owner_ref), "stopped PeriodicThread bound-method cycle was not collected"
 
 
 def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
@@ -233,7 +282,7 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_forksafe_awakeable_periodic_service():
     import os
     from threading import Event
@@ -276,7 +325,131 @@ def test_forksafe_awakeable_periodic_service():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
+def test_periodic_service_does_not_restart_before_child_code_after_fork():
+    """Default services still restart in forked children."""
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    periodic_ran = Event()
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+    svc._worker.awake()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            assert svc._worker is not None
+            svc._worker.awake()
+            os.write(child_send, b"1" if periodic_ran.wait(timeout=2) else b"0")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_child_periodic_restart_does_not_block_app_code_after_fork():
+    """Child at-fork hook must not wait for a restarted thread to run."""
+    import os
+    import select
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+    svc = MyService(interval=60)
+    svc.start()
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            os.write(child_send, b"1")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    readable, _, _ = select.select([child_recv], [], [], 1)
+    result = os.read(child_recv, 1) if readable else b""
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_child_periodic_restart_visible_to_immediate_second_fork():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+
+    pid = os.fork()
+    if pid == 0:
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os.close(child_recv)
+            try:
+                assert svc._worker is not None
+                svc._worker.awake()
+                os.write(child_send, b"1" if periodic_ran.wait(timeout=2) else b"0")
+            finally:
+                os._exit(0)
+
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        os._exit(os.WEXITSTATUS(grandchild_status))
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not
@@ -500,7 +673,7 @@ def _get_native_thread_name():
     return None
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning:os"})
+@pytest.mark.subprocess
 def test_periodic_thread_stop_without_join_forksafe():
     """
     Dropping a PeriodicThread that was stop()'d without join() in a forked child

@@ -1,0 +1,4 @@
+fixes:
+  - |
+    sqlalchemy: Fixes duplicate SQLAlchemy event listeners when ``trace_engine()``
+    is called repeatedly for the same engine.

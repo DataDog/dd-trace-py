@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a17570b00000000",
+      "_dd.p.tid": "6a19ef4700000000",
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiokafka",
       "component": "aiokafka",
@@ -25,8 +25,8 @@
       "messaging.destination.name": "getmany_multiple_messages_multiple_topics_2",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "3964556687088658849",
-      "runtime-id": "729b107a3ceb47ac820b96a7acccc5d7",
+      "pathway.hash": "7836505328584449212",
+      "runtime-id": "7b808dd1021a41338f55b029feb0e93c",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -34,10 +34,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 557.0
+      "process_id": 510.0
     },
-    "duration": 14807677,
-    "start": 1779914507796498571
+    "duration": 16995950,
+    "start": 1780084551828499364
   }],
 [
   {
@@ -52,7 +52,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a17570800000000",
+      "_dd.p.tid": "6a19ef4400000000",
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiokafka",
       "component": "aiokafka",
@@ -64,8 +64,8 @@
       "messaging.destination.name": "getmany_multiple_messages_multiple_topics",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "17052484314529185803",
-      "runtime-id": "729b107a3ceb47ac820b96a7acccc5d7",
+      "pathway.hash": "980526249557665312",
+      "runtime-id": "7b808dd1021a41338f55b029feb0e93c",
       "span.kind": "producer"
     },
     "metrics": {
@@ -73,11 +73,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "kafka.partition": -1.0,
-      "process_id": 557.0
+      "kafka.message_offset": 0.0,
+      "kafka.partition": 0.0,
+      "process_id": 510.0
     },
-    "duration": 1419849,
-    "start": 1779914504777313302
+    "duration": 6521944,
+    "start": 1780084548591959315
   }],
 [
   {
@@ -92,7 +93,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a17570800000000",
+      "_dd.p.tid": "6a19ef4400000000",
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiokafka",
       "component": "aiokafka",
@@ -104,8 +105,8 @@
       "messaging.destination.name": "getmany_multiple_messages_multiple_topics",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "17052484314529185803",
-      "runtime-id": "729b107a3ceb47ac820b96a7acccc5d7",
+      "pathway.hash": "980526249557665312",
+      "runtime-id": "7b808dd1021a41338f55b029feb0e93c",
       "span.kind": "producer"
     },
     "metrics": {
@@ -113,11 +114,12 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "kafka.partition": -1.0,
-      "process_id": 557.0
+      "kafka.message_offset": 1.0,
+      "kafka.partition": 0.0,
+      "process_id": 510.0
     },
-    "duration": 947594,
-    "start": 1779914504778968821
+    "duration": 1042377,
+    "start": 1780084548599050924
   }],
 [
   {
@@ -132,7 +134,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.aiokafka",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6a17570800000000",
+      "_dd.p.tid": "6a19ef4400000000",
       "_dd.svc_src": "aiokafka",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.aiokafka",
       "component": "aiokafka",
@@ -144,8 +146,8 @@
       "messaging.destination.name": "getmany_multiple_messages_multiple_topics_2",
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092', '127.0.0.1:29092', '127.0.0.1:29092']",
       "messaging.system": "kafka",
-      "pathway.hash": "15798555699390652617",
-      "runtime-id": "729b107a3ceb47ac820b96a7acccc5d7",
+      "pathway.hash": "12311909681352468218",
+      "runtime-id": "7b808dd1021a41338f55b029feb0e93c",
       "span.kind": "producer"
     },
     "metrics": {
@@ -153,9 +155,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "kafka.partition": -1.0,
-      "process_id": 557.0
+      "kafka.message_offset": 0.0,
+      "kafka.partition": 0.0,
+      "process_id": 510.0
     },
-    "duration": 1027137,
-    "start": 1779914504780076875
+    "duration": 1080335,
+    "start": 1780084548600231067
   }]]

@@ -99,6 +99,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+docs/images/
+docs/ddtrace-module-dependencies.html
 _readthedocs/
 
 # PyBuilder
