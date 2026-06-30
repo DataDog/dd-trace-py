@@ -578,3 +578,508 @@ class TestUpdatePrMergeBase:
         mock_git.get_merge_base.assert_called_once_with(base_sha, head_sha)
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == expected_merge_base
         mock_git.pack_objects.assert_not_called()
+
+
+class TestUploadSentinel:
+    """Tests for the upload-completion sentinel used to deduplicate work across xdist workers."""
+
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = workspace_path
+        sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
+        sm.api_client = Mock()
+        return sm
+
+    def _write_sentinel(self, workspace_path, data) -> None:
+        import json as _json
+
+        sentinel_dir = workspace_path / ".git"
+        sentinel_dir.mkdir(exist_ok=True)
+        (sentinel_dir / "dd-trace-py.upload-done").write_text(_json.dumps(data))
+
+    def test_no_sentinel_returns_false(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_upload_sentinel() is None
+
+    def test_fresh_matching_sentinel_returns_true(self, tmp_path) -> None:
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        assert sm._read_upload_sentinel() is not None
+
+    def test_stale_sentinel_returns_false(self, tmp_path) -> None:
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        # 1 hour in the past — well beyond the 5-minute TTL.
+        self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time() - 3600})
+        assert sm._read_upload_sentinel() is None
+
+    def test_different_head_sentinel_returns_false(self, tmp_path) -> None:
+        import time as _time
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_sentinel(tmp_path, {"head_sha": "other-sha", "timestamp": _time.time()})
+        assert sm._read_upload_sentinel() is None
+
+    def test_malformed_sentinel_returns_false(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "dd-trace-py.upload-done").write_text("not json{{")
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        assert sm._read_upload_sentinel() is None
+
+    def test_missing_head_sha_skips_check(self, tmp_path) -> None:
+        import time as _time
+
+        # No COMMIT_SHA in env_tags: even a matching sentinel must not be honored,
+        # because we don't know what HEAD to validate against.
+        sm = self._make_sm(tmp_path, head_sha=None)
+        self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        assert sm._read_upload_sentinel() is None
+
+    def test_missing_workspace_path_attribute_returns_false(self) -> None:
+        from ddtrace.testing.internal.git import GitTag
+
+        # Some tests build SessionManager via __new__ without setting workspace_path.
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {GitTag.COMMIT_SHA: "head-sha"}
+        assert sm._read_upload_sentinel() is None
+
+    def test_mark_writes_expected_payload(self, tmp_path) -> None:
+        import json as _json
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._mark_upload_done()
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert data["head_sha"] == "head-sha"
+        assert isinstance(data["timestamp"], (int, float))
+
+    def test_mark_noop_without_head_sha(self, tmp_path) -> None:
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha=None)
+        sm._mark_upload_done()
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_upload_git_data_skips_when_sentinel_fresh(self, tmp_path) -> None:
+        """When the sentinel matches, upload_git_data skips git entirely."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_sentinel(tmp_path, {"head_sha": "head-sha", "timestamp": _time.time()})
+        assert sm.env_tags[GitTag.COMMIT_SHA] == "head-sha"
+
+        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        sm.api_client.get_known_commits.assert_not_called()
+
+    def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
+        """The sentinel is written when the early-return on all-commits-known path is taken."""
+        import json as _json
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
+        mock_git.is_shallow_repository.return_value = False
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert data["head_sha"] == "head-sha"
+
+    def test_upload_git_data_writes_sentinel_after_pack_upload(self, tmp_path) -> None:
+        """The sentinel is written after the pack-upload path completes successfully."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert data["head_sha"] == "head-sha"
+
+    def test_upload_git_data_does_not_write_sentinel_when_pack_objects_yields_nothing(self, tmp_path) -> None:
+        """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([])  # nothing yielded
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_upload_git_data_does_not_write_sentinel_when_all_uploads_fail(self, tmp_path) -> None:
+        """If every send_git_pack_file returns None, peers should retry rather than skip."""
+        from pathlib import Path as _Path
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+        sm.api_client.send_git_pack_file.return_value = None  # upload failure
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake.pack")])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_upload_git_data_does_not_write_sentinel_on_partial_upload_failure(self, tmp_path) -> None:
+        """Partial success (some packfiles sent, some failed) must not suppress peer retries."""
+        from pathlib import Path as _Path
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        sm.api_client.get_known_commits.return_value = []
+        # First packfile succeeds, second fails.
+        sm.api_client.send_git_pack_file.side_effect = [123, None]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+        mock_git.is_shallow_repository.return_value = False
+        mock_git.get_filtered_revisions.return_value = ["commit-1"]
+        mock_git.pack_objects.return_value = iter([_Path("/tmp/fake1.pack"), _Path("/tmp/fake2.pack")])
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_upload_git_data_does_not_write_sentinel_on_search_commits_failure(self, tmp_path) -> None:
+        """If search_commits fails, no sentinel is written so peers can retry."""
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        (tmp_path / ".git").mkdir()
+        # API returning None signals a failure that aborts the upload.
+        sm.api_client.get_known_commits.return_value = None
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["commit-1"]
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert not (tmp_path / ".git" / "dd-trace-py.upload-done").exists()
+
+    def test_mark_includes_merge_base_when_set(self, tmp_path) -> None:
+        """The sentinel encodes merge_base_sha so peers can recover it on skip."""
+        import json as _json
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = "merge-base-sha"
+        sm._mark_upload_done()
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert data["merge_base_sha"] == "merge-base-sha"
+
+    def test_mark_omits_merge_base_when_unset(self, tmp_path) -> None:
+        """If env_tags has no merge-base, the sentinel doesn't include the key."""
+        import json as _json
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._mark_upload_done()
+        data = _json.loads((tmp_path / ".git" / "dd-trace-py.upload-done").read_text())
+        assert "merge_base_sha" not in data
+
+    def test_apply_sentinel_populates_merge_base(self, tmp_path) -> None:
+        """A peer that skips uploads recovers the merge-base SHA from the sentinel."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._apply_upload_sentinel({"head_sha": "head-sha", "merge_base_sha": "recovered-sha"})
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "recovered-sha"
+
+    def test_apply_sentinel_does_not_overwrite_existing_merge_base(self, tmp_path) -> None:
+        """User-supplied PR base SHA takes precedence over the sentinel's value."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] = "existing-sha"
+        sm._apply_upload_sentinel({"head_sha": "head-sha", "merge_base_sha": "sentinel-sha"})
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "existing-sha"
+
+    def test_apply_sentinel_skips_when_merge_base_absent(self, tmp_path) -> None:
+        """Sentinel without merge_base_sha leaves env_tags untouched."""
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm._apply_upload_sentinel({"head_sha": "head-sha"})
+        assert GitTag.PULL_REQUEST_BASE_BRANCH_SHA not in sm.env_tags
+
+    def test_upload_git_data_skip_applies_sentinel_merge_base(self, tmp_path) -> None:
+        """End-to-end: a peer skipping upload recovers the merge-base from the sentinel."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        self._write_sentinel(
+            tmp_path,
+            {"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-merge-base"},
+        )
+
+        with patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls:
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-merge-base"
+
+
+class TestUploadLock:
+    """Tests for the cross-process lock around upload_git_data."""
+
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+        from ddtrace.testing.internal.git import GitTag
+
+        sm = SessionManager.__new__(SessionManager)
+        sm.workspace_path = workspace_path
+        sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
+        sm.api_client = Mock()
+        sm.api_client.get_known_commits.return_value = []
+        return sm
+
+    def test_lock_acquired_when_no_contention(self, tmp_path) -> None:
+        """Single process: lock yields True and runs the upload body."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        with sm._upload_lock() as acquired:
+            assert acquired is True
+
+    def test_lock_yields_true_when_path_unavailable(self) -> None:
+        """Without workspace_path there is no peer coordination possible; yield True (proceed as sole uploader)."""
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+
+        with sm._upload_lock() as acquired:
+            assert acquired is True
+
+    def test_lock_yields_true_when_fcntl_unavailable(self, tmp_path) -> None:
+        """If fcntl is unavailable (e.g. Windows), no coordination is possible; yield True (sole uploader)."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        with patch("ddtrace.testing.internal.session_manager._FCNTL_AVAILABLE", False):
+            with sm._upload_lock() as acquired:
+                assert acquired is True
+
+    def test_lock_yields_false_on_timeout(self, tmp_path) -> None:
+        """If flock keeps raising BlockingIOError past the deadline, yield False."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        # Force flock to always say "would block" and drive time forward past the deadline.
+        with (
+            patch("ddtrace.testing.internal.session_manager.fcntl.flock", side_effect=BlockingIOError()),
+            patch("ddtrace.testing.internal.session_manager.time.monotonic", side_effect=[0.0, 9999.0]),
+            patch("ddtrace.testing.internal.session_manager.time.sleep"),
+        ):
+            with sm._upload_lock() as acquired:
+                assert acquired is False
+
+    def test_upload_git_data_runs_under_lock(self, tmp_path) -> None:
+        """upload_git_data acquires the lock and proceeds to the upload work."""
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.api_client.get_known_commits.return_value = ["c1"]
+
+        mock_git = Mock()
+        mock_git.get_latest_commits.return_value = ["c1"]
+        mock_git.is_shallow_repository.return_value = False
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git) as mock_git_cls,
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_called_once()
+        # Sentinel should be there now — a second call should short-circuit.
+        sentinel_path = tmp_path / ".git" / "dd-trace-py.upload-done"
+        assert sentinel_path.exists()
+        assert sm.env_tags.get(GitTag.COMMIT_SHA) == "head-sha"
+
+    def test_upload_git_data_rechecks_sentinel_after_lock(self, tmp_path) -> None:
+        """If a peer writes the sentinel while we wait for the lock, we skip on re-check."""
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        @contextmanager
+        def fake_lock_with_peer_completion():
+            # Simulate: while we waited for the lock, a peer finished and wrote the sentinel.
+            (tmp_path / ".git" / "dd-trace-py.upload-done").write_text(
+                _json.dumps({"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-mb"})
+            )
+            yield True
+
+        import json as _json
+
+        with (
+            patch.object(sm, "_upload_lock", fake_lock_with_peer_completion),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
+
+    def test_upload_git_data_skips_when_lock_times_out(self, tmp_path) -> None:
+        """If the lock times out (peer is alive and uploading), the upload is skipped.
+
+        A timeout means a peer is alive and uploading; a crashed peer would have
+        released the flock lock immediately. We bail rather than duplicate the work.
+        """
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        @contextmanager
+        def no_lock():
+            yield False  # timeout: live peer holds the lock
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+        ):
+            sm.upload_git_data()
+
+        # Full upload skipped, but Git() was still instantiated to compute merge-base.
+        mock_git_cls.assert_called_once()
+
+    def test_upload_git_data_computes_merge_base_on_lock_timeout(self, tmp_path) -> None:
+        """On lock timeout with no sentinel, merge-base is computed directly (no upload)."""
+        from ddtrace.testing.internal.git import GitTag
+        from tests.testing.mocks import get_mock_git_instance
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] = "base"
+        sm.env_tags[GitTag.COMMIT_HEAD_SHA] = "head"
+
+        mock_git = get_mock_git_instance()
+        mock_git.get_merge_base.return_value = "merge-base-sha"
+
+        @contextmanager
+        def no_lock():
+            yield False
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git),
+            patch("ddtrace.testing.internal.session_manager.TelemetryAPI"),
+        ):
+            sm.upload_git_data()
+
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "merge-base-sha"
+
+    def test_upload_git_data_applies_sentinel_on_lock_timeout(self, tmp_path) -> None:
+        """When the lock times out but the peer wrote the sentinel while we waited, apply it."""
+        import json as _json
+        import time as _time
+
+        from ddtrace.testing.internal.git import GitTag
+
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+
+        @contextmanager
+        def no_lock():
+            # Simulate: peer finished and wrote the sentinel just before our timeout fired.
+            (tmp_path / ".git" / "dd-trace-py.upload-done").write_text(
+                _json.dumps({"head_sha": "head-sha", "timestamp": _time.time(), "merge_base_sha": "peer-mb"})
+            )
+            yield False  # timeout: live peer holds the lock
+
+        with (
+            patch.object(sm, "_upload_lock", no_lock),
+            patch("ddtrace.testing.internal.session_manager.Git") as mock_git_cls,
+        ):
+            sm.upload_git_data()
+
+        mock_git_cls.assert_not_called()
+        assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
+
+    def test_cleanup_removes_sentinel_and_lock(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() deletes both files when present."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sentinel = tmp_path / ".git" / "dd-trace-py.upload-done"
+        lock = tmp_path / ".git" / "dd-trace-py.upload.lock"
+        sentinel.write_text("{}")
+        lock.write_text("")
+
+        sm.cleanup_upload_artifacts()
+
+        assert not sentinel.exists()
+        assert not lock.exists()
+
+    def test_cleanup_is_noop_when_files_absent(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() does not raise when files are already gone."""
+        (tmp_path / ".git").mkdir()
+        sm = self._make_sm(tmp_path, head_sha="head-sha")
+        sm.cleanup_upload_artifacts()  # no files present — must not raise
+
+    def test_cleanup_is_noop_without_workspace_path(self) -> None:
+        """cleanup_upload_artifacts() does not raise when workspace_path is unset."""
+        sm = SessionManager.__new__(SessionManager)
+        sm.env_tags = {}
+        sm.cleanup_upload_artifacts()  # no workspace_path — must not raise

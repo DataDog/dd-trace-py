@@ -16,6 +16,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
+13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 
 ## Key Architecture
 
@@ -43,6 +44,14 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
 - **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
 
+## Troubleshooting
+
+See `docs/troubleshooting.rst`. Covers common issues including:
+- Installation failures and missing native extensions
+- Traces not appearing in the Datadog app
+- Connection errors sending to the agent
+- Build failures and `ModuleNotFoundError` when running with riot
+
 ## Skills
 
 Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
@@ -58,6 +67,8 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
 | `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
 | `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |
+| `apm-integrations` | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, testing with riot, VCR cassettes, and anti-patterns. Use when touching any integration. |
+| `llmobs-integrations` | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
 
 ## Domain Guides
 
@@ -67,6 +78,8 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 |--------|-------|-------|
 | Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
 | IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
+| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/appsec/ai_guard/`, `ddtrace/appsec/_ai_guard/`, `tests/appsec/ai_guard/` |
+| Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |

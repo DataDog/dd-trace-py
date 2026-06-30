@@ -5,11 +5,14 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_ASSISTANT_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TEXT
+from tests.contrib.claude_agent_sdk.utils import MOCK_ASSISTANT_MESSAGE_ERROR_TYPE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_FINAL_ASSISTANT_TEXT
@@ -20,6 +23,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_STRUCTURED_OUTPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_ERROR_MESSAGE
 from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
+from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
@@ -75,6 +79,13 @@ class TestLLMObsClaudeAgentSdk:
             metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
+        )
+        # The LLM Observability UI filters out span links from parent to direct
+        # child. Confirm no agent → llm span link is emitted, since the agent
+        # span is the llm span's ancestor.
+        llm1_links = get_llmobs_span_links(llm_span) or []
+        assert not any(link["span_id"] == str(agent_span.span_id) for link in llm1_links), (
+            "Unexpected span link from the agent to the first LLM span"
         )
 
     async def test_llmobs_query_with_options(
@@ -275,6 +286,66 @@ class TestLLMObsClaudeAgentSdk:
             tags=COMMON_TAGS,
         )
 
+    async def test_llmobs_assistant_message_error_uses_content_text_as_message(
+        self, claude_agent_sdk, mock_internal_client_assistant_message_error_text, claude_agent_sdk_llmobs, test_spans
+    ):
+        """When the SDK reports a coarse error category (e.g. "unknown") but the descriptive
+        API error lives in the assistant message content, the error message should be the
+        content text rather than the category literal, while the error type stays the
+        category reported by the SDK.
+        """
+        prompt = "Hello"
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 3
+        agent_span = spans[0]
+        step_span = next(s for s in spans if s.name == "claude_agent_sdk.step")
+        llm_span = next(s for s in spans if s.name == "claude_agent_sdk.llm")
+
+        input_msgs = [{"content": prompt, "role": "user"}]
+        expected_error = {
+            "type": MOCK_ASSISTANT_MESSAGE_ERROR_TYPE,
+            "message": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT,
+            "stack": ANY,
+        }
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(llm_span),
+            span_kind="llm",
+            model_name=MOCK_MODEL,
+            model_provider="anthropic",
+            input_messages=input_msgs,
+            output_messages=[{"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"}],
+            error=expected_error,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(step_span),
+            span_kind="step",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json([{"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"}]),
+            error=expected_error,
+            tags=COMMON_TAGS,
+        )
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(agent_span),
+            span_kind="agent",
+            input_value=safe_json(input_msgs),
+            output_value=safe_json(
+                [
+                    {"content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA), "role": "system"},
+                    {"content": MOCK_ASSISTANT_MESSAGE_ERROR_TEXT, "role": "assistant"},
+                    {"content": "4", "role": "assistant"},
+                ]
+            ),
+            metadata={"stop_reason": "end_turn", "_dd": {"agent_manifest": expected_agent_manifest()}},
+            metrics=EXPECTED_QUERY_USAGE,
+            error=expected_error,
+            tags=COMMON_TAGS,
+        )
+
     async def test_llmobs_client_query_captures_prompt(self, mock_client, claude_agent_sdk_llmobs, test_spans):
         prompt = "Hello from client!"
 
@@ -411,6 +482,7 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
 
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, mock_internal_client_bash_tool, claude_agent_sdk_llmobs, test_spans
@@ -492,6 +564,7 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
 
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, mock_internal_client_grep_tool, claude_agent_sdk_llmobs, test_spans
@@ -573,6 +646,7 @@ class TestLLMObsClaudeAgentSdk:
             metrics=EXPECTED_QUERY_USAGE,
             tags=COMMON_TAGS,
         )
+        _assert_span_link(llm_span, tool_span, "output", "input")
 
     async def test_llmobs_query_with_async_iterable_prompt(
         self, claude_agent_sdk, mock_internal_client, claude_agent_sdk_llmobs, test_spans
@@ -808,6 +882,10 @@ class TestLLMObsClaudeAgentSdk:
         # agent span
         assert_llmobs_span_data(_get_llmobs_data_metastruct(agent_span), span_kind="agent")
 
+        _assert_span_link(llm_spans[0], tool_span, "output", "input")
+        _assert_span_link(tool_span, llm_spans[1], "output", "input")
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+
     async def test_llmobs_llm_span_includes_token_usage(
         self, claude_agent_sdk, mock_internal_client_with_usage, claude_agent_sdk_llmobs, test_spans
     ):
@@ -852,6 +930,8 @@ class TestLLMObsClaudeAgentSdk:
             pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
         tool_span = next(s for s in spans if "tool" in s.name)
 
         assert tool_span.error == 1
@@ -865,6 +945,107 @@ class TestLLMObsClaudeAgentSdk:
             error={"type": "ToolError", "message": MOCK_TOOL_ERROR_MESSAGE, "stack": ANY},
             tags=COMMON_TAGS,
         )
+        assert len(step_spans) == 2
+        _assert_span_link(llm_spans[0], tool_span, "output", "input")
+        _assert_span_link(tool_span, llm_spans[-1], "output", "input")
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+
+    async def test_llmobs_parallel_tool_use_links_all_tools_to_assistant(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_parallel_tool_use,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """Parallel tool calls in a single AssistantMessage produce sibling tool spans.
+
+        Every parallel tool span gets a link from the same llm span
+        (``llm#1 → tool#k``), every parallel tool span links to the next llm
+        span (``tool#k → llm#2``), and no tool span links to any other tool
+        span (parallel tools are siblings, not a chain).
+        """
+        prompt = "Run three Bash commands in parallel."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        # Sort by start time so step#1 is unambiguously the first step span.
+        llm_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.llm"], key=lambda s: s.start_ns)
+        step_spans = sorted([s for s in spans if s.name == "claude_agent_sdk.step"], key=lambda s: s.start_ns)
+        tool_spans = [s for s in spans if "tool" in s.name]
+
+        # Sequence is: assistant(3 parallel ToolUseBlocks) → user(3 ToolResultBlocks)
+        # → final assistant(text) → result. Expect 2 step spans, 2 llm spans, 3 tool spans.
+        assert len(llm_spans) == 2
+        assert len(step_spans) == 2
+        assert len(tool_spans) == 3
+        assert {s.name for s in tool_spans} == {"claude_agent_sdk.tool.Bash"}
+
+        # Fan-out: each tool gets one incoming link from llm#1.
+        for tool_span in tool_spans:
+            _assert_span_link(llm_spans[0], tool_span, "output", "input")
+
+        # Fan-in: llm#2 has one incoming link from each parallel tool.
+        for tool_span in tool_spans:
+            _assert_span_link(tool_span, llm_spans[1], "output", "input")
+
+        # No tool → tool link: parallel tools are siblings, not chained.
+        for tool_span in tool_spans:
+            for link in get_llmobs_span_links(tool_span) or []:
+                assert link["span_id"] not in {str(s.span_id) for s in tool_spans}, (
+                    f"Tool span {tool_span.span_id} unexpectedly links to another tool span "
+                    f"({link['span_id']}); parallel tools should be siblings, not chained."
+                )
+
+        # Step-to-step link is still emitted alongside the fan-out.
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+
+    async def test_llmobs_back_to_back_assistant_messages_link_llm_to_llm_directly(
+        self,
+        claude_agent_sdk,
+        mock_internal_client_double_assistant_no_tools,
+        claude_agent_sdk_llmobs,
+        test_spans,
+    ):
+        """Two text-only AssistantMessages back-to-back keep the llm spans connected.
+
+        Normal multi-turn flow has a tool span between consecutive llm spans, so the
+        chain is ``llm#1 → tool → llm#2``. If a step has no tools (e.g. two
+        AssistantMessages with only text), there's nothing to link through, so the
+        integration links ``llm#1 → llm#2`` directly to preserve the chain.
+        """
+        prompt = "Test back-to-back assistant messages."
+        async for _ in claude_agent_sdk.query(prompt=prompt):
+            pass
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        llm_spans = [s for s in spans if s.name == "claude_agent_sdk.llm"]
+        step_spans = [s for s in spans if s.name == "claude_agent_sdk.step"]
+
+        assert len(llm_spans) == 2
+        assert len(step_spans) == 2
+
+        # Direct llm-to-llm link (no tool spans between them).
+        _assert_span_link(llm_spans[0], llm_spans[1], "output", "input")
+        # Step-to-step link is still emitted alongside the bridge.
+        _assert_span_link(step_spans[0], step_spans[1], "output", "input")
+
+    async def test_llmobs_client_sequential_queries(self, mock_client, claude_agent_sdk_llmobs, test_spans):
+        """Two sequential ClaudeSDKClient.query() + receive_response() calls produce two
+        separate root agent spans. Regression test for spans nesting under a prior
+        unfinished agent span when receive_response() early-returns after ResultMessage.
+        """
+        for prompt in ("Q1", "Q2"):
+            await mock_client.query(prompt=prompt)
+            async for _ in mock_client.receive_response():
+                pass
+
+        traces = test_spans.pop_traces()
+        assert len(traces) == 2
+        agent_spans = [trace[0] for trace in traces]
+        assert all(s.name == "claude_agent_sdk.ClaudeSDKClient.query" for s in agent_spans)
+        assert all(s.parent_id is None for s in agent_spans)
+        assert agent_spans[0].trace_id != agent_spans[1].trace_id
 
 
 def test_shadow_tags_llm_with_cache_tokens(tracer):

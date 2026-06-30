@@ -30,6 +30,20 @@ def test_global_tags(litellm, request_vcr, test_spans):
     assert span.get_tag("litellm.request.model") == "gpt-3.5-turbo"
 
 
+@pytest.mark.parametrize("metadata", [None, {}])
+def test_litellm_completion_with_metadata_none(litellm, request_vcr, test_spans, metadata):
+    with request_vcr.use_cassette("completion.yaml"):
+        litellm.completion(
+            model="gpt-3.5-turbo",
+            messages=[{"content": "Hey, what is up?", "role": "user"}],
+            metadata=metadata,
+        )
+
+    span = test_spans.pop_traces()[0][0]
+    assert span.resource == "completion"
+    assert span.error == 0
+
+
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])
 def test_litellm_completion(litellm, snapshot_context, request_vcr, stream, n):
     shadow_ignores = [

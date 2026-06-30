@@ -123,3 +123,74 @@ def test_safe_dict():
 
     with pytest.raises(AttributeError):
         _safety._safe_dict(Foo())
+
+
+def test_get_locals_freevars():
+    """get_locals should include closure variables (freevars and cellvars)."""
+    captured = []
+
+    def outer():
+        cell = 42  # cellvar captured by inner
+
+        def inner():
+            captured.append(inspect.currentframe())
+            return cell  # freevar inside inner
+
+        inner()
+
+    outer()
+    frame = captured[0]
+    local_names = {name for name, _ in _safety.get_locals(frame)}
+    assert "cell" in local_names
+
+
+def test_get_locals_cellvars():
+    """get_locals on the outer frame should expose cellvars."""
+    outer_frames = []
+
+    def outer():
+        cell = 99  # cellvar
+        outer_frames.append(inspect.currentframe())
+
+        def inner():
+            return cell
+
+        inner()
+
+    outer()
+    frame = outer_frames[0]
+    local_names = {name for name, _ in _safety.get_locals(frame)}
+    assert "cell" in local_names
+
+
+def test_get_globals_returns_referenced_globals():
+    """get_globals should return names referenced as globals in the frame's code."""
+    frames = []
+
+    def capture():
+        _ = GLOBAL_VALUE  # references GLOBAL_VALUE via LOAD_GLOBAL
+        frames.append(inspect.currentframe())
+
+    capture()
+    result = dict(_safety.get_globals(frames[0]))
+    assert "GLOBAL_VALUE" in result
+    assert result["GLOBAL_VALUE"] == GLOBAL_VALUE
+
+
+def test_getattr_or_exception_returns_exception():
+    """getattr_or_exception should return the exception when attribute access fails."""
+
+    class Boom:
+        @property
+        def bad(self):
+            raise ValueError("boom")
+
+    obj = Boom()
+    result = _safety.getattr_or_exception(obj, "bad")
+    assert isinstance(result, Exception)
+
+
+def test_getattr_or_exception_missing_attribute():
+    """getattr_or_exception returns AttributeError for missing attributes."""
+    result = _safety.getattr_or_exception(object(), "nonexistent")
+    assert isinstance(result, AttributeError)

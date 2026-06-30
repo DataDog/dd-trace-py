@@ -15,6 +15,7 @@ from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
@@ -29,6 +30,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.azure_cosmos.utils import normalize_resource_uri as _normalize_cosmos_resource_uri
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import ensure_config_registered as _ensure_pubsub_config
 from ddtrace.contrib.internal.google_cloud_pubsub.utils import parse_resource_path as _parse_pubsub_resource_path
@@ -40,6 +42,10 @@ from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
+from ddtrace.contrib.internal.ray.constants import DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR
+from ddtrace.contrib.internal.ray.constants import RAY_APP_NAME
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
+from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -62,6 +68,7 @@ from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
+from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
@@ -521,6 +528,12 @@ def _set_flask_request_tags(request, span, flask_config):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             span.resource = " ".join((request.method, request.url_rule.rule))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            # Side-channel tag for backend resource remapping; resource itself stays app-local.
+            if request.script_root:
+                span._set_attribute(
+                    FLASK_RESOURCE_FULL,
+                    " ".join((request.method, request.script_root + request.url_rule.rule)),
+                )
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -631,18 +644,29 @@ def _on_web_request_final_tags(span):
         _set_inferred_proxy_tags(span, None)
 
 
+def _django_request_path_params(request):
+    from ddtrace.contrib.internal.django.utils import _request_path_params
+
+    return _request_path_params(request)
+
+
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
     after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
+    # Forward request_path_params alongside route so AppSec normalized-route listeners can consult the matched
+    # parameter map to resolve optional regex groups (RFC-1103 rule 6).
+    trace_utils.set_http_meta(
+        span,
+        ctx.get_item("integration_config"),
+        route=span.get_tag("http.route"),
+        request_path_params=_django_request_path_params(request),
+    )
     _set_inferred_proxy_tags(span, None)
 
 
-def _on_django_start_response(
-    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[dict[str, str]]
-):
+def _on_django_start_response(ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str):
     parsed_query = request.GET
     body = extract_body(request)
     remake_body(request)
@@ -653,7 +677,7 @@ def _on_django_start_response(
         method=request.method,
         query=query,
         raw_uri=uri,
-        request_path_params=path,
+        request_path_params=_django_request_path_params(request),
         parsed_query=parsed_query,
         request_body=body,
         request_cookies=request.COOKIES,
@@ -707,10 +731,16 @@ def _on_django_after_request_headers_post(
         request_headers=request_headers,
         response_headers=response_headers,
         request_cookies=request.COOKIES,
-        request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        peer_ip=core.get_item("http.request.remote_ip"),
+        request_path_params=_django_request_path_params(request),
+        peer_ip=core.find_item("remote_addr"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
+        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
+        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
+        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
+        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
+        route=span.get_tag("http.route"),
     )
 
 
@@ -1329,7 +1359,8 @@ def _on_aiokafka_send_start(
     span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
     span._set_attribute(TOMBSTONE, str(send_value is None))
     span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    span._set_attribute(PARTITION, partition or -1)
+    if partition is not None:
+        span._set_attribute(PARTITION, partition)
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     if config.aiokafka.distributed_tracing_enabled:
@@ -1341,8 +1372,18 @@ def _on_aiokafka_send_start(
 
 
 def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    record_metadata: Optional[Any],
 ) -> None:
+    span = ctx.span
+    if span is not None and record_metadata is not None:
+        partition = getattr(record_metadata, "partition", None)
+        offset = getattr(record_metadata, "offset", None)
+        if isinstance(partition, int):
+            span._set_attribute(PARTITION, partition)
+        if isinstance(offset, int):
+            span._set_attribute(MESSAGE_OFFSET, offset)
     _finish_span(ctx, exc_info)
 
 
@@ -1361,7 +1402,6 @@ def _on_aiokafka_getone_message(
 
     if message is not None:
         message_key = message.key.decode("utf-8") if message.key else None
-        message_offset = message.offset or -1
         topic = str(message.topic)
         span._set_attribute(TOPIC, topic)
         span._set_attribute(TOMBSTONE, str(message.value is None))
@@ -1369,8 +1409,10 @@ def _on_aiokafka_getone_message(
         if isinstance(message_key, str):
             span.set_tag(MESSAGE_KEY, message_key)
 
-        span._set_attribute(PARTITION, message.partition or -1)
-        span._set_attribute(MESSAGE_OFFSET, message_offset)
+        if message.partition is not None:
+            span._set_attribute(PARTITION, message.partition)
+        if message.offset is not None:
+            span._set_attribute(MESSAGE_OFFSET, message.offset)
 
     if err is not None:
         span.set_exc_info(type(err), err, err.__traceback__)
@@ -1416,6 +1458,47 @@ def _on_aiokafka_getmany_message(
                     context = HTTPPropagator.extract(dd_headers)
 
                     span.link_span(context)
+
+
+def _inject_context_into_ray_serve_grpc_context(span: Span, grpc_context: Any) -> None:
+    trace_headers: dict[str, str] = {}
+    HTTPPropagator.inject(span.context, trace_headers)
+
+    invocation_metadata = list(grpc_context.invocation_metadata())
+    invocation_metadata.extend(trace_headers.items())
+    grpc_context._invocation_metadata = invocation_metadata
+
+
+def _on_ray_serve_request_metadata_inject(ctx: core.ExecutionContext, request_metadata: Any) -> None:
+    span = ctx.span
+    if span is None or request_metadata is None:
+        return
+
+    grpc_context = getattr(request_metadata, "grpc_context", None)
+    if getattr(request_metadata, "is_grpc_request", False) and grpc_context is not None:
+        _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+    else:
+        headers: dict[str, str] = {}
+        HTTPPropagator.inject(span.context, headers)
+        setattr(request_metadata, DD_REQUEST_METADATA_TRACE_CONTEXT_ATTR, headers)
+
+
+def _on_ray_serve_grpc_context_inject(ctx: core.ExecutionContext, grpc_context: Any) -> None:
+    span = ctx.span
+    if span is None or grpc_context is None:
+        return
+
+    _inject_context_into_ray_serve_grpc_context(span, grpc_context)
+
+
+def _on_ray_serve_deployment_resource_set(
+    ctx: core.ExecutionContext, deployment_name: str, endpoint_name: Optional[str]
+) -> None:
+    if endpoint_name is None:
+        return
+
+    span = ctx.span
+    span.resource = f"ServeDeployment:{deployment_name}.{endpoint_name}"
 
 
 def _on_pubsub_request_start(ctx: core.ExecutionContext) -> None:
@@ -1629,7 +1712,7 @@ def _set_azure_cosmos_request_tags(
     if parsed.path:
         resource_link = parsed.path
 
-    span.resource = request_params.operation_type + " " + resource_link
+    span.resource = request_params.operation_type + " " + _normalize_cosmos_resource_uri(resource_link)
     if (
         request_params.operation_type == "Create"
         and request_params.resource_type == "dbs"
@@ -1668,6 +1751,135 @@ def _on_azure_cosmos_request_finish(
             span._set_attribute(db.STATUS_CODE, str(status_code))
 
     _finish_span(ctx, exc_info)
+
+
+def _get_ray_serve_request_span_type(request_meta: Any) -> Optional[str]:
+    if request_meta is None or getattr(request_meta, "is_http_request", False):
+        return SpanTypes.HTTP
+    if getattr(request_meta, "is_grpc_request", False):
+        return SpanTypes.GRPC
+    return SpanTypes.RAY
+
+
+def _on_ray_assign_request(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+
+    span_type = _get_ray_serve_request_span_type(request_meta)
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if request_meta is not None:
+        span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+    is_streaming = ctx.get_item("is_streaming")
+    if is_streaming is not None:
+        span._set_attribute("ray.serve.is_streaming", is_streaming)
+
+    handle_source = ctx.get_item("handle_source")
+    if handle_source:
+        span._set_attribute("ray.serve.handle_source", handle_source)
+
+
+def _set_tag_or_truncate(span: Span, tag_name: str, tag_value: Any = None) -> None:
+    """Set tag when within limits, otherwise redact oversized values."""
+    if sys.getsizeof(tag_value) > MAX_SPAN_META_VALUE_LEN:
+        span._set_attribute(tag_name, "<redacted>")
+    else:
+        span._set_attribute(tag_name, tag_value)
+
+
+def _on_ray_deployment_remote(ctx: core.ExecutionContext) -> None:
+    deployment_name = ctx.get_item("deployment_name")
+    app_name = ctx.get_item("app_name")
+    resource = f"ServeDeployment:{deployment_name}.remote" if deployment_name is not None else "deployment.remote"
+
+    span = _start_span(ctx, resource=resource, span_type=SpanTypes.RAY)
+
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+    if app_name:
+        span._set_attribute(RAY_APP_NAME, app_name)
+
+    if config.ray.trace_args_kwargs:
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_ARGS, ctx.get_item("deployment_args"))
+        _set_tag_or_truncate(span, RAY_DEPLOYMENT_KWARGS, ctx.get_item("deployment_kwargs"))
+
+
+def _on_ray_handle_request_with_rejection_start(ctx: core.ExecutionContext) -> None:
+    request_meta = ctx.get_item("request_meta")
+    distributed_context = ctx.get_item("distributed_context")
+    if distributed_context is None:
+        distributed_context = tracer.current_trace_context()
+    span_type = _get_ray_serve_request_span_type(request_meta)
+
+    span = _start_span(ctx, span_type=span_type, child_of=distributed_context)
+    span._set_attribute(COMPONENT, config.ray.integration_name)
+
+
+def _on_ray_handle_request_with_rejection_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        span = ctx.span
+
+        request_meta = ctx.get_item("request_meta")
+        if request_meta is not None:
+            span._set_attribute("ray.serve.request_id", request_meta.request_id)
+
+        replica_id = ctx.get_item("replica_id")
+        if replica_id is not None:
+            span._set_attribute("ray.serve.replica_id", replica_id)
+
+        request_rejected = ctx.get_item("ray_serve_request_rejected")
+        if request_rejected:
+            span.error = 1
+            span._set_attribute(ERROR_MSG, "Ray Serve request rejected by replica capacity check")
+    finally:
+        _finish_span(ctx, exc_info)
+
+
+def _on_proxy_request_end(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        response_status = ctx.get_item("response_status")
+        span = ctx.span
+        if response_status is None or span is None:
+            return
+
+        proxy_request = ctx.get_item("proxy_request") or ctx.get_item("request_item")
+        request_type = getattr(proxy_request, "request_type", None)
+        request_method = getattr(proxy_request, "method", None)
+        request_route = ctx.get_item("matched_route") or getattr(proxy_request, "route_path", None)
+        status_code = getattr(response_status, "code", None)
+
+        span._set_attribute(COMPONENT, config.ray.integration_name)
+        if request_type is not None:
+            span._set_attribute("ray.serve.request.type", request_type)
+
+        if request_type == "http":
+            trace_utils.set_http_meta(
+                span,
+                config.ray,
+                method=request_method,
+                route=request_route,
+                status_code=status_code,
+            )
+        elif request_type == "grpc":
+            grpc_status = str(status_code)
+            span._set_attribute("grpc.status.code", grpc_status)
+            if getattr(response_status, "is_error", False):
+                span.error = 1
+                span._set_attribute(ERROR_TYPE, grpc_status)
+                error_message = getattr(response_status, "message", "")
+                if error_message:
+                    span._set_attribute(ERROR_MSG, error_message)
+    finally:
+        _finish_span(ctx, exc_info)
 
 
 def listen():
@@ -1765,6 +1977,18 @@ def listen():
     core.on("mlflow.end.step", _on_mlflow_end_step)
     core.on("mlflow.log", _on_mlflow_log)
 
+    # ray serve listener
+    core.on("ray.serve.request.metadata.inject", _on_ray_serve_request_metadata_inject)
+    core.on("ray.serve.grpc.context.inject", _on_ray_serve_grpc_context_inject)
+    core.on("ray.serve.deployment.resource.set", _on_ray_serve_deployment_resource_set)
+
+    core.on("context.started.ray.assign.request", _on_ray_assign_request)
+    core.on("context.started.ray.deployment.remote", _on_ray_deployment_remote)
+    core.on("context.started.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_start)
+
+    core.on("context.ended.ray.proxy.request", _on_proxy_request_end)
+    core.on("context.ended.ray.handle.request.with.rejection", _on_ray_handle_request_with_rejection_end)
+
     for context_name in (
         # web frameworks
         "cherrypy.request",
@@ -1827,6 +2051,8 @@ def listen():
         "aiokafka.getone",
         "aiokafka.getmany",
         "mlflow.run",
+        "ray.proxy.request",
+        "ray.serve.deployment",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1866,6 +2092,9 @@ def listen():
         "aiokafka.getmany",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
+        "ray.assign.request",
+        "ray.deployment.remote",
+        "ray.serve.deployment",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

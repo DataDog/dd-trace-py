@@ -229,7 +229,7 @@ class TemplateSegment(abc.ABC):
 class LiteralTemplateSegment(TemplateSegment):
     str_value: str
 
-    def eval(self, scope: Mapping[str, Any]) -> Any:
+    def eval(self, scope: Mapping[str, Any]) -> str:
         return self.str_value
 
 

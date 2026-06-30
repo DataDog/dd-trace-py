@@ -1,7 +1,6 @@
 import os
 
 import botocore
-import mock
 import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
@@ -10,6 +9,7 @@ from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
+from tests.llmobs._processors import install_mock_llmobs_writer
 from tests.utils import override_global_config
 
 
@@ -86,7 +86,6 @@ def bedrock_client_proxy(boto3):
 
 @pytest.fixture
 def bedrock_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {
@@ -95,15 +94,13 @@ def bedrock_llmobs(tracer, monkeypatch):
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
-        LLMObs._instance._llmobs_span_writer.stop()
-        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        install_mock_llmobs_writer(tracer)
         yield LLMObs
     LLMObs.disable()
 
 
 @pytest.fixture
 def bedrock_agents_llmobs(tracer, monkeypatch):
-    monkeypatch.setenv("_DD_LLMOBS_TEST_KEEP_META_STRUCT", "1")
     LLMObs.disable()
     with override_global_config(
         {
@@ -112,8 +109,7 @@ def bedrock_agents_llmobs(tracer, monkeypatch):
         }
     ):
         LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
-        LLMObs._instance._llmobs_span_writer.stop()
-        LLMObs._instance._llmobs_span_writer = mock.MagicMock()
+        install_mock_llmobs_writer(tracer)
         yield LLMObs
     LLMObs.disable()
 
