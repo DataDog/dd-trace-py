@@ -204,3 +204,40 @@ class TestLLMObsGoogleADK:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk", "integration": "google_adk"},
             name="Google ADK Code Execute",
         )
+
+    def test_code_execution_inherits_agent_session_id(self, mock_invocation_context, test_spans, google_adk_llmobs):
+        """A code-execute span created during an agent run inherits the agent's LLMObs session id.
+
+        The runner wrapper sets the session id on the agent span at creation, so any child span
+        (tools, code executors) created before the agent finishes inherits it via context.
+        """
+        import google.adk as adk
+        from google.adk.code_executors.code_execution_utils import CodeExecutionInput
+        from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
+
+        integration = adk._datadog_integration
+
+        # Mirror _traced_agent_run_async: open the agent span and propagate the session id at creation.
+        with integration.trace("InMemoryRunner.run_async", kind="agent", submit_to_llmobs=True) as agent_span:
+            integration.set_session_id(agent_span, "test-session")
+            executor = UnsafeLocalCodeExecutor()
+            code_input = CodeExecutionInput(code='print("hello world")')
+            executor.execute_code(mock_invocation_context, code_input)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        code_execute_spans = [s for s in spans if s.resource.endswith("execute_code")]
+        assert len(code_execute_spans) == 1
+
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(code_execute_spans[0]),
+            span_kind="code_execute",
+            input_value='print("hello world")',
+            output_value="hello world\n",
+            tags={
+                "ml_app": "<ml-app-name>",
+                "service": "tests.contrib.google_adk",
+                "integration": "google_adk",
+                "session_id": "test-session",
+            },
+            name="Google ADK Code Execute",
+        )
