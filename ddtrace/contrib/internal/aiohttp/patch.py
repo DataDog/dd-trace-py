@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -30,7 +31,7 @@ config._add(
         disable_stream_timing_for_mem_leak=asbool(
             _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
         ),
-        _default_service="aiohttp-web",
+        _default_service=schematize_service_name("aiohttp-web"),
     ),
 )
 
@@ -40,7 +41,7 @@ config._add(
         distributed_tracing=asbool(env.get("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=config._http_client_tag_query_string,
         split_by_domain=asbool(env.get("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
-        _default_service="aiohttp_client",
+        _default_service=schematize_service_name("aiohttp_client"),
     ),
 )
 

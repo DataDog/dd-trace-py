@@ -2,6 +2,7 @@ import falcon
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
@@ -15,7 +16,7 @@ config._add(
     "falcon",
     dict(
         distributed_tracing=asbool(env.get("DD_FALCON_DISTRIBUTED_TRACING", default=True)),
-        _default_service="falcon",
+        _default_service=schematize_service_name("falcon"),
     ),
 )
 
