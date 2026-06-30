@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -508,6 +508,17 @@ class ProfilingConfigHeap(DDConfig):
         help="Average number of bytes allocated between memory profiler samples",
     )
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
+
+    code_cache_enabled = DDConfig.v(
+        bool,
+        "code_cache_enabled",
+        default=True,
+        help_type="Boolean",
+        help=(
+            "Whether to enable the PyCodeObject→function_id cache in the heap profiler. "
+            "Disable (set to false) as a kill-switch if the cache causes unexpected behaviour."
+        ),
+    )
 
 
 def _validate_non_negative_int(value: int) -> None:
