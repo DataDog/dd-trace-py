@@ -101,7 +101,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
     """
     path_type = "type:{}".format(endpoint_service)
 
-    payload_size = None
+    payload_size = 0
     if endpoint_service == "sqs":
         payload_size = calculate_sqs_payload_size(message, trace_data)
     elif endpoint_service == "sns":
