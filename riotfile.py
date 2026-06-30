@@ -3211,6 +3211,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="mistralai",
+            command="pytest {cmdargs} tests/contrib/mistralai",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "mistralai": latest,
+            },
+        ),
+        Venv(
             name="google_genai",
             command="pytest {cmdargs} tests/contrib/google_genai",
             pys=select_pys(),
