@@ -7,6 +7,7 @@ from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from typing import Union
+from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
@@ -360,9 +361,11 @@ class AIGuardClient:
 
     def _execute_request(self, url: str, payload: Any) -> Response:
         try:
-            conn = get_connection(url, self._timeout)
+            parsed = urlparse(url)
+            base_url = "%s://%s" % (parsed.scheme, parsed.netloc)
+            conn = get_connection(base_url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", url, json_body, self._headers)
+            conn.request("POST", parsed.path, json_body, self._headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
