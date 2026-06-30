@@ -38,9 +38,6 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     target_host: Optional[str] = event_field(default=None)
     retries_remain: Optional[Union[int, str]] = event_field(default=None)
     server_address: Optional[str] = event_field(default=None)
-    # Populated only by integrations that explicitly opt in (currently httpx, whose responses
-    # are fully buffered by the time set_response runs). Left unset by default so integrations
-    # like urllib3, whose response objects read the body lazily, aren't forced to consume it.
     response_body: JsonType = event_field(default=None)
 
     def __post_init__(self):
