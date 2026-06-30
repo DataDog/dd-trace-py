@@ -425,33 +425,35 @@ else:
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 
-    # One representative request per process
+    # One representative request per process.
+    # reqwest normalizes header names to lowercase; normalise here for case-insensitive lookup.
     seen = {}
     for req in test_agent_session.get_requests(filter_heartbeats=False):
+        req["headers"] = {k.lower(): v for k, v in req["headers"].items()}
         seen.setdefault(req["body"]["runtime_id"], req)
     unique_requests = list(seen.values())
 
-    # DD-Session-ID always matches the runtime_id in the payload
+    # dd-session-id always matches the runtime_id in the payload
     for req in unique_requests:
-        assert req["headers"].get("DD-Session-ID") == req["body"]["runtime_id"]
+        assert req["headers"].get("dd-session-id") == req["body"]["runtime_id"]
 
-    # The root process has no DD-Root-Session-ID or DD-Parent-Session-ID
-    root_reqs = [r for r in unique_requests if "DD-Root-Session-ID" not in r["headers"]]
+    # The root process has no dd-root-session-id or dd-parent-session-id
+    root_reqs = [r for r in unique_requests if "dd-root-session-id" not in r["headers"]]
     assert len(root_reqs) == 1
-    parent_id = root_reqs[0]["headers"]["DD-Session-ID"]
-    assert "DD-Parent-Session-ID" not in root_reqs[0]["headers"]
+    parent_id = root_reqs[0]["headers"]["dd-session-id"]
+    assert "dd-parent-session-id" not in root_reqs[0]["headers"]
 
-    # All forked processes share DD-Root-Session-ID = parent's runtime_id
-    child_reqs = [r for r in unique_requests if "DD-Root-Session-ID" in r["headers"]]
+    # All forked processes share dd-root-session-id = parent's runtime_id
+    child_reqs = [r for r in unique_requests if "dd-root-session-id" in r["headers"]]
     assert len(child_reqs) == 2
     for req in child_reqs:
-        assert req["headers"]["DD-Root-Session-ID"] == parent_id
+        assert req["headers"]["dd-root-session-id"] == parent_id
 
     # Lineage: child's parent is root; grandchild's parent is child
     children_by_parent = {}
     for req in child_reqs:
-        children_by_parent.setdefault(req["headers"]["DD-Parent-Session-ID"], []).append(
-            req["headers"]["DD-Session-ID"]
+        children_by_parent.setdefault(req["headers"]["dd-parent-session-id"], []).append(
+            req["headers"]["dd-session-id"]
         )
 
     assert len(children_by_parent[parent_id]) == 1
