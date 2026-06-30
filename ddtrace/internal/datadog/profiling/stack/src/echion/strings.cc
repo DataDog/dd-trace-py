@@ -53,33 +53,14 @@ StringTable::key(PyObject* s, StringTag tag)
     const std::lock_guard<std::mutex> lock(table_lock);
 
     auto k = make_tagged_key(reinterpret_cast<uintptr_t>(s), tag);
-    auto& table = table_for(tag);
 
-    if (table.find(k) == table.end()) {
-#if PY_VERSION_HEX >= 0x030c0000
-        // The task name might hold a PyLong for deferred task name formatting.
-        std::string str = "Task-";
-
-        auto maybe_long = pylong_to_llong(s);
-        if (maybe_long) {
-            str += std::to_string(*maybe_long);
-        } else {
-            auto maybe_unicode = pyunicode_to_utf8(s);
-            if (!maybe_unicode) {
-                return ErrorKind::PyUnicodeError;
-            }
-
-            str = *maybe_unicode;
-        }
-#else
+    if (table_.find(k) == table_.end()) {
         auto maybe_unicode = pyunicode_to_utf8(s);
         if (!maybe_unicode) {
             return ErrorKind::PyUnicodeError;
         }
 
-        std::string str = std::move(*maybe_unicode);
-#endif
-        table.emplace(k, str);
+        table_.emplace(k, std::move(*maybe_unicode));
     }
 
     return Result<Key>(k);
@@ -90,9 +71,8 @@ StringTable::lookup(StringTable::Key key) const
 {
     const std::lock_guard<std::mutex> lock(table_lock);
 
-    const auto& table = table_for_key(key);
-    const auto it = table.find(key);
-    if (it == table.cend())
+    const auto it = table_.find(key);
+    if (it == table_.cend())
         return ErrorKind::LookupError;
 
     return std::ref(it->second);

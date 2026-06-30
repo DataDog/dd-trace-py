@@ -4,10 +4,14 @@ integrations:
   is_tested: true
   dependency_names:
   - aiobotocore
+  - botocore
   tested_versions_by_dependency:
     aiobotocore:
       min: 1.0.7
       max: 3.1.0
+    botocore:
+      min: 1.15.32
+      max: 1.42.19
 
 - integration_name: aiohttp
   is_external_package: true
@@ -17,7 +21,7 @@ integrations:
   tested_versions_by_dependency:
     aiohttp:
       min: 3.7.4.post0
-      max: 3.13.5
+      max: 3.14.1
 
 - integration_name: aiohttp_jinja2
   is_external_package: true
@@ -220,8 +224,8 @@ integrations:
       min: 1.34.49
       max: 1.38.26
     botocore:
-      min: 1.34.49
-      max: 1.38.26
+      min: 1.15.32
+      max: 1.42.19
 
 - integration_name: bottle
   is_external_package: true
@@ -305,7 +309,7 @@ integrations:
   tested_versions_by_dependency:
     django:
       min: 2.2.28
-      max: 5.2.14
+      max: 5.2.15
 
 - integration_name: dogpile_cache
   is_external_package: true
@@ -391,7 +395,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.136.0
+      max: 0.137.1
 
 - integration_name: flask
   is_external_package: true
@@ -429,7 +433,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 21.1.2
-      max: 25.9.1
+      max: 26.5.0
 
 - integration_name: google_adk
   is_external_package: true
@@ -543,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.2.31
+      max: 1.4.7
 
 - integration_name: langgraph
   is_external_package: true
@@ -643,7 +647,17 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.27.0
+      max: 1.27.2
+
+- integration_name: mistralai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - mistralai
+  tested_versions_by_dependency:
+    mistralai:
+      min: 2.0.0
+      max: 2.4.9
 
 - integration_name: mlflow
   is_external_package: true
@@ -701,7 +715,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 2.3.0
+      max: 2.40.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -721,7 +735,7 @@ integrations:
   tested_versions_by_dependency:
     protobuf:
       min: 6.33.6
-      max: 7.34.1
+      max: 7.35.0
 
 - integration_name: psycopg
   is_external_package: true
@@ -843,6 +857,16 @@ integrations:
   dependency_names:
   - pytest_benchmark
 
+- integration_name: pytorch
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - torch
+  tested_versions_by_dependency:
+    torch:
+      min: 2.0.1
+      max: 2.12.0
+
 - integration_name: ray
   is_external_package: true
   is_tested: false
@@ -851,7 +875,17 @@ integrations:
   tested_versions_by_dependency:
     ray:
       min: 2.46.0
-      max: 2.49.2
+      max: 2.54.1
+
+- integration_name: ray_serve
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - ray
+  tested_versions_by_dependency:
+    ray:
+      min: 2.47.1
+      max: 2.54.1
 
 - integration_name: redis
   is_external_package: true
@@ -881,7 +915,7 @@ integrations:
   tested_versions_by_dependency:
     requests:
       min: 2.25.1
-      max: 2.34.1
+      max: 2.34.2
 
 - integration_name: rq
   is_external_package: true
