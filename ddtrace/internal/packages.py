@@ -21,7 +21,7 @@ Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
-# AIDEV-NOTE: dist.metadata access is per-dist defensive — malformed METADATA
+# AIDEV-NOTE: dist.metadata access is per-dist defensive -- malformed METADATA
 # (rare but real on system-Python / CI images) must not poison the @callonce cache.
 _BAD_DISTS_WARNED: set[str] = set()
 
@@ -186,6 +186,56 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
+def _relative_to_known_root(path: Path) -> t.Optional[Path]:
+    """Return ``path`` relative to the site-packages-like root that contains it.
+
+    Shares root resolution with ``_root_module`` (purelib/platlib, then
+    ``sys.path``, then the Bazel ``*/site-packages`` heuristic) but yields the
+    *full* relative path instead of a fixed-depth key. ``filename_to_package``
+    uses it to do longest-prefix matching against the mapping, which is what
+    lets namespace distributions sharing an intermediate level resolve
+    correctly: ``google-cloud-storage`` (``google/cloud/storage``) and
+    ``google-cloud-bigquery`` (``google/cloud/bigquery``) both reduce to the
+    ``google/cloud`` key under ``_root_module``, so it cannot tell them apart.
+
+    Only *dependency* roots are considered: ``purelib``/``platlib`` and
+    ``site-packages`` dirs (the latter is where Bazel isolates each no-RECORD
+    dependency). Generic ``sys.path`` source/workspace roots are deliberately
+    excluded -- a Bazel binary puts its own source roots on ``sys.path`` too,
+    and applying dependency namespace keys to them would misclassify user code
+    (e.g. a workspace ``google/cloud/...`` file while ``google-cloud-*`` is in
+    runfiles) as third-party. Those paths fall back to ``_root_module``.
+
+    Returns ``None`` when ``path`` is not under such a root.
+    """
+    for parent_path in (purelib_path, platlib_path):
+        try:
+            return path.resolve().relative_to(parent_path)
+        except ValueError:
+            pass
+
+    min_relative_path: t.Optional[Path] = None
+    for parent_path in resolve_sys_path():
+        if parent_path.name != "site-packages":
+            continue
+        try:
+            relative = path.relative_to(parent_path)
+        except ValueError:
+            continue
+        if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
+            min_relative_path = relative
+    if min_relative_path is not None:
+        return min_relative_path
+
+    for s in path.parents:
+        if s.parent.name == "site-packages":
+            try:
+                return path.relative_to(s.parent)
+            except ValueError:
+                pass
+    return None
+
+
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
@@ -222,7 +272,7 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
         )
         return None
 
-    # AIDEV-NOTE: per-dist try/except — one bad dist used to collapse the whole
+    # AIDEV-NOTE: per-dist try/except -- one bad dist used to collapse the whole
     # mapping to None (silently breaking is_third_party for the rest of the process).
     mapping: dict[str, Distribution] = {}
     for dist in dists:
@@ -268,6 +318,22 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
+
+        # Longest-prefix match against the mapping. Namespace distributions can
+        # share an intermediate level (google/cloud/storage vs
+        # google/cloud/bigquery), so the most specific (deepest) mapped prefix
+        # must win; _root_module only yields a fixed 2-level key and cannot tell
+        # the siblings apart. The probe is anchored at the site-packages-relative
+        # root, so a subpackage that happens to share a name with another
+        # top-level dist cannot mismatch.
+        relative = _relative_to_known_root(path)
+        if relative is not None:
+            parts = relative.parts
+            for end in range(len(parts), 0, -1):
+                hit = mapping.get("/".join(parts[:end]))
+                if hit is not None:
+                    return hit
+
         # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
         root_module_path = _root_module(path)
         if root_module_path in mapping:
