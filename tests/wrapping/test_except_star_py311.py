@@ -8,7 +8,6 @@ break / continue are illegal inside an except* block, so we assign and return af
 import pytest
 
 
-
 def test_except_star_in_function_body(mech):
     def f(x):
         result = None

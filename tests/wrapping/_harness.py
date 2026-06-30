@@ -6,8 +6,8 @@ Each test takes a ``mech`` argument (a parametrized fixture defined in
   * ``mech.wrap_function(fn) -> callable`` for module-level functions, closures,
     lambdas, generators, coroutines, async generators, and contextmanager
     underlyings.
-  * ``mech.install_method(cls, attr, binding)`` to wrap a method in place,
-    preserving instance / classmethod / staticmethod binding.
+  * ``mech.install_method(cls, attr)`` to wrap a method in place, preserving
+    instance / classmethod / staticmethod binding (read from the descriptor).
 
 A test that is expected to fail for a specific mechanism declares it at the test
 site with ``@xfail_mechanism("wrapt", reason=...)`` (see mechanisms.py); for all

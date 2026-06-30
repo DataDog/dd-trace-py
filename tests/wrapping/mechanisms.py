@@ -7,8 +7,8 @@ object) and bind differently to methods, so each adapter knows how to:
 
   * ``wrap_function(fn) -> callable``  -- for module funcs, closures, lambdas,
     callable-instance ``__call__`` targets, and contextmanager underlyings.
-  * ``install_method(cls, attr, binding)`` -- mutate a class so ``cls.attr`` is
-    wrapped, preserving instance/classmethod/staticmethod binding.
+  * ``install_method(cls, attr)`` -- mutate a class so ``cls.attr`` is wrapped,
+    preserving instance/classmethod/staticmethod binding (read from the descriptor).
 
 All adapters are pure transparent pass-throughs.
 """
@@ -43,8 +43,9 @@ def _underlying(cls, attr):
 
 
 # Each adapter is a plain class exposing ``name``, ``wrap_function(fn)`` and
-# ``install_method(cls, attr, binding)`` (see the module docstring); they are
-# collected by ``name`` into ALL_MECHANISMS below.
+# ``install_method(cls, attr)`` (see the module docstring); they are collected by
+# ``name`` into ALL_MECHANISMS below. The binding (instance/class/static) is read
+# from the descriptor itself, so callers never pass it.
 class InternalWrap:
     name = "internal_wrap"
 
@@ -52,7 +53,7 @@ class InternalWrap:
         _internal_wrap(fn, _noop)  # mutates __code__ in place
         return fn
 
-    def install_method(self, cls, attr, binding):
+    def install_method(self, cls, attr):
         _internal_wrap(_underlying(cls, attr), _noop)
 
 
@@ -63,7 +64,7 @@ class WrappingContextMech:
         _NoopWrappingContext(fn).wrap()  # mutates in place
         return fn
 
-    def install_method(self, cls, attr, binding):
+    def install_method(self, cls, attr):
         _NoopWrappingContext(_underlying(cls, attr)).wrap()
 
 
@@ -73,13 +74,15 @@ class TracerWrap:
     def wrap_function(self, fn):
         return tracer.wrap()(fn)
 
-    def install_method(self, cls, attr, binding):
+    def install_method(self, cls, attr):
+        # tracer.wrap() returns a new wrapper, so rebuild the descriptor to keep
+        # the original class/static binding (read from the descriptor type).
         raw = cls.__dict__[attr]
-        if binding == "classmethod":
+        if isinstance(raw, classmethod):
             cls_attr = classmethod(tracer.wrap()(raw.__func__))
-        elif binding == "staticmethod":
+        elif isinstance(raw, staticmethod):
             cls_attr = staticmethod(tracer.wrap()(raw.__func__))
-        else:  # instance_method (also __call__)
+        else:  # instance method (also __call__)
             cls_attr = tracer.wrap()(raw)
         setattr(cls, attr, cls_attr)
 
@@ -101,7 +104,7 @@ class WraptWrap:
         wrap(holder, "target", _noop_wrapt)
         return holder.target
 
-    def install_method(self, cls, attr, binding):
+    def install_method(self, cls, attr):
         from ddtrace.contrib.internal.trace_utils import wrap
 
         wrap(cls, attr, _noop_wrapt)
@@ -126,6 +129,10 @@ def xfail_mechanism(*names, reason, condition=True):
     interpreter version, e.g. ``condition=sys.version_info >= (3, 11)`` (when false the
     test simply runs and is expected to pass).
     """
+    if not names:
+        raise ValueError(
+            "xfail_mechanism() needs at least one mechanism name (e.g. xfail_mechanism('wrapt', reason=...))"
+        )
     unknown = set(names) - set(ALL_MECHANISMS)
     if unknown:
         raise ValueError(f"unknown mechanism(s) {sorted(unknown)}; expected from {sorted(ALL_MECHANISMS)}")

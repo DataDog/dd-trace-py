@@ -21,25 +21,45 @@ import pytest
 from tests.wrapping.mechanisms import ALL_MECHANISMS
 
 
+_HERE = os.path.dirname(__file__)
 _VERSION_SUFFIX = re.compile(r"_py(\d)(\d+)\.py$")
 
 collect_ignore = []
-for _name in os.listdir(os.path.dirname(__file__)):
+for _name in os.listdir(_HERE):
     _match = _VERSION_SUFFIX.search(_name)
     if _match and sys.version_info < (int(_match.group(1)), int(_match.group(2))):
         collect_ignore.append(_name)
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "mechanism_specific: this test targets one wrapping mechanism by name (e.g. tracer.wrap() "
+        "decorator-ordering) rather than the whole matrix; it is exempt from the `mech` guardrail.",
+    )
+
+
 def pytest_collection_modifyitems(items):
-    """Guardrail: every test must run over all wrapping mechanisms.
+    """Guardrail: every matrix test must run over all wrapping mechanisms.
 
     A test that forgets the ``mech`` argument (and does not parametrize it via
     ``xfail_mechanism``) would silently run once instead of once per mechanism --
     a coverage hole the differential design exists to prevent. ``mech`` appears in
     ``fixturenames`` for both forms, so its absence means the test opted out by
     mistake. Fail collection loudly rather than under-test in silence.
+
+    Tests marked ``mechanism_specific`` are genuinely about a single mechanism and
+    opt out. This hook is registered globally, so it is also scoped to items under
+    this directory -- otherwise a broader run (e.g. ``pytest tests/``) would abort
+    on every test that legitimately has no ``mech``.
     """
-    missing = [item.nodeid for item in items if "mech" not in item.fixturenames]
+    missing = [
+        item.nodeid
+        for item in items
+        if str(getattr(item, "path", "")).startswith(_HERE + os.sep)
+        and not any(item.iter_markers("mechanism_specific"))
+        and "mech" not in item.fixturenames
+    ]
     if missing:
         raise pytest.UsageError(
             "wrapping tests must take a `mech` argument (run over every mechanism); these do not:\n  "

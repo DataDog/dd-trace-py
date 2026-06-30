@@ -17,7 +17,7 @@ def test_instance_method(mech):
         def m(self, x):
             return ("instance", x)
 
-    mech.install_method(C, "m", "instance_method")
+    mech.install_method(C, "m")
     assert C().m(5) == ("instance", 5)
 
 
@@ -32,7 +32,7 @@ def test_wrapping_method_preserves_class_hierarchy(mech):
         def method(self, x):
             return ("child", x)
 
-    mech.install_method(Child, "method", "instance_method")
+    mech.install_method(Child, "method")
     obj = Child()
     assert isinstance(obj, Base)
     assert issubclass(Child, Base)
@@ -47,7 +47,7 @@ def test_classmethod(mech):
         def m(cls, x):
             return (cls.__name__, x)
 
-    mech.install_method(C, "m", "classmethod")
+    mech.install_method(C, "m")
     assert C.m(5) == ("C", 5)
     assert C().m(5) == ("C", 5)
 
@@ -58,7 +58,7 @@ def test_staticmethod(mech):
         def m(x):
             return ("static", x)
 
-    mech.install_method(C, "m", "staticmethod")
+    mech.install_method(C, "m")
     assert C.m(5) == ("static", 5)
     assert C().m(5) == ("static", 5)
 
@@ -82,7 +82,7 @@ def test_callable_instance(mech):
         def __call__(self, x):
             return ("called", x)
 
-    mech.install_method(C, "__call__", "instance_method")
+    mech.install_method(C, "__call__")
     assert C()(5) == ("called", 5)
 
 
@@ -91,7 +91,7 @@ def test_instance_method_generator(mech):
         def gen(self, n):
             yield from range(n)
 
-    mech.install_method(C, "gen", "instance_method")
+    mech.install_method(C, "gen")
     assert list(C().gen(3)) == [0, 1, 2]
 
 
@@ -101,7 +101,7 @@ def test_instance_method_coroutine(mech):
             await asyncio.sleep(0)
             return x + 1
 
-    mech.install_method(C, "coro", "instance_method")
+    mech.install_method(C, "coro")
     assert run(C().coro(5)) == 6
 
 
@@ -112,7 +112,7 @@ def test_classmethod_coroutine(mech):
             await asyncio.sleep(0)
             return (cls.__name__, x)
 
-    mech.install_method(C, "coro", "classmethod")
+    mech.install_method(C, "coro")
     assert run(C.coro(5)) == ("C", 5)
 
 
@@ -123,5 +123,5 @@ def test_instance_method_async_generator(mech):
                 await asyncio.sleep(0)
                 yield i
 
-    mech.install_method(C, "agen", "instance_method")
+    mech.install_method(C, "agen")
     assert run(aiterate(C().agen(3))) == [0, 1, 2]

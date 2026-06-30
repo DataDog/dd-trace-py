@@ -35,7 +35,7 @@ def test_generic_method(mech):
         def m[U](self, x: U) -> U:
             return x
 
-    mech.install_method(C, "m", "instance_method")
+    mech.install_method(C, "m")
     assert C().m(7) == 7
 
 
@@ -44,7 +44,7 @@ def test_method_on_generic_class(mech):
         def m(self, x):
             return x
 
-    mech.install_method(C, "m", "instance_method")
+    mech.install_method(C, "m")
     assert C().m(7) == 7
 
 
