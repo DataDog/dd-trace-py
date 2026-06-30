@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    aws_durable_execution_sdk_python: This fix resolves an issue where a durable operation that
+    failed permanently and was then replayed (re-read from its FAILED checkpoint) was not treated
+    as a replay: its span reported ``aws.durable.replayed`` as ``false`` and an
+    ``aws.durable.operation_attempt`` one higher than the live final attempt. A FAILED checkpoint is
+    now treated the same as a SUCCEEDED one, so a replayed failed operation reports ``replayed`` as
+    ``true`` and the same 0-indexed attempt number as its original execution.
