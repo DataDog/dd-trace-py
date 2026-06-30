@@ -5,7 +5,6 @@ from enum import Enum
 from json import loads
 import logging
 import re
-from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
@@ -25,6 +24,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
@@ -70,13 +70,7 @@ def classify_media_type(content_type: Optional[str]) -> MediaType:
     return MediaType.UNKNOWN
 
 
-if TYPE_CHECKING:
-    from ddtrace.internal.http import HTTPConnection
-    from ddtrace.internal.http import HTTPSConnection
-    from ddtrace.internal.uds import UDSHTTPConnection
-
-ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
-Connector = Callable[[], ContextManager[ConnectionType]]
+Connector = Callable[[], ContextManager[HTTPConnection]]
 
 
 log = logging.getLogger(__name__)
@@ -167,7 +161,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     """
 
     @contextmanager
-    def _connector_context() -> Generator[ConnectionType, None, None]:
+    def _connector_context() -> Generator[HTTPConnection, None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -305,24 +299,21 @@ class Response(object):
         )
 
 
-def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
-    """Return an HTTP connection to the given URL."""
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> HTTPConnection:
+    """Return an HTTP connection for the given URL.
+
+    Only scheme, host, and port are used — the path is stripped so callers can
+    pass a full endpoint URL here and still supply the request path themselves
+    via ``conn.request()``.
+    """
     parsed = verify_url(url)
-    hostname = parsed.hostname or ""
-    path = parsed.path or "/"
 
-    from ddtrace.internal.http import HTTPConnection
-    from ddtrace.internal.http import HTTPSConnection
-    from ddtrace.internal.uds import UDSHTTPConnection
+    if parsed.scheme == "unix":
+        return HTTPConnection("unix://" + parsed.path, timeout=timeout)
 
-    if parsed.scheme == "https":
-        return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "http":
-        return HTTPConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "unix":
-        return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
-
-    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+    # Strip path/query/fragment; _replace uses netloc so IPv6 brackets are kept.
+    base_url = parsed._replace(path="", params="", query="", fragment="").geturl()
+    return HTTPConnection(base_url, timeout=timeout)
 
 
 def verify_url(url: str) -> parse.ParseResult:

@@ -136,16 +136,16 @@ def test_send_completion_bad_api_key(mock_writer_logs):
     )
 
 
-@mock.patch("ddtrace.llmobs._writer.get_connection")
-def test_send_payload_uses_configured_timeout(mock_get_connection, mock_writer_logs):
+@mock.patch("ddtrace.llmobs._writer.HTTPConnection")
+def test_send_payload_uses_configured_timeout(mock_http_connection, mock_writer_logs):
     """Regression: _send_payload must open the connection with the writer's configured
-    timeout (self._timeout), not get_connection's DEFAULT_TIMEOUT (2.0s).
+    timeout (self._timeout), not DEFAULT_TIMEOUT (2.0s).
     """
-    mock_get_connection.return_value.getresponse.return_value.status = 200
+    mock_http_connection.return_value.getresponse.return_value.status = 200
     llmobs_span_writer = LLMObsSpanWriter(1, 5.0, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_span_writer.enqueue(_completion_event())
     llmobs_span_writer.periodic()
-    mock_get_connection.assert_called_once_with(llmobs_span_writer._intake, timeout=5.0)
+    mock_http_connection.assert_called_once_with(llmobs_span_writer._intake, timeout=5.0)
 
 
 def test_send_completion_no_api_key(mock_writer_logs):

@@ -82,7 +82,6 @@ components:
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
-    - ddtrace/internal/uds.py
     - ddtrace/internal/utils/*
     - ddtrace/internal/uwsgi.py
     - ddtrace/internal/wrapping/*

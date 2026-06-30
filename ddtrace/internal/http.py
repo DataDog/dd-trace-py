@@ -100,45 +100,12 @@ class NativeHTTPConnection:
         pass
 
 
-def _build_base_url(scheme: str, host: str, port: Optional[int], base_path: str) -> str:
-    port_part = f":{port}" if port is not None else ""
-    path = base_path.rstrip("/") if base_path and base_path != "/" else ""
-    return f"{scheme}://{host}{port_part}{path}"
-
-
 class HTTPConnection(NativeHTTPConnection):
-    """Drop-in replacement for httplib.HTTPConnection backed by the native Rust HTTP client.
+    """HTTP/HTTPS/Unix connection backed by the native Rust HTTP client.
 
-    Accepts the same (host, port, timeout) constructor signature and the
-    ``with_base_path`` factory used throughout ddtrace internals.
+    Expects a full base URL (``scheme://host[:port]``).  The Rust client
+    dispatches to HTTP, HTTPS, or Unix domain socket based on the scheme.
     """
 
-    def __init__(self, host: str, port: Optional[int] = None, timeout: float = 2.0, **_: Any) -> None:
-        super().__init__(_build_base_url("http", host, port, "/"), timeout)
-
-    @classmethod
-    def with_base_path(
-        cls, host: str, port: Optional[int] = None, *, base_path: str = "/", timeout: float = 2.0
-    ) -> "HTTPConnection":
-        inst = cls.__new__(cls)
-        NativeHTTPConnection.__init__(inst, _build_base_url("http", host, port, base_path), timeout)
-        return inst
-
-
-class HTTPSConnection(NativeHTTPConnection):
-    """Drop-in replacement for httplib.HTTPSConnection backed by the native Rust HTTP client.
-
-    Accepts the same (host, port, timeout) constructor signature and the
-    ``with_base_path`` factory used throughout ddtrace internals.
-    """
-
-    def __init__(self, host: str, port: Optional[int] = None, timeout: float = 2.0, **_: Any) -> None:
-        super().__init__(_build_base_url("https", host, port, "/"), timeout)
-
-    @classmethod
-    def with_base_path(
-        cls, host: str, port: Optional[int] = None, *, base_path: str = "/", timeout: float = 2.0
-    ) -> "HTTPSConnection":
-        inst = cls.__new__(cls)
-        NativeHTTPConnection.__init__(inst, _build_base_url("https", host, port, base_path), timeout)
-        return inst
+    def __init__(self, url: str, timeout: float = 2.0) -> None:
+        super().__init__(url, timeout)

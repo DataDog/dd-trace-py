@@ -18,13 +18,13 @@ from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
@@ -687,7 +687,7 @@ def _make_uds_server(path, request_handler):
     # Wait for the server to start
     resp = None
     while resp != 200:
-        conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
+        conn = HTTPConnection(f"unix://{server.server_address}")
         try:
             conn.request("PUT", "/")
             resp = conn.getresponse().status
@@ -822,7 +822,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
     import threading
 
     from ddtrace.internal._threads import PeriodicThread
-    from ddtrace.internal.uds import UDSHTTPConnection
+    from ddtrace.internal.http import HTTPConnection
 
     sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
     sock_path = os.path.join(sock_dir, "blackhole.sock")
@@ -850,7 +850,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 
     def _callback():
         callback_started.set()
-        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        conn = HTTPConnection(f"unix://{sock_path}", timeout=0.5)
         try:
             conn.request("GET", "/")
             conn.getresponse().read()
