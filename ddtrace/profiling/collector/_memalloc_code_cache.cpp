@@ -80,9 +80,11 @@ memalloc_code_cache_deinit()
 }
 
 /* Called from heap_tracker_t::postfork_child() to reset the cache after fork.
- * The parent's cached function_ids remain valid in the child (libdatadog's
- * ProfilesDictionary is not forked), but the child gets a fresh profiler
- * session, so we clear to avoid mixing function_ids from two sessions. */
+ * libdatadog's ProfilesDictionary is dropped and recreated in the child
+ * (profiler_state.cpp::postfork_child_state()), so the parent's cached
+ * function_ids are no longer valid. Clear all entries so subsequent lookups
+ * re-intern against the new ProfilesDictionary rather than producing
+ * misattributed frames. */
 void
 memalloc_code_cache_clear()
 {
