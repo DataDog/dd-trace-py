@@ -38,7 +38,7 @@ def _finish_span(
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", span.service), ctx.event.integration_config or dict())
+    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
