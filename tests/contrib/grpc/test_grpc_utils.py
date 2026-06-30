@@ -140,7 +140,7 @@ def test_set_grpc_method_meta(method, method_kind, expected_tags):
 def test_start_server_retries_on_bind_runtime_error(mock_server, mock_pool, mock_add_servicer, mock_sleep):
     # A failed bind raises RuntimeError (gRPC core returns port 0); the retry must catch it and rebind.
     fake_server = mock_server.return_value
-    fake_server.add_insecure_port.side_effect = [RuntimeError("Failed to bind"), RuntimeError("Failed to bind"), 50531]
+    fake_server.add_insecure_port.side_effect = [RuntimeError("Failed to bind")] * 2 + [50531]
 
     instance = GrpcBaseTestCase.__new__(GrpcBaseTestCase)
     instance._start_server()
