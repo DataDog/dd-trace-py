@@ -83,26 +83,30 @@ def _trunc(v: Any, n: int = 34) -> str:
 
 
 def _print_report(name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
+    # `exec` is the execution status (did we get an output to judge); the verdict is the
+    # default comparison evaluator (`match`/`changed`) plus any attached evaluators.
     counts: dict[str, int] = {}
     print("\n  experiment: %s   (%d case(s))" % (name, len(rows)))
     print("  " + "-" * 92)
-    print("  %-8s %-32s %-22s %-22s" % ("status", "input", "recorded", "new"))
+    print("  %-6s %-34s %-22s %-22s" % ("run", "input", "recorded", "new"))
     print("  " + "-" * 92)
     for r in rows:
-        counts[r["status"]] = counts.get(r["status"], 0) + 1
+        counts[r["exec"]] = counts.get(r["exec"], 0) + 1
         print(
-            "  %-8s %-32s %-22s %-22s"
-            % (r["status"], _trunc(r["input"], 32), _trunc(r["recorded"], 22), _trunc(r["new"], 22))
+            "  %-6s %-34s %-22s %-22s"
+            % (r["exec"], _trunc(r["input"], 34), _trunc(r["recorded"], 22), _trunc(r["new"], 22))
         )
         for ev in r.get("evals", []):
             if ev["error"]:
                 verdict = "error: %s" % ev["error"]
                 counts["EVAL_ERROR"] = counts.get("EVAL_ERROR", 0) + 1  # the check didn't run -> gate CI
             else:
-                verdict = ev["assessment"] or ev["value"]
-                if ev["assessment"] == "fail":
+                verdict = ev["assessment"] if ev["assessment"] is not None else ev["value"]
+                if ev["assessment"] == "changed":
+                    counts["CHANGED"] = counts.get("CHANGED", 0) + 1
+                elif ev["assessment"] == "fail":
                     counts["EVAL_FAIL"] = counts.get("EVAL_FAIL", 0) + 1
-            print("      eval %-24s %s" % (_trunc(ev["name"], 24), _trunc(verdict, 46)))
+            print("      %-26s %s" % (_trunc(ev["name"], 26), _trunc(verdict, 44)))
     print("  " + "-" * 92)
     print("  " + "  ".join("%s=%d" % (k, v) for k, v in counts.items()) + "\n")
     return counts
@@ -244,8 +248,9 @@ def main() -> None:
             total[k] = total.get(k, 0) + v
     ie._set_mode(ie.Mode.OFF)
 
-    # CI-friendly: non-zero exit if anything changed, errored, never reached its end, or
-    # (when --evaluate) a user evaluator failed OR errored (a check that didn't run isn't a pass).
+    # CI-friendly: non-zero exit if the run errored or never reached its end (exec), the
+    # default comparison evaluator reported `changed`, or (with --evaluate) an attached
+    # evaluator failed OR errored (a check that didn't run isn't a pass).
     gate = ("CHANGED", "ERROR", "NO_END", "EVAL_FAIL", "EVAL_ERROR")
     sys.exit(1 if any(total.get(k) for k in gate) else 0)
 

@@ -37,25 +37,29 @@ def test_comparator_from_spec():
 
 
 # --- comparisons as evaluators --------------------------------------------- #
-def test_as_evaluator_maps_recorded_to_expected_and_names():
+def test_as_evaluator_maps_recorded_to_expected_and_reports_match_changed():
     ev = runner.as_evaluator(runner.exact)
-    assert ev.__name__ == "regression_match"  # default guard label
+    assert ev.__name__ == "regression_match"  # default comparison label
     # evaluator shape (input_data, output_data, expected_output); recorded baseline == expected
-    assert ev({}, "x", "x") is True and ev({}, "y", "x") is False
+    matched = ev({}, "x", "x")
+    assert matched.value is True and matched.assessment == "match"
+    changed = ev({}, "y", "x")
+    assert changed.value is False and changed.assessment == "changed"
 
 
-def test_comparison_factory_builds_named_evaluators():
+def test_comparison_factory_builds_named_match_changed_evaluators():
     ex = runner.comparison("exact")
     assert ex.__name__ == "exact_match"
-    assert ex({}, {"v": 1}, {"v": 1}) is True and ex({}, {"v": 1}, {"v": 2}) is False
+    assert ex({}, {"v": 1}, {"v": 1}).assessment == "match"
+    assert ex({}, {"v": 1}, {"v": 2}).assessment == "changed"
 
     ig = runner.comparison("ignoring", ignore=["ts"])
     assert ig.__name__ == "ignoring_match"
-    assert ig({}, {"v": 1, "ts": "new"}, {"v": 1, "ts": "old"}) is True  # ts ignored
+    assert ig({}, {"v": 1, "ts": "new"}, {"v": 1, "ts": "old"}).assessment == "match"  # ts ignored
 
     st = runner.comparison()  # default kind is structural
     assert st.__name__ == "structural_match"
-    assert st({}, {"v": 2, "shape": [9]}, {"v": 1, "shape": [1]}) is True  # same shape, different values
+    assert st({}, {"v": 2, "shape": [9]}, {"v": 1, "shape": [1]}).assessment == "match"  # same shape
 
 
 def test_comparison_used_as_attached_evaluator():
@@ -67,8 +71,10 @@ def test_comparison_used_as_attached_evaluator():
 
     f(1)
     _set_mode(Mode.REPLAY)
+    # evals = [default regression_match (structural), attached exact_match]; both match here
     rows = runner.replay("e", runner.structural, score_evaluators=True)
-    assert rows[0]["evals"][0]["name"] == "exact_match" and rows[0]["evals"][0]["assessment"] == "pass"
+    verdicts = {e["name"]: e["assessment"] for e in rows[0]["evals"]}
+    assert verdicts == {"regression_match": "match", "exact_match": "match"}
 
 
 # --- replay ---------------------------------------------------------------- #
@@ -86,11 +92,12 @@ def test_replay_single_function_match_text_drift_and_structural_change():
     analyze(["NVDA", "AMD"])  # baseline
     _set_mode(Mode.REPLAY)
 
-    assert runner.replay("e", runner.structural)[0]["status"] == "MATCH"
+    # the default comparison evaluator reports match/changed (no privileged status)
+    assert runner.replay("e", runner.structural)[0]["evals"][0]["assessment"] == "match"
     state["drift"] = "text"
-    assert runner.replay("e", runner.structural)[0]["status"] == "MATCH"  # tolerated
+    assert runner.replay("e", runner.structural)[0]["evals"][0]["assessment"] == "match"  # tolerated
     state["drift"] = "drop"
-    assert runner.replay("e", runner.structural)[0]["status"] == "CHANGED"  # caught
+    assert runner.replay("e", runner.structural)[0]["evals"][0]["assessment"] == "changed"  # caught
 
 
 def test_replay_emit_shape():
@@ -107,7 +114,7 @@ def test_replay_emit_shape():
     ingest("hi")
     _set_mode(Mode.REPLAY)
     rows = runner.replay("e", runner.exact)
-    assert rows[0]["status"] == "MATCH" and rows[0]["new"] == "HI"
+    assert rows[0]["exec"] == "OK" and rows[0]["new"] == "HI" and rows[0]["evals"][0]["assessment"] == "match"
 
 
 def test_replay_uses_fixtures_to_rebuild_infra():
@@ -120,7 +127,7 @@ def test_replay_uses_fixtures_to_rebuild_infra():
 
     run(object(), "hi")
     _set_mode(Mode.REPLAY)
-    assert runner.replay("e", runner.exact)[0]["status"] == "MATCH"
+    assert runner.replay("e", runner.exact)[0]["evals"][0]["assessment"] == "match"
 
 
 def test_replay_surfaces_task_error_as_row():
@@ -137,7 +144,8 @@ def test_replay_surfaces_task_error_as_row():
     _set_mode(Mode.REPLAY)
     state["boom"] = True
     rows = runner.replay("e", runner.exact)
-    assert rows[0]["status"] == "ERROR" and "boom" in rows[0]["new"]
+    # execution failed -> exec=ERROR and nothing to evaluate
+    assert rows[0]["exec"] == "ERROR" and "boom" in rows[0]["new"] and rows[0]["evals"] == []
 
 
 # --- persistence ----------------------------------------------------------- #
@@ -164,9 +172,9 @@ def test_replay_from_loaded_baseline_cases():
 
     _set_mode(Mode.REPLAY)
     cases = [{"input": {"x": 7}, "output": {"v": 7, "shape": [9, 9]}}]  # different leaf values, same shape
-    assert runner.replay("e", runner.structural, cases=cases)[0]["status"] == "MATCH"
+    assert runner.replay("e", runner.structural, cases=cases)[0]["evals"][0]["assessment"] == "match"
     cases = [{"input": {"x": 7}, "output": {"v": 7, "shape": [9]}}]  # different shape
-    assert runner.replay("e", runner.structural, cases=cases)[0]["status"] == "CHANGED"
+    assert runner.replay("e", runner.structural, cases=cases)[0]["evals"][0]["assessment"] == "changed"
 
 
 # --- SDK bridge (Slice C) -------------------------------------------------- #
@@ -182,8 +190,10 @@ def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
     assert task({"x": 5}, None) == {"v": 5, "ts": "volatile"}  # task re-invokes the subject
 
     ev = sdk._make_evaluator(runner.structural)
-    assert ev({}, {"v": 5, "ts": "a"}, {"v": 9, "ts": "b"}) is True  # same shape -> match
-    assert ev({}, {"v": 5}, {"v": 9, "extra": 1}) is False  # extra field -> no match
+    match = ev({}, {"v": 5, "ts": "a"}, {"v": 9, "ts": "b"})  # same shape
+    assert match.value is True and match.assessment == "match"
+    changed = ev({}, {"v": 5}, {"v": 9, "extra": 1})  # extra field
+    assert changed.value is False and changed.assessment == "changed"
 
 
 # --- evaluators ------------------------------------------------------------ #
@@ -260,9 +270,11 @@ def test_replay_scores_attached_evaluators_only_when_enabled():
     f("hello")
     _set_mode(Mode.REPLAY)
 
-    assert "evals" not in runner.replay("e", runner.exact)[0]  # off by default
-    rows = runner.replay("e", runner.exact, score_evaluators=True)
-    assert rows[0]["evals"][0]["name"] == "at_least_as_long" and rows[0]["evals"][0]["assessment"] == "pass"
+    # the default comparison evaluator always runs; the attached one only with score_evaluators
+    off = runner.replay("e", runner.exact)[0]["evals"]
+    assert [e["name"] for e in off] == ["regression_match"]
+    on = {e["name"]: e["assessment"] for e in runner.replay("e", runner.exact, score_evaluators=True)[0]["evals"]}
+    assert on["regression_match"] == "match" and on["at_least_as_long"] == "pass"
 
 
 def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
@@ -318,39 +330,30 @@ def test_cli_arg_parser():
     assert p.parse_args(["list", "myapp"]).command == "list"
 
 
+def _ev(name, assessment, error=None, value=True):
+    return {"name": name, "value": value, "assessment": assessment, "reasoning": None, "error": error}
+
+
 def test_cli_print_report_counts(capsys):
+    # `exec` is execution status; the comparison verdict is an evaluator (match/changed)
     rows = [
-        {"input": {}, "recorded": 1, "new": 1, "status": "MATCH"},
-        {"input": {}, "recorded": 1, "new": 2, "status": "CHANGED"},
+        {"input": {}, "recorded": 1, "new": 1, "exec": "OK", "evals": [_ev("regression_match", "match")]},
+        {"input": {}, "recorded": 1, "new": 2, "exec": "OK", "evals": [_ev("regression_match", "changed")]},
     ]
     counts = cli._print_report("e", rows)
-    assert counts == {"MATCH": 1, "CHANGED": 1}
+    assert counts["OK"] == 2 and counts["CHANGED"] == 1
 
 
 def test_cli_print_report_counts_eval_fail(capsys):
-    rows = [
-        {
-            "input": {},
-            "recorded": 1,
-            "new": 1,
-            "status": "MATCH",
-            "evals": [{"name": "judge", "value": False, "assessment": "fail", "reasoning": None, "error": None}],
-        },
-    ]
+    rows = [{"input": {}, "recorded": 1, "new": 1, "exec": "OK", "evals": [_ev("judge", "fail", value=False)]}]
     counts = cli._print_report("e", rows)
-    assert counts["MATCH"] == 1 and counts["EVAL_FAIL"] == 1  # a failing eval is counted for the exit gate
+    assert counts["OK"] == 1 and counts["EVAL_FAIL"] == 1  # a failing eval is counted for the exit gate
 
 
 def test_cli_print_report_counts_eval_error(capsys):
     rows = [
-        {
-            "input": {},
-            "recorded": 1,
-            "new": 1,
-            "status": "MATCH",
-            "evals": [{"name": "judge", "value": None, "assessment": None, "reasoning": None, "error": "boom"}],
-        },
+        {"input": {}, "recorded": 1, "new": 1, "exec": "OK", "evals": [_ev("judge", None, error="boom", value=None)]}
     ]
     counts = cli._print_report("e", rows)
     # an evaluator that errored (the check didn't run) is counted so it can gate the exit code
-    assert counts["MATCH"] == 1 and counts["EVAL_ERROR"] == 1
+    assert counts["OK"] == 1 and counts["EVAL_ERROR"] == 1

@@ -118,14 +118,19 @@ def comparator_from_spec(kind: str = "structural", ignore: Optional[list[str]] =
 # output_data). The always-on guard and any user-attached comparison both go through it,
 # so "a comparison" is just one kind of evaluator. See RFC §"Comparisons as evaluators".
 # --------------------------------------------------------------------------- #
-def as_evaluator(comparator: Callable[[Any, Any], bool], name: str = "regression_match") -> Callable[..., bool]:
+def as_evaluator(comparator: Callable[[Any, Any], bool], name: str = "regression_match") -> Callable[..., Any]:
     """Wrap a `(recorded, new)` comparator as a `(input, output, expected)` evaluator.
 
-    The evaluator's ``__name__`` becomes the eval-metric label.
+    A comparison is just an evaluator whose assessment is ``match`` / ``changed`` (rather than
+    a judge's ``pass`` / ``fail``) — so the familiar regression vocabulary survives as a label
+    without a privileged status. The evaluator's ``__name__`` becomes the eval-metric label.
     """
 
-    def _comparison(input_data: Any, output_data: Any, expected_output: Any) -> bool:
-        return bool(comparator(expected_output, output_data))
+    def _comparison(input_data: Any, output_data: Any, expected_output: Any) -> Any:
+        from ddtrace.llmobs._experiment import EvaluatorResult
+
+        matched = bool(comparator(expected_output, output_data))
+        return EvaluatorResult(value=matched, assessment="match" if matched else "changed")
 
     _comparison.__name__ = name
     return _comparison
@@ -133,13 +138,13 @@ def as_evaluator(comparator: Callable[[Any, Any], bool], name: str = "regression
 
 def comparison(
     kind: str = "structural", ignore: Optional[list[str]] = None, name: Optional[str] = None
-) -> Callable[..., bool]:
+) -> Callable[..., Any]:
     """A built-in comparison as an evaluator, droppable into ``evaluators=``.
 
     The generalized form of the ``--comparator`` knob: ``comparison("exact")``,
-    ``comparison("ignoring", ignore=["ts"])``, ``comparison()`` (structural). Defaults the
-    metric label to ``"<kind>_match"`` so multiple comparisons don't collide; the always-on
-    default guard keeps the reserved ``"regression_match"`` label.
+    ``comparison("ignoring", ignore=["ts"])``, ``comparison()`` (structural). Reports a
+    ``match`` / ``changed`` assessment. Defaults the metric label to ``"<kind>_match"`` so
+    multiple comparisons don't collide; the default comparison keeps ``"regression_match"``.
     """
     return as_evaluator(comparator_from_spec(kind, ignore), name or ("%s_match" % kind))
 
@@ -257,16 +262,19 @@ def _invoke(spec: dict[str, Any], input_kwargs: dict[str, Any]) -> Any:
 
 def replay(
     name: str,
-    comparator: Callable[[Any, Any], bool] = exact,
+    comparator: Optional[Callable[[Any, Any], bool]] = None,
     cases: Optional[list[dict[str, Any]]] = None,
     score_evaluators: bool = False,
 ) -> list[dict[str, Any]]:
     """Re-drive a subject over its captured cases; return per-case result rows.
 
-    Each row: ``{input, recorded, new, status}`` where status is
-    MATCH / CHANGED / ERROR / NO_END. When ``score_evaluators`` is set, the subject's
-    attached ``evaluators`` (resolved lazily here) are scored on each replayed case and
-    added as ``row["evals"]`` — a list of ``{name, value, assessment, reasoning, error}``.
+    There is no privileged comparator status: each row has an *execution* status
+    ``exec`` (``OK`` / ``ERROR`` / ``NO_END`` — did we get an output to judge) and a list of
+    *evaluator* verdicts ``evals`` (``{name, value, assessment, reasoning, error}``). The
+    comparison is just the **default evaluator**: ``comparator`` (default ``structural``,
+    reported as ``match`` / ``changed``) runs on every ``OK`` row. When ``score_evaluators``
+    is set, the subject's attached ``evaluators`` (resolved lazily) are scored too — stacked
+    after the default comparison.
     """
     spec = _REGISTRY.get(name, {})
     entry = spec.get("start")
@@ -275,31 +283,34 @@ def replay(
     has_end = "end" in spec
     start_output_fn = spec.get("start_output")
     cases = cases if cases is not None else spec.get("cases", [])
-    # Lazy: only resolve (and thus construct) evaluators when explicitly scoring.
-    evaluators = resolve_evaluators(spec.get("evaluators")) if score_evaluators else []
+    # The default comparison evaluator (structural unless overridden) always runs; attached
+    # evaluators stack after it and are resolved lazily only when explicitly scoring.
+    default_eval = as_evaluator(comparator or structural)
+    attached = resolve_evaluators(spec.get("evaluators")) if score_evaluators else []
+    evaluators = [default_eval, *attached]
 
     results: list[dict[str, Any]] = []
     for case in cases:
         recorded = _normalize(case["output"])
-        row: dict[str, Any] = {"input": case["input"], "recorded": recorded, "new": None, "status": "NO_END"}
+        row: dict[str, Any] = {"input": case["input"], "recorded": recorded, "new": None, "exec": "NO_END", "evals": []}
         try:
             ret = _invoke(spec, case["input"])
         except _ExperimentStop as stop:  # emit shape: end unwound with the output
             new = stop.output
         except Exception as e:  # noqa: BLE001 - surface task errors as a row rather than abort
             row["new"] = "<error: %r>" % (e,)
-            row["status"] = "ERROR"
+            row["exec"] = "ERROR"
             results.append(row)
             continue
         else:
             if has_end:
-                # the end marker never fired this replay -> leave status as NO_END
+                # the end marker never fired this replay -> leave exec as NO_END, nothing to judge
                 results.append(row)
                 continue
             new = _start_output(start_output_fn, ret)  # single-function unit: return is the output
         row["new"] = _normalize(new)
-        row["status"] = "MATCH" if comparator(recorded, row["new"]) else "CHANGED"
-        if evaluators:  # score richer checks against the (recorded -> new) pair for this case
-            row["evals"] = [v for ev in evaluators for v in evaluate_one(ev, recorded, row["new"], case["input"])]
+        row["exec"] = "OK"
+        # Default comparison + any attached evaluators, scored against the (recorded -> new) pair.
+        row["evals"] = [v for ev in evaluators for v in evaluate_one(ev, recorded, row["new"], case["input"])]
         results.append(row)
     return results
