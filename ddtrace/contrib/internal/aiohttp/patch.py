@@ -40,6 +40,7 @@ config._add(
         distributed_tracing=asbool(env.get("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=config._http_client_tag_query_string,
         split_by_domain=asbool(env.get("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
+        _default_service="aiohttp_client",
     ),
 )
 
@@ -98,7 +99,7 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
         kwargs["headers"] = headers
 
     service: Optional[str] = (
-        url.host if config.aiohttp_client.split_by_domain else ext_service(None, config.aiohttp_client)
+        url.host if config.aiohttp_client.split_by_domain else ext_service(config, config.aiohttp_client)
     )
 
     # Params can be included separately from the URL, so include them in query extraction.
