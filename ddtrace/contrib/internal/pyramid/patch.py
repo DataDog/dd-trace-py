@@ -3,6 +3,7 @@ import pyramid.config  # noqa: F401
 import wrapt
 
 from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 
@@ -16,6 +17,7 @@ config._add(
     "pyramid",
     dict(
         distributed_tracing=asbool(_get_config("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
+        _default_service=schematize_service_name("pyramid"),
     ),
 )
 
