@@ -1,7 +1,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
 #include <memory>
 #include <random>
 #include <vector>
@@ -345,29 +344,13 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 /* Public API */
 
 bool
-memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
+memalloc_heap_tracker_init_no_cpython(uint32_t sample_size, bool code_cache_enabled)
 {
     memalloc_heap_tracker_deinit_no_cpython();
     heap_tracker_t::instance = new heap_tracker_t(sample_size);
-
-    /* Allow the cache to be disabled or resized via environment variables.
-     * DD_PROFILING_MEMALLOC_CODE_CACHE_ENABLED=0 turns the cache off entirely.
-     * DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE=<N> overrides the default capacity
-     * (clamped to [MIN_CAPACITY, MAX_CAPACITY] inside CodeFunctionCache). */
-    const char* enabled_env = getenv("DD_PROFILING_MEMALLOC_CODE_CACHE_ENABLED");
-    if (enabled_env != nullptr && enabled_env[0] == '0' && enabled_env[1] == '\0') {
-        return true; // cache disabled — leave instance as nullptr
+    if (code_cache_enabled) {
+        Datadog::memalloc_code_cache_init(Datadog::CodeFunctionCache::DEFAULT_CAPACITY);
     }
-    size_t capacity = Datadog::CodeFunctionCache::DEFAULT_CAPACITY;
-    const char* size_env = getenv("DD_PROFILING_MEMALLOC_CODE_CACHE_SIZE");
-    if (size_env != nullptr) {
-        char* end = nullptr;
-        long val = strtol(size_env, &end, 10);
-        if (end != size_env && val > 0) {
-            capacity = static_cast<size_t>(val);
-        }
-    }
-    Datadog::memalloc_code_cache_init(capacity);
     return true;
 }
 
