@@ -30,8 +30,19 @@ _E = sys.monitoring.events
 DISABLE = sys.monitoring.DISABLE
 _DISABLE = DISABLE
 
+# sys.monitoring distinguishes "local" events, which can be enabled per code
+# object via set_local_events, from events that can only be enabled globally
+# via set_events. PY_START, PY_RETURN and LINE are local; PY_UNWIND is not and
+# must be enabled globally, otherwise set_local_events raises
+# "ValueError: invalid local event set".
+_LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
+_GLOBAL_EVENTS = _E.PY_UNWIND
+
 _tool_id: Optional[int] = None
 _tool_lock = Lock()
+
+# The set of global-only events currently enabled via sys.monitoring.set_events.
+_active_global_events = 0
 
 _registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 _registry_lock = Lock()
@@ -147,8 +158,14 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     entries = _registry.get(code)
+    # PY_UNWIND is a global event, so this callback fires for every unwinding
+    # frame regardless of registration. We must not return DISABLE for
+    # unregistered code: doing so would permanently disable the event for that
+    # code location, and a later register() would not re-arm it (we never call
+    # restart_events). Unwinding only happens on exceptions, so the extra lookup
+    # cost on this already-slow path is negligible.
     if not entries:
-        return _DISABLE
+        return None
     for e in list(entries.values()):
         if e.events & _E.PY_UNWIND:
             e.handler.on_py_unwind(code, instruction_offset, exception)
@@ -172,6 +189,29 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 # ---------------------------------------------------------------------------
 
 
+def _enable_global_events(events: int) -> None:
+    """Ensure the given global-only *events* are enabled (additive)."""
+    global _active_global_events
+    if events & ~_active_global_events:
+        _active_global_events |= events
+        assert _tool_id is not None  # nosec
+        sys.monitoring.set_events(_tool_id, _active_global_events)
+
+
+def _recompute_global_events() -> None:
+    """Re-derive the set of global-only events from the current registry."""
+    global _active_global_events
+    if _tool_id is None:
+        return
+    needed = 0
+    for entries in _registry.values():
+        needed |= _events_for(entries)
+    needed &= _GLOBAL_EVENTS
+    if needed != _active_global_events:
+        _active_global_events = needed
+        sys.monitoring.set_events(_tool_id, needed)
+
+
 def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Register a monitoring event handler for *code*.
 
@@ -190,7 +230,9 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         if entries is None:
             _registry[code] = entries = {}
         entries[id(handler)] = entry
-        sys.monitoring.set_local_events(tool_id, code, _events_for(entries))
+        all_events = _events_for(entries)
+        sys.monitoring.set_local_events(tool_id, code, all_events & _LOCAL_EVENTS)
+        _enable_global_events(all_events & _GLOBAL_EVENTS)
 
 
 def refresh(code: CodeType) -> None:
@@ -202,7 +244,7 @@ def refresh(code: CodeType) -> None:
     with _registry_lock:
         entries = _registry.get(code)
         if entries and _tool_id is not None:
-            sys.monitoring.set_local_events(_tool_id, code, _events_for(entries))
+            sys.monitoring.set_local_events(_tool_id, code, _events_for(entries) & _LOCAL_EVENTS)
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -220,4 +262,6 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
                 sys.monitoring.set_local_events(_tool_id, code, 0)
         else:
             assert _tool_id is not None  # nosec
-            sys.monitoring.set_local_events(_tool_id, code, _events_for(existing))
+            sys.monitoring.set_local_events(_tool_id, code, _events_for(existing) & _LOCAL_EVENTS)
+
+        _recompute_global_events()
