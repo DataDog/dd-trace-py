@@ -350,6 +350,11 @@ class TraceExporterBuilder:
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
 
+    def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
+        """
+        Obfuscate client side stats buckets in the client instead of in the agent.
+        """
+        ...
     def enable_telemetry(
         self,
         heartbeat_ms: int,

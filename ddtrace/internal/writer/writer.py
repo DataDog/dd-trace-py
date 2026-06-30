@@ -832,6 +832,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if p_tags := process_tags.process_tags:
             builder.set_process_tags(p_tags)
 
+        if self._client_side_stats_obfuscation:
+            builder.enable_client_side_stats_obfuscation()
+
         # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
         if config._telemetry_enabled and sys.platform.startswith("linux"):
             heartbeat_ms = int(
