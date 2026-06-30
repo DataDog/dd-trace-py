@@ -141,8 +141,7 @@ def test_nested_factory(mech):
 
 
 def test_lambda(mech):
-    f = lambda a, b=2: (a, b)  # noqa: E731
-    g = mech.wrap_function(f)
+    g = mech.wrap_function(lambda a, b=2: (a, b))
     assert g(1) == (1, 2)
     assert g(1, 3) == (1, 3)
 
