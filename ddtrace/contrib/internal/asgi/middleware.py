@@ -61,6 +61,7 @@ config._add(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
         ),
         obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
+        _default_service="asgi",
     ),
 )
 
@@ -245,7 +246,7 @@ class TraceMiddleware:
                 span_name=operation_name,
                 resource=resource,
                 span_type=SpanTypes.WEB,
-                service=trace_utils.int_service(None, self.integration_config),
+                service=trace_utils.int_service(config, self.integration_config),
                 distributed_headers=headers,
                 activate_distributed_headers=True,
                 scope=scope,
