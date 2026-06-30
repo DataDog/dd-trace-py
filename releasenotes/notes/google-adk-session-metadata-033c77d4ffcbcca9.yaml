@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    google_adk: This introduces capture of session metadata from the Google ADK ``Session``
+    LLM Observability: This introduces capture of session metadata from the Google ADK ``Session``
     object on LLM Observability spans. The session id, user id, and app name are now read from
     the instrumented agent run: the session id is set as the span's LLM Observability session
     and propagates to child tool and code-execution spans, and the user id and app name are
