@@ -1,9 +1,9 @@
 from typing import Optional
 
 import mock
+import openai
 import pytest
 
-from ddtrace.contrib.internal.openai_agents.patch import get_version
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_span_name
@@ -454,8 +454,8 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.skipif(
-    parse_version(get_version()) >= (0, 14, 0),
-    reason="hosted WebSearchTool response shape changed on agents >= 0.14; cassette targets the older shape",
+    parse_version(openai.__version__) >= (2, 0, 0),
+    reason="hosted WebSearchTool serializes as 'web_search' on openai>=2 vs the recorded 'web_search_preview'",
 )
 @pytest.mark.asyncio
 async def test_llmobs_single_agent_with_ootb_tools(
