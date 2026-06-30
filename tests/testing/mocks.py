@@ -21,16 +21,16 @@ from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
+from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
-from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
-from ddtrace.testing.internal.session_manager import get_env_tags
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
 from ddtrace.testing.internal.settings_data import TestManagementSettings
 from ddtrace.testing.internal.settings_data import TestProperties
+from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import Test
@@ -48,6 +48,7 @@ def get_mock_git_instance() -> Mock:
     mock_git_instance.get_latest_commits.return_value = []
     mock_git_instance.get_filtered_revisions.return_value = []
     mock_git_instance.pack_objects.return_value = iter([])
+    mock_git_instance.is_shallow_repository.return_value = False
     return mock_git_instance
 
 
@@ -715,7 +716,7 @@ class CoverageReportUploadCapture:
     def __init__(self) -> None:
         self.upload_calls: list[dict[str, t.Any]] = []
 
-    def create_upload_handler(self) -> t.Callable:
+    def create_upload_handler(self) -> t.Callable[..., t.Any]:
         """
         Create an upload handler function that captures calls.
 
@@ -811,7 +812,7 @@ class CoverageReportUploadCapture:
         if event_file is None:
             raise AssertionError("No event file found in upload")
 
-        return json.loads(event_file.data.decode("utf-8"))
+        return dict(json.loads(event_file.data.decode("utf-8")))
 
 
 def test_report(

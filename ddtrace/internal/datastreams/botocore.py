@@ -68,7 +68,7 @@ def inject_context(trace_data, endpoint_service, dsm_identifier, message):
         payload_size = calculate_kinesis_payload_size(message, trace_data)
 
     if not dsm_identifier:
-        log.debug("pathway being generated with unrecognized service: ", dsm_identifier)
+        log.debug("pathway being generated with unrecognized service: %r", dsm_identifier)
     ctx = processor().set_checkpoint(
         ["direction:out", "topic:{}".format(dsm_identifier), path_type], payload_size=payload_size
     )
@@ -137,26 +137,26 @@ def handle_sqs_prepare(params):
 def get_datastreams_context(message):
     """
     Formats we're aware of:
-        - message.Body.MessageAttributes._datadog.Value.decode() (SQS)
-        - message.MessageAttributes._datadog.StringValue (SNS -> SQS)
+        - message.MessageAttributes._datadog.StringValue (SQS)
+        - message.Body.MessageAttributes._datadog.Value.decode() (SNS -> SQS)
         - message.MessageAttributes._datadog.BinaryValue.decode() (SNS -> SQS, raw)
         - message.messageAttributes._datadog.stringValue (SQS -> lambda)
     """
     context_json = None
     message_body = message
-    try:
-        body = message.get("Body")
-        if body:
-            message_body = json.loads(body)
-    except (ValueError, TypeError):
-        log.debug("Unable to parse message body as JSON, treat as non-json")
+    message_attributes = message.get("MessageAttributes") or message.get("messageAttributes")
 
-    message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
-    if not message_attributes:
-        log.debug("DataStreams skipped message: %r", message)
-        return None
+    # Fall back to the body for SNS -> SQS notifications, which carry their attributes there.
+    if not (message_attributes and "_datadog" in message_attributes):
+        try:
+            body = message.get("Body")
+            if body:
+                message_body = json.loads(body)
+        except (ValueError, TypeError):
+            log.debug("Unable to parse message body as JSON, treat as non-json")
+        message_attributes = message_body.get("MessageAttributes") or message_body.get("messageAttributes")
 
-    if "_datadog" not in message_attributes:
+    if not message_attributes or "_datadog" not in message_attributes:
         log.debug("DataStreams skipped message: %r", message)
         return None
 
@@ -206,7 +206,7 @@ def record_data_streams_path_for_kinesis_stream(params, time_estimate, context_j
     stream = get_stream(params)
 
     if not stream:
-        log.debug("Unable to determine StreamARN and/or StreamName for request with params: ", params)
+        log.debug("Unable to determine StreamARN and/or StreamName for request with params: %r", params)
         raise StreamMetadataNotFound()
 
     payload_size = calculate_kinesis_payload_size(record)

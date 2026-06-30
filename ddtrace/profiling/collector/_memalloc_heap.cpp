@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -118,6 +119,9 @@ class heap_tracker_t
     /* Global instance of the heap tracker */
     static heap_tracker_t* instance;
 
+    /* Get the sampling interval R */
+    uint64_t get_sample_size() const { return sample_size; }
+
     /* Traceback pool operations */
     std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
                                                                           size_t weighted_size,
@@ -151,6 +155,11 @@ class heap_tracker_t
     /* Bytes allocated since the last sample was collected */
     uint64_t allocated_memory;
 
+    /* Number of samples silently dropped because allocs_m hit the cap.
+     * Accumulated across the lifetime of this tracker instance and surfaced
+     * via ProfilerStats so the backend / user can detect data loss. */
+    size_t cap_drops{ 0 };
+
     /* Debug guard to assert that GIL-protected critical sections are maintained
      * while accessing the profiler's state */
     memalloc_gil_debug_check_t gil_guard;
@@ -158,6 +167,9 @@ class heap_tracker_t
     /* Traceback pool - reduces allocation overhead. Access is always under GIL. */
     static constexpr size_t POOL_CAPACITY = 128;
     std::vector<std::unique_ptr<traceback_t>> pool;
+
+    /* Initial capacity of the allocations map */
+    static constexpr size_t INITAL_ALLOC_MAP_CAPACITY = 512;
 };
 
 // Pool implementation
@@ -216,7 +228,10 @@ heap_tracker_t::heap_tracker_t(uint32_t sample_size_val)
   , current_sample_size(next_sample_size_no_cpython(sample_size_val))
   , allocated_memory(0)
 {
-    pool.reserve(POOL_CAPACITY); // Pre-allocate pool capacity to avoid reallocations
+    // Pre-allocate pool capacity to avoid reallocations
+    pool.reserve(POOL_CAPACITY);
+    // Pre-allocate map capacity to avoid rehashing during ramp-up.
+    allocs_m.reserve(INITAL_ALLOC_MAP_CAPACITY);
 }
 
 void
@@ -242,12 +257,12 @@ heap_tracker_t::should_sample_no_cpython(size_t size, uint64_t* allocated_memory
         return false;
     }
 
-    if (allocs_m.size() > TRACEBACK_ARRAY_MAX_COUNT) {
-        /* TODO(nick) this is vestigial from the original array-based
-         * implementation. Do we actually want this? It gives us bounded memory
-         * use, but the size limit is arbitrary and once we hit the arbitrary
-         * limit our reported numbers will be inaccurate.
-         */
+    /* This cap bounds memory use but creates blind spots: once allocs_m is full,
+     * new allocations are not sampled. cap_drops tracks how often this happens
+     * so we can observe whether the limit is ever reached in practice. */
+    if (allocs_m.size() >= TRACEBACK_ARRAY_MAX_COUNT) {
+        ++cap_drops;
+        reset_sampling_state_no_cpython();
         return false;
     }
 
@@ -280,7 +295,9 @@ heap_tracker_t::export_heap_no_cpython()
         tb->sample.export_sample();
     }
 
-    Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
+    auto& stats = Datadog::Sample::profile_borrow().stats();
+    stats.set_heap_tracker_size(allocs_m.size());
+    stats.set_heap_tracker_cap_drops(cap_drops);
 }
 
 void
@@ -308,6 +325,8 @@ heap_tracker_t::postfork_child()
     // traceback_t objects may reference invalid Profile state.
     allocs_m.clear();
 
+    cap_drops = 0;
+
     // Reset the sampling state to start fresh after fork.
     reset_sampling_state_no_cpython();
 }
@@ -320,7 +339,7 @@ heap_tracker_t* heap_tracker_t::instance = nullptr;
 bool
 memalloc_heap_tracker_init_no_cpython(uint32_t sample_size)
 {
-    // TODO(dsn): what should we do it this was already initialized?
+    // TODO(dsn): what should we do if this was already initialized?
     if (!heap_tracker_t::instance) {
         heap_tracker_t::instance = new heap_tracker_t(sample_size);
         return true;
@@ -366,7 +385,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Prior to Python 3.12, and particularly in Python 3.11, collecting
+    /* PR #14550 — realloc+GC use-after-free crash.
+       Prior to Python 3.12, and particularly in Python 3.11, collecting
        tracebacks while intercepting allocations is prone to crashes. We
        currently use the C Python API to collect tracebacks, which can
        do allocations. These allocations can in turn trigger garbage collection,
@@ -413,7 +433,17 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     // Use the weighted size (allocated_memory_val) so the heap profile accounts
     // for sampling, matching the tcmalloc/Go pprof approach: each sampled live
     // allocation represents ~R bytes of heap, not just its own raw size.
-    tb->sample.push_heap(allocated_memory_val);
+    //
+    // For heap-live-samples, use the Horvitz-Thompson estimator: w = 1 / (1 - exp(-S/R))
+    // where S is the allocation size and R is the sampling interval.
+    // This is the inverse of the probability that a contiguous region of S bytes
+    // contains at least one Poisson sample point. Each sampled allocation of size S
+    // represents w real allocations of that size in the population.
+    double s = static_cast<double>(size > 0 ? size : 1);
+    double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
+    double p = 1.0 - std::exp(-s / r);
+    int64_t heap_count = static_cast<int64_t>(1.0 / p);
+    tb->sample.push_heap(allocated_memory_val, heap_count);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {

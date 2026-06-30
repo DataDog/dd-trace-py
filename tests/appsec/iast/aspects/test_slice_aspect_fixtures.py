@@ -288,6 +288,37 @@ def test_string_slice_negative():
     assert result == expected_result
 
 
+@pytest.mark.parametrize(
+    "input_str, start_pos, end_pos, step, expected_result",
+    [
+        # Regression: negative step triggered OOB read in build_index_range_map
+        # because start_int=0 < stop_int=len satisfied i<stop for all negative i.
+        ("hello", None, None, -1, "olleh"),
+        ("hello", None, None, -2, "olh"),
+        ("hello", 4, 0, -1, "olle"),
+    ],
+)
+def test_string_slice_negative_step_oob_regression(
+    input_str: str, start_pos: object, end_pos: object, step: int, expected_result: str
+) -> None:
+    """Regression test for out-of-bounds read in slice aspect with negative step."""
+    result = mod.do_slice(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
+    assert result == expected_result
+
+    tainted_input = taint_pyobject(
+        pyobject=input_str,
+        source_name="input_str",
+        source_value="foo",
+        source_origin=OriginType.PARAMETER,
+    )
+    result = mod.do_slice(tainted_input, start_pos, end_pos, step)  # pylint: disable=no-member
+    assert result == expected_result
+    tainted_ranges = get_tainted_ranges(result)
+    assert len(tainted_ranges) == 1
+    assert tainted_ranges[0].start == 0
+    assert tainted_ranges[0].length == len(expected_result)
+
+
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
     tainted_input = taint_pyobject(

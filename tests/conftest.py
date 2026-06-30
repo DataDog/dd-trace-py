@@ -462,7 +462,13 @@ def run_function_from_file(item, params=None):
                     pytest.xfail("subprocess test resulted in XFail")
                     return
 
-                if status != expected_status:
+                if callable(expected_status):
+                    status_ok = expected_status(status)
+                elif isinstance(expected_status, (set, tuple, list)):
+                    status_ok = status in expected_status
+                else:
+                    status_ok = status == expected_status
+                if not status_ok:
                     raise AssertionError(
                         "Expected status %s, got %s."
                         "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="

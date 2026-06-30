@@ -30,11 +30,11 @@ def _derive_tags(c: DDConfig) -> str:
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
-def normalize_ident(ident):
+def normalize_ident(ident: str) -> str:
     return ident.strip().lower().replace("_", "")
 
 
-def validate_type_patterns(types: set[str]):
+def validate_type_patterns(types: set[str]) -> None:
     for typ in types:
         for s in typ.strip().split("."):
             s = s.strip().replace("*", "a")
@@ -126,9 +126,11 @@ class DynamicInstrumentationConfig(DDConfig):
 
     redacted_types_re = DDConfig.d(
         t.Optional[re.Pattern],
-        lambda c: re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
-        if c.redacted_types
-        else None,
+        lambda c: (
+            re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
+            if c.redacted_types
+            else None
+        ),
     )
 
     redaction_excluded_identifiers = DDConfig.v(

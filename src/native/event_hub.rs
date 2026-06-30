@@ -1,0 +1,451 @@
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyList, PyTuple},
+    PyTraverseError, PyVisit,
+};
+use std::collections::HashMap;
+use std::sync::{LazyLock, OnceLock, RwLock};
+
+type Listeners = HashMap<String, Vec<(Py<PyAny>, Py<PyAny>)>>;
+
+// (name_key, callback) pairs per event_id
+static LISTENERS: LazyLock<RwLock<Listeners>> = LazyLock::new(|| RwLock::new(HashMap::new()));
+
+// Cached Python objects — initialized on first use, never invalidated.
+// The losing thread in a race drops its Py<PyAny>; pyo3 0.28 defers the decref.
+static MISSING_EVENT: OnceLock<Py<PyAny>> = OnceLock::new();
+static MISSING_EVENT_DICT: OnceLock<Py<PyAny>> = OnceLock::new();
+// ResultType::Ok/Exception interned once so dispatch_with_results avoids per-listener allocation.
+static RT_OK_PY: OnceLock<Py<PyAny>> = OnceLock::new();
+static RT_EXCEPTION_PY: OnceLock<Py<PyAny>> = OnceLock::new();
+
+// OnceLock::get_or_try_init is unstable; use get+set pattern instead.
+macro_rules! get_or_init {
+    ($cell:expr, $py:expr, $init:expr) => {{
+        if let Some(val) = $cell.get() {
+            Ok(val)
+        } else {
+            let val: PyResult<Py<PyAny>> = $init;
+            match val {
+                Ok(v) => {
+                    let _ = $cell.set(v);
+                    Ok($cell.get().unwrap())
+                }
+                Err(e) => Err(e),
+            }
+        }
+    }};
+}
+
+/// Native equivalent of the Python ResultType enum.
+/// pyo3 automatically exposes each variant as a class attribute.
+#[pyclass(
+    eq,
+    hash,
+    frozen,
+    from_py_object,
+    module = "ddtrace.internal.native._native"
+)]
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum ResultType {
+    #[pyo3(name = "RESULT_OK")]
+    Ok = 0,
+    #[pyo3(name = "RESULT_EXCEPTION")]
+    Exception = 1,
+    #[pyo3(name = "RESULT_UNDEFINED")]
+    Undefined = -1,
+}
+
+#[pymethods]
+impl ResultType {
+    #[getter]
+    fn value(&self) -> i32 {
+        match self {
+            ResultType::Ok => 0,
+            ResultType::Exception => 1,
+            ResultType::Undefined => -1,
+        }
+    }
+
+    #[getter]
+    fn name(&self) -> &'static str {
+        match self {
+            ResultType::Ok => "RESULT_OK",
+            ResultType::Exception => "RESULT_EXCEPTION",
+            ResultType::Undefined => "RESULT_UNDEFINED",
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("<ResultType.{}: {}>", self.name(), self.value())
+    }
+
+    fn __int__(&self) -> i32 {
+        self.value()
+    }
+}
+
+fn get_missing_event(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(MISSING_EVENT, py, {
+        let result_type_undefined = ResultType::Undefined.into_pyobject(py)?.into_any().unbind();
+        let event_result = Py::new(
+            py,
+            EventResult {
+                response_type: Some(result_type_undefined),
+                value: None,
+                exception: None,
+                is_ok: false,
+            },
+        )?;
+        Ok(event_result.into_any())
+    })
+}
+
+fn get_missing_event_dict(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(MISSING_EVENT_DICT, py, {
+        Ok(Py::new(py, EventResultDict)?.into_any())
+    })
+}
+
+fn get_rt_ok(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(RT_OK_PY, py, {
+        Ok(ResultType::Ok.into_pyobject(py)?.into_any().unbind())
+    })
+}
+
+fn get_rt_exception(py: Python<'_>) -> PyResult<&'static Py<PyAny>> {
+    get_or_init!(RT_EXCEPTION_PY, py, {
+        Ok(ResultType::Exception.into_pyobject(py)?.into_any().unbind())
+    })
+}
+
+fn repr_field(py: Python<'_>, field: &Option<Py<PyAny>>) -> PyResult<String> {
+    Ok(match field {
+        Some(o) => o.bind(py).repr()?.to_string(),
+        None => "None".to_string(),
+    })
+}
+
+/// Python-exported result of a single event listener invocation.
+/// is_ok is a private fast path for __bool__ that avoids Python equality.
+/// response_type is get-only to keep is_ok consistent; value and exception are mutable.
+#[pyclass(module = "ddtrace.internal.native._native")]
+pub struct EventResult {
+    #[pyo3(get)]
+    pub response_type: Option<Py<PyAny>>,
+    #[pyo3(get, set)]
+    pub value: Option<Py<PyAny>>,
+    #[pyo3(get, set)]
+    pub exception: Option<Py<PyAny>>,
+    is_ok: bool,
+}
+
+#[pymethods]
+impl EventResult {
+    #[new]
+    #[pyo3(signature = (response_type=None, value=None, exception=None))]
+    fn py_new(
+        py: Python<'_>,
+        response_type: Option<Py<PyAny>>,
+        value: Option<Py<PyAny>>,
+        exception: Option<Py<PyAny>>,
+    ) -> Self {
+        let is_ok = response_type
+            .as_ref()
+            .and_then(|rt| rt.extract::<ResultType>(py).ok())
+            .map(|rt| rt == ResultType::Ok)
+            .unwrap_or(false);
+        Self {
+            response_type: Some(response_type.unwrap_or_else(|| py.None().into_any())),
+            value: Some(value.unwrap_or_else(|| py.None().into_any())),
+            exception: Some(exception.unwrap_or_else(|| py.None().into_any())),
+            is_ok,
+        }
+    }
+
+    fn __bool__(&self) -> bool {
+        self.is_ok
+    }
+
+    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+        let rt = repr_field(py, &self.response_type)?;
+        let val = repr_field(py, &self.value)?;
+        let exc = repr_field(py, &self.exception)?;
+        Ok(format!(
+            "EventResult(response_type={rt}, value={val}, exception={exc})"
+        ))
+    }
+
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        if let Some(ref o) = self.response_type {
+            visit.call(o)?;
+        }
+        if let Some(ref o) = self.value {
+            visit.call(o)?;
+        }
+        if let Some(ref o) = self.exception {
+            visit.call(o)?;
+        }
+        Ok(())
+    }
+
+    fn __clear__(&mut self) {
+        self.response_type = None;
+        self.value = None;
+        self.exception = None;
+        self.is_ok = false;
+    }
+}
+
+/// dict subclass mapping listener name keys to EventResult values.
+/// __missing__ returns the _MissingEvent singleton for absent keys.
+/// __getattr__ enables attribute-style access: result.listener_name.
+/// GC is inherited from PyDict — no extra fields to traverse or clear.
+#[pyclass(extends=PyDict, module = "ddtrace.internal.native._native")]
+pub struct EventResultDict;
+
+#[pymethods]
+impl EventResultDict {
+    #[new]
+    fn py_new() -> Self {
+        EventResultDict
+    }
+
+    fn __missing__(&self, key: Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        let py = key.py();
+        Ok(get_missing_event(py)?.clone_ref(py))
+    }
+
+    fn __getattr__(slf: Bound<'_, Self>, name: &str) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        match slf.as_any().cast::<PyDict>()?.get_item(name)? {
+            Some(v) => Ok(v.unbind()),
+            None => Ok(get_missing_event(py)?.clone_ref(py)),
+        }
+    }
+}
+
+// Coerce any Python object to a tuple for use as call args.
+// Accepts tuple (fast path, zero copy), list, or any iterable.
+// On failure returns an empty tuple rather than propagating an error,
+// so a misbehaving caller cannot crash the host application.
+fn coerce_to_tuple<'py>(py: Python<'py>, args: Option<Py<PyAny>>) -> Bound<'py, PyTuple> {
+    let Some(obj) = args else {
+        return PyTuple::empty(py);
+    };
+    let bound = obj.into_bound(py);
+    let bound = match bound.cast_into::<PyTuple>() {
+        Ok(t) => return t,
+        Err(e) => e.into_inner(),
+    };
+    let bound = match bound.cast_into::<PyList>() {
+        Ok(l) => return PyTuple::new(py, l.iter()).unwrap_or_else(|_| PyTuple::empty(py)),
+        Err(e) => e.into_inner(),
+    };
+    // General iterable fallback
+    let result = bound
+        .try_iter()
+        .and_then(|iter| iter.collect::<PyResult<Vec<_>>>())
+        .and_then(|v| PyTuple::new(py, v));
+    result.unwrap_or_else(|_| PyTuple::empty(py))
+}
+
+#[pyfunction]
+pub fn has_listeners(event_id: &str) -> bool {
+    LISTENERS
+        .read()
+        .unwrap()
+        .get(event_id)
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+}
+
+#[pyfunction]
+#[pyo3(signature = (event_id, callback, name=None))]
+pub fn on(
+    py: Python<'_>,
+    event_id: String,
+    callback: Py<PyAny>,
+    name: Option<Py<PyAny>>,
+) -> PyResult<()> {
+    let key: Py<PyAny> = match name {
+        Some(n) => n,
+        None => callback.clone_ref(py),
+    };
+
+    // Phase 1: snapshot existing keys under the read lock — no Python calls.
+    // Clone to hold references so objects stay alive during the equality scan below.
+    let snapshot: Vec<Py<PyAny>> = {
+        let guard = LISTENERS.read().unwrap();
+        guard
+            .get(&event_id)
+            .filter(|v| !v.is_empty())
+            .map(|v| v.iter().map(|(k, _)| k.clone_ref(py)).collect())
+            .unwrap_or_default()
+    };
+
+    // Phase 2: equality scan with NO lock held.
+    // __eq__ can safely reenter the hub here — no lock is held.
+    let key_bound = key.bind(py);
+    let mut matched: Option<&Py<PyAny>> = None;
+    for existing_key in &snapshot {
+        let existing_bound = existing_key.bind(py);
+        if existing_bound.is(key_bound) || existing_bound.eq(key_bound)? {
+            matched = Some(existing_key);
+            break;
+        }
+    }
+
+    // Phase 3: write under lock, identity only — no Python calls.
+    let mut guard = LISTENERS.write().unwrap();
+    let vec = guard.entry(event_id).or_default();
+    if let Some(mk) = matched {
+        let mk_bound = mk.bind(py);
+        for (existing_key, existing_cb) in vec.iter_mut() {
+            if existing_key.bind(py).is(mk_bound) {
+                *existing_cb = callback;
+                return Ok(());
+            }
+        }
+        // Matched key was removed by a concurrent reset() — fall through to append.
+    }
+    // Identity guard: handles exact-same-object re-registration and concurrent races.
+    for (existing_key, existing_cb) in vec.iter_mut() {
+        if existing_key.bind(py).is(key_bound) {
+            *existing_cb = callback;
+            return Ok(());
+        }
+    }
+    vec.push((key, callback));
+    Ok(())
+}
+
+#[pyfunction]
+#[pyo3(signature = (event_id=None, callback=None))]
+pub fn reset(py: Python<'_>, event_id: Option<&str>, callback: Option<Py<PyAny>>) {
+    let mut guard = LISTENERS.write().unwrap();
+    if let Some(cb) = callback {
+        if let Some(eid) = event_id {
+            if let Some(vec) = guard.get_mut(eid) {
+                vec.retain(|(_, stored_cb)| stored_cb.bind(py).ne(cb.bind(py)).unwrap_or(true));
+            }
+        }
+    } else if let Some(eid) = event_id {
+        guard.remove(eid);
+    } else {
+        guard.clear();
+    }
+}
+
+#[inline(always)]
+fn should_propagate(e: &PyErr, py: Python<'_>, allow_raise: bool) -> bool {
+    // Mirrors `except Exception:` semantics: BaseException subclasses propagate always.
+    !e.is_instance_of::<pyo3::exceptions::PyException>(py)
+        || allow_raise
+        || crate::config::get_raise()
+}
+
+#[pyfunction]
+#[pyo3(signature = (event_id, args=None, allow_raise=false))]
+pub fn dispatch(
+    py: Python<'_>,
+    event_id: &str,
+    args: Option<Py<PyAny>>,
+    allow_raise: bool,
+) -> PyResult<()> {
+    let callbacks = {
+        let guard = LISTENERS.read().unwrap();
+        let v = match guard.get(event_id) {
+            None => return Ok(()),
+            Some(v) if v.is_empty() => return Ok(()),
+            Some(v) => v,
+        };
+        v.iter().map(|(_, cb)| cb.clone_ref(py)).collect::<Vec<_>>()
+    };
+
+    let call_args = coerce_to_tuple(py, args);
+
+    for cb in &callbacks {
+        if let Err(e) = cb.bind(py).call1(&call_args) {
+            if should_propagate(&e, py, allow_raise) {
+                return Err(e);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Returns the _MissingEventDict singleton when no listeners, otherwise an EventResultDict
+/// mapping name_key -> EventResult. Returned directly — no Python wrapper needed.
+#[pyfunction]
+#[pyo3(signature = (event_id, args=None))]
+pub fn dispatch_with_results(
+    py: Python<'_>,
+    event_id: &str,
+    args: Option<Py<PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    let entries = {
+        let guard = LISTENERS.read().unwrap();
+        let v = match guard.get(event_id) {
+            Some(v) if !v.is_empty() => v,
+            _ => return Ok(get_missing_event_dict(py)?.clone_ref(py)),
+        };
+        v.iter()
+            .map(|(k, cb)| (k.clone_ref(py), cb.clone_ref(py)))
+            .collect::<Vec<_>>()
+    };
+
+    let call_args = coerce_to_tuple(py, args);
+
+    let result_dict_py = Py::new(py, EventResultDict)?;
+    {
+        let result_dict_bound = result_dict_py.bind(py);
+        let dict = result_dict_bound.as_any().cast::<PyDict>()?;
+        for (key, cb) in entries {
+            match cb.bind(py).call1(&call_args) {
+                Ok(value) => {
+                    let event_result = Py::new(
+                        py,
+                        EventResult {
+                            response_type: Some(get_rt_ok(py)?.clone_ref(py)),
+                            value: Some(value.unbind()),
+                            exception: None,
+                            is_ok: true,
+                        },
+                    )?;
+                    dict.set_item(key.bind(py), event_result.bind(py))?;
+                }
+                Err(e) => {
+                    if should_propagate(&e, py, false) {
+                        return Err(e);
+                    }
+                    let exc = e.into_value(py).into_any();
+                    let event_result = Py::new(
+                        py,
+                        EventResult {
+                            response_type: Some(get_rt_exception(py)?.clone_ref(py)),
+                            value: None,
+                            exception: Some(exc),
+                            is_ok: false,
+                        },
+                    )?;
+                    dict.set_item(key.bind(py), event_result.bind(py))?;
+                }
+            }
+        }
+    }
+
+    Ok(result_dict_py.into_any())
+}
+
+pub fn register_event_hub(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ResultType>()?;
+    m.add_class::<EventResult>()?;
+    m.add_class::<EventResultDict>()?;
+    m.add_function(wrap_pyfunction!(has_listeners, m)?)?;
+    m.add_function(wrap_pyfunction!(on, m)?)?;
+    m.add_function(wrap_pyfunction!(reset, m)?)?;
+    m.add_function(wrap_pyfunction!(dispatch, m)?)?;
+    m.add_function(wrap_pyfunction!(dispatch_with_results, m)?)?;
+    Ok(())
+}

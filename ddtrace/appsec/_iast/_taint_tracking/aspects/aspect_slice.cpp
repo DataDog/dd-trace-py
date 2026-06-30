@@ -65,38 +65,26 @@ build_index_range_map(PyObject* text, TaintRangeRefs& ranges, PyObject* start, P
         index_range_map.emplace_back(nullptr);
         index++;
     }
+    PyObject* slice = PySlice_New(
+      (start != nullptr) ? start : Py_None, (stop != nullptr) ? stop : Py_None, (step != nullptr) ? step : Py_None);
+    if (slice == nullptr) {
+        return {};
+    }
+
+    Py_ssize_t norm_start, norm_stop, norm_step, slicelength;
+    if (PySlice_GetIndicesEx(slice, length_text, &norm_start, &norm_stop, &norm_step, &slicelength) < 0) {
+        Py_DECREF(slice);
+        return {};
+    }
+    Py_DECREF(slice);
+
     TaintRangeRefs index_range_map_result;
-    long start_int = 0;
-    if (start != nullptr and start != Py_None) {
-        start_int = PyLong_AsLong(start);
-        if (start_int < 0) {
-            start_int = length_text + start_int;
-            if (start_int < 0) {
-                start_int = 0;
-            }
+    Py_ssize_t map_size = static_cast<Py_ssize_t>(index_range_map.size());
+    for (Py_ssize_t i = 0; i < slicelength; i++) {
+        Py_ssize_t idx = norm_start + i * norm_step;
+        if (idx >= 0 && idx < map_size) {
+            index_range_map_result.emplace_back(index_range_map[idx]);
         }
-    }
-
-    long stop_int = length_text;
-    if (stop != nullptr and stop != Py_None) {
-        stop_int = PyLong_AsLong(stop);
-        if (stop_int > length_text) {
-            stop_int = length_text;
-        } else if (stop_int < 0) {
-            stop_int = length_text + stop_int;
-            if (stop_int < 0) {
-                stop_int = 0;
-            }
-        }
-    }
-
-    long step_int = 1;
-    if (step != nullptr and step != Py_None) {
-        step_int = PyLong_AsLong(step);
-    }
-
-    for (auto i = start_int; i < stop_int; i += step_int) {
-        index_range_map_result.emplace_back(index_range_map[i]);
     }
 
     return index_range_map_result;

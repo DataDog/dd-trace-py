@@ -231,8 +231,9 @@ def test_commit_with_offset(producer, consumer, kafka_topic):
     with override_config("kafka", dict(trace_empty_poll_enabled=False)):
         producer.produce(kafka_topic, PAYLOAD, key=KEY)
         producer.flush()
-        consumer.poll()
-        consumer.commit(offsets=[TopicPartition(kafka_topic)])
+        message = consumer.poll()
+        assert message is not None
+        consumer.commit(offsets=[TopicPartition(message.topic(), message.partition(), message.offset() + 1)])
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)

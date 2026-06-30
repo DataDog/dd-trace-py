@@ -209,7 +209,7 @@ elif PY >= (3, 14):
         try                                 @genexit lasti
             yield_value                     0
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -334,7 +334,7 @@ elif PY >= (3, 13):
         try                                 @genexit lasti
             yield_value                     0
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -458,7 +458,7 @@ elif PY >= (3, 12):
         try                                 @genexit lasti
             yield_value                     3
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
             end_send
 
@@ -582,7 +582,7 @@ elif PY >= (3, 11):
         try                                 @genexit lasti
             yield_value
             resume                          3
-            jump_backward_no_interrupt      @loop
+            jump_backward_no_interrupt      @presend0
         send0:
 
         yield:
@@ -837,7 +837,7 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_async(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
+def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
             instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind(lineno=lineno)

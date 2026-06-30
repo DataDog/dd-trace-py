@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 import re
 import sys
@@ -204,9 +206,11 @@ INTEGRATION_CONFIGS = frozenset(
         "openai_agents",
         "mcp",
         "mlflow",
+        "pytorch",
         "ray",
         "aiokafka",
         "google_cloud_pubsub",
+        "mistralai",
     }
 )
 
@@ -409,6 +413,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             default=None,
             envs=["DD_LLMOBS_ML_APP"],
             modifier=lambda x: x,
+        ),
+        "_llmobs_sample_rate": _ConfigItem(
+            default=1.0,
+            envs=["DD_LLMOBS_SAMPLE_RATE"],
+            modifier=float,
         ),
     }
 
@@ -635,7 +644,12 @@ class Config(object):
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
         trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
-        self._trace_compute_stats = _get_config("DD_TRACE_COMPUTE_STATS", trace_compute_stats_default, asbool)
+        self._trace_compute_stats = _get_config(
+            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
+        )
+        self._client_side_stats_obfuscation = _get_config(
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+        )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
@@ -675,11 +689,10 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY")
+        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
         self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
         self._dd_site = _get_config("DD_SITE", "datadoghq.com")
 
-        self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
@@ -702,9 +715,7 @@ class Config(object):
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._inferred_proxy_services_enabled = _get_config(
-            ["DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", "DD_TRACE_INFERRED_SPANS_ENABLED"], False, asbool
-        )
+        self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
@@ -733,13 +744,11 @@ class Config(object):
         self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "APM Agentless enabled: health metrics and client-side stats are disabled. "
                 "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
                 "bypassing the agent.",
             )
-            self._trace_rate_limit = -1
             self._trace_compute_stats = False
-            setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
 
@@ -770,6 +779,14 @@ class Config(object):
             return self._integration_configs[name]
         raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        # (AIPTS-1715): The config object is a process-global singleton.
+        # If pickled by value, the config would drag its entire state
+        # into the payload, recursing in __getattr__.
+        # We have to pickle it by reference instead, so that the singleton can be re-resolved
+        # in the destination process when being unpickled.
+        return (_get_global_config, ())
+
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
@@ -777,8 +794,8 @@ class Config(object):
         if service_name == self.service or service_name in self._extra_services_sent:
             return
 
-        self._extra_services_queue.put(service_name)
-        self._extra_services_sent.add(service_name)
+        if self._extra_services_queue.put(service_name):
+            self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:
@@ -881,6 +898,11 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+def _get_global_config() -> Config:
+    """Re-resolve the process-global config singleton when unpickling."""
+    return config
 
 
 config = Config()

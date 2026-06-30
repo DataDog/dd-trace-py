@@ -12,7 +12,7 @@ lock = threading.Lock()
 lock.acquire()
 
 
-assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
+assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # type: ignore[attr-defined]
 
 
 child_pid = os.fork()
@@ -26,7 +26,7 @@ if child_pid == 0:
     lock.release()
 else:
     lock.release()
-    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # pyright: ignore[reportAttributeAccessIssue]
+    assert ddtrace.profiling.bootstrap.profiler.status == service.ServiceStatus.RUNNING  # type: ignore[attr-defined]
     print(child_pid)
     pid, status = os.waitpid(child_pid, 0)
     sys.exit(os.WEXITSTATUS(status))

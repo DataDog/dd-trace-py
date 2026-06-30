@@ -141,16 +141,10 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 uri = utils.get_request_uri(request)
                 if uri is not None and query:
                     uri += "?" + query
-                resolver = get_resolver(getattr(request, "urlconf", None))
-                if resolver:
-                    try:
-                        path = resolver.resolve(request.path_info).kwargs
-                        log.debug("resolver.pattern %s", path)
-                    except Exception:
-                        path = None
 
+                # The listener pulls ``request_path_params`` itself via ``utils._request_path_params(request)``.
                 core.dispatch(
-                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri, path)
+                    "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri)
                 )
                 core.dispatch("django.start_response.post", ("Django",))
 

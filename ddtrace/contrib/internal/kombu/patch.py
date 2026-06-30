@@ -43,7 +43,7 @@ config._add(
     "kombu",
     {
         "distributed_tracing_enabled": asbool(env.get("DD_KOMBU_DISTRIBUTED_TRACING", default=True)),
-        "service_name": config.service or env.get("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE),
+        "service_name": config.service or env.get("DD_KOMBU_SERVICE", default=DEFAULT_SERVICE),
     },
 )
 
@@ -79,13 +79,15 @@ def patch():
         prod_service = None
     # DEV: backwards-compatibility for users who set a kombu service
     else:
-        prod_service = env.get("DD_KOMBU_SERVICE_NAME", default=DEFAULT_SERVICE)
+        prod_service = config.kombu.service or DEFAULT_SERVICE
 
     Pin(
         service=schematize_service_name(prod_service),
     ).onto(kombu.messaging.Producer)
 
-    Pin(service=schematize_service_name(config.kombu["service_name"])).onto(kombu.messaging.Consumer)
+    Pin(service=schematize_service_name(config.kombu.service or config.kombu["service_name"])).onto(
+        kombu.messaging.Consumer
+    )
 
 
 def unpatch():

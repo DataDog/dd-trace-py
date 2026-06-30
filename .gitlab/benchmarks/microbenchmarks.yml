@@ -71,6 +71,18 @@ variables:
       - reports/
       - artifacts/
     expire_in: 3 months
+  cache:
+    - key:
+        # Per-scenario requirements_scenario.txt files are intentionally excluded
+        # from the cache key. This gives a best-effort incremental cache shared
+        # across all parallel jobs, keyed only on the base requirements which
+        # rarely change.
+        files:
+          - benchmarks/base/requirements.txt
+          - benchmarks/base/requirements_scenario.txt
+      paths:
+        - .cache/pip
+      policy: pull-push
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
@@ -79,6 +91,7 @@ variables:
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
 
 baseline:detect:
   image: $GITHUB_CLI_IMAGE
@@ -145,7 +158,7 @@ candidate:
   tags: [ "arch:amd64" ]
   needs:
     - pipeline: $PARENT_PIPELINE_ID
-      job: "build linux: [amd64, cp39-cp39, v85383392-751efc0-manylinux2014_x86_64]"
+      job: "build linux: [amd64, cp39-cp39, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: true
   script: |
     cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./

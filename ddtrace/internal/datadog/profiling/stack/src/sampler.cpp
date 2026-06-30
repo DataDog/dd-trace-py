@@ -20,6 +20,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <utility>
 
 using namespace Datadog;
 
@@ -164,22 +165,62 @@ Sampler::adapt_sampling_interval()
         process_delta = 1; // Avoid division by zero or negative values
     }
 
+    // Rolling window for p_stable: maintain a ring buffer of process_delta values and
+    // take the p-th percentile as a stable estimate of app CPU usage. This prevents the
+    // sampling rate from collapsing during brief idle periods.
+    {
+        size_t window_capacity =
+          static_cast<size_t>(static_cast<double>(p_stable_window_s) * 1e6 / g_adaptive_sampling_interval_us);
+        if (window_capacity < 1) {
+            window_capacity = 1;
+        }
+
+        // On window shrink, clear the buffer to avoid stale data skewing the percentile.
+        if (process_delta_window.size() > window_capacity) {
+            process_delta_window.clear();
+            process_delta_window_head = 0;
+        }
+
+        if (process_delta_window.size() < window_capacity) {
+            process_delta_window.push_back(process_delta);
+        } else {
+            process_delta_window[process_delta_window_head] = process_delta;
+            process_delta_window_head = (process_delta_window_head + 1) % window_capacity;
+        }
+    }
+
+    // Compute p_stable as the p-th percentile of the rolling window.
+    // The ring buffer is always non-empty here (we just pushed to it above).
+    double p_stable;
+    {
+        // copy; sort is O(n log n), cheap for ~2400 entries
+        auto sorted = process_delta_window;
+        std::sort(sorted.begin(), sorted.end());
+        size_t idx = static_cast<size_t>(p_stable_percentile_frac * static_cast<double>(sorted.size() - 1));
+        p_stable = sorted[idx];
+    }
+
     auto current_interval = static_cast<double>(sample_interval_us.load());
 
-    // We assume that every sampling operation contributes a fixed amount of
-    // overhead, while the application consumes an average amount of CPU over
-    // time. With:
-    //    s - sampler time
-    //    p - process time
-    //    o - overhead threshold
-    //    I - interval
-    //    I'- interval after adjustment
-    // we use the following formula to adapt the sampling interval
-    //    I' = I * [(s / p) / o]
-    // As the value could be small when the process is idle, we use a lower
-    // bound of the sampling interval to avoid CPU spikes from the sampler.
-    auto new_interval =
-      static_cast<microsecond_t>(current_interval * ((sampler_thread_delta / process_delta) / target_overhead));
+    // Compute the CPU time budget for the sampler per adaptation window:
+    //   budget = baseline (absolute floor) + o * max(process_delta, p_stable)
+    // Where:
+    //   baseline      = configurable absolute floor (prevents starvation on idle apps)
+    //   o             = target overhead fraction
+    //   process_delta = current app CPU usage (reacts immediately to spikes)
+    //   p_stable      = slow-decaying p95 estimate (prevents premature backoff after brief idle)
+    //
+    // Taking max(process_delta, p_stable) makes the budget expand instantly when CPU spikes
+    // (quick capture of 0→100 scenarios) while decaying very slowly when CPU drops.
+    //
+    // The new interval is derived so that s (sampler CPU time) matches the budget:
+    //   I' = I * (s / budget)
+    auto budget = baseline_cpu_us_per_adapt_window + target_overhead * std::max(process_delta, p_stable);
+    if (budget <= 0) {
+        budget = 1.0; // Avoid division by zero
+    }
+
+    auto new_interval = static_cast<microsecond_t>(current_interval * (sampler_thread_delta / budget));
 
     // Cap the new interval to the min/max sampling period
     if (new_interval < g_min_sampling_period_us) {
@@ -216,23 +257,26 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // Track upload sequence to clear ephemeral string table entries periodically.
-    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
-    // churning entries for long-lived tasks while still bounding growth.
-    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
-    constexpr uint64_t ephemeral_clear_interval = 25;
-
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
-        auto sample_capture_cpu_before = get_thread_cpu_time_us();
-
-        // Clear ephemeral string table entries (task names, greenlet names) periodically.
-        // Safe because strings are copied into StringArena during sample construction.
-        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
-        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
-            last_cleared_upload_seq = current_upload_seq;
-            echion->string_table().clear_ephemeral();
+        // Check if a pause has been requested (e.g., for signal handler swapping).
+        // Block until resumed or the thread is asked to stop.
+        if (pause_requested_.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lock(pause_mutex_);
+            paused_.store(true, std::memory_order_release);
+            pause_cv_.notify_all();
+            pause_cv_.wait(lock, [&] {
+                return !pause_requested_.load(std::memory_order_acquire) || seq_num != thread_seq_num.load();
+            });
+            paused_.store(false, std::memory_order_release);
+            if (seq_num != thread_seq_num.load()) {
+                break;
+            }
         }
+
+        // Measure CPU time before acquiring the profile lock so lock-wait time
+        // is not counted as sampling overhead.
+        auto sample_capture_cpu_before = get_thread_cpu_time_us();
 
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
@@ -364,7 +408,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             borrow.stats().increment_sampling_event_count();
             borrow.stats().set_string_table_count(echion->string_table().size());
-            borrow.stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
             borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
             borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
             borrow.stats().set_greenlet_count(greenlet_count);
@@ -431,11 +474,19 @@ Sampler::postfork_child()
     new (&thread_exit_mutex) std::mutex();
     new (&thread_exit_cv) std::condition_variable();
 
+    // Reset pause state - the parent's sampling thread (and any in-progress
+    // pause) doesn't exist in the child.
+    pause_requested_.store(false);
+    paused_.store(false);
+    new (&pause_mutex_) std::mutex();
+    new (&pause_cv_) std::condition_variable();
+
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
         echion->postfork_child();
     }
 
+    // Note: the Thread Info Map has been reset in EchionSampler::postfork_child.
     auto& thread_info_map = echion->thread_info_map();
 
     // Refresh the ThreadInfo for the current (only) Thread.
@@ -447,23 +498,17 @@ Sampler::postfork_child()
     auto current_thread_id = reinterpret_cast<uintptr_t>(pthread_self());
 #endif
 
-    // Extract the current ThreadInfo name if possible. All the other information needs to be updated.
-    auto it = thread_info_map.find(current_thread_id);
-    std::string name = it != thread_info_map.end() ? it->second->name : "MainThread";
-
-    // Clear all entries, we have extracted everything we care about.
-    thread_info_map.clear();
-
     // After fork, the current thread is the main (and only) thread,
     // so native_id == pid.
     auto native_id = static_cast<unsigned long>(getpid());
+    const std::string thread_name = "MainThread";
 
-    auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, name.c_str());
+    auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, thread_name.c_str());
     if (maybe_thread_info) {
         thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
     } else {
         std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
-                  << ") " << name << std::endl;
+                  << ") " << thread_name << std::endl;
     }
 }
 
@@ -529,8 +574,8 @@ stack_atfork_child()
 __attribute__((constructor)) void
 stack_init()
 {
-    // At just do start-of-process cleanup (e.g., set PID)
-    stack_postfork_cleanup();
+    _set_pid(getpid());
+    ThreadSpanLinks::postfork_child();
 }
 
 void
@@ -631,6 +676,10 @@ Sampler::stop()
     // a sampling loop.
     ++thread_seq_num;
 
+    // Wake the sampling thread if it's paused, so it can observe the seq_num
+    // change and exit.
+    pause_cv_.notify_all();
+
     // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
     std::unique_lock<std::mutex> lock(thread_exit_mutex);
     constexpr auto timeout = std::chrono::seconds(3);
@@ -638,6 +687,40 @@ Sampler::stop()
     if (!exited) {
         std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
     }
+}
+
+PauseResult
+Sampler::pause()
+{
+    if (!thread_running.load()) {
+        return PauseResult::NotRunning;
+    }
+
+    pause_requested_.store(true, std::memory_order_release);
+
+    // Wait for the sampling thread to reach the pause point (i.e., finish any
+    // in-flight sample) so the caller can safely swap signal handlers.
+    std::unique_lock<std::mutex> lock(pause_mutex_);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool ok = pause_cv_.wait_for(
+      lock, timeout, [this]() { return paused_.load(std::memory_order_acquire) || !thread_running.load(); });
+
+    if (!ok) {
+        // Timed out -- clear the request so the sampling thread isn't stuck.
+        pause_requested_.store(false, std::memory_order_release);
+        return PauseResult::Timeout;
+    }
+    return PauseResult::Paused;
+}
+
+void
+Sampler::resume()
+{
+    {
+        std::lock_guard<std::mutex> lock(pause_mutex_);
+        pause_requested_.store(false, std::memory_order_release);
+    }
+    pause_cv_.notify_all();
 }
 
 void
@@ -671,7 +754,7 @@ Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
 }
 
 void
-Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
+Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
@@ -679,9 +762,9 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
-        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, name);
+        entry->second = std::make_unique<GreenletInfo>(greenlet_id, frame, std::move(name));
     } else {
-        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, name));
+        greenlet_info_map.emplace(greenlet_id, std::make_unique<GreenletInfo>(greenlet_id, frame, std::move(name)));
     }
 
     // Update the thread map
@@ -697,13 +780,6 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
     auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
-        // Remove the greenlet's name string from the string table
-        // to prevent unbounded growth of the String Table.
-
-        // NOTE: This locks the String Table. If nested locks are required, always
-        // ensure that the greenlet_info_map is locked first before locking the
-        // String Table to avoid deadlocks.
-        echion->string_table().erase(entry->second->name);
         greenlet_info_map.erase(entry);
     }
 

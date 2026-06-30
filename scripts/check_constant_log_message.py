@@ -22,11 +22,13 @@ EXCEPTIONS = {
     "ddtrace/debugging/_probe/registry.py:144",
     # we added a constant check for the wrapping method of add_error_log
     "ddtrace/appsec/_iast/_metrics.py:52",
+    # _report_converter_error wraps add_error_log; callers pass constant messages
+    "ddtrace/appsec/_ai_guard/_anthropic.py:59",
     # we added a constant check for the wrapping method of iast_error
     "ddtrace/appsec/_iast/_logs.py:41",
     "ddtrace/appsec/_iast/_logs.py:45",
     # the non constant part is an object type
-    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:74",
+    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
     # _safelog wrapper function dispatches to log methods with variable message
     "ddtrace/internal/writer/writer.py:103",
 }

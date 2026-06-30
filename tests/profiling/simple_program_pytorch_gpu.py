@@ -21,7 +21,7 @@ class FakeImageDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return self.size
 
-    def __getitem__(self, idx: int) -> tuple:
+    def __getitem__(self, idx: int) -> tuple[object, object]:
         return self.images[idx], self.labels[idx]
 
 

@@ -37,7 +37,7 @@ try:
     # ORDER MATTERS
     # Import this after setuptools or it will fail
     from Cython.Build import cythonize
-    import Cython.Distutils
+    from Cython.Distutils.extension import Extension as CythonExtension
 except ImportError:
     raise ImportError(
         "Failed to import Cython modules. This can happen under versions of pip older than 18 that don't "
@@ -124,15 +124,85 @@ DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
+GIT_COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+
+
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "1.30.1"
+LIBDDWAF_VERSION = "2.0.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
-# libdatadog v15.0.0 requires rust 1.78.
-RUST_MINIMUM_VERSION = "1.78"
+# libdatadog v35.0.0 requires rust 1.87.0.
+RUST_MINIMUM_VERSION = "1.87.0"
+
+
+def get_build_git_commit_sha() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=7", "HEAD"],
+            cwd=HERE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return ""
+
+    commit_sha = result.stdout.strip()
+    if GIT_COMMIT_SHA_RE.fullmatch(commit_sha):
+        return commit_sha.lower()
+
+    return ""
+
+
+def get_pyproject_package_version() -> str:
+    pyproject = HERE / "pyproject.toml"
+    match = re.search(r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), flags=re.MULTILINE)
+    if match is None:
+        return ""
+
+    return match.group(1)
+
+
+def get_build_package_version() -> str:
+    # Keep tagged release builds unchanged; non-tagged builds get a commit local version.
+    package_version = get_pyproject_package_version()
+    commit_sha = get_build_git_commit_sha()
+    if not package_version or not commit_sha or "+" in package_version or os.getenv("CI_COMMIT_TAG"):
+        return package_version
+
+    return f"{package_version}+g{commit_sha}"
+
+
+_ORIGINAL_PYPROJECT_CONTENTS: t.Optional[str] = None
+
+
+def update_pyproject_field(field: str, value: str) -> None:
+    global _ORIGINAL_PYPROJECT_CONTENTS
+    pyproject = HERE / "pyproject.toml"
+    contents = pyproject.read_text(encoding="utf-8")
+    if _ORIGINAL_PYPROJECT_CONTENTS is None:
+        _ORIGINAL_PYPROJECT_CONTENTS = contents
+
+    updated_contents, count = re.subn(
+        rf'^{re.escape(field)} = "[^"]+"$',
+        f'{field} = "{value}"',
+        contents,
+        count=1,
+        flags=re.MULTILINE,
+    )
+    if count != 1:
+        raise RuntimeError(f"Unable to update {field!r} in {pyproject}")
+
+    pyproject.write_text(updated_contents, encoding="utf-8")
+
+
+def restore_pyproject() -> None:
+    if _ORIGINAL_PYPROJECT_CONTENTS is not None:
+        (HERE / "pyproject.toml").write_text(_ORIGINAL_PYPROJECT_CONTENTS, encoding="utf-8")
 
 
 def interpose_sccache():
@@ -208,8 +278,6 @@ def retry_download(
                         # These often indicate temporary network issues
                         is_retriable = True
                         error_code = f"subprocess exit code {e.returncode}"
-                    else:
-                        error_code = type(e).__name__
 
                     if not is_retriable:
                         print(f"ERROR: Operation failed (non-retriable {error_code}): {e}")
@@ -299,7 +367,7 @@ if not SERVERLESS_BUILD:
 
 
 class PatchedDistribution(Distribution):
-    def __init__(self, attrs=None):
+    def __init__(self, attrs: t.Optional[dict[str, t.Any]] = None) -> None:
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
 
@@ -322,7 +390,7 @@ class PatchedDistribution(Distribution):
 
 
 class ExtensionHashes(build_ext):
-    def run(self):
+    def run(self) -> None:
         try:
             dist = self.distribution
             for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
@@ -395,7 +463,7 @@ class ExtensionHashes(build_ext):
 class CustomBuildRust(build_rust):
     """Custom build_rust command that handles dedup_headers and header copying."""
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         super().initialize_options()
 
     def is_installed(self, bin_file):
@@ -427,7 +495,7 @@ class CustomBuildRust(build_rust):
 
             cargo_install_with_retry()
 
-    def run(self):
+    def run(self) -> None:
         """Run the build process with additional post-processing."""
 
         has_profiling_feature = False
@@ -466,13 +534,13 @@ class LibraryDownload:
     CACHE_DIR = Path(os.getenv("DD_SETUP_CACHE_DIR", HERE / ".download_cache"))
     USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
-    name = None
-    download_dir = Path.cwd()
-    version = None
-    url_root = None
-    available_releases = {}
-    expected_checksums = None
-    translate_suffix = {}
+    name: t.Optional[str] = None
+    download_dir: Path = Path.cwd()
+    version: t.Optional[str] = None
+    url_root: t.Optional[str] = None
+    available_releases: dict[str, list[str]] = {}
+    expected_checksums: t.Optional[dict[str, dict[str, str]]] = None
+    translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
     def download_artifacts(cls):
@@ -565,10 +633,10 @@ class LibraryDownload:
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
             # but that approach does not work on Windows
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 dynfiles = [c for c in tar.getmembers() if c.name.endswith(suffixes)]
 
-            with tarfile.open(filename, "r|gz", errorlevel=2) as tar:
+            with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
                 Path(HERE / archive_dir).rename(arch_dir)
 
@@ -588,7 +656,7 @@ class LibraryDownload:
             (download_dir / ".version").write_text(cls.version)
 
     @classmethod
-    def run(cls):
+    def run(cls) -> None:
         cls.download_artifacts()
 
     @classmethod
@@ -651,7 +719,7 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 
 
 class LibraryDownloader(BuildPyCommand):
-    def run(self):
+    def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
         # for some extensions
@@ -699,7 +767,7 @@ class LibraryDownloader(BuildPyCommand):
 
 class CleanLibraries(CleanCommand):
     @staticmethod
-    def remove_native_extensions():
+    def remove_native_extensions() -> None:
         """Remove native extensions and shared libraries installed by setup.py."""
         for pattern in ("*.so", "*.pyd", "*.dylib", "*.dll"):
             for path in DDTRACE_DIR.rglob(pattern):
@@ -711,12 +779,12 @@ class CleanLibraries(CleanCommand):
                         print(f"WARNING: could not remove {path}: {e}")
 
     @staticmethod
-    def remove_artifacts():
+    def remove_artifacts() -> None:
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         CleanLibraries.remove_native_extensions()
 
     @staticmethod
-    def remove_rust_targets():
+    def remove_rust_targets() -> None:
         """Remove all Rust target dirs (target, target3.9, target3.10, etc.)."""
         # rmtree is a superset of `cargo clean`; target* catches plain target and versioned
         for target_dir in NATIVE_CRATE.glob("target*"):
@@ -724,7 +792,7 @@ class CleanLibraries(CleanCommand):
                 shutil.rmtree(target_dir, True)
 
     @staticmethod
-    def remove_build_artifacts():
+    def remove_build_artifacts() -> None:
         """Remove egg-info, dist, .eggs, *.egg, and CMake FetchContent cache.
 
         The base distutils clean command does not remove these. They can cause
@@ -744,7 +812,7 @@ class CleanLibraries(CleanCommand):
             shutil.rmtree(cmake_deps, True)
 
     @staticmethod
-    def remove_build_dir():
+    def remove_build_dir() -> None:
         """Remove the entire build/ tree for a clean slate.
 
         The base CleanCommand only removes specific subdirs (build_temp, build_lib, etc.)
@@ -754,7 +822,7 @@ class CleanLibraries(CleanCommand):
         if build_dir.exists():
             shutil.rmtree(build_dir, True)
 
-    def run(self):
+    def run(self) -> None:
         CleanLibraries.remove_rust_targets()
         CleanLibraries.remove_artifacts()
         CleanLibraries.remove_build_dir()
@@ -837,7 +905,7 @@ SHARED_DEPS: list[SharedDep] = [
 class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
-    def run(self):
+    def run(self) -> None:
         with _time_phase("build_rust"):
             self.build_rust()
 
@@ -855,7 +923,7 @@ class CustomBuildExt(build_ext):
         with _time_phase("build_extensions"):
             super().run()
 
-    def build_extensions(self):
+    def build_extensions(self) -> None:
         # Enable parallel extension builds by default.  All extensions are
         # independent at this point (Rust and libdd_wrapper are already built
         # in run()), so they can safely compile concurrently.  The user can
@@ -900,14 +968,14 @@ class CustomBuildExt(build_ext):
             cargo_files = [NATIVE_CRATE / "Cargo.toml", NATIVE_CRATE / "Cargo.lock"]
 
             # Get all source files (including subdirectories)
-            source_files = []
+            source_files: list[Path] = []
             # Find all .rs files in the crate (including subdirectories)
             source_files.extend(NATIVE_CRATE.glob("**/*.rs"))
             # Add cargo files
             source_files.extend([f for f in cargo_files if f.exists()])
 
             # Check if any source file is newer than the library
-            newest_source_time = 0
+            newest_source_time: float = 0.0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
@@ -970,13 +1038,13 @@ class CustomBuildExt(build_ext):
             wrapper_mtime = wrapper_library.stat().st_mtime
 
             # Check dd_wrapper source files
-            source_files = []
+            source_files: list[Path] = []
             source_files.extend(dd_wrapper_dir.glob("**/*.cpp"))
             source_files.extend(dd_wrapper_dir.glob("**/*.hpp"))
             source_files.extend([dd_wrapper_dir / "CMakeLists.txt"])
 
             # Check if any source file is newer than the wrapper library
-            newest_source_time = 0
+            newest_source_time: float = 0.0
             for src_file in source_files:
                 if src_file.exists():
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
@@ -999,7 +1067,7 @@ class CustomBuildExt(build_ext):
 
             install_args = [f"--config {COMPILE_MODE}"]
 
-            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
             subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
@@ -1038,7 +1106,7 @@ class CustomBuildExt(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), f"{dep.name}_build").resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
-        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()
+        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
 
         cmake_args = self._base_cmake_args() + [
             f"-S{dep.cmake_dir}",
@@ -1077,7 +1145,7 @@ class CustomBuildExt(build_ext):
                     "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
                 )
 
-    def build_extension(self, ext):
+    def build_extension(self, ext: Extension) -> None:
         if isinstance(ext, CMakeExtension):
             try:
                 self.build_extension_cmake(ext)
@@ -1189,7 +1257,7 @@ class CustomBuildExt(build_ext):
         # Forward the install path of every successfully pre-built shared dep so
         # each consuming extension's CMakeLists.txt can use find_package() instead
         # of running its own FetchContent build.
-        built = getattr(self, "_built_shared_deps", set())
+        built: set[str] = getattr(self, "_built_shared_deps", set())
         for dep in SHARED_DEPS:
             if dep.name in built:
                 cmake_args += [f"-D{dep.cmake_var}={dep.install_dir}"]
@@ -1334,7 +1402,7 @@ class CustomBuildExt(build_ext):
                 "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
             ]
         cmake_command = (
-            Path(cmake.CMAKE_BIN_DIR) / "cmake"
+            Path(cmake.CMAKE_BIN_DIR) / "cmake"  # type: ignore[attr-defined]
         ).resolve()  # explicitly use the cmake provided by the cmake package
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
@@ -1391,7 +1459,7 @@ class DebugMetadata:
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
                 elapsed_s = elapsed_ns / 1e9
                 ext_percent = (elapsed_ns / total_ns) * 100.0
-                f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+                f.write(f"\t{ext}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
 
             if cls.shared_dep_times:
                 f.write("Shared dependency build times:\n")
@@ -1447,8 +1515,12 @@ def _time_phase(name: str):
 
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
-    CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
-    CustomBuildExt._build_shared_dep = debug_build_shared_dep(CustomBuildExt._build_shared_dep)
+    CustomBuildExt.build_extension = (  # type: ignore[method-assign]
+        debug_build_extension(CustomBuildExt.build_extension)
+    )
+    CustomBuildExt._build_shared_dep = (  # type: ignore[method-assign]
+        debug_build_shared_dep(CustomBuildExt._build_shared_dep)
+    )
     build_rust.build_extension = debug_build_extension(CustomBuildRust.build_extension)
     atexit.register(DebugMetadata.dump_metadata)
 
@@ -1456,16 +1528,16 @@ if DebugMetadata.enabled:
 class CMakeExtension(Extension):
     def __init__(
         self,
-        name,
-        source_dir=Path.cwd(),
-        extra_source_dirs=[],
-        cmake_args=[],
-        build_args=[],
-        install_args=[],
-        build_type=None,
-        optional=True,  # By default, extensions are optional
-        dependencies=[],
-    ):
+        name: str,
+        source_dir: Path = Path.cwd(),
+        extra_source_dirs: list[Path] = [],
+        cmake_args: list[str] = [],
+        build_args: list[str] = [],
+        install_args: list[str] = [],
+        build_type: t.Optional[str] = None,
+        optional: bool = True,  # By default, extensions are optional
+        dependencies: list[Path] = [],
+    ) -> None:
         super().__init__(name, sources=[])
         self.source_dir = source_dir
         self.extra_source_dirs = extra_source_dirs  # extra source dirs to include when computing extension hash
@@ -1488,7 +1560,7 @@ class CMakeExtension(Extension):
         def is_valid_source(src: Path) -> bool:
             return (
                 src.is_file()
-                and src.suffix
+                and bool(src.suffix)
                 # Exclude compiled/generated artifacts that are not real sources:
                 # .so/.dylib/.dll/.pyd — compiled native extensions (from co-located Cython exts)
                 # .c — Cython-generated C files (present in shared source directories)
@@ -1571,7 +1643,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules: list[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
+    ext_modules: list[t.Union[Extension, CythonExtension, RustExtension]] = [
         Extension(
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
@@ -1654,7 +1726,7 @@ cython_exts = []
 if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     with _time_phase("cythonize"):
         _cython_sources = [
-            Cython.Distutils.Extension(
+            CythonExtension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
@@ -1675,32 +1747,32 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
 
         if sys.version_info < (3, 15):
             _cython_sources += [
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling._threading",
                     sources=["ddtrace/profiling/_threading.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._task",
                     sources=["ddtrace/profiling/collector/_task.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._exception",
                     sources=["ddtrace/profiling/collector/_exception.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._fast_poisson",
                     sources=["ddtrace/profiling/collector/_fast_poisson.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._sampler",
                     sources=["ddtrace/profiling/collector/_sampler.pyx"],
                     language="c",
                 ),
-                Cython.Distutils.Extension(
+                CythonExtension(
                     "ddtrace.profiling.collector._lock",
                     sources=["ddtrace/profiling/collector/_lock.pyx"],
                     language="c",
@@ -1722,51 +1794,60 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
 
 PACKAGE_NAME = f"ddtrace{WHEEL_FLAVOR}"
 if PACKAGE_NAME != "ddtrace":
-    subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
-print(f"INFO: building package '{PACKAGE_NAME}'")
+    update_pyproject_field("name", PACKAGE_NAME)
+
+BASE_PACKAGE_VERSION = get_pyproject_package_version()
+PACKAGE_VERSION = get_build_package_version()
+if PACKAGE_VERSION and PACKAGE_VERSION != BASE_PACKAGE_VERSION:
+    update_pyproject_field("version", PACKAGE_VERSION)
+
+print(f"INFO: building package '{PACKAGE_NAME}' version '{PACKAGE_VERSION or BASE_PACKAGE_VERSION}'")
 
 interpose_sccache()
-setup(
-    name="ddtrace",
-    packages=find_packages(
-        exclude=[
-            "tests*",
-            "benchmarks*",
-            "scripts*",
-            # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
-            "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
-            # C++ test helpers, not needed at runtime
-            "ddtrace.internal.datadog.profiling.ddup.test*",
-        ]
-    ),
-    include_package_data=False,
-    package_data={
-        # Type stubs and markers for all packages
-        "": ["*.pyi", "py.typed"],
-        "ddtrace.appsec": ["rules.json"],
-        "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
-        "ddtrace.appsec.sca": ["_cve_data.json"],
-        "ddtrace.internal": ["third-party.tar.gz"],
-        "ddtrace.internal.datadog.profiling": (
-            ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+try:
+    setup(
+        name="ddtrace",
+        packages=find_packages(
+            exclude=[
+                "tests*",
+                "benchmarks*",
+                "scripts*",
+                # pybind11 vendor is a build-time dependency only; nothing in ddtrace imports it at runtime
+                "ddtrace.appsec._iast._taint_tracking._vendor.pybind11*",
+                # C++ test helpers, not needed at runtime
+                "ddtrace.internal.datadog.profiling.ddup.test*",
+            ]
         ),
-    },
-    zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
-    cmdclass={
-        "build_ext": CustomBuildExt,
-        "build_py": LibraryDownloader,
-        "build_rust": CustomBuildRust,
-        "clean": CleanLibraries,
-        "ext_hashes": ExtensionHashes,
-    },
-    setup_requires=[
-        "cython",
-        "cmake>=3.24.2,<3.28",
-        "setuptools-rust<2",
-        "patchelf>=0.17.0.0; sys_platform == 'linux'",
-    ],
-    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
-    distclass=PatchedDistribution,
-)
+        include_package_data=False,
+        package_data={
+            # Type stubs and markers for all packages
+            "": ["*.pyi", "py.typed"],
+            "ddtrace.appsec": ["rules.json"],
+            "ddtrace.appsec._ddwaf": ["libddwaf/*/lib/libddwaf.*"],
+            "ddtrace.appsec.sca": ["_cve_data.json"],
+            "ddtrace.internal": ["third-party.tar.gz"],
+            "ddtrace.internal.datadog.profiling": (
+                ["libdd_wrapper*.*"] + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
+            ),
+        },
+        zip_safe=False,
+        # enum34 is an enum backport for earlier versions of python
+        # funcsigs backport required for vendored debtcollector
+        cmdclass={
+            "build_ext": CustomBuildExt,
+            "build_py": LibraryDownloader,
+            "build_rust": CustomBuildRust,
+            "clean": CleanLibraries,
+            "ext_hashes": ExtensionHashes,
+        },
+        setup_requires=[
+            "cython",
+            "cmake>=3.24.2,<3.28",
+            "setuptools-rust<2",
+            "patchelf>=0.17.0.0; sys_platform == 'linux'",
+        ],
+        ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
+        distclass=PatchedDistribution,
+    )
+finally:
+    restore_pyproject()

@@ -5,6 +5,7 @@ from typing import Optional  # noqa:F401
 import pytest
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 
@@ -102,6 +103,14 @@ def test_traceparent_basic():
         ),
         Context(
             trace_id=123, span_id=321, meta={"meta": "value"}, metrics={"metric": 4.556}, baggage={"some_value": 1}
+        ),
+        Context(
+            trace_id=123,
+            span_id=321,
+            meta={
+                context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY: "000000000000030d",
+                context_meta.PROFILING_SPAN_TYPE_KEY: "web",
+            },
         ),
     ],
 )

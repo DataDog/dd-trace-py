@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import sys
 import sysconfig
+from typing import Any
 
 import jsonschema
 from jsonschema.exceptions import ValidationError
@@ -61,9 +62,10 @@ def is_valid_json(s: str) -> bool:
         return False
 
 
-def _read_json(file_path: str) -> dict:
+def _read_json(file_path: str) -> dict[str, Any]:
     with open(file_path, encoding="utf-8") as f:
-        return json.load(f)
+        result: dict[str, Any] = json.load(f)
+        return result
 
 
 class TestCodeProvenance:
@@ -97,6 +99,7 @@ class TestCodeProvenance:
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix only")
     def test_lib_paths_are_absolute(self) -> None:
         file_path = get_code_provenance_file()
+        assert file_path is not None
         json_obj = _read_json(file_path)
 
         site_packages_path = sysconfig.get_path("purelib")
@@ -110,6 +113,7 @@ class TestCodeProvenance:
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ only")
     def test_stdlib_paths(self) -> None:
         file_path = get_code_provenance_file()
+        assert file_path is not None
         json_obj = _read_json(file_path)
 
         # Check that the obj has stdlib

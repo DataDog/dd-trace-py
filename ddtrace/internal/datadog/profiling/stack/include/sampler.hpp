@@ -3,13 +3,14 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <random>
 #include <vector>
 
 #include "constants.hpp"
 
-#include "echion/strings.h"
+#include "echion/task_name.h"
 #include "echion/timing.h"
 
 #include <Python.h>
@@ -17,6 +18,13 @@
 class EchionSampler;
 
 namespace Datadog {
+
+enum class PauseResult : std::uint8_t
+{
+    Paused,     // sampler was running and is now paused
+    NotRunning, // sampler was not running (nothing to pause)
+    Timeout,    // sampler is running but did not pause within the timeout
+};
 
 class Sampler
 {
@@ -40,6 +48,14 @@ class Sampler
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
 
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
+
     // This is a singleton, so no public constructor
     Sampler();
 
@@ -57,6 +73,23 @@ class Sampler
     std::minstd_rand rng{ std::random_device{}() };
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
+
+    // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
+    // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
+    // that doesn't collapse to zero during brief idle periods.
+    std::vector<double> process_delta_window;
+    size_t process_delta_window_head = 0;
+
+    // Baseline CPU budget (us per adapt window) corresponding to an absolute floor overhead.
+    // Derived from baseline_core_pct at configuration time; keeps the profiler sampling even
+    // when app CPU is near 0.
+    double baseline_cpu_us_per_adapt_window = 0.0;
+
+    // Percentile (0..1) used for p_stable; configurable, default p95.
+    double p_stable_percentile_frac = 0.95;
+
+    // Rolling window duration in seconds; controls the ring buffer capacity.
+    uint32_t p_stable_window_s = 600;
 
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
@@ -76,6 +109,8 @@ class Sampler
 
     bool start();
     void stop();
+    PauseResult pause();
+    void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
@@ -83,7 +118,7 @@ class Sampler
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
-    void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
+    void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
@@ -102,6 +137,19 @@ class Sampler
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
+
+    // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
+    // Converted to us of CPU budget per adaptation window.
+    void set_baseline_core_pct(double value)
+    {
+        baseline_cpu_us_per_adapt_window = value * 0.01 * g_adaptive_sampling_interval_us;
+    }
+
+    // Set the rolling window duration (seconds) over which p_stable is computed.
+    void set_p_stable_window_s(uint32_t value) { p_stable_window_s = value; }
+
+    // Set the percentile (0–100) used to compute p_stable from the rolling window.
+    void set_p_stable_percentile(double percentile) { p_stable_percentile_frac = percentile / 100.0; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();

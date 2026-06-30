@@ -3,7 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.21.0",
+#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -60,6 +60,8 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
+    skip_venv_artifacts: bool = False
+    skip_pip_cache: bool = False
 
     python_versions: t.Optional[set[str]] = None
 
@@ -126,10 +128,11 @@ class JobSpec:
         env["PIP_CACHE_KEY"] = (
             subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
         )
-        lines.append("  cache:")
-        lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-        lines.append("    paths:")
-        lines.append("      - .cache")
+        if not self.skip_pip_cache:
+            lines.append("  cache:")
+            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
+            lines.append("    paths:")
+            lines.append("      - .cache")
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -151,6 +154,16 @@ class JobSpec:
 
         if self.allow_failure:
             lines.append("  allow_failure: true")
+
+        if self.skip_venv_artifacts:
+            lines.append("  artifacts:")
+            lines.append("    when: always")
+            lines.append("    paths:")
+            lines.append("      - core.*")
+            lines.append("      - ddtrace/**/*.so*")
+            lines.append("    reports:")
+            lines.append("      junit: test-results/junit*.xml")
+            lines.append("    expire_in: 1 week")
 
         return "\n".join(lines)
 
@@ -594,33 +607,33 @@ def gen_pre_checks() -> None:
 
     check(
         name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        command="scripts/lint style",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h", "scripts/lint"},
     )
     check(
         name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        command="scripts/lint typing",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "mypy.ini", "scripts/lint"},
     )
     check(
         name="Spelling",
-        command="hatch run lint:spelling",
+        command="scripts/lint spelling",
         paths={"*"},
     )
     check(
         name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
+        command="scripts/lint security",
+        paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
+        command="scripts/lint riot",
+        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
+        paths={"docker*", "tests/snapshots/*", "scripts/lint"},
     )
     check(
         name="Run scripts/*.py tests",
@@ -629,13 +642,13 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        command="scripts/lint suitespec-check",
         paths={"*"},
     )
     check(
         name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
-        paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
+        command="scripts/lint error-log-check",
+        paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
         name="Check project dependencies",
@@ -654,8 +667,8 @@ def gen_pre_checks() -> None:
     )
     check(
         name="Hook tests",
-        command="scripts/run-hook-tests",
-        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*"},
+        command="scripts/lint hook-tests",
+        paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
     if not checks:
         return
@@ -701,7 +714,7 @@ def gen_cached_testrunner() -> None:
         f.write(
             template(
                 "cached-testrunner",
-                current_month=datetime.datetime.now().month,
+                current_week=datetime.datetime.now().isocalendar().week,
                 testrunner_image_hash=TESTRUNNER_IMAGE_HASH,
             )
         )

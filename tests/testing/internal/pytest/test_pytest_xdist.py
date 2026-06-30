@@ -36,6 +36,35 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
+def _settings_attributes() -> dict:
+    """The ``attributes`` block returned by the settings endpoint.
+
+    This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
+    ``early_flake_detection`` requires ``slow_test_retries`` and ``faulty_session_threshold``, and ``test_management``
+    requires ``attempt_to_fix_retries`` — accessed with ``[]`` (not ``.get()``) in settings_data.py. If any are
+    missing, ``APIClient.get_settings`` swallows the ``KeyError`` and silently returns a default ``Settings()`` with
+    *every* feature disabled, which would make these tests pass against fallback defaults rather than the configured
+    values. Kept in one place so ``test_mock_settings_payload_is_parseable`` can guard it.
+    """
+    return {
+        "code_coverage": False,
+        "tests_skipping": False,
+        "itr_enabled": False,
+        "require_git": False,
+        "early_flake_detection": {
+            "enabled": False,
+            "slow_test_retries": {"5s": 10, "10s": 5, "30s": 3, "5m": 2},
+            "faulty_session_threshold": 30,
+        },
+        "flaky_test_retries_enabled": False,
+        "known_tests_enabled": False,
+        "test_management": {
+            "enabled": False,
+            "attempt_to_fix_retries": 20,
+        },
+    }
+
+
 class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
     """HTTP request handler that mimics the Datadog CI Visibility backend.
 
@@ -84,20 +113,7 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
                     "data": {
                         "id": "1",
                         "type": "ci_app_test_service_libraries_settings",
-                        "attributes": {
-                            "code_coverage": False,
-                            "tests_skipping": False,
-                            "itr_enabled": False,
-                            "require_git": False,
-                            "early_flake_detection": {
-                                "enabled": False,
-                            },
-                            "flaky_test_retries_enabled": False,
-                            "known_tests_enabled": False,
-                            "test_management": {
-                                "enabled": False,
-                            },
-                        },
+                        "attributes": _settings_attributes(),
                     }
                 }
             )
@@ -790,14 +806,14 @@ class TestXdistWorkerCrashRestart:
 
 
 class TestXdistPartialFlush:
-    """Verify that DD_TRACE_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
+    """Verify that _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS mitigates crash data loss.
 
     These tests prove the workaround works by running the same crash scenario
     with and without the env var and comparing the outcomes.
     """
 
     def test_partial_flush_before_and_after(self, test_project: Path) -> None:
-        """Same crash scenario, two runs: without and with DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1.
+        """Same crash scenario, two runs: without and with _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1.
 
         Run 1 (no env var): the passing test's event is LOST because it was
         buffered on the same worker that crashed.
@@ -834,7 +850,7 @@ class TestXdistPartialFlush:
             (test_project / "test_crash_sequence.py").write_text(test_code)
             _git_commit(test_project, message="re-commit for second run")
 
-            env = _make_env(server_with.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+            env = _make_env(server_with.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
             _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart", "1", "-p", "no:randomly", env=env)
 
             names_with = [e["content"]["meta"]["test.name"] for e in server_with.get_test_events()]
@@ -847,7 +863,7 @@ class TestXdistPartialFlush:
 
         # With eager flushing: the passing test is saved.
         assert "test_passes_before_crash" in names_with, (
-            f"With DD_TRACE_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
+            f"With _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS=1, the event should be saved. Got: {names_with}"
         )
 
     def test_partial_flush_preserves_all_healthy_tests_with_crashes(
@@ -872,7 +888,7 @@ class TestXdistPartialFlush:
             )
         _git_commit(test_project)
 
-        env = _make_env(mock_server.url, extra={"DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1"})
+        env = _make_env(mock_server.url, extra={"_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "1"})
         result = _run_pytest_subprocess(test_project, "-n", "2", "--max-worker-restart", "4", env=env)
 
         test_events = mock_server.get_test_events()
@@ -920,3 +936,20 @@ class TestXdistLoadScope:
         test_events = mock_server.get_test_events()
         test_names = sorted(e["content"]["meta"]["test.name"] for e in test_events)
         assert test_names == ["test_s1", "test_s2", "test_s3", "test_s4"]
+
+
+def test_mock_settings_payload_is_parseable() -> None:
+    """Regression: the mock settings payload must be complete enough for ``Settings.from_attributes`` to parse.
+
+    If a required field is missing, ``Settings.from_attributes`` raises ``KeyError``, ``APIClient.get_settings``
+    swallows it and returns a default ``Settings()`` (every feature disabled). That would silently make all of the
+    xdist tests above run against fallback defaults instead of the settings the mock reports.
+    """
+    from ddtrace.testing.internal.settings_data import Settings
+
+    settings = Settings.from_attributes(_settings_attributes())
+
+    # The fields whose absence previously triggered the KeyError fallback.
+    assert settings.early_flake_detection.slow_test_retries_5s == 10
+    assert settings.early_flake_detection.faulty_session_threshold == 30
+    assert settings.test_management.attempt_to_fix_retries == 20

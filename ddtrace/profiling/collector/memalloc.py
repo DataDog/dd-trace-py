@@ -38,6 +38,7 @@ class MemoryCollector:
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
+        mem_domain_enabled: Optional[bool] = None,
     ) -> None:
         self.max_nframe = cast(int, max_nframe if max_nframe is not None else config.max_frames)
         self.heap_sample_size = cast(
@@ -45,6 +46,8 @@ class MemoryCollector:
             heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore
         )
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
+        mem_default: bool = config.memory.mem_domain_enabled
+        self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
 
     def start(self) -> None:
         """Start collecting memory profiles."""
@@ -52,13 +55,13 @@ class MemoryCollector:
             raise collector.CollectorUnavailable
 
         try:
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
+            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
         except RuntimeError:
             # This happens on fork because we don't call the shutdown hook since
             # the thread responsible for doing so is not running in the child
             # process. Therefore we stop and restart the collector instead.
             _memalloc.stop()
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
+            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
 
     def __enter__(self) -> Self:
         self.start()

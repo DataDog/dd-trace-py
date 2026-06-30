@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from ddtrace.internal.settings.profiling import ProfilingConfig
@@ -10,7 +12,7 @@ class TestAdaptiveSamplingConfig:
         config = ProfilingConfig()
         assert config.stack.adaptive_sampling is True
         assert config.stack.adaptive_sampling_target_overhead == 1.0
-        assert config.stack.adaptive_sampling_max_interval == 1_000_000
+        assert config.stack.adaptive_sampling_max_interval == 100_000
 
     def test_adaptive_sampling_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
@@ -23,9 +25,9 @@ class TestAdaptiveSamplingConfig:
         assert config.stack.adaptive_sampling_target_overhead == 5.0
 
     def test_adaptive_sampling_max_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "500000")
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "50000")
         config = ProfilingConfig()
-        assert config.stack.adaptive_sampling_max_interval == 500_000
+        assert config.stack.adaptive_sampling_max_interval == 50_000
 
     def test_adaptive_sampling_target_overhead_validation(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Target overhead must be at least 1%
@@ -115,6 +117,50 @@ def test_always_excluded_modules_contains_required_entries() -> None:
     assert "threading" in _ALWAYS_EXCLUDED_MODULES
     assert "asyncio" in _ALWAYS_EXCLUDED_MODULES
     assert "concurrent" in _ALWAYS_EXCLUDED_MODULES
+
+
+class TestDumpSettings:
+    """Tests for the profiler-settings serializer used in per-profile metadata."""
+
+    def test_includes_private_keys(self) -> None:
+        settings = ProfilingConfig().dump_settings()
+
+        for key in (
+            "enabled",
+            "upload_interval",
+            "stack.enabled",
+            "stack.adaptive_sampling",
+            "stack.adaptive_sampling_target_overhead",
+            "stack.adaptive_sampling_max_interval",
+            "stack.fast_copy",
+            "stack.max_threads",
+            "exception.enabled",
+            "exception.sampling_interval",
+        ):
+            assert key in settings, f"missing {key!r} in dumped settings"
+
+    def test_keys_are_unprefixed_dotted_paths(self) -> None:
+        settings = ProfilingConfig().dump_settings()
+
+        for key in settings:
+            assert not key.startswith("DD_"), f"unexpected env-var-style key: {key!r}"
+            assert not key.startswith("_DD_"), f"unexpected private env-var-style key: {key!r}"
+            assert not key.startswith("dd.profiling."), f"unexpected channel header in key: {key!r}"
+
+    def test_values_are_json_serializable(self) -> None:
+        settings = ProfilingConfig().dump_settings()
+        json.dumps(settings)  # must not raise
+
+    def test_reflects_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
+        monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_TARGET_OVERHEAD", "5.0")
+        monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "30.0")
+
+        settings = ProfilingConfig().dump_settings()
+
+        assert settings["stack.adaptive_sampling"] is False
+        assert settings["stack.adaptive_sampling_target_overhead"] == 5.0
+        assert settings["upload_interval"] == 30.0
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_LOCK_EXCLUDE_MODULES=""))

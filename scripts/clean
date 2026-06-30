@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=_uv-bootstrap.sh
+source "$(dirname "${BASH_SOURCE[0]}")/_uv-bootstrap.sh"
+
+if ! ensure_uv; then
+  exit 1
+fi
+
+exec uv run --only-group clean python setup.py clean --all "$@"

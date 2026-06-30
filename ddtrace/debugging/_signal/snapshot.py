@@ -125,10 +125,10 @@ class Snapshot(LogSignal):
 
     __track__: ClassVar[SignalTrack] = SignalTrack.SNAPSHOT
 
-    entry_capture: Optional[dict] = field(default=None)
-    return_capture: Optional[dict] = field(default=None)
-    line_capture: Optional[dict] = field(default=None)
-    _stack: Optional[list] = field(default=None)
+    entry_capture: Optional[dict[str, Any]] = field(default=None)
+    return_capture: Optional[dict[str, Any]] = field(default=None)
+    line_capture: Optional[dict[str, Any]] = field(default=None)
+    _stack: Optional[list[dict[str, Any]]] = field(default=None)
     _message: Optional[str] = field(default=None)
     duration: Optional[int] = field(default=None)  # nanoseconds
 

@@ -24,6 +24,9 @@
 int
 init_segv_catcher();
 
+void
+uninstall_segv_handler();
+
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,

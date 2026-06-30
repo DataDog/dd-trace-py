@@ -2,6 +2,7 @@ import asyncio
 import os
 from textwrap import dedent
 from typing import Optional
+from unittest import mock
 
 import pytest
 
@@ -72,6 +73,29 @@ class TestMLApp:
         assert len(spans) == 3
         for span in spans:
             assert get_llmobs_tags(span)["ml_app"] == "test-ml-app"
+
+
+class TestGitMetadata:
+    def test_git_tags_set_on_span_when_available(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with (
+            mock.patch.object(cls, "_git_repository_url", "https://github.com/example/repo"),
+            mock.patch.object(cls, "_git_commit_sha", "abc123def456"),
+        ):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert tags["git.commit.sha"] == "abc123def456"
+        assert tags["git.repository_url"] == "https://github.com/example/repo"
+
+    def test_git_tags_absent_when_unavailable(self, llmobs, tracer):
+        cls = llmobs._instance.__class__
+        with mock.patch.object(cls, "_git_repository_url", ""), mock.patch.object(cls, "_git_commit_sha", ""):
+            with llmobs.workflow("root_llm_span") as span:
+                pass
+        tags = get_llmobs_tags(span)
+        assert "git.commit.sha" not in tags
+        assert "git.repository_url" not in tags
 
 
 def test_set_correct_parent_id(llmobs, tracer):
@@ -229,6 +253,11 @@ class TestLLMIOProcessing:
                 if s.get_tag("scrub_values") == "1":
                     s.input = [{"content": "scrubbed"}]
                     s.output = [{"content": "scrubbed"}]
+                elif s.get_tag("span.kind") in ("embedding", "retrieval"):
+                    for msg in s.input + s.output:
+                        msg["content"] = "redacted"
+                if s.get_tag("scrub_metadata") == "1":
+                    s.metadata.pop("secret", None)
                 return s
 
             LLMObs.register_processor(span_processor)
@@ -237,6 +266,19 @@ class TestLLMIOProcessing:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "1"})
             with LLMObs.llm("openai.request") as llm_span:
                 LLMObs.annotate(llm_span, input_data="value", output_data="value", tags={"scrub_values": "0"})
+            with LLMObs.embedding(model_name="test_model") as emb_span:
+                LLMObs.annotate(emb_span, input_data=[{"text": "sensitive doc", "name": "doc.pdf"}])
+            with LLMObs.retrieval() as ret_span:
+                LLMObs.annotate(
+                    ret_span,
+                    output_data=[{"text": "sensitive result", "name": "result.pdf", "score": 0.9}],
+                )
+            with LLMObs.tool("tool_call") as tool_span:
+                LLMObs.annotate(
+                    tool_span,
+                    metadata={"secret": "leak", "keep": "ok"},
+                    tags={"scrub_metadata": "1"},
+                )
             """
             ),
             env=env,
@@ -246,13 +288,22 @@ class TestLLMIOProcessing:
         assert err.decode() == ""
         events = llmobs_backend.wait_for_num_events(num=1)
         traces = events[0]
-        assert len(traces) == 2
+        assert len(traces) == 5
         assert "scrub_values:1" in traces[0]["spans"][0]["tags"]
         assert traces[0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "scrubbed"
         assert traces[0]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "scrubbed"
         assert "scrub_values:0" in traces[1]["spans"][0]["tags"]
         assert traces[1]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "value"
         assert traces[1]["spans"][0]["meta"]["output"]["messages"][0]["content"] == "value"
+        assert traces[2]["spans"][0]["meta"]["span"]["kind"] == "embedding"
+        assert traces[2]["spans"][0]["meta"]["input"]["documents"][0]["text"] == "redacted"
+        assert traces[2]["spans"][0]["meta"]["input"]["documents"][0]["name"] == "doc.pdf"
+        assert traces[3]["spans"][0]["meta"]["span"]["kind"] == "retrieval"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["text"] == "redacted"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["name"] == "result.pdf"
+        assert traces[3]["spans"][0]["meta"]["output"]["documents"][0]["score"] == 0.9
+        assert traces[4]["spans"][0]["meta"]["span"]["kind"] == "tool"
+        assert traces[4]["spans"][0]["meta"]["metadata"] == {"keep": "ok"}
 
     def test_register_unregister_processor(self, llmobs):
         def _sp(s):
@@ -270,6 +321,172 @@ class TestLLMIOProcessing:
         with llmobs.llm("openai.request") as unscrubbed_span:
             llmobs.annotate(unscrubbed_span, input_data="value")
         assert get_llmobs_input_messages(unscrubbed_span)[0]["content"] == "value"
+
+    def _mutate_documents(span: LLMObsSpan):
+        for msg in span.input + span.output:
+            msg["content"] = ""
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_mutate_documents)])
+    def test_document_processor_mutate(self, llmobs, llmobs_enable_opts):
+        with llmobs.embedding(model_name="test_model") as emb_span:
+            llmobs.annotate(emb_span, input_data=[{"text": "secret document"}])
+        assert get_llmobs_input(emb_span) == {"documents": [{"text": ""}]}
+
+        with llmobs.retrieval() as ret_span:
+            llmobs.annotate(ret_span, output_data=[{"text": "secret result", "name": "doc.pdf"}])
+        assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "doc.pdf"}]}
+
+    def _drop_documents(span: LLMObsSpan):
+        span.input = []
+        span.output = []
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_drop_documents)])
+    def test_document_processor_remove(self, llmobs, llmobs_enable_opts):
+        with llmobs.embedding(model_name="test_model") as emb_span:
+            llmobs.annotate(emb_span, input_data=[{"text": "secret"}])
+        assert get_llmobs_input(emb_span) == {}
+
+        with llmobs.retrieval() as ret_span:
+            llmobs.annotate(ret_span, output_data=[{"text": "secret"}])
+        assert get_llmobs_output(ret_span) == {}
+
+    def _conditional_document_processor(span: LLMObsSpan):
+        if span.get_tag("scrub_docs") == "1":
+            for msg in span.input + span.output:
+                msg["content"] = "redacted"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_document_processor)])
+    def test_document_processor_conditional(self, llmobs, llmobs_enable_opts):
+        with llmobs.annotation_context(tags={"scrub_docs": "1"}):
+            with llmobs.embedding(model_name="test_model") as scrubbed_emb_span:
+                llmobs.annotate(scrubbed_emb_span, input_data=[{"text": "secret doc", "name": "doc.pdf"}])
+        assert get_llmobs_input(scrubbed_emb_span) == {"documents": [{"text": "redacted", "name": "doc.pdf"}]}
+
+        with llmobs.retrieval() as unscrubbed_ret_span:
+            llmobs.annotate(unscrubbed_ret_span, output_data=[{"text": "public result", "name": "result.pdf"}])
+        assert get_llmobs_output(unscrubbed_ret_span) == {
+            "documents": [{"text": "public result", "name": "result.pdf"}]
+        }
+
+    def _kind_aware_document_processor(span: LLMObsSpan):
+        if span.get_tag("span.kind") == "embedding":
+            for msg in span.input:
+                msg["content"] = ""
+        elif span.get_tag("span.kind") == "retrieval":
+            for msg in span.output:
+                msg["content"] = ""
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_kind_aware_document_processor)])
+    def test_document_processor_mixed_io(self, llmobs, llmobs_enable_opts):
+        with llmobs.embedding(model_name="test_model") as emb_span:
+            llmobs.annotate(
+                emb_span,
+                input_data=[{"text": "secret doc", "name": "doc.pdf"}],
+                output_data="[0.1, 0.2, 0.3]",
+            )
+        assert get_llmobs_input(emb_span) == {"documents": [{"text": "", "name": "doc.pdf"}]}
+        assert get_llmobs_output(emb_span) == {"value": "[0.1, 0.2, 0.3]"}
+
+        with llmobs.retrieval() as ret_span:
+            llmobs.annotate(
+                ret_span,
+                input_data="find documents about secrets",
+                output_data=[{"text": "secret result", "name": "result.pdf", "score": 0.9}],
+            )
+        assert get_llmobs_input(ret_span) == {"value": "find documents about secrets"}
+        assert get_llmobs_output(ret_span) == {"documents": [{"text": "", "name": "result.pdf", "score": 0.9}]}
+
+    def _redact_metadata(span: LLMObsSpan):
+        if "secret" in span.metadata:
+            span.metadata["secret"] = "redacted"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_redact_metadata)])
+    def test_metadata_processor_mutate(self, llmobs, llmobs_enable_opts):
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"secret": "leak", "keep": "ok"})
+        assert get_llmobs_metadata(span) == {"secret": "redacted", "keep": "ok"}
+
+    def _drop_metadata(span: LLMObsSpan):
+        span.metadata = {}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_drop_metadata)])
+    def test_metadata_processor_remove(self, llmobs, llmobs_enable_opts):
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"secret": "leak", "other": "data"})
+        assert get_llmobs_metadata(span) == {}
+
+    def _conditional_metadata_processor(span: LLMObsSpan):
+        if span.get_tag("scrub_metadata") == "1":
+            span.metadata.pop("secret", None)
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_conditional_metadata_processor)])
+    def test_metadata_processor_conditional(self, llmobs, llmobs_enable_opts):
+        with llmobs.annotation_context(tags={"scrub_metadata": "1"}):
+            with llmobs.llm("openai.request") as scrubbed_span:
+                llmobs.annotate(scrubbed_span, metadata={"secret": "leak", "keep": "ok"})
+        assert get_llmobs_metadata(scrubbed_span) == {"keep": "ok"}
+
+        with llmobs.llm("openai.request") as unscrubbed_span:
+            llmobs.annotate(unscrubbed_span, metadata={"secret": "public"})
+        assert get_llmobs_metadata(unscrubbed_span) == {"secret": "public"}
+
+    _DD_VISIBLE_TO_PROCESSOR = {}
+
+    def _wipe_metadata_processor(span: LLMObsSpan):
+        TestLLMIOProcessing._DD_VISIBLE_TO_PROCESSOR["had_dd"] = "_dd" in span.metadata
+        span.metadata = {}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_wipe_metadata_processor)])
+    def test_metadata_processor_preserves_dd(self, llmobs, llmobs_enable_opts):
+        """Internal `_dd` metadata is never exposed to the processor and survives a wipe."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, metadata={"secret": "leak"})
+            _annotate_llmobs_span_data(span, cost_tags=["model"])
+        metadata = get_llmobs_metadata(span)
+        assert metadata == {"_dd": {"cost_tags": ["model"]}}
+        assert TestLLMIOProcessing._DD_VISIBLE_TO_PROCESSOR["had_dd"] is False
+
+    def _spoof_dd_processor(span: LLMObsSpan):
+        span.metadata["_dd"] = {"cost_tags": ["spoofed"]}
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_spoof_dd_processor)])
+    def test_metadata_processor_dd_spoof_ignored(self, llmobs, llmobs_enable_opts):
+        """A processor cannot inject internal `_dd` metadata."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {"keep": "ok"}
+
+    def _bad_type_metadata_processor(span: LLMObsSpan):
+        span.metadata = "not a dict"
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_bad_type_metadata_processor)])
+    def test_metadata_processor_bad_type(self, llmobs, llmobs_enable_opts):
+        """A non-dict metadata from the processor is ignored and the original retained."""
+        with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+            with llmobs.llm("openai.request") as span:
+                llmobs.annotate(span, metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {"keep": "ok"}
+        assert mock_log.warning.called
+
+    def _replacement_drops_unset_metadata(span: LLMObsSpan):
+        return LLMObsSpan(input=[{"content": "scrubbed"}])
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_replacement_drops_unset_metadata)])
+    def test_metadata_processor_replacement_object_drops_unset_metadata(self, llmobs, llmobs_enable_opts):
+        """A processor returning a new LLMObsSpan keeps only the fields it populates (regression guard)."""
+        with llmobs.llm("openai.request") as span:
+            llmobs.annotate(span, input_data="value", metadata={"keep": "ok"})
+        assert get_llmobs_metadata(span) == {}
 
     def test_processor_error_is_logged(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Ensure that when an exception is raised an exception is logged."""
@@ -447,8 +664,12 @@ def test_utf_non_ascii_io(llmobs, llmobs_backend):
             llmobs.annotate(workflow_span, input_data="안녕, 지금 몇 시야?")
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
-    assert events[0][0]["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
-    assert events[0][1]["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
+    # Batch order follows span start, not finish, so match events by meta.input shape
+    # rather than positional indices.
+    llm_event = next(e for e in events[0] if "messages" in e["spans"][0]["meta"].get("input", {}))
+    workflow_event = next(e for e in events[0] if "value" in e["spans"][0]["meta"].get("input", {}))
+    assert llm_event["spans"][0]["meta"]["input"]["messages"][0]["content"] == "안녕, 지금 몇 시야?"
+    assert workflow_event["spans"][0]["meta"]["input"]["value"] == "안녕, 지금 몇 시야?"
 
 
 def test_non_utf8_inputs_outputs(llmobs, llmobs_backend):
@@ -618,6 +839,120 @@ def test_annotate_with_tool_definitions_invalid_version_type(llmobs, llmobs_back
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == [{"name": "my_tool"}]
+
+
+def test_tool_version_propagated_from_llm_span_to_tool_span(llmobs):
+    """tool_definitions[*].version on the parent LLM span should land on the child tool span as meta.tool.version."""
+    from ddtrace.internal import core
+    from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+    from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+
+    with llmobs.workflow("root"):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(
+                llm_span,
+                tool_definitions=[
+                    {"name": "get_weather", "version": "1.2.3"},
+                    {"name": "search", "version": "0.9"},
+                ],
+            )
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    "tool-call-id-1",
+                    "get_weather",
+                    '{"location": "NYC"}',
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                    "1.2.3",
+                ),
+            )
+        with llmobs.tool("get_weather") as tool_span:
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                ("get_weather", '{"location": "NYC"}', "function", tool_span, "tool-call-id-1"),
+            )
+            tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+
+    assert tool_meta["tool"] == {"version": "1.2.3"}
+
+
+def test_tool_version_not_set_when_missing_in_tool_definitions(llmobs):
+    """No tool.version is written to the tool span when the parent LLM span's tool_definitions has no version."""
+    from ddtrace.internal import core
+    from ddtrace.internal.utils.formats import format_trace_id
+    from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+    from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+
+    with llmobs.workflow("root"):
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, tool_definitions=[{"name": "get_weather"}])
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    "tool-call-id-2",
+                    "get_weather",
+                    '{"location": "NYC"}',
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                    None,
+                ),
+            )
+        with llmobs.tool("get_weather") as tool_span:
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                ("get_weather", '{"location": "NYC"}', "function", tool_span, "tool-call-id-2"),
+            )
+            tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+
+    assert "tool" not in tool_meta
+
+
+def test_tool_version_not_leaked_onto_non_tool_spans(llmobs, llmobs_backend):
+    """When meta.tool is set on a non-tool span the writer must strip it before emit."""
+    with llmobs.workflow("root") as workflow_span:
+        _annotate_llmobs_span_data(workflow_span, tool_version="9.9.9")
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_tool_version_auto_propagated_to_manual_tool_span(llmobs):
+    """tool_definitions[*].version on a parent LLM span is propagated to a manually-started child tool span."""
+    with llmobs.llm(name="my_llm") as llm_span:
+        llmobs.annotate(llm_span, tool_definitions=[{"name": "get_weather", "version": "2.0.0"}])
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert tool_meta["tool"] == {"version": "2.0.0"}
+
+
+def test_tool_version_not_propagated_when_no_matching_tool_definition(llmobs):
+    """No meta.tool.version is written when the parent LLM span has no tool_definition matching the tool span name."""
+    with llmobs.llm(name="my_llm") as llm_span:
+        llmobs.annotate(llm_span, tool_definitions=[{"name": "search", "version": "1.0"}])
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert "tool" not in tool_meta
+
+
+def test_tool_version_not_propagated_when_parent_is_not_llm_kind(llmobs):
+    """No auto-propagation when the nearest LLMObs ancestor is not an llm-kind span."""
+    with llmobs.workflow("root"):
+        with llmobs.tool("get_weather") as tool_span:
+            pass
+
+    tool_meta = _get_llmobs_data_metastruct(tool_span)["meta"]
+    assert "tool" not in tool_meta
 
 
 @pytest.mark.asyncio
@@ -902,7 +1237,7 @@ def test_no_llmobs_trace_id_without_llmobs_context(llmobs):
 
 
 @pytest.mark.parametrize("llmobs_env", [{"DD_APM_TRACING_ENABLED": "false"}])
-def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
+def test_llmobs_events_still_sent_if_apm_tracing_disabled(llmobs, llmobs_events, tracer, llmobs_env):
     from tests.utils import DummyWriter
 
     dummy_writer = DummyWriter()
@@ -918,6 +1253,163 @@ def test_apm_traces_dropped_when_disabled(llmobs, tracer, llmobs_env):
     # Check that no APM traces were sent to the writer
     assert len(dummy_writer.traces) == 0, "APM traces should be dropped when DD_APM_TRACING_ENABLED=false"
 
-    # But LLMObs spans should still carry the LLMObsSpanData payload
-    assert get_llmobs_span_kind(llm_span) == "llm"
-    assert get_llmobs_model_name(llm_span) == "test-model"
+    # But LLMObs events should still be sent
+    assert len(llmobs_events) == 1
+    llm_event = llmobs_events[0]
+    assert llm_event["meta"]["span"]["kind"] == "llm"
+    assert llm_event["meta"]["model_name"] == "test-model"
+
+
+def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
+    """Every LLMObs span event carries the effective sample rate and sampling decision."""
+    with llmobs.llm(model_name="test-model") as span:
+        llmobs.annotate(span, input_data="in", output_data="out")
+    assert len(llmobs_events) == 1
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sample_rate"] == "1"
+    assert event_dd["sampling_decision"] in ("0", "1")
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
+def test_enable_sample_rate_sets_sampler():
+    """LLMObs.enable(sample_rate=...) configures the span sampler."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.3, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.3
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+def test_enable_sample_rate_arg_takes_precedence_over_env():
+    """LLMObs.enable(sample_rate=...) takes precedence over DD_LLMOBS_SAMPLE_RATE."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.3, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.3
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.8"})
+def test_enable_sample_rate_zero_is_respected():
+    """LLMObs.enable(sample_rate=0.0) is respected and does not fall back to the env var/default."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(sample_rate=0.0, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.0
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.4"})
+def test_enable_keeps_valid_env_sample_rate():
+    """A valid DD_LLMOBS_SAMPLE_RATE is kept when no sample_rate is passed to enable()."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.4
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "1.5"})
+def test_enable_validates_env_sample_rate():
+    """An out-of-range DD_LLMOBS_SAMPLE_RATE is validated at enable() and falls back to 1.0."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 1.0
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.", 1.5
+    )
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "0.2"})
+def test_enable_invalid_sample_rate_keeps_configured_rate():
+    """An out-of-range (negative) sample_rate argument is ignored, keeping the configured env rate."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 0.2
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.", -0.4
+    )
+
+
+@pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app", "DD_LLMOBS_SAMPLE_RATE": "5.0"})
+def test_enable_invalid_arg_and_invalid_env_falls_back():
+    """When both the argument and the env-derived rate are invalid, fall back to the default (1.0)."""
+    from unittest import mock
+
+    from ddtrace.llmobs import LLMObs
+
+    with mock.patch("ddtrace.llmobs._llmobs.log") as mock_log:
+        LLMObs.enable(sample_rate=-0.4, agentless_enabled=False)
+    assert LLMObs._instance._sampler.sample_rate == 1.0
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate argument (%r outside valid range [0.0, 1.0]); ignoring it.", -0.4
+    )
+    mock_log.warning.assert_any_call(
+        "Invalid LLMObs sample rate (%r outside valid range [0.0, 1.0]). Falling back to 1.0.", 5.0
+    )
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0", "0.25", "0.5", "0.75", "1"]},
+)
+def test_sample_rate_inherited_by_child_span():
+    import os
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    configured_rate = os.environ["DD_LLMOBS_SAMPLE_RATE"]
+    with LLMObs.workflow("parent") as parent:
+        with LLMObs.workflow("child") as child:
+            pass
+
+    assert get_llmobs_sample_rate(parent) == configured_rate
+    assert get_llmobs_sample_rate(child) == configured_rate
+    assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+    },
+    parametrize={"DD_LLMOBS_SAMPLE_RATE": ["0.2", "0.4", "0.6", "0.8"]},
+)
+def test_sampling_decisions_follow_configured_rate():
+    """Across 200 independent root spans the fraction sampled should be within ±25 of the configured rate.
+
+    With n=200 and ±25 tolerance every variant is ≥6σ from the boundary, giving a combined
+    failure rate well under 1 in 10M runs.
+    """
+    import os
+
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    configured_rate = float(os.environ["DD_LLMOBS_SAMPLE_RATE"])
+    n = 200
+    spans = []
+    for _ in range(n):
+        with LLMObs.workflow("w") as span:
+            spans.append(span)
+
+    sampled = sum(1 for s in spans if get_llmobs_sampling_decision(s) == LLMObsSamplingDecision.SAMPLED)
+    expected = int(configured_rate * n)
+    assert abs(sampled - expected) <= 25, (
+        f"rate={configured_rate}: expected ~{expected} sampled out of {n}, got {sampled}"
+    )

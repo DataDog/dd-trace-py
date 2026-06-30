@@ -101,9 +101,9 @@ def test_uwsgi_postfork_worker_role_via_mock(monkeypatch: pytest.MonkeyPatch) ->
     import ddtrace.internal.runtime as _runtime_mod
 
     def _raise_main(*args: object, **kwargs: object) -> None:
-        raise profiler.uwsgi.uWSGIMasterProcess()
+        raise profiler.uwsgi.uWSGIMasterProcess()  # type: ignore[attr-defined]
 
-    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_main)
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_main)  # type: ignore[attr-defined]
 
     # Simulate what happens to _PARENT_RUNTIME_ID after a real fork in a worker.
     monkeypatch.setattr(_runtime_mod, "_PARENT_RUNTIME_ID", "fake-parent-id")

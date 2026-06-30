@@ -61,6 +61,7 @@ cdef extern from "ddup_interface.hpp":
 
     void ddup_config_user_tag(string_view key, string_view val)
     void ddup_config_sample_type(unsigned int type)
+    void ddup_set_profiler_settings_json(string_view settings_json)
 
     void ddup_start()
     void ddup_set_runtime_id(string_view _id)
@@ -76,7 +77,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_acquire(Sample *sample, int64_t acquire_time, int64_t count)
     void ddup_push_release(Sample *sample, int64_t release_time, int64_t count)
     void ddup_push_alloc(Sample *sample, int64_t size, int64_t count)
-    void ddup_push_heap(Sample *sample, int64_t size)
+    void ddup_push_heap(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
@@ -400,6 +401,10 @@ def start() -> None:
     ddup_start()
 
 
+def set_profiler_settings_json(settings_json: StringType) -> None:
+    call_func_with_str(ddup_set_profiler_settings_json, settings_json)
+
+
 def _get_endpoint(tracer)-> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
@@ -470,9 +475,9 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             ddup_push_alloc(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
-    def push_heap(self, value: int) -> None:
+    def push_heap(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
-            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value))
+            ddup_push_heap(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_gpu_gputime(self, value: int, count: int) -> None:
         if self.ptr is not NULL:

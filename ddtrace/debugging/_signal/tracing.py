@@ -94,7 +94,7 @@ class SpanDecoration(LogSignal):
         elif probe.target_span == SpanDecorationTargetSpan.ROOT:
             span = ddtrace.tracer.current_root_span()
         else:
-            log.error("Invalid target span for span decoration: %s", probe.target_span)
+            log.error("Invalid target span for span decoration: %s", probe.target_span)  # type: ignore[unreachable]
             return
 
         if span is not None:

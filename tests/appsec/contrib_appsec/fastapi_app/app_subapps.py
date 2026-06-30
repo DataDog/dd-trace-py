@@ -162,6 +162,26 @@ def get_app_with_subapps():
 
     app.mount("/new_service", new_service_app)
 
+    # --- /multi-param sub-application (multi-param-in-segment route) ---
+
+    multi_param_app = FastAPI()
+
+    @multi_param_app.get("/{first}.{last}/", response_class=JSONResponse)
+    async def multi_param_segment(first: str, last: str):  # noqa: B008
+        return {"first": first, "last": last}
+
+    app.mount("/multi-param", multi_param_app)
+
+    # --- /files sub-application (path catch-all) ---
+
+    files_app = FastAPI()
+
+    @files_app.get("/{file_path:path}", response_class=JSONResponse)
+    async def files_catch_all(file_path: str):  # noqa: B008
+        return {"file_path": file_path}
+
+    app.mount("/files", files_app)
+
     # --- /stream sub-application ---
 
     stream_app = FastAPI()

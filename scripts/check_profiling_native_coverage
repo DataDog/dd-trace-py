@@ -20,7 +20,7 @@ that no longer match any tracked file.
 
 Run:
     scripts/check_profiling_native_coverage.py     # via uv-run-script (auto-installs deps)
-    hatch run lint:profiling-native-check           # via hatch lint environment
+    scripts/lint profiling-native-check             # via scripts/lint
 """
 
 from __future__ import annotations

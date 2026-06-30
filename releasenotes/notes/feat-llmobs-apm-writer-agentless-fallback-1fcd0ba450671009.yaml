@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    LLM Observability: when LLMObs is enabled in agentless mode (Datadog Agent not reachable or with ``DD_LLMOBS_AGENTLESS_ENABLED=1``),
+    APM traces are now exported agentlessly to Datadog's intake. This should not change user-facing behavior: both APM and LLMObs
+    spans remain visible in the UI; LLMObs spans are simply no longer shipped separately for agentless users. Note that setting
+    ``DD_APM_TRACING_ENABLED=false`` takes higher precedence and will result in LLMObs span events shipping separately as existing behavior.

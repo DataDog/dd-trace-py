@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixed an issue where ``_current_trace_context`` did not propagate
+    ``_dd.p.llmobs_parent_id`` into the trace context metadata. Without this value, downstream
+    consumers (e.g. dd-trace-go) could not locate the active LLMObs parent span and would create
+    orphaned child traces instead of correctly continuing the parent trace.

@@ -1,6 +1,7 @@
 from collections import Counter
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -816,13 +817,14 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                start_new_session=True,
             )
             sleep(5)
             celery_proc.terminate()
             try:
                 output, stderr = celery_proc.communicate(timeout=60)
             except subprocess.TimeoutExpired:
-                celery_proc.kill()
+                os.killpg(celery_proc.pid, signal.SIGKILL)
                 output, stderr = celery_proc.communicate()
                 print(
                     "WARNING: celery beat process did not terminate within 60s.\n"
@@ -834,6 +836,133 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             assert b"panic" not in full_output.lower(), (
                 f"Found panic in celery beat output:\nstdout:\n{output}\nstderr:\n{stderr}"
             )
+
+
+# NB the default global service name below is the inferred subprocess working directory name, which
+# the subprocess marker creates as `ddtrace_subprocess_dir` (DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME).
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": ["v0", "v1"]})
+def test_worker_schematized_service_name():
+    import os
+
+    import celery
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    # In v1, integration service names are removed in favor of the global service (here the inferred name).
+    v1 = os.environ["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
+    expected = "ddtrace_subprocess_dir" if v1 else "celery-worker"
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+
+    app = celery.Celery("test_app", broker="memory://")
+    app.conf.CELERY_ALWAYS_EAGER = True
+
+    @app.task
+    def fn_task():
+        return 42
+
+    fn_task.apply()
+    spans = tracer._span_aggregator.writer.pop()
+    assert len(spans) == 1, spans
+    assert spans[0].name == "celery.run", spans[0].name
+    assert spans[0].service == expected, (spans[0].service, expected)
+
+
+@pytest.mark.subprocess(ddtrace_run=True, timeout=30, parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": ["v0", "v1"]})
+def test_producer_schematized_service_name():
+    import os
+
+    import celery
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    v1 = os.environ["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
+    expected = "ddtrace_subprocess_dir" if v1 else "celery-producer"
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+
+    # No eager mode: apply_async publishes to the in-memory broker, emitting the producer span.
+    app = celery.Celery("test_app", broker="memory://")
+
+    @app.task
+    def fn_task():
+        return 42
+
+    fn_task.apply_async()
+    spans = tracer._span_aggregator.writer.pop()
+    producer_spans = [s for s in spans if s.name == "celery.apply"]
+    assert len(producer_spans) == 1, spans
+    assert producer_spans[0].service == expected, (producer_spans[0].service, expected)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_SERVICE": "mysvc"},
+    parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": ["v0", "v1"]},
+)
+def test_worker_schematized_service_name_with_dd_service():
+    import celery
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    # With DD_SERVICE set, the worker span adopts the global service in both v0 and v1.
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+
+    app = celery.Celery("test_app", broker="memory://")
+    app.conf.CELERY_ALWAYS_EAGER = True
+
+    @app.task
+    def fn_task():
+        return 42
+
+    fn_task.apply()
+    spans = tracer._span_aggregator.writer.pop()
+    assert len(spans) == 1, spans
+    assert spans[0].service == "mysvc", spans[0].service
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_CELERY_WORKER_SERVICE": "custom"},
+    parametrize={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": ["v0", "v1"]},
+)
+def test_worker_custom_service_name_schematized():
+    import os
+
+    import celery
+
+    from ddtrace.contrib.internal.celery.patch import patch
+    from ddtrace.trace import tracer
+    from tests.utils import DummyWriter
+
+    # In v0 the DD_CELERY_WORKER_SERVICE override wins; in v1 integration service names are dropped
+    # in favor of the global service, so "custom" is ignored.
+    v1 = os.environ["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] == "v1"
+    expected = "ddtrace_subprocess_dir" if v1 else "custom"
+
+    patch()
+    tracer._span_aggregator.writer = DummyWriter()
+
+    app = celery.Celery("test_app", broker="memory://")
+    app.conf.CELERY_ALWAYS_EAGER = True
+
+    @app.task
+    def fn_task():
+        return 42
+
+    fn_task.apply()
+    spans = tracer._span_aggregator.writer.pop()
+    assert len(spans) == 1, spans
+    assert spans[0].service == expected, (spans[0].service, expected)
 
 
 @pytest.mark.parametrize("distributed_tracing_enabled", [True, False])

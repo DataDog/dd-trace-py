@@ -79,19 +79,19 @@ def _wrap_message(message_descriptor, message_class):
 def _traced_build(func, instance, args, kwargs):
     file_des = args[0]
 
-    pin = Pin.get_from(instance)
+    # ``instance`` is None for this module-level function; the Pin lives on the ``builder`` module.
+    pin = Pin.get_from(builder)
     if not pin or not pin.enabled():
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         if config._data_streams_enabled:
             generated_message_classes = args[2]
-            message_descriptors = file_des.message_types_by_name.items()
-            for message_idx in range(len(message_descriptors)):
-                message_class_name = message_descriptors[message_idx][0]
-                message_descriptor = message_descriptors[message_idx][1]
+            # Iterate the mapping directly: under the pure-Python runtime ``.items()`` is a
+            # ``dict_items`` view (not indexable), and under the C/upb runtime it is a list.
+            for message_class_name, message_descriptor in file_des.message_types_by_name.items():
                 message_class = generated_message_classes[message_class_name]
                 _wrap_message(message_descriptor=message_descriptor, message_class=message_class)
 
@@ -99,12 +99,12 @@ def _traced_build(func, instance, args, kwargs):
 def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
 
     active = tracer.current_span()
 
     try:
-        func(*args, **kwargs)
+        return func(*args, **kwargs)
     finally:
         if config._data_streams_enabled and active:
             SchemaExtractor.attach_schema_on_span(msg_descriptor, active, SchemaExtractor.DESERIALIZATION)

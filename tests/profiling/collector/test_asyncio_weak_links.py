@@ -34,7 +34,7 @@ def test_asyncio_weak_links_wall_time() -> None:
     async def func_awaited() -> None:
         await asyncio.sleep(1)
 
-    async def parent() -> asyncio.Task:
+    async def parent() -> asyncio.Task[object]:
         await asyncio.sleep(0.5)
 
         t_not_awaited = asyncio.create_task(func_not_awaited(), name="Task-not_awaited")

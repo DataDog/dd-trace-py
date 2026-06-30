@@ -5,6 +5,7 @@ Class based views used for Django tests.
 import hashlib
 from html import escape
 import json
+import logging
 import os
 from pathlib import Path
 from pathlib import PosixPath
@@ -43,6 +44,9 @@ if DJANGO_VERSION < (3, 2, 0):
     url_has_allowed_host_and_scheme = MagicMock()
 else:
     from django.utils.http import url_has_allowed_host_and_scheme
+
+
+log = logging.getLogger(__name__)
 
 
 def assert_origin(parameter: Any, origin_type: Any) -> None:
@@ -583,6 +587,13 @@ def xss_secure_mark(request):
 @csrf_exempt
 def header_injection(request):
     value = request.body.decode()
+    # AIDEV-NOTE: The injected `value` deliberately contains CR/LF to exercise IAST header-injection
+    # detection. Detection happens here when assigning to `_store` (wrapped by IAST's
+    # HeaderInjectionDict). Note that the WSGI server may later refuse to serialize a header value
+    # containing control characters: CPython's wsgiref.headers.Headers (security backport gh-144370)
+    # raises ValueError("Control characters not allowed in headers"), which Django's dev server turns
+    # into an HTTP 500. The vulnerability is still reported regardless of that serialization outcome.
+    log.debug("header_injection view: value=%r (contains_crlf=%s)", value, ("\r" in value or "\n" in value))
 
     response = HttpResponse(f"OK:{value}", status=200)
     if DJANGO_VERSION < (3, 2, 0):
@@ -592,6 +603,7 @@ def header_injection(request):
     else:
         # label iast_header_injection
         response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
+    log.debug("header_injection view: built response, returning to WSGI handler for serialization")
     return response
 
 
