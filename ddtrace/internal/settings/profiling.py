@@ -515,8 +515,10 @@ class ProfilingConfigHeap(DDConfig):
         default=True,
         help_type="Boolean",
         help=(
-            "Whether to enable the PyCodeObject→function_id cache in the heap profiler. "
-            "Disable (set to false) as a kill-switch if the cache causes unexpected behaviour."
+            "Enable the heap profiler's internal code-object cache. "
+            "When enabled, the profiler caches the mapping from Python code objects to "
+            "Datadog function IDs, avoiding repeated string interning on hot allocation paths. "
+            "Set to false to disable the cache if it causes unexpected behavior."
         ),
     )
 

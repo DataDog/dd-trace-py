@@ -21,7 +21,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -932,7 +932,7 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, True)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
         # memalloc frame serialization. The test passes if the subprocess
@@ -950,7 +950,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512, False)
+    _memalloc.start(32, 512, False, True)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -1114,9 +1114,9 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512, False)
+    _memalloc.start(64, 512, False, True)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512, False)
+        _memalloc.start(64, 512, False, True)
     _memalloc.stop()
 
 
@@ -1127,28 +1127,28 @@ def test_start_wrong_arg() -> None:
         _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1, False)
+        _memalloc.start(429496, 1, False, True)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1, False)
+        _memalloc.start(-1, 1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1, False)
+        _memalloc.start(64, -1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876, False)
+        _memalloc.start(64, 345678909876, False, True)
 
 
 def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1, False)
+    _memalloc.start(1, 1, False, True)
     _memalloc.stop()
 
 
@@ -1156,7 +1156,7 @@ def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024, False)
+    _memalloc.start(64, 1024, False, True)
     try:
         x: list[object] = []
 
@@ -1367,7 +1367,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, True)
 
     stop = threading.Event()
     shared: dict[str, object] = {}
@@ -1583,16 +1583,16 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
 def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) -> None:
     """Profile allocations from more distinct code objects than the cache capacity.
 
-    The default cache is 2-way set-associative with 1024 total entries (512 sets).
-    Using 1200 distinct functions guarantees that many sets overflow and eviction
-    fires throughout the run.  Correctness invariant: every function name in the
-    profile that matches the ``cache_evict_fn_<N>`` pattern must have a valid N in
-    [0, NUM_FUNCTIONS).  A stale-hit bug (cache returns the wrong function_id after
-    eviction) would manifest as a garbled or out-of-range index.
+    The default cache holds 1024 entries and evicts when full. Using 1200 distinct
+    functions guarantees eviction fires throughout the run. Correctness invariant:
+    every function name in the profile that matches the ``cache_evict_fn_<N>`` pattern
+    must have a valid N in [0, NUM_FUNCTIONS). A stale-hit bug (cache returns the wrong
+    function_id after eviction) would manifest as an out-of-range index or a non-integer
+    suffix.
     """
     output_filename = _setup_profiling_prelude(tmp_path, "test_function_attribution_under_eviction")
 
-    # 1200 > default cache capacity of 1024, so eviction fires for many sets.
+    # 1200 > default cache capacity of 1024, so eviction fires throughout the run.
     NUM_FUNCTIONS = 1200
     # The allocation size must be a runtime argument, not a literal.  The compiler
     # constant-folds "(None,) * 256" (two constant operands) into a single tuple in
@@ -1639,13 +1639,15 @@ def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) ->
                 fn_obj = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
                 profiled_names.add(profile.string_table[fn_obj.name])
 
-    # Any cache_evict_fn_* name must have a valid index.  A stale-hit bug would
-    # produce an index outside [0, NUM_FUNCTIONS) or a non-integer suffix.
+    # Any cache_evict_fn_* name must have a valid numeric index in [0, NUM_FUNCTIONS).
+    # A stale-hit bug would produce an out-of-range index or a non-integer suffix.
     _VALID_IDX = re.compile(r"^cache_evict_fn_(\d+)$")
     garbled: list[str] = []
     for name in profiled_names:
+        if not name.startswith("cache_evict_fn_"):
+            continue
         m = _VALID_IDX.match(name)
-        if m and int(m.group(1)) >= NUM_FUNCTIONS:
+        if m is None or int(m.group(1)) >= NUM_FUNCTIONS:
             garbled.append(name)
 
     assert not garbled, (
