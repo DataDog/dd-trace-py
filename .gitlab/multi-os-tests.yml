@@ -3,6 +3,9 @@
 
 .multi_os_test_base:
   stage: tests
+  rules:
+    # [testing] disabled for throwaway bisection wheel (CI matrix trimmed to cp312)
+    - when: never
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"

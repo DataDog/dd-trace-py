@@ -19,14 +19,10 @@
       artifacts: true
       parallel:
         matrix:
+          # [testing] trimmed to cp312 for throwaway bisection wheel
           - ARCH_TAG: "amd64"
             PYTHON_TAG:
-              - "cp39-cp39"
-              - "cp310-cp310"
-              - "cp311-cp311"
               - "cp312-cp312"
-              - "cp313-cp313"
-              - "cp314-cp314"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   before_script:
     - |
