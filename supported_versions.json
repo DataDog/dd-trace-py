@@ -3459,6 +3459,48 @@
         }
     },
     {
+        "dependency": "mistralai",
+        "integration": "mistralai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            }
+        }
+    },
+    {
         "dependency": "mlflow",
         "integration": "mlflow",
         "auto-instrumented": false,
@@ -3478,17 +3520,17 @@
                 ]
             },
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
@@ -3499,17 +3541,17 @@
         "auto-instrumented": false,
         "python_versions": {
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
@@ -3520,17 +3562,17 @@
         "auto-instrumented": false,
         "python_versions": {
             "3.12": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "3.12.0",
-                "maximum_package_version": "3.12.0",
+                "minimum_package_version": "3.14.0",
+                "maximum_package_version": "3.14.0",
                 "tested_versions": [
-                    "3.12.0"
+                    "3.14.0"
                 ]
             }
         }
