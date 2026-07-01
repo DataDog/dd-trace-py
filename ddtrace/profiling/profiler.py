@@ -414,7 +414,20 @@ class _ProfilerInstance(service.Service):
             if join:
                 self._scheduler.join()
             if flush:
-                # Do not stop the collectors before flushing, they might be needed (snapshot)
+                # Quiesce collectors that walk live interpreter state (the native
+                # stack sampler) before the final flush. The flush resolves the
+                # snapshot and code provenance; a still-running sampler could read
+                # objects being torn down during shutdown and crash (PROF-14568).
+                # We do not *stop* the collectors yet, because the flush's snapshot
+                # may still need them; the native stack sampler pushes directly to
+                # ddup and has no meaningful snapshot, so pausing it is safe.
+                for col in self._collectors:
+                    pause = getattr(col, "pause_for_shutdown_flush", None)
+                    if pause is not None:
+                        try:
+                            pause()
+                        except Exception:
+                            LOG.debug("Failed to pause collector %r before final flush", col, exc_info=True)
                 self._scheduler.flush()
 
         for col in reversed(self._collectors):
