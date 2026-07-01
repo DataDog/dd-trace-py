@@ -71,6 +71,27 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
     stack.update_greenlet_frame(greenlet_id, frame)
 
 
+def _record_current_greenlet(gl: _Greenlet, greenlet_id: int) -> None:
+    """Publish the greenlet now running on this OS thread to the native registry.
+
+    Collectors that cannot call into Python -- notably the memory allocator hook
+    -- read this association to attribute their samples to the active greenlet
+    instead of collapsing every greenlet on the OS thread into one lane.
+
+    Runs on the greenlet-switch hot path and inside the greenlet runtime's trace
+    callback, where any unhandled exception silently uninstalls the tracer, so
+    every step is defensive.
+    """
+    try:
+        name: t.Optional[str] = gl.name or type(gl).__qualname__
+    except Exception:  # nosec B110
+        name = None
+    try:
+        stack.set_current_greenlet(greenlet_id, name)
+    except Exception:  # nosec B110
+        pass
+
+
 def greenlet_tracer(event: str, args: t.Any) -> None:
     # Greenlets that already exist when profiling is enabled are discovered lazily.
     # We only start tracking them once a post-patch "switch"/"throw" event is observed.
@@ -93,6 +114,11 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
             except GreenletTrackingError:
                 # Not something that we can track
                 pass
+
+        # The tracer runs in the context of the target greenlet, i.e. the one
+        # about to run (and allocate) on this OS thread. Record it so the memory
+        # collector can attribute the upcoming allocations to it.
+        _record_current_greenlet(target, target_id)
 
         try:
             # If this is being set to None, it means the greenlet is likely
@@ -288,3 +314,10 @@ def unpatch() -> None:
     gevent.hub.spawn_raw = _gevent_hub_spawn_raw
 
     settrace(_original_greenlet_tracer)
+
+    # Stop attributing this thread's allocations to whatever greenlet was last
+    # switched in.
+    try:
+        stack.clear_current_greenlet()
+    except Exception:  # nosec B110
+        pass
