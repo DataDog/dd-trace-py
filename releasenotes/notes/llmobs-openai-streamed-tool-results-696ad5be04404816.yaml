@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolve an issue where tool results parsed from a streamed OpenAI chat
+    completion could be attributed to the preceding input message instead of the streamed output.

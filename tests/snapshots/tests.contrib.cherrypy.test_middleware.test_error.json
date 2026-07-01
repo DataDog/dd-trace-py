@@ -11,19 +11,19 @@
     "meta": {
       "_dd.base_service": "pytest",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de46ee00000000",
+      "_dd.p.tid": "6a3993b500000000",
       "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:pytest,entrypoint.name:main,entrypoint.type:script,entrypoint.workdir:project,svc.auto:pytest",
       "component": "cherrypy",
       "error.message": "",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy~1700_more_itertools8110_typing-extensions/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 627, in respond\n    self._do_respond(path_info)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy~1700_more_itertools8110_typing-extensions/lib/python3.9/site-packages/cherrypy/_cprequest.py\", line 686, in _do_respond\n    response.body = self.handler()\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy~1700_more_itertools8110_typing-extensions/lib/python3.9/site-packages/cherrypy/lib/encoding.py\", line 221, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3925_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy~1700_more_itertools8110_typing-extensions/lib/python3.9/site-packages/cherrypy/_cpdispatch.py\", line 54, in __call__\n    return self.callable(*self.args, **self.kwargs)\n  File \"/home/bits/project/tests/contrib/cherrypy/web.py\", line 53, in error\n    raise TestError()\ntests.contrib.cherrypy.web.TestError\n",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy18019_more_itertools8110/lib/python3.13/site-packages/cherrypy/_cprequest.py\", line 659, in respond\n    self._do_respond(path_info)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy18019_more_itertools8110/lib/python3.13/site-packages/cherrypy/_cprequest.py\", line 718, in _do_respond\n    response.body = self.handler()\n                    ~~~~~~~~~~~~^^\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy18019_more_itertools8110/lib/python3.13/site-packages/cherrypy/lib/encoding.py\", line 223, in __call__\n    self.body = self.oldhandler(*args, **kwargs)\n                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31313_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-randomly_cherrypy18019_more_itertools8110/lib/python3.13/site-packages/cherrypy/_cpdispatch.py\", line 54, in __call__\n    return self.callable(*self.args, **self.kwargs)\n           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/tests/contrib/cherrypy/web.py\", line 53, in error\n    raise TestError()\ntests.contrib.cherrypy.web.TestError\n",
       "error.type": "<class 'tests.contrib.cherrypy.web.TestError'>",
       "http.method": "GET",
       "http.request.headers.host": "127.0.0.1:54583",
       "http.status_code": "500",
       "http.url": "http://127.0.0.1:54583/error",
       "language": "python",
-      "runtime-id": "ff51307e9d4842e689208805c5c9261d",
+      "runtime-id": "ded78802cb9248ddbdf1c59c9b90c62c",
       "span.kind": "server"
     },
     "metrics": {
@@ -31,8 +31,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 64706.0
+      "process_id": 63971.0
     },
-    "duration": 2991417,
-    "start": 1776174830497141339
+    "duration": 6992541,
+    "start": 1782158261585564179
   }]]
