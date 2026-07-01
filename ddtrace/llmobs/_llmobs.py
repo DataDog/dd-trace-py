@@ -225,8 +225,15 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 )
 
 
+_ml_app_deprecation_warned = False
+
+
 def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) -> Optional[str]:
-    if ml_app is not None:
+    # AIDEV-NOTE: called from span constructors (production hot path); warn only once and
+    # gate on truthiness so an effectively-empty `ml_app` doesn't trigger the deprecation.
+    global _ml_app_deprecation_warned
+    if ml_app and not _ml_app_deprecation_warned:
+        _ml_app_deprecation_warned = True
         deprecate(
             "The `ml_app` argument is deprecated",
             message="Use `agent_service` instead. `ml_app` will be removed in a future major version.",
