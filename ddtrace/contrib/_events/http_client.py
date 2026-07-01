@@ -48,15 +48,7 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     def set_response(self, response: _HttpResponse) -> None:
         super().set_response(response)
-
-        is_closed = getattr(response, "is_closed", None)
-        if is_closed is None:
-            is_closed = getattr(response, "closed", False)
-        if is_closed:
-            try:
-                self.response_body = response.json()
-            except Exception:
-                self.response_body = None
+        self.response_body = response.json()
 
 
 @dataclass
