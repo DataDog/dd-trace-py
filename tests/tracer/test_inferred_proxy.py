@@ -99,7 +99,7 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
 def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     ctx = ExecutionContext("test")
     headers = {
-        "x-dd-proxy": "azure-frontdoor",
+        "x-dd-proxy": "azure-fd",
         "x-dd-proxy-request-time-ms": "1736973768000",
         "x-dd-proxy-path": "/api/my-function",
         "x-dd-proxy-httpmethod": "GET",
