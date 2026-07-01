@@ -79,7 +79,7 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
-    void render_task_begin(std::string_view task_name, bool on_cpu);
+    void render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
