@@ -45,6 +45,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -183,6 +184,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -221,6 +223,22 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
     "expected_outputs",
     "evaluators_results",
 )
+
+
+def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) -> Optional[str]:
+    """Resolve the agent service name from the preferred ``agent_service`` and deprecated ``ml_app`` arguments.
+
+    ``agent_service`` takes precedence over ``ml_app``. If the deprecated ``ml_app`` argument is explicitly
+    provided, emit a deprecation warning to guide users toward ``agent_service``.
+    """
+    if ml_app is not None:
+        deprecate(
+            "The `ml_app` argument is deprecated",
+            message="Use `agent_service` instead. `ml_app` will be removed in a future major version.",
+            removal_version="5.0.0",
+            category=DDTraceDeprecationWarning,
+        )
+    return agent_service or ml_app
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -901,7 +919,7 @@ class LLMObs(Service):
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
         config.service = service or config.service
-        config._llmobs_ml_app = agent_service or ml_app or config._llmobs_ml_app
+        config._llmobs_ml_app = _resolve_agent_service(agent_service, ml_app) or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
         # Validate and fallback sample rates (inline arg --> env var --> 1.0)
         if sample_rate is not None and 0.0 <= sample_rate <= 1.0:
@@ -1088,7 +1106,10 @@ class LLMObs(Service):
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
 
-        ml_app = cast(str, agent_service or ml_app)
+        resolved_agent_service = _resolve_agent_service(agent_service, ml_app)
+        if not isinstance(resolved_agent_service, str) or not resolved_agent_service.strip():
+            raise ValueError("`agent_service` (or the deprecated `ml_app`) must be provided as a non-empty string.")
+        ml_app = resolved_agent_service.strip()
         evaluation_payload = evaluator._build_publish_payload(
             ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
         )
@@ -1096,7 +1117,7 @@ class LLMObs(Service):
         cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)
 
         base_url = _get_base_url()
-        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
+        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app})
         return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
 
     @classmethod
@@ -2258,7 +2279,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2288,7 +2309,7 @@ class LLMObs(Service):
             "tool",
             name=name,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2318,7 +2339,7 @@ class LLMObs(Service):
             "task",
             name=name,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2348,7 +2369,7 @@ class LLMObs(Service):
             "agent",
             name=name,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2378,7 +2399,7 @@ class LLMObs(Service):
             "workflow",
             name=name,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2420,7 +2441,7 @@ class LLMObs(Service):
             model_name=model_name,
             model_provider=model_provider,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2450,7 +2471,7 @@ class LLMObs(Service):
             "retrieval",
             name=name,
             session_id=session_id,
-            agent_service=agent_service or ml_app,
+            agent_service=_resolve_agent_service(agent_service, ml_app),
             _decorator=_decorator,
         )
 
@@ -2483,7 +2504,7 @@ class LLMObs(Service):
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         span = cls._instance._start_span(
-            "experiment", name=name, session_id=session_id, agent_service=agent_service or ml_app
+            "experiment", name=name, session_id=session_id, agent_service=_resolve_agent_service(agent_service, ml_app)
         )
 
         # root experiment span needs each baggage value mirrored into llmobs tags explicitly.
@@ -2945,7 +2966,7 @@ class LLMObs(Service):
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
-            ml_app = resolve_ml_app(agent_service or ml_app)
+            ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
 
             evaluation_tags = {
                 "ddtrace.version": __version__,
@@ -3053,7 +3074,7 @@ class LLMObs(Service):
                   ``input``, ``output``, ``metrics``, and ``tags``.
         :rtype: list[dict]
         """
-        ml_app = resolve_ml_app(agent_service or ml_app)
+        ml_app = resolve_ml_app(_resolve_agent_service(agent_service, ml_app))
 
         optional_filters = (
             ("trace_id", trace_id),
