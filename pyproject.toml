@@ -60,6 +60,7 @@ opentelemetry = [
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
+ddtrace-experiment = "ddtrace.commands.ddtrace_experiment:main"
 _dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 
 [project.entry-points.opentelemetry_context]

@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    LLM Observability: Extend **experimental** inline experiments with an ``evaluators``
+    argument on ``ddtrace.llmobs.experimental.experiment_start``, so a boundary can be scored
+    by richer checks than the default structural comparator — an SDK ``BaseEvaluator`` /
+    ``LLMJudge`` or a plain ``(input_data, output_data, expected_output)`` function. The
+    argument accepts a list (plain functions) or a zero-arg callable returning the list (the
+    same lazy pattern as ``fixtures``), so credentialed evaluators are never constructed by a
+    production import. User evaluators stack behind the always-on ``regression_match`` guard
+    and are scored both through the Experiments engine on ``ddtrace-experiment replay
+    --publish`` (one eval metric per evaluator) and locally with the new ``ddtrace-experiment
+    replay --evaluate`` (verdicts printed per case; a failing evaluator gates the exit code).
+    These APIs are experimental and may change or be removed without notice.

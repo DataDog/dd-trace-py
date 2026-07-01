@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    LLM Observability: Unify inline-experiment evaluation on a single concept — *everything is
+    an evaluator*. A comparison is just an evaluator whose assessment is ``match`` / ``changed``,
+    exposed via the new ``ddtrace.llmobs.experimental.comparison`` helper
+    (``structural`` / ``exact`` / ``ignoring``) so it can be dropped into the ``evaluators``
+    argument of ``experiment_start`` alongside ``LLMJudge`` / ``BaseEvaluator`` / custom
+    functions. ``replay`` now reports a per-case *execution* status (``OK`` / ``ERROR`` /
+    ``NO_END``) plus one verdict per evaluator, rather than a privileged ``MATCH`` / ``CHANGED``
+    status. ``structural`` is the zero-config default evaluator (so plain ``replay`` still gives
+    an instant regression verdict), and the ``--comparator`` / ``--ignore`` CLI flags remain as
+    shortcuts for configuring it. These APIs are experimental and may change or be removed
+    without notice.
