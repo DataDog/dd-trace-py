@@ -395,6 +395,13 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
+    def enable_otel_trace_semantics(self) -> TraceExporterBuilder:
+        """
+        Enable OTel trace semantics, which does not add DD-specific per-span attributes
+        (e.g. operation.name, resource.name, span.type) to the OTLP payload.
+        Use when DD_TRACE_OTEL_SEMANTICS_ENABLED=true.
+        """
+        ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.

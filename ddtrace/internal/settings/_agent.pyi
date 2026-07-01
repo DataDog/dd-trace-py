@@ -7,6 +7,7 @@ class AgentConfig(DDConfig):
     dogstatsd_url: str
     trace_agent_timeout_seconds: float
     trace_native_span_events: bool
+    _trace_native_span_events: Optional[bool]
     _trace_agent_hostname: Optional[str]
     _trace_agent_port: Optional[int]
     _trace_agent_url: Optional[str]

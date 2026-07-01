@@ -187,11 +187,12 @@ class Span(OtelSpan):
         if not self.is_recording():
             return
 
-        # Override reserved OTel span attributes
-        ddattribute = _OTelDatadogMapping.get(key)
-        if ddattribute is not None:
-            _ddmap(self._ddspan, ddattribute, value)
-            return
+        # Override reserved OTel span attributes unless OTel trace semantics is enabled
+        if not config._otel_trace_semantics_enabled:
+            ddattribute = _OTelDatadogMapping.get(key)
+            if ddattribute is not None:
+                _ddmap(self._ddspan, ddattribute, value)
+                return
 
         if is_sequence(value):
             for k, v in flatten_key_value(key, value).items():
@@ -262,6 +263,9 @@ class Span(OtelSpan):
             self._ddspan.error = 1
             if message:
                 self.set_attribute(ERROR_MSG, message)
+            elif config._otel_trace_semantics_enabled:
+                # When OTel trace semantics mode is enabled, the error message should reflect the description of the latest span status
+                self._ddspan._remove_attribute(ERROR_MSG)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
         # type: (BaseException, Optional[Attributes], Optional[int], bool) -> None
@@ -270,11 +274,20 @@ class Span(OtelSpan):
         """
         if not self.is_recording():
             return
-        # Set exception attributes in a manner that is consistent with the opentelemetry sdk
-        # https://github.com/open-telemetry/opentelemetry-python/blob/v1.24.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L998
-        # We will not set the exception.stacktrace attribute, this will reduce the size of the span event
+        if config._otel_trace_semantics_enabled:
+            # Set exception attributes in a manner that is consistent with the opentelemetry sdk
+            # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
+            module = type(exception).__module__
+            qualname = type(exception).__qualname__
+            exception_type = (
+                f"{module}.{qualname}"
+                if module and module != "builtins"
+                else qualname
+            )
+        else:
+            exception_type = "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__)
         attrs = {
-            "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
+            "exception.type": exception_type,
             "exception.message": str(exception),
             "exception.escaped": str(escaped),
         }
@@ -282,20 +295,28 @@ class Span(OtelSpan):
             # User provided attributes must take precedence over atrrs
             attrs.update(attributes)
 
-        # Set the error type, error message and error stacktrace tags on the span
-        self._ddspan._set_attribute(ERROR_MSG, attrs["exception.message"])
-        self._ddspan._set_attribute(ERROR_TYPE, attrs["exception.type"])
-        if "exception.stacktrace" in attrs:
-            self._ddspan._set_attribute(ERROR_STACK, attrs["exception.stacktrace"])
-        else:
-            self._ddspan._set_attribute(
-                ERROR_STACK,
-                "".join(
+        if config._otel_trace_semantics_enabled:
+            if "exception.stacktrace" not in attrs:
+                attrs["exception.stacktrace"] = "".join(
                     traceback.format_exception(
                         type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
                     )
-                ),
-            )
+                )
+        else:
+            # Set the error type, error message and error stacktrace tags on the span
+            self._ddspan._set_attribute(ERROR_MSG, attrs["exception.message"])
+            self._ddspan._set_attribute(ERROR_TYPE, attrs["exception.type"])
+            if "exception.stacktrace" in attrs:
+                self._ddspan._set_attribute(ERROR_STACK, attrs["exception.stacktrace"])
+            else:
+                self._ddspan._set_attribute(
+                    ERROR_STACK,
+                    "".join(
+                        traceback.format_exception(
+                            type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
+                        )
+                    ),
+                )
         self.add_event(name="exception", attributes=attrs, timestamp=timestamp)
 
     def __enter__(self):
