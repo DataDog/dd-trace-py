@@ -118,10 +118,10 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         /* Cache lookup short-circuits the three libdd calls (insert_str x2 +
          * insert_function) Sample::push_frame would otherwise make. */
         if (cache != nullptr) {
-            Datadog::CacheResult result = cache->lookup(code, code_name, code_filename, code_firstlineno);
-            if (result.func_id != nullptr) {
+            Datadog::function_id cached_func_id = cache->lookup(code, code_name, code_filename, code_firstlineno);
+            if (cached_func_id != nullptr) {
                 int line = memalloc_resolve_lineno(code, lasti);
-                sample.push_frame(result.func_id, 0, line);
+                sample.push_frame(cached_func_id, 0, line);
                 ++pushed_frames;
                 continue;
             }

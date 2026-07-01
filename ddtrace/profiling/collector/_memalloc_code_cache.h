@@ -10,7 +10,8 @@
 
 /* Use absl::flat_hash_map in production builds (open-addressing, contiguous
  * storage, no per-insert heap allocation once reserved). Fall back to
- * std::unordered_map in debug builds where Abseil may not be compiled in. */
+ * std::unordered_map when Abseil is not available (debug builds, or when
+ * DONT_COMPILE_ABSEIL is defined). */
 #if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 #include "absl/container/flat_hash_map.h"
 
@@ -43,23 +44,6 @@ using CodeCacheMap = std::unordered_map<K, V>;
 #endif
 
 namespace Datadog {
-
-/* Result of a cache lookup.
- * func_id == nullptr: miss — caller must intern strings and insert.
- * func_id != nullptr: hit — func_id is valid.
- *
- * CacheResult is intentionally kept small to make lookup() cheap to return by value.
- * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
-struct CacheResult
-{
-    Datadog::function_id func_id; // nullptr = miss
-};
-
-/* Keep CacheResult small; increasing its size can force some ABIs to use a hidden
- * return pointer (sret), adding per-lookup overhead on the allocator-hook hot path. */
-static_assert(sizeof(CacheResult) <= 16,
-              "CacheResult exceeds 16B — consider measuring lookup() "
-              "return overhead on supported ABIs before adding fields");
 
 /* CodeFunctionCache caches libdatadog function_id values keyed by PyCodeObject*.
  * Frame walks during heap-profiler sample construction call ProfilesDictionary::insert_str
@@ -94,10 +78,10 @@ class CodeFunctionCache
 
     explicit CodeFunctionCache(size_t capacity);
 
-    /* Returns a CacheResult for code only if present AND its stored identity still matches
-     * the supplied (name, filename, firstlineno), guarding against PyCodeObject address reuse.
-     * Check result.func_id != nullptr for a hit. */
-    CacheResult lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept;
+    /* Returns the cached function_id if present AND its stored identity matches the supplied
+     * (name, filename, firstlineno), guarding against PyCodeObject address reuse.
+     * Returns nullptr on miss. */
+    Datadog::function_id lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept;
 
     /* Inserts (code, id) with the identity used to validate future lookups.
      * Evicts one entry if the map is at capacity. */
