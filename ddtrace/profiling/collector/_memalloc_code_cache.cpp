@@ -6,9 +6,10 @@
 namespace Datadog {
 
 /* g_instance_owned holds the memalloc cache singleton so the object is cleaned up at exit
- * even if memalloc_code_cache_deinit() is never called. CodeFunctionCache::instance
- * mirrors g_instance_owned.get() and is the pointer read on every hot-path frame walk;
- * keeping it raw avoids an extra indirection through the unique_ptr on the allocator hook. */
+ * even if memalloc_code_cache_deinit is never called. CodeFunctionCache::instance
+ * mirrors g_instance_owned.get() and is set to nullptr first in deinit(), so any
+ * in-flight frame walk under the GIL sees nullptr and skips the cache cleanly before
+ * the object is destroyed. */
 static std::unique_ptr<CodeFunctionCache> g_instance_owned;
 CodeFunctionCache* CodeFunctionCache::instance = nullptr;
 
