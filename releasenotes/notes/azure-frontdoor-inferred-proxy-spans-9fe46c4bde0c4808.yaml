@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    azure frontdoor: Add inferred proxy span support for Azure Front Door (``azure-fd``) and
+    Azure API Management (``azure-apim``).
