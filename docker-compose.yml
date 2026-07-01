@@ -58,7 +58,7 @@ services:
             - "127.0.0.1:6379:6379"
     kafka:
         platform: linux/arm64
-        image: apache/kafka:4.2.0
+        image: apache/kafka:4.3.1
         ports:
             - "127.0.0.1:29092:29092"
         environment:
@@ -256,7 +256,7 @@ services:
             - "127.0.0.1:6379:6379"
 
     pubsub:
-        image: google/cloud-sdk:573.0.0-emulators
+        image: google/cloud-sdk:574.0.0-emulators
         command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
         ports:
             - "127.0.0.1:8085:8085"
