@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
-from typing import Mapping
 from typing import Optional
 from typing import Union
 
@@ -9,6 +8,7 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import JsonType
+from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
@@ -46,17 +46,16 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
 
-    def set_response(  # type: ignore[override]
-        self,
-        status_code: Optional[int],
-        status_msg: Optional[str],
-        headers: Mapping[str, str],
-        body: Optional[JsonType] = None,
-    ) -> None:
-        self.response_status_code = status_code
-        self.response_status_msg = status_msg
-        self.response_headers = headers
-        self.response_body = body
+    def set_response(self, response: _HttpResponse) -> None:
+        super().set_response(response)
+
+        if not getattr(response, "content", None):
+            return
+
+        if "json" not in response.headers.get("content-type", ""):
+            return
+
+        self.response_body = response.json()
 
 
 @dataclass
