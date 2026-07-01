@@ -21,7 +21,7 @@ import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
-from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size
+from ddtrace.internal.settings.profiling import _derive_default_heap_sample_size  # type: ignore[attr-defined]
 from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
@@ -1123,7 +1123,7 @@ def test_start_twice() -> None:
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
+    with pytest.raises(TypeError, match="function takes exactly 4 arguments \\(1 given\\)"):
         _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
