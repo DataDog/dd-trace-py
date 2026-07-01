@@ -10,10 +10,10 @@
       aud: rapid-seceng-sit
   variables:
     TEST_LIBRARY: python
-    KUBERNETES_POD_CPU_REQUEST: "4"
-    KUBERNETES_POD_CPU_LIMIT: "4"
-    KUBERNETES_POD_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_POD_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_CPU_REQUEST: "4"
+    KUBERNETES_CPU_LIMIT: "4"
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
   needs:
     - job: "build linux"
       artifacts: true
