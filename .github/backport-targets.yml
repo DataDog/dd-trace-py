@@ -1,0 +1,16 @@
+# Supported minor-version branches for automatic backporting.
+#
+# Policy: the N=3 most recent stable minor branches receive bug-fix backports.
+# Update this list when a new minor is released (add it) or a branch reaches EOL (remove it).
+# All automation (auto-label and auto-backport workflows) reads from this file.
+#
+# "critical" fixes (crashes, data loss, security) should be backported to ALL branches listed here.
+# Routine fixes target the branches listed under `stable`.
+branches:
+  stable:
+    - "4.8"
+    - "4.9"
+    - "4.10"
+  # Release candidates: add here when a branch is cut; move to stable on GA release.
+  rc:
+    - "4.11"
