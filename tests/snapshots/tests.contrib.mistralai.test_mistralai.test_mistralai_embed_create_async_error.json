@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "mistralai.request",
+    "service": "tests.contrib.mistralai",
+    "resource": "Embeddings.create_async",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a2c25e300000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
+      "error.message": "Embeddings.create_async() got an unexpected keyword argument 'not_a_real_argument'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/mistralai/patch.py\", line 84, in async_traced_embed_generate\n    resp = await func(*args, **kwargs)\n                 ^^^^^^^^^^^^^^^^^^^^^\nTypeError: Embeddings.create_async() got an unexpected keyword argument 'not_a_real_argument'\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "mistralai.request.model": "mistral-embed",
+      "mistralai.request.provider": "mistral",
+      "runtime-id": "1a7e6a0b6fe141699924369ada22e978"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 477.0
+    },
+    "duration": 298411,
+    "start": 1781278179686943922
+  }]]
