@@ -1,18 +1,28 @@
 #!/usr/bin/env sh
 LINT_CMD="${LINT_CMD:-scripts/lint}"
+
 staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '(\.cmake$|CMakeLists\.txt$)')
 if [ -n "$staged_files" ]; then
     # Capture files with unstaged changes before formatting; we skip re-adding these to preserve partial staging.
     unstaged_before=$(git diff --name-only)
 
-    # Format staged CMake files in-place.
-    "$LINT_CMD" cmakeformat fix $staged_files || exit $?
-
-    # Re-stage only files that had no unstaged changes before formatting (preserves partial staging).
-    echo "$staged_files" | while read -r f; do
-        [ -n "$f" ] || continue
-        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+    # Check first (default mode = --check) so we can report exactly which files needed reformatting.
+    needs_format=""
+    for f in $staged_files; do
+        "$LINT_CMD" cmakeformat "$f" >/dev/null 2>&1 || needs_format="$needs_format\n  $f"
     done
+
+    if [ -n "$needs_format" ]; then
+        printf "cmake-format: reformatting:%b\n" "$needs_format"
+        "$LINT_CMD" cmakeformat fix $staged_files || exit $?
+
+        # Re-stage only files that had no unstaged changes before formatting (preserves partial staging).
+        echo "$staged_files" | while read -r f; do
+            [ -n "$f" ] || continue
+            echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+        done
+        echo "cmake-format: files reformatted and re-staged."
+    fi
 else
     echo 'Run cmake-format skipped: No CMake files were found in `git diff --staged`'
 fi
