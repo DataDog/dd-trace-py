@@ -18,14 +18,19 @@ trap 'rm -rf "$TMPDIR_TEST"' EXIT
 CALLS_FILE="$TMPDIR_TEST/clang-format-calls.txt"
 
 # Writes a mock git that emits $1 (newline-separated filenames) for the
-# staged-files query and delegates everything else to the real git.
+# staged-files query, answers `rev-parse --show-toplevel` with $2 (default
+# $TMPDIR_TEST, which has no .venv-lint), and delegates everything else to the
+# real git.
 mock_staged() {
     files="$1"
+    root="${2:-$TMPDIR_TEST}"
     cat > "$TMPDIR_TEST/git" << EOF
 #!/usr/bin/env sh
 case "\$*" in
     "diff --staged --name-only HEAD --diff-filter=ACMR")
         printf '%s\n' $files ;;
+    "rev-parse --show-toplevel")
+        printf '%s\n' "$root" ;;
     *)
         exec "$(command -v git)" "\$@" ;;
 esac
@@ -33,18 +38,27 @@ EOF
     chmod +x "$TMPDIR_TEST/git"
 }
 
-# Writes a mock clang-format that records its arguments.
-setup_clang_format_mock() {
-    cat > "$TMPDIR_TEST/clang-format" << EOF
+# Writes a mock clang-format at $1 that records its arguments to $2 (truncated).
+make_recording_bin() {
+    dest="$1"
+    calls="$2"
+    mkdir -p "$(dirname "$dest")"
+    cat > "$dest" << EOF
 #!/usr/bin/env sh
-echo "\$*" >> "$CALLS_FILE"
+echo "\$*" >> "$calls"
 EOF
-    chmod +x "$TMPDIR_TEST/clang-format"
-    : > "$CALLS_FILE"
+    chmod +x "$dest"
+    : > "$calls"
 }
 
+# Writes a mock clang-format on PATH (in $TMPDIR_TEST) that records its arguments.
+setup_clang_format_mock() {
+    make_recording_bin "$TMPDIR_TEST/clang-format" "$CALLS_FILE"
+}
+
+# Runs the hook with the PATH mock in front and no CFORMAT_BIN override.
 run_hook() {
-    PATH="$TMPDIR_TEST:$PATH" sh "$HOOK" 2>&1
+    PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" 2>&1
 }
 
 check() {
@@ -58,7 +72,7 @@ check() {
     fi
 }
 
-# ── tests ────────────────────────────────────────────────────────────────────
+# ── tests: file-extension filtering (falls back to PATH mock) ─────────────────
 
 setup_clang_format_mock
 
@@ -114,6 +128,36 @@ mock_staged ""
 output=$(run_hook)
 check "no staged files: clang-format not called" "! [ -s '$CALLS_FILE' ]"
 check "no staged files: skip message printed"    "echo '$output' | grep -q 'skipped'"
+
+# ── tests: binary resolution order (CFORMAT_BIN > .venv-lint > PATH) ──────────
+
+# CFORMAT_BIN override takes precedence over the PATH binary
+setup_clang_format_mock
+CFBIN="$TMPDIR_TEST/custom-clang-format"
+CFBIN_CALLS="$TMPDIR_TEST/cfbin-calls.txt"
+make_recording_bin "$CFBIN" "$CFBIN_CALLS"
+mock_staged "override.cpp"
+PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN="$CFBIN" sh "$HOOK" > /dev/null 2>&1
+check "CFORMAT_BIN override is used"        "grep -qF 'override.cpp' '$CFBIN_CALLS'"
+check "CFORMAT_BIN override bypasses PATH"  "! grep -qF 'override.cpp' '$CALLS_FILE'"
+
+# The pinned .venv-lint binary is preferred over PATH when CFORMAT_BIN is unset
+setup_clang_format_mock
+VENVROOT="$TMPDIR_TEST/venvroot"
+VENV_CALLS="$TMPDIR_TEST/venv-calls.txt"
+make_recording_bin "$VENVROOT/.venv-lint/bin/clang-format" "$VENV_CALLS"
+mock_staged "pinned.cpp" "$VENVROOT"
+PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > /dev/null 2>&1
+check ".venv-lint binary is preferred"         "grep -qF 'pinned.cpp' '$VENV_CALLS'"
+check ".venv-lint preferred over PATH binary"  "! grep -qF 'pinned.cpp' '$CALLS_FILE'"
+
+# Falls back to PATH clang-format with a drift warning when no override / no .venv-lint
+setup_clang_format_mock
+mock_staged "fallback.cpp" "$TMPDIR_TEST"
+OUT_FILE="$TMPDIR_TEST/hook-out.txt"
+PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > "$OUT_FILE" 2>&1
+check "fallback uses PATH clang-format" "grep -qF 'fallback.cpp' '$CALLS_FILE'"
+check "fallback prints drift warning"   "grep -q 'may differ from the version CI enforces' '$OUT_FILE'"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 
