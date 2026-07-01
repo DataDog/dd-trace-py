@@ -10,6 +10,9 @@ HOOK="$(cd "$(dirname "$0")/../pre-commit" && pwd)/04-run-clang-format"
 PASS=0
 FAIL=0
 
+# Keep in sync with CFORMAT_VERSION in ../scripts/run-clang-format.sh.
+CFORMAT_VERSION=18.1.5
+
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 TMPDIR_TEST=$(mktemp -d)
@@ -38,17 +41,39 @@ EOF
     chmod +x "$TMPDIR_TEST/git"
 }
 
-# Writes a mock clang-format at $1 that records its arguments to $2 (truncated).
+# Writes a mock clang-format at $1 that reports the pinned version (so the hook's
+# PATH-fallback version gate accepts it) and records its formatting args to $2.
 make_recording_bin() {
     dest="$1"
     calls="$2"
     mkdir -p "$(dirname "$dest")"
     cat > "$dest" << EOF
 #!/usr/bin/env sh
+if [ "\$1" = "--version" ]; then
+    echo "clang-format version $CFORMAT_VERSION"
+    exit 0
+fi
 echo "\$*" >> "$calls"
 EOF
     chmod +x "$dest"
     : > "$calls"
+}
+
+# Writes a mock clang-format at $1 that reports a mismatched version (so the
+# hook's PATH-fallback version gate rejects it) and records its args to $CALLS_FILE.
+make_mismatched_version_bin() {
+    dest="$1"
+    mkdir -p "$(dirname "$dest")"
+    cat > "$dest" << EOF
+#!/usr/bin/env sh
+if [ "\$1" = "--version" ]; then
+    echo "clang-format version 14.0.0"
+    exit 0
+fi
+echo "\$*" >> "$CALLS_FILE"
+EOF
+    chmod +x "$dest"
+    : > "$CALLS_FILE"
 }
 
 # Writes a mock clang-format on PATH (in $TMPDIR_TEST) that records its arguments.
@@ -151,13 +176,22 @@ PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > /dev/null 2>&1
 check ".venv-lint binary is preferred"         "grep -qF 'pinned.cpp' '$VENV_CALLS'"
 check ".venv-lint preferred over PATH binary"  "! grep -qF 'pinned.cpp' '$CALLS_FILE'"
 
-# Falls back to PATH clang-format with a drift warning when no override / no .venv-lint
+# PATH fallback is accepted when the PATH clang-format reports the pinned version
 setup_clang_format_mock
 mock_staged "fallback.cpp" "$TMPDIR_TEST"
+: > "$CALLS_FILE"
+PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > /dev/null 2>&1
+check "matching PATH clang-format is used" "grep -qF 'fallback.cpp' '$CALLS_FILE'"
+
+# PATH fallback is rejected (no formatting, hook fails) when the version mismatches
+make_mismatched_version_bin "$TMPDIR_TEST/clang-format"
+mock_staged "drift.cpp" "$TMPDIR_TEST"
+: > "$CALLS_FILE"
 OUT_FILE="$TMPDIR_TEST/hook-out.txt"
-PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > "$OUT_FILE" 2>&1
-check "fallback uses PATH clang-format" "grep -qF 'fallback.cpp' '$CALLS_FILE'"
-check "fallback prints drift warning"   "grep -q 'may differ from the version CI enforces' '$OUT_FILE'"
+if PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > "$OUT_FILE" 2>&1; then rc=0; else rc=$?; fi
+check "mismatched PATH clang-format is not used" "! grep -qF 'drift.cpp' '$CALLS_FILE'"
+check "mismatched version fails the hook"        "[ \"$rc\" -ne 0 ]"
+check "mismatched version prints instruction"    "grep -q 'scripts/lint cformat' '$OUT_FILE'"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 
