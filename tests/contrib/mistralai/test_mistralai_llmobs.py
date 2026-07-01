@@ -14,6 +14,18 @@ from tests.llmobs._utils import assert_llmobs_span_data
 
 COMMON_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.mistralai", "integration": "mistralai"}
 
+STREAM_CHAT_OUTPUT_MESSAGES = [
+    {
+        "role": "assistant",
+        "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which"
+        " describes how light interacts with molecules and tiny particles in Earth's atmosphere."
+        " Here’s a step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   -"
+        " Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible"
+        " spectrum: red, orange, yellow, green, blue, indigo, and violet.\n\n### 2. **Light"
+        " Scatters in the Atmosph",
+    }
+]
+
 WEATHER_TOOL_DEFINITIONS = [
     {
         "name": "get_weather",
@@ -355,3 +367,62 @@ async def test_async_chat_complete_with_tools(mistral_client, mistralai_llmobs, 
         _get_llmobs_data_metastruct(spans[1]),
         **_expected_tool_followup_span_data(),
     )
+
+
+def test_chat_stream(mistral_client, mistralai_llmobs, test_spans):
+    for _ in mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
+    )
+
+
+def test_chat_stream_error(mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        for _ in mistral_client.chat.stream(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        ):
+            pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
+
+
+async def test_async_chat_stream(mistral_client, mistralai_llmobs, test_spans):
+    async for _ in await mistral_client.chat.stream_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
+    )
+
+
+async def test_async_chat_stream_error(mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        await mistral_client.chat.stream_async(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))

@@ -143,3 +143,46 @@ async def test_mistralai_embed_create_async_error(mistral_client):
             inputs=["Why is the sky blue?"],
             not_a_real_argument="this should fail",
         )
+
+
+@pytest.mark.snapshot
+def test_mistralai_chat_stream(mistral_client):
+    for _ in mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+def test_mistralai_chat_stream_error(mistral_client):
+    with pytest.raises(TypeError):
+        mistral_client.chat.stream(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
+
+
+@pytest.mark.snapshot(
+    token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_stream",
+    ignores=["resource"],
+)
+async def test_mistralai_chat_stream_async(mistral_client):
+    async for _ in await mistral_client.chat.stream_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+
+@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+async def test_mistralai_chat_stream_async_error(mistral_client):
+    with pytest.raises(TypeError):
+        await mistral_client.chat.stream_async(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
