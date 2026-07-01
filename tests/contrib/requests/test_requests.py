@@ -535,9 +535,9 @@ session.get("http://httpbin.org/status/200")
         stderr=subprocess.PIPE,
         cwd=str(tmpdir),
     )
-    p.wait()
-    assert p.stderr.read() == b""
-    assert p.stdout.read() == b""
+    stdout, stderr = p.communicate()
+    assert stderr == b""
+    assert stdout == b""
     assert p.returncode == 0
 
 
