@@ -34,6 +34,13 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
     model = getattr(agent, "model", None)
     provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
 
+    # run_live accepts a deprecated `session` object as an alternative to explicit user_id/session_id
+    # keyword arguments. Fall back to the session's fields so its metadata is captured for that path.
+    session = kwargs.get("session")
+    session_id = kwargs.get("session_id") or getattr(session, "id", None)
+    user_id = kwargs.get("user_id") or getattr(session, "user_id", None)
+    app_name = getattr(instance, "app_name", None) or getattr(session, "app_name", None)
+
     span = integration.trace(
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
@@ -42,6 +49,10 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
         submit_to_llmobs=True,
         **kwargs,
     )
+
+    # Propagate the ADK session id to this span (and its child tool/code-execute spans) at creation
+    # time, before the wrapped coroutine produces those children.
+    integration.set_session_id(span, session_id)
 
     try:
         agen = wrapped(*args, **kwargs)
@@ -60,10 +71,15 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            kwargs["instance"] = instance.agent
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events, operation="agent")
+            # Pass a copy with the resolved agent/session metadata so the original call kwargs are
+            # left untouched.
+            tag_kwargs = dict(kwargs)
+            tag_kwargs["instance"] = instance.agent
+            tag_kwargs["session_id"] = session_id
+            tag_kwargs["user_id"] = user_id
+            tag_kwargs["app_name"] = app_name
+            integration.llmobs_set_tags(span, args=args, kwargs=tag_kwargs, response=response_events, operation="agent")
             span.finish()
-            del kwargs["instance"]
 
     return _generator()
 
