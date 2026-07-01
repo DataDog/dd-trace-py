@@ -1,3 +1,0 @@
-fixes:
-  - |
-    core: This fix prevents periodic thread restarts from blocking application code from resuming in forked children.
