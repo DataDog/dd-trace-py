@@ -7,41 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
-
-/* Use absl::flat_hash_map in production builds (open-addressing, contiguous
- * storage, no per-insert heap allocation once reserved). Fall back to
- * std::unordered_map when Abseil is not available (debug builds, or when
- * DONT_COMPILE_ABSEIL is defined). */
-#if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
-#include "absl/container/flat_hash_map.h"
-
-/* Fibonacci (golden-ratio) hash for PyCodeObject pointers.
- *
- * pymalloc allocates PyCodeObject from fixed-size arenas, so pointers cluster
- * on 8-byte-aligned addresses with many low bits fixed. A naive modulo/shift
- * hash piles those into the same buckets. Multiplying by 2^64/phi (Knuth
- * TAOCP 6.4) disperses the clustered low bits across the full 64-bit range.
- *
- * absl uses the high bits of the hash as the slot index and the low 7 bits as
- * a per-slot fingerprint. Fibonacci output is well-distributed in both halves,
- * so collision probability stays close to the theoretical minimum regardless
- * of pointer alignment patterns. */
-struct FibHashPyCode
-{
-    size_t operator()(PyCodeObject* p) const noexcept
-    {
-        constexpr uint64_t FIB_MUL = 0x9E3779B97F4A7C15ULL;
-        return static_cast<size_t>(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(p)) * FIB_MUL);
-    }
-};
-
-template<typename K, typename V>
-using CodeCacheMap = absl::flat_hash_map<K, V, FibHashPyCode>;
-#else
-#include <unordered_map>
-template<typename K, typename V>
-using CodeCacheMap = std::unordered_map<K, V>;
-#endif
+#include <vector>
 
 namespace Datadog {
 
@@ -51,10 +17,15 @@ namespace Datadog {
  * with repetitive stacks. The cache short-circuits those three libdd calls for any frame
  * whose code object has been seen before.
  *
- * Implementation: absl::flat_hash_map reserved at construction to max_capacity entries.
- * Reservation avoids all post-construction heap allocations for the common case (typical
- * workloads stay well under 1024 unique frames on the hot path). When capacity is exceeded,
- * one entry is evicted before inserting the new one, keeping map size bounded.
+ * Implementation: 2-way set-associative cache with Fibonacci (golden-ratio) set-index
+ * hashing. A code object pointer is hashed via (ptr * 0x9E3779B97F4A7C15) >> (64 - log2 sets)
+ * to pick a set; within the set, at most WAYS_PER_SET = 2 slots are checked linearly.
+ * Eviction is FIFO per set. The vector is allocated once at construction — no heap
+ * allocations occur during lookup or insert.
+ *
+ * Allocation safety: absl::flat_hash_map and std::unordered_map are not used here
+ * because their internal allocations would re-enter our PyObject_Malloc /
+ * PyMem_RawMalloc hooks, causing infinite recursion. The pre-allocated vector is safe.
  *
  * Address reuse: the key is a raw PyCodeObject* and CPython may free a code object and
  * reassign its address to a new one. Each entry therefore also stores the code object's
@@ -75,8 +46,9 @@ class CodeFunctionCache
     static constexpr size_t DEFAULT_CAPACITY = 1024;
     static constexpr size_t MIN_CAPACITY = 64;
     static constexpr size_t MAX_CAPACITY = 1 << 20; // 1M cap as a sanity ceiling
+    static constexpr size_t WAYS_PER_SET = 2;
 
-    explicit CodeFunctionCache(size_t capacity);
+    explicit CodeFunctionCache(size_t capacity_hint);
 
     /* Returns the cached function_id if present AND its stored identity matches the supplied
      * (name, filename, firstlineno), guarding against PyCodeObject address reuse.
@@ -84,26 +56,30 @@ class CodeFunctionCache
     Datadog::function_id lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept;
 
     /* Inserts (code, id) with the identity used to validate future lookups.
-     * Evicts one entry if the map is at capacity. */
+     * Evicts the FIFO victim in the target set if both slots are occupied. */
     void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
 
-    /* Drops every entry, retaining reserved capacity. */
+    /* Drops every entry, retaining allocated capacity. */
     void clear();
 
     /* Process-wide singleton, mirrors heap_tracker_t::instance. */
     static CodeFunctionCache* instance;
 
   private:
-    struct Entry
+    struct Set
     {
-        Datadog::function_id func_id;
-        PyObject* name;
-        PyObject* filename;
-        int firstlineno;
+        PyCodeObject* codes[2] = { nullptr, nullptr };
+        Datadog::function_id functions[2] = { nullptr, nullptr };
+        PyObject* names[2] = { nullptr, nullptr };
+        PyObject* filenames[2] = { nullptr, nullptr };
+        int firstlines[2] = { 0, 0 };
+        uint8_t next_evict = 0;
     };
 
-    CodeCacheMap<PyCodeObject*, Entry> map_;
-    size_t max_capacity_;
+    std::vector<Set> sets_;
+    uint8_t log2_set_bits_;
+
+    size_t set_index(PyCodeObject* code) const;
 };
 
 /* Public API for the heap profiler.
