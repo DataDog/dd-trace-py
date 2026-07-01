@@ -2743,6 +2743,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_HEAP_CODE_CACHE_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_PROFILING_HEAP_SAMPLE_SIZE": [
       {
         "implementation": "A",

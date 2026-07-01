@@ -4,8 +4,10 @@ import gc
 import inspect
 import os
 from pathlib import Path
+import re
 import struct
 import sys
+import textwrap
 import threading
 from tracemalloc import Statistic
 from types import CodeType
@@ -930,7 +932,7 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, True)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
         # memalloc frame serialization. The test passes if the subprocess
@@ -948,7 +950,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512, False)
+    _memalloc.start(32, 512, False, True)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -1112,41 +1114,41 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512, False)
+    _memalloc.start(64, 512, False, True)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512, False)
+        _memalloc.start(64, 512, False, True)
     _memalloc.stop()
 
 
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
+    with pytest.raises(TypeError, match="function takes exactly 4 arguments \\(1 given\\)"):
         _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1, False)
+        _memalloc.start(429496, 1, False, True)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1, False)
+        _memalloc.start(-1, 1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1, False)
+        _memalloc.start(64, -1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876, False)
+        _memalloc.start(64, 345678909876, False, True)
 
 
 def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1, False)
+    _memalloc.start(1, 1, False, True)
     _memalloc.stop()
 
 
@@ -1154,7 +1156,7 @@ def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024, False)
+    _memalloc.start(64, 1024, False, True)
     try:
         x: list[object] = []
 
@@ -1365,7 +1367,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
-    _memalloc.start(64, 1, False)
+    _memalloc.start(64, 1, False, True)
 
     stop = threading.Event()
     shared: dict[str, object] = {}
@@ -1571,3 +1573,90 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+# ---------------------------------------------------------------------------
+# Code cache correctness tests
+# ---------------------------------------------------------------------------
+
+
+def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) -> None:
+    """Profile allocations from more distinct code objects than the cache capacity.
+
+    The default cache holds 1024 entries and evicts when full. Using 1200 distinct
+    functions guarantees eviction fires throughout the run. Correctness invariant:
+    every function name in the profile that matches the ``cache_evict_fn_<N>`` pattern
+    must have a valid N in [0, NUM_FUNCTIONS). A stale-hit bug (cache returns the wrong
+    function_id after eviction) would manifest as an out-of-range index or a non-integer
+    suffix.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_function_attribution_under_eviction")
+
+    # 1200 > default cache capacity of 1024, so eviction fires throughout the run.
+    NUM_FUNCTIONS = 1200
+    # The allocation size must be a runtime argument, not a literal.  The compiler
+    # constant-folds "(None,) * 256" (two constant operands) into a single tuple in
+    # co_consts, so the function would do LOAD_CONST; RETURN_VALUE and allocate
+    # nothing at call time -- its frame would never appear in the profile.  A
+    # variable operand defeats the fold so every call performs a real, tracked
+    # allocation attributed to cache_evict_fn_<N>.
+    alloc_expr = "(None,) * n" if PY_313_OR_ABOVE else "bytearray(n)"
+
+    fns: list[Callable[[int], object]] = []
+    for i in range(NUM_FUNCTIONS):
+        ns: dict[str, Callable[[int], object]] = {}
+        exec(
+            textwrap.dedent(f"""\
+                def cache_evict_fn_{i}(n):
+                    return {alloc_expr}
+            """),
+            ns,
+        )
+        fns.append(ns[f"cache_evict_fn_{i}"])
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    # The heap profiler snapshots *live* heap, and the PyCodeObject->function_id
+    # cache under test is only exercised on the live-heap frame walk
+    # (push_stacktrace_to_sample_no_refcount).  Retain every allocation until after
+    # the snapshot so the sampled objects are still live and their cache_evict_fn_*
+    # frames get walked through the cache; discarding them would leave the snapshot
+    # empty and the cache untouched.
+    live: list[object] = []
+    with mc:
+        for fn in fns:
+            for _ in range(5):
+                live.append(fn(256))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Collect every function name seen in the profile.
+    profiled_names: set[str] = set()
+    for sample in profile.sample:
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if location.line:
+                fn_obj = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+                profiled_names.add(profile.string_table[fn_obj.name])
+
+    # Any cache_evict_fn_* name must have a valid numeric index in [0, NUM_FUNCTIONS).
+    # A stale-hit bug would produce an out-of-range index or a non-integer suffix.
+    _VALID_IDX = re.compile(r"^cache_evict_fn_(\d+)$")
+    garbled: list[str] = []
+    for name in profiled_names:
+        if not name.startswith("cache_evict_fn_"):
+            continue
+        m = _VALID_IDX.match(name)
+        if m is None or int(m.group(1)) >= NUM_FUNCTIONS:
+            garbled.append(name)
+
+    assert not garbled, (
+        f"Profile contains {len(garbled)} out-of-range cache_evict_fn_* name(s) "
+        f"(first 5: {garbled[:5]}). This indicates a stale cache-hit misattribution."
+    )
+
+    # Sanity: eviction ran, profiler still produced samples.
+    cache_fn_count = sum(1 for n in profiled_names if _VALID_IDX.match(n))
+    assert cache_fn_count > 0, "No cache_evict_fn_* functions appeared in profile — sampling may be broken."
+
+    del live
