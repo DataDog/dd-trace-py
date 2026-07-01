@@ -265,18 +265,39 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 
 def _instrument_message(messages, pin, start_ns, instance, err):
-    ctx = None
-    # First message is used to extract context and enrich datadog spans
-    # This approach aligns with the opentelemetry confluent kafka semantics
+    links = []
     first_message = messages[0] if len(messages) else None
-    if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
-        ctx = Propagator.extract(dict(first_message.headers()))
+    # Relate the consume span to every message's producer via span links rather than
+    # continuing any single producer's trace. This applies to both poll() (a single
+    # message) and consume() (a batch): no producer is privileged as the parent, so no
+    # producer trace is polluted by the consume span's children.
+    if config.kafka.distributed_tracing_enabled:
+        for message in messages:
+            if message is None or not message.headers():
+                continue
+            link_ctx = Propagator.extract(dict(message.headers()))
+            if link_ctx is not None and link_ctx.trace_id is not None:
+                links.append(link_ctx)
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
+        child_of=tracer.context_provider.active(),
         activate=True,
     ) as span:
+        for link_ctx in links:
+            span.link_span(link_ctx)
+            # extract() stores secondary/conflicting propagation styles (e.g. a message
+            # carrying both Datadog and W3C tracecontext with different trace ids) as span
+            # links on the context. link_span only adds the primary context, so copy these
+            # extracted links explicitly to avoid dropping them.
+            for extracted_link in link_ctx._span_links:
+                span.set_link(
+                    trace_id=extracted_link.trace_id,
+                    span_id=extracted_link.span_id,
+                    tracestate=extracted_link.tracestate,
+                    flags=extracted_link.flags,
+                    attributes=extracted_link.attributes,
+                )
         set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns
