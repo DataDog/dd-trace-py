@@ -22,6 +22,12 @@ from ddtrace.trace import tracer
 _KV_FUNCS = ["put", "get", "delete"]
 
 
+config._add(
+    "consul",
+    dict(_default_service=schematize_service_name("consul")),  # type: ignore[operator]
+)
+
+
 def get_version() -> str:
     return getattr(consul, "__version__", "")
 

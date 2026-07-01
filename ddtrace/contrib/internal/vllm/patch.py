@@ -17,6 +17,8 @@ from ddtrace.trace import tracer
 if TYPE_CHECKING:
     from vllm.v1.engine.output_processor import OutputProcessor
 
+from ddtrace.internal.schema import schematize_service_name
+
 from ._constants import ARG_POSITION_LOG_STATS
 from ._constants import ARG_POSITION_TRACE_HEADERS
 from ._constants import ATTR_DATADOG_INTEGRATION
@@ -33,7 +35,7 @@ from .utils import set_latency_metrics
 
 logger = get_logger(__name__)
 
-config._add("vllm", {})
+config._add("vllm", dict(_default_service=schematize_service_name("vllm")))  # type: ignore[operator]
 
 
 def traced_engine_init(func, instance, args, kwargs):

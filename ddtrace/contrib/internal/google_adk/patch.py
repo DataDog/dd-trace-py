@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
@@ -16,7 +17,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 
 logger = get_logger(__name__)
 
-config._add("google_adk", {})
+config._add("google_adk", dict(_default_service=schematize_service_name("google_adk")))
 
 
 def _supported_versions() -> dict[str, str]:

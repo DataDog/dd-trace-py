@@ -6,6 +6,7 @@ from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcesso
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import tracer
@@ -14,7 +15,7 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-config._add("openai_agents", {})
+config._add("openai_agents", dict(_default_service=schematize_service_name("openai_agents")))
 
 
 def get_version() -> str:

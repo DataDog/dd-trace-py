@@ -5,6 +5,7 @@ from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
@@ -47,7 +48,7 @@ def _get_flush_sleep_ms() -> int:
 
 config._add(
     "selenium",
-    dict(flush_sleep_ms=_get_flush_sleep_ms()),
+    dict(_default_service=schematize_service_name("selenium"), flush_sleep_ms=_get_flush_sleep_ms()),
 )
 
 

@@ -1,10 +1,18 @@
 import sqlalchemy
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings.asm import config as asm_config
 
 from .engine import _wrap_create_engine
+
+
+config._add(  # type: ignore[no-untyped-call]
+    "sqlalchemy",
+    dict(_default_service=schematize_service_name("sqlalchemy")),  # type: ignore[operator]
+)
 
 
 def get_version() -> str:

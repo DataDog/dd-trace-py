@@ -4,6 +4,7 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.trace import tracer
 
@@ -12,7 +13,7 @@ from .schema_iterator import SchemaExtractor
 
 config._add(
     "protobuf",
-    dict(),
+    dict(_default_service=schematize_service_name("protobuf")),
 )
 
 

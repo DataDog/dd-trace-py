@@ -22,6 +22,7 @@ from ddtrace.contrib.internal.llama_index._utils import get_model_provider
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._integrations import LlamaIndexIntegration
 
 
@@ -36,7 +37,7 @@ def _supported_versions() -> dict[str, str]:
     return {"llama_index.core": ">=0.11.0"}
 
 
-config._add("llama_index", {})
+config._add("llama_index", dict(_default_service=schematize_service_name("llama_index")))  # type: ignore[operator]
 
 _originals: dict[tuple[type, str], Any] = {}
 _wrapped_classes: set[type] = set()

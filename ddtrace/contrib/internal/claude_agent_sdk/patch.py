@@ -9,13 +9,14 @@ from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
 
 
 log = get_logger(__name__)
 
 
-config._add("claude_agent_sdk", {})
+config._add("claude_agent_sdk", dict(_default_service=schematize_service_name("claude_agent_sdk")))
 
 
 def get_version() -> str:

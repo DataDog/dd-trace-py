@@ -11,11 +11,15 @@ from mistralai.client.models.embeddingresponse import EmbeddingResponse
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._integrations import MistralAIIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 
-config._add("mistralai", {})  # type: ignore[no-untyped-call]
+config._add(  # type: ignore[no-untyped-call]
+    "mistralai",
+    dict(_default_service=schematize_service_name("mistralai")),  # type: ignore[operator]
+)
 
 
 def _supported_versions() -> dict[str, str]:

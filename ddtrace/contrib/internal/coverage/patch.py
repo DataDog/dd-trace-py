@@ -3,7 +3,9 @@ from typing import Optional
 
 import wrapt
 
+from ddtrace import config
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
 
@@ -23,6 +25,12 @@ PCT_COVERED_KEY = "pct_covered"
 # Coverage instance and percentage cache
 _coverage_instance: Optional[Any] = None
 _cached_coverage_percentage: Optional[float] = None
+
+
+config._add(
+    "coverage",
+    dict(_default_service=schematize_service_name("coverage")),
+)
 
 
 def get_version() -> str:

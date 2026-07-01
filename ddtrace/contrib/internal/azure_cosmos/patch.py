@@ -7,13 +7,14 @@ from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
 
 config._add(
     "azure_cosmos",
-    dict(),
+    dict(_default_service=schematize_service_name("azure_cosmos")),  # type: ignore[operator]
 )
 
 

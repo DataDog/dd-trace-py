@@ -15,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
@@ -32,6 +33,7 @@ log = get_logger(__name__)
 config._add(
     "httplib",
     {
+        "_default_service": schematize_service_name("httplib"),
         "distributed_tracing": asbool(env.get("DD_HTTPLIB_DISTRIBUTED_TRACING", default=True)),
         "default_http_tag_query_string": config._http_client_tag_query_string,
     },

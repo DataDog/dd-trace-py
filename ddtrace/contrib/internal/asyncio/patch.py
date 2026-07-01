@@ -1,13 +1,21 @@
 import asyncio
 from typing import Any
 
+from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
+from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
+
+
+config._add(
+    "asyncio",
+    dict(_default_service=schematize_service_name("asyncio")),  # type: ignore[operator]
+)
 
 
 def get_version() -> str:
