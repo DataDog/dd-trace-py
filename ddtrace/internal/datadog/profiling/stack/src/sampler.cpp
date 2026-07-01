@@ -25,6 +25,25 @@
 
 using namespace Datadog;
 
+// Number of seconds the stack sampler runs on the safe syscall-based memory copy
+// before upgrading to the faster safe_memcpy path. Running on the safe path during
+// the import-heavy startup window means a fault there can never crash, even if
+// another component (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC) installs its
+// own SIGSEGV handler. Overridable via DD_PROFILING_STACK_FAST_COPY_WARMUP_S
+// (PROF-14568).
+static long
+fast_copy_warmup_seconds()
+{
+    if (const char* val = getenv("DD_PROFILING_STACK_FAST_COPY_WARMUP_S")) {
+        char* end = nullptr;
+        long parsed = strtol(val, &end, 10);
+        if (end != val && parsed >= 0) {
+            return parsed;
+        }
+    }
+    return 15;
+}
+
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <ctime>
@@ -355,6 +374,34 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // Foreign SIGSEGV handler handling for safe_memcpy (PROF-14568).
+    //
+    // safe_memcpy's fault recovery only works while we own the SIGSEGV handler.
+    // Other components (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC) install
+    // their own handler, most often during the import-heavy startup. We therefore:
+    //   1. run on the safe syscall-based copy for a warmup window, so a fault during
+    //      startup can never crash regardless of who owns the handler, then upgrade
+    //      to safe_memcpy only if we still own the handler; and
+    //   2. keep checking ownership every cycle afterwards, permanently falling back
+    //      to the syscall copy if a handler is installed later (e.g. lazy CUDA init
+    //      on first GPU use).
+    const bool fast_copy_desired = fast_copy_active;
+#if defined PL_LINUX
+    const bool syscall_copy_available = process_vm_readv_available;
+#else
+    const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
+#endif
+    // Only warm up when fast copy is wanted and a safe path exists to run on in the
+    // meantime; otherwise leave the active copy method untouched.
+    const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
+    bool fast_copy_upgraded = !fast_copy_warmup;
+    bool handler_fallback_done = false;
+    const auto fast_copy_warmup_deadline = sample_time_prev + seconds(fast_copy_warmup_seconds());
+    if (fast_copy_warmup) {
+        // Drop to the safe syscall copy for the startup window.
+        set_fast_copy_enabled(false);
+    }
+
     while (seq_num == thread_seq_num.load()) {
         // Check if a pause has been requested (e.g., for signal handler swapping).
         // Block until resumed or the thread is asked to stop.
@@ -378,6 +425,40 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
+
+        // Foreign SIGSEGV handler handling (see the notes before the loop). The
+        // ownership check is one cheap sigaction read; faulthandler's transient
+        // swaps are not a concern because the sampler is paused around them.
+        if (fast_copy_desired) {
+            if (!fast_copy_upgraded) {
+                // Warmup window: still on the safe syscall copy. Once it elapses,
+                // upgrade to safe_memcpy only if we still own the handler.
+                if (sample_time_now >= fast_copy_warmup_deadline) {
+                    fast_copy_upgraded = true; // decide once
+                    if (segv_handler_installed()) {
+                        set_fast_copy_enabled(true);
+                    } else {
+                        // Another component already owns the handler; stay on the
+                        // safe syscall copy for the life of the process.
+                        handler_fallback_done = true;
+                        std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV "
+                                     "handler; keeping the syscall-based memory copy to avoid crashing."
+                                  << std::endl;
+                    }
+                }
+            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
+                // A component took over the handler after we upgraded to safe_memcpy;
+                // fall back permanently. A false positive only costs the slower copy
+                // path, so we do not debounce. Attempted/logged once: if the syscall
+                // copy is also unavailable, set_fast_copy_enabled reports it and there
+                // is nothing more to do.
+                handler_fallback_done = true;
+                std::cerr << "ddtrace stack profiler: SIGSEGV handler was taken over by another "
+                             "component; falling back to syscall-based memory copy to avoid crashing."
+                          << std::endl;
+                set_fast_copy_enabled(false);
+            }
+        }
 
         // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
