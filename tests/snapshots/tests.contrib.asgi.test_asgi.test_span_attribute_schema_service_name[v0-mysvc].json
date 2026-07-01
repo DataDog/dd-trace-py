@@ -1,0 +1,263 @@
+[[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "asgi.spec_version": "2.1",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1/",
+      "http.version": "1.0",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 66625,
+    "start": 1782854009462713805
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "asgi.spec_version": "2.1",
+      "asgi.version": "3.2",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1/",
+      "http.version": "1.0",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 73125,
+    "start": 1782854009458516264
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "asgi.version": "3.2",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1/",
+      "http.version": "1.0",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 71750,
+    "start": 1782854009454545680
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1/",
+      "http.version": "1.0",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 77292,
+    "start": 1782854009450540305
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 77917,
+    "start": 1782854009446393972
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1/",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 97709,
+    "start": 1782854009441738930
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 6,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://dev:8000/",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 99125,
+    "start": 1782854009437108514
+  }],
+[
+  {
+    "name": "asgi.request",
+    "service": "mysvc",
+    "resource": "GET /",
+    "trace_id": 7,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a44317900000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "asgi",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://dev/",
+      "language": "python",
+      "runtime-id": "0f669d058b37479489754d64d98eaf6a",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 90779.0
+    },
+    "duration": 138875,
+    "start": 1782854009431854180
+  }]]

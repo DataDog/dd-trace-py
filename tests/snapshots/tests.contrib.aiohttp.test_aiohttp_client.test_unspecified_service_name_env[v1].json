@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69faf94600000000",
+      "_dd.p.tid": "6a43f2aa00000000",
       "_dd.peer.service.source": "out.host",
-      "_dd.svc_src": "aiohttp_client",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "aiohttp_client",
       "http.method": "GET",
@@ -22,17 +22,17 @@
       "language": "python",
       "out.host": "localhost",
       "peer.service": "localhost",
-      "runtime-id": "c7a709a53ee84e3c83d845cfc3e03254",
+      "runtime-id": "dfafba7ed243459383272de58f86ec0a",
       "span.kind": "client"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 725.0
+      "process_id": 72099.0
     },
-    "duration": 3925416,
-    "start": 1778055494295222137
+    "duration": 2228208,
+    "start": 1782837930125494842
   },
      {
        "name": "TCPConnector.connect",
@@ -44,11 +44,11 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.p.tid": "69faf94600000000",
-         "_dd.svc_src": "aiohttp",
+         "_dd.p.tid": "6a43f2aa00000000",
+         "_dd.svc_src": "m",
          "component": "aiohttp",
          "span.kind": "client"
        },
-       "duration": 2057834,
-       "start": 1778055494295567928
+       "duration": 889750,
+       "start": 1782837930125720967
      }]]
