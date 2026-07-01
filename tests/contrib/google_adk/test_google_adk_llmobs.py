@@ -209,12 +209,10 @@ class TestLLMObsGoogleADK:
     async def test_run_live_reads_metadata_from_session_object(self, test_runner, test_spans, google_adk_llmobs):
         """run_live's deprecated ``session=`` form: session metadata is read off the Session object.
 
-        Driven end-to-end through the patched ``Runner.run_live``. The live model connection cannot be
-        established under test, but the agent span is still tagged (in the wrapper's ``finally``) with the
-        session id and user id resolved from the Session object, since neither is passed as a keyword.
+        Driven end-to-end through the patched ``Runner.run_live``. The agent's live turn is stubbed so
+        the test doesn't open a real model connection; the agent span is still tagged with the session
+        id and user id resolved from the Session object, since neither is passed as a keyword.
         """
-        import asyncio
-
         from google.adk.agents.live_request_queue import LiveRequestQueue
 
         session = await test_runner.session_service.create_session(
@@ -223,15 +221,14 @@ class TestLLMObsGoogleADK:
             session_id="live-session",
         )
 
-        async def _drain():
+        async def _stub_live_turn(*args, **kwargs):
+            # Stand in for the agent's live model turn so no real connection is opened.
+            for _ in ():
+                yield _
+
+        with mock.patch.object(type(test_runner.agent), "run_live", _stub_live_turn):
             async for _ in test_runner.run_live(session=session, live_request_queue=LiveRequestQueue()):
                 pass
-
-        try:
-            # The live connection isn't available under test; bound the call so a hung connect can't stall.
-            await asyncio.wait_for(_drain(), timeout=10)
-        except Exception:
-            pass
 
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         run_live_spans = [s for s in spans if s.resource.endswith("run_live")]
@@ -241,7 +238,6 @@ class TestLLMObsGoogleADK:
             _get_llmobs_data_metastruct(run_live_spans[0]),
             span_kind="agent",
             name="test_agent",
-            error=mock.ANY,  # the live model connection fails under test; we only assert the session tags
             tags={
                 "ml_app": "<ml-app-name>",
                 "service": "tests.contrib.google_adk",
