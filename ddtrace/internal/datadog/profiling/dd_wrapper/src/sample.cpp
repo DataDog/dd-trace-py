@@ -642,6 +642,17 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 }
 
 bool
+Datadog::Sample::push_offcputime(int64_t off_cpu_time, int64_t count)
+{
+    if (0U != (type_mask & SampleType::OffCPU)) {
+        values[ProfilerState::get().profile_state.val().off_cpu_time] += off_cpu_time * count;
+        values[ProfilerState::get().profile_state.val().off_cpu_count] += count;
+        return true;
+    }
+    return false;
+}
+
+bool
 Datadog::Sample::push_exception_message(std::string_view exception_message)
 {
     push_label(ExportLabelKey::exception_message, exception_message);

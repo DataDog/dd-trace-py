@@ -58,6 +58,8 @@ struct ThreadState
     microsecond_t wall_time_ns = 0;
     microsecond_t cpu_time_ns = 0;
     int64_t now_time_ns = 0;
+    bool has_cpu_time = false;
+    bool task_on_cpu = true;
 };
 
 class StackRenderer

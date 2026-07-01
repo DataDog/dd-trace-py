@@ -1241,3 +1241,152 @@ def test_span_id_in_profile_after_fork() -> None:
                 "Child process failed: profile samples after fork did not contain the expected span_id. "
                 "The Trace to Profile link is broken for forked processes."
             )
+
+
+# --- off-cpu-time tests ---
+# Use subprocess isolation: ddup config (including the OffCPU sample type bit) persists for the
+# entire process lifetime via std::call_once in ProfilerState::start(). Without subprocess
+# isolation, an earlier test's ddup.start() call would initialize the profile without OffCPU,
+# preventing offcpu_time_enabled=True from taking effect in later tests.
+
+
+# Use subprocess as ddup config persists across tests.
+@pytest.mark.subprocess
+def test_off_cpu_time_sleeping_thread() -> None:
+    """A thread that sleeps should accumulate off-cpu-time ≈ wall-time and cpu-time ≈ 0."""
+    import _thread
+    import os
+    import time
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+
+    test_name = "test_off_cpu_time_sleeping_thread"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
+    ddup.start()
+    ddup.upload()
+
+    def sleeper() -> None:
+        for _ in range(10):
+            time.sleep(0.05)
+
+    with stack.StackCollector():
+        sleeper()
+
+    ddup.upload()
+
+    _OFF_CPU_TYPE = "off-cpu-time"
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    available = [profile.string_table[st.type] for st in profile.sample_type]
+    assert _OFF_CPU_TYPE in available, f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {available}"
+
+    off_cpu_samples = pprof_utils.get_samples_with_value_type(profile, _OFF_CPU_TYPE)
+    if len(off_cpu_samples) == 0:
+        pytest.skip("No off-cpu samples collected; CPU time measurement may be unavailable on this platform")
+
+    expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=off_cpu_samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name=expected_thread_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleeper",
+                    filename="test_stack.py",
+                    line_no=sleeper.__code__.co_firstlineno + 2,
+                ),
+            ],
+        ),
+    )
+
+
+# Use subprocess as ddup config persists across tests.
+@pytest.mark.subprocess
+def test_off_cpu_lower_for_cpu_bound_thread() -> None:
+    """A CPU-bound thread should have much lower off-cpu-time than a sleeping thread."""
+    import os
+    import threading
+    import time
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    test_name = "test_off_cpu_lower_for_cpu_bound_thread"
+    pprof_prefix = "/tmp/" + test_name
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="test", output_filename=pprof_prefix, offcpu_time_enabled=True)
+    ddup.start()
+    ddup.upload()
+
+    sleeping_off_cpu = 0
+    cpu_bound_off_cpu = 0
+
+    def sleeper() -> None:
+        for _ in range(5):
+            time.sleep(0.1)
+
+    def cpu_worker() -> None:
+        # Tight busy-loop: avoids yielding to the OS scheduler between iterations,
+        # which would inflate off-cpu time and make the ratio assertion flaky.
+        end = time.monotonic() + 0.5
+        x = 0
+        while time.monotonic() < end:
+            x = (x + 1) & 0xFFFF
+
+    t_sleep = threading.Thread(target=sleeper, name="sleeper-thread")
+    t_cpu = threading.Thread(target=cpu_worker, name="cpu-thread")
+
+    with stack.StackCollector():
+        t_sleep.start()
+        t_cpu.start()
+        t_sleep.join()
+        t_cpu.join()
+
+    ddup.upload()
+
+    _OFF_CPU_TYPE = "off-cpu-time"
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    available = [profile.string_table[st.type] for st in profile.sample_type]
+    assert _OFF_CPU_TYPE in available, f"off-cpu sample type '{_OFF_CPU_TYPE}' not found; available: {available}"
+
+    off_cpu_idx = pprof_utils.get_sample_type_index(profile, _OFF_CPU_TYPE)
+    cpu_time_idx = pprof_utils.get_sample_type_index(profile, "cpu-time")
+
+    cpu_bound_cpu_time = 0
+    for sample in profile.sample:
+        for label in sample.label:
+            key = profile.string_table[label.key]
+            if key == "thread name":
+                name = profile.string_table[label.str]
+                if name == "sleeper-thread":
+                    sleeping_off_cpu += sample.value[off_cpu_idx]
+                elif name == "cpu-thread":
+                    cpu_bound_off_cpu += sample.value[off_cpu_idx]
+                    cpu_bound_cpu_time += sample.value[cpu_time_idx]
+
+    if cpu_bound_cpu_time == 0:
+        pytest.skip("CPU time measurement unavailable for cpu-thread; cannot validate off-cpu ratio")
+
+    assert sleeping_off_cpu > 0, "sleeper thread should have non-zero off-cpu-time"
+    # 2x threshold: sleeper is 100% off-cpu; cpu-thread should be mostly on-cpu.
+    # macOS ARM scheduler can preempt the cpu-thread, so we use 2x not 3x.
+    assert sleeping_off_cpu > cpu_bound_off_cpu * 2, (
+        f"sleeper off-cpu ({sleeping_off_cpu}ns) should greatly exceed cpu-bound off-cpu ({cpu_bound_off_cpu}ns)"
+    )

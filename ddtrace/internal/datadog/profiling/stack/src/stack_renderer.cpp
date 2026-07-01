@@ -42,8 +42,9 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     thread_state.name = std::string(name);
     thread_state.now_time_ns = now_ns;
     thread_state.wall_time_ns = 1000 * wall_time_us;
-    thread_state.cpu_time_ns = 0; // Walltime samples are guaranteed, but CPU times are not. Initialize to 0
-                                  // since we don't know if we'll get a CPU time here.
+    thread_state.cpu_time_ns = 0;
+    thread_state.has_cpu_time = false;
+    thread_state.task_on_cpu = true;
 
     // Finalize the thread information we have
     sample->push_threadinfo(static_cast<int64_t>(thread_id), static_cast<int64_t>(native_id), name);
@@ -99,6 +100,7 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu)
     }
 
     sample->push_task_name(task_name);
+    thread_state.task_on_cpu = on_cpu;
 }
 
 void
@@ -223,9 +225,11 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
         return;
     }
 
-    // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
-    // to the task level, but for now just keep it because this is how the v1 sampler works
+    // TODO- thread-level CPU time is attributed to the first task on a thread (whichever task is
+    // current when render_cpu_time fires).  Per-task CPU time would require intercepting every asyncio/greenlet
+    // context switch and diffing the thread CPU clock at each switch -- a separate effort.
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
+    thread_state.has_cpu_time = true;
     sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 
@@ -235,6 +239,22 @@ StackRenderer::render_stack_end()
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
         return;
+    }
+
+    // Off-CPU approximation.
+    if (thread_state.task_on_cpu) {
+        // On-CPU thread: off-cpu ≈ wall - cpu.  Only emit when CPU time was actually measured
+        // (has_cpu_time distinguishes "measured 0" from "unavailable on this platform").
+        if (thread_state.has_cpu_time) {
+            const int64_t off_cpu_ns = thread_state.wall_time_ns > thread_state.cpu_time_ns
+                                         ? thread_state.wall_time_ns - thread_state.cpu_time_ns
+                                         : 0; // clamp to 0 for clock skew between the two clocks
+            sample->push_offcputime(off_cpu_ns, 1);
+        }
+    } else {
+        // Suspended task (asyncio/greenlet not currently scheduled): was off-CPU for the full
+        // sampling interval.  This is exact — no CPU time measurement required.
+        sample->push_offcputime(thread_state.wall_time_ns, 1);
     }
 
     sample->flush_sample();

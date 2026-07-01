@@ -40,7 +40,7 @@ def _derive_default_heap_sample_size(
     try:
         from ddtrace.vendor import psutil
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total
+        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -390,6 +390,15 @@ class ProfilingConfigStack(DDConfig):
         default=True,
         help_type="Boolean",
         help="Whether to use fast memory copying (safe_memcpy) instead of process_vm_readv for stack sampling.",
+        private=True,
+    )
+
+    offcpu_time_enabled = DDConfig.v(
+        bool,
+        "offcpu_time_enabled",
+        default=False,
+        help_type="Boolean",
+        help=("Whether to enable the off-CPU time approximation sample type in the stack profiler."),
         private=True,
     )
 

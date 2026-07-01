@@ -55,6 +55,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_config_url(string_view url)
     void ddup_config_max_nframes(int max_nframes)
     void ddup_config_timeline(bint enable)
+    void ddup_config_offcpu_time_enabled(bint enable)
     void ddup_config_output_filename(string_view output_filename)
     void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
     void ddup_config_process_tags(string_view process_tags)
@@ -81,6 +82,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_gpu_gputime(Sample *sample, int64_t gputime, int64_t count)
     void ddup_push_gpu_memory(Sample *sample, int64_t size, int64_t count)
     void ddup_push_gpu_flops(Sample *sample, int64_t flops, int64_t count)
+    void ddup_push_offcputime(Sample *sample, int64_t off_cpu_time, int64_t count)
     void ddup_push_lock_name(Sample *sample, string_view lock_name)
     void ddup_push_threadinfo(Sample *sample, int64_t thread_id, int64_t thread_native_id, string_view thread_name)
     void ddup_push_task_id(Sample *sample, int64_t task_id)
@@ -359,7 +361,8 @@ def config(
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
         timeout: Optional[int] = None,
-        process_tags: StringType = None
+        process_tags: StringType = None,
+        offcpu_time_enabled: Optional[bool] = None,
 ) -> None:
 
     # Try to provide a ddtrace-specific default service if one is not given
@@ -390,6 +393,8 @@ def config(
 
     if timeline_enabled is True:
         ddup_config_timeline(True)
+    if offcpu_time_enabled is True:
+        ddup_config_offcpu_time_enabled(True)
     if sample_pool_capacity:
         ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
@@ -490,6 +495,10 @@ cdef class SampleHandle:
     def push_gpu_flops(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
             ddup_push_gpu_flops(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_offcputime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            ddup_push_offcputime(self.ptr, clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:

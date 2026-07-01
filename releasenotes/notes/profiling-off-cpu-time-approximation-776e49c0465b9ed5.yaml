@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Profiling: Adds an off-CPU time approximation of the time a thread spent waiting
+    on I/O, locks, sleeps, or OS scheduling.
+    It is surfaced as a new ``off-cpu-time`` sample type in the stack profiler.

@@ -239,6 +239,7 @@ class _ProfilerInstance(service.Service):
             sample_pool_capacity=profiling_config.sample_pool_capacity,
             timeout=profiling_config.api_timeout_ms,
             process_tags=self.process_tags,
+            offcpu_time_enabled=profiling_config.stack.offcpu_time_enabled,
         )
         ddup.start()
 

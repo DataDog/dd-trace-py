@@ -18,8 +18,8 @@ else()
             "to build profiling native extensions.")
 endif()
 
-message(WARNING "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
-message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
+message(STATUS "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
+message(STATUS "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
 # setup.py by setting CARGO_TARGET_DIR environment variable.
@@ -33,7 +33,7 @@ file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
 
 file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
 
-message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
+message(STATUS "LIB_FILES LOCATION: ${LIB_FILES}")
 
 add_library(_native SHARED IMPORTED GLOBAL)
 set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
