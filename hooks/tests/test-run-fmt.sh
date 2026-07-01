@@ -27,7 +27,7 @@ mock_staged() {
 case "\$*" in
     "diff --staged --name-only HEAD --diff-filter=ACMR")
         printf '%s\n' $files ;;
-    "diff --name-only")
+    "diff --name-only"|"diff --name-only --diff-filter=ACMR")
         ;;  # no unstaged changes
     "diff --name-only --diff-filter=ACMR")
         ;;  # no dirty files to check formatting on
