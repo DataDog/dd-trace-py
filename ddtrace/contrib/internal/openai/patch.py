@@ -90,6 +90,8 @@ _RESPONSE_HOOKS = (
     _endpoint_hooks._ResponseParseHook,
 )
 
+_COMPLETION_HOOKS = (_endpoint_hooks._CompletionHook,)
+
 
 def patch():
     if getattr(openai, "__datadog_patch", False):
@@ -141,6 +143,10 @@ def patch():
 
     openai.__datadog_patch = True
 
+    # Notify AI Guard (and any other plugin) that wrapping is complete so they
+    # can install their own outermost wrappers on the same targets.
+    core.dispatch("openai.patch", tuple())
+
 
 def unpatch():
     if not getattr(openai, "__datadog_patch", False):
@@ -151,6 +157,10 @@ def unpatch():
         return
 
     openai.__datadog_patch = False
+
+    # Notify AI Guard first so it can peel its outermost wrappers before the
+    # contrib's own unwrap calls restore the layer below.
+    core.dispatch("openai.unpatch", tuple())
 
     if OPENAI_VERSION >= (1, 8, 0):
         unwrap(openai._base_client.SyncAPIClient, "_process_response")
@@ -245,12 +255,36 @@ def _patched_endpoint(patch_hook):
         ):
             kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
             return func(*args, **kwargs)
+        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
+        is_response = patch_hook in _RESPONSE_HOOKS
+        is_completion = patch_hook in _COMPLETION_HOOKS
         if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            # Raw-response streaming: dispatch .before for AppSec listeners but
+            # do NOT create an LLMObs span — existing tests assert 0 spans for
+            # this path, and there is no response to trace anyway.
+            # If dispatch raises (e.g. a future block), open+close a span so the
+            # error is recorded before re-raising.
+            event = ""
+            if is_chat:
+                event = "openai.chat.completions.create"
+            elif is_response:
+                event = "openai.responses.create"
+            elif is_completion:
+                event = "openai.completions.create"
+            if event:
+                try:
+                    core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                except BaseException as dispatch_err:
+                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g.send(None)
+                    try:
+                        g.send((None, dispatch_err))
+                    except StopIteration:
+                        pass
+                    raise
             return func(*args, **kwargs)
 
         integration = openai._datadog_integration
-        is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
-        is_response = patch_hook in _RESPONSE_HOOKS
         g = _traced_endpoint(patch_hook, integration, instance, args, kwargs)
         g.send(None)
         resp, err = None, None
@@ -260,6 +294,8 @@ def _patched_endpoint(patch_hook):
             event = "openai.chat.completions.create"
         elif is_response:
             event = "openai.responses.create"
+        elif is_completion:
+            event = "openai.completions.create"
         try:
             if event:
                 core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
@@ -402,11 +438,34 @@ def _patched_endpoint_async(patch_hook):
         ):
             kwargs[OPENAI_WITH_RAW_RESPONSE_ARG] = True
             return func(*args, **kwargs)
-        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
-            return func(*args, **kwargs)
-
         is_chat = patch_hook in _CHAT_COMPLETION_HOOKS
         is_response = patch_hook in _RESPONSE_HOOKS
+        is_completion = patch_hook in _COMPLETION_HOOKS
+        if kwargs.pop(OPENAI_WITH_RAW_RESPONSE_ARG, False) and kwargs.get("stream", False):
+            # Raw-response streaming: dispatch .before for AppSec but no LLMObs span
+            # on the success path (same rationale as sync path above).
+            # Dispatch is synchronous; span is created only if it raises.
+            event = ""
+            if is_chat:
+                event = "openai.chat.completions.create"
+            elif is_response:
+                event = "openai.responses.create"
+            elif is_completion:
+                event = "openai.completions.create"
+            if event:
+                try:
+                    core.dispatch(f"{event}.before", (kwargs,), allow_raise=True)
+                except BaseException as dispatch_err:
+                    g = _traced_endpoint(patch_hook, openai._datadog_integration, instance, args, kwargs)
+                    g.send(None)
+                    try:
+                        g.send((None, dispatch_err))
+                    except StopIteration:
+                        pass
+                    raise
+            # Return immediately like the sync path: no span and no second
+            # .before dispatch for raw-response streaming on the success path.
+            return func(*args, **kwargs)
         result = func(*args, **kwargs)
         # Detect AsyncPaginator objects (have both __aiter__ and __await__).
         # These must be returned directly (not awaited) to preserve iteration behavior.
@@ -424,6 +483,8 @@ def _patched_endpoint_async(patch_hook):
                 event = "openai.chat.completions.create"
             elif is_response:
                 event = "openai.responses.create"
+            elif is_completion:
+                event = "openai.completions.create"
             try:
                 if event:
                     try:
