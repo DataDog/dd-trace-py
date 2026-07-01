@@ -271,6 +271,6 @@ def test_otel_span_interoperability(oteltracer):
         set_status_on_exception=False,
     ) as otel_span_og:
         # Creates a new otel span from the underlying datadog span
-        otel_span_clone = Span(otel_span_og._ddspan)
+        otel_span_clone = Span(otel_span_og._ddspan, [])
         # Ensure all properties are consistent
         assert otel_span_clone.__dict__ == otel_span_og.__dict__
