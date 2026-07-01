@@ -1410,6 +1410,29 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _make_obj_domain_object(size_bytes: int) -> object:
+    """Return an object whose primary allocation goes through PYMEM_DOMAIN_OBJ.
+
+    On Python 3.13+, tuples store their elements inline via PyObject_GC_New which
+    routes through PYMEM_DOMAIN_OBJ.  We use ``size_bytes // ptr_size`` elements so
+    the total memory footprint is approximately ``size_bytes`` bytes.
+
+    On Python 3.12, bytearray's internal buffer was allocated via PyObject_Malloc
+    (PYMEM_DOMAIN_OBJ); from Python 3.13 it moved to PyMem_Realloc
+    (PYMEM_DOMAIN_MEM), so we switch allocation vehicles at the same boundary.
+
+    Using ``size_bytes // ptr_size`` elements on Python 3.13+ (rather than
+    ``size_bytes`` elements) ensures both branches allocate approximately the same
+    number of bytes, which matters for tests that compare alloc-space totals.
+    """
+    if PY_313_OR_ABOVE:
+        ptr_size: int = struct.calcsize("P")
+        n: int = size_bytes // ptr_size
+        return (None,) * n
+    else:
+        return bytearray(size_bytes)
+
+
 def _make_mem_domain_object(size_bytes: int) -> object:
     """Return an object whose primary allocation goes through PYMEM_DOMAIN_MEM.
 
@@ -1573,6 +1596,120 @@ def test_obj_and_mem_domain_coexist(tmp_path: Path) -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"
     del d, lst
+
+
+# ---------------------------------------------------------------------------
+# Per-domain sampling counter tests (#18611)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_per_domain_alloc_space_tracks_domain_bytes(tmp_path: Path) -> None:
+    """Each domain's alloc-space should approximate the bytes allocated from that domain.
+
+    With per-domain counters, OBJ bytes only accumulate toward the OBJ threshold and
+    MEM bytes only toward the MEM threshold.  Each domain's alloc-space weight is drawn
+    from the domain's own accumulated byte count, so the totals stay proportional to
+    actual bytes regardless of cross-domain traffic.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_per_domain_alloc_space")
+
+    sample_size = 64 * 1024  # 64 KB base rate
+    obj_total = 16 * 1024 * 1024  # 16 MB via OBJ
+    mem_total = 16 * 1024 * 1024  # 16 MB via MEM
+    chunk = 256 * 1024  # 256 KB per allocation
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_size, mem_domain_enabled=True)
+    obj_live: list[object] = []
+    mem_live: list[object] = []
+
+    with mc:
+        for _ in range(obj_total // chunk):
+            obj_live.append(_make_obj_domain_object(chunk))
+        for _ in range(mem_total // chunk):
+            mem_live.append(_make_mem_domain_object(chunk))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    alloc_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+
+    obj_alloc_space = sum(
+        s.value[alloc_space_idx]
+        for s in alloc_samples
+        if has_function_in_profile_sample(profile, s, "_make_obj_domain_object")
+    )
+    mem_alloc_space = sum(
+        s.value[alloc_space_idx]
+        for s in alloc_samples
+        if has_function_in_profile_sample(profile, s, "_make_mem_domain_object")
+    )
+
+    assert obj_alloc_space > 0, "Expected OBJ-domain alloc-space > 0"
+    assert mem_alloc_space > 0, "Expected MEM-domain alloc-space > 0"
+
+    # Each domain's total alloc-space should be within 2× of actual bytes from that domain.
+    # Sampling is unbiased (Horvitz-Thompson), so the aggregate is approximately correct
+    # regardless of cross-domain traffic, but gross contamination (e.g. wrong bytes in
+    # wrong domain counter) would push the ratio outside this band.
+    for domain_name, measured, expected in [
+        ("OBJ", obj_alloc_space, obj_total),
+        ("MEM", mem_alloc_space, mem_total),
+    ]:
+        ratio = measured / expected
+        assert 0.4 <= ratio <= 2.5, (
+            f"{domain_name} alloc-space {measured} should be within 2.5× of actual bytes {expected} "
+            f"(ratio={ratio:.2f}). Domain byte counter may be contaminated by allocations from other domains."
+        )
+
+    del obj_live, mem_live
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+def test_mem_domain_sample_rate_factor(tmp_path: Path) -> None:
+    """MEM domain uses MEM_DOMAIN_SAMPLE_RATE_FACTOR=4 to sample 4× less often than OBJ.
+
+    Verifies that allocations from both domains appear in the live heap profile.
+    The Horvitz-Thompson estimator compensates for the lower sampling rate, so
+    heap-live-samples totals are not directly comparable between domains.  The
+    alloc-space accounting (test_per_domain_alloc_space_tracks_domain_bytes) is
+    the canonical check for whether the rate factor is applied correctly.
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_mem_domain_rate_factor")
+
+    sample_size = 128 * 1024  # 128 KB base rate
+    total_per_domain = 32 * 1024 * 1024  # 32 MB each
+    chunk = 256 * 1024  # 256 KB per allocation; large enough to guarantee a sample per ~2 OBJ chunks
+
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=sample_size, mem_domain_enabled=True)
+    obj_live: list[object] = []
+    mem_live: list[object] = []
+
+    with mc:
+        for _ in range(total_per_domain // chunk):
+            obj_live.append(one(chunk))
+        for _ in range(total_per_domain // chunk):
+            mem_live.append(_make_mem_domain_object(chunk))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+    heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+    heap_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+
+    obj_live_count = sum(
+        s.value[heap_live_idx] for s in heap_samples if has_function_in_profile_sample(profile, s, one)
+    )
+    mem_live_count = sum(
+        s.value[heap_live_idx]
+        for s in heap_samples
+        if has_function_in_profile_sample(profile, s, "_make_mem_domain_object")
+    )
+
+    assert obj_live_count > 0, "Expected live OBJ allocations in heap profile"
+    assert mem_live_count > 0, "Expected live MEM allocations in heap profile"
+
+    del obj_live, mem_live
 
 
 # ---------------------------------------------------------------------------
