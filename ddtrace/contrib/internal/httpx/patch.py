@@ -139,6 +139,8 @@ async def _wrapped_async_send(
         finally:
             if resp is not None:
                 ctx.event.set_response(resp)
+                if resp.content and "json" in resp.headers.get("content-type", ""):
+                    ctx.event.response_body = resp.json()
 
 
 def _wrapped_sync_send(
@@ -170,6 +172,8 @@ def _wrapped_sync_send(
         finally:
             if resp is not None:
                 ctx.event.set_response(resp)
+                if resp.content and "json" in resp.headers.get("content-type", ""):
+                    ctx.event.response_body = resp.json()
 
 
 def patch() -> None:

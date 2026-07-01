@@ -8,7 +8,6 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpBaseEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.contrib._events.http import JsonType
-from ddtrace.contrib._events.http import _HttpResponse
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
@@ -45,17 +44,6 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
         self.operation_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
-
-    def set_response(self, response: _HttpResponse) -> None:
-        super().set_response(response)
-
-        if not getattr(response, "content", None):
-            return
-
-        if "json" not in response.headers.get("content-type", ""):
-            return
-
-        self.response_body = response.json()
 
 
 @dataclass
