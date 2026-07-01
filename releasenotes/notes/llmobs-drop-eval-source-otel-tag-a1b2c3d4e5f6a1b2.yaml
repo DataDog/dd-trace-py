@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Removes the ``source:otel`` tag from ``LLMObs.submit_evaluation()`` events.
+    The backend now handles OTel span matching directly without requiring this tag.

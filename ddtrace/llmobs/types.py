@@ -12,15 +12,6 @@ ExperimentConfigType = dict[str, JSONType]
 class ExportedLLMObsSpan(TypedDict):
     span_id: str
     trace_id: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
-
-
-class SpanWithTagValue(TypedDict):
-    tag_key: str
-    tag_value: str
-    # True only for spans with OTel gen.ai semantics (e.g. from OTel LLM instrumentations)
-    is_otel: bool
 
 
 class Document(TypedDict, total=False):
@@ -51,6 +42,14 @@ class ToolDefinition(TypedDict, total=False):
     version: str
 
 
+class AudioPart(TypedDict, total=False):
+    """An audio segment on a Message: inline base64 ``content`` or an offloaded ``attachment_key``."""
+
+    mime_type: str
+    content: str
+    attachment_key: str
+
+
 class Message(TypedDict, total=False):
     id: str
     role: str
@@ -58,6 +57,7 @@ class Message(TypedDict, total=False):
     tool_calls: list[ToolCall]
     tool_results: list[ToolResult]
     tool_id: str
+    audio_parts: list[AudioPart]
 
 
 class _SpanField(TypedDict):
