@@ -11,6 +11,26 @@
 
 namespace Datadog {
 
+/* Result of a cache lookup.
+ * func_id == nullptr: miss — caller must intern strings and insert.
+ * func_id != nullptr: hit — func_id is valid; line >= 0 means the cached line
+ *   number is also valid (lasti matched) so parse_linetable can be skipped;
+ *   line == -1 means the caller must resolve the line number itself.
+ *
+ * CacheResult is intentionally kept small to make lookup() cheap to return by value.
+ * On x86-64 System V, aggregates up to 16B are typically returned in registers; other ABIs may differ. */
+struct CacheResult
+{
+    Datadog::function_id func_id; // nullptr = miss
+    int line;                     // -1 = lasti mismatch; >=0 = cached line (skip parse_linetable)
+};
+
+/* Keep CacheResult small; increasing its size can force some ABIs to use a hidden
+ * return pointer (sret), adding per-lookup overhead on the allocator-hook hot path. */
+static_assert(sizeof(CacheResult) <= 16,
+              "CacheResult exceeds 16B — consider measuring lookup() "
+              "return overhead on supported ABIs before adding fields");
+
 /* CodeFunctionCache caches libdatadog function_id values keyed by PyCodeObject*.
  * Frame walks during heap-profiler sample construction call ProfilesDictionary::insert_str
  * twice and insert_function once per frame, which dominate profiler-side CPU on workloads
@@ -39,6 +59,12 @@ namespace Datadog {
  * expire while their owning ProfilesDictionary lives, which spans the whole profiler
  * lifetime (verified in _memalloc_heap.cpp -- allocs_m holds samples whose locations
  * reference function_ids and only clears at postfork_child).
+ *
+ * Two-tier hit: each entry also stores the last-seen lasti (bytecode offset) and the
+ * resolved line number for that offset. When lookup() finds a matching entry and the
+ * supplied lasti equals the stored value, it returns the cached line number in
+ * CacheResult::line (>=0), letting the caller skip parse_linetable entirely. When lasti
+ * differs, line is returned as -1 and the caller falls back to memalloc_resolve_lineno.
  */
 class CodeFunctionCache
 {
@@ -50,14 +76,21 @@ class CodeFunctionCache
 
     explicit CodeFunctionCache(size_t capacity_hint);
 
-    /* Returns the cached function_id if present AND its stored identity matches the supplied
-     * (name, filename, firstlineno), guarding against PyCodeObject address reuse.
-     * Returns nullptr on miss. */
-    Datadog::function_id lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept;
+    /* Returns a CacheResult for code only if present AND its stored identity still matches
+     * the supplied (name, filename, firstlineno), guarding against PyCodeObject address reuse.
+     * Check result.func_id != nullptr for a hit. On a hit, result.line >= 0 when lasti
+     * matches the stored value (parse_linetable skipped); result.line == -1 otherwise. */
+    CacheResult lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept;
 
-    /* Inserts (code, id) with the identity used to validate future lookups.
+    /* Inserts (code, id) with the identity and lasti→line used to validate future lookups.
      * Evicts the FIFO victim in the target set if both slots are occupied. */
-    void insert(PyCodeObject* code, Datadog::function_id id, PyObject* name, PyObject* filename, int firstlineno);
+    void insert(PyCodeObject* code,
+                Datadog::function_id id,
+                PyObject* name,
+                PyObject* filename,
+                int firstlineno,
+                int lasti,
+                int line);
 
     /* Drops every entry, retaining allocated capacity. */
     void clear();
@@ -73,6 +106,8 @@ class CodeFunctionCache
         PyObject* names[2] = { nullptr, nullptr };
         PyObject* filenames[2] = { nullptr, nullptr };
         int firstlines[2] = { 0, 0 };
+        int lastis[2] = { -1, -1 };
+        int lines[2] = { 0, 0 };
         uint8_t next_evict = 0;
     };
 

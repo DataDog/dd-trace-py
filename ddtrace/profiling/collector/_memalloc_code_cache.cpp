@@ -40,8 +40,8 @@ CodeFunctionCache::set_index(PyCodeObject* code) const
     return static_cast<size_t>((bits * FIB_MUL) >> (64 - log2_set_bits_));
 }
 
-Datadog::function_id
-CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept
+CacheResult
+CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno, int lasti) noexcept
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
@@ -50,12 +50,12 @@ CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename
              * CPython may free a code object and hand its address to a new one.
              * On mismatch the entry is stale; report a miss so the caller re-interns. */
             if (s.names[i] == name && s.filenames[i] == filename && s.firstlines[i] == firstlineno) {
-                return s.functions[i];
+                return { s.functions[i], s.lastis[i] == lasti ? s.lines[i] : -1 };
             }
-            return nullptr;
+            return { nullptr, -1 };
         }
     }
-    return nullptr;
+    return { nullptr, -1 };
 }
 
 void
@@ -63,7 +63,9 @@ CodeFunctionCache::insert(PyCodeObject* code,
                           Datadog::function_id id,
                           PyObject* name,
                           PyObject* filename,
-                          int firstlineno)
+                          int firstlineno,
+                          int lasti,
+                          int line)
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
@@ -73,6 +75,8 @@ CodeFunctionCache::insert(PyCodeObject* code,
             s.names[i] = name;
             s.filenames[i] = filename;
             s.firstlines[i] = firstlineno;
+            s.lastis[i] = lasti;
+            s.lines[i] = line;
             return;
         }
     }
@@ -83,6 +87,8 @@ CodeFunctionCache::insert(PyCodeObject* code,
     s.names[way] = name;
     s.filenames[way] = filename;
     s.firstlines[way] = firstlineno;
+    s.lastis[way] = lasti;
+    s.lines[way] = line;
 }
 
 void
