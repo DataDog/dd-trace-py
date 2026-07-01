@@ -2,6 +2,7 @@ import json
 from typing import Any
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -15,6 +16,9 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolResult
+
+
+log = get_logger(__name__)
 
 
 # Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
@@ -214,7 +218,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
             name=str(_get_attr(function_response, "name", "") or ""),
-            result=result if isinstance(result, str) else json.dumps(result),
+            # default=str so non-serializable payloads (e.g. bytes) don't raise; no sort_keys so
+            # the original key order is preserved.
+            result=result if isinstance(result, str) else json.dumps(result, default=str),
             tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
@@ -235,7 +241,24 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = safe_json({"outcome": str(outcome), "output": str(output)}) or ""
         return message
 
-    return Message(content="Unsupported file type: {}".format(type(part)), role=role)
+    inline_data = _get_attr(part, "inline_data", None)
+    if inline_data:
+        mime_type = str(_get_attr(inline_data, "mime_type", "") or "")
+        message["content"] = "[inline data: {}]".format(mime_type) if mime_type else "[inline data]"
+        return message
+
+    file_data = _get_attr(part, "file_data", None)
+    if file_data:
+        descriptor = str(_get_attr(file_data, "file_uri", "") or _get_attr(file_data, "mime_type", "") or "")
+        message["content"] = "[file data: {}]".format(descriptor) if descriptor else "[file data]"
+        return message
+
+    # Parts with no recognized content (empty parts, or parts carrying only a thought signature or
+    # other non-text metadata) are left with empty content rather than a confusing "Unsupported
+    # file type" placeholder. The debug log keeps any future/unrecognized part shapes discoverable
+    # without surfacing noise to users.
+    log.debug("google_genai part has no recognized content to extract: %r", type(part))
+    return message
 
 
 def llmobs_get_metadata_vertexai(kwargs, instance):
@@ -278,7 +301,8 @@ def extract_message_from_part_vertexai(part, role=None) -> Message:
             function_response_dict = type(function_response).to_dict(function_response)
         result = function_response_dict.get("response", "")
         if not isinstance(result, str):
-            result = json.dumps(result)
+            # default=str so non-serializable payloads (e.g. bytes) don't raise.
+            result = json.dumps(result, default=str)
         tool_result_info = ToolResult(
             name=function_response_dict.get("name", ""),
             result=result,
