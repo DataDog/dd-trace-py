@@ -32,6 +32,7 @@ from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
@@ -174,6 +175,7 @@ from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import SpanWithTagValue
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -2040,6 +2042,7 @@ class LLMObs(Service):
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
                 trace_id=get_llmobs_trace_id(span) or format_trace_id(span.trace_id),
+                is_otel=span._span_api == SPAN_API_OTEL,
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -2791,8 +2794,8 @@ class LLMObs(Service):
         label: str,
         metric_type: str,
         value: Union[str, int, float, bool],
-        span: Optional[dict] = None,
-        span_with_tag_value: Optional[dict[str, str]] = None,
+        span: Optional[ExportedLLMObsSpan] = None,
+        span_with_tag_value: Optional[SpanWithTagValue] = None,
         tags: Optional[dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -2805,24 +2808,19 @@ class LLMObs(Service):
         Submits a custom evaluation metric for a given span or trace.
 
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
-        :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
-        :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
-                            the span associated with this evaluation.
-        :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
-                            uniquely identifying the span associated with this evaluation.
-        :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
-        :param str ml_app: The name of the ML application
-        :param int timestamp_ms: The unix timestamp in milliseconds when the evaluation metric result was generated.
-                                    If not set, the current time will be used.
-        :param dict metadata: A JSON serializable dictionary of key-value metadata pairs relevant to the
-                                evaluation metric.
-        :param str assessment: An assessment of this evaluation. Must be either "pass" or "fail".
-        :param str reasoning: An explanation of the evaluation result.
-        :param str eval_scope: The scope of the evaluation. One of "span" (default) or "trace".
-                                Use "trace" to associate the evaluation with an entire trace (the span provided
-                                via `span` should be the root span).
+        :param str metric_type: One of "categorical", "score", "boolean".
+        :param value: The metric value (str, int, float, or bool).
+        :param ExportedLLMObsSpan span: Span identifier. Use ``LLMObs.export_span()`` to generate.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
+        :param SpanWithTagValue span_with_tag_value: Tag-based span identifier.
+                            Set ``is_otel=True`` if the span was created by OTel gen.ai instrumentation.
+        :param tags: String key-value pairs to tag the evaluation metric with.
+        :param str ml_app: The name of the ML application.
+        :param int timestamp_ms: Unix timestamp in milliseconds. Defaults to current time.
+        :param dict metadata: JSON-serializable metadata for the evaluation metric.
+        :param str assessment: "pass" or "fail".
+        :param str reasoning: Explanation of the evaluation result.
+        :param str eval_scope: "span" (default) or "trace".
         """
         if cls.enabled is False:
             log.debug(
@@ -2853,7 +2851,7 @@ class LLMObs(Service):
                         "`span` must be a dictionary containing both span_id and trace_id keys. "
                         "LLMObs.export_span() can be used to generate this dictionary from a given span."
                     )
-                join_on["span"] = span
+                join_on["span"] = {"span_id": span["span_id"], "trace_id": span["trace_id"]}
             elif span_with_tag_value is not None:
                 if (
                     not isinstance(span_with_tag_value, dict)
@@ -2926,9 +2924,9 @@ class LLMObs(Service):
                             "Failed to parse tags. Tags for evaluation metrics must be strings."
                         )
 
-            # Auto-add source:otel tag when OTel tracing is enabled
-            # This allows the backend to wait for OTel span conversion
-            if config._otel_trace_enabled:
+            if (span is not None and span.get("is_otel")) or (
+                span_with_tag_value is not None and span_with_tag_value.get("is_otel")
+            ):
                 evaluation_tags["source"] = "otel"
 
             evaluation_metric: LLMObsEvaluationMetricEvent = {
