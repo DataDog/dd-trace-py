@@ -1930,6 +1930,46 @@ class BotocoreTest(TracerTestCase):
     def test_invoke_legacy_context_env_override(self):
         assert config.botocore.invoke_with_legacy_context is True
 
+    @mock_kinesis
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_KINESIS_DISTRIBUTED_TRACING="false"))
+    def test_kinesis_distributed_tracing_disabled_per_service(self):
+        client = self.session.create_client("kinesis", region_name="us-east-1")
+        client.create_stream(StreamName="test", ShardCount=1)
+        data = json.dumps({"Hello": "World"})
+        client.put_records(StreamName="test", Records=[{"Data": data, "PartitionKey": "1"}])
+
+        spans = self.get_spans()
+        # spans are still generated; only injection into record bodies is suppressed
+        assert spans, "Expected spans even when DD_BOTOCORE_KINESIS_DISTRIBUTED_TRACING=false"
+        put_span = next(s for s in spans if s.get_tag("aws.operation") == "PutRecords")
+        # confirm the record body was NOT modified with _datadog injection
+        records = client.get_records(
+            ShardIterator=client.get_shard_iterator(
+                StreamName="test",
+                ShardId="shardId-000000000000",
+                ShardIteratorType="TRIM_HORIZON",
+            )["ShardIterator"]
+        )["Records"]
+        assert records, "Expected at least one record"
+        record_data = json.loads(records[0]["Data"])
+        assert "_datadog" not in record_data, "Expected no _datadog injection in record body"
+        assert put_span is not None
+
+    @mock_kinesis
+    @mock_s3
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_BOTOCORE_KINESIS_DISTRIBUTED_TRACING="false"))
+    def test_per_service_distributed_tracing_does_not_affect_other_services(self):
+        s3 = self.session.create_client("s3", region_name="us-east-1")
+        s3.list_buckets()
+
+        kinesis = self.session.create_client("kinesis", region_name="us-east-1")
+        kinesis.list_streams()
+
+        spans = self.get_spans()
+        operations = {s.get_tag("aws.operation") for s in spans}
+        assert "ListBuckets" in operations, "S3 span should still be present"
+        assert "ListStreams" in operations, "Kinesis span should still be present (only injection disabled)"
+
     def _test_sns(self, use_default_tracer=False):
         sns = self.session.create_client("sns", region_name="us-east-1", endpoint_url="http://localhost:4566")
 

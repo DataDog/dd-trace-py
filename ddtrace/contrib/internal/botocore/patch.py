@@ -4,6 +4,7 @@ Trace queries to aws api done via botocore client
 
 import collections
 import json
+import os
 from typing import Union  # noqa:F401
 
 from botocore import __version__
@@ -53,6 +54,21 @@ from .utils import update_eventbridge_detail
 
 
 _PATCHED_SUBMODULES: set[str] = set()
+
+
+def _load_service_distributed_tracing_overrides() -> dict[str, bool]:
+    """Scans env at startup for DD_BOTOCORE_{SERVICE}_DISTRIBUTED_TRACING vars.
+    E.g. DD_BOTOCORE_BEDROCK_RUNTIME_DISTRIBUTED_TRACING=false → {"bedrock-runtime": False}
+    """
+    prefix = "DD_BOTOCORE_"
+    suffix = "_DISTRIBUTED_TRACING"
+    result = {}
+    for key, value in os.environ.items():
+        if key.startswith(prefix) and key.endswith(suffix):
+            service = key[len(prefix) : -len(suffix)].lower().replace("_", "-")
+            result[service] = asbool(value)
+    return result
+
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -209,6 +225,7 @@ config._add(
         "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
+        "service_distributed_tracing": _load_service_distributed_tracing_overrides(),
         "add_span_pointers": asbool(env.get("DD_BOTOCORE_ADD_SPAN_POINTERS", default=True)),
         "payload_tagging_request": env.get("DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING", default=None),
         "payload_tagging_response": env.get("DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING", default=None),
@@ -302,6 +319,14 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     operation = get_argument_value(args, kwargs, 0, "operation_name", True)
     params = get_argument_value(args, kwargs, 1, "api_params", True)
 
+    # Effective distributed tracing flag for this call: global setting AND per-service override.
+    # Service patchers read this from function_vars rather than config directly so that
+    # DD_BOTOCORE_{SERVICE}_DISTRIBUTED_TRACING=false suppresses body/payload injection
+    # while still generating spans.
+    effective_distributed_tracing = config.botocore["distributed_tracing"] and config.botocore[
+        "service_distributed_tracing"
+    ].get(endpoint_name, True)
+
     function_vars = {
         "endpoint_name": endpoint_name,
         "operation": operation,
@@ -309,6 +334,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
         "pin": pin,
         "trace_operation": trace_operation,
         "integration": botocore._datadog_integration,
+        "distributed_tracing": effective_distributed_tracing,
     }
 
     patching_fn = patched_api_call_fallback
@@ -329,7 +355,7 @@ def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     # Suppression is set/reset only on this path, so the contextvar stays owned
     # here and early-return paths can't leak it.
     token = None
-    if not config.botocore["distributed_tracing"]:
+    if not effective_distributed_tracing:
         token = _http_propagation_suppressed.set(True)
     elif _ensure_before_sign_handler(instance, _botocore_before_sign_handler):
         token = _http_propagation_suppressed.set(True)
@@ -398,7 +424,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         ctx.span,
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
-        if args and config.botocore["distributed_tracing"]:
+        if args and function_vars.get("distributed_tracing"):
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
 
         try:
