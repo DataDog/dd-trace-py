@@ -17,7 +17,7 @@ config._add(
     "pyramid",
     dict(
         distributed_tracing=asbool(_get_config("DD_PYRAMID_DISTRIBUTED_TRACING", default=True)),
-        _default_service=schematize_service_name("pyramid"),
+        _default_service=schematize_service_name("pyramid"),  # type: ignore[operator]
     ),
 )
 

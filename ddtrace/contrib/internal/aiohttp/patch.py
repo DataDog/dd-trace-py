@@ -31,7 +31,7 @@ config._add(
         disable_stream_timing_for_mem_leak=asbool(
             _get_config("DD_AIOHTTP_CLIENT_DISABLE_STREAM_TIMING_FOR_MEM_LEAK", default=False)
         ),
-        _default_service=schematize_service_name("aiohttp-web"),
+        _default_service=schematize_service_name("aiohttp-web"),  # type: ignore[operator]
     ),
 )
 
@@ -41,7 +41,7 @@ config._add(
         distributed_tracing=asbool(env.get("DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING", True)),
         default_http_tag_query_string=config._http_client_tag_query_string,
         split_by_domain=asbool(env.get("DD_AIOHTTP_CLIENT_SPLIT_BY_DOMAIN", default=False)),
-        _default_service=schematize_service_name("aiohttp_client"),
+        _default_service=schematize_service_name("aiohttp_client"),  # type: ignore[operator]
     ),
 )
 
