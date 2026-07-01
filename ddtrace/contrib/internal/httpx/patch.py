@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Awaitable
 from typing import Optional
@@ -140,7 +141,10 @@ async def _wrapped_async_send(
             if resp is not None:
                 ctx.event.set_response(resp)
                 if resp.content and "json" in resp.headers.get("content-type", ""):
-                    ctx.event.response_body = resp.json()
+                    try:
+                        ctx.event.response_body = resp.json()
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        ctx.event.response_body = None
 
 
 def _wrapped_sync_send(
@@ -173,7 +177,10 @@ def _wrapped_sync_send(
             if resp is not None:
                 ctx.event.set_response(resp)
                 if resp.content and "json" in resp.headers.get("content-type", ""):
-                    ctx.event.response_body = resp.json()
+                    try:
+                        ctx.event.response_body = resp.json()
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        ctx.event.response_body = None
 
 
 def patch() -> None:
