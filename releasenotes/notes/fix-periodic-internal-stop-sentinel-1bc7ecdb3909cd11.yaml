@@ -1,5 +1,0 @@
----
-fixes:
-  - |
-    Fixed an issue that could have caused some timers, like the one responsible
-    for Symbol Database uploads, to fire repeatedly after the first execution.
