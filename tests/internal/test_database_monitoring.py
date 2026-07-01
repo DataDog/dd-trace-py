@@ -376,6 +376,53 @@ def test_dbm_peer_entity_tags():
         assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
 
 
+@pytest.mark.subprocess(
+    env=dict(
+        DD_DBM_PROPAGATION_MODE="full",
+        DD_SERVICE="orders-app",
+        DD_ENV="staging",
+        DD_VERSION="v7343437-d7ac743",
+    )
+)
+def test_dbm_comment_does_not_reread_peer_service_config_per_span():
+    """Regression test for issue #18800.
+
+    ``_get_dbm_comment`` must use the cached peer-service singleton instead of constructing a
+    fresh ``PeerServiceConfig()`` per DB span. A fresh instance forced a ``_get_config`` read
+    (and a telemetry configuration report) on every query, growing unbounded over the process
+    lifetime. Generating many comments must not re-read the config more than once.
+    """
+    from unittest import mock
+
+    from ddtrace.internal.settings import peer_service
+    from ddtrace.propagation import _database_monitoring
+    from ddtrace.trace import tracer
+
+    # The DBM path must reference the shared module-level singleton.
+    assert _database_monitoring._ps_config is peer_service._ps_config
+
+    # Reset the cache so we can observe how many times the underlying config is read.
+    peer_service._ps_config._set_defaults_enabled = None
+
+    real_get_config = peer_service._get_config
+    calls = []
+
+    def spy_get_config(name, *args, **kwargs):
+        if name == "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED":
+            calls.append(name)
+        return real_get_config(name, *args, **kwargs)
+
+    dbm_propagator = _database_monitoring._DBM_Propagator(0, "query")
+    with mock.patch.object(peer_service, "_get_config", spy_get_config):
+        for _ in range(25):
+            with tracer.trace("dbname") as dbspan:
+                dbm_propagator._get_dbm_comment(dbspan)
+
+    # The singleton caches after the first resolution, so the per-span path reads it at most once
+    # regardless of how many spans are generated.
+    assert len(calls) <= 1, calls
+
+
 def test_default_sql_injector(caplog):
     # test sql injection with unicode str
     dbm_comment = "/*dddbs='orders-db'*/ "
