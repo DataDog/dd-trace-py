@@ -500,7 +500,7 @@ class TestLLMJudgePublish:
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
         )
-        with pytest.raises(ValueError, match="ml_app"):
+        with pytest.raises(ValueError, match="agent_service"):
             llmobs.publish_evaluator(judge, ml_app="   ")
 
     def test_publish_requires_explicit_agent_service_or_ml_app(self, llmobs):
@@ -510,7 +510,7 @@ class TestLLMJudgePublish:
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
         )
-        with pytest.raises(ValueError, match="ml_app"):
+        with pytest.raises(ValueError, match="agent_service"):
             llmobs.publish_evaluator(judge)
 
     def test_publish_requires_structured_output(self, llmobs):

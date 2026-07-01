@@ -703,7 +703,6 @@ class Config(object):
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
         )
         self._llmobs_event_size_limit = _get_config("DD_LLMOBS_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int)
-        # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
         if "DD_LLMOBS_ML_APP" in env:
             deprecate(
                 "DD_LLMOBS_ML_APP is deprecated",

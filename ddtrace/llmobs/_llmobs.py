@@ -226,11 +226,6 @@ _SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
 
 
 def _resolve_agent_service(agent_service: Optional[str], ml_app: Optional[str]) -> Optional[str]:
-    """Resolve the agent service name from the preferred ``agent_service`` and deprecated ``ml_app`` arguments.
-
-    ``agent_service`` takes precedence over ``ml_app``. If the deprecated ``ml_app`` argument is explicitly
-    provided, emit a deprecation warning to guide users toward ``agent_service``.
-    """
     if ml_app is not None:
         deprecate(
             "The `ml_app` argument is deprecated",
@@ -1108,7 +1103,7 @@ class LLMObs(Service):
 
         resolved_agent_service = _resolve_agent_service(agent_service, ml_app)
         if not isinstance(resolved_agent_service, str) or not resolved_agent_service.strip():
-            raise ValueError("`agent_service` (or the deprecated `ml_app`) must be provided as a non-empty string.")
+            raise ValueError("`agent_service` must be provided as a non-empty string.")
         ml_app = resolved_agent_service.strip()
         evaluation_payload = evaluator._build_publish_payload(
             ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
