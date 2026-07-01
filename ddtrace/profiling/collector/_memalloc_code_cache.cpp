@@ -5,7 +5,7 @@
 
 namespace Datadog {
 
-/* g_instance_owned holds the singleton so the object is cleaned up at exit
+/* g_instance_owned holds the memalloc cache singleton so the object is cleaned up at exit
  * even if memalloc_code_cache_deinit() is never called. CodeFunctionCache::instance
  * mirrors g_instance_owned.get() and is the pointer read on every hot-path frame walk;
  * keeping it raw avoids an extra indirection through the unique_ptr on the allocator hook. */
@@ -15,27 +15,24 @@ CodeFunctionCache* CodeFunctionCache::instance = nullptr;
 CodeFunctionCache::CodeFunctionCache(size_t capacity)
   : max_capacity_(std::clamp(capacity, MIN_CAPACITY, MAX_CAPACITY))
 {
-    /* Reserve up-front so the map performs no heap allocations on insert until
-     * max_capacity_ entries are present. absl::flat_hash_map::reserve(n) ensures
-     * capacity for at least n elements before the next rehash. */
     map_.reserve(max_capacity_);
 }
 
-CacheResult
+Datadog::function_id
 CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename, int firstlineno) noexcept
 {
     auto it = map_.find(code);
     if (it == map_.end()) {
-        return { nullptr };
+        return nullptr;
     }
     const Entry& e = it->second;
     /* Validate identity to defend against PyCodeObject address reuse:
      * CPython may free a code object and hand its address to a new one.
      * On mismatch the entry is stale; report a miss so the caller re-interns. */
     if (e.name != name || e.filename != filename || e.firstlineno != firstlineno) {
-        return { nullptr };
+        return nullptr;
     }
-    return { e.func_id };
+    return e.func_id;
 }
 
 void
