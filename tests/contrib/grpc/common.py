@@ -46,13 +46,13 @@ class GrpcBaseTestCase(TracerTestCase):
         # gRPC core releases the listening socket asynchronously, so a rebind can transiently fail:
         # add_insecure_port raises RuntimeError (Core port 0), not returns 0. Retry with a backoff.
         last_exc = None
-        for _ in range(10):
+        for i in range(10):
             try:
                 self._server.add_insecure_port("[::]:%d" % (_GRPC_PORT))
                 break
             except RuntimeError as exc:
                 last_exc = exc
-                time.sleep(0.1)
+                time.sleep(0.1 * (i + 1))
         else:
             raise RuntimeError("Failed to bind to address [::]:%d after multiple attempts" % (_GRPC_PORT)) from last_exc
         add_HelloServicer_to_server(_HelloServicer(), self._server)
