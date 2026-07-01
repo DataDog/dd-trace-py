@@ -1,6 +1,15 @@
 import typing as t
 
 class PeriodicThread:
+    """A native periodic thread.
+
+    The ``target`` callable is invoked repeatedly at ``interval`` seconds. If
+    ``target`` returns the ``PERIODIC_STOP`` sentinel the loop exits cleanly
+    after that iteration (``on_shutdown`` is still called). Returning any other
+    value continues the loop; raising an exception prints the traceback and also
+    stops the loop.
+    """
+
     name: str
     ident: int
     interval: float
@@ -21,3 +30,4 @@ class PeriodicThread:
     def _before_fork(self) -> None: ...
 
 periodic_threads: dict[int, PeriodicThread]
+PERIODIC_STOP: object

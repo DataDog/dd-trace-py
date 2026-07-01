@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    internal: This fix resolves a memory leak where reference cycles through
+    ``PeriodicThread`` callbacks were invisible to Python's cyclic garbage
+    collector and could accumulate when threads used bound methods as targets.
