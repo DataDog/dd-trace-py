@@ -3,9 +3,6 @@
 
 .multi_os_test_base:
   stage: tests
-  rules:
-    # [testing] disabled for throwaway bisection wheel (CI matrix trimmed to cp312)
-    - when: never
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
@@ -16,13 +13,19 @@ os tests ubuntu:
   tags: ["arch:amd64"]
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.12"]
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   needs:
     - job: "build linux"
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp310-cp310"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
@@ -40,7 +43,7 @@ os tests macos:
     PLATFORM: "macOS"
   script:
     - |
-      for PYTHON_VERSION in 3.12; do
+      for PYTHON_VERSION in 3.10 3.12 3.14; do
         export PYTHON_VERSION
         bash .gitlab/scripts/multi-os-tests.sh
       done
@@ -53,10 +56,10 @@ os tests windows:
       artifacts: true
       parallel:
         matrix:
-          - PYTHON_VERSION: ["3.12"]
+          - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
             WINDOWS_ARCH: "amd64"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.12"]
+      - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1

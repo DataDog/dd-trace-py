@@ -3,19 +3,29 @@ variables:
   MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v103339769-be1888c-alpine_build"
 
-# NOTE: trimmed to a single cp312 / manylinux2014_x86_64 build for the
-# throwaway fork-timeout bisection wheel (not for merge).
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
+  - "3.9"
+  - "3.10"
+  - "3.11"
   - "3.12"
+  - "3.13"
+  - "3.14"
 
 .PYTHON_TAGS: &PYTHON_TAGS
+  - "cp39-cp39"
+  - "cp310-cp310"
+  - "cp311-cp311"
   - "cp312-cp312"
+  - "cp313-cp313"
+  - "cp314-cp314"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v85383414-751efc0-manylinux2014_aarch64"
+  - "v85383359-751efc0-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
   - "v85383392-751efc0-manylinux2014_x86_64"
+  - "v85383325-751efc0-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -125,8 +135,13 @@ variables:
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
+      # amd64 runners are slower
+      - ARCH_TAG: "amd64"
+        PYTHON_VERSIONS:
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
       - ARCH_TAG: "arm64"
-        PYTHON_VERSIONS: "3.12"
+        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
     DD_USE_SCCACHE: "1"
@@ -234,8 +249,8 @@ variables:
   tags: ["windows-v2:2022"]
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.12"]
-        WINDOWS_ARCH: ["amd64"]
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["amd64", "x86"]
   variables:
     WINDOWS_BUILD_IMAGE: "registry.ddbuild.io/images/mirror/dd-trace-py/windows-build:d4d18a67d43d400d3ecc6bda777a5e233a24f434@sha256:58c3e28646ddf8a1021a079a380c8840e51f0b88c1489a522beee6ec99413019"
   script:
@@ -282,8 +297,18 @@ download_dependency_wheels:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
+      - PYTHON_IMAGE_TAG: "3.9.13"
+        PYTHON_VERSION: "3.9"
+      - PYTHON_IMAGE_TAG: "3.10.13"
+        PYTHON_VERSION: "3.10"
+      - PYTHON_IMAGE_TAG: "3.11.6"
+        PYTHON_VERSION: "3.11"
       - PYTHON_IMAGE_TAG: "3.12.0"
         PYTHON_VERSION: "3.12"
+      - PYTHON_IMAGE_TAG: "3.13.0"
+        PYTHON_VERSION: "3.13"
+      - PYTHON_IMAGE_TAG: "3.14.0"
+        PYTHON_VERSION: "3.14"
   script:
     - .gitlab/download-dependency-wheels.sh
   cache:

@@ -24,7 +24,19 @@
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp310-cp310"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp313-cp313"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp314-cp314"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
 
 ".debugging/exploration":
@@ -53,14 +65,17 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    # [testing] disabled for throwaway bisection wheel (CI matrix trimmed to cp312)
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
     DD_DEBUGGER_EXPL_INCLUDE: "boto3"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.12"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
   script: |
     git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
     cd boto3
@@ -72,7 +87,10 @@
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
   rules:
-    # [testing] disabled for throwaway bisection wheel (CI matrix trimmed to cp312)
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      changes: *exploration_changes
+      allow_failure: true
+    - changes: *exploration_changes
     - when: never
   variables:
     BOTO3_TAG: "1.38.44"
@@ -84,7 +102,7 @@
     DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE: "0.01"
   parallel:
     matrix:
-      - PYTHON_VERSION: ["3.12"]
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12", "3.13", "3.14"]
   script: |
     git clone --depth 1 --branch ${BOTO3_TAG} https://github.com/boto/boto3.git
     cd boto3
