@@ -23,15 +23,24 @@ def handle_kombu_produce(args, kwargs, span):
 
     has_routing_key = str(bool(routing_key)).lower()
 
-    pathway_tags = []
-    for prefix, value in [
-        ("direction", "out"),
-        ("exchange", dsm_identifier),
-        ("has_routing_key", has_routing_key),
-        ("type", "rabbitmq"),
-    ]:
-        if value is not None:
-            pathway_tags.append(f"{prefix}:{value}")
+    # RabbitMQ messages can be published two ways:
+    #   1. to a named exchange, where DSM links producers to consumers via the exchange, or
+    #   2. to the default (unnamed) exchange, where the routing key is the destination queue name.
+    # In the default-exchange case the exchange is empty, so we tag the checkpoint with the routing
+    # key as the topic (matching the consumer's topic:<queue> tag); otherwise the empty exchange tag
+    # leaves the producer unlinkable and it is dropped from the DSM map.
+    if not dsm_identifier and routing_key:
+        pathway_tags = ["direction:out", f"topic:{routing_key}", "type:rabbitmq"]
+    else:
+        pathway_tags = []
+        for prefix, value in [
+            ("direction", "out"),
+            ("exchange", dsm_identifier),
+            ("has_routing_key", has_routing_key),
+            ("type", "rabbitmq"),
+        ]:
+            if value is not None:
+                pathway_tags.append(f"{prefix}:{value}")
 
     ctx = processor().set_checkpoint(pathway_tags, payload_size=payload_size, span=span)
     DsmPathwayCodec.encode(ctx, args[HEADER_POS])
