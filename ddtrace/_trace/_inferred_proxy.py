@@ -203,7 +203,7 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
         if proxy_info.does_provide_timestamp:
             return None
         else:
-            proxy_header_start_time_ms = str(time.time_ns())
+            proxy_header_start_time_ms = str(time.time_ns() // 1_000_000) // Convert to ms
 
     return ProxyHeaderContext(
         proxy_header_system,
