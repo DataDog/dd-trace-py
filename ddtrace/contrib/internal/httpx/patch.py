@@ -30,6 +30,12 @@ HTTPX_VERSION = parse_version(httpx.__version__)
 HTTP_REQUEST_TAGS = {COMPONENT: config.httpx.integration_name, SPAN_KIND: SpanKind.CLIENT}
 
 
+def _response_json_body(resp: httpx.Response):
+    if not resp.content or "json" not in resp.headers.get("content-type", ""):
+        return None
+    return resp.json()
+
+
 def get_version() -> str:
     return getattr(httpx, "__version__", "")
 
@@ -138,7 +144,9 @@ async def _wrapped_async_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                ctx.event.set_response(
+                    resp.status_code, getattr(resp, "reason", None), resp.headers, _response_json_body(resp)
+                )
 
 
 def _wrapped_sync_send(
@@ -169,7 +177,9 @@ def _wrapped_sync_send(
             return resp
         finally:
             if resp is not None:
-                ctx.event.set_response(resp)
+                ctx.event.set_response(
+                    resp.status_code, getattr(resp, "reason", None), resp.headers, _response_json_body(resp)
+                )
 
 
 def patch() -> None:

@@ -151,4 +151,4 @@ def _wrap_send(func, instance, args, kwargs):
             return response
         finally:
             if response is not None:
-                ctx.event.set_response(response)
+                ctx.event.set_response(response.status_code, response.reason, response.headers)
