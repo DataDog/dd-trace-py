@@ -1,0 +1,9 @@
+fixes:
+  - |
+    LLM Observability: Fixes a ``TypeError: Object of type ... is not JSON serializable`` error that
+    caused entire agentless trace payloads to be dropped when a span's ``meta_struct`` contained
+    values that are not natively JSON serializable, such as Pydantic models (e.g.
+    ``google.genai.types.SafetySetting`` objects recorded in LLM Observability span metadata when
+    ``safety_settings`` is passed to Google GenAI / Vertex AI calls). Such values are now serialized
+    using their Pydantic dump or string representation, mirroring the fallback behavior of the
+    msgpack encoders used in agent mode.

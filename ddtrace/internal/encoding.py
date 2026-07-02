@@ -32,10 +32,28 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
+def _json_unserializable_default(obj: object) -> object:
+    """Fallback for span values that are not natively JSON serializable, e.g. Pydantic
+    models recorded in ``meta_struct`` by LLM Observability. The msgpack encoders replace
+    unserializable ``meta_struct`` values with a placeholder; without an equivalent
+    fallback here a single unserializable value would fail the whole agentless payload.
+    """
+    try:
+        # Pydantic v2
+        if hasattr(obj, "model_dump") and callable(obj.model_dump):
+            return obj.model_dump(mode="json")
+        # Pydantic v1
+        if hasattr(obj, "__fields__") and hasattr(obj, "dict") and callable(obj.dict):
+            return obj.dict()
+        return str(obj)
+    except Exception:
+        return "Can not serialize [%s] object" % type(obj).__name__
+
+
 def _json_dumps_bytes(obj: object) -> bytes:
     """Serialize to JSON and return UTF-8 bytes (alternative to json.dumps that returns binary)."""
     # TODO(munir): Consider vendoring orjson to avoid this intermeriate strings
-    return json.dumps(obj).encode("utf-8", errors="backslashreplace")
+    return json.dumps(obj, default=_json_unserializable_default).encode("utf-8", errors="backslashreplace")
 
 
 class _EncoderBase(object):
