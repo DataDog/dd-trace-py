@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Internal: A rare crash that could happen at exit has been fixed.
