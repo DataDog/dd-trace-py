@@ -188,16 +188,10 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError => {
+                EvaluationError::ConfigurationParseError
+                | EvaluationError::FlagConfigurationInvalid => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
-                // A single flag's config is invalid/unsupported (e.g. a bad regex or a
-                // variant type mismatch). libdatadog surfaces these per-flag parse failures
-                // as FlagConfigurationInvalid; map them to PARSE_ERROR like a config parse error.
-                EvaluationError::FlagConfigurationInvalid => ResolutionDetails::error(
-                    ErrorCode::ParseError,
-                    "flag configuration is invalid or unsupported",
-                ),
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
                     ErrorCode::ProviderNotReady,
                     "configuration is missing",
