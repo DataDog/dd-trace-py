@@ -442,6 +442,12 @@ venv = Venv(
                     # Test with the min version of Python only, attrs 20.1.0 is not compatible with Python 3.12
                     pys=MIN_PYTHON_VERSION,
                 ),
+                Venv(
+                    name="tracer-uwsgi",
+                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
+                    pkgs={"uwsgi": latest},
+                ),
             ],
         ),
         Venv(

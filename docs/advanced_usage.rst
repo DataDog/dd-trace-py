@@ -500,17 +500,11 @@ uWSGI
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
-- For `uWSGI<2.0.30`, skip atexit, `skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled. This is to avoid crashes from native extensions that could occur when child processes are terminated.
+- Skip atexit, `skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled, for all uWSGI versions. Without it, ddtrace's native trace writer can panic while uWSGI tears down a worker process, crashing and respawning the worker; ``skip-atexit`` is the only known mitigation. Note that ``skip-atexit`` also skips ddtrace's final trace flush on worker shutdown, so traces generated shortly before a worker exits may be lost. See `libdatadog#2169 <https://github.com/DataDog/libdatadog/pull/2169>`__.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.auto``.
 - Gevent patching should NOT be enabled via the `--gevent-monkey-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Instead use ``import gevent.monkey; gevent.monkey.patch_all()`` in your application.
 
-Example with CLI arguments for uWSGI>=2.0.30:
-
-.. code-block:: bash
-
-  uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
-
-Example with CLI arguments for uWSGI<2.0.30:
+Example with CLI arguments:
 
 .. code-block:: bash
 
@@ -531,7 +525,7 @@ Example with uWSGI ini file:
   ;; ddtrace required options
   enable-threads = 1
   lazy-apps = 1
-  skip-atexit = 1 ; For uwsgi<2.0.30
+  skip-atexit = 1
   import=ddtrace.bootstrap.sitecustomize
 
 
