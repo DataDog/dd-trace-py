@@ -1,4 +1,3 @@
-import json
 from typing import Any
 from typing import Optional
 
@@ -178,6 +177,23 @@ def extract_embedding_metrics_google_genai(response) -> dict[str, Any]:
     return usage
 
 
+_GOOGLE_GENAI_PART_CONTENT_FIELDS = (
+    "text",
+    "function_call",
+    "function_response",
+    "executable_code",
+    "code_execution_result",
+    "inline_data",
+    "file_data",
+    "thought_signature",
+)
+
+
+def _is_empty_google_genai_part(part) -> bool:
+    """True when a Part carries no content field we could render at all."""
+    return not any(_get_attr(part, field, None) for field in _GOOGLE_GENAI_PART_CONTENT_FIELDS)
+
+
 def extract_message_from_part_google_genai(part, role: str) -> Message:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
@@ -214,9 +230,15 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
     function_response = _get_attr(part, "function_response", None)
     if function_response:
         result = _get_attr(function_response, "response", "") or ""
+        # ``safe_json`` (not ``json.dumps``) so a non-JSON-serializable tool
+        # result never raises. A function response can carry ``google.genai``
+        # ``Part``/``Content`` objects (e.g. the ADK ``load_memory`` tool), which
+        # ``json.dumps`` cannot serialize; the resulting ``TypeError`` propagates
+        # out of ``_llmobs_set_tags`` and drops the span, orphaning its children.
+        result = result if isinstance(result, str) else (safe_json(result) or "")
         tool_result_info = ToolResult(
             name=str(_get_attr(function_response, "name", "") or ""),
-            result=result if isinstance(result, str) else json.dumps(result),
+            result=result,
             tool_id=str(_get_attr(function_response, "id", "") or ""),
             type="function_response",
         )
@@ -235,6 +257,20 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
         output = _get_attr(code_execution_result, "output", "")
         message["content"] = safe_json({"outcome": str(outcome), "output": str(output)}) or ""
+        return message
+
+    # Thinking models can emit a part that carries only a ``thought_signature``
+    # (opaque reasoning bytes, no text) — surface it as reasoning rather than an
+    # "unsupported" placeholder.
+    if thought or _get_attr(part, "thought_signature", None):
+        message["role"] = "reasoning"
+        message["content"] = ""
+        return message
+
+    # An empty part (e.g. a trailing part emitted alongside a function call) has
+    # nothing to render; return empty content instead of a misleading placeholder.
+    if _is_empty_google_genai_part(part):
+        message["content"] = ""
         return message
 
     return Message(content="Unsupported file type: {}".format(type(part)), role=role)
@@ -280,7 +316,9 @@ def extract_message_from_part_vertexai(part, role=None) -> Message:
             function_response_dict = type(function_response).to_dict(function_response)
         result = function_response_dict.get("response", "")
         if not isinstance(result, str):
-            result = json.dumps(result)
+            # ``safe_json`` (not ``json.dumps``) so a non-JSON-serializable tool
+            # result degrades gracefully instead of raising and dropping the span.
+            result = safe_json(result) or ""
         tool_result_info = ToolResult(
             name=function_response_dict.get("name", ""),
             result=result,

@@ -1,0 +1,14 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolve an issue where Google GenAI and Vertex AI agent spans
+    could be dropped from a trace when a tool returned a non-JSON-serializable
+    ``function_response`` result (for example the Google ADK ``load_memory`` tool,
+    whose result contains ``google.genai.types.Part`` objects). Tool-result
+    serialization now uses ``safe_json`` instead of ``json.dumps``, so the result
+    degrades gracefully instead of raising ``TypeError``, which previously propagated
+    out of ``_llmobs_set_tags`` and dropped the span, orphaning its child spans.
+  - |
+    LLM Observability: The Google GenAI integration now renders thinking-model parts
+    that carry only a ``thought_signature`` (with no text) as reasoning content, and
+    empty parts as empty content, instead of an ``Unsupported file type`` placeholder.

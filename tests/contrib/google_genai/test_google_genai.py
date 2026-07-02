@@ -357,3 +357,52 @@ def test_google_genai_none_optional_fields_do_not_crash():
     # candidates=None — must not raise when iterating
     integration = object.__new__(GoogleGenAIIntegration)
     assert integration._extract_output_messages(SimpleNamespace(candidates=None)) == []
+
+
+def test_extract_message_from_part_function_response_non_serializable():
+    """Regression: a function_response whose result holds non-JSON-serializable
+    objects (e.g. google.genai Part/Content returned by the ADK load_memory tool)
+    must not raise — json.dumps would raise TypeError, propagate out of
+    _llmobs_set_tags, and drop the span, orphaning its children."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.Part(
+        function_response=types.FunctionResponse(
+            name="load_memory",
+            response={"memories": [{"content": {"parts": [types.Part(text="likes BMW")]}}]},
+        )
+    )
+    message = extract_message_from_part_google_genai(part, "model")
+    assert message["tool_results"][0]["name"] == "load_memory"
+    assert "likes BMW" in message["tool_results"][0]["result"]
+
+
+def test_extract_message_from_part_thought_signature_only():
+    """A reasoning part may carry only a thought_signature (opaque bytes, no text);
+    render it as reasoning rather than an 'Unsupported file type' placeholder."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(types.Part(thought_signature=b"\x01\x02\x03"), "model")
+    assert message["role"] == "reasoning"
+    assert "Unsupported file type" not in message.get("content", "")
+
+
+def test_extract_message_from_part_empty():
+    """An empty part (e.g. trailing a function_call) renders as empty content,
+    not an 'Unsupported file type' placeholder."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(types.Part(), "model")
+    assert message.get("content", "") == ""
+    assert "Unsupported file type" not in message.get("content", "")
+
+
+def test_extract_message_from_part_vertexai_non_serializable():
+    """Regression: the Vertex AI variant must also use safe_json so a
+    non-JSON-serializable function_response result does not raise."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
+
+    part = {"function_response": {"name": "load_memory", "response": {"obj": object()}, "id": "t1"}}
+    message = extract_message_from_part_vertexai(part, "model")
+    assert message["tool_results"][0]["name"] == "load_memory"
+    assert isinstance(message["tool_results"][0]["result"], str)
