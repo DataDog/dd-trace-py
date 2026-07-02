@@ -167,6 +167,7 @@ INPUT_TYPE_TEXT = "input_text"
 
 # Managed Prompts Cache and Timeout defaults
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_CACHE_MAXSIZE = 1024  # max in-memory prompt entries (LRU); bounds per-subject resolve growth
 DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 
 # Managed Prompts API
@@ -236,3 +237,13 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
 # These were removed in the span._store -> span._meta_struct migration (PR #16774).
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+
+
+class PromptSource(str, Enum):
+    HOT_CACHE = "hot_cache"
+    WARM_CACHE = "warm_cache"
+    REGISTRY = "registry"
+    RESOLVE = "resolve"
+    FF = "ff"
+    NOT_READY = "not_ready"
+    FALLBACK = "fallback"
