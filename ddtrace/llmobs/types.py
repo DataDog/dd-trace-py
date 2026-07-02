@@ -50,6 +50,17 @@ class AudioPart(TypedDict, total=False):
     attachment_key: str
 
 
+class ImagePart(TypedDict, total=False):
+    """An image on a Message: inline base64 ``content`` or an offloaded ``attachment_key``.
+     Note: inline ``content`` counts toward the 5 MB per-event size limit. When an event
+    exceeds that limit its entire input/output is replaced with a dropped-value placeholder) — there is no image-aware
+    truncation yet."""
+
+    mime_type: str
+    content: str
+    attachment_key: str
+
+
 class Message(TypedDict, total=False):
     id: str
     role: str
@@ -58,6 +69,7 @@ class Message(TypedDict, total=False):
     tool_results: list[ToolResult]
     tool_id: str
     audio_parts: list[AudioPart]
+    image_parts: list[ImagePart]
 
 
 class _SpanField(TypedDict):
