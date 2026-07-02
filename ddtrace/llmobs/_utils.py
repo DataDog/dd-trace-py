@@ -27,6 +27,8 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -388,6 +390,56 @@ def get_llmobs_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
+def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
+    """Resolve (parent_agent_name, parent_agent_span_id) from the active LLMObs parent.
+
+    ``active`` is the result of ``_llmobs_context_provider.active()``:
+      - a ``Span`` whose kind is ``"agent"``: the parent IS the agent, so attribute to it.
+      - any other ``Span``: it already resolved its own attribution when it activated, so
+        inherit its stored ``PARENT_AGENT_*`` values (one level of lookup, no walk).
+      - a ``Context`` (distributed parent): read the propagated ``_dd.p.*`` keys off
+        ``context._meta``. The name may be absent if an upstream hop ran an older SDK.
+      - ``None``: no parent, so there is no agent to attribute to.
+
+    An agent span never attributes itself: resolution always looks at the parent.
+    """
+    if active is None:
+        return None, None
+
+    if isinstance(active, Span):
+        # Read the meta_struct once: this runs on every span activation (hot path).
+        data = _get_llmobs_data_metastruct(active)
+        kind = data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+        if kind == "agent":
+            return (data.get(LLMOBS_STRUCT.NAME) or active.name, str(active.span_id))
+        return (
+            data.get(LLMOBS_STRUCT.PARENT_AGENT_NAME),
+            data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID),
+        )
+
+    # Context parent (distributed). Keys land on context._meta via _dd.p.* propagation.
+    ctx = active
+    return (
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY),
+        ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY),
+    )
+
+
+def _agent_name_wire_safe(name: str) -> bool:
+    """Return True if ``name`` can be written to the x-datadog-tags tagset without raising.
+
+    ``encode_tagset_values`` raises on commas or any byte outside 0x20-0x7E, and on the shared
+    512B budget being exceeded (``=`` is legal in tagset *values*, only illegal in keys). A
+    raise drops the ENTIRE header (taking ml_app, llmobs_trace_id, parent_id, sample rate with
+    it), so an unsafe agent name must be skipped rather than sanitized. When the name is
+    skipped only the id propagates and the backend resolves the real name by span_id (the
+    documented fallback).
+    """
+    if len(name.encode("utf-8")) > 256:  # conservative slice of the 512B shared tagset budget
+        return False
+    return all(0x20 <= ord(c) <= 0x7E and c != "," for c in name)
+
+
 def get_llmobs_parent_id(span: Span) -> Optional[str]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
@@ -570,6 +622,8 @@ def _annotate_llmobs_span_data(
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
     parent_id: Optional[str] = None,
+    parent_agent_name: Optional[str] = None,
+    parent_agent_span_id: Optional[str] = None,
     trace_id: Optional[str] = None,
     dd_scope: Optional[str] = None,
     dd_sample_rate: Optional[str] = None,
@@ -603,6 +657,10 @@ def _annotate_llmobs_span_data(
             span._set_ctx_item(ML_APP, ml_app)
         if parent_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
+        if parent_agent_name is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_AGENT_NAME] = parent_agent_name
+        if parent_agent_span_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID] = parent_agent_span_id
         if trace_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = trace_id
         if kind is not None:

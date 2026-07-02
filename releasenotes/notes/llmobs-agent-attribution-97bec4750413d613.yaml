@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    LLM Observability: every span generated under an agent now carries a
+    ``meta.agent_attribution`` block identifying its nearest agent ancestor
+    (``parent_agent_name`` and ``parent_agent_span_id``). The nearest agent is
+    resolved in-process at span start, and propagated across service boundaries
+    via the ``_dd.p.llmobs_parent_agent_id`` / ``_dd.p.llmobs_parent_agent_name``
+    distributed tags. Spans with no agent ancestor omit the block entirely. This
+    lets the backend attribute spans to their agents without an extra lookup.
