@@ -398,6 +398,16 @@ detect_circular_imports:
     - exit $COMPARE_EXIT
 
 
+modularization_metrics:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pip install uv
+    - uv run --script scripts/modularization_metrics.py --markdown modularization_report.md
+    - .gitlab/scripts/post-pr-comment.sh "Modularization metrics" modularization_report.md
+
+
 "summarize failures":
   stage: .post
   extends: .testrunner
