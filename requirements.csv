@@ -9,3 +9,4 @@ opentelemetry-api,">=1,<2",
 wrapt,">=1,!=2.2.0,<3",
 opentracing,">=2,<3",
 opentelemetry-exporter-otlp,">=1,<2",
+gepa,>=0.0.26,python_version >= '3.10'
