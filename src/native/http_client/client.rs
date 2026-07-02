@@ -16,7 +16,7 @@
 //! singleton.
 
 use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, RetryConfig};
-use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
+use libdd_shared_runtime::SharedRuntime;
 #[cfg(not(unix))]
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, pybacked::PyBackedBytes};
