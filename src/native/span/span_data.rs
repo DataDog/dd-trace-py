@@ -9,7 +9,7 @@ use pyo3::{
 
 use super::attributes::{AttrKey, AttributeMap, AttributeValue};
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
-use crate::py_string::{PyBackedString, PyTraceData};
+use crate::py_string::{Bytes, PyBackedString, PyTraceData};
 use libdd_trace_utils::span::{
     v04::{
         AttributeAnyValue, AttributeArrayValue, SpanEvent as NativeSpanEvent,
@@ -75,9 +75,110 @@ impl SpanData {
             let _ = self.set_attribute(k, v);
         }
     }
+
+    /// Build a libdatadog v0.4 `Span<PyTraceData>` snapshot from the span's current state.
+    ///
+    /// This is a **snapshot**: `self` is left intact (links/events are cloned, attributes
+    /// are iterated rather than drained) so callers can still read `span_id`, `duration`,
+    /// `get_tag()`, etc. after the span has been handed to the writer.
+    ///
+    /// `packb` is an optional reference to `ddtrace.internal._encoding.packb`, used to
+    /// msgpack-serialise each `meta_struct` value (matching the Cython encoder). Pass
+    /// `None` to skip `meta_struct`.
+    ///
+    /// `dd_origin` is the trace-level origin (from `trace[0].context.dd_origin`, extracted
+    /// on the Python side). When present it is injected as `_dd.origin` into the span's
+    /// `meta`, mirroring the Cython v0.4 encoder which stamped it onto **every** span at
+    /// pack time. The native attribute store only carries it on the chunk-root span (via
+    /// `_update_tags_from_context`), so non-root spans rely on this injection.
+    ///
+    /// # GIL requirement
+    /// Must be called with the GIL held — it dereferences Python str/bytes objects and may
+    /// call back into Python (`packb`).
+    pub(crate) fn build_v04_span(
+        &self,
+        py: Python<'_>,
+        packb: Option<&Bound<'_, PyAny>>,
+        dd_origin: Option<&PyBackedString>,
+    ) -> libdd_trace_utils::span::v04::Span<PyTraceData> {
+        // duration is Option<i64> where None == "not finished"; the writer only ever
+        // receives finished spans, but default to -1 ("unset") defensively.
+        // span_links/span_events are cloned — PyBackedString::clone increments Python
+        // refcounts (GIL held here).
+        let mut out = libdd_trace_utils::span::v04::Span::<PyTraceData> {
+            trace_id: self.trace_id,
+            span_id: self.span_id,
+            parent_id: self.parent_id,
+            start: self.start,
+            duration: self.duration.unwrap_or(-1),
+            error: self.error,
+            name: self.name.clone_ref(py),
+            service: self.service.clone_ref(py),
+            resource: self.resource.clone_ref(py),
+            r#type: self.span_type.clone_ref(py),
+            span_links: self.span_links.clone(),
+            span_events: self.span_events.clone(),
+            ..Default::default()
+        };
+
+        // Materialise the unified attribute store into v0.4 meta (Str) and metrics
+        // (Int/Float as f64). Iterate (don't drain) so self.attributes stays intact for
+        // post-finish get_tag / get_metric calls.
+        for (key, value) in &self.attributes {
+            let Ok(key_backed) = PyBackedString::try_from(key.as_bound(py).clone()) else {
+                continue;
+            };
+            match value {
+                AttributeValue::Str(s) => {
+                    let Ok(val) = PyBackedString::try_from(s.bind(py).clone()) else {
+                        continue;
+                    };
+                    out.meta.insert(key_backed, val);
+                }
+                AttributeValue::Int(i) => {
+                    out.metrics.insert(key_backed, *i as f64);
+                }
+                AttributeValue::Float(f) => {
+                    out.metrics.insert(key_backed, *f);
+                }
+            }
+        }
+
+        // Inject the trace-level `_dd.origin` into every span's meta (see doc comment).
+        if let Some(origin) = dd_origin {
+            out.meta.insert(
+                PyBackedString::from_static_str(ORIGIN_KEY),
+                origin.clone_ref(py),
+            );
+        }
+
+        // Serialise meta_struct entries with packb. Iterate (don't take) so post-finish
+        // _get_struct_tag calls still work.
+        if let (Some(meta_struct), Some(packb)) = (&self.meta_struct, packb) {
+            for (k, v) in meta_struct.bind(py).iter() {
+                let Ok(key_backed) = k.extract::<PyBackedString>() else {
+                    continue;
+                };
+                let Ok(result) = packb.call1((&v,)) else {
+                    continue;
+                };
+                let Ok(py_bytes) = result.cast::<PyBytes>() else {
+                    continue;
+                };
+                out.meta_struct
+                    .insert(key_backed, Bytes::from_py_bytes(py_bytes));
+            }
+        }
+
+        out
+    }
 }
 
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
+
+/// Wire key for the trace-level origin tag (mirrors `_ORIGIN_KEY` in
+/// `ddtrace/internal/constants.py`).
+const ORIGIN_KEY: &str = "_dd.origin";
 
 #[pyo3::pymethods]
 impl SpanData {
