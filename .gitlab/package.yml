@@ -40,9 +40,9 @@ variables:
     # Enable sccache for Rust/C/C++ compilation caching
     DD_USE_SCCACHE: "1"
     # job resource requests
-    KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "10Gi"
-    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    KUBERNETES_POD_CPU_REQUEST: "6"
+    KUBERNETES_POD_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_POD_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
   artifacts:
     when: always
@@ -263,9 +263,9 @@ variables:
   variables:
     CARGO_BUILD_JOBS: "12"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
-    KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "10Gi"
-    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    KUBERNETES_POD_CPU_REQUEST: "6"
+    KUBERNETES_POD_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_POD_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
   needs:
     - job: "build sdist"
