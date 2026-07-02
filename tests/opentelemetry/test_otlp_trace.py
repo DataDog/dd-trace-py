@@ -65,11 +65,9 @@ def test_otlp_traces_sent_via_http():
 @pytest.mark.subprocess(
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
-        "DD_TRACE_OTEL_STATS_COMPUTATION_ENABLED": "true",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
         "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/json",
         "DD_SERVICE": "test-svc",
-        # Short stats bucket so the native concentrator flushes within the test window.
-        "_DD_TRACE_STATS_WRITER_INTERVAL": "1",
     }
 )
 def test_otlp_trace_metrics_exported_via_http():
