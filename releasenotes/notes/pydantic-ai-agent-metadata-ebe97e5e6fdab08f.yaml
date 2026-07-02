@@ -1,0 +1,19 @@
+---
+features:
+  - |
+    LLM Observability: The ``pydantic_ai`` integration now captures more of an agent's definition
+    on its ``kind="agent"`` span. The agent manifest gains the agent's structured
+    ``output_type`` (its name plus a size-bounded JSON schema for Pydantic models; this schema
+    includes any ``Field`` descriptions, examples, and default values declared on the model, so
+    sensitive values should not be placed in those annotations), an
+    ``agent_settings`` block (retry budget, end strategy, and the dependency-injection type), a typed
+    ``capabilities`` list (builtin tools such as web search, configured MCP servers — HTTP servers
+    with their connection target scrubbed to ``scheme://host``, stdio servers by name only — and
+    sub-agents delegated to from a function tool), ``handoffs`` declared as output functions,
+    including those that delegate to another agent, the agent's configured ``metadata`` dict (a
+    size-bounded copy captured verbatim, and dropped when it is too large or cannot be serialized,
+    so sensitive values should not be placed in agent metadata), and both ``instructions`` and
+    ``system_prompts`` as static text plus, for callable (dynamically-resolved) entries, an
+    ``instructions_is_dynamic`` / ``system_prompts_is_dynamic`` flag and structured
+    ``instructions_functions`` / ``system_prompt_functions`` descriptors (each function's name,
+    signature, docstring, and size-bounded source).
