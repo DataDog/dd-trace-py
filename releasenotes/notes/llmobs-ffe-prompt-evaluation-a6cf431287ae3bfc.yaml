@@ -1,14 +1,10 @@
 ---
 features:
   - |
-    LLMObs: ``LLMObs.get_prompt()`` now resolves prompts locally via the Feature Flags platform
-    when ``DD_ENV`` is set, enabling local evaluation and A/B testing.
-    The HTTP path remains as fallback and for label-based resolution.
-    The signature is now keyword-only after ``prompt_id`` and accepts ``targeting_key``
-    and ``**attributes`` for sticky bucketing and multi-attribute targeting.
-    The Feature Flags path requires the optional ``openfeature`` extra
-    (``pip install ddtrace[openfeature]``) and ``DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true``;
-    without the extra, the HTTP path is used, with ``DD_ENV`` acting as the label when set. #18127
+    LLMObs: ``LLMObs.get_prompt()`` now resolves environment-scoped prompt versions and supports
+    targeting for A/B testing. Set ``DD_ENV`` to select the version for that environment. The
+    signature is now keyword-only after ``prompt_id`` and accepts ``targeting_key`` (sticky
+    bucketing) and ``**attributes`` (targeting rules). #18127
 deprecations:
   - |
     LLM Observability: The ``label`` parameter of ``LLMObs.get_prompt()`` and ``LLMObs.refresh_prompt()`` is

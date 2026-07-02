@@ -1,4 +1,7 @@
 import atexit
+from dataclasses import dataclass
+from dataclasses import field
+import hashlib
 import json
 import threading
 from typing import Any
@@ -15,19 +18,52 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
-from ddtrace.llmobs._constants import PromptRoutingSignal
 from ddtrace.llmobs._constants import PromptSource
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
-from ddtrace.llmobs._prompts.utils import cache_key
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
 
 
 log = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class _PromptRequest:
+    """Describes an HTTP prompt fetch: FFE ``/resolve`` (env-scoped) or the static registry.
+
+    The FFE-driven path (``DD_ENV`` set, no explicit ``label``) resolves env-scoped variants and
+    targeting via ``POST .../{id}/resolve``. An explicit ``label`` (deprecated) or no ``DD_ENV`` at
+    all falls back to the static ``GET .../{id}`` registry, which has no targeting.
+    """
+
+    prompt_id: str
+    label: Optional[str] = None
+    env: Optional[str] = None
+    targeting_key: Optional[str] = None
+    attributes: dict[str, Any] = field(default_factory=dict, compare=False)
+
+    @property
+    def use_resolve(self) -> bool:
+        return self.label is None and bool(self.env)
+
+    @property
+    def key(self) -> str:
+        # Exact cache identity: same key <=> same resolved variant. Attributes drive FFE rule
+        # selection, so they are part of the key (hashed for compactness) - never serve one
+        # context's variant for another.
+        attrs = ""
+        if self.attributes:
+            blob = json.dumps(self.attributes, sort_keys=True, default=str)
+            attrs = hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
+        return f"{self.prompt_id}:{self.label or ''}:{self.env or ''}:{self.targeting_key or ''}:{attrs}"
+
+    @property
+    def source(self) -> PromptSource:
+        return PromptSource.RESOLVE if self.use_resolve else PromptSource.REGISTRY
 
 
 class PromptManager:
@@ -89,13 +125,6 @@ class PromptManager:
             )
 
         dd_env = config.env
-        if label is not None:
-            telemetry.record_prompt_routing_signal(PromptRoutingSignal.LABEL_ONLY)
-        elif dd_env:
-            telemetry.record_prompt_routing_signal(PromptRoutingSignal.ENV_ONLY)
-        else:
-            telemetry.record_prompt_routing_signal(PromptRoutingSignal.NEITHER)
-
         if label is None and dd_env and not self._agentless:
             prompt, not_ready = self._fetch_from_ff(prompt_id, targeting_key, attributes)
             if prompt is not None:
@@ -104,61 +133,58 @@ class PromptManager:
             if not_ready:
                 telemetry.record_prompt_source(PromptSource.NOT_READY)
             # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
-            # the HTTP floor (label=DD_ENV); callers needing FFE resolved first use wait_for_ready.
+            # the HTTP /resolve floor, which resolves the same env-scoped variant server-side.
 
-        http_label = label if label is not None else dd_env
-        return self._get_prompt_http(prompt_id, label=http_label, fallback=fallback)
+        req = _PromptRequest(
+            prompt_id=prompt_id,
+            label=label,
+            env=None if label is not None else dd_env,
+            targeting_key=None if label is not None else targeting_key,
+            attributes={} if label is not None else attributes,
+        )
+        return self._get_prompt_http(req, fallback=fallback)
 
-    def _get_prompt_http(
-        self,
-        prompt_id: str,
-        label: Optional[str] = None,
-        fallback: PromptFallback = None,
-    ) -> ManagedPrompt:
-        """Retrieve a prompt via the HTTP registry path."""
-        key = cache_key(prompt_id, label)
-
+    def _get_prompt_http(self, req: _PromptRequest, fallback: PromptFallback = None) -> ManagedPrompt:
+        """Retrieve a prompt via HTTP (FFE ``/resolve`` or the static registry)."""
         if self._cache_enabled:
             # Try hot cache (in-memory)
-            prompt = self._try_cache(self._hot_cache, key, prompt_id, label, PromptSource.HOT_CACHE)
+            prompt = self._try_cache(self._hot_cache, req, PromptSource.HOT_CACHE)
             if prompt is not None:
                 return prompt
 
-            # Try warm cache (file-based)
-            prompt = self._try_cache(
-                self._warm_cache, key, prompt_id, label, PromptSource.WARM_CACHE, populate_hot=True
-            )
-            if prompt is not None:
-                return prompt
+            # Try warm cache (file-based). Skipped for per-subject resolve results, which are
+            # high-cardinality and disposable - persisting them would flood disk.
+            if not req.use_resolve:
+                prompt = self._try_cache(self._warm_cache, req, PromptSource.WARM_CACHE, populate_hot=True)
+                if prompt is not None:
+                    return prompt
 
-        # Try sync fetch from registry
-        fetched_prompt, reason = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
+        # Try sync fetch
+        fetched_prompt, reason = self._fetch_and_cache(req, evict_on_not_found=False)
         if fetched_prompt is not None:
-            telemetry.record_prompt_source(PromptSource.REGISTRY)
+            telemetry.record_prompt_source(req.source)
             return fetched_prompt
 
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source(PromptSource.FALLBACK)
-        return self._create_fallback_prompt(prompt_id, fallback, reason=reason)
+        return self._create_fallback_prompt(req.prompt_id, fallback, reason=reason)
 
     def _try_cache(
         self,
         cache: Union[HotCache, WarmCache],
-        key: str,
-        prompt_id: str,
-        label: Optional[str],
+        req: _PromptRequest,
         source_name: PromptSource,
         populate_hot: bool = False,
     ) -> Optional[ManagedPrompt]:
         """Try to get prompt from cache, trigger refresh if stale."""
-        result = cache.get(key)
+        result = cache.get(req.key)
         if result is None:
             return None
         prompt, is_stale = result
         if populate_hot:
-            self._hot_cache.set(key, prompt)
+            self._hot_cache.set(req.key, prompt)
         if is_stale:
-            self._trigger_background_refresh(key, prompt_id, label)
+            self._trigger_background_refresh(req)
         telemetry.record_prompt_source(source_name)
         return prompt
 
@@ -171,17 +197,22 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
-        key = cache_key(prompt_id, label)
-        prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+        req = _PromptRequest(prompt_id=prompt_id, label=label, env=None if label is not None else config.env)
+        prompt, _ = self._fetch_and_cache(req, evict_on_not_found=True)
         return prompt
 
-    def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
-        """Store a prompt in both hot and warm caches with source='cache'."""
+    def _update_caches(self, req: _PromptRequest, prompt: ManagedPrompt) -> None:
+        """Cache the prompt with source='cache'.
+
+        Hot cache always; warm (file) cache only for low-cardinality static/label fetches. Per-subject
+        resolve results are disposable and would otherwise flood disk with tiny files.
+        """
         if not self._cache_enabled:
             return
         cached_prompt = prompt._with_source("cache")
-        self._hot_cache.set(key, cached_prompt)
-        self._warm_cache.set(key, cached_prompt)
+        self._hot_cache.set(req.key, cached_prompt)
+        if not req.use_resolve:
+            self._warm_cache.set(req.key, cached_prompt)
 
     def _evict_caches(self, key: str) -> None:
         """Remove a prompt from both caches."""
@@ -192,33 +223,32 @@ class PromptManager:
 
     def _fetch_and_cache(
         self,
-        prompt_id: str,
-        label: Optional[str],
-        key: str,
+        req: _PromptRequest,
         evict_on_not_found: bool = False,
     ) -> tuple[Optional[ManagedPrompt], str]:
         """Fetch a prompt and update caches."""
-        prompt, not_found, reason = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
+        prompt, not_found, reason = self._fetch_http(req, timeout=self._timeout)
 
         if prompt is not None:
-            self._update_caches(key, prompt)
+            self._update_caches(req, prompt)
             return prompt, ""
 
         if not_found:
             telemetry.record_prompt_fetch_error("NotFound")
             if evict_on_not_found:
-                self._evict_caches(key)
+                self._evict_caches(req.key)
         else:
             telemetry.record_prompt_fetch_error("FetchError")
 
         return None, reason
 
-    def _trigger_background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
+    def _trigger_background_refresh(self, req: _PromptRequest) -> None:
         """Trigger a background refresh if not already in progress."""
+        key = req.key
 
         def run_refresh():
             try:
-                self._background_refresh(key, prompt_id, label)
+                self._background_refresh(req)
             finally:
                 with self._refresh_lock:
                     self._refresh_threads.pop(key, None)
@@ -234,11 +264,11 @@ class PromptManager:
         except RuntimeError:
             with self._refresh_lock:
                 self._refresh_threads.pop(key, None)
-            log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
+            log.debug("Failed to start background refresh thread for prompt %s", req.prompt_id)
 
-    def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
+    def _background_refresh(self, req: _PromptRequest) -> None:
         """Refresh a prompt in the background."""
-        self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+        self._fetch_and_cache(req, evict_on_not_found=True)
 
     def _wait_for_refreshes(self) -> None:
         """Wait for background refreshes to complete on exit."""
@@ -247,23 +277,18 @@ class PromptManager:
         for thread in threads:
             thread.join(timeout=self._timeout)
 
-    def _ensure_ffe_rc(self) -> bool:
-        """Lazily enable FFE Remote Config so flag configurations are delivered.
-
-        Returns True if RC is enabled (either already or just now), False if enable failed.
-        """
+    def _ensure_ffe_rc(self) -> None:
+        """Lazily enable FFE Remote Config so flag configurations are delivered."""
         with self._ffe_lock:
             if self._ffe_rc_enabled:
-                return True
+                return
             try:
                 from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 
                 enable_featureflags_rc()
                 self._ffe_rc_enabled = True
-                return True
             except Exception:
                 log.debug("Failed to enable FFE Remote Config for prompt evaluation", exc_info=True)
-                return False
 
     def _ensure_ffe_provider(self) -> None:
         """Lazily register the DataDog OpenFeature provider (non-blocking)."""
@@ -331,77 +356,66 @@ class PromptManager:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
             return None, False
 
-    def wait_for_ready(self, timeout: float) -> bool:
-        """Block up to timeout for the FFE provider to receive its first Remote Config payload."""
-        if self._agentless or not config.env:
-            return False
-
-        from ddtrace.internal.settings.openfeature import config as ffe_config
-
-        if not ffe_config.experimental_flagging_provider_enabled:
-            return False
-
-        try:
-            from openfeature import api
-            from openfeature.event import ProviderEvent
-        except ImportError:
-            return False
-
-        self._ensure_ffe_rc()
-        self._ensure_ffe_provider()
-
-        ready = threading.Event()
-
-        def _on_ready(_details):
-            ready.set()
-
-        client = api.get_client(self._FFE_DOMAIN)
-        client.add_handler(ProviderEvent.PROVIDER_READY, _on_ready)
-        try:
-            return ready.wait(timeout)
-        finally:
-            try:
-                client.remove_handler(ProviderEvent.PROVIDER_READY, _on_ready)
-            except Exception:
-                log.debug("Failed to remove FFE readiness handler", exc_info=True)
-
-    def _fetch_from_registry(
-        self, prompt_id: str, label: Optional[str], timeout: float
-    ) -> tuple[Optional[ManagedPrompt], bool, str]:
-        """Fetch from registry. Returns (prompt, not_found, reason)."""
+    def _fetch_http(self, req: _PromptRequest, timeout: float) -> tuple[Optional[ManagedPrompt], bool, str]:
+        """Fetch a prompt over HTTP. Returns (prompt, not_found, reason)."""
         if not self._api_key:
             return None, False, "DD_API_KEY is required for the Prompt Registry"
 
+        scope = req.label or req.env
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout)
-            conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
+            escaped_id = quote(req.prompt_id, safe="")
+            if req.use_resolve:
+                path = f"{PROMPTS_ENDPOINT}/{escaped_id}/resolve"
+                body = json.dumps(
+                    {"data": {"type": "prompt_resolve_requests", "attributes": self._resolve_attributes(req)}}
+                )
+                conn.request("POST", path, body=body, headers={**self._headers, "Content-Type": "application/json"})
+            else:
+                conn.request("GET", self._build_path(req.prompt_id, req.label), headers=self._headers)
             response = conn.getresponse()
             status = response.status
 
             body = response.read().decode("utf-8")
 
             if status == 200:
-                return self._parse_prompt(body, source="registry", prompt_id=prompt_id, label=label), False, ""
+                source: Literal["registry", "resolve"] = "resolve" if req.use_resolve else "registry"
+                prompt = self._parse_prompt(body, source=source, prompt_id=req.prompt_id, label=req.label)
+                return prompt, False, ""
 
             not_found = status == 404
             detail = extract_error_detail(body)
             if not_found:
-                log.debug('Prompt not found: prompt_id=%s label=%s detail="%s"', prompt_id, label, detail)
+                log.debug('Prompt not found: prompt_id=%s scope=%s detail="%s"', req.prompt_id, scope, detail)
             else:
                 log.warning(
-                    'Prompt fetch failed: prompt_id=%s label=%s status=%d detail="%s"', prompt_id, label, status, detail
+                    'Prompt fetch failed: prompt_id=%s scope=%s status=%d detail="%s"',
+                    req.prompt_id,
+                    scope,
+                    status,
+                    detail,
                 )
             return None, not_found, detail
         except Exception as e:
-            log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
+            log.warning("Prompt fetch exception: prompt_id=%s scope=%s: %s", req.prompt_id, scope, e)
             return None, False, str(e)
         finally:
             if conn is not None:
                 conn.close()
 
+    @staticmethod
+    def _resolve_attributes(req: _PromptRequest) -> dict[str, Any]:
+        """Build the JSON:API ``attributes`` for a ``/resolve`` request body."""
+        attrs: dict[str, Any] = {"env": req.env or ""}
+        if req.targeting_key is not None:
+            attrs["targeting_key"] = req.targeting_key
+        if req.attributes:
+            attrs["context"] = req.attributes
+        return attrs
+
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
-        """Build the absolute request path for fetching a prompt."""
+        """Build the absolute request path for fetching a prompt from the static registry."""
         escaped_id = quote(prompt_id, safe="")
         if label:
             return f"{PROMPTS_ENDPOINT}/{escaped_id}?{urlencode({'label': label})}"
@@ -410,7 +424,7 @@ class PromptManager:
     @staticmethod
     def _parse_prompt(
         raw: Union[str, dict[str, Any]],
-        source: Literal["registry", "ff"],
+        source: Literal["registry", "ff", "resolve"],
         prompt_id: str = "",
         label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
