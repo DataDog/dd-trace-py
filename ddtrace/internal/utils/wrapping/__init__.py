@@ -13,8 +13,8 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.utils.inspection import link_function_to_code
-from ddtrace.internal.utils.wrapping.asyncs import wrap_async
-from ddtrace.internal.utils.wrapping.generators import wrap_generator
+from ddtrace.internal.wrapping.asyncs import wrap_async
+from ddtrace.internal.wrapping.generators import wrap_generator
 
 
 PY = sys.version_info[:2]
