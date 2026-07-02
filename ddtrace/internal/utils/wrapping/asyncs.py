@@ -723,3 +723,6 @@ def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
 
         elif bc.CompilerFlags.ASYNC_GENERATOR & code.co_flags:
             instrs[-1:] = ASYNC_GEN_ASSEMBLY.bind(lineno=lineno)
+
+
+__all__ = list(locals().keys())

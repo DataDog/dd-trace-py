@@ -489,3 +489,6 @@ def wrap_generator(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
         instrs[0:0] = GENERATOR_HEAD_ASSEMBLY.bind(lineno=lineno)
 
     instrs[-1:] = GENERATOR_ASSEMBLY.bind(lineno=lineno)
+
+
+__all__ = list(locals().keys())
