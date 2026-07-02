@@ -3,9 +3,9 @@
 
 #include "structmember.h"
 
-#include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <stddef.h>
 
 #include <atomic>
@@ -558,8 +558,13 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
     static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", "no_wait_at_start", NULL };
 
-    self->name = Py_None;
-    self->_on_shutdown = Py_None;
+    // Leave optional args NULL before parsing and only default them to Py_None
+    // after a successful parse. If parsing fails, the fields stay NULL so the
+    // dealloc/tp_clear path is a Py_CLEAR no-op instead of over-decref'ing
+    // Py_None (which the previous "assign Py_None without incref" pattern did
+    // on the error path).
+    self->name = NULL;
+    self->_on_shutdown = NULL;
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
@@ -571,6 +576,11 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
                                      &self->_on_shutdown,
                                      &self->_no_wait_at_start))
         return -1;
+
+    if (self->name == NULL)
+        self->name = Py_None;
+    if (self->_on_shutdown == NULL)
+        self->_on_shutdown = Py_None;
 
     Py_INCREF(self->_target);
     Py_INCREF(self->name);
@@ -611,6 +621,17 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 static inline PyObject*
 PeriodicThread__periodic(PeriodicThread* self)
 {
+    // Defensive guard: since #18379 made PeriodicThread GC-tracked, tp_clear can
+    // in principle NULL _target independently of dealloc (breaking a cycle).
+    // A live worker is meant to be kept reachable by the C-held PyRef, so this
+    // should never fire; if it does, emit a diagnostic marker and treat the
+    // iteration as a clean no-op instead of calling PyObject_CallObject(NULL),
+    // which would raise SystemError.
+    if (self->_target == NULL) {
+        fork_diag_native("periodic_target_cleared", self, self->name);
+        Py_RETURN_NONE;
+    }
+
     PyObject* result = PyObject_CallObject(self->_target, NULL);
 
     if (result == NULL)
@@ -623,6 +644,12 @@ PeriodicThread__periodic(PeriodicThread* self)
 static inline void
 PeriodicThread__on_shutdown(PeriodicThread* self)
 {
+    // See PeriodicThread__periodic: guard against a GC-cleared callback.
+    if (self->_on_shutdown == NULL) {
+        fork_diag_native("on_shutdown_cleared", self, self->name);
+        return;
+    }
+
     PyObject* result = PyObject_CallObject(self->_on_shutdown, NULL);
 
     if (result == NULL) {

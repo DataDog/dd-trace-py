@@ -1,3 +1,4 @@
+import gc
 from os import environ
 from os import getpid
 from os import write
@@ -31,6 +32,38 @@ def _thread_label(thread: t.Any) -> str:
         return str(thread.name)
     except Exception:
         return f"<unnamed id={id(thread)}>"
+
+
+def _gc_state() -> str:
+    """Snapshot cyclic-GC pressure so fork markers can be correlated with it.
+
+    Since #18379 made PeriodicThread GC-tracked, a cyclic collection landing in
+    the fork window is a prime suspect for the staging fork-ping timeout. Emit
+    the per-generation allocation counters and the enabled flag alongside the
+    fork lifecycle markers so the log ordering shows whether a collection ran.
+    """
+    try:
+        counts = gc.get_count()
+        return f"gc_enabled={int(gc.isenabled())} gc_count={counts[0]},{counts[1]},{counts[2]}"
+    except Exception:
+        return "gc_enabled=? gc_count=?"
+
+
+def _gc_diag_callback(phase: str, info: dict) -> None:
+    # Fires on every cyclic-GC start/stop while diagnostics are enabled. The ns
+    # timestamp lets us see whether a collection brackets a fork window in the
+    # child, which would explain a delayed post-fork ping.
+    _diag(
+        f"gc_{phase} generation={info.get('generation')} "
+        f"collected={info.get('collected')} uncollectable={info.get('uncollectable')}"
+    )
+
+
+if _FORK_DIAG:
+    try:
+        gc.callbacks.append(_gc_diag_callback)
+    except Exception:
+        pass
 
 # We try to import the stdlib locks from the _thread module, where they are
 # implemented in C for CPython for most platforms. If that fails, we fall back
@@ -185,13 +218,16 @@ def _after_fork_child():
 
     _diag(
         "py_after_child_begin "
-        f"restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)}"
+        f"restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)} "
+        f"{_gc_state()}"
     )
     _forking = False
 
     # Keep child at-fork work minimal: thread restarts happen asynchronously in
     # the child so application code can resume immediately after fork. Parent
     # process threads are still restarted in _after_fork_parent() below.
+    _restart_start_ns = monotonic_ns()
+    _restart_count = len(_threads_to_restart_after_fork)
     for thread in _threads_to_restart_after_fork.copy():
         _diag(f"py_after_child_restart_begin name={_thread_label(thread)} id={id(thread)}")
         log.debug("Restarting thread %s after fork in child", thread.name)
@@ -201,6 +237,7 @@ def _after_fork_child():
         except Exception as e:
             _diag(f"py_after_child_restart_error name={_thread_label(thread)} id={id(thread)} err={e!r}")
             log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
+    _diag(f"py_after_child_restart_summary count={_restart_count} elapsed_ns={monotonic_ns() - _restart_start_ns}")
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
@@ -217,8 +254,7 @@ def _after_fork_parent() -> None:
     global _forking
 
     _diag(
-        "py_after_parent_begin "
-        f"restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)}"
+        f"py_after_parent_begin restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)}"
     )
     _forking = False
 
@@ -231,7 +267,7 @@ def _after_fork_parent() -> None:
 def _before_fork() -> None:
     global _threads_to_restart_after_fork, _forking_lock, _forking
 
-    _diag("py_before_begin")
+    _diag(f"py_before_begin {_gc_state()}")
     ThreadRestartTimer.touch()
 
     with _forking_lock:
