@@ -17,7 +17,7 @@ def service_name_v0(v0_service_name):
 
 
 def service_name_v1(*_, **__):
-    from ddtrace import config as dd_config
+    from ddtrace.internal.settings._config import config as dd_config
 
     return dd_config.service
 
