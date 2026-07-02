@@ -23,3 +23,6 @@ class BaseServiceProcessor(TraceProcessor):
 
     def _update_dd_base_service(self, span):
         span._set_attribute(key=_BASE_SERVICE_KEY, value=self._global_service)
+
+
+__all__ = ["BaseServiceProcessor"]

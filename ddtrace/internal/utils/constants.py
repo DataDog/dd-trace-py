@@ -157,3 +157,6 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+__all__ = list(locals().keys())
