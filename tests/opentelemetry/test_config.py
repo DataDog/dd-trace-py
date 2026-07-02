@@ -355,10 +355,6 @@ def test_otel_resource_attributes_version_tag():
     ],
 )
 def test_parse_otlp_headers(raw, expected):
-    from unittest import mock
-
     from ddtrace.internal.writer.writer import NativeWriter
 
-    with mock.patch("ddtrace.internal.writer.writer.otel_config") as mock_cfg:
-        mock_cfg.exporter.TRACES_HEADERS = raw
-        assert NativeWriter._parse_otlp_headers() == expected
+    assert NativeWriter._parse_otlp_headers(raw) == expected
