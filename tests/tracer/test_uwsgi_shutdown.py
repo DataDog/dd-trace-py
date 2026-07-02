@@ -1,30 +1,15 @@
-"""Regression test for a Tokio-context-thread-local-destroyed panic raised
-from NativeRuntime.shutdown() when a uWSGI worker exits under `lazy-apps`.
+"""Regression test: NativeRuntime.shutdown() panics with a Tokio
+context-thread-local-destroyed error when a uWSGI worker exits under
+`--lazy-apps`/`--die-on-term`. See https://github.com/DataDog/libdatadog/pull/2169.
 
-Background: NativeRuntime registers an atexit hook (ddtrace/internal/native_runtime.py)
-that calls into the native SharedRuntime's shutdown(), which internally calls
-Tokio's block_on(). If the calling OS thread's Tokio CONTEXT thread-local has
-already been torn down by the time atexit runs, block_on() panics with
-pyo3_runtime.PanicException -- which derives from BaseException (like
-SystemExit), so ddtrace.internal.atexit's `except Exception` safety wrapper
-cannot catch it. See https://github.com/DataDog/libdatadog/pull/2169.
-
-This does NOT reproduce on a bare CPython process exit, a self-sent SIGTERM,
-or a plain os.fork()+exit -- only a real uWSGI worker exiting through
-`--die-on-term` triggers it. That's because ddtrace's own SIGTERM handler
-(ddtrace/internal/utils/signals.py:_raise_default) normally kills the process
-via a re-raised raw signal, bypassing atexit entirely; uWSGI's worker-exit
-path instead drives a genuine CPython interpreter finalization that runs
-NativeRuntime._atexit while the panic condition is present.
-
-`--skip-atexit` is a known, pre-existing mitigation: it makes
-ddtrace.internal.atexit.register() a no-op (see
-ddtrace/internal/uwsgi.py:should_register_atexit), so NativeRuntime._atexit is
-never registered and the panic cannot occur. Both branches are covered below.
+Only reproduces via a real uWSGI worker exit, not a bare process exit or
+self-sent SIGTERM (which bypasses atexit). `--skip-atexit` is a known
+mitigation, covered by the second test below.
 
 test_uwsgi_worker_sigterm_panics is intentionally not marked xfail: it should
-fail CI until the panic is actually fixed in NativeRuntime.shutdown().
+fail CI until the panic is fixed in NativeRuntime.shutdown().
 """
+
 import os
 import re
 import signal
