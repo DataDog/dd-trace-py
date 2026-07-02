@@ -6,6 +6,7 @@ from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
+from typing import Sequence
 from typing import TypeVar
 from typing import Union
 
@@ -206,6 +207,26 @@ class TraceExporter:
         :param data: The msgpack encoded trace payload to send.
         """
         ...
+    def put_trace(self, spans: Sequence["SpanData"], dd_origin: Optional[str] = None) -> "PutOutcome":
+        """
+        Convert one trace chunk to libdatadog v0.4 spans and buffer it for the next flush.
+        :param spans: The spans of one trace chunk (each a SpanData / Span).
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span.
+        :return: Whether the chunk was buffered, or why it was dropped.
+        """
+        ...
+    def flush(self) -> tuple[int, Optional[str]]:
+        """
+        Send all buffered trace chunks directly to the Agent via send_trace_chunks.
+        :return: (number of trace chunks sent, agent response body or None).
+        """
+        ...
+    def buffered_traces(self) -> int:
+        """Number of trace chunks currently buffered."""
+        ...
+    def buffered_bytes(self) -> int:
+        """Estimated bytes currently buffered."""
+        ...
     def shutdown(self, timeout_ns: int) -> None:
         """
         Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.
@@ -395,11 +416,13 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
-    def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
+    def build(self, shared_runtime: SharedRuntime, max_size: int, max_item_size: int) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
         This method consumes the builder, so it cannot be used again after calling build.
         :param shared_runtime: A SharedRuntime instance to share with this exporter.
+        :param max_size: Total native span buffer budget in (estimated) bytes.
+        :param max_item_size: Per-trace-chunk cap in (estimated) bytes.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
         """
@@ -410,6 +433,12 @@ class TraceExporterBuilder:
         Should only be used for debugging.
         """
         ...
+
+class PutOutcome(Enum):
+    Accepted = ...
+    BufferFull = ...
+    ItemTooLarge = ...
+    NoEncodableSpans = ...
 
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""

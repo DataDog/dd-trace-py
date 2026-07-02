@@ -51,7 +51,6 @@ from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentlessWriterClient
-from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
 
@@ -774,7 +773,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 ", ".join(sorted(WRITER_CLIENTS.keys())),
             )
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
-        client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
         super(NativeWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
@@ -783,7 +781,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = _resolve_test_session_token(test_session_token)
 
-        self._clients = [client]
         self.dogstatsd = dogstatsd
         self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
@@ -843,7 +840,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_telemetry(heartbeat_ms, get_runtime_id(), config._debug_mode)
         if config._health_metrics_enabled:
             builder.enable_health_metrics()
-        return builder.build(get_native_runtime())
+        return builder.build(get_native_runtime(), self._buffer_size, self._max_payload_size)
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -886,43 +883,35 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             otlp_endpoint=self._otlp_endpoint,
         )
 
-    def _downgrade(self, status, client):
-        if client.ENDPOINT == "v0.5/traces":
-            self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
+    def _downgrade(self, status):
+        if self._api_version == "v0.5":
             self._api_version = "v0.4"
+            # Rebuilding the exporter discards its native span buffer — i.e. any spans
+            # buffered under v0.5 are dropped on the downgrade, matching prior behavior.
             self._exporter = self._create_exporter()
-
-            # Since we have to change the encoding in this case, the payload
-            # would need to be converted to the downgraded encoding before
-            # sending it, but we chuck it away instead.
             _safelog(
                 log.warning,
-                "Calling endpoint '%s' but received %s; downgrading API. "
+                "Calling endpoint 'v0.5/traces' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
                 "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
-                client.ENDPOINT,
                 status,
             )
         else:
             _safelog(
                 log.error,
-                "unsupported endpoint '%s': received response %s from intake (%s)",
-                client.ENDPOINT,
+                "unsupported endpoint '%s/traces': received response %s from intake (%s)",
+                self._api_version,
                 status,
                 self.intake_url,
             )
 
-    def _intake_endpoint(self, client=None):
-        return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
+    def _intake_endpoint(self):
+        return "{}/{}".format(self.intake_url, self._endpoint)
 
     @property
     def _endpoint(self):
-        return self._clients[0].ENDPOINT
-
-    @property
-    def _encoder(self):
-        return self._clients[0].encoder
+        return "{}/traces".format(self._api_version)
 
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
@@ -933,8 +922,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _set_drop_rate(self) -> None:
         accepted = self._metrics["accepted_traces"]
         sent = self._metrics["sent_traces"]
-        encoded = sum([len(client.encoder) for client in self._clients])
-        # The number of dropped traces is the number of accepted traces minus the number of traces in the encoder
+        encoded = self._exporter.buffered_traces()
+        # The number of dropped traces is the number of accepted traces minus the number of traces in the buffer
         # This calculation is a best effort. Due to race conditions it may result in a slight underestimate.
         dropped = max(accepted - sent - encoded, 0)  # dropped spans should never be negative
         self._drop_sma.set(dropped, accepted)
@@ -946,41 +935,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # PERF: avoid setting via Span.set_metric
             trace[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
-    def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
-        try:
-            response_body = self._exporter.send(payload)
-        except native.RequestError as e:
-            try:
-                # Request errors are formatted as "Error code: {code}, Response: {response}"
-                code = int(str(e).split(",")[0].split(":", maxsplit=1)[1])
-            except:  # noqa:E722 if the error message is invalid we want to log the full error
-                raise e
-            if code == 404 or code == 415:
-                self._downgrade(code, client)
-            else:
-                raise e
-        finally:
-            self._metrics["sent_traces"] += count
-
-        if self._response_cb:
-            response = Response(body=response_body)
-            raw_resp = response.get_json()
-
-            if raw_resp and "rate_by_service" in raw_resp:
-                self._response_cb(
-                    AgentResponse(
-                        rate_by_service=raw_resp["rate_by_service"],
-                    )
-                )
-
     def write(self, spans: Optional[list["Span"]] = None) -> None:
-        for client in self._clients:
-            self._write_with_client(client, spans=spans)
-        if self._sync_mode:
-            self.flush_queue()
-
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
-        if spans is None:
+        if not spans:
+            # Nothing to buffer for None or an empty chunk; both are a no-op.
             return
 
         if self._sync_mode is False:
@@ -988,7 +945,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
-
             except service.ServiceStatusError:
                 _safelog(log.warning, "failed to start writer service")
 
@@ -996,82 +952,95 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
 
-        try:
-            client.encoder.put(spans)
-        except BufferItemTooLarge as e:
-            payload_size = e.args[0]
+        # The trace-level origin lives on the Context (and only the chunk-root span's native
+        # attributes). Pass it down so every converted span gets `_dd.origin`, matching the
+        # msgpack encoder which stamped it from trace[0].context.dd_origin at pack time.
+        ctx = spans[0].context
+        dd_origin = ctx.dd_origin if ctx is not None else None
+
+        outcome = self._exporter.put_trace(spans, dd_origin)
+        if outcome == native.PutOutcome.ItemTooLarge:
             _safelog(
                 log.warning,
-                "trace (%db) larger than payload buffer item limit (%db), dropping",
-                payload_size,
-                client.encoder.max_item_size,
+                "trace larger than payload buffer item limit (%db), dropping",
+                self._max_payload_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
-        except BufferFull as e:
-            payload_size = e.args[0]
+        elif outcome == native.PutOutcome.BufferFull:
             _safelog(
                 log.warning,
-                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
-                len(client.encoder),
-                client.encoder.size,
-                client.encoder.max_size,
-                payload_size,
+                "trace buffer (%db/%db) cannot fit trace, dropping (writer status: %s)",
+                self._exporter.buffered_bytes(),
+                self._buffer_size,
                 self.status.value,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
-            self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
-        except NoEncodableSpansError:
+        elif outcome == native.PutOutcome.NoEncodableSpans:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
 
+        if self._sync_mode:
+            self.flush_queue()
+
     def flush_queue(self, raise_exc: bool = False):
         try:
-            for client in self._clients:
-                self._flush_queue_with_client(client, raise_exc=raise_exc)
+            self._flush(raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
 
-    def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
-        n_traces = len(client.encoder)
+    def _flush(self, raise_exc: bool = False) -> None:
+        n_traces = self._exporter.buffered_traces()
+        if n_traces == 0:
+            return
+
+        response_body: Optional[str] = None
         try:
-            if not (encoded_traces := client.encoder.encode()):
+            _, response_body = self._exporter.flush()
+        except native.RequestError as e:
+            try:
+                # Request errors are formatted as "Error code: {code}, Response: {response}"
+                code = int(str(e).split(",")[0].split(":", maxsplit=1)[1])
+            except:  # noqa:E722 if the error message is invalid we want to log the full error
+                code = None
+            if code in (404, 415):
+                self._downgrade(code)
                 return
-        except Exception:
-            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", n_traces)
+            if raise_exc:
+                raise
+            _safelog(
+                log.error,
+                "failed to send, dropping %d traces to intake at %s: %s",
+                n_traces,
+                self._intake_endpoint(),
+                str(e),
+                extra={"send_to_telemetry": False},
+            )
             return
-
-        for payload in encoded_traces:
-            encoded_data, n_traces = payload
-            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
-
-    def _flush_single_payload(
-        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
-    ) -> None:
-        if encoded is None:
-            return
-        try:
-            self._send_payload(encoded, n_traces, client)
         except Exception as e:
             if raise_exc:
                 raise
-
-            msg = "failed to send, dropping %d traces to intake at %s: %s"
-            log_args = (
+            _safelog(
+                log.error,
+                "failed to send, dropping %d traces to intake at %s: %s",
                 n_traces,
-                self._intake_endpoint(client),
+                self._intake_endpoint(),
                 str(e),
+                extra={"send_to_telemetry": False},
             )
-            # Append the payload if requested
-            if config._trace_writer_log_err_payload:
-                msg += ", payload %s"
-                log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
+            return
+        finally:
+            # Mirror the previous encoder path: count the drained chunks as "sent" for the
+            # drop-rate calculation even if the send itself failed (the buffer is emptied
+            # either way).
+            self._metrics["sent_traces"] += n_traces
 
-            _safelog(log.error, msg, *log_args, extra={"send_to_telemetry": False})
+        if self._response_cb and response_body:
+            response = Response(body=response_body)
+            raw_resp = response.get_json()
+            if raw_resp and "rate_by_service" in raw_resp:
+                self._response_cb(AgentResponse(rate_by_service=raw_resp["rate_by_service"]))
 
     def periodic(self):
         self.flush_queue(raise_exc=False)

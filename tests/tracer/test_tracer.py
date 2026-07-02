@@ -1875,10 +1875,9 @@ def test_fork_pid():
 
 @pytest.mark.subprocess
 def test_tracer_api_version():
-    from ddtrace.internal.encoding import MsgpackEncoderV05
     from ddtrace.trace import tracer as t
 
-    assert isinstance(t._span_aggregator.writer._encoder, MsgpackEncoderV05)
+    assert t._span_aggregator.writer._api_version == "v0.5"
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
