@@ -217,4 +217,5 @@ def _before_fork() -> None:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
 
+
 __all__ = list(locals().keys())

@@ -36,4 +36,5 @@ def find_exception(
                 return found
     return None
 
+
 __all__ = list(locals().keys())
