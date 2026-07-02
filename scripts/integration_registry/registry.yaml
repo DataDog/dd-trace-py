@@ -509,6 +509,16 @@ integrations:
       min: 0.25.2
       max: 0.28.1
 
+- integration_name: httpx2
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - httpx2
+  tested_versions_by_dependency:
+    httpx2:
+      min: 2.5.0
+      max: 2.5.0
+
 - integration_name: jinja2
   is_external_package: true
   is_tested: true

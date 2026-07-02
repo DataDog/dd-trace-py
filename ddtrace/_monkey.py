@@ -48,6 +48,7 @@ PATCH_MODULES = {
     "graphql": True,
     "grpc": True,
     "httpx": True,
+    "httpx2": True,
     "kafka": True,
     "langgraph": True,
     "llama_index": True,
