@@ -363,7 +363,8 @@ def test_extract_message_from_part_function_response_non_serializable():
     """Regression: a function_response whose result holds non-JSON-serializable
     objects (e.g. google.genai Part/Content returned by the ADK load_memory tool)
     must not raise — json.dumps would raise TypeError, propagate out of
-    _llmobs_set_tags, and drop the span, orphaning its children."""
+    _llmobs_set_tags, and drop the span, orphaning its children.
+    """
     from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 
     part = types.Part(
@@ -379,7 +380,8 @@ def test_extract_message_from_part_function_response_non_serializable():
 
 def test_extract_message_from_part_thought_signature_only():
     """A reasoning part may carry only a thought_signature (opaque bytes, no text);
-    render it as reasoning rather than an 'Unsupported file type' placeholder."""
+    render it as reasoning rather than an 'Unsupported file type' placeholder.
+    """
     from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 
     message = extract_message_from_part_google_genai(types.Part(thought_signature=b"\x01\x02\x03"), "model")
@@ -389,7 +391,8 @@ def test_extract_message_from_part_thought_signature_only():
 
 def test_extract_message_from_part_empty():
     """An empty part (e.g. trailing a function_call) renders as empty content,
-    not an 'Unsupported file type' placeholder."""
+    not an 'Unsupported file type' placeholder.
+    """
     from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 
     message = extract_message_from_part_google_genai(types.Part(), "model")
@@ -399,10 +402,24 @@ def test_extract_message_from_part_empty():
 
 def test_extract_message_from_part_vertexai_non_serializable():
     """Regression: the Vertex AI variant must also use safe_json so a
-    non-JSON-serializable function_response result does not raise."""
+    non-JSON-serializable function_response result does not raise.
+    """
     from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 
     part = {"function_response": {"name": "load_memory", "response": {"obj": object()}, "id": "t1"}}
     message = extract_message_from_part_vertexai(part, "model")
     assert message["tool_results"][0]["name"] == "load_memory"
     assert isinstance(message["tool_results"][0]["result"], str)
+
+
+def test_extract_message_from_part_file_input_not_treated_as_empty():
+    """A File/image PartUnion member lacks Part content fields but is NOT empty —
+    it must fall through to the unsupported-input placeholder, not be silently
+    dropped as empty content.
+    """
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    file_part = types.File(name="files/abc", uri="https://example.com/image.png", mime_type="image/png")
+    message = extract_message_from_part_google_genai(file_part, "model")
+    assert message.get("content", "") != ""
+    assert "Unsupported file type" in message["content"]

@@ -190,7 +190,16 @@ _GOOGLE_GENAI_PART_CONTENT_FIELDS = (
 
 
 def _is_empty_google_genai_part(part) -> bool:
-    """True when a Part carries no content field we could render at all."""
+    """True only for a real ``types.Part`` that carries no content field.
+
+    ``part`` is a ``PartUnion = Union[File, Part, PIL_Image, str]``; a ``File`` or
+    ``PIL_Image`` input is *not* empty just because it lacks ``Part`` content
+    fields — those must still fall through to the unsupported-input placeholder so
+    multimodal file/image markers aren't silently dropped. Duck-type on
+    ``Part``-only attributes to avoid importing ``google.genai`` types here.
+    """
+    if not all(hasattr(part, attr) for attr in ("function_call", "inline_data", "thought")):
+        return False
     return not any(_get_attr(part, field, None) for field in _GOOGLE_GENAI_PART_CONTENT_FIELDS)
 
 
