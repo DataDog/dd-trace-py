@@ -275,6 +275,48 @@ class TestEncoders(TestCase):
             ]
         }
 
+    def test_encode_traces_json_agentless_unserializable_meta_struct(self):
+        # A meta_struct value that json.dumps cannot handle natively (e.g. a Pydantic model
+        # recorded by LLM Observability) must not fail the whole payload.
+        class FakePydanticV2:
+            def model_dump(self, mode=None):
+                return {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"}
+
+        class FakePydanticV1:
+            __fields__ = {"category": None}
+
+            def dict(self):
+                return {"category": "HARM_CATEGORY_HARASSMENT"}
+
+        class Unstringable:
+            def __str__(self):
+                raise ValueError("nope")
+
+        span = Span(name="span1", trace_id=1, span_id=2)
+        span._set_struct_tag(
+            "_llmobs",
+            {
+                "metadata": {
+                    "safety_settings": [FakePydanticV2(), FakePydanticV1()],
+                    "opaque": Unstringable(),
+                }
+            },
+        )
+        encoder = AgentlessTraceJSONEncoder(1 << 12, 1 << 12)
+        encoder.put([span])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        assert n_traces == 1
+
+        data = json.loads(payload_bytes.decode("utf-8"))
+        metadata = data["traces"][0]["spans"][0]["meta_struct"]["_llmobs"]["metadata"]
+        assert metadata["safety_settings"] == [
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HARASSMENT"},
+        ]
+        assert metadata["opaque"] == "Can not serialize [Unstringable] object"
+
 
 def test_encode_meta_struct():
     # test encoding for MsgPack format
