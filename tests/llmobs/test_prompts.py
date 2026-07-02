@@ -459,6 +459,7 @@ class TestPrompts:
         assert req["method"] == "POST"
         assert req["path"].endswith("/greeting/resolve")
         assert req["headers"]["Content-Type"] == "application/json"
+        assert req["headers"]["DD-APPLICATION-KEY"] == "test-app-key"
         payload = json.loads(req["body"])
         assert payload["data"]["type"] == "prompt_resolve_requests"
         assert payload["data"]["attributes"] == {
@@ -503,10 +504,24 @@ class TestPrompts:
                 manager.get_prompt("greeting", targeting_key="u1", tier="free")  # new attrs -> new fetch
         assert len(conns) == 2
 
+    def test_no_app_key_env_uses_fallback_without_calling_resolve(self):
+        """Without an app key/SAT, /resolve can't be authorized; use the fallback and skip the doomed call."""
+        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                prompt = manager.get_prompt("greeting", targeting_key="user-1", fallback="hi {name}")
+        assert prompt.source == "fallback"
+        assert conn.requests == []
+
     def test_resolve_uses_hot_cache_not_warm(self, tmp_path):
         """Resolve results stay in the bounded hot cache; only the static/label path persists to disk."""
         manager = PromptManager(
-            api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=True, cache_dir=str(tmp_path)
+            api_key="test-key",
+            app_key="test-app-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=True,
+            cache_dir=str(tmp_path),
         )
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
@@ -552,6 +567,7 @@ class TestPrompts:
 def _make_manager(agentless=False):
     return PromptManager(
         api_key="test-key",
+        app_key="test-app-key",
         base_url="https://api.datadoghq.com",
         file_cache_enabled=False,
         agentless=agentless,

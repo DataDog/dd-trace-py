@@ -1988,6 +1988,7 @@ class LLMObs(Service):
 
         return PromptManager(
             api_key=api_key,
+            app_key=config._dd_app_key or "",
             base_url=base_url,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,

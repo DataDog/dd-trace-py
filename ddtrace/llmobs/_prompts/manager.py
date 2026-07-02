@@ -77,6 +77,7 @@ class PromptManager:
         self,
         api_key: str,
         base_url: str,
+        app_key: str = "",
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
@@ -87,6 +88,9 @@ class PromptManager:
         self._timeout = timeout
         self._agentless = agentless
         self._api_key = api_key
+        # App key or Service Access Token (sent as DD-APPLICATION-KEY). Required to satisfy the
+        # RBAC-gated /resolve endpoint; a SAT rides the same header per Datadog's token migration path.
+        self._app_key = app_key
         self._headers: dict[str, str] = {
             "X-Datadog-SDK-Language": "python",
         }
@@ -135,13 +139,12 @@ class PromptManager:
             # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
             # the HTTP /resolve floor, which resolves the same env-scoped variant server-side.
 
-        req = _PromptRequest(
-            prompt_id=prompt_id,
-            label=label,
-            env=None if label is not None else dd_env,
-            targeting_key=None if label is not None else targeting_key,
-            attributes={} if label is not None else attributes,
-        )
+        if label is not None:
+            req = _PromptRequest(prompt_id=prompt_id, label=label)
+        elif dd_env:
+            req = _PromptRequest(prompt_id=prompt_id, env=dd_env, targeting_key=targeting_key, attributes=attributes)
+        else:
+            req = _PromptRequest(prompt_id=prompt_id)
         return self._get_prompt_http(req, fallback=fallback)
 
     def _get_prompt_http(self, req: _PromptRequest, fallback: PromptFallback = None) -> ManagedPrompt:
@@ -360,6 +363,10 @@ class PromptManager:
         """Fetch a prompt over HTTP. Returns (prompt, not_found, reason)."""
         if not self._api_key:
             return None, False, "DD_API_KEY is required for the Prompt Registry"
+        if req.use_resolve and not self._app_key:
+            # /resolve is RBAC-gated; without an app key or Service Access Token the call would 401.
+            # Skip it and surface a clear reason rather than serving an unscoped version.
+            return None, False, "an app key or Service Access Token is required to resolve prompts for an environment"
 
         scope = req.label or req.env
         conn = None
@@ -371,7 +378,8 @@ class PromptManager:
                 body = json.dumps(
                     {"data": {"type": "prompt_resolve_requests", "attributes": self._resolve_attributes(req)}}
                 )
-                conn.request("POST", path, body=body, headers={**self._headers, "Content-Type": "application/json"})
+                headers = {**self._headers, "Content-Type": "application/json", "DD-APPLICATION-KEY": self._app_key}
+                conn.request("POST", path, body=body, headers=headers)
             else:
                 conn.request("GET", self._build_path(req.prompt_id, req.label), headers=self._headers)
             response = conn.getresponse()
