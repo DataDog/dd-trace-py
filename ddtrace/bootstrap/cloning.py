@@ -51,60 +51,32 @@ def cleanup_loaded_modules() -> None:
             return
         del sys.modules[module_name]
 
-    # We need to import these modules to make sure they grab references to the
-    # right modules before we start unloading stuff.
-    import ddtrace.internal.http  # noqa
-    import ddtrace.internal.uds  # noqa
-
-    # Unload all the modules that we have imported, except for the ddtrace one.
-    # NB: this means that every `import threading` anywhere in `ddtrace/` code
-    # uses a copy of that module that is distinct from the copy that user code
-    # gets when it does `import threading`. The same applies to every module
-    # not in `KEEP_MODULES`.
-    KEEP_MODULES = frozenset(
-        [
-            "atexit",
-            "copyreg",  # pickling issues for tracebacks with gevent
-            "ddtrace",
-            "concurrent",
-            "importlib._bootstrap",  # special import that must not be unloaded
-            "typing",
-            "_operator",  # pickling issues with typing module
-            "re",  # referenced by the typing module
-            "sre_constants",  # imported by re at runtime
-            "logging",
-            "attr",
-            "google",
-            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
-            "wrapt",
-            "bytecode",  # needed by before-fork hooks
-            "pathlib",  # used in singledispatch
-            "dataclasses",  # for product loaded remotely that use dataclasses
-        ]
-    )
-    for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
-        if any(m == _ or m.startswith(_ + ".") for _ in KEEP_MODULES):
-            continue
-
-        drop(m)
-
-    # TODO: The better strategy is to identify the core modules in LOADED_MODULES
-    # that should not be unloaded, and then unload as much as possible.
+    # We only need to unload the modules that gevent monkey-patches in place, plus a
+    # few that hold references into them. gevent patches these copies after ddtrace has
+    # loaded, so application code must re-import fresh copies while ddtrace keeps the
+    # pre-patch ones it imported (e.g. the profiler's real-thread tracking). Modules
+    # that gevent does not touch are left shared, which avoids the fragile allowlist of
+    # unrelated modules (typing, dataclasses, asyncio, ...) the old broad sweep needed.
+    # ``os`` is patched by gevent too but is imported on interpreter boot and only has
+    # fork hooks replaced, so it is safe to leave shared.
     UNLOAD_MODULES = frozenset(
         [
-            # imported in Python >= 3.10 and patched by gevent
             "time",
-            # we cannot unload the whole concurrent hierarchy, but this
-            # submodule makes use of threading so it is critical to unload when
-            # gevent is used.
-            "concurrent.futures",
-            # We unload the threading module in case it was imported by
-            # CPython on boot.
             "threading",
             "_thread",
-            # reprlib does `from _thread import get_ident` at module level;
-            # unloading it ensures a fresh re-import binds the correct get_ident
-            # after _thread is reloaded, keeping it picklable.
+            "socket",
+            # ssl.SSLContext recurses infinitely if patched twice, so a clean re-import
+            # is required when gevent is installed.
+            "ssl",
+            "select",
+            "selectors",
+            "queue",
+            "signal",
+            "subprocess",
+            # uses threading; must be re-imported against the gevent-patched copy.
+            "concurrent.futures",
+            # reprlib does `from _thread import get_ident` at module level; unloading it
+            # ensures a fresh re-import binds the correct get_ident, keeping it picklable.
             "reprlib",
         ]
     )
