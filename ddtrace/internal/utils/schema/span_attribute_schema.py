@@ -2,8 +2,8 @@ from enum import Enum
 import sys
 from typing import Optional
 
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.settings._inferred_base_service import detect_service
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 
 
 class SpanDirection(Enum):
