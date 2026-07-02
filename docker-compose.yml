@@ -201,9 +201,9 @@ services:
 
     testrunner:
         # DEV uncomment to test local changes to the Dockerfile
-        # build:
-        #  context: ./docker
-        #  dockerfile: Dockerfile
+        build:
+          context: ./docker
+          dockerfile: Dockerfile
         image: ghcr.io/datadog/dd-trace-py/testrunner:4d842eb2d0671790e4dc3e30309a8e3ffe91ac8b
         command: bash
         # Resource limits: defaults to 0 (unlimited, uses all available system resources)

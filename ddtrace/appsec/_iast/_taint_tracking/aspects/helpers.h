@@ -248,7 +248,8 @@ inline vector<string>
 split_taints(const string& str_to_split)
 {
     const std::regex rgx(R"((:\+-(<[0-9.a-z\-]+>)?|(<[0-9.a-z\-]+>)?-\+:))");
-    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, { -1, 0 });
+    // GCC 14 ICE workaround: use explicit initializer_list instead of brace-init
+    std::sregex_token_iterator iter(str_to_split.begin(), str_to_split.end(), rgx, std::initializer_list<int>{ -1, 0 });
     vector<string> res;
 
     for (const std::sregex_token_iterator end; iter != end; ++iter) {
