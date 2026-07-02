@@ -9,6 +9,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TextIO
+from urllib.parse import urlparse as _urlparse
 
 from ddtrace import config
 from ddtrace.internal.dist_computing.utils import in_ray_job
@@ -56,10 +57,9 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace.internal.http import HTTPConnection  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -211,6 +211,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             timeout = agent_config.trace_agent_timeout_seconds
         super(HTTPWriter, self).__init__(interval=processing_interval, autorestart=False)
         self.intake_url = intake_url
+        self._intake_base_path = _urlparse(intake_url).path.rstrip("/") if isinstance(intake_url, str) else ""
         self._intake_accepts_gzip = use_gzip
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
@@ -223,7 +224,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional["ConnectionType"] = None
+        self._conn: Optional["HTTPConnection"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -312,12 +313,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     final_headers,
                     _human_size(len(data)),
                 )
-                self._conn.request(
-                    self.HTTP_METHOD,
-                    client.ENDPOINT,
-                    data,
-                    final_headers,
+                endpoint = (
+                    self._intake_base_path + "/" + client.ENDPOINT.lstrip("/")
+                    if self._intake_base_path
+                    else client.ENDPOINT
                 )
+                self._conn.request(self.HTTP_METHOD, endpoint, data, final_headers)
                 resp = self._conn.getresponse()
                 t = sw.elapsed()
                 if t >= self.interval:

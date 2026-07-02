@@ -18,12 +18,13 @@ from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
@@ -686,7 +687,7 @@ def _make_uds_server(path, request_handler):
     # Wait for the server to start
     resp = None
     while resp != 200:
-        conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
+        conn = HTTPConnection(f"unix://{server.server_address}")
         try:
             conn.request("PUT", "/")
             resp = conn.getresponse().status
@@ -796,7 +797,7 @@ def test_flush_connection_timeout_connect(writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
     ):
-        exc_type = (OSError, NetworkError)
+        exc_type = (OSError, NetworkError, HttpClientError)
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -809,7 +810,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-        with pytest.raises((socket.timeout, IoError)):
+        with pytest.raises((socket.timeout, IoError, HttpClientError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -821,7 +822,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
     import threading
 
     from ddtrace.internal._threads import PeriodicThread
-    from ddtrace.internal.uds import UDSHTTPConnection
+    from ddtrace.internal.http import HTTPConnection
 
     sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
     sock_path = os.path.join(sock_dir, "blackhole.sock")
@@ -849,7 +850,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 
     def _callback():
         callback_started.set()
-        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        conn = HTTPConnection(f"unix://{sock_path}", timeout=0.5)
         try:
             conn.request("GET", "/")
             conn.getresponse().read()
@@ -889,7 +890,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
     ):
-        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
@@ -901,7 +902,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
     with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
-        exc_types = (httplib.IncompleteRead, NetworkError)
+        exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -926,7 +927,7 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = (OSError, NetworkError)
+        error = (OSError, NetworkError, HttpClientError)
         with pytest.raises(error):
             writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)

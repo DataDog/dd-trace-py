@@ -44,7 +44,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
-from ddtrace.llmobs._http import get_connection
+from ddtrace.llmobs._http import HTTPConnection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType
 from ddtrace.llmobs.types import _Meta
@@ -304,7 +304,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake, timeout=self._timeout)
+        conn = HTTPConnection(self._intake, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -405,11 +405,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(url=self._intake, timeout=timeout)
+        conn = HTTPConnection(self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
-            conn.request(method, url, encoded_body, headers)
+            conn.request(method, self._endpoint + path, encoded_body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -430,11 +430,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "DD-APPLICATION-KEY": self._app_key,
         }
 
-        conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
+        conn = HTTPConnection(self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s, %s", url, content_type)
-            conn.request(method, url, body, headers)
+            conn.request(method, self._endpoint + path, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -1021,7 +1021,7 @@ class LLMObsAPIClient:
                 params["page[cursor]"] = cursor
             path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
-            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+            conn = HTTPConnection(self._base_url, timeout=self.TIMEOUT)
             try:
                 conn.request("GET", path, b"", headers)
                 resp = conn.getresponse()

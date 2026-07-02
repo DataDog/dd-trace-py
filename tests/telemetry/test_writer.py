@@ -6,10 +6,11 @@ from typing import Any
 from typing import Optional
 from unittest import mock
 
-import httpretty
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.http import HTTPResponse
+from ddtrace.internal.http import NativeHTTPConnection
 from ddtrace.internal.settings._agent import get_agent_hostname
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 import ddtrace.internal.telemetry
@@ -59,7 +60,9 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
         telemetry_writer.periodic(force_flush=True)
         requests = test_agent_session.get_requests()
         assert len(requests) == 1
-        assert requests[0]["headers"]["DD-Telemetry-Request-Type"] == "message-batch"
+        # reqwest normalizes header names to lowercase; use case-insensitive lookup
+        req_headers = {k.lower(): v for k, v in requests[0]["headers"].items()}
+        assert req_headers["dd-telemetry-request-type"] == "message-batch"
         app_started_events = test_agent_session.get_events("app-started")
         assert len(app_started_events) == 1
         validate_request_body(app_started_events[0], None, "app-started")
@@ -780,8 +783,9 @@ def test_send_failing_request(mock_status, telemetry_writer):
     with override_global_config(dict(_telemetry_dependency_collection=False)):
         # force periodic call to flush the first app_started call
         telemetry_writer.periodic(force_flush=True)
-        with httpretty.enabled():
-            httpretty.register_uri(httpretty.POST, telemetry_writer._client.url, status=mock_status)
+        mock_resp = mock.Mock(spec=HTTPResponse)
+        mock_resp.status = mock_status
+        with mock.patch.object(NativeHTTPConnection, "getresponse", return_value=mock_resp):
             with mock.patch("ddtrace.internal.telemetry.writer.log") as log:
                 # sends failing app-heartbeat event
                 telemetry_writer.periodic(force_flush=True)
