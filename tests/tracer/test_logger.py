@@ -342,7 +342,7 @@ def test_logger_log_level_from_env(monkeypatch):
     monkeypatch.setenv("_DD_EXAMPLE_WARNING_LOG_LEVEL", "WARNING")
     monkeypatch.setenv("_DD_PACKAGE_WITH_UNDERSCORE_SUBMODULE_LOG_LEVEL", "ERROR")
 
-    import ddtrace.internal.logger as dd_logger
+    import ddtrace.internal.utils.logger as dd_logger
 
     with mock.patch.object(dd_logger, "LOG_LEVEL_TRIE", dd_logger.LoggerPrefix.build_trie()):
         assert get_logger("ddtrace.example.debug.foo.bar").level == logging.DEBUG
