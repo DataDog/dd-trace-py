@@ -216,3 +216,5 @@ def _before_fork() -> None:
     for thread in _threads_to_restart_after_fork:
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
+
+__all__ = list(locals().keys())

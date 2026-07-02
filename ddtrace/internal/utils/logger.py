@@ -244,3 +244,5 @@ def get_log_injection_state(raw_config: Optional[str]) -> bool:
                 normalized,
             )
     return False
+
+__all__ = list(locals().keys())
