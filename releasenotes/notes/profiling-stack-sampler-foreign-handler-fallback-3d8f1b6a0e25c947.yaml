@@ -8,5 +8,4 @@ fixes:
     only if it still owns the ``SIGSEGV`` handler afterwards, and permanently falls
     back to the syscall-based copy if a foreign handler is installed later. This
     removes the need for the ``_DD_PROFILING_STACK_FAST_COPY=0`` workaround in those
-    environments. The warmup duration can be tuned with the
-    ``DD_PROFILING_STACK_FAST_COPY_WARMUP_S`` environment variable (default 15).
+    environments.
