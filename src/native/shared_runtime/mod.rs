@@ -1,4 +1,4 @@
-use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
+use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::prelude::*;
 use std::sync::Arc;
 use std::time::Duration;
