@@ -170,10 +170,15 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptAuthError
 from ddtrace.llmobs.types import PromptFallback
+from ddtrace.llmobs.types import PromptResponse
+from ddtrace.llmobs.types import PromptVersionResponse
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -894,6 +899,11 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        if app_key:
+            # Invalidate any prompt manager cached by a read path (e.g. get_prompt)
+            # before the app key was configured, so it rebuilds with the new key.
+            with cls._prompt_manager_lock:
+                cls._prompt_manager = None
         cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         cls._git_repository_url, cls._git_commit_sha = resolve_llmobs_git_metadata()
         config.env = env or config.env
@@ -1866,14 +1876,14 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param label: Deployment label selecting a version; if omitted, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
@@ -1914,8 +1924,10 @@ class LLMObs(Service):
             hot: If True, clear the hot (in-memory) cache. Defaults to True.
             warm: If True, clear the warm (file-based) cache. Defaults to True.
         """
-        if cls._prompt_manager is not None:
-            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+        if manager is not None:
+            manager.clear_cache(hot=hot, warm=warm)
         elif warm:
             # Clear file cache even if manager is not initialized
             cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
@@ -1926,7 +1938,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[Literal["development", "production"]] = None,
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1934,7 +1946,7 @@ class LLMObs(Service):
 
         Args:
             prompt_id: The prompt identifier.
-            label: The prompt label. If not provided, returns the latest version.
+            label: Deployment label selecting a version; if omitted, returns the latest version.
 
         Returns:
             The refreshed prompt, or None if fetch failed.
@@ -1943,12 +1955,188 @@ class LLMObs(Service):
         return prompt_manager.refresh_prompt(prompt_id, label)
 
     @classmethod
+    def create_prompt(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        title: str = "",
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptResponse:
+        """Create a new prompt in the registry.
+
+        Args:
+            prompt_id: Unique identifier for the prompt.
+            template: List of chat messages defining the prompt template.
+            title: Optional human-readable title.
+            description: Optional description of the prompt.
+            user_version: Optional user-defined version string.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+
+        Returns:
+            The created prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request (bad template, missing fields).
+            PromptConflictError: A prompt with this prompt_id already exists.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt(
+            prompt_id, template, title=title, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def create_prompt_version(
+        cls,
+        prompt_id: str,
+        template: list[ChatMessage],
+        *,
+        description: str = "",
+        user_version: str = "",
+        labels: Optional[list[str]] = None,
+    ) -> PromptVersionResponse:
+        """Create a new version of an existing prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+            template: List of chat messages defining the new version's template.
+            description: Optional description of this version.
+            user_version: Optional user-defined version string.
+            labels: Optional list of deployment labels (arbitrary strings, typically DD_ENV values).
+
+        Returns:
+            The created prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: Invalid request.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.create_prompt_version(
+            prompt_id, template, description=description, user_version=user_version, labels=labels
+        )
+
+    @classmethod
+    def update_prompt(
+        cls,
+        prompt_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> PromptResponse:
+        """Update prompt metadata (title and/or description).
+
+        Args:
+            prompt_id: The prompt identifier.
+            title: New title for the prompt.
+            description: New description for the prompt.
+
+        Returns:
+            The updated prompt.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt(prompt_id, title=title, description=description)
+
+    @classmethod
+    def update_prompt_version(
+        cls,
+        prompt_id: str,
+        version: int,
+        *,
+        labels: Optional[list[str]] = None,
+        description: Optional[str] = None,
+    ) -> PromptVersionResponse:
+        """Update a specific prompt version's metadata.
+
+        Args:
+            prompt_id: The prompt identifier.
+            version: The numeric version number (auto-incremented by the API, e.g. 1, 2, 3).
+            labels: New labels for the version.
+            description: New description for the version.
+
+        Returns:
+            The updated prompt version.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptValidationError: No fields provided, or invalid values.
+            PromptNotFoundError: Prompt or version does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.update_prompt_version(prompt_id, version, labels=labels, description=description)
+
+    @classmethod
+    def delete_prompt(cls, prompt_id: str) -> DeletedPromptResponse:
+        """Delete a prompt and all its versions from the registry.
+
+        Also evicts the prompt from local caches.
+
+        Args:
+            prompt_id: The prompt identifier to delete.
+
+        Returns:
+            Confirmation with prompt_id and deleted_at timestamp.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.delete_prompt(prompt_id)
+
+    @classmethod
+    def list_prompts(cls) -> list[PromptResponse]:
+        """List all prompts.
+
+        Returns:
+            A list of prompts.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompts()
+
+    @classmethod
+    def list_prompt_versions(cls, prompt_id: str) -> list[PromptVersionResponse]:
+        """List all versions of a prompt.
+
+        Args:
+            prompt_id: The prompt identifier.
+
+        Returns:
+            A list of prompt versions.
+
+        Raises:
+            PromptAuthError: Authentication failed (check DD_API_KEY).
+            PromptNotFoundError: Prompt does not exist.
+            PromptServerError: Server-side error.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.list_prompt_versions(prompt_id)
+
+    @classmethod
     def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
 
         if not api_key:
-            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+            raise PromptAuthError(0, "DD_API_KEY is required for prompt operations")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
@@ -1959,6 +2147,7 @@ class LLMObs(Service):
         return PromptManager(
             api_key=api_key,
             base_url=base_url,
+            app_key=cls._app_key,
             cache_ttl=cache_ttl,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
