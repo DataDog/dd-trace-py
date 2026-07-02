@@ -40,9 +40,11 @@ import sys
 from typing import Any
 
 from _import_graph import collect_edges
+from _import_graph import compute_reachability
 from _import_graph import extract_ddtrace_imports
 from _import_graph import path_bucket
 from _import_graph import path_to_module
+from _import_graph import tarjan_sccs
 
 
 # ---------------------------------------------------------------------------
@@ -170,8 +172,16 @@ def _martin_record(sub: str, ca: int, ce: int, ab: dict[str, Any]) -> dict[str, 
     }
 
 
+def _ccd_bbt(n: int) -> int:
+    """CCD of a perfectly balanced binary tree with n nodes (used as NCCD reference)."""
+    if n <= 1:
+        return n
+    left = n // 2
+    return n + _ccd_bbt(left) + _ccd_bbt(n - left - 1)
+
+
 def compute_metrics(ddtrace_root: Path, min_edge_weight: int = 0) -> list[dict[str, Any]]:
-    """One record per subsystem with all Martin metrics."""
+    """One record per subsystem with all Martin metrics plus cycle and reachability data."""
     edges, _ = collect_edges(
         ddtrace_root,
         (),
@@ -181,11 +191,23 @@ def compute_metrics(ddtrace_root: Path, min_edge_weight: int = 0) -> list[dict[s
     )
     coupling = compute_coupling(edges)
     abstractness = analyze_abstractness(ddtrace_root)
+    all_nodes = set(coupling) | set(abstractness)
+
+    in_cycle: set[str] = set()
+    for scc in tarjan_sccs(all_nodes, edges):
+        if len(scc) > 1:
+            in_cycle.update(scc)
+
+    reachability = compute_reachability(all_nodes, edges)
+
     records = []
-    for sub in sorted(set(coupling) | set(abstractness)):
+    for sub in sorted(all_nodes):
         cp = coupling.get(sub, {"Ca": 0, "Ce": 0})
         ab = abstractness.get(sub, {"total": 0, "abstract": 0, "protocol": 0, "files": 0})
-        records.append(_martin_record(sub, cp["Ca"], cp["Ce"], ab))
+        r = _martin_record(sub, cp["Ca"], cp["Ce"], ab)
+        r["in_cycle"] = sub in in_cycle
+        r["reach"] = reachability.get(sub, 0)
+        records.append(r)
     return records
 
 
@@ -380,27 +402,38 @@ def format_markdown(records: list[dict[str, Any]], threshold: float) -> str:
     if not any(r["D"] is not None and abs(r["D"]) > threshold for r in visible):
         return ""
 
+    n = len(records)
+    ccd = sum(r.get("reach", 0) + 1 for r in records)
+    nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+    nccd_flag = " ⚠️" if nccd > 1.0 else ""
+    cyclic_count = sum(1 for r in records if r.get("in_cycle"))
+    cycle_flag = " ⚠️" if cyclic_count else ""
+
     # Shims (D=None) sort last; otherwise sort by |D| descending.
     sorted_records = sorted(visible, key=lambda r: abs(r["D"]) if r["D"] is not None else -1, reverse=True)
     lines = [
-        "## Modularization metrics",
+        "| Metric | Value | Meaning |",
+        "|---|---|---|",
+        f"| NCCD | **{nccd}{nccd_flag}** | Normalised coupling vs balanced binary tree (< 1 good, > 1 bad) |",
+        f"| Cyclic subsystems | **{cyclic_count}{cycle_flag}** | Subsystems in dependency cycles (ADP violations) |",
         "",
         f"> Threshold |D| > {threshold:.1f}  "
         "· **I** = instability (0 stable → 1 unstable)  "
         "· **A** = abstractness  "
         "· **D** = A+I−1 (negative = Pain · positive = Uselessness · ⚠️ = |D| > threshold · — = shim)",
         "",
-        "| Subsystem | Files | Classes | Ca | Ce | I | A | D |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Subsystem | Files | Classes | Ca | Ce | I | A | D | Cycles |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for r in sorted_records:
         name = r["subsystem"].replace("ddtrace.", "", 1)
         flag, cell = _d_cell(r["D"], threshold)
         a_str = _fmt(r["A"]) if r["A"] is not None else "—"
+        cycle_cell = "⚠️" if r.get("in_cycle") else "—"
         lines.append(
             f"| `{name}`{flag} | {r['files']} | {r['classes']} "
             f"| {r['Ca']} | {r['Ce']} "
-            f"| {_fmt(r['I'])} | {a_str} | {cell} |"
+            f"| {_fmt(r['I'])} | {a_str} | {cell} | {cycle_cell} |"
         )
     flagged = [
         r["subsystem"].replace("ddtrace.", "", 1)
@@ -420,12 +453,16 @@ def format_markdown(records: list[dict[str, Any]], threshold: float) -> str:
         "Ca  afferent coupling — subsystems that depend on this one (fan-in)",
         "Ce  efferent coupling — subsystems this one depends on (fan-out)",
         "I   Ce / (Ca + Ce)   — instability [0 stable, 1 unstable]",
-        "A   abstract_classes / total_classes — abstractness (— if 0 classes)",
-        "D   A + I - 1        — signed distance from main sequence (— if 0 classes)",
-        "      D < 0  Zone of Pain        (stable but concrete — hard to change)",
-        "      D = 0  Main sequence       (ideal balance)",
-        "      D > 0  Zone of Uselessness (abstract but unstable — nobody uses it)",
-        "      —      Shim / facade       (0 classes; D undefined, never flagged)",
+        "A      abstract_classes / total_classes — abstractness (— if 0 classes)",
+        "D      A + I - 1        — signed distance from main sequence (— if 0 classes)",
+        "         D < 0  Zone of Pain        (stable but concrete — hard to change)",
+        "         D = 0  Main sequence       (ideal balance)",
+        "         D > 0  Zone of Uselessness (abstract but unstable — nobody uses it)",
+        "         —      Shim / facade       (0 classes; D undefined, never flagged)",
+        "Cycles ⚠️ if subsystem is part of a dependency cycle (ADP violation)",
+        "NCCD   CCD / CCD_balanced_binary_tree(N) — normalised coupling health",
+        "         < 1.0  Better-structured than a balanced binary tree",
+        "         > 1.0  Worse — coupling accumulates faster than optimal",
         "```",
         "",
         "Abstract classes: ABC subclasses, ABCMeta metaclass, @abstractmethod, typing.Protocol.",

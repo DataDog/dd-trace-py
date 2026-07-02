@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -183,3 +184,63 @@ def _short_label(node: str) -> str:
     if node.startswith("ddtrace."):
         return node[len("ddtrace.") :]
     return node
+
+
+def tarjan_sccs(nodes: set[str], edges: set[tuple[str, str]]) -> list[list[str]]:
+    """Tarjan's SCC algorithm. SCCs with >1 node are dependency cycles (ADP violations)."""
+    adj: dict[str, list[str]] = {n: [] for n in nodes}
+    for src, dst in edges:
+        if src in adj:
+            adj[src].append(dst)
+    idx: dict[str, int] = {}
+    low: dict[str, int] = {}
+    on_stk: set[str] = set()
+    stk: list[str] = []
+    counter = [0]
+    sccs: list[list[str]] = []
+
+    def _visit(v: str) -> None:
+        idx[v] = low[v] = counter[0]
+        counter[0] += 1
+        stk.append(v)
+        on_stk.add(v)
+        for w in adj.get(v, []):
+            if w not in idx:
+                _visit(w)
+                low[v] = min(low[v], low[w])
+            elif w in on_stk:
+                low[v] = min(low[v], idx[w])
+        if low[v] == idx[v]:
+            scc: list[str] = []
+            while True:
+                w = stk.pop()
+                on_stk.discard(w)
+                scc.append(w)
+                if w == v:
+                    break
+            sccs.append(scc)
+
+    for v in sorted(nodes):
+        if v not in idx:
+            _visit(v)
+    return sccs
+
+
+def compute_reachability(nodes: set[str], edges: set[tuple[str, str]]) -> dict[str, int]:
+    """BFS forward reachability. Returns {node: count of distinct nodes reachable from it, excl. self}."""
+    adj: dict[str, set[str]] = {n: set() for n in nodes}
+    for src, dst in edges:
+        if src in adj:
+            adj[src].add(dst)
+    result: dict[str, int] = {}
+    for start in nodes:
+        visited: set[str] = {start}
+        q: deque[str] = deque([start])
+        while q:
+            v = q.popleft()
+            for w in adj.get(v, set()):
+                if w not in visited:
+                    visited.add(w)
+                    q.append(w)
+        result[start] = len(visited) - 1
+    return result
