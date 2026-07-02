@@ -1,0 +1,44 @@
+# Single source of truth for external references that may be affected by the
+# GitHub organization split (APMLP-1185). See
+# docs/github-org-migration-audit.md for the full audit and rationale.
+#
+# When adding a CI/build reference to:
+#   - an internal Datadog GitHub repo (e.g. DataDog/<repo>)
+#   - an internal *.ddbuild.io endpoint
+#   - a cross-project GitLab trigger
+#   - a dd-octo-sts scope
+# either reuse one of the variables below, or add the file:line to
+# .gitlab/external-refs.allowlist.txt with a justification. The
+# `external-refs-lint` job in .gitlab-ci.yml enforces this via
+# scripts/check-external-refs.py.
+#
+# Variables defined here are available to every GitLab CI job because this
+# file is the first include in .gitlab-ci.yml.
+
+variables:
+  # ----- Cross-project GitLab triggers (used in `trigger:project:`) -----
+  # Variable expansion in `trigger.project` is supported since GitLab 16.0.
+  EXT_GITLAB_LAMBDA_PYTHON: "DataDog/datadog-lambda-python"
+  EXT_GITLAB_APM_SDKS_BENCHMARKS: "DataDog/apm-reliability/apm-sdks-benchmarks"
+  EXT_GITLAB_DEBUGGER_DEMOS: "DataDog/debugger-demos"
+  EXT_GITLAB_SERVERLESS_TOOLS: "DataDog/serverless-tools"
+
+  # ----- GitHub repository paths (used in dd-octo-sts --scope and gh CLI) -----
+  EXT_GITHUB_DD_TRACE_PY: "DataDog/dd-trace-py"
+  EXT_GITHUB_PROF_CORRECTNESS: "DataDog/prof-correctness"
+
+  # ----- Internal endpoint hostnames -----
+  # Used in URL rewrites and direct internal-GitLab clones.
+  EXT_HOST_INTERNAL_GITLAB: "gitlab.ddbuild.io"
+
+# ----- Cross-project GitLab `include:` references -----
+# GitLab CI does not expand variables in `include:` directives — they are
+# resolved at parse time, before the `variables:` block is applied. The
+# following projects are referenced via `include: - project:` and therefore
+# CANNOT be replaced with variables; they are allowlisted in
+# `.gitlab/external-refs.allowlist.txt` instead, with this list serving as
+# the human-readable inventory.
+#
+#   DataDog/benchmarking-platform-tools
+#       .gitlab/benchmarks/macrobenchmarks.yml:8,10
+#       .gitlab/benchmarks/microbenchmarks.yml:2

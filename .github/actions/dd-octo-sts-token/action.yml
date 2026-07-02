@@ -1,0 +1,28 @@
+name: 'dd-octo-sts token'
+description: >
+  Wrapper for DataDog/dd-octo-sts-action. Centralizes the upstream SHA so
+  that GitHub-org-split mitigations (APMLP-1185) can update one file when
+  the upstream action moves between Datadog organizations. See
+  docs/github-org-migration-audit.md.
+
+inputs:
+  scope:
+    description: 'GitHub repository scope (e.g. DataDog/dd-trace-py).'
+    required: true
+  policy:
+    description: 'STS policy name.'
+    required: true
+
+outputs:
+  token:
+    description: 'GitHub token minted by dd-octo-sts.'
+    value: ${{ steps.upstream.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - id: upstream
+      uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+      with:
+        scope: ${{ inputs.scope }}
+        policy: ${{ inputs.policy }}
