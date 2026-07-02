@@ -140,6 +140,16 @@ init_segv_catcher()
     return 0;
 }
 
+bool
+segv_handler_installed()
+{
+    struct sigaction current;
+    if (sigaction(SIGSEGV, nullptr, &current) != 0) {
+        return false;
+    }
+    return current.sa_sigaction == segv_handler;
+}
+
 void
 uninstall_segv_handler()
 {

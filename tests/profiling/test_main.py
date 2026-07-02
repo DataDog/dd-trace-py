@@ -217,3 +217,38 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     from google.protobuf import empty_pb2  # noqa:F401
 
     print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.subprocess(
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
+    out="OK\n",
+    err=None,
+)
+def test_stack_profiler_foreign_segv_handler_detection() -> None:
+    # Regression test for PROF-14568: safe_memcpy's fault recovery only works while
+    # we own the SIGSEGV handler. If another component (PyTorch/CUDA, or abseil
+    # pulled in by vLLM/gRPC) installs its own handler, the native sampler must
+    # detect that it no longer owns the handler so it can stay on / fall back to the
+    # syscall-based memory copy instead of crashing.
+    #
+    # segv_handler_installed() is the primitive that drives that decision. Our
+    # handler is installed at native import time when fast copy is enabled, so the
+    # predicate can be verified deterministically here without waiting on the
+    # sampler's startup warmup window.
+    import signal
+
+    from ddtrace.internal.datadog.profiling import stack
+
+    # Our handler is installed by the extension's constructor on import.
+    assert stack.segv_handler_installed() is True
+
+    # A foreign component overwrites the SIGSEGV disposition: ownership must flip.
+    signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
+
+    # Reclaiming the handler is detected too.
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
+
+    print("OK")
