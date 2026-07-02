@@ -769,3 +769,6 @@ def lazy(f: t.Callable[[], None]) -> None:
             raise h
 
     _globals["__getattr__"] = __getattr__
+
+
+__all__ = list(locals().keys())
