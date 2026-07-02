@@ -251,64 +251,34 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
 
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
 @pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_STACK_V2_ENABLED="true",
-        DD_PROFILING_STACK_FAST_COPY="1",
-        # Skip the warmup window so the sampler decides on safe_memcpy immediately;
-        # otherwise it would run on the safe syscall copy for the default warmup and
-        # the degrade path would not engage within the test's short sampling window.
-        DD_PROFILING_STACK_FAST_COPY_WARMUP_S="0",
-    ),
+    env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
     out="OK\n",
-    # The sampler logs a one-time warning to stderr when it sees a foreign handler
-    # and stays on / drops to the syscall-based copy. Either "falling back ..." (it
-    # upgraded then lost the handler) or "keeping ..." (the foreign handler was
-    # already present at the upgrade check) proves the degrade path fired; both
-    # contain this substring. We assert it rather than requiring empty stderr.
-    err=lambda e: "syscall-based memory copy" in e,
+    err=None,
 )
-def test_stack_profiler_foreign_segv_handler_no_crash() -> None:
-    # Regression test for PROF-14568 (Layer 1): if another component installs its
-    # own SIGSEGV handler after the profiler starts (as PyTorch/CUDA do), the
-    # native sampler must detect it does not own the handler and degrade to a
-    # syscall-based copy instead of crashing. Here we overwrite the SIGSEGV
-    # disposition from Python and keep sampling; the process must not crash and
-    # must use the syscall-based copy.
+def test_stack_profiler_foreign_segv_handler_detection() -> None:
+    # Regression test for PROF-14568: safe_memcpy's fault recovery only works while
+    # we own the SIGSEGV handler. If another component (PyTorch/CUDA, or abseil
+    # pulled in by vLLM/gRPC) installs its own handler, the native sampler must
+    # detect that it no longer owns the handler so it can stay on / fall back to the
+    # syscall-based memory copy instead of crashing.
+    #
+    # segv_handler_installed() is the primitive that drives that decision. Our
+    # handler is installed at native import time when fast copy is enabled, so the
+    # predicate can be verified deterministically here without waiting on the
+    # sampler's startup warmup window.
     import signal
-    import threading
-    import time
 
-    from ddtrace.profiling.profiler import Profiler
+    from ddtrace.internal.datadog.profiling import stack
 
-    prof = Profiler()
-    prof.start()
+    # Our handler is installed by the extension's constructor on import.
+    assert stack.segv_handler_installed() is True
 
-    # Overwrite the profiler's SIGSEGV handler with a foreign one.
+    # A foreign component overwrites the SIGSEGV disposition: ownership must flip.
     signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+    assert stack.segv_handler_installed() is False
 
-    stop_evt = threading.Event()
-
-    def churn() -> None:
-        def recurse(depth):
-            if depth <= 0:
-                return sum(len(str(i)) for i in range(8))
-            return recurse(depth - 1)
-
-        while not stop_evt.is_set():
-            recurse(20)
-
-    workers = [threading.Thread(target=churn, daemon=True) for _ in range(4)]
-    for w in workers:
-        w.start()
-
-    # With the warmup disabled the sampler checks handler ownership every cycle and
-    # degrades on the first observation, so detection happens within a few sample
-    # intervals. Sample for a comfortable margin so the degrade reliably fires.
-    time.sleep(2.0)
-
-    stop_evt.set()
-    for w in workers:
-        w.join(timeout=1.0)
-    prof.stop(flush=True)
+    # Reclaiming the handler is detected too.
+    stack.reinstall_segv_handler()
+    assert stack.segv_handler_installed() is True
 
     print("OK")

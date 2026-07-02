@@ -52,6 +52,14 @@ def reinstall_segv_handler() -> None:
     """
     ...
 
+def segv_handler_installed() -> bool:
+    """Return True if our SIGSEGV handler is the currently installed disposition.
+
+    Used to detect when another component (e.g. PyTorch/CUDA) has taken over the
+    handler, in which case safe_memcpy's fault recovery would no longer work.
+    """
+    ...
+
 # Pause/resume sampling
 def pause_sampling() -> bool | None:
     """Pause the sampling thread and wait for any in-flight sample to complete.

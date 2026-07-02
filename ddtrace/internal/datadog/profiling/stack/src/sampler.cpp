@@ -29,20 +29,8 @@ using namespace Datadog;
 // before upgrading to the faster safe_memcpy path. Running on the safe path during
 // the import-heavy startup window means a fault there can never crash, even if
 // another component (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC) installs its
-// own SIGSEGV handler. Overridable via DD_PROFILING_STACK_FAST_COPY_WARMUP_S
-// (PROF-14568).
-static long
-fast_copy_warmup_seconds()
-{
-    if (const char* val = getenv("DD_PROFILING_STACK_FAST_COPY_WARMUP_S")) {
-        char* end = nullptr;
-        long parsed = strtol(val, &end, 10);
-        if (end != val && parsed >= 0) {
-            return parsed;
-        }
-    }
-    return 15;
-}
+// own SIGSEGV handler during that window (PROF-14568).
+static constexpr long kStackFastCopyWarmupSeconds = 15;
 
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
@@ -396,7 +384,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
-    const auto fast_copy_warmup_deadline = sample_time_prev + seconds(fast_copy_warmup_seconds());
+    const auto fast_copy_warmup_deadline = sample_time_prev + seconds(kStackFastCopyWarmupSeconds);
     if (fast_copy_warmup) {
         // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);

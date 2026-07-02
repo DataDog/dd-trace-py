@@ -883,6 +883,18 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 }
 
 static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Introspection used by tests: reports whether our SIGSEGV handler is the
+    // currently installed disposition. This is the same primitive the sampler
+    // uses to decide whether safe_memcpy's fault recovery is still trustworthy.
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
 // process_vm_readv is always available on macOS
@@ -964,6 +976,10 @@ static PyMethodDef stack_methods[] = {
       stack_reinstall_segv_handler,
       METH_NOARGS,
       "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if our SIGSEGV handler is the currently installed disposition" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,
