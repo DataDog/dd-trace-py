@@ -398,6 +398,22 @@ detect_circular_imports:
     - exit $COMPARE_EXIT
 
 
+modularization_metrics:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - pip install uv
+    - cd ..
+    # Scan main branch for baseline; fall back to empty JSON if script is absent
+    - cd dd-trace-py && git checkout main && cd ..
+    - uv run --script dd-trace-py/scripts/modularization_metrics.py --root dd-trace-py/ddtrace --json metrics-base.json || echo '{}' > metrics-base.json
+    # Return to PR branch, scan it, and produce the comparison report
+    - cd dd-trace-py && git checkout - && cd ..
+    - uv run --script dd-trace-py/scripts/modularization_metrics.py --root dd-trace-py/ddtrace --compare metrics-base.json --markdown modularization_report.md
+    - bash dd-trace-py/.gitlab/scripts/post-pr-comment.sh "Modularization metrics" modularization_report.md
+
+
 "summarize failures":
   stage: .post
   extends: .testrunner

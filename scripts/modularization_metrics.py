@@ -1,0 +1,773 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
+
+"""Compute Robert C. Martin's package-level design metrics for ddtrace/.
+
+Metrics per subsystem (first path segment under ddtrace/):
+
+  Ca  — afferent coupling:  number of other subsystems that import this one
+  Ce  — efferent coupling:  number of other subsystems this one imports from
+  I   — instability:        Ce / (Ca + Ce)   [0 = stable, 1 = unstable]
+  A   — abstractness:       abstract_classes / total_classes
+                             (shown as — for subsystems with 0 classes; D is also — for shims)
+  D   — signed distance:    A + I - 1
+          D < 0  Zone of Pain        (stable but concrete — hard to change)
+          D = 0  Main sequence       (ideal)
+          D > 0  Zone of Uselessness (abstract but unstable — nobody uses it)
+          —      Undefined           (0 classes — pure shim/re-export, metric N/A)
+
+Modes:
+  Default      Subsystem-level summary table (CI-suitable).
+               Only writes output when at least one subsystem has |D| > --threshold.
+  --drilldown  Per-module breakdown of a subsystem with class-level candidates.
+               Intended for local use to decide what to work on next.
+
+Run with ``uv run --script scripts/modularization_metrics.py [--drilldown SUBSYSTEM]``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+from collections import defaultdict
+import json
+from pathlib import Path
+import sys
+from typing import Any
+
+from _import_graph import collect_edges
+from _import_graph import compute_reachability
+from _import_graph import extract_ddtrace_imports
+from _import_graph import path_bucket
+from _import_graph import path_to_module
+from _import_graph import tarjan_sccs
+
+
+# ---------------------------------------------------------------------------
+# Shared AST helpers — abstractness classification
+# ---------------------------------------------------------------------------
+
+
+def _is_name(node: ast.expr, name: str) -> bool:
+    return isinstance(node, ast.Name) and node.id == name
+
+
+def _is_attr(node: ast.expr, attr: str) -> bool:
+    return isinstance(node, ast.Attribute) and node.attr == attr
+
+
+def _bases_include(bases: list[ast.expr], *names: str) -> bool:
+    for base in bases:
+        for name in names:
+            if _is_name(base, name) or _is_attr(base, name):
+                return True
+    return False
+
+
+def _keywords_include_abcmeta(keywords: list[ast.keyword]) -> bool:
+    for kw in keywords:
+        if kw.arg == "metaclass":
+            if _is_name(kw.value, "ABCMeta") or _is_attr(kw.value, "ABCMeta"):
+                return True
+    return False
+
+
+def _has_abstractmethod(class_node: ast.ClassDef) -> bool:
+    for node in ast.walk(class_node):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for dec in node.decorator_list:
+                if _is_name(dec, "abstractmethod") or _is_attr(dec, "abstractmethod"):
+                    return True
+    return False
+
+
+def _classify_class(node: ast.ClassDef) -> str:
+    """Return 'abstract', 'protocol', or 'concrete'."""
+    if _bases_include(node.bases, "Protocol"):
+        return "protocol"
+    if _bases_include(node.bases, "ABC") or _keywords_include_abcmeta(node.keywords) or _has_abstractmethod(node):
+        return "abstract"
+    return "concrete"
+
+
+# ---------------------------------------------------------------------------
+# Summary-level analysis (subsystem buckets)
+# ---------------------------------------------------------------------------
+
+
+def analyze_abstractness(ddtrace_root: Path) -> dict[str, dict[str, int]]:
+    """Count classes per top-level subsystem bucket."""
+    counts: dict[str, dict[str, int]] = {}
+    skip = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
+    for py in sorted(ddtrace_root.rglob("*.py")):
+        rel_parts = py.relative_to(ddtrace_root).parts
+        if rel_parts and rel_parts[0] in skip:
+            continue
+        if "__pycache__" in rel_parts:
+            continue
+        if any(p.startswith(".") for p in rel_parts):
+            continue
+        bucket = path_bucket(py, ddtrace_root, ())
+        if bucket is None:
+            continue
+        if bucket not in counts:
+            counts[bucket] = {"total": 0, "abstract": 0, "protocol": 0, "files": 0}
+        counts[bucket]["files"] += 1
+        try:
+            source = py.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (OSError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                counts[bucket]["total"] += 1
+                kind = _classify_class(node)
+                if kind != "concrete":
+                    counts[bucket][kind] += 1
+    return counts
+
+
+def compute_coupling(edges: set[tuple[str, str]]) -> dict[str, dict[str, int]]:
+    """Ca / Ce per subsystem from a directed edge set (src imports dst)."""
+    all_nodes: set[str] = set()
+    for src, dst in edges:
+        all_nodes.add(src)
+        all_nodes.add(dst)
+    ca: dict[str, int] = {n: 0 for n in all_nodes}
+    ce: dict[str, int] = {n: 0 for n in all_nodes}
+    for src, dst in edges:
+        ce[src] += 1
+        ca[dst] += 1
+    return {n: {"Ca": ca[n], "Ce": ce[n]} for n in all_nodes}
+
+
+def _martin_record(sub: str, ca: int, ce: int, ab: dict[str, Any]) -> dict[str, Any]:
+    total_coupling = ca + ce
+    I = ce / total_coupling if total_coupling > 0 else 0.5  # noqa: E741
+    total_classes = ab.get("total", 0)
+    abstract_classes = ab.get("abstract", 0) + ab.get("protocol", 0)
+    A: float | None
+    D: float | None
+    if total_classes > 0:
+        a = abstract_classes / total_classes
+        A = round(a, 3)
+        D = round(a + I - 1.0, 3)
+    else:
+        A = None  # 0/0: undefined, not zero — subsystem is a shim with no classes
+        D = None
+    return {
+        "subsystem": sub,
+        "files": ab.get("files", 0),
+        "classes": total_classes,
+        "abstract_classes": abstract_classes,
+        "Ca": ca,
+        "Ce": ce,
+        "I": round(I, 3),
+        "A": A,
+        "D": D,
+    }
+
+
+def _ccd_bbt(n: int) -> int:
+    """CCD of a perfectly balanced binary tree with n nodes (used as NCCD reference)."""
+    if n <= 1:
+        return n
+    left = n // 2
+    return n + _ccd_bbt(left) + _ccd_bbt(n - left - 1)
+
+
+def compute_metrics(ddtrace_root: Path, min_edge_weight: int = 0) -> list[dict[str, Any]]:
+    """One record per subsystem with all Martin metrics plus cycle and reachability data."""
+    edges, _ = collect_edges(
+        ddtrace_root,
+        (),
+        min_dependents_per_node=0,
+        min_edge_weight=min_edge_weight,
+        collect_aliases=False,
+    )
+    coupling = compute_coupling(edges)
+    abstractness = analyze_abstractness(ddtrace_root)
+    all_nodes = set(coupling) | set(abstractness)
+
+    in_cycle: set[str] = set()
+    for scc in tarjan_sccs(all_nodes, edges):
+        if len(scc) > 1:
+            in_cycle.update(scc)
+
+    reachability = compute_reachability(all_nodes, edges)
+
+    records = []
+    for sub in sorted(all_nodes):
+        cp = coupling.get(sub, {"Ca": 0, "Ce": 0})
+        ab = abstractness.get(sub, {"total": 0, "abstract": 0, "protocol": 0, "files": 0})
+        r = _martin_record(sub, cp["Ca"], cp["Ce"], ab)
+        r["in_cycle"] = sub in in_cycle
+        r["reach"] = reachability.get(sub, 0)
+        records.append(r)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Drilldown-level analysis (modules within one subsystem)
+# ---------------------------------------------------------------------------
+
+_SKIP = {"vendor", "__pycache__", ".pytest_cache", "test-results"}
+
+
+def _drilldown_src_bucket(py: Path, ddtrace_root: Path, subsystem: str) -> str | None:
+    """Bucket for a source file: first path segment inside ddtrace/{subsystem}/."""
+    sub_dir = ddtrace_root / subsystem
+    try:
+        rel = py.relative_to(sub_dir)
+    except ValueError:
+        return None
+    parts = rel.parts
+    top = parts[0]
+    if top == "__pycache__":
+        return None
+    if top == "__init__.py":
+        return f"ddtrace.{subsystem}"
+    return f"ddtrace.{subsystem}.{top[:-3] if top.endswith('.py') else top}"
+
+
+def _drilldown_dst_bucket(imp: str, subsystem: str) -> str | None:
+    """Map an imported ddtrace module name to a drilldown-level bucket."""
+    if not imp.startswith("ddtrace."):
+        return None
+    rest = imp[len("ddtrace.") :]
+    parts = rest.split(".")
+    if not parts or not parts[0]:
+        return None
+    if parts[0] == subsystem:
+        # Internal: ddtrace.internal.foo.bar → ddtrace.internal.foo
+        if len(parts) >= 2:
+            return f"ddtrace.{parts[0]}.{parts[1]}"
+        return f"ddtrace.{parts[0]}"
+    # External: ddtrace.other.anything → ddtrace.other
+    return f"ddtrace.{parts[0]}"
+
+
+def _build_module_imports(ddtrace_root: Path) -> dict[str, set[str]]:
+    """Scan all files; return {module_name: set_of_imported_ddtrace_modules}."""
+    result: dict[str, set[str]] = {}
+    for py in sorted(ddtrace_root.rglob("*.py")):
+        rel_parts = py.relative_to(ddtrace_root).parts
+        if rel_parts and rel_parts[0] in _SKIP:
+            continue
+        if "__pycache__" in rel_parts:
+            continue
+        if any(p.startswith(".") for p in rel_parts):
+            continue
+        mod, is_pkg_init = path_to_module(ddtrace_root, py)
+        try:
+            source = py.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        result[mod] = extract_ddtrace_imports(source, mod, is_pkg_init, False, frozenset())
+    return result
+
+
+def _top_bucket(module: str) -> str:
+    """ddtrace.internal.foo → ddtrace.internal"""
+    if not module.startswith("ddtrace."):
+        return module
+    rest = module[len("ddtrace.") :]
+    return f"ddtrace.{rest.split('.')[0]}"
+
+
+def compute_drilldown_coupling(ddtrace_root: Path, subsystem: str) -> dict[str, dict[str, int]]:
+    """Ca/Ce per drilldown bucket (module within subsystem).
+
+    Ce[b] = distinct drilldown-level or top-level buckets that b imports from.
+    Ca[b] = distinct drilldown-level or top-level buckets that import b.
+    """
+    module_imports = _build_module_imports(ddtrace_root)
+
+    # Map every module to its bucket in this drilldown view
+    def bucket_of(mod: str) -> str:
+        py = ddtrace_root / Path(*mod[len("ddtrace.") :].split("."))
+        # Try __init__.py path too
+        b = _drilldown_src_bucket(py.with_suffix(".py"), ddtrace_root, subsystem)
+        if b is None:
+            b = _drilldown_src_bucket(py / "__init__.py", ddtrace_root, subsystem)
+        return b or _top_bucket(mod)
+
+    prefix = f"ddtrace.{subsystem}"
+    ce_sets: dict[str, set[str]] = defaultdict(set)
+    ca_sets: dict[str, set[str]] = defaultdict(set)
+
+    for mod, imports in module_imports.items():
+        src_b = bucket_of(mod)
+        for imp in imports:
+            dst_b = _drilldown_dst_bucket(imp, subsystem)
+            if dst_b is None or dst_b == src_b:
+                continue
+            # Track Ce for subsystem source buckets
+            if src_b.startswith(prefix):
+                ce_sets[src_b].add(dst_b)
+            # Track Ca for subsystem destination buckets
+            if dst_b.startswith(prefix):
+                ca_sets[dst_b].add(src_b)
+
+    all_buckets = set(ce_sets) | set(ca_sets)
+    return {b: {"Ca": len(ca_sets.get(b, set())), "Ce": len(ce_sets.get(b, set()))} for b in all_buckets}
+
+
+def analyze_drilldown_abstractness(ddtrace_root: Path, subsystem: str) -> dict[str, dict[str, Any]]:
+    """Class counts + concrete class details per drilldown bucket."""
+    counts: dict[str, dict[str, Any]] = {}
+    sub_dir = ddtrace_root / subsystem
+    if not sub_dir.is_dir():
+        return counts
+
+    for py in sorted(sub_dir.rglob("*.py")):
+        if "__pycache__" in py.parts:
+            continue
+        bucket = _drilldown_src_bucket(py, ddtrace_root, subsystem)
+        if bucket is None:
+            continue
+        if bucket not in counts:
+            counts[bucket] = {"total": 0, "abstract": 0, "protocol": 0, "files": 0, "concrete_classes": []}
+        counts[bucket]["files"] += 1
+        try:
+            source = py.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (OSError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            counts[bucket]["total"] += 1
+            kind = _classify_class(node)
+            if kind == "concrete":
+                public_methods = [
+                    n.name
+                    for n in ast.walk(node)
+                    if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith("__")
+                ]
+                counts[bucket]["concrete_classes"].append(
+                    {
+                        "name": node.name,
+                        "file": str(py.relative_to(ddtrace_root)),
+                        "methods": len(public_methods),
+                    }
+                )
+            else:
+                counts[bucket][kind] += 1
+    return counts
+
+
+def compute_drilldown_metrics(ddtrace_root: Path, subsystem: str) -> list[dict[str, Any]]:
+    """Per-module metrics for a subsystem, sorted by |D| descending."""
+    coupling = compute_drilldown_coupling(ddtrace_root, subsystem)
+    abstractness = analyze_drilldown_abstractness(ddtrace_root, subsystem)
+
+    all_buckets = set(abstractness)  # only show buckets we actually scanned
+    records = []
+    for b in sorted(all_buckets):
+        cp = coupling.get(b, {"Ca": 0, "Ce": 0})
+        ab = abstractness[b]
+        r = _martin_record(b, cp["Ca"], cp["Ce"], ab)
+        r["concrete_classes"] = ab.get("concrete_classes", [])
+        records.append(r)
+    return sorted(records, key=lambda r: abs(r["D"]) if r["D"] is not None else -1, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# Output formatters
+# ---------------------------------------------------------------------------
+
+
+def _fmt(value: float) -> str:
+    return f"{value:.2f}"
+
+
+def _d_cell(d: float | None, threshold: float) -> tuple[str, str]:
+    """Return (row_flag, formatted_D_cell) for a D value.  None → shim, never flagged."""
+    if d is None:
+        return "", "—"
+    d_str = f"{d:+.2f}"
+    if abs(d) > threshold:
+        return " ⚠️", f"**{d_str}**"
+    return "", d_str
+
+
+def format_markdown(records: list[dict[str, Any]], threshold: float) -> str:
+    """Summary-level report. Returns empty string if no subsystem exceeds threshold."""
+    visible = [r for r in records if r["files"] > 0]
+    if not any(r["D"] is not None and abs(r["D"]) > threshold for r in visible):
+        return ""
+
+    n = len(records)
+    ccd = sum(r.get("reach", 0) + 1 for r in records)
+    nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+    nccd_flag = " ⚠️" if nccd > 1.0 else ""
+    cyclic_count = sum(1 for r in records if r.get("in_cycle"))
+    cycle_flag = " ⚠️" if cyclic_count else ""
+
+    # Shims (D=None) sort last; otherwise sort by |D| descending.
+    sorted_records = sorted(visible, key=lambda r: abs(r["D"]) if r["D"] is not None else -1, reverse=True)
+    lines = [
+        "| Metric | Value | Meaning |",
+        "|---|---|---|",
+        f"| NCCD | **{nccd}{nccd_flag}** | Normalised coupling vs balanced binary tree (< 1 good, > 1 bad) |",
+        f"| Cyclic subsystems | **{cyclic_count}{cycle_flag}** | Subsystems in dependency cycles (ADP violations) |",
+        "",
+        f"> Threshold |D| > {threshold:.1f}  "
+        "· **I** = instability (0 stable → 1 unstable)  "
+        "· **A** = abstractness  "
+        "· **D** = A+I−1 (negative = Pain · positive = Uselessness · ⚠️ = |D| > threshold · — = shim)",
+        "",
+        "| Subsystem | Files | Classes | Ca | Ce | I | A | D | Cycles |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for r in sorted_records:
+        name = r["subsystem"].replace("ddtrace.", "", 1)
+        flag, cell = _d_cell(r["D"], threshold)
+        a_str = _fmt(r["A"]) if r["A"] is not None else "—"
+        cycle_cell = "⚠️" if r.get("in_cycle") else "—"
+        lines.append(
+            f"| `{name}`{flag} | {r['files']} | {r['classes']} "
+            f"| {r['Ca']} | {r['Ce']} "
+            f"| {_fmt(r['I'])} | {a_str} | {cell} | {cycle_cell} |"
+        )
+    flagged = [
+        r["subsystem"].replace("ddtrace.", "", 1)
+        for r in sorted_records
+        if r["D"] is not None and abs(r["D"]) > threshold
+    ]
+    lines += [
+        "",
+        "**Drilldown** — run locally for per-module metrics and abstraction candidates:",
+        "```",
+        *[f"uv run --script scripts/modularization_metrics.py --drilldown {name}" for name in flagged],
+        "```",
+        "",
+        "<details><summary>Metric definitions</summary>",
+        "",
+        "```",
+        "Ca  afferent coupling — subsystems that depend on this one (fan-in)",
+        "Ce  efferent coupling — subsystems this one depends on (fan-out)",
+        "I   Ce / (Ca + Ce)   — instability [0 stable, 1 unstable]",
+        "A      abstract_classes / total_classes — abstractness (— if 0 classes)",
+        "D      A + I - 1        — signed distance from main sequence (— if 0 classes)",
+        "         D < 0  Zone of Pain        (stable but concrete — hard to change)",
+        "         D = 0  Main sequence       (ideal balance)",
+        "         D > 0  Zone of Uselessness (abstract but unstable — nobody uses it)",
+        "         —      Shim / facade       (0 classes; D undefined, never flagged)",
+        "Cycles ⚠️ if subsystem is part of a dependency cycle (ADP violation)",
+        "NCCD   CCD / CCD_balanced_binary_tree(N) — normalised coupling health",
+        "         < 1.0  Better-structured than a balanced binary tree",
+        "         > 1.0  Worse — coupling accumulates faster than optimal",
+        "```",
+        "",
+        "Abstract classes: ABC subclasses, ABCMeta metaclass, @abstractmethod, typing.Protocol.",
+        "",
+        "</details>",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def format_drilldown_markdown(records: list[dict[str, Any]], subsystem: str, threshold: float) -> str:
+    """Detailed per-module report for a subsystem."""
+    prefix = f"ddtrace.{subsystem}."
+    lines = [
+        f"## Drilldown — ddtrace/{subsystem}/",
+        "",
+        f"> Per-module metrics within `ddtrace/{subsystem}/`  "
+        "· **D** = A+I−1 (negative = Pain · positive = Uselessness · ⚠️ = |D| > threshold)",
+        "",
+        "| Module | Files | Classes | Ca | Ce | I | A | D |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in records:
+        name = r["subsystem"].replace(prefix, "", 1)
+        flag, cell = _d_cell(r["D"], threshold)
+        a_str = _fmt(r["A"]) if r["A"] is not None else "—"
+        lines.append(
+            f"| `{name}`{flag} | {r['files']} | {r['classes']} "
+            f"| {r['Ca']} | {r['Ce']} "
+            f"| {_fmt(r['I'])} | {a_str} | {cell} |"
+        )
+
+    # Abstraction candidates: concrete classes in Zone of Pain modules
+    pain = [r for r in records if r["D"] is not None and r["D"] < -threshold and r.get("concrete_classes")]
+    if pain:
+        lines += [
+            "",
+            "### Abstraction candidates",
+            "",
+            "Concrete classes in Zone of Pain modules (D < "
+            f"-{threshold:.1f}). "
+            "Consider introducing ABCs or Protocols to reduce stability without losing rigidity.",
+            "",
+        ]
+        for r in pain:
+            name = r["subsystem"].replace(prefix, "", 1)
+            lines += [
+                f"**`{name}`** — D={r['D']:+.2f}, I={_fmt(r['I'])}, A={_fmt(r['A'])}",
+                "",
+            ]
+            candidates = sorted(r["concrete_classes"], key=lambda c: c["methods"], reverse=True)
+            for cls in candidates[:8]:
+                lines.append(f"- `{cls['name']}` ({cls['methods']} public methods) — `{cls['file']}`")
+            if len(candidates) > 8:
+                lines.append(f"- _…and {len(candidates) - 8} more_")
+            lines.append("")
+
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Comparison report (base vs PR)
+# ---------------------------------------------------------------------------
+
+
+def _trend(delta: float, better_direction: str = "positive") -> str:
+    """Return a trend indicator: ✅ for improvement, ⚠️ for regression, = for no change."""
+    if abs(delta) < 0.01:
+        return "="
+    improved = delta > 0 if better_direction == "positive" else delta < 0
+    sign = f"+{delta:.2f}" if delta > 0 else f"{delta:.2f}"
+    return f"✅ {sign}" if improved else f"⚠️ {sign}"
+
+
+def _d_delta(base_d: float | None, curr_d: float | None) -> str:
+    """Return a formatted ΔD cell. Improvement = |D| moving closer to 0."""
+    if base_d is None or curr_d is None:
+        return "—"
+    delta = curr_d - base_d
+    if abs(delta) < 0.01:
+        return "="
+    improved = abs(curr_d) < abs(base_d)
+    return f"{'✅' if improved else '⚠️'} {delta:+.2f}"
+
+
+def format_comparison_markdown(
+    current: list[dict[str, Any]],
+    baseline_data: dict[str, Any],
+    threshold: float,
+) -> str:
+    """Tiered delta report vs baseline.
+
+    No changes      — global stats table only.
+    Improvements    — global stats + brief improvement summary.
+    Regressions     — global stats + full regression table + drilldown commands.
+    """
+    # Empty baseline (e.g. first scan or checkout failed) — show full current report.
+    if not baseline_data.get("subsystems"):
+        return format_markdown(current, threshold)
+
+    base_subs: dict[str, dict[str, Any]] = {r["subsystem"]: r for r in baseline_data["subsystems"]}
+    curr_subs: dict[str, dict[str, Any]] = {r["subsystem"]: r for r in current}
+
+    base_nccd: float = baseline_data.get("nccd", 0.0)
+    base_cyclic: int = baseline_data.get("cyclic_count", 0)
+
+    n = len(current)
+    ccd = sum(r.get("reach", 0) + 1 for r in current)
+    curr_nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+    curr_cyclic = sum(1 for r in current if r.get("in_cycle"))
+
+    nccd_delta = round(curr_nccd - base_nccd, 2)
+    cyclic_delta = curr_cyclic - base_cyclic
+    nccd_trend = _trend(nccd_delta, "negative")  # lower NCCD = better
+    cyclic_trend = _trend(float(cyclic_delta), "negative")  # fewer cycles = better
+
+    # Classify each changed subsystem as regression or improvement.
+    regressions: list[dict[str, Any]] = []
+    improvements: list[dict[str, Any]] = []
+
+    all_subs = set(curr_subs) | set(base_subs)
+    for sub in sorted(all_subs):
+        cr = curr_subs.get(sub)
+        br = base_subs.get(sub)
+        base_d = br["D"] if br else None
+        curr_d = cr["D"] if cr else None
+        base_cycle = br.get("in_cycle", False) if br else False
+        curr_cycle = cr.get("in_cycle", False) if cr else False
+        d_delta_val = (curr_d - base_d) if (curr_d is not None and base_d is not None) else None
+        d_unchanged = d_delta_val is not None and abs(d_delta_val) < 0.01
+        cycle_unchanged = base_cycle == curr_cycle
+        if d_unchanged and cycle_unchanged:
+            continue
+        # Shim in both scans (D undefined) with no cycle change → nothing changed
+        if base_d is None and curr_d is None and cycle_unchanged:
+            continue
+        entry = {
+            "subsystem": sub,
+            "base_d": base_d,
+            "curr_d": curr_d,
+            "d_delta": d_delta_val,
+            "base_cycle": base_cycle,
+            "curr_cycle": curr_cycle,
+        }
+        is_regression = (
+            (not cycle_unchanged and curr_cycle and not base_cycle)  # newly cyclic
+            or (d_delta_val is not None and abs(curr_d or 0) > abs(base_d or 0) + 0.01)  # D worse
+        )
+        (regressions if is_regression else improvements).append(entry)
+
+    # Also treat global metric regressions as enough to trigger detailed output.
+    has_global_regression = nccd_delta > 0.01 or cyclic_delta > 0
+
+    # --- Global stats table (always shown) ---
+    lines = [
+        "| Metric | Base | PR | Δ |",
+        "|---|---|---|---|",
+        f"| NCCD | {base_nccd} | {curr_nccd} | {nccd_trend} |",
+        f"| Cyclic subsystems | {base_cyclic} | {curr_cyclic} | {cyclic_trend} |",
+    ]
+
+    def _sub_row(c: dict[str, Any]) -> str:
+        name = c["subsystem"].replace("ddtrace.", "", 1)
+        base_d_str = f"{c['base_d']:+.2f}" if c["base_d"] is not None else "—"
+        curr_d_str = f"{c['curr_d']:+.2f}" if c["curr_d"] is not None else "—"
+        d_cell = _d_delta(c["base_d"], c["curr_d"])
+        cycle_from = "⚠️" if c["base_cycle"] else "—"
+        cycle_to = "⚠️" if c["curr_cycle"] else "—"
+        cycle_cell = f"{cycle_from}→{cycle_to}" if cycle_from != cycle_to else cycle_from
+        return f"| `{name}` | {base_d_str} | {curr_d_str} | {d_cell} | {cycle_cell} |"
+
+    _sub_header = [
+        "",
+        "| Subsystem | D (base) | D (PR) | ΔD | Cycles |",
+        "|---|---|---|---|---|",
+    ]
+
+    if regressions or has_global_regression:
+        # Full analysis: regression table, then brief improvements.
+        regressions.sort(key=lambda c: abs((c["curr_d"] or 0) - (c["base_d"] or 0)), reverse=True)
+        lines += ["", "### ⚠️ Regressions"] + _sub_header
+        lines += [_sub_row(c) for c in regressions]
+        if regressions:
+            drilldown_targets = [
+                c["subsystem"].replace("ddtrace.", "", 1)
+                for c in regressions
+                if c.get("curr_d") is not None  # skip shims
+            ]
+            if drilldown_targets:
+                lines += [
+                    "",
+                    "**Drilldown** — per-module detail for regressed subsystems:",
+                    "```",
+                    *[f"uv run --script scripts/modularization_metrics.py --drilldown {s}" for s in drilldown_targets],
+                    "```",
+                ]
+        if improvements:
+            imp_names = ", ".join(f"`{c['subsystem'].replace('ddtrace.', '', 1)}`" for c in improvements)
+            lines += ["", f"✅ **Also improved on this PR:** {imp_names}"]
+    elif improvements:
+        # Brief improvement summary only.
+        lines += ["", "### ✅ Improvements"] + _sub_header
+        lines += [_sub_row(c) for c in improvements]
+
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=0.5,
+        metavar="T",
+        help="Only write the summary report when at least one subsystem has |D| > T (default: 0.5).",
+    )
+    parser.add_argument(
+        "--drilldown",
+        metavar="SUBSYSTEM",
+        help=(
+            "Produce a per-module drilldown for SUBSYSTEM (e.g. 'internal'). "
+            "Prints to stdout or --markdown FILE. Skips the summary report."
+        ),
+    )
+    parser.add_argument(
+        "--json",
+        metavar="FILE",
+        help="Write full metrics as JSON to FILE (summary or drilldown depending on mode).",
+    )
+    parser.add_argument(
+        "--compare",
+        metavar="BASE_JSON",
+        help="Compare current metrics against a baseline JSON produced by --json and write a delta report.",
+    )
+    parser.add_argument(
+        "--markdown",
+        metavar="FILE",
+        help="Write the report to FILE instead of stdout.",
+    )
+    parser.add_argument(
+        "--min-edge-weight",
+        type=int,
+        default=0,
+        metavar="W",
+        help="Drop coupling edges with import-count weight < W (default: 0).",
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to the ddtrace package root (default: auto-detected from script location).",
+    )
+    args = parser.parse_args()
+
+    if args.root is not None:
+        ddtrace_root = args.root.resolve()
+    else:
+        ddtrace_root = Path(__file__).resolve().parents[1] / "ddtrace"
+    if not ddtrace_root.is_dir():
+        print(f"ddtrace package not found at {ddtrace_root}", file=sys.stderr)
+        return 1
+
+    if args.drilldown:
+        records = compute_drilldown_metrics(ddtrace_root, args.drilldown)
+        md = format_drilldown_markdown(records, args.drilldown, args.threshold)
+    else:
+        records = compute_metrics(ddtrace_root, min_edge_weight=args.min_edge_weight)
+        if args.compare:
+            baseline_data = json.loads(Path(args.compare).read_text(encoding="utf-8"))
+            md = format_comparison_markdown(records, baseline_data, threshold=args.threshold)
+        else:
+            md = format_markdown(records, threshold=args.threshold)
+            if not md:
+                print(
+                    f"No subsystems with |D| > {args.threshold:.1f} — nothing to report.",
+                    file=sys.stderr,
+                )
+
+    if args.json:
+        n = len(records)
+        ccd = sum(r.get("reach", 0) + 1 for r in records)
+        nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+        cyclic_count = sum(1 for r in records if r.get("in_cycle"))
+        json_payload = {
+            "nccd": nccd,
+            "cyclic_count": cyclic_count,
+            "subsystems": [{k: v for k, v in r.items() if k != "concrete_classes"} for r in records],
+        }
+        Path(args.json).write_text(json.dumps(json_payload, indent=2), encoding="utf-8")
+        print(f"Wrote {args.json}", file=sys.stderr)
+
+    if md:
+        if args.markdown:
+            Path(args.markdown).write_text(md, encoding="utf-8")
+            print(f"Wrote {args.markdown}", file=sys.stderr)
+        else:
+            print(md)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
