@@ -523,6 +523,153 @@ def format_drilldown_markdown(records: list[dict[str, Any]], subsystem: str, thr
 
 
 # ---------------------------------------------------------------------------
+# Comparison report (base vs PR)
+# ---------------------------------------------------------------------------
+
+
+def _trend(delta: float, better_direction: str = "positive") -> str:
+    """Return a trend indicator: ✅ for improvement, ⚠️ for regression, = for no change."""
+    if abs(delta) < 0.01:
+        return "="
+    improved = delta > 0 if better_direction == "positive" else delta < 0
+    sign = f"+{delta:.2f}" if delta > 0 else f"{delta:.2f}"
+    return f"✅ {sign}" if improved else f"⚠️ {sign}"
+
+
+def _d_delta(base_d: float | None, curr_d: float | None) -> str:
+    """Return a formatted ΔD cell. Improvement = |D| moving closer to 0."""
+    if base_d is None or curr_d is None:
+        return "—"
+    delta = curr_d - base_d
+    if abs(delta) < 0.01:
+        return "="
+    improved = abs(curr_d) < abs(base_d)
+    return f"{'✅' if improved else '⚠️'} {delta:+.2f}"
+
+
+def format_comparison_markdown(
+    current: list[dict[str, Any]],
+    baseline_data: dict[str, Any],
+    threshold: float,
+) -> str:
+    """Tiered delta report vs baseline.
+
+    No changes      — global stats table only.
+    Improvements    — global stats + brief improvement summary.
+    Regressions     — global stats + full regression table + drilldown commands.
+    """
+    # Empty baseline (e.g. first scan or checkout failed) — show full current report.
+    if not baseline_data.get("subsystems"):
+        return format_markdown(current, threshold)
+
+    base_subs: dict[str, dict[str, Any]] = {r["subsystem"]: r for r in baseline_data["subsystems"]}
+    curr_subs: dict[str, dict[str, Any]] = {r["subsystem"]: r for r in current}
+
+    base_nccd: float = baseline_data.get("nccd", 0.0)
+    base_cyclic: int = baseline_data.get("cyclic_count", 0)
+
+    n = len(current)
+    ccd = sum(r.get("reach", 0) + 1 for r in current)
+    curr_nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+    curr_cyclic = sum(1 for r in current if r.get("in_cycle"))
+
+    nccd_delta = round(curr_nccd - base_nccd, 2)
+    cyclic_delta = curr_cyclic - base_cyclic
+    nccd_trend = _trend(nccd_delta, "negative")  # lower NCCD = better
+    cyclic_trend = _trend(float(cyclic_delta), "negative")  # fewer cycles = better
+
+    # Classify each changed subsystem as regression or improvement.
+    regressions: list[dict[str, Any]] = []
+    improvements: list[dict[str, Any]] = []
+
+    all_subs = set(curr_subs) | set(base_subs)
+    for sub in sorted(all_subs):
+        cr = curr_subs.get(sub)
+        br = base_subs.get(sub)
+        base_d = br["D"] if br else None
+        curr_d = cr["D"] if cr else None
+        base_cycle = br.get("in_cycle", False) if br else False
+        curr_cycle = cr.get("in_cycle", False) if cr else False
+        d_delta_val = (curr_d - base_d) if (curr_d is not None and base_d is not None) else None
+        d_unchanged = d_delta_val is not None and abs(d_delta_val) < 0.01
+        cycle_unchanged = base_cycle == curr_cycle
+        if d_unchanged and cycle_unchanged:
+            continue
+        # Shim in both scans (D undefined) with no cycle change → nothing changed
+        if base_d is None and curr_d is None and cycle_unchanged:
+            continue
+        entry = {
+            "subsystem": sub,
+            "base_d": base_d,
+            "curr_d": curr_d,
+            "d_delta": d_delta_val,
+            "base_cycle": base_cycle,
+            "curr_cycle": curr_cycle,
+        }
+        is_regression = (
+            (not cycle_unchanged and curr_cycle and not base_cycle)  # newly cyclic
+            or (d_delta_val is not None and abs(curr_d or 0) > abs(base_d or 0) + 0.01)  # D worse
+        )
+        (regressions if is_regression else improvements).append(entry)
+
+    # Also treat global metric regressions as enough to trigger detailed output.
+    has_global_regression = nccd_delta > 0.01 or cyclic_delta > 0
+
+    # --- Global stats table (always shown) ---
+    lines = [
+        "| Metric | Base | PR | Δ |",
+        "|---|---|---|---|",
+        f"| NCCD | {base_nccd} | {curr_nccd} | {nccd_trend} |",
+        f"| Cyclic subsystems | {base_cyclic} | {curr_cyclic} | {cyclic_trend} |",
+    ]
+
+    def _sub_row(c: dict[str, Any]) -> str:
+        name = c["subsystem"].replace("ddtrace.", "", 1)
+        base_d_str = f"{c['base_d']:+.2f}" if c["base_d"] is not None else "—"
+        curr_d_str = f"{c['curr_d']:+.2f}" if c["curr_d"] is not None else "—"
+        d_cell = _d_delta(c["base_d"], c["curr_d"])
+        cycle_from = "⚠️" if c["base_cycle"] else "—"
+        cycle_to = "⚠️" if c["curr_cycle"] else "—"
+        cycle_cell = f"{cycle_from}→{cycle_to}" if cycle_from != cycle_to else cycle_from
+        return f"| `{name}` | {base_d_str} | {curr_d_str} | {d_cell} | {cycle_cell} |"
+
+    _sub_header = [
+        "",
+        "| Subsystem | D (base) | D (PR) | ΔD | Cycles |",
+        "|---|---|---|---|---|",
+    ]
+
+    if regressions or has_global_regression:
+        # Full analysis: regression table, then brief improvements.
+        regressions.sort(key=lambda c: abs((c["curr_d"] or 0) - (c["base_d"] or 0)), reverse=True)
+        lines += ["", "### ⚠️ Regressions"] + _sub_header
+        lines += [_sub_row(c) for c in regressions]
+        if regressions:
+            drilldown_targets = [
+                c["subsystem"].replace("ddtrace.", "", 1)
+                for c in regressions
+                if c.get("curr_d") is not None  # skip shims
+            ]
+            if drilldown_targets:
+                lines += [
+                    "",
+                    "**Drilldown** — per-module detail for regressed subsystems:",
+                    "```",
+                    *[f"uv run --script scripts/modularization_metrics.py --drilldown {s}" for s in drilldown_targets],
+                    "```",
+                ]
+        if improvements:
+            imp_names = ", ".join(f"`{c['subsystem'].replace('ddtrace.', '', 1)}`" for c in improvements)
+            lines += ["", f"✅ **Also improved on this PR:** {imp_names}"]
+    elif improvements:
+        # Brief improvement summary only.
+        lines += ["", "### ✅ Improvements"] + _sub_header
+        lines += [_sub_row(c) for c in improvements]
+
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -550,6 +697,11 @@ def main() -> int:
         help="Write full metrics as JSON to FILE (summary or drilldown depending on mode).",
     )
     parser.add_argument(
+        "--compare",
+        metavar="BASE_JSON",
+        help="Compare current metrics against a baseline JSON produced by --json and write a delta report.",
+    )
+    parser.add_argument(
         "--markdown",
         metavar="FILE",
         help="Write the report to FILE instead of stdout.",
@@ -561,12 +713,21 @@ def main() -> int:
         metavar="W",
         help="Drop coupling edges with import-count weight < W (default: 0).",
     )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to the ddtrace package root (default: auto-detected from script location).",
+    )
     args = parser.parse_args()
 
-    repo = Path(__file__).resolve().parents[1]
-    ddtrace_root = repo / "ddtrace"
+    if args.root is not None:
+        ddtrace_root = args.root.resolve()
+    else:
+        ddtrace_root = Path(__file__).resolve().parents[1] / "ddtrace"
     if not ddtrace_root.is_dir():
-        print("ddtrace package not found", file=sys.stderr)
+        print(f"ddtrace package not found at {ddtrace_root}", file=sys.stderr)
         return 1
 
     if args.drilldown:
@@ -574,17 +735,28 @@ def main() -> int:
         md = format_drilldown_markdown(records, args.drilldown, args.threshold)
     else:
         records = compute_metrics(ddtrace_root, min_edge_weight=args.min_edge_weight)
-        md = format_markdown(records, threshold=args.threshold)
-        if not md:
-            print(
-                f"No subsystems with |D| > {args.threshold:.1f} — nothing to report.",
-                file=sys.stderr,
-            )
+        if args.compare:
+            baseline_data = json.loads(Path(args.compare).read_text(encoding="utf-8"))
+            md = format_comparison_markdown(records, baseline_data, threshold=args.threshold)
+        else:
+            md = format_markdown(records, threshold=args.threshold)
+            if not md:
+                print(
+                    f"No subsystems with |D| > {args.threshold:.1f} — nothing to report.",
+                    file=sys.stderr,
+                )
 
     if args.json:
-        # Strip concrete_classes from JSON output (too verbose for summary)
-        json_records = [{k: v for k, v in r.items() if k != "concrete_classes"} for r in records]
-        Path(args.json).write_text(json.dumps(json_records, indent=2), encoding="utf-8")
+        n = len(records)
+        ccd = sum(r.get("reach", 0) + 1 for r in records)
+        nccd = round(ccd / _ccd_bbt(n), 2) if n > 1 else 1.0
+        cyclic_count = sum(1 for r in records if r.get("in_cycle"))
+        json_payload = {
+            "nccd": nccd,
+            "cyclic_count": cyclic_count,
+            "subsystems": [{k: v for k, v in r.items() if k != "concrete_classes"} for r in records],
+        }
+        Path(args.json).write_text(json.dumps(json_payload, indent=2), encoding="utf-8")
         print(f"Wrote {args.json}", file=sys.stderr)
 
     if md:
