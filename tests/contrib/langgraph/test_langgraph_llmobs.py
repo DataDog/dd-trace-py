@@ -317,6 +317,63 @@ class TestLangGraphLLMObs:
         assert a_output.get("value") is not None
         assert b_output.get("value") is not None
 
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
+    )
+    async def test_astream_break_on_interrupt_emits_llmobs_span(self, langgraph, langgraph_llmobs, test_spans):
+        """MLOS-701: the graph's LLMObs span must be emitted even when the consumer abandons the
+        stream on ``__interrupt__`` (human-in-the-loop) instead of draining it.
+        """
+        from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.graph import END
+        from langgraph.graph import START
+        from langgraph.graph import StateGraph
+        from langgraph.types import interrupt
+
+        from .conftest import State
+
+        def node_with_interrupt(state):
+            interrupt({"question": "approve?"})
+            return {"a_list": ["done"]}
+
+        graph_builder = StateGraph(State)
+        graph_builder.add_node("interrupt_node", node_with_interrupt)
+        graph_builder.add_edge(START, "interrupt_node")
+        graph_builder.add_edge("interrupt_node", END)
+        graph = graph_builder.compile(checkpointer=MemorySaver())
+
+        stream = graph.astream({"a_list": [], "which": "a"}, config={"configurable": {"thread_id": "llmobs"}})
+        saw_interrupt = False
+        async for chunk in stream:
+            if isinstance(chunk, dict) and "__interrupt__" in chunk:
+                saw_interrupt = True
+                break
+        assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+        await stream.aclose()
+
+        spans = _collect_spans(test_spans)
+        graph_span = _find_span_by_name(spans, "LangGraph")
+        assert graph_span is not None
+        assert graph_span.error == 0
+
+    async def test_astream_events_break_still_reports_node_output(self, langgraph_llmobs, test_spans, simple_graph):
+        """A node abandoned mid-stream must still emit its span with output, not drop it. Breaking on
+        the first ``on_chain_stream`` suspends node "a"'s RunnableSeq.astream; the ``finally`` finishes
+        the span and reports the accumulated output (the wrapper passes ``response`` on abandonment
+        just as it does on completion, rather than nulling it out).
+        """
+        stream = simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2")
+        async for ev in stream:
+            if ev.get("event") == "on_chain_stream":
+                break
+        await stream.aclose()
+
+        spans = _collect_spans(test_spans)
+        a_span = _find_span_by_name(spans, "a")
+        assert a_span.error == 0
+        a_output = get_llmobs_output(a_span) or {}
+        assert a_output.get("value") is not None
+
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_simple_graph(
         self, langgraph_llmobs, test_spans, agentic_graph_with_conditional_and_definitive_edges

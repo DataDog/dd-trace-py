@@ -6,6 +6,8 @@ from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
 
+from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
+
 from .conftest import State
 
 
@@ -408,7 +410,11 @@ def test_stream_teardown_not_marked_as_error(simple_graph, test_spans):
     next(stream)  # suspend the generator at a ``yield``
     stream.close()  # raises GeneratorExit at the suspended ``yield``
 
-    for trace in test_spans.pop_traces():
+    # The span must still be emitted (finished in ``finally``) on early teardown, not just
+    # left unmarked. Asserting emission here guards against the span silently leaking.
+    traces = test_spans.pop_traces()
+    assert len(traces) >= 1, "trace must be emitted even when the stream is closed early"
+    for trace in traces:
         for span in trace:
             assert span.error == 0, f"span {span.resource} wrongly marked as error on stream teardown"
 
@@ -419,9 +425,138 @@ async def test_astream_teardown_not_marked_as_error(simple_graph, test_spans):
     await stream.__anext__()  # suspend the generator at a ``yield``
     await stream.aclose()  # raises GeneratorExit at the suspended ``yield``
 
-    for trace in test_spans.pop_traces():
+    traces = test_spans.pop_traces()
+    assert len(traces) >= 1, "trace must be emitted even when the stream is closed early"
+    for trace in traces:
         for span in trace:
             assert span.error == 0, f"span {span.resource} wrongly marked as error on astream teardown"
+
+
+def _interrupt_graph():
+    """One-node graph whose node calls the real ``interrupt()`` primitive."""
+    from langgraph.types import interrupt
+
+    def node_with_interrupt(state):
+        interrupt({"question": "approve?"})
+        return {"a_list": ["done"]}
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("interrupt_node", node_with_interrupt)
+    graph_builder.add_edge(START, "interrupt_node")
+    graph_builder.add_edge("interrupt_node", END)
+    return graph_builder.compile(checkpointer=MemorySaver())
+
+
+@pytest.mark.skipif(
+    LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
+)
+async def test_astream_break_on_interrupt_emits_trace(langgraph, test_spans):
+    """MLOS-701: breaking out of astream() on ``__interrupt__`` must still emit the trace.
+
+    Reproduces the customer's human-in-the-loop pattern: the consumer stops iterating as soon
+    as the graph interrupts, without draining the stream. The root graph span must still finish
+    (via the wrapper's ``finally``) so the whole trace is not silently dropped.
+    """
+    graph = _interrupt_graph()
+    config = {"configurable": {"thread_id": "mlos-701-async"}}
+
+    stream = graph.astream({"a_list": [], "which": "a"}, config=config)
+    saw_interrupt = False
+    async for chunk in stream:
+        # Iterate until the interrupt actually surfaces, then abandon — a bare break on the
+        # first chunk could stop at the wrong point and pass spuriously.
+        if isinstance(chunk, dict) and "__interrupt__" in chunk:
+            saw_interrupt = True
+            break
+    assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+    await stream.aclose()  # deterministic stand-in for the GC finalization a bare break triggers
+
+    spans = test_spans.pop_traces()[0]
+    assert len(spans) > 0
+    assert any("LangGraph" in span.resource for span in spans), [s.resource for s in spans]
+    for span in spans:
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+
+
+@pytest.mark.skipif(
+    LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
+)
+def test_stream_break_on_interrupt_emits_trace(langgraph, test_spans):
+    """Sync variant of the interrupt-abandonment repro (``traced_pregel_stream``)."""
+    graph = _interrupt_graph()
+    config = {"configurable": {"thread_id": "mlos-701-sync"}}
+
+    stream = graph.stream({"a_list": [], "which": "a"}, config=config)
+    saw_interrupt = False
+    for chunk in stream:
+        if isinstance(chunk, dict) and "__interrupt__" in chunk:
+            saw_interrupt = True
+            break
+    assert saw_interrupt, "expected an __interrupt__ chunk from the graph"
+    stream.close()  # sync close is deterministic (no event-loop scheduling)
+
+    spans = test_spans.pop_traces()[0]
+    assert len(spans) > 0
+    assert any("LangGraph" in span.resource for span in spans), [s.resource for s in spans]
+    for span in spans:
+        assert span.error == 0
+        assert span.get_tag("error.type") is None
+
+
+async def test_astream_break_without_close_emits_trace(simple_graph, test_spans):
+    """Faithful inline customer shape: ``async for graph.astream(...): break`` with NO explicit
+    aclose(). The wrapper generator is finalized by GC; its ``finally`` must still emit the span.
+
+    This guards the real no-explicit-close path; the aclose()/close() tests above are the
+    deterministic proof of the same mechanism.
+    """
+    import asyncio
+    import gc
+
+    async def consume():
+        # The stream is an inline temporary; dropping out of this frame leaves it unreferenced.
+        async for _ in simple_graph.astream({"a_list": [], "which": "a"}):
+            break
+
+    await consume()
+
+    # Force + drive async-generator finalization deterministically rather than relying on
+    # pytest-asyncio teardown to do it.
+    traces = []
+    for _ in range(10):
+        gc.collect()
+        await asyncio.sleep(0)
+        traces = test_spans.pop_traces()
+        if traces:
+            break
+    assert len(traces) >= 1, "trace must be emitted even when the stream is abandoned via bare break"
+    for trace in traces:
+        for span in trace:
+            assert span.error == 0, f"span {span.resource} wrongly marked as error on abandonment"
+
+
+async def test_astream_events_break_emits_node_trace(simple_graph, test_spans):
+    """Node-level ``traced_runnable_seq_astream`` (driven by ``astream_events``) must also finish
+    its span when the consumer breaks early.
+
+    Breaking right after the first ``on_chain_stream`` event suspends a node's
+    ``RunnableSeq.astream`` mid-yield (rather than letting it run to completion), which directly
+    exercises the node-level wrapper's abandonment path — the pregel-level tests do not.
+    """
+    stream = simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2")
+    async for ev in stream:
+        if ev.get("event") == "on_chain_stream":
+            break
+    await stream.aclose()
+
+    traces = test_spans.pop_traces()
+    spans = [s for trace in traces for s in trace]
+    # A node's RunnableSeq span must be present (proves the node-level wrapper was actually
+    # abandoned mid-stream) and finished cleanly, not just the top-level graph span.
+    assert any("RunnableSeq" in s.resource for s in spans), [s.resource for s in spans]
+    for span in spans:
+        assert span.error == 0, f"span {span.resource} wrongly marked as error on abandonment"
 
 
 def test_regular_exception_still_marked_as_error(langgraph, test_spans):
