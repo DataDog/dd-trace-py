@@ -16,7 +16,7 @@ license = { text = "LICENSE.BSD3" }
 # ddtrace has many sub-components which can break when CPython internals
 # change over versions, e.g. profiling. So we explicitly mark incompatibility
 # with versions we don't support yet.
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.9,<3.16"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
 ]
@@ -31,6 +31,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
     "bytecode @ https://github.com/p403n1x87/bytecode/archive/refs/heads/feat/python-315.tar.gz ; python_version>='3.15'",
@@ -117,7 +118,9 @@ lint = [
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
     "ast-grep-cli==0.39.4",
-    "bytecode==0.17.0",
+    # On 3.15 bytecode comes from the project's URL dependency (see [project]
+    # dependencies); pinning it here would conflict with that in uv's resolver.
+    "bytecode==0.17.0; python_version < '3.15'",
 ]
 clean = [
     "cython",
