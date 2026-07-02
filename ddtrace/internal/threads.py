@@ -1,3 +1,6 @@
+from os import environ
+from os import getpid
+from os import write
 from time import monotonic_ns
 import typing as t
 
@@ -9,6 +12,25 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+_FORK_DIAG = environ.get("DD_TRACE_FORK_DIAG") == "1"
+
+
+def _diag(message: str) -> None:
+    if not _FORK_DIAG:
+        return
+    try:
+        write(2, f"DDTRACE_FORK_DIAG pid={getpid()} ns={monotonic_ns()} {message}\n".encode())
+    except Exception:
+        pass
+
+
+def _thread_label(thread: t.Any) -> str:
+    try:
+        return str(thread.name)
+    except Exception:
+        return f"<unnamed id={id(thread)}>"
 
 # We try to import the stdlib locks from the _thread module, where they are
 # implemented in C for CPython for most platforms. If that fails, we fall back
@@ -161,39 +183,55 @@ class ThreadRestartTimer(PeriodicThread):
 def _after_fork_child():
     global _forking
 
+    _diag(
+        "py_after_child_begin "
+        f"restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)}"
+    )
     _forking = False
 
     # Keep child at-fork work minimal: thread restarts happen asynchronously in
     # the child so application code can resume immediately after fork. Parent
     # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
+        _diag(f"py_after_child_restart_begin name={_thread_label(thread)} id={id(thread)}")
         log.debug("Restarting thread %s after fork in child", thread.name)
         try:
             thread._after_fork(force=False)
+            _diag(f"py_after_child_restart_end name={_thread_label(thread)} id={id(thread)}")
         except Exception as e:
+            _diag(f"py_after_child_restart_error name={_thread_label(thread)} id={id(thread)} err={e!r}")
             log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
+        _diag(f"py_after_child_start_begin name={_thread_label(thread_start.__self__)} id={id(thread_start.__self__)}")
         log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
         _safe_restart(thread_start, thread_start.__self__.name)
+        _diag(f"py_after_child_start_end name={_thread_label(thread_start.__self__)} id={id(thread_start.__self__)}")
     _threads_to_start_after_fork.clear()
+    _diag("py_after_child_end")
 
 
 @forksafe.register_after_parent
 def _after_fork_parent() -> None:
     global _forking
 
+    _diag(
+        "py_after_parent_begin "
+        f"restart={len(_threads_to_restart_after_fork)} start={len(_threads_to_start_after_fork)}"
+    )
     _forking = False
 
     if _threads_to_restart_after_fork or _threads_to_start_after_fork:
         ThreadRestartTimer.set()
+    _diag("py_after_parent_end")
 
 
 @forksafe.register_before_fork
 def _before_fork() -> None:
     global _threads_to_restart_after_fork, _forking_lock, _forking
 
+    _diag("py_before_begin")
     ThreadRestartTimer.touch()
 
     with _forking_lock:
@@ -206,15 +244,24 @@ def _before_fork() -> None:
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
     _threads_to_restart_after_fork.update(periodic_threads.values())
+    _diag(
+        "py_before_snapshot "
+        f"pending={len(pending_threads)} periodic={len(periodic_threads)} restart={len(_threads_to_restart_after_fork)}"
+    )
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
     # more promptly.
     for thread in _threads_to_restart_after_fork:
+        _diag(f"py_before_stop_begin name={_thread_label(thread)} id={id(thread)}")
         log.debug("Stopping thread %s before fork", thread.name)
         thread._before_fork()
+        _diag(f"py_before_stop_end name={_thread_label(thread)} id={id(thread)}")
 
     # Join all the threads to ensure they are stopped before the fork.
     for thread in _threads_to_restart_after_fork:
+        _diag(f"py_before_join_begin name={_thread_label(thread)} id={id(thread)}")
         log.debug("Joining thread %s before fork", thread.name)
         thread.join()
+        _diag(f"py_before_join_end name={_thread_label(thread)} id={id(thread)}")
+    _diag("py_before_end")

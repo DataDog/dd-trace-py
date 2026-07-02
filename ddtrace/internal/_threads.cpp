@@ -4,6 +4,8 @@
 #include "structmember.h"
 
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 #include <stddef.h>
 
 #include <atomic>
@@ -29,6 +31,56 @@
 #define py_is_finalizing Py_IsFinalizing
 #else
 #define py_is_finalizing _Py_IsFinalizing
+#endif
+
+#if defined(_WIN32)
+static void
+fork_diag_native(const char* event, const void* self, PyObject* name_obj)
+{
+    (void)event;
+    (void)self;
+    (void)name_obj;
+}
+#else
+#include <time.h>
+#include <unistd.h>
+static void
+fork_diag_native(const char* event, const void* self, PyObject* name_obj)
+{
+    static int enabled = -1;
+    if (enabled == -1) {
+        const char* value = getenv("DD_TRACE_FORK_DIAG");
+        enabled = (value != nullptr && strcmp(value, "1") == 0) ? 1 : 0;
+    }
+    if (!enabled)
+        return;
+
+    const char* name = "<unknown>";
+    if (name_obj != nullptr && name_obj != Py_None) {
+        const char* maybe_name = PyUnicode_AsUTF8(name_obj);
+        if (maybe_name != nullptr)
+            name = maybe_name;
+        else
+            PyErr_Clear();
+    }
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    char buffer[512];
+    int n = snprintf(buffer,
+                     sizeof(buffer),
+                     "DDTRACE_FORK_DIAG_NATIVE pid=%ld ns=%lld event=%s self=%p name=%s\n",
+                     (long)getpid(),
+                     (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec,
+                     event,
+                     self,
+                     name);
+    if (n > 0) {
+        if (n > (int)sizeof(buffer))
+            n = sizeof(buffer);
+        (void)write(2, buffer, (size_t)n);
+    }
+}
 #endif
 
 // Forward declaration: PeriodicThread is defined later in this file.
@@ -862,12 +914,15 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
+    fork_diag_native("join_begin", self, self->name);
     if (self->_thread == nullptr) {
+        fork_diag_native("join_error_not_started", self, self->name);
         PyErr_SetString(PyExc_RuntimeError, "Periodic thread not started");
         return NULL;
     }
 
     if (self->_thread->get_id() == std::this_thread::get_id()) {
+        fork_diag_native("join_error_current_thread", self, self->name);
         PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
         return NULL;
     }
@@ -911,6 +966,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
         self->_stopped->wait(interval);
     }
 
+    fork_diag_native("join_end", self, self->name);
     Py_RETURN_NONE;
 }
 
@@ -918,6 +974,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 static PyObject*
 PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
+    fork_diag_native("after_fork_begin", self, self->name);
     // The parent process passes force=True to this method to override
     // __autorestart__ and always restart the thread. The parent must restore
     // every thread that was running before the fork, regardless of the
@@ -928,6 +985,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
     static const char* kwlist[] = { "force", NULL };
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", (char**)kwlist, &force))
         return NULL;
+    fork_diag_native(force ? "after_fork_force_true" : "after_fork_force_false", self, self->name);
 
     // Check the __autorestart__ attribute (class or instance). Subclasses and
     // instances can set __autorestart__ = False to opt out of automatic
@@ -990,6 +1048,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
 
         PyObject* started = _PeriodicThread_do_start(self, false, static_cast<bool>(force));
         if (started == NULL) {
+            fork_diag_native("after_fork_start_error", self, self->name);
             if (pending_restart_registered) {
                 if (remove_pending_periodic_thread(self->_state, self) < 0)
                     PyErr_Clear();
@@ -997,6 +1056,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
             return NULL;
         }
         Py_DECREF(started);
+        fork_diag_native("after_fork_started", self, self->name);
     } else {
         // No restart: the common cleanup above is sufficient for fork-specific
         // state. Two additional invariants are preserved intentionally:
@@ -1021,8 +1081,10 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         Py_DECREF(self->ident);
         Py_INCREF(Py_None);
         self->ident = Py_None;
+        fork_diag_native("after_fork_no_restart", self, self->name);
     }
 
+    fork_diag_native("after_fork_end", self, self->name);
     Py_RETURN_NONE;
 }
 
@@ -1030,6 +1092,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
 static PyObject*
 PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
+    fork_diag_native("before_fork_begin", self, self->name);
     self->_skip_shutdown = true;
 
     // Synchronize with awake() so there is no window where _stopping is visible
@@ -1045,6 +1108,7 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
         self->_request->set(REQUEST_REASON_FORK_STOP);
     }
 
+    fork_diag_native("before_fork_end", self, self->name);
     Py_RETURN_NONE;
 }
 
@@ -1052,10 +1116,12 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static void
 PeriodicThread_dealloc(PeriodicThread* self)
 {
+    fork_diag_native("dealloc_begin", self, self->name);
     PyObject_GC_UnTrack(self);
 
     if (self->_state != nullptr && self->_state->is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
+        fork_diag_native("dealloc_finalizing_return", self, self->name);
         return;
     }
 
@@ -1095,6 +1161,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
 
     self->_awake_mutex = nullptr;
 
+    fork_diag_native("dealloc_end", self, self->name);
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
