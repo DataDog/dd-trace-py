@@ -255,11 +255,35 @@ def extract_message_from_part_google_genai(part, role: str) -> Message:
         message["content"] = "[file data: {}]".format(descriptor) if descriptor else "[file data]"
         return message
 
-    # Parts with no recognized content (empty parts, or parts carrying only a thought signature or
-    # other non-text metadata) are left with empty content rather than a confusing "Unsupported
-    # file type" placeholder. The debug log keeps any future/unrecognized part shapes discoverable
-    # without surfacing noise to users.
-    log.debug("google_genai part has no recognized content to extract: %r", type(part))
+    try:
+        from google.genai.types import Part as _GenAIPart
+    except ImportError:
+        _GenAIPart = None
+
+    if _GenAIPart is not None and isinstance(part, _GenAIPart):
+        # A Gemini Part with no renderable content: an empty part, or a metadata-only part such as
+        # one carrying only a thought signature. Leave content empty rather than emit a confusing
+        # placeholder. The debug log keeps any future/unrecognized Part shapes discoverable.
+        log.debug("google_genai part has no recognized content to extract: %r", type(part))
+        return message
+
+    # Non-Part inputs (PIL images, uploaded File handles, or other objects) are valid request
+    # inputs, so keep a placeholder rather than silently dropping them from the LLMObs I/O.
+    file_uri = _get_attr(part, "uri", None)
+    if file_uri:
+        message["content"] = "[file: {}]".format(file_uri)
+        return message
+
+    try:
+        from PIL.Image import Image as _PILImage
+    except ImportError:
+        _PILImage = None
+
+    if _PILImage is not None and isinstance(part, _PILImage):
+        message["content"] = "[image]"
+        return message
+
+    message["content"] = "[unsupported content: {}]".format(type(part).__name__)
     return message
 
 

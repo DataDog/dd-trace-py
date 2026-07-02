@@ -371,6 +371,38 @@ def test_extract_message_from_part_unhandled_is_empty_not_unsupported(part):
     assert message.get("content", "") == ""
 
 
+def test_extract_message_from_part_pil_image():
+    """PIL image inputs keep a placeholder instead of being silently dropped from LLMObs I/O."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    Image = pytest.importorskip("PIL.Image")
+    part = Image.new("RGB", (1, 1))
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[image]"
+
+
+def test_extract_message_from_part_file_handle():
+    """Uploaded File handles surface their uri instead of being silently dropped."""
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    part = types.File(uri="https://generativelanguage.googleapis.com/v1beta/files/abc123")
+    message = extract_message_from_part_google_genai(part, "user")
+
+    assert message["content"] == "[file: https://generativelanguage.googleapis.com/v1beta/files/abc123]"
+
+
+def test_extract_message_from_part_unknown_object():
+    """A non-Part, non-media object keeps a typed placeholder rather than empty content."""
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+
+    message = extract_message_from_part_google_genai(SimpleNamespace(), "user")
+
+    assert message["content"] == "[unsupported content: SimpleNamespace]"
+
+
 def test_google_genai_chat_send_message(mock_generate_content, genai_client, snapshot_context):
     with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")
