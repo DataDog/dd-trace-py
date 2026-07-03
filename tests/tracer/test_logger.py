@@ -4,9 +4,9 @@ import time
 import mock
 import pytest
 
-import ddtrace.internal.logger
 from ddtrace.internal.logger import LoggingBucket
 from ddtrace.internal.logger import get_logger
+import ddtrace.internal.utils.logger
 from tests.utils import BaseTestCase
 
 
@@ -20,8 +20,8 @@ class LoggerTestCase(BaseTestCase):
         self.manager = logging.root.manager
 
         # Reset to default values
-        ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._rate_limit = 60
+        ddtrace.internal.utils.logger._buckets.clear()
+        ddtrace.internal.utils.logger._rate_limit = 60
 
     def tearDown(self):
         # Weeee, forget all existing loggers
@@ -31,8 +31,8 @@ class LoggerTestCase(BaseTestCase):
         self.manager = None
 
         # Reset to default values
-        ddtrace.internal.logger._buckets.clear()
-        ddtrace.internal.logger._rate_limit = 60
+        ddtrace.internal.utils.logger._buckets.clear()
+        ddtrace.internal.utils.logger._rate_limit = 60
 
         super(LoggerTestCase, self).tearDown()
 
@@ -69,7 +69,7 @@ class LoggerTestCase(BaseTestCase):
 
         # Fetch a new logger
         log = get_logger("test.logger")
-        assert ddtrace.internal.logger.log_filter in log.filters
+        assert ddtrace.internal.utils.logger.log_filter in log.filters
         self.assertEqual(log.name, "test.logger")
         self.assertEqual(log.level, logging.NOTSET)
 
@@ -106,10 +106,10 @@ class LoggerTestCase(BaseTestCase):
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.INFO)
-        ddtrace.internal.logger._rate_limit = 0
+        ddtrace.internal.utils.logger._rate_limit = 0
 
         # Clear buckets in case any were created during logger setup
-        ddtrace.internal.logger._buckets.clear()
+        ddtrace.internal.utils.logger._buckets.clear()
 
         # Log a bunch of times very quickly (this is fast)
         for _ in range(1000):
@@ -119,7 +119,7 @@ class LoggerTestCase(BaseTestCase):
         self.assertEqual(call_handlers.call_count, 1000)
 
         # Our buckets are empty (no rate limit means no buckets should be created)
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+        self.assertEqual(ddtrace.internal.utils.logger._buckets, dict())
 
     @mock.patch("logging.Logger.callHandlers")
     def test_logger_handle_debug(self, call_handlers):
@@ -132,10 +132,10 @@ class LoggerTestCase(BaseTestCase):
         log = get_logger("test.logger")
         log.setLevel(logging.DEBUG)
         assert log.getEffectiveLevel() == logging.DEBUG
-        assert ddtrace.internal.logger._rate_limit > 0
+        assert ddtrace.internal.utils.logger._rate_limit > 0
 
         # Clear buckets in case any were created during logger setup
-        ddtrace.internal.logger._buckets.clear()
+        ddtrace.internal.utils.logger._buckets.clear()
 
         # Log a bunch of times very quickly (this is fast)
         for level in ALL_LEVEL_NAMES:
@@ -168,7 +168,7 @@ class LoggerTestCase(BaseTestCase):
 
         # We added an bucket entry for this record
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        logging_bucket = ddtrace.internal.logger._buckets.get(key)
+        logging_bucket = ddtrace.internal.utils.logger._buckets.get(key)
         self.assertIsInstance(logging_bucket, LoggingBucket)
 
         # The bucket entry is correct
@@ -203,7 +203,7 @@ class LoggerTestCase(BaseTestCase):
 
         # We added an bucket entry for these records
         key = (record.name, record.levelno, record.pathname, record.lineno)
-        logging_bucket = ddtrace.internal.logger._buckets.get(key)
+        logging_bucket = ddtrace.internal.utils.logger._buckets.get(key)
         assert logging_bucket is not None
 
         # The bucket entry is correct
@@ -229,7 +229,7 @@ class LoggerTestCase(BaseTestCase):
         key = (record.name, record.levelno, record.pathname, record.lineno)
         bucket = time.monotonic()
         # We want the time bucket to be for an older bucket
-        ddtrace.internal.logger._buckets[key] = LoggingBucket(bucket=bucket - 60, skipped=20)
+        ddtrace.internal.utils.logger._buckets[key] = LoggingBucket(bucket=bucket - 60, skipped=20)
 
         # Handle our record
         log.handle(record)
@@ -275,7 +275,7 @@ class LoggerTestCase(BaseTestCase):
         all_records = (record1, record2, record3, record4, record5, record6)
         [log.handle(record) for record in all_records]
 
-        buckets = ddtrace.internal.logger._buckets
+        buckets = ddtrace.internal.utils.logger._buckets
         # We have 6 records but only end up with 5 buckets
         self.assertEqual(len(buckets), 5)
 
