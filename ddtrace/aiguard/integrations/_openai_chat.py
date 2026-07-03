@@ -112,6 +112,9 @@ def _convert_openai_response(resp: Any) -> list[Message]:
     """Convert an OpenAI ChatCompletion response to AI Guard ``Message`` list."""
     result: list[Message] = []
     choices = _get(resp, "choices") or []
+    # Monotonic counter for synthetic legacy function_call ids; deterministic and
+    # collision-free within a response, unlike id() (which CPython reuses after GC).
+    fc_counter = 0
     for choice in choices:
         try:
             message = _get(choice, "message")
@@ -130,9 +133,11 @@ def _convert_openai_response(resp: Any) -> list[Message]:
                 tool_calls_out.extend(_tool_call_from(tc) for tc in tool_calls)
             function_call = _get(message, "function_call")
             if function_call:
+                synthetic_id = f"fc_{fc_counter}"
+                fc_counter += 1
                 tool_calls_out.append(
                     ToolCall(
-                        id=f"fc_{id(function_call):x}",
+                        id=synthetic_id,
                         function=Function(
                             name=_get(function_call, "name", "") or "",
                             arguments=_get(function_call, "arguments", "{}") or "{}",

@@ -9,11 +9,7 @@ optional OpenAI SDK.
 """
 
 from ddtrace.aiguard._api_client import AIGuardAbortError
-from ddtrace.aiguard._common import wrap_abort_error
-import ddtrace.internal.logger as ddlogger
-
-
-logger = ddlogger.get_logger(__name__)
+from ddtrace.aiguard._common import wrap_provider_abort_error
 
 
 __all__ = ["_wrap_abort_error"]
@@ -26,19 +22,6 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     Falls back to *cause* unchanged when the OpenAI SDK is not importable;
     catch-by-``AIGuardAbortError`` still works either way.
     """
-    exception_class: type[AIGuardAbortError] = AIGuardAbortError
-    try:
-        # AIDEV-NOTE: import lazily -- ``_openai_errors`` pulls in the optional
-        # OpenAI SDK at import time. Python's import lock guarantees all
-        # concurrent cold imports observe the same class object.
-        from ddtrace.aiguard.integrations._openai_errors import OpenAIAIGuardAbortError
-
-        exception_class = OpenAIAIGuardAbortError
-    except ImportError:
-        logger.warning(
-            "AI Guard: failed to import the OpenAI SDK; falling back to bare "
-            "AIGuardAbortError. Install ``openai`` to get SDK-hierarchy "
-            "compatibility (``except openai.UnprocessableEntityError``)."
-        )
-
-    return wrap_abort_error(cause, exception_class)
+    return wrap_provider_abort_error(
+        cause, "ddtrace.aiguard.integrations._openai_errors", "OpenAIAIGuardAbortError", "OpenAI"
+    )

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.aiguard import AIGuardAbortError
+from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard import ContentPart
 from ddtrace.aiguard import Function
@@ -179,6 +180,27 @@ def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
     else:
         result = ai_guard_client.evaluate(TOOL_CALL, options)
         assert result["action"] == "DENY"
+
+
+@pytest.mark.parametrize(
+    "options,remote_enabled,dd_block,expected",
+    [
+        # remote disabled always wins
+        pytest.param(None, False, True, False, id="remote off -> never block"),
+        pytest.param(Options(block=True), False, True, False, id="remote off overrides explicit block"),
+        # no options: fall back to DD_AI_GUARD_BLOCK (the G2 behavior)
+        pytest.param(None, True, True, True, id="no options + DD_AI_GUARD_BLOCK=true -> block"),
+        pytest.param(None, True, False, False, id="no options + DD_AI_GUARD_BLOCK=false -> no block"),
+        pytest.param(Options(), True, False, False, id="empty options + DD_AI_GUARD_BLOCK=false -> no block"),
+        # explicit per-call block always wins over the env default
+        pytest.param(Options(block=True), True, False, True, id="explicit block=true overrides env false"),
+        pytest.param(Options(block=False), True, True, False, id="explicit block=false overrides env true"),
+    ],
+)
+def test_is_blocking_enabled_consults_dd_ai_guard_block(options, remote_enabled, dd_block, expected):
+    """When no per-call options are given, blocking follows DD_AI_GUARD_BLOCK (not a hardcoded True)."""
+    with override_ai_guard_config(dict(_ai_guard_block=dd_block)):
+        assert AIGuardClient._is_blocking_enabled(options, remote_enabled) is expected
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
