@@ -1,3 +1,4 @@
+# AIDEV-NOTE: Reference for context_with_event() + TracingEvent; see contrib/_events/ and _trace/subscribers/.
 from typing import Any
 from typing import Awaitable
 from typing import Optional
