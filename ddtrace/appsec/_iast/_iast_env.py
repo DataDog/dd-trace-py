@@ -36,10 +36,6 @@ class IASTEnvironment:
         """
         Create a unique key for an endpoint based on HTTP method and route.
 
-        Args:
-            method (str): HTTP method (GET, POST, etc.)
-            route (str): HTTP route/endpoint path
-
         Returns:
             str: Combined key as "METHOD:ROUTE"
         """
