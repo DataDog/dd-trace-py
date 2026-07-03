@@ -645,6 +645,22 @@ AI Guard
        disable AI Guard instrumentation for OpenAI only, without affecting other providers or
        requiring a tracer version rollback.
 
+   DD_AI_GUARD_ANTHROPIC_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-provider kill switch for AI Guard auto-instrumentation of the Anthropic SDK. Behaves like
+       ``DD_AI_GUARD_OPENAI_ENABLED`` but scoped to Anthropic: set to ``False`` to disable AI Guard
+       instrumentation for Anthropic only, without affecting other providers or requiring a rollback.
+
+   DD_AI_GUARD_LANGCHAIN_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Per-framework kill switch for AI Guard auto-instrumentation of LangChain. Set to ``False`` to
+       disable AI Guard instrumentation for LangChain only, without affecting other integrations or
+       requiring a tracer version rollback.
+
 Code Security
 -------------
 

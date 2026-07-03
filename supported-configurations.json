@@ -145,6 +145,13 @@
         "default": "false"
       }
     ],
+    "DD_AI_GUARD_ANTHROPIC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -164,6 +171,13 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_AI_GUARD_LANGCHAIN_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_MAX_CONTENT_SIZE": [
