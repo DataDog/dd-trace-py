@@ -33,11 +33,11 @@ log = get_logger(__name__)
 
 @dataclass(frozen=True)
 class _PromptRequest:
-    """Describes an HTTP prompt fetch: FFE ``/resolve`` (env-scoped) or the static registry.
+    """Describes an HTTP prompt fetch: environment resolution or the static registry.
 
-    The FFE-driven path (``DD_ENV`` set, no explicit ``label``) resolves env-scoped variants and
-    targeting via ``POST .../{id}/resolve``. An explicit ``label`` (deprecated) or no ``DD_ENV`` at
-    all falls back to the static ``GET .../{id}`` registry, which has no targeting.
+    The environment-resolved path (``DD_ENV`` set, no explicit ``label``) resolves env-scoped
+    variants and targeting via ``POST .../{id}/resolve``. An explicit ``label`` (deprecated) or no
+    ``DD_ENV`` at all falls back to the static ``GET .../{id}`` registry, which has no targeting.
     """
 
     prompt_id: str
@@ -113,12 +113,12 @@ class PromptManager:
         targeting_key: Optional[str] = None,
         **attributes: Any,
     ) -> ManagedPrompt:
-        """Retrieve a prompt template from the registry or FFE."""
+        """Retrieve a prompt template from the registry or by environment resolution."""
         if label is not None and (targeting_key is not None or attributes):
             warnings.warn(
                 "get_prompt() received 'label' alongside 'targeting_key' or other attributes. "
                 "'label' routes to the HTTP path which does not support targeting; the extra "
-                "arguments will be ignored. Drop 'label' to use Feature-Flag-Evaluation dispatch.",
+                "arguments will be ignored. Drop 'label' to resolve the prompt by environment.",
                 UserWarning,
                 stacklevel=2,
             )
@@ -143,7 +143,7 @@ class PromptManager:
         return self._get_prompt_http(req, fallback=fallback)
 
     def _get_prompt_http(self, req: _PromptRequest, fallback: PromptFallback = None) -> ManagedPrompt:
-        """Retrieve a prompt via HTTP (FFE ``/resolve`` or the static registry)."""
+        """Retrieve a prompt via HTTP (environment resolution ``/resolve`` or the static registry)."""
         if self._cache_enabled:
             # Try hot cache (in-memory)
             prompt = self._try_cache(self._hot_cache, req, PromptSource.HOT_CACHE)

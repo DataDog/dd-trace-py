@@ -1890,8 +1890,8 @@ class LLMObs(Service):
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those.
-        :param targeting_key: Sticky bucketing key for A/B tests on the Feature-Flag-Evaluation (FFE) path.
-        :param attributes: Arbitrary targeting attributes for FFE allocation rules.
+        :param targeting_key: Sticky bucketing key for A/B tests when resolving a version by environment.
+        :param attributes: Arbitrary targeting attributes used when resolving a version by environment.
 
         :returns: A ManagedPrompt object with template and rendering methods
         :raises ValueError: If the prompt cannot be fetched and no fallback is provided
@@ -1910,7 +1910,7 @@ class LLMObs(Service):
                 fallback="Hello {{user}}, how can I help?"
             )
 
-            # FFE path with targeting (requires DD_ENV and agent mode)
+            # Environment resolution with targeting (requires DD_ENV and agent mode)
             prompt = LLMObs.get_prompt(
                 "greeting",
                 targeting_key="user-123",
