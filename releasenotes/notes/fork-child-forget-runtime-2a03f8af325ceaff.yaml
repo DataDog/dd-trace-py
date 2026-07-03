@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    tracing: fixed a hang/crash in ``os.fork()`` children caused by the native
+    shared tokio runtime being inherited across the fork. The inherited runtime
+    is unusable in the child (its worker threads do not survive the fork and its
+    I/O driver file descriptors are invalid), and dropping it from the child
+    blocks or panics with ``failed to wake I/O driver: Bad file descriptor``.
+    The child fork hook now abandons the inherited runtime and unconditionally
+    builds a fresh one, so forked processes no longer hang or crash on teardown.
