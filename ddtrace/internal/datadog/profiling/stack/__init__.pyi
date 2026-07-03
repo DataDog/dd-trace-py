@@ -48,10 +48,10 @@ def reinstall_segv_handler() -> None:
     ...
 
 def segv_handler_installed() -> bool:
-    """Return True if our SIGSEGV handler is the currently installed disposition.
+    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
 
-    Used to detect when another component (e.g. PyTorch/CUDA) has taken over the
-    handler, in which case safe_memcpy's fault recovery would no longer work.
+    Used to detect when another component (e.g. PyTorch/CUDA) has taken over either
+    signal, in which case safe_memcpy's fault recovery would no longer work.
     """
     ...
 
