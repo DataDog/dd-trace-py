@@ -996,6 +996,7 @@ suites:
       - '@tracing'
       - '@molten'
       - tests/contrib/molten/*
+      - tests/snapshots/tests.{suite}.*
     snapshot: true
   mysqlpython:
     paths:
@@ -1268,6 +1269,7 @@ suites:
       - '@sqlalchemy'
       - '@dbapi'
       - tests/contrib/sqlalchemy/*
+      - tests/snapshots/tests.{suite}.*
     services:
       - postgres
       - mysql
