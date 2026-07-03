@@ -184,6 +184,9 @@ class SharedRuntime:
     def debug(self) -> str:
         """Returns a string representation of the runtime. Should only be used for debugging."""
         ...
+    def stale_runtimes_forgotten(self) -> int:
+        """Number of inherited runtimes abandoned in a forked child (before_fork skipped)."""
+        ...
 
 class TraceExporter:
     """

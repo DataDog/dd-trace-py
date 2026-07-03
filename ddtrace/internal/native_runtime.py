@@ -22,12 +22,66 @@ class NativeRuntime(SharedRuntime):
 
     _instance: Optional["NativeRuntime"] = None
 
+    # Fork-hook diagnostics (APMSP fork investigation).
+    #
+    # ``before_fork`` tears the tokio runtime down in the parent so the child
+    # inherits an empty slot. If it is skipped for a given fork, the child
+    # inherits a *live* runtime and the native ``after_fork_child`` has to
+    # abandon it (``mem::forget``). These process-wide counters let staging
+    # tell us, with hard numbers, how often ``before_fork`` is skipped for a
+    # fork that still runs ``after_fork_child`` (the asymmetric case).
+    before_fork_calls: int = 0
+    after_fork_parent_calls: int = 0
+    after_fork_child_calls: int = 0
+    # Number of forks where after_fork_child ran without a preceding before_fork.
+    before_fork_skipped: int = 0
+
     def __init__(self) -> None:
         super().__init__()
+        # Set by before_fork, cleared after each fork in both parent and child.
+        # Lets after_fork_child detect that no before_fork ran for this fork.
+        self._before_fork_ran = False
         forksafe.register_before_fork(self.before_fork)
         forksafe.register_after_parent(self.after_fork_parent)
         forksafe.register(self.after_fork_child)
         atexit.register(self._atexit)
+
+    def before_fork(self) -> None:
+        NativeRuntime.before_fork_calls += 1
+        self._before_fork_ran = True
+        super().before_fork()
+
+    def after_fork_parent(self) -> None:
+        NativeRuntime.after_fork_parent_calls += 1
+        self._before_fork_ran = False
+        super().after_fork_parent()
+
+    def after_fork_child(self) -> None:
+        NativeRuntime.after_fork_child_calls += 1
+        skipped = not self._before_fork_ran
+        self._before_fork_ran = False
+        try:
+            super().after_fork_child()
+        finally:
+            if skipped:
+                NativeRuntime.before_fork_skipped += 1
+                # Ground-truth from the native side: how many times a stale
+                # inherited runtime actually had to be forgotten. Available only
+                # once the instrumented native extension is built; guard for
+                # older builds.
+                try:
+                    native_forgotten = self.stale_runtimes_forgotten()  # type: ignore[attr-defined]
+                except Exception:
+                    native_forgotten = -1
+                log.warning(
+                    "native runtime: before_fork was skipped for this fork "
+                    "(py_skipped=%d native_forgotten=%s after_child_calls=%d before_calls=%d); "
+                    "child inherited a live tokio runtime and had to abandon it",
+                    NativeRuntime.before_fork_skipped,
+                    native_forgotten,
+                    NativeRuntime.after_fork_child_calls,
+                    NativeRuntime.before_fork_calls,
+                )
 
     def _atexit(self) -> None:
         try:

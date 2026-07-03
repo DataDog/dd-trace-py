@@ -70,6 +70,13 @@ impl SharedRuntimePy {
     fn debug(&self) -> String {
         format!("{:?}", self.inner)
     }
+
+    /// Diagnostic: number of times an inherited runtime had to be abandoned in a
+    /// forked child because `before_fork` was skipped for the fork. Non-zero means
+    /// the pre-fork hook did not run for the fork that created this process.
+    fn stale_runtimes_forgotten(&self) -> u64 {
+        self.inner.stale_runtimes_forgotten()
+    }
 }
 
 pub fn register_shared_runtime(m: &Bound<'_, PyModule>) -> PyResult<()> {
