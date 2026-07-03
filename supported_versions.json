@@ -2845,29 +2845,29 @@
             },
             "3.10": {
                 "minimum_package_version": "0.1.53",
-                "maximum_package_version": "1.4.7",
+                "maximum_package_version": "1.4.8",
                 "tested_versions": [
                     "0.1.53",
                     "0.3.86",
-                    "1.4.7"
+                    "1.4.8"
                 ]
             },
             "3.11": {
                 "minimum_package_version": "0.1.53",
-                "maximum_package_version": "1.4.7",
+                "maximum_package_version": "1.4.8",
                 "tested_versions": [
                     "0.1.53",
                     "0.3.86",
-                    "1.4.7"
+                    "1.4.8"
                 ]
             },
             "3.12": {
                 "minimum_package_version": "0.1.53",
-                "maximum_package_version": "1.4.7",
+                "maximum_package_version": "1.4.8",
                 "tested_versions": [
                     "0.1.53",
                     "0.3.86",
-                    "1.4.7"
+                    "1.4.8"
                 ]
             }
         }
@@ -3454,6 +3454,48 @@
                 "tested_versions": [
                     "1.10.1",
                     "1.27.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mistralai",
+        "integration": "mistralai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
                 ]
             }
         }
