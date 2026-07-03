@@ -85,6 +85,12 @@ def test_gc_cycle_drop_blocks_child():
         # Set up the service (simulates parent's NativeWriter)
         svc = ServiceHolder()
         worker = PeriodicThread(0.5, svc.periodic, name="svc-worker")
+        # autorestart=False mirrors NativeWriter's worker (set by PR #18262).
+        # With True the ddtrace _after_fork_child hook would restart the thread,
+        # keeping a PyRef alive and preventing GC from collecting the cycle —
+        # BlockingExporter.__del__ would never fire and the test would pass
+        # vacuously without exercising the blocking-drop path.
+        worker.__autorestart__ = False
         svc._worker = worker
         worker.start()
 
@@ -512,31 +518,15 @@ def test_tracer_child_after_fork_fast_drops_exporter():
         if pid == 0:
             try:
                 signal.alarm(15)
-                t0 = time.monotonic()
 
-                # _child_after_fork is already wired via forksafe — it ran
-                # automatically at fork time (ddtrace registers it at import).
-                # Measure time from fork entry to now (just after hooks finish).
-                elapsed_ms = (time.monotonic() - t0) * 1000
-
-                # Force GC to confirm the exporter's inner has been taken:
-                # if _discard_writer_exporter() ran, Drop is a no-op and gc
-                # collection should be fast.
-                gc_t0 = time.monotonic()
+                # os.register_at_fork child hooks (including
+                # Tracer._child_after_fork) execute before os.fork() returns
+                # in the child, so any timer started here would exclude hook
+                # latency. The meaningful check is the state of the old
+                # exporter's inner: if _discard_writer_exporter() ran, it is
+                # None and gc.collect() is a no-op for the Drop regardless of
+                # how long the hooks took.
                 gc.collect()
-                gc_ms = (time.monotonic() - gc_t0) * 1000
-
-                total_ms = elapsed_ms + gc_ms
-                sys.stderr.write(
-                    "[fork_n=%d] fork_hooks=%.1fms gc=%.1fms total=%.1fms\n"
-                    % (fork_n, elapsed_ms, gc_ms, total_ms)
-                )
-
-                if total_ms > DEADLINE_MS:
-                    sys.stderr.write(
-                        "FAIL: total %.1fms > deadline %dms\n" % (total_ms, DEADLINE_MS)
-                    )
-                    os._exit(3)
 
                 # Verify _discard_writer_exporter() ran: the new child writer's
                 # exporter should be fresh (inner not None). The OLD writer's
@@ -558,8 +548,6 @@ def test_tracer_child_after_fork_fast_drops_exporter():
         _, status = os.waitpid(pid, 0)
         if os.WIFSIGNALED(status):
             failures.append("fork_n=%d: signal %d" % (fork_n, os.WTERMSIG(status)))
-        elif os.WEXITSTATUS(status) == 3:
-            failures.append("fork_n=%d: fork hooks + gc exceeded %dms deadline" % (fork_n, DEADLINE_MS))
         elif os.WEXITSTATUS(status) == 4:
             failures.append("fork_n=%d: new writer exporter inner is None after fork" % fork_n)
         elif os.WEXITSTATUS(status) != 0:
