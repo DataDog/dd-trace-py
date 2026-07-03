@@ -374,10 +374,13 @@ class PromptManager:
             conn = get_connection(self._base_url, timeout=timeout)
             escaped_id = quote(req.prompt_id, safe="")
             if req.use_resolve:
+                attrs: dict[str, Any] = {"env": req.env or ""}
+                if req.targeting_key is not None:
+                    attrs["targeting_key"] = req.targeting_key
+                if req.attributes:
+                    attrs["context"] = req.attributes
                 path = f"{PROMPTS_ENDPOINT}/{escaped_id}/resolve"
-                body = json.dumps(
-                    {"data": {"type": "prompt_resolve_requests", "attributes": self._resolve_attributes(req)}}
-                )
+                body = json.dumps({"data": {"type": "prompt_resolve_requests", "attributes": attrs}})
                 headers = {**self._headers, "Content-Type": "application/json", "DD-APPLICATION-KEY": self._app_key}
                 conn.request("POST", path, body=body, headers=headers)
             else:
@@ -411,16 +414,6 @@ class PromptManager:
         finally:
             if conn is not None:
                 conn.close()
-
-    @staticmethod
-    def _resolve_attributes(req: _PromptRequest) -> dict[str, Any]:
-        """Build the JSON:API ``attributes`` for a ``/resolve`` request body."""
-        attrs: dict[str, Any] = {"env": req.env or ""}
-        if req.targeting_key is not None:
-            attrs["targeting_key"] = req.targeting_key
-        if req.attributes:
-            attrs["context"] = req.attributes
-        return attrs
 
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the absolute request path for fetching a prompt from the static registry."""

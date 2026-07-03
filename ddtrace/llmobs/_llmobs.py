@@ -321,6 +321,14 @@ class LLMObsActivateDistributedHeadersError(Exception):
     pass
 
 
+def _deprecate_prompt_label(method: str) -> None:
+    deprecate(
+        prefix="The 'label' parameter of LLMObs.{}() is deprecated".format(method),
+        message="Set DD_ENV instead; the prompt version is resolved for that environment.",
+        category=DDTraceDeprecationWarning,
+    )
+
+
 @dataclass
 class LLMObsSpan:
     """LLMObs span object.
@@ -1919,11 +1927,7 @@ class LLMObs(Service):
                 )
         """
         if label is not None:
-            deprecate(
-                prefix="The 'label' parameter of LLMObs.get_prompt() is deprecated",
-                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
-                category=DDTraceDeprecationWarning,
-            )
+            _deprecate_prompt_label("get_prompt")
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.get_prompt(
             prompt_id,
@@ -1967,11 +1971,7 @@ class LLMObs(Service):
             The refreshed prompt, or None if fetch failed.
         """
         if label is not None:
-            deprecate(
-                prefix="The 'label' parameter of LLMObs.refresh_prompt() is deprecated",
-                message="Set DD_ENV instead; the prompt version is resolved for that environment.",
-                category=DDTraceDeprecationWarning,
-            )
+            _deprecate_prompt_label("refresh_prompt")
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.refresh_prompt(prompt_id, label)
 
