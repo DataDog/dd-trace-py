@@ -885,9 +885,10 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Introspection used by tests: reports whether our SIGSEGV handler is the
-    // currently installed disposition. This is the same primitive the sampler
-    // uses to decide whether safe_memcpy's fault recovery is still trustworthy.
+    // Introspection used by tests: reports whether our fault-recovery handler is
+    // the currently installed disposition for both SIGSEGV and SIGBUS. This is the
+    // same primitive the sampler uses to decide whether safe_memcpy's fault
+    // recovery is still trustworthy.
     if (segv_handler_installed()) {
         Py_RETURN_TRUE;
     }
@@ -979,7 +980,7 @@ static PyMethodDef stack_methods[] = {
     { "segv_handler_installed",
       stack_segv_handler_installed,
       METH_NOARGS,
-      "Return True if our SIGSEGV handler is the currently installed disposition" },
+      "Return True if our handler is the currently installed disposition for SIGSEGV and SIGBUS" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,
