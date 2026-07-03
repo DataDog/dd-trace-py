@@ -52,9 +52,6 @@ class _PromptRequest:
 
     @property
     def key(self) -> str:
-        # Exact cache identity: same key <=> same resolved variant. Attributes drive FFE rule
-        # selection, so they are part of the key (hashed for compactness) - never serve one
-        # context's variant for another.
         attrs = ""
         if self.attributes:
             blob = json.dumps(self.attributes, sort_keys=True, default=str)
@@ -69,8 +66,6 @@ class _PromptRequest:
 class PromptManager:
     """Manages prompt retrieval and caching."""
 
-    # Dedicated OpenFeature domain so prompt evaluation never clobbers or reads
-    # the application's own default provider.
     _FFE_DOMAIN = "datadog-llmobs-prompts"
 
     def __init__(
@@ -364,8 +359,6 @@ class PromptManager:
         if not self._api_key:
             return None, False, "DD_API_KEY is required for the Prompt Registry"
         if req.use_resolve and not self._app_key:
-            # /resolve is RBAC-gated; without an app key or Service Access Token the call would 401.
-            # Skip it and surface a clear reason rather than serving an unscoped version.
             return None, False, "an app key or Service Access Token is required to resolve prompts for an environment"
 
         scope = req.label or req.env
