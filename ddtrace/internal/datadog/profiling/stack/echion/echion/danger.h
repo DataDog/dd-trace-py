@@ -27,11 +27,12 @@ init_segv_catcher();
 void
 uninstall_segv_handler();
 
-// Returns true when our SIGSEGV handler (segv_handler) is the currently
-// installed disposition. Used by the sampler to detect when another component
-// (e.g. PyTorch/CUDA) has taken over the handler, in which case safe_memcpy's
-// fault recovery would no longer work and we must fall back to a syscall-based
-// copy. Returns false on any sigaction error.
+// Returns true only when our fault-recovery handler (segv_handler) is the
+// currently installed disposition for BOTH SIGSEGV and SIGBUS (init_segv_catcher
+// installs it, with SA_SIGINFO, for both). Used by the sampler to detect when
+// another component (e.g. PyTorch/CUDA) has taken over either signal, in which
+// case safe_memcpy's fault recovery would no longer work and we must fall back to
+// a syscall-based copy. Returns false on any sigaction error.
 bool
 segv_handler_installed();
 
