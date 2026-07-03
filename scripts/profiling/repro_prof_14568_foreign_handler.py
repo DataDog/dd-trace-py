@@ -20,11 +20,11 @@ within ~2s that it lost handler ownership and falls back to ``process_vm_readv``
 (Linux) / ``mach_vm_read_overwrite`` (macOS), so the process survives.
 
 Usage:
-    DD_PROFILING_STACK_FAST_COPY=1 python scripts/profiling/repro_prof_14568_foreign_handler.py
+    _DD_PROFILING_STACK_FAST_COPY=1 python scripts/profiling/repro_prof_14568_foreign_handler.py
 
 Optionally import torch to install a *real* foreign handler instead of the
 synthetic one:
-    DD_PROFILING_STACK_FAST_COPY=1 python scripts/profiling/repro_prof_14568_foreign_handler.py --torch
+    _DD_PROFILING_STACK_FAST_COPY=1 python scripts/profiling/repro_prof_14568_foreign_handler.py --torch
 
 Exit code 0 means the process survived (fix working). A crash (negative exit /
 SIGSEGV from the parent's perspective) reproduces the bug.
@@ -58,7 +58,10 @@ def main() -> int:
     args = parser.parse_args()
 
     os.environ.setdefault("DD_PROFILING_STACK_V2_ENABLED", "true")
-    os.environ.setdefault("DD_PROFILING_STACK_FAST_COPY", "1")
+    # The native fast-copy toggle is the private _DD_ variable that echion/vm.cc reads;
+    # force it on so the repro exercises the safe_memcpy + handler-fallback path even if
+    # the ambient environment disabled it.
+    os.environ["_DD_PROFILING_STACK_FAST_COPY"] = "1"
 
     from ddtrace.profiling.profiler import Profiler
 
