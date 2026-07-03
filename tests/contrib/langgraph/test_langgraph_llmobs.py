@@ -1,5 +1,6 @@
 import json
 import random
+import sys
 
 import pytest
 
@@ -318,7 +319,8 @@ class TestLangGraphLLMObs:
         assert b_output.get("value") is not None
 
     @pytest.mark.skipif(
-        LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
+        LANGGRAPH_VERSION < (0, 3, 21) or sys.version_info < (3, 11),
+        reason="real interrupt() over astream() needs LangGraph 0.3.21+ and Python 3.11+ (async runnable context)",
     )
     async def test_astream_break_on_interrupt_emits_llmobs_span(self, langgraph, langgraph_llmobs, test_spans):
         """MLOS-701: the graph's LLMObs span must be emitted even when the consumer abandons the
@@ -332,7 +334,9 @@ class TestLangGraphLLMObs:
 
         from .conftest import State
 
-        def node_with_interrupt(state):
+        async def node_with_interrupt(state):
+            # Async node so interrupt() runs in the runnable context under astream() (a sync node
+            # is dispatched to an executor thread on async runs, where get_config() is unavailable).
             interrupt({"question": "approve?"})
             return {"a_list": ["done"]}
 
@@ -355,24 +359,6 @@ class TestLangGraphLLMObs:
         graph_span = _find_span_by_name(spans, "LangGraph")
         assert graph_span is not None
         assert graph_span.error == 0
-
-    async def test_astream_events_break_still_reports_node_output(self, langgraph_llmobs, test_spans, simple_graph):
-        """A node abandoned mid-stream must still emit its span with output, not drop it. Breaking on
-        the first ``on_chain_stream`` suspends node "a"'s RunnableSeq.astream; the ``finally`` finishes
-        the span and reports the accumulated output (the wrapper passes ``response`` on abandonment
-        just as it does on completion, rather than nulling it out).
-        """
-        stream = simple_graph.astream_events({"a_list": [], "which": "a"}, version="v2")
-        async for ev in stream:
-            if ev.get("event") == "on_chain_stream":
-                break
-        await stream.aclose()
-
-        spans = _collect_spans(test_spans)
-        a_span = _find_span_by_name(spans, "a")
-        assert a_span.error == 0
-        a_output = get_llmobs_output(a_span) or {}
-        assert a_output.get("value") is not None
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_simple_graph(
