@@ -295,6 +295,27 @@ def test_extract(tracer):  # noqa: F811
         assert len(context.get_all_baggage_items()) == 3
 
 
+@pytest.mark.parametrize("datadog_parent_headers", [{}, {HTTP_HEADER_PARENT_ID: "0"}])
+def test_extract_mixed_datadog_tracecontext_matching_trace_id_without_datadog_parent(datadog_parent_headers):
+    trace_id = 1234
+    tracecontext_span_id = 10
+    headers = {
+        HTTP_HEADER_TRACE_ID: str(trace_id),
+        HTTP_HEADER_SAMPLING_PRIORITY: "1",
+        _HTTP_HEADER_TRACEPARENT: "00-%032x-%016x-01" % (trace_id, tracecontext_span_id),
+    }
+    headers.update(datadog_parent_headers)
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context.trace_id == trace_id
+    assert context.span_id == tracecontext_span_id
+    assert context.sampling_priority == 1
+
+
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
 @pytest.mark.parametrize("appsec_enabled", [True, False])
 @pytest.mark.parametrize("iast_enabled", [True, False])
