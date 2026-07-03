@@ -51,6 +51,7 @@ BEDROCK_PROVIDER_NAME = "amazon_bedrock"
 OPENAI_PROVIDER_NAME = "openai"
 AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
+GOOGLE_GENAI_PROVIDER_NAME = "google-generative-ai"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -177,6 +178,11 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
+            # raw (unnormalized) provider strings differ between the non-streaming and streaming
+            # code paths for this provider (e.g. "google-generative-ai" vs "chat-google-generative-ai"),
+            # so match by substring rather than prefix, mirroring the openai/azure check above.
+            elif operation == "chat" and GOOGLE_GENAI_PROVIDER_NAME in model_provider:
+                llmobs_integration = "google_genai"
 
             is_workflow = (
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True

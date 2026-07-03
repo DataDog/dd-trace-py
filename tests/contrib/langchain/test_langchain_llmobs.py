@@ -1072,6 +1072,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         DD_API_KEY="<not-a-real-key>",
     )
 
+    google_genai_env_config = dict(
+        GOOGLE_API_KEY=os.getenv("GOOGLE_API_KEY", "testing"),
+        DD_API_KEY="<not-a-real-key>",
+    )
+
     def setUp(self):
         # Install a DummyWriter so we can pop spans off the global tracer in-process.
         ddtrace.tracer._span_aggregator.writer = DummyWriter()
@@ -1143,6 +1148,59 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         llm = Anthropic(**kwargs)
         llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_chat(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        # No VCR proxy exists for google_genai in the test agent. ddtrace patches the public
+        # Models.generate_content method, which internally calls the private _generate_content;
+        # mocking the private method (not the public one ddtrace wraps) keeps the real patch
+        # wrapper in the call path so the google_genai integration's own span still fires.
+        with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_chat_stream(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_chunk = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        # LangChain's ChatGoogleGenerativeAI.stream() calls client.models.generate_content_stream,
+        # which ddtrace patches; mocking the private _generate_content_stream (not the public
+        # method ddtrace wraps) keeps the real patch wrapper in the call path, same rationale as
+        # _call_google_genai_chat above.
+        with mock.patch("google.genai.models.Models._generate_content_stream", return_value=iter([mock_chunk])):
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            for _ in llm.stream("When do you use 'whom' instead of 'who'?"):
+                pass
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):
@@ -1235,6 +1293,48 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         self._call_anthropic_chat(ChatAnthropic)
         self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_disabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled_stream(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat_stream(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
 
 
 def test_shadow_tags_chat_when_llmobs_disabled(tracer):

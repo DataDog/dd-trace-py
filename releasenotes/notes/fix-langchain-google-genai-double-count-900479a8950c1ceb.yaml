@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    langchain: Fixes an issue where a LangChain-wrapped Google GenAI (Gemini) chat model produced two
+    ``llm``-kind LLM Observability spans for a single call when the ``langchain`` and ``google_genai``
+    integrations were both enabled, causing cost and token metrics to be double-counted.
