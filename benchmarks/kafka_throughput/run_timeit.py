@@ -46,11 +46,15 @@ def main():
 
     durations_ms = []
     rss_bytes = []
+    produce_ms = []
+    consume_ms = []
     for _ in range(count):
         start = time.perf_counter()
-        kafka_throughput.run_benchmark(run_id)
+        phases = kafka_throughput.run_benchmark(run_id)
         durations_ms.append((time.perf_counter() - start) * 1000.0)
         rss_bytes.append(proc.memory_info().rss)
+        produce_ms.append(phases["produce_ms"])
+        consume_ms.append(phases["consume_ms"])
         run_id += 1
 
     duration_median = statistics.median(durations_ms)
@@ -59,6 +63,8 @@ def main():
     else:
         duration_std_err = 0.0
     rss_median = statistics.median(rss_bytes)
+    produce_median = statistics.median(produce_ms)
+    consume_median = statistics.median(consume_ms)
 
     result = [
         {
@@ -67,6 +73,9 @@ def main():
                 "process.internal_duration_ms.median": duration_median,
                 "process.internal_duration_ms.std_err": duration_std_err,
                 "process.rss_bytes.median": rss_median,
+                # Diagnostic breakdown (not gated) — localizes DSM cost by phase.
+                "phase.produce_ms.median": produce_median,
+                "phase.consume_ms.median": consume_median,
             },
         }
     ]
@@ -75,8 +84,17 @@ def main():
         json.dump(result, f, indent=2)
 
     print(
-        "Duration median: %.3f ms (± %.3f) | RSS median: %.2f MB | runs: %d (warmup %d)"
-        % (duration_median, duration_std_err, rss_median / 1_000_000, count, warmup)
+        "Duration median: %.3f ms (± %.3f) | RSS median: %.2f MB | "
+        "produce median: %.3f ms | consume+commit median: %.3f ms | runs: %d (warmup %d)"
+        % (
+            duration_median,
+            duration_std_err,
+            rss_median / 1_000_000,
+            produce_median,
+            consume_median,
+            count,
+            warmup,
+        )
     )
 
 

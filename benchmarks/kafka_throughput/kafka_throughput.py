@@ -74,6 +74,7 @@ def _run_worker(topic, group_id):
     try:
         # Phase 1: produce all messages.
         headers = [("key%d" % j, ("value%d" % j).encode("utf-8")) for j in range(NUM_HEADERS)]
+        produce_start = time.perf_counter()
         for i in range(MESSAGE_COUNT):
             producer.produce(
                 topic,
@@ -82,8 +83,10 @@ def _run_worker(topic, group_id):
                 headers=headers,
             )
         producer.flush()
+        produce_ms = (time.perf_counter() - produce_start) * 1000.0
 
         # Phase 2: consume and commit all messages synchronously.
+        consume_start = time.perf_counter()
         consumed = 0
         for i in range(MESSAGE_COUNT):
             msg = consumer.poll(10.0)
@@ -93,9 +96,12 @@ def _run_worker(topic, group_id):
                 raise RuntimeError("Consumer error on topic %s: %s" % (topic, msg.error()))
             consumer.commit(msg, asynchronous=False)
             consumed += 1
+        consume_ms = (time.perf_counter() - consume_start) * 1000.0
 
         if consumed != MESSAGE_COUNT:
             raise RuntimeError("Consumed %d/%d messages on topic %s" % (consumed, MESSAGE_COUNT, topic))
+
+        return produce_ms, consume_ms
     finally:
         consumer.close()
 
@@ -114,10 +120,11 @@ def run_benchmark(run_id=0):
     _create_topics(topics)
 
     errors = []
+    phase_times = []  # (produce_ms, consume_ms) per worker
 
     def _target(topic, group_id):
         try:
-            _run_worker(topic, group_id)
+            phase_times.append(_run_worker(topic, group_id))
         except Exception as exc:  # noqa: BLE001 - surface worker failures to the caller
             errors.append(exc)
 
@@ -134,7 +141,15 @@ def run_benchmark(run_id=0):
     if errors:
         raise errors[0]
 
+    # Mean per-worker phase durations (workers run concurrently, so this
+    # approximates per-phase wall-clock and lets us localize where DSM cost lands
+    # — produce vs synchronous consume+commit).
+    n = len(phase_times) or 1
+    mean_produce_ms = sum(p for p, _ in phase_times) / n
+    mean_consume_ms = sum(c for _, c in phase_times) / n
+    return {"produce_ms": mean_produce_ms, "consume_ms": mean_consume_ms}
+
 
 if __name__ == "__main__":
-    run_benchmark()
+    print(run_benchmark())
     print("Benchmark completed successfully")
