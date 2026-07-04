@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from copy import deepcopy
 import re
 import sys
@@ -208,6 +210,7 @@ INTEGRATION_CONFIGS = frozenset(
         "ray",
         "aiokafka",
         "google_cloud_pubsub",
+        "mistralai",
     }
 )
 
@@ -776,6 +779,14 @@ class Config(object):
             return self._integration_configs[name]
         raise AttributeError(f"{type(self)} object has no attribute {name}, {name} is not a valid configuration")
 
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        # (AIPTS-1715): The config object is a process-global singleton.
+        # If pickled by value, the config would drag its entire state
+        # into the payload, recursing in __getattr__.
+        # We have to pickle it by reference instead, so that the singleton can be re-resolved
+        # in the destination process when being unpickled.
+        return (_get_global_config, ())
+
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
@@ -887,6 +898,11 @@ class Config(object):
 
     def _lower(self, value):
         return value.lower()
+
+
+def _get_global_config() -> Config:
+    """Re-resolve the process-global config singleton when unpickling."""
+    return config
 
 
 config = Config()

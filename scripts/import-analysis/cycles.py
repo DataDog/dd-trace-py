@@ -47,6 +47,9 @@ def analyze(args):
         print(f"Detected {len(cycles)} circular imports.")
 
 
+_EXISTING_PREVIEW = 5  # number of existing cycles shown inline
+
+
 def compare(args):
     def to_dict(path: Path) -> dict[frozenset, tuple]:
         return {frozenset(cycle): cycle for cycle in json.loads(path.read_text())}
@@ -80,11 +83,30 @@ def compare(args):
         print()
 
     if existing_cycles:
+        sorted_existing = sorted([pr[_] for _ in existing_cycles], key=len)
         print("## ⚠️ Existing circular imports")
         print()
-        print("The following circular imports already exist on the base branch and have not been changed by this PR:")
+        print(
+            f"There are **{len(existing_cycles)}** circular imports that already exist on the base branch "
+            "and have not been changed by this PR."
+        )
         print()
-        print_cycles([pr[_] for _ in existing_cycles])
+        if len(existing_cycles) > _EXISTING_PREVIEW:
+            print(f"<details><summary>Show first {_EXISTING_PREVIEW} (shortest cycles)</summary>")
+            print()
+            print_cycles(sorted_existing[:_EXISTING_PREVIEW])
+            print("</details>")
+            print()
+            print(
+                "> To see all existing cycles, download the `cycles-base.json` and `cycles-pr.json` artifacts "
+                "from this CI job and run:\n"
+                "> ```\n"
+                "> uv run --script scripts/import-analysis/cycles.py compare cycles-base.json cycles-pr.json\n"
+                "> ```"
+            )
+        else:
+            print_cycles(sorted_existing)
+        print()
 
     if removed_cycles:
         print("## ✅ Circular imports removed")
