@@ -36,10 +36,13 @@ def _v4_search_response():
     return SearchResponse.from_dict(deepcopy(DUMMY_RESULT))
 
 
-def _v4_search_responses():
+def _v4_search_responses(results=None):
     from algoliasearch.search.models.search_responses import SearchResponses
 
-    return SearchResponses.from_dict({"results": [deepcopy(DUMMY_RESULT)]})
+    if results is None:
+        results = [DUMMY_RESULT]
+
+    return SearchResponses.from_dict({"results": [deepcopy(result) for result in results]})
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -103,7 +106,7 @@ class AlgoliasearchTest(TracerTestCase):
             params["query"] = query_text
             self.client.search_single_index("test_index", search_params=params)
 
-    def assert_search_span(self, query_text=_UNSET, hits_per_page=None):
+    def assert_search_span(self, query_text=_UNSET, hits_per_page=None, result_metrics=True):
         spans = self.get_spans()
         assert len(spans) == 1
         span = spans[0]
@@ -112,10 +115,14 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.span_type == "http"
         assert span.error == 0
         assert span.service == "algoliasearch"
-        assert span.get_metric("processing_time_ms") == 23
-        assert span.get_metric("number_of_hits") == 1
         assert span.get_tag("component") == "algoliasearch"
         assert span.get_tag("span.kind") == "client"
+        if result_metrics:
+            assert span.get_metric("processing_time_ms") == 23
+            assert span.get_metric("number_of_hits") == 1
+        else:
+            assert span.get_metric("processing_time_ms") is None
+            assert span.get_metric("number_of_hits") is None
         if query_text is not _UNSET:
             assert span.get_tag("query.text") == query_text
         if hits_per_page is not None:
@@ -199,6 +206,41 @@ class AlgoliasearchTest(TracerTestCase):
             )
             self.client.search(search_method_params)
             self.assert_search_span(query_text="multi search", hits_per_page=6)
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+    def test_algoliasearch_v4_search_models_multiple_requests(self):
+        if algoliasearch_version < V4:
+            self.skipTest("SearchClientSync API is only available in algoliasearch >= 4")
+
+        from algoliasearch.search.client import SearchClientSync
+        from algoliasearch.search.models.search_for_hits import SearchForHits
+        from algoliasearch.search.models.search_method_params import SearchMethodParams
+        from algoliasearch.search.models.search_query import SearchQuery
+
+        def search_many(self, search_method_params, request_options=None):
+            second_result = dict(DUMMY_RESULT, processingTimeMS=99, nbHits=12)
+            return _v4_search_responses([DUMMY_RESULT, second_result])
+
+        SearchClientSync.search = search_many
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            search_method_params = SearchMethodParams(
+                requests=[
+                    SearchQuery(
+                        actual_instance=SearchForHits(indexName="test_index", query="first search", hitsPerPage=6)
+                    ),
+                    SearchQuery(
+                        actual_instance=SearchForHits(indexName="test_index", query="second search", hitsPerPage=7)
+                    ),
+                ]
+            )
+            self.client.search(search_method_params)
+            span = self.assert_search_span(query_text=None, result_metrics=False)
+            assert span.get_metric("query.args.hits_per_page") is None
         finally:
             config.algoliasearch.collect_query_text = original
 

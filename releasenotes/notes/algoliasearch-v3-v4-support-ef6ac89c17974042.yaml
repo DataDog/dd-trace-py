@@ -4,7 +4,7 @@ features:
     algoliasearch: Adds tracing support for ``algoliasearch`` 3.x and 4.x Python
     clients. Version 3.x continues to use the existing ``SearchIndex.search`` hook,
     while 4.x ``SearchClientSync.search_single_index``, ``SearchClientSync.search``,
-    and their async equivalents on ``SearchClient`` are now wrapped and emit the same
-    ``algoliasearch.search`` spans (with ``processing_time_ms`` and ``number_of_hits``
-    metrics) that the 2.x integration produces. Previously the integration silently
-    no-oped on ``algoliasearch >= 3.0``.
+    and their async equivalents on ``SearchClient`` are now wrapped and emit
+    ``algoliasearch.search`` spans. Single-query searches include the same
+    ``processing_time_ms`` and ``number_of_hits`` metrics that the 2.x integration
+    produces. Previously the integration silently no-oped on ``algoliasearch >= 3.0``.

@@ -197,7 +197,7 @@ def _trace_search(
 
         tag_search_request(span, request)
         result = wrapped(*args, **kwargs)
-        tag_search_result(span, result)
+        tag_search_result(span, result, request)
         return result
 
 
@@ -219,7 +219,7 @@ async def _trace_search_async(
 
         tag_search_request(span, request)
         result = await wrapped(*args, **kwargs)
-        tag_search_result(span, result)
+        tag_search_result(span, result, request)
         return result
 
 

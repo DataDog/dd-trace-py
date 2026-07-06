@@ -5,10 +5,16 @@ The Algoliasearch__ integration will add tracing to your Algolia searches.
 
     import ddtrace.auto
 
+    # algoliasearch < 4
     from algoliasearch import algoliasearch
-    client = alogliasearch.Client(<ID>, <API_KEY>)
+    client = algoliasearch.Client(<ID>, <API_KEY>)
     index = client.init_index(<INDEX_NAME>)
     index.search("your query", args={"attributesToRetrieve": "attribute1,attribute1"})
+
+    # algoliasearch >= 4
+    from algoliasearch.search.client import SearchClientSync
+    client = SearchClientSync(<ID>, <API_KEY>)
+    client.search_single_index(<INDEX_NAME>, search_params={"query": "your query"})
 
 Configuration
 ~~~~~~~~~~~~~

@@ -20,6 +20,7 @@ _MISSING = object()
 class SearchRequest(NamedTuple):
     query_text: Optional[Any]
     params: Optional[dict[str, Any]]
+    tag_result_metrics: bool = True
 
 
 # DEV: this map serves the dual purpose of enumerating the algoliasearch.search() query_args that
@@ -76,7 +77,10 @@ def extract_search_request(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Sea
 
     requests = method_params.get("requests")
     if not isinstance(requests, (list, tuple)) or not requests:
-        return SearchRequest(query_text=None, params=None)
+        return SearchRequest(query_text=None, params=None, tag_result_metrics=False)
+
+    if len(requests) != 1:
+        return SearchRequest(query_text=None, params=None, tag_result_metrics=False)
 
     params = _to_plain_dict(requests[0])
     query_text = params.get("query") if params else None
@@ -96,7 +100,10 @@ def tag_search_request(span: Span, request: SearchRequest) -> None:
             span.set_tag("query.args.{}".format(tag_name), value)
 
 
-def tag_search_result(span: Span, result: Any) -> None:
+def tag_search_result(span: Span, result: Any, request: SearchRequest) -> None:
+    if not request.tag_result_metrics:
+        return
+
     result_dict = _extract_search_result(result)
     if result_dict is None:
         return
@@ -140,7 +147,10 @@ def _extract_search_result(result: Any) -> Optional[dict[str, Any]]:
         return None
 
     results = result_dict.get("results")
-    if isinstance(results, list) and results:
+    if isinstance(results, list):
+        if len(results) != 1:
+            return None
+
         first_result = _to_plain_dict(results[0])
         if first_result is not None:
             return first_result
