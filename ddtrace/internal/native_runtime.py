@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -50,11 +51,15 @@ class NativeRuntime(SharedRuntime):
         # Always-on deployment marker so we can confirm the fork-hook diagnostics
         # build is actually running without exec'ing into the process. Emitted once
         # per process, when the NativeRuntime singleton is first created.
-        log.warning(
-            "ddtrace fork-hook diagnostics build active (version=%s pid=%d)",
-            __version__,
-            os.getpid(),
+        #
+        # Written directly to stderr rather than via the logging module on purpose:
+        # k8s captures stderr unconditionally (so it shows regardless of the host
+        # app's log level), and it stays invisible to tests that assert no WARNING
+        # records are emitted during native module import (see tests/smoke_test.py).
+        sys.stderr.write(
+            "ddtrace fork-hook diagnostics build active (version=%s pid=%d)\n" % (__version__, os.getpid())
         )
+        sys.stderr.flush()
 
     def before_fork(self) -> None:
         NativeRuntime.before_fork_calls += 1
