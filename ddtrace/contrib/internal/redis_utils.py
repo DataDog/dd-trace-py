@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -146,7 +147,7 @@ def _build_tags(query, instance, integration_name):
     return ret
 
 
-def _get_cluster_pipeline_commands(instance, cmd_max_len):
+def _get_cluster_pipeline_commands(instance: Any, cmd_max_len: int) -> list[str]:
     """Return a list of stringified commands from a ClusterPipeline instance.
 
     redis-py reorganized ClusterPipeline internals between 6.x and 7.x/8.x:
