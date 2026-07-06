@@ -39,6 +39,14 @@ class NativeRuntime(SharedRuntime):
     # Number of forks where after_fork_child ran without a preceding before_fork.
     before_fork_skipped: int = 0
 
+    # Highest native bare-fork / parent-gap values we have already logged. The
+    # OS-level counters (via pthread_atfork) advance for forks that bypass
+    # os.register_at_fork entirely, which the Python hooks above cannot see. We
+    # only log when these grow, so a healthy process (no bypassing forks) stays
+    # quiet after the startup marker.
+    _last_bare_reported: int = 0
+    _last_gap_reported: int = 0
+
     def __init__(self) -> None:
         super().__init__()
         # Set by before_fork, cleared after each fork in both parent and child.
@@ -57,7 +65,8 @@ class NativeRuntime(SharedRuntime):
         # app's log level), and it stays invisible to tests that assert no WARNING
         # records are emitted during native module import (see tests/smoke_test.py).
         sys.stderr.write(
-            "ddtrace fork-hook diagnostics build active (version=%s pid=%d)\n" % (__version__, os.getpid())
+            "ddtrace fork-hook diagnostics build active (version=%s pid=%d gc_change=yes os_fork_diag=yes)\n"
+            % (__version__, os.getpid())
         )
         sys.stderr.flush()
 
@@ -70,6 +79,58 @@ class NativeRuntime(SharedRuntime):
         NativeRuntime.after_fork_parent_calls += 1
         self._before_fork_ran = False
         super().after_fork_parent()
+        # Parent side runs on every os.fork(); a good place to notice that the
+        # OS has serviced more forks than our before_fork hook saw.
+        self._report_fork_divergence("after_fork_parent")
+
+    def _native_fork_counts(self):
+        """Best-effort read of the native OS-level fork counters.
+
+        Returns (os_prepare, os_parent, os_child, bare_fork_live_runtime), using
+        -1 for any value the (possibly older) native extension cannot provide.
+        """
+        try:
+            os_prepare, os_parent, os_child = self.os_fork_counts()
+        except Exception:
+            os_prepare = os_parent = os_child = -1
+        try:
+            bare = self.bare_fork_live_runtime()
+        except Exception:
+            bare = -1
+        return os_prepare, os_parent, os_child, bare
+
+    def _report_fork_divergence(self, where: str) -> None:
+        """Log when forks bypassed the ddtrace before-fork hook.
+
+        Two independent signals of the same thing:
+        - ``bare_fork_live_runtime``: a child fork inherited a *live* runtime
+          because ``before_fork`` never parked it (native, child side).
+        - ``parent_gap``: the OS reported more parent-side forks than our
+          ``before_fork`` hook ran (parent side).
+        Both advance only for forks that skip ``os.register_at_fork``.
+        """
+        os_prepare, os_parent, os_child, bare = self._native_fork_counts()
+        gap = (os_parent - NativeRuntime.before_fork_calls) if os_parent >= 0 else -1
+        if bare <= NativeRuntime._last_bare_reported and gap <= NativeRuntime._last_gap_reported:
+            return
+        NativeRuntime._last_bare_reported = max(NativeRuntime._last_bare_reported, bare)
+        NativeRuntime._last_gap_reported = max(NativeRuntime._last_gap_reported, gap)
+        log.warning(
+            "native runtime: fork(s) bypassed the ddtrace before-fork hook (%s); "
+            "child inherited a live tokio runtime. bare_fork_live_runtime=%d parent_gap=%d "
+            "os_forks(prepare=%d parent=%d child=%d) "
+            "py(before=%d after_parent=%d after_child=%d skipped=%d)",
+            where,
+            bare,
+            gap,
+            os_prepare,
+            os_parent,
+            os_child,
+            NativeRuntime.before_fork_calls,
+            NativeRuntime.after_fork_parent_calls,
+            NativeRuntime.after_fork_child_calls,
+            NativeRuntime.before_fork_skipped,
+        )
 
     def after_fork_child(self) -> None:
         NativeRuntime.after_fork_child_calls += 1
@@ -88,15 +149,23 @@ class NativeRuntime(SharedRuntime):
                     native_forgotten = self.stale_runtimes_forgotten()
                 except Exception:
                     native_forgotten = -1
+                os_prepare, os_parent, os_child, bare = self._native_fork_counts()
                 log.warning(
                     "native runtime: before_fork was skipped for this fork "
-                    "(py_skipped=%d native_forgotten=%s after_child_calls=%d before_calls=%d); "
+                    "(py_skipped=%d native_forgotten=%s bare_fork_live_runtime=%d "
+                    "os_forks(prepare=%d parent=%d child=%d) after_child_calls=%d before_calls=%d); "
                     "child inherited a live tokio runtime and had to abandon it",
                     NativeRuntime.before_fork_skipped,
                     native_forgotten,
+                    bare,
+                    os_prepare,
+                    os_parent,
+                    os_child,
                     NativeRuntime.after_fork_child_calls,
                     NativeRuntime.before_fork_calls,
                 )
+            # Child side: also surface bypassing forks observed by this worker.
+            self._report_fork_divergence("after_fork_child")
 
     def _atexit(self) -> None:
         try:

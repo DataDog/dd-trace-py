@@ -187,6 +187,17 @@ class SharedRuntime:
     def stale_runtimes_forgotten(self) -> int:
         """Number of inherited runtimes abandoned in a forked child (before_fork skipped)."""
         ...
+    def os_fork_counts(self) -> tuple[int, int, int]:
+        """OS-level fork counts (prepare, parent, child) observed via pthread_atfork.
+
+        These fire for every fork(2) in the process, including forks that bypass
+        CPython's os.register_at_fork hooks. Comparing the parent count against the
+        Python-side before_fork count reveals forks that skipped the pre-fork hook.
+        """
+        ...
+    def bare_fork_live_runtime(self) -> int:
+        """Number of OS-level child forks that inherited a live (non-parked) runtime."""
+        ...
 
 class TraceExporter:
     """
