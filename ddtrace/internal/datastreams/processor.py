@@ -127,6 +127,11 @@ class DataStreamsProcessor(PeriodicService):
         self._lock = Lock()
         self._current_context = threading.local()
         self._schema_samplers: dict[str, SchemaSampler] = {}
+        # Cache of node hashes keyed by (service, env, edge tags). These inputs are
+        # constant per edge for the life of the process, so the FNV hash over the
+        # full tag byte-string need only be computed once per distinct edge instead
+        # of on every message. Lock-free: a race just recomputes the same value.
+        self._node_hash_cache: dict = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
@@ -417,14 +422,20 @@ class DataStreamsCtx:
         return data_streams_context
 
     def _compute_hash(self, tags, parent_hash):
-        def get_bytes(s):
-            return bytes(s, encoding="utf-8")
-
-        b = get_bytes(self.service) + get_bytes(self.env) + process_tags.base_hash_bytes
-
-        for t in tags:
-            b += get_bytes(t)
-        node_hash = fnv1_64(b)
+        # node_hash depends only on (service, env, process base tags, edge tags) —
+        # all constant per edge for the life of the process. Cache it so the
+        # per-message cost collapses to the cheap 16-byte (node_hash, parent_hash)
+        # hash below instead of rebuilding + FNV-hashing the full tag string.
+        cache = self.processor._node_hash_cache
+        key = (self.service, self.env, tags if isinstance(tags, tuple) else tuple(tags))
+        node_hash = cache.get(key)
+        if node_hash is None:
+            b = bytes(self.service, "utf-8") + bytes(self.env, "utf-8") + process_tags.base_hash_bytes
+            for t in key[2]:
+                b += bytes(t, "utf-8")
+            node_hash = fnv1_64(b)
+            if len(cache) < 4096:  # bound growth against pathological tag cardinality
+                cache[key] = node_hash
         return fnv1_64(struct.pack("<Q", node_hash) + struct.pack("<Q", parent_hash))
 
     def set_checkpoint(
