@@ -347,6 +347,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
     // Re-installing here ensures our handler is active when the sampling thread runs.
     // Only do this once to avoid overwriting g_old_segv with our own handler.
+    //
+    // Intentionally call_once: for foreign handlers we cannot wrap (PyTorch/CUDA,
+    // abseil via vLLM/gRPC - see PROF-14568), the sampler does NOT keep reinstalling
+    // to stay on top. Instead the loop below detects loss of ownership and falls
+    // back to the syscall copy. Re-arming here on every cycle would reintroduce the
+    // handler-chaining races that made safe_memcpy recovery unreliable in the first
+    // place, so leave this as a one-time install.
     static std::once_flag segv_handler_once;
     if (fast_copy_active) {
         std::call_once(segv_handler_once, init_segv_catcher);
