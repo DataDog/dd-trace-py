@@ -14,6 +14,7 @@ from tests.utils import assert_is_measured
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
 V4 = parse_version("4.0")
+_UNSET = object()
 
 
 DUMMY_RESULT = {
@@ -102,15 +103,8 @@ class AlgoliasearchTest(TracerTestCase):
             params["query"] = query_text
             self.client.search_single_index("test_index", search_params=params)
 
-    def test_algoliasearch(self):
-        self.patch_algoliasearch()
-        self.perform_search(
-            "test search", {"attributesToRetrieve": "firstname,lastname", "unsupportedTotallyNewArgument": "ignore"}
-        )
-
+    def assert_search_span(self, query_text=_UNSET, hits_per_page=None):
         spans = self.get_spans()
-        self.reset()
-
         assert len(spans) == 1
         span = spans[0]
         assert_is_measured(span)
@@ -118,18 +112,29 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.span_type == "http"
         assert span.error == 0
         assert span.service == "algoliasearch"
-        assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
-        # Verify that adding new arguments to the search API will simply be ignored and not cause
-        # errors
-        assert span.get_tag("query.args.unsupported_totally_new_argument") is None
         assert span.get_metric("processing_time_ms") == 23
         assert span.get_metric("number_of_hits") == 1
         assert span.get_tag("component") == "algoliasearch"
         assert span.get_tag("span.kind") == "client"
+        if query_text is not _UNSET:
+            assert span.get_tag("query.text") == query_text
+        if hits_per_page is not None:
+            assert span.get_metric("query.args.hits_per_page") == hits_per_page
+        return span
 
-        # Verify query_text, which may contain sensitive data, is not passed along
-        # unless the config value is appropriately set
-        assert span.get_tag("query.text") is None
+    def test_algoliasearch(self):
+        self.patch_algoliasearch()
+        self.perform_search(
+            "test search", {"attributesToRetrieve": "firstname,lastname", "unsupportedTotallyNewArgument": "ignore"}
+        )
+
+        span = self.assert_search_span(query_text=None)
+        self.reset()
+
+        assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
+        # Verify that adding new arguments to the search API will simply be ignored and not cause
+        # errors
+        assert span.get_tag("query.args.unsupported_totally_new_argument") is None
 
     def test_algoliasearch_with_query_text(self):
         self.patch_algoliasearch()
@@ -139,9 +144,7 @@ class AlgoliasearchTest(TracerTestCase):
         self.perform_search(
             "test search", {"attributesToRetrieve": "firstname,lastname", "unsupportedTotallyNewArgument": "ignore"}
         )
-        spans = self.get_spans()
-        span = spans[0]
-        assert span.get_tag("query.text") == "test search"
+        span = self.assert_search_span(query_text="test search")
         assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
         assert span.get_tag("query.args.unsupportedTotallyNewArgument") is None
         config.algoliasearch.collect_query_text = original
@@ -152,11 +155,8 @@ class AlgoliasearchTest(TracerTestCase):
         config.algoliasearch.collect_query_text = True
 
         self.perform_search("test search", {"hitsPerPage": 1, "page": 3})
-        spans = self.get_spans()
-        span = spans[0]
-        assert span.get_tag("query.text") == "test search"
+        span = self.assert_search_span(query_text="test search", hits_per_page=1)
         assert span.get_metric("query.args.page") == 3
-        assert span.get_metric("query.args.hits_per_page") == 1
         config.algoliasearch.collect_query_text = original
 
     def test_algoliasearch_v4_search_single_index_models(self):
@@ -173,18 +173,7 @@ class AlgoliasearchTest(TracerTestCase):
         try:
             search_params = SearchParams(actual_instance=SearchParamsObject(query="model search", hitsPerPage=5))
             self.client.search_single_index("test_index", search_params=search_params)
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert_is_measured(span)
-            assert span.name == "algoliasearch.search"
-            assert span.service == "algoliasearch"
-            assert span.get_tag("query.text") == "model search"
-            assert span.get_metric("query.args.hits_per_page") == 5
-            assert span.get_metric("processing_time_ms") == 23
-            assert span.get_metric("number_of_hits") == 1
-            assert span.get_tag("component") == "algoliasearch"
-            assert span.get_tag("span.kind") == "client"
+            self.assert_search_span(query_text="model search", hits_per_page=5)
         finally:
             config.algoliasearch.collect_query_text = original
 
@@ -209,18 +198,7 @@ class AlgoliasearchTest(TracerTestCase):
                 ]
             )
             self.client.search(search_method_params)
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert_is_measured(span)
-            assert span.name == "algoliasearch.search"
-            assert span.service == "algoliasearch"
-            assert span.get_tag("query.text") == "multi search"
-            assert span.get_metric("query.args.hits_per_page") == 6
-            assert span.get_metric("processing_time_ms") == 23
-            assert span.get_metric("number_of_hits") == 1
-            assert span.get_tag("component") == "algoliasearch"
-            assert span.get_tag("span.kind") == "client"
+            self.assert_search_span(query_text="multi search", hits_per_page=6)
         finally:
             config.algoliasearch.collect_query_text = original
 
@@ -244,18 +222,7 @@ class AlgoliasearchTest(TracerTestCase):
 
         try:
             asyncio.run(perform_search())
-            spans = self.get_spans()
-            span = spans[0]
-            assert len(spans) == 1
-            assert_is_measured(span)
-            assert span.name == "algoliasearch.search"
-            assert span.service == "algoliasearch"
-            assert span.get_tag("query.text") == "async search"
-            assert span.get_metric("query.args.hits_per_page") == 5
-            assert span.get_metric("processing_time_ms") == 23
-            assert span.get_metric("number_of_hits") == 1
-            assert span.get_tag("component") == "algoliasearch"
-            assert span.get_tag("span.kind") == "client"
+            self.assert_search_span(query_text="async search", hits_per_page=5)
         finally:
             config.algoliasearch.collect_query_text = original
 
@@ -289,18 +256,7 @@ class AlgoliasearchTest(TracerTestCase):
 
         try:
             asyncio.run(perform_search())
-            spans = self.get_spans()
-            assert len(spans) == 1
-            span = spans[0]
-            assert_is_measured(span)
-            assert span.name == "algoliasearch.search"
-            assert span.service == "algoliasearch"
-            assert span.get_tag("query.text") == "async multi search"
-            assert span.get_metric("query.args.hits_per_page") == 7
-            assert span.get_metric("processing_time_ms") == 23
-            assert span.get_metric("number_of_hits") == 1
-            assert span.get_tag("component") == "algoliasearch"
-            assert span.get_tag("span.kind") == "client"
+            self.assert_search_span(query_text="async multi search", hits_per_page=7)
         finally:
             config.algoliasearch.collect_query_text = original
 
