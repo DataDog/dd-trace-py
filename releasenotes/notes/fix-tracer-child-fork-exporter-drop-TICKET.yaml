@@ -1,0 +1,21 @@
+---
+fixes:
+  - |
+    tracer: Fixed a fork regression where ``Tracer._child_after_fork`` could
+    block the child process for up to 3 seconds with the GIL held, causing
+    fork-heavy services to miss parent-ping deadlines and drop jobs.
+
+    Root cause: two independent changes combined in 4.9.
+    PR #17780 added a Rust ``impl Drop for TraceExporterPy`` that calls
+    ``exporter.shutdown(3s)`` when the Python object is garbage-collected.
+    PR #18363 added ``Py_TPFLAGS_HAVE_GC`` to ``PeriodicThread``, making
+    the ``NativeWriter → _worker._target (bound method) → NativeWriter``
+    reference cycle visible to the GC.  After ``_child_after_fork`` calls
+    ``recreate()``, only the cycle keeps the old writer alive; any subsequent
+    allocation that crosses the gen-0 GC threshold triggers collection, fires
+    ``tp_clear`` on the old worker, frees the writer, and invokes the 3s Drop.
+
+    Fix: ``_child_after_fork`` now calls the fast-drop PyO3 method on the
+    inherited exporter before ``recreate()``.  In forked children the parent's
+    background Rust workers are dead and there is nothing to flush; taking
+    ``inner`` without shutdown makes the implicit Drop a no-op.
