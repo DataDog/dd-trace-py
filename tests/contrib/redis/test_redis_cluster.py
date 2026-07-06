@@ -7,6 +7,7 @@ import redis
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.contrib.internal.redis_utils import _build_tags
+from ddtrace.contrib.internal.redis_utils import _get_cluster_pipeline_commands
 from ddtrace.ext import net
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -254,3 +255,30 @@ class TestClusterConnTagsUnit:
         tags = _build_tags(None, types.SimpleNamespace(), "redis")
         assert net.TARGET_HOST not in tags
         assert net.SERVER_ADDRESS not in tags
+
+
+class TestClusterPipelineCommandsUnit:
+    """Unit tests for ClusterPipeline command extraction — no live Redis required."""
+
+    def _command(self, *args):
+        return types.SimpleNamespace(args=args)
+
+    def test_command_stack(self):
+        instance = types.SimpleNamespace(command_stack=[self._command("SET", "a", 1), self._command("GET", "a")])
+
+        assert _get_cluster_pipeline_commands(instance, 1000) == ["SET a 1", "GET a"]
+
+    def test_execution_strategy_command_queue(self):
+        instance = types.SimpleNamespace(
+            command_stack=[],
+            _execution_strategy=types.SimpleNamespace(
+                _command_queue=[self._command("SET", "a", 1), self._command("GET", "a")]
+            ),
+        )
+
+        assert _get_cluster_pipeline_commands(instance, 1000) == ["SET a 1", "GET a"]
+
+    def test_legacy_async_command_stack(self):
+        instance = types.SimpleNamespace(_command_stack=[self._command("SET", "a", 1), self._command("GET", "a")])
+
+        assert _get_cluster_pipeline_commands(instance, 1000) == ["SET a 1", "GET a"]
