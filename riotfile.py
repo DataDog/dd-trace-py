@@ -2348,6 +2348,8 @@ venv = Venv(
             venvs=[
                 # Legacy 2.x line — pinned urllib3 required by the older http backend.
                 Venv(pkgs={"urllib3": "~=1.26.15", "algoliasearch": "~=2.6"}),
+                # 3.0 keeps the SearchIndex.search API but must not use the 4.x branch.
+                Venv(pkgs={"algoliasearch": "~=3.0"}),
                 # Modern 4.x line — new SearchClient(Sync) API, pydantic responses.
                 Venv(pkgs={"algoliasearch": ["~=4.0", latest]}),
             ],

@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 
 from ddtrace import config
 from ddtrace._monkey import _patch_all
@@ -12,11 +13,11 @@ from tests.utils import assert_is_measured
 
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
-V3 = parse_version("3.0")
+V4 = parse_version("4.0")
 
 
 DUMMY_RESULT = {
-    "hits": [{"dummy": "dummy"}],
+    "hits": [{"objectID": "dummy-id", "dummy": "dummy"}],
     "processingTimeMS": 23,
     "nbHits": 1,
     "hitsPerPage": 20,
@@ -28,17 +29,16 @@ DUMMY_RESULT = {
 }
 
 
-class _V3Response(dict[str, object]):
-    """Stand-in for the pydantic ``SearchResponse`` returned by algoliasearch 3.x/4.x.
+def _v4_search_response():
+    from algoliasearch.search.models.search_response import SearchResponse
 
-    ``to_dict()`` mirrors the real client's ``model_dump(by_alias=True)`` output,
-    which uses the historical camelCase JSON keys (``processingTimeMS``,
-    ``nbHits``). The integration reads metrics via ``to_dict()`` so this shape
-    exercises the same code path that runs in production.
-    """
+    return SearchResponse.from_dict(deepcopy(DUMMY_RESULT))
 
-    def to_dict(self):
-        return dict(self)
+
+def _v4_search_responses():
+    from algoliasearch.search.models.search_responses import SearchResponses
+
+    return SearchResponses.from_dict({"results": [deepcopy(DUMMY_RESULT)]})
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -59,7 +59,7 @@ class AlgoliasearchTest(TracerTestCase):
             index_module.Index.search = search
             client = algoliasearch.algoliasearch.Client("X", "X")
             self.index = client.init_index("test_index")
-        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+        elif algoliasearch_version >= V2 and algoliasearch_version < V4:
             from algoliasearch.search_client import SearchClient
             import algoliasearch.search_index as index_module
 
@@ -67,14 +67,18 @@ class AlgoliasearchTest(TracerTestCase):
             client = SearchClient.create("X", "X")
             self.index = client.init_index("test_index")
         else:
-            # algoliasearch 3.x/4.x — the SearchIndex/init_index() API is gone; the
+            # algoliasearch 4.x — the SearchIndex/init_index() API is gone; the
             # modern surface is SearchClientSync.search_single_index().
             from algoliasearch.search.client import SearchClientSync
 
             def search_single_index(self, index_name, search_params=None, request_options=None):
-                return _V3Response(DUMMY_RESULT)
+                return _v4_search_response()
+
+            def search_many(self, search_method_params, request_options=None):
+                return _v4_search_responses()
 
             SearchClientSync.search_single_index = search_single_index
+            SearchClientSync.search = search_many
             self.client = SearchClientSync("APP_ID", "API_KEY")
 
     def patch_algoliasearch(self):
@@ -89,10 +93,10 @@ class AlgoliasearchTest(TracerTestCase):
     def perform_search(self, query_text, query_args=None):
         if algoliasearch_version < V2 and algoliasearch_version >= V1:
             self.index.search(query_text, args=query_args)
-        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+        elif algoliasearch_version >= V2 and algoliasearch_version < V4:
             self.index.search(query_text, request_options=query_args)
         else:
-            # v3/v4 combines query text and query args into the single
+            # v4 combines query text and query args into the single
             # ``search_params`` argument.
             params = dict(query_args) if query_args else {}
             params["query"] = query_text
@@ -155,14 +159,79 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.get_metric("query.args.hits_per_page") == 1
         config.algoliasearch.collect_query_text = original
 
-    def test_algoliasearch_v3_async_search_single_index(self):
-        if algoliasearch_version < V3:
-            self.skipTest("async SearchClient API is only available in algoliasearch >= 3")
+    def test_algoliasearch_v4_search_single_index_models(self):
+        if algoliasearch_version < V4:
+            self.skipTest("SearchClientSync API is only available in algoliasearch >= 4")
+
+        from algoliasearch.search.models.search_params import SearchParams
+        from algoliasearch.search.models.search_params_object import SearchParamsObject
+
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            search_params = SearchParams(actual_instance=SearchParamsObject(query="model search", hitsPerPage=5))
+            self.client.search_single_index("test_index", search_params=search_params)
+            spans = self.get_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            assert_is_measured(span)
+            assert span.name == "algoliasearch.search"
+            assert span.service == "algoliasearch"
+            assert span.get_tag("query.text") == "model search"
+            assert span.get_metric("query.args.hits_per_page") == 5
+            assert span.get_metric("processing_time_ms") == 23
+            assert span.get_metric("number_of_hits") == 1
+            assert span.get_tag("component") == "algoliasearch"
+            assert span.get_tag("span.kind") == "client"
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+    def test_algoliasearch_v4_search_models(self):
+        if algoliasearch_version < V4:
+            self.skipTest("SearchClientSync API is only available in algoliasearch >= 4")
+
+        from algoliasearch.search.models.search_for_hits import SearchForHits
+        from algoliasearch.search.models.search_method_params import SearchMethodParams
+        from algoliasearch.search.models.search_query import SearchQuery
+
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        try:
+            search_method_params = SearchMethodParams(
+                requests=[
+                    SearchQuery(
+                        actual_instance=SearchForHits(indexName="test_index", query="multi search", hitsPerPage=6)
+                    )
+                ]
+            )
+            self.client.search(search_method_params)
+            spans = self.get_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            assert_is_measured(span)
+            assert span.name == "algoliasearch.search"
+            assert span.service == "algoliasearch"
+            assert span.get_tag("query.text") == "multi search"
+            assert span.get_metric("query.args.hits_per_page") == 6
+            assert span.get_metric("processing_time_ms") == 23
+            assert span.get_metric("number_of_hits") == 1
+            assert span.get_tag("component") == "algoliasearch"
+            assert span.get_tag("span.kind") == "client"
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+    def test_algoliasearch_v4_async_search_single_index(self):
+        if algoliasearch_version < V4:
+            self.skipTest("async SearchClient API is only available in algoliasearch >= 4")
 
         from algoliasearch.search.client import SearchClient
 
         async def search_single_index(self, index_name, search_params=None, request_options=None):
-            return _V3Response(DUMMY_RESULT)
+            return _v4_search_response()
 
         SearchClient.search_single_index = search_single_index
         self.patch_algoliasearch()
@@ -183,6 +252,51 @@ class AlgoliasearchTest(TracerTestCase):
             assert span.service == "algoliasearch"
             assert span.get_tag("query.text") == "async search"
             assert span.get_metric("query.args.hits_per_page") == 5
+            assert span.get_metric("processing_time_ms") == 23
+            assert span.get_metric("number_of_hits") == 1
+            assert span.get_tag("component") == "algoliasearch"
+            assert span.get_tag("span.kind") == "client"
+        finally:
+            config.algoliasearch.collect_query_text = original
+
+    def test_algoliasearch_v4_async_search(self):
+        if algoliasearch_version < V4:
+            self.skipTest("async SearchClient API is only available in algoliasearch >= 4")
+
+        from algoliasearch.search.client import SearchClient
+        from algoliasearch.search.models.search_for_hits import SearchForHits
+        from algoliasearch.search.models.search_method_params import SearchMethodParams
+        from algoliasearch.search.models.search_query import SearchQuery
+
+        async def search(self, search_method_params, request_options=None):
+            return _v4_search_responses()
+
+        SearchClient.search = search
+        self.patch_algoliasearch()
+        original = config.algoliasearch.collect_query_text
+        config.algoliasearch.collect_query_text = True
+
+        async def perform_search():
+            client = SearchClient("APP_ID", "API_KEY")
+            search_method_params = SearchMethodParams(
+                requests=[
+                    SearchQuery(
+                        actual_instance=SearchForHits(indexName="test_index", query="async multi search", hitsPerPage=7)
+                    )
+                ]
+            )
+            await client.search(search_method_params)
+
+        try:
+            asyncio.run(perform_search())
+            spans = self.get_spans()
+            assert len(spans) == 1
+            span = spans[0]
+            assert_is_measured(span)
+            assert span.name == "algoliasearch.search"
+            assert span.service == "algoliasearch"
+            assert span.get_tag("query.text") == "async multi search"
+            assert span.get_metric("query.args.hits_per_page") == 7
             assert span.get_metric("processing_time_ms") == 23
             assert span.get_metric("number_of_hits") == 1
             assert span.get_tag("component") == "algoliasearch"

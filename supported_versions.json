@@ -394,6 +394,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             },
@@ -402,6 +403,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             },
@@ -410,6 +412,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             },
@@ -418,6 +421,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             },
@@ -426,6 +430,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             },
@@ -434,6 +439,7 @@
                 "maximum_package_version": "4.44.1",
                 "tested_versions": [
                     "2.6.3",
+                    "3.0.0",
                     "4.44.1"
                 ]
             }

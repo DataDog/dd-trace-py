@@ -23,7 +23,7 @@ APP_NAME = "algoliasearch"
 V0 = parse_version("0.0")
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
-V3 = parse_version("3.0")
+V4 = parse_version("4.0")
 
 try:
     import algoliasearch
@@ -65,13 +65,13 @@ def patch():
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
         pin.onto(algoliasearch.index.Index)
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+    elif algoliasearch_version >= V2 and algoliasearch_version < V4:
         from algoliasearch import search_index
 
         _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
         pin.onto(search_index.SearchIndex)
-    elif algoliasearch_version >= V3:
-        # algoliasearch 3.x/4.x moved the search entry points onto SearchClient(Sync).
+    elif algoliasearch_version >= V4:
+        # algoliasearch 4.x moved the search entry points onto SearchClient(Sync).
         # The old algoliasearch.search_index.SearchIndex.search hook no longer exists.
         from algoliasearch.search.client import SearchClient
         from algoliasearch.search.client import SearchClientSync
@@ -93,11 +93,11 @@ def unpatch():
 
         if algoliasearch_version < V2 and algoliasearch_version >= V1:
             _u(algoliasearch.index.Index, "search")
-        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+        elif algoliasearch_version >= V2 and algoliasearch_version < V4:
             from algoliasearch import search_index
 
             _u(search_index.SearchIndex, "search")
-        elif algoliasearch_version >= V3:
+        elif algoliasearch_version >= V4:
             from algoliasearch.search.client import SearchClient
             from algoliasearch.search.client import SearchClientSync
 
@@ -136,7 +136,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
 
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         function_query_arg_name = "args"
-    elif algoliasearch_version >= V2 and algoliasearch_version < V3:
+    elif algoliasearch_version >= V2 and algoliasearch_version < V4:
         function_query_arg_name = "request_options"
     else:
         return func(*wrapt_args, **wrapt_kwargs)
@@ -280,6 +280,13 @@ def _tag_v3_result(span, result):
         result_dict = _to_plain_dict(result)
 
     if isinstance(result_dict, dict):
+        if "results" in result_dict:
+            results = result_dict.get("results") or []
+            if isinstance(results, list) and results:
+                first_result = _to_plain_dict(results[0])
+                if isinstance(first_result, dict):
+                    result_dict = first_result
+
         processing_time = result_dict.get("processingTimeMS")
         if processing_time is None:
             processing_time = result_dict.get("processing_time_ms")
