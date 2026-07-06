@@ -19,6 +19,13 @@ KEY_KWARG_NAME = "key"
 
 disable_header_injection = False
 
+# Cache of edge-tag lists keyed by their determining fields. The tags for a given
+# (direction, topic, group, cluster) are constant, so build the list + its string
+# concatenations once per distinct edge instead of on every message. The cached
+# list is never mutated downstream (set_checkpoint does `tags = sorted(tags)`,
+# creating a new list; the join/hash paths only read it), so sharing it is safe.
+_edge_tags_cache: dict = {}
+
 log = get_logger(__name__)
 
 
@@ -36,9 +43,13 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     payload_size += _calculate_byte_size(key)
     payload_size += _calculate_byte_size(headers)
 
-    edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
-    if cluster_id:
-        edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+    ck = ("out", topic, cluster_id)
+    edge_tags = _edge_tags_cache.get(ck)
+    if edge_tags is None:
+        edge_tags = ["direction:out", "topic:" + topic, "type:kafka"]
+        if cluster_id:
+            edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+        _edge_tags_cache[ck] = edge_tags
 
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
     if not disable_header_injection:
@@ -99,9 +110,13 @@ def dsm_kafka_message_consume(instance, message, span):
 
     ctx = DsmPathwayCodec.decode(headers, processor())
 
-    edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
-    if cluster_id:
-        edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+    ck = ("in", topic, group, cluster_id)
+    edge_tags = _edge_tags_cache.get(ck)
+    if edge_tags is None:
+        edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
+        if cluster_id:
+            edge_tags.append("kafka_cluster_id:" + str(cluster_id))
+        _edge_tags_cache[ck] = edge_tags
 
     ctx.set_checkpoint(
         edge_tags,
