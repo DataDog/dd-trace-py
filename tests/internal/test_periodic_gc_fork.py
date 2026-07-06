@@ -60,7 +60,7 @@ def test_gc_cycle_drop_blocks_child():
 
     from ddtrace.internal.periodic import PeriodicThread
 
-    BLOCK_MS = int(os.environ.get("DD_GC_BLOCK_MS", "200"))   # simulate exporter.shutdown(~0.2s)
+    BLOCK_MS = int(os.environ.get("DD_GC_BLOCK_MS", "200"))  # simulate exporter.shutdown(~0.2s)
     DEADLINE_MS = int(os.environ.get("DD_GC_DEADLINE_MS", "150"))  # ping deadline
     NFORKS = int(os.environ.get("DD_GC_STRESS_FORKS", "50"))
 
@@ -68,12 +68,15 @@ def test_gc_cycle_drop_blocks_child():
 
     class BlockingExporter:
         """Simulates TraceExporterPy::Drop that calls shutdown(3s)."""
+
         def __del__(self):
             time.sleep(BLOCK_MS / 1000.0)  # blocks with GIL held
 
     class ServiceHolder:
         """Simulates NativeWriter: owns an exporter and has a PeriodicThread
-        whose _target is a bound method of self, forming a reference cycle."""
+        whose _target is a bound method of self, forming a reference cycle.
+        """
+
         def __init__(self):
             self._exporter = BlockingExporter()
             self._worker = None
@@ -285,9 +288,9 @@ def test_gc_collect_while_thread_waiting():
             os._exit(2)
 
     _, status = os.waitpid(pid, 0)
-    assert not os.WIFSIGNALED(status), (
-        "child %d killed by signal %d — tp_clear fired on live thread"
-        % (pid, os.WTERMSIG(status))
+    assert not os.WIFSIGNALED(status), "child %d killed by signal %d — tp_clear fired on live thread" % (
+        pid,
+        os.WTERMSIG(status),
     )
     assert os.WEXITSTATUS(status) == 0
 
@@ -353,9 +356,11 @@ def test_gc_collect_during_rapid_fork_cycle():
                 os._exit(2)
 
         _, status = os.waitpid(pid, 0)
-        assert not os.WIFSIGNALED(status), (
-            "fork_n=%d child %d killed by signal %d; seed=%d"
-            % (fork_n, pid, os.WTERMSIG(status), seed)
+        assert not os.WIFSIGNALED(status), "fork_n=%d child %d killed by signal %d; seed=%d" % (
+            fork_n,
+            pid,
+            os.WTERMSIG(status),
+            seed,
         )
         assert os.WEXITSTATUS(status) == 0
 
@@ -407,9 +412,9 @@ def test_gc_dealloc_path_with_pending_periodic_threads():
             os._exit(2)
 
     _, status = os.waitpid(pid, 0)
-    assert not os.WIFSIGNALED(status), (
-        "child %d killed by signal %d — PyObject_GC_Del heap corruption"
-        % (pid, os.WTERMSIG(status))
+    assert not os.WIFSIGNALED(status), "child %d killed by signal %d — PyObject_GC_Del heap corruption" % (
+        pid,
+        os.WTERMSIG(status),
     )
     assert os.WEXITSTATUS(status) == 0
 
@@ -501,9 +506,7 @@ def test_tracer_child_after_fork_fast_drops_exporter():
     import os
     import signal
     import sys
-    import time
 
-    DEADLINE_MS = int(os.environ.get("DD_GC_DEADLINE_MS", "500"))
     NFORKS = int(os.environ.get("DD_GC_STRESS_FORKS", "30"))
 
     import ddtrace
