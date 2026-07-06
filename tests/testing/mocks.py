@@ -21,6 +21,8 @@ from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
+from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
@@ -113,6 +115,7 @@ class SessionManagerMockBuilder:
         self._workspace_path = "/fake/workspace"
         self._retry_handlers: list[Mock] = []
         self._env_tags: dict[str, str] = {}
+        self._itr_skipping_level = ITRSkippingLevel.TEST
 
     def with_settings(self, settings: Settings) -> "SessionManagerMockBuilder":
         """Set custom settings."""
@@ -158,6 +161,11 @@ class SessionManagerMockBuilder:
         self._env_tags = tags
         return self
 
+    def with_itr_skipping_level(self, level: ITRSkippingLevel) -> "SessionManagerMockBuilder":
+        """Set ITR skipping level (TEST or SUITE)."""
+        self._itr_skipping_level = level
+        return self
+
     def build_mock(self) -> Mock:
         """Build a Mock SessionManager object."""
         mock_manager = Mock(spec=SessionManager)
@@ -170,6 +178,7 @@ class SessionManagerMockBuilder:
         mock_manager.retry_handlers = self._retry_handlers
         mock_manager.env_tags = self._env_tags
 
+        mock_manager.itr_skipping_level = self._itr_skipping_level
         mock_manager.session = Mock()
         mock_manager.writer = Mock()
         mock_manager.coverage_writer = Mock()
@@ -601,12 +610,19 @@ class BackendConnectorMockSetup:
 
 
 @contextlib.contextmanager
-def setup_standard_mocks() -> t.Generator[None, None, None]:
-    """Mock calls used by the session manager to get git and platform tags."""
+def setup_standard_mocks(workspace_path: t.Optional[str] = None) -> t.Generator[None, None, None]:
+    """Mock calls used by the session manager to get git and platform tags.
+
+    Pass workspace_path to override the workspace used by SessionManager for ITR suite-path resolution.
+    When omitted, SessionManager falls back to Path.cwd().
+    """
+    env_tags: dict[str, str] = {}
+    if workspace_path is not None:
+        env_tags[CITag.WORKSPACE_PATH] = workspace_path
     with (
         patch.multiple(
             "ddtrace.testing.internal.session_manager",
-            get_env_tags=Mock(return_value={}),
+            get_env_tags=Mock(return_value=env_tags),
             get_platform_tags=Mock(return_value={}),
             Git=Mock(return_value=get_mock_git_instance()),
         ),

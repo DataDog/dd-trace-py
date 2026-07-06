@@ -288,6 +288,7 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
         self.session = self.manager.session
@@ -484,6 +485,7 @@ class TestOptPlugin:
             return None
 
         if self.manager.is_skippable_suite_path(collection_path):
+            self._itr_ignored_suite_paths.append(collection_path)
             return True
 
         return None
@@ -500,6 +502,58 @@ class TestOptPlugin:
             self.manager.collected_tests.add(test_ref)
 
         self.manager.finish_collection()
+        self._emit_itr_ignored_suite_events(session)
+
+    def _emit_itr_ignored_suite_events(self, session: pytest.Session) -> None:
+        """Emit test_suite_end (status=skip) events for suites skipped wholesale by pytest_ignore_collect.
+
+        Mirrors what the JS tracer has always done: one suite-skip event per ignored file, no
+        test-level spans inside it.  Also starts/finishes any TestModule whose every suite was
+        ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
+        """
+        if not self._itr_ignored_suite_paths:
+            return
+
+        running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
+
+        ignored_by_module: dict[str, list[Path]] = defaultdict(list)
+        for path in self._itr_ignored_suite_paths:
+            try:
+                relative = path.relative_to(self.manager.workspace_path)
+            except ValueError:
+                continue
+            module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+            ignored_by_module[module_name].append(path)
+
+        for module_name, paths in ignored_by_module.items():
+            test_module, created_module = self.session.get_or_create_child(module_name)
+            if created_module:
+                module_dir = paths[0].parent
+                try:
+                    module_path = module_dir.relative_to(self.manager.workspace_path)
+                except ValueError:
+                    module_path = module_dir
+                test_module.set_location(module_path=module_path)
+                test_module.start()
+                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+            for path in paths:
+                relative = path.relative_to(self.manager.workspace_path)
+                suite_name = relative.name
+                test_suite, _ = test_module.get_or_create_child(suite_name)
+                if not test_suite.is_started():
+                    test_suite.start()
+                    TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+                test_suite.mark_skipped_by_itr()
+                test_suite.finish()
+                self.manager.writer.put_item(test_suite)
+                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+                self.session.tests_skipped_by_itr += 1
+
+            if module_name not in running_module_names:
+                test_module.finish()
+                self.manager.writer.put_item(test_module)
+                TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -622,9 +676,14 @@ class TestOptPlugin:
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+            self.manager.coverage_writer.put_suite_coverage(
+                test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
+        else:
+            self.manager.coverage_writer.put_coverage(
+                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
