@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
@@ -184,6 +185,147 @@ class TestSessionManagerIsSkippableTest:
         assert session_manager.is_skippable_test(test_ref1) is True
         assert session_manager.is_skippable_test(test_ref2) is True
         assert session_manager.is_skippable_test(test_ref3) is True
+
+    def test_api_empty_name_module_does_not_match_real_module(self) -> None:
+        """API returns ModuleRef('.') (EMPTY_NAME) but local item has a real directory module.
+
+        When test.bundle is absent the API stores module=EMPTY_NAME. This must NOT
+        match a local TestRef with a real module name — otherwise tests in different
+        directories with the same filename would be incorrectly skipped.
+        """
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        api_suite = SuiteRef(ModuleRef(EMPTY_NAME), "test_outcomes.py")
+        api_test_ref = TestRef(api_suite, "test_function")
+
+        local_suite = SuiteRef(ModuleRef("tests.subdir"), "test_outcomes.py")
+        local_test_ref = TestRef(local_suite, "test_function")
+
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_skippable_items({api_test_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_test(local_test_ref) is False
+
+
+class TestSessionManagerIsSkippableSuitePath:
+    """Test is_skippable_suite_path, including the EMPTY_NAME module fallback."""
+
+    def setup_method(self) -> None:
+        self.test_env = MockDefaults.test_environment()
+
+    def test_suite_path_matches_exact_module(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path matches when SuiteRef has the real directory module."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is True
+
+    def test_suite_path_empty_name_module_does_not_match_real_module(self, tmp_path: pytest.fixture) -> None:
+        """API returns module=EMPTY_NAME; is_skippable_suite_path must NOT match a file in a real subdirectory.
+
+        Without a module discriminator (test.bundle absent) we cannot tell which directory
+        the suite belongs to, so we must not skip to avoid cross-directory false positives.
+        """
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_no_match_different_name(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False when the suite filename is different."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_bar.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_skipping_disabled(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path always returns False when skipping is disabled."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "test_foo.py"
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(False)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_test_level_mode_returns_false(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False in TEST-level mode (skippable_items has TestRefs)."""
+        from ddtrace.testing.internal.constants import EMPTY_NAME
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "test_foo.py"
+        suite_file.touch()
+
+        api_suite_ref = SuiteRef(ModuleRef(EMPTY_NAME), "test_foo.py")
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.TEST)
+            .with_skippable_items({api_suite_ref})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
 
 
 class TestSessionNameTest:

@@ -196,6 +196,18 @@ class SessionManagerMockBuilder:
         if test_env is None:
             test_env = MockDefaults.test_environment()
 
+        # Propagate workspace_path and itr_skipping_level into the real env/tags so that
+        # SessionManager.__init__ picks them up (it reads from get_env_tags / os.environ).
+        effective_env_tags = dict(self._env_tags)
+        if CITag.WORKSPACE_PATH not in effective_env_tags and self._workspace_path:
+            effective_env_tags[CITag.WORKSPACE_PATH] = self._workspace_path
+
+        effective_env = dict(test_env)
+        if "_DD_CIVISIBILITY_ITR_SUITE_MODE" not in effective_env:
+            effective_env["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = (
+                "1" if self._itr_skipping_level == ITRSkippingLevel.SUITE else "0"
+            )
+
         with patch("ddtrace.testing.internal.session_manager.APIClient") as mock_api_client:
             # Configure API client mock
             mock_client = Mock()
@@ -209,10 +221,13 @@ class SessionManagerMockBuilder:
             mock_api_client.return_value = mock_client
 
             with (
-                patch("ddtrace.testing.internal.session_manager.get_env_tags", return_value=self._env_tags),
+                patch(
+                    "ddtrace.testing.internal.session_manager.get_env_tags",
+                    return_value=effective_env_tags,
+                ),
                 patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
                 patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                patch.dict(os.environ, test_env),
+                patch.dict(os.environ, effective_env),
             ):
                 # Create session manager
                 test_session = MockDefaults.test_session()
