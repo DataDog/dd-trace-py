@@ -1,9 +1,11 @@
 import logging
+import os
 from typing import Optional
 
 from ddtrace.internal import atexit
 from ddtrace.internal import forksafe
 from ddtrace.internal.native import SharedRuntime
+from ddtrace.version import __version__
 
 
 log = logging.getLogger(__name__)
@@ -45,6 +47,14 @@ class NativeRuntime(SharedRuntime):
         forksafe.register_after_parent(self.after_fork_parent)
         forksafe.register(self.after_fork_child)
         atexit.register(self._atexit)
+        # Always-on deployment marker so we can confirm the fork-hook diagnostics
+        # build is actually running without exec'ing into the process. Emitted once
+        # per process, when the NativeRuntime singleton is first created.
+        log.warning(
+            "ddtrace fork-hook diagnostics build active (version=%s pid=%d)",
+            __version__,
+            os.getpid(),
+        )
 
     def before_fork(self) -> None:
         NativeRuntime.before_fork_calls += 1
