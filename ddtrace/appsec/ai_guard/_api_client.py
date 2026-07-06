@@ -1,6 +1,7 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 
 from copy import deepcopy
+import http.client
 import json
 from typing import Any
 from typing import Literal
@@ -12,7 +13,7 @@ from urllib.parse import urlparse
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
-from ddtrace.ext import http
+from ddtrace.ext import http as http_ext
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
@@ -21,7 +22,6 @@ from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
 from ddtrace.trace import tracer
 from ddtrace.version import __version__
 
@@ -330,7 +330,7 @@ class AIGuardClient:
                     client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     if client_ip:
-                        root_span._set_attribute(http.CLIENT_IP, client_ip)
+                        root_span._set_attribute(http_ext.CLIENT_IP, client_ip)
                         root_span._set_attribute("network.client.ip", client_ip)
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
@@ -360,10 +360,14 @@ class AIGuardClient:
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
+        parsed = urlparse(url)
+        hostname = parsed.hostname or ""
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        ConnClass = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+        conn = ConnClass(hostname, port, timeout=self._timeout)
         try:
-            conn = get_connection(url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", urlparse(url).path, json_body, self._headers)
+            conn.request("POST", parsed.path, json_body, self._headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
