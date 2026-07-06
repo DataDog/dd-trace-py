@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import time
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -12,6 +13,11 @@ from ddtrace.version import __version__
 log = logging.getLogger(__name__)
 
 _DEFAULT_SHUTDOWN_TIMEOUT_MS = 3000
+
+# Minimum seconds between unconditional heartbeat lines (per process). Heartbeats
+# piggyback on fork hooks, so this throttles busy forkers without hiding the trend
+# (counters are cumulative).
+_HEARTBEAT_INTERVAL_S = 15.0
 
 
 class NativeRuntime(SharedRuntime):
@@ -46,6 +52,8 @@ class NativeRuntime(SharedRuntime):
     # quiet after the startup marker.
     _last_bare_reported: int = 0
     _last_gap_reported: int = 0
+    # Monotonic timestamp of the last heartbeat, to throttle emission.
+    _last_heartbeat_ts: float = 0.0
 
     def __init__(self) -> None:
         super().__init__()
@@ -69,11 +77,49 @@ class NativeRuntime(SharedRuntime):
             % (__version__, os.getpid())
         )
         sys.stderr.flush()
+        # Emit one heartbeat immediately so the OS-fork counters are proven wired
+        # in the deployed build (a healthy process otherwise only logs the marker).
+        self._heartbeat("init", force=True)
+
+    def _heartbeat(self, where: str, force: bool = False) -> None:
+        """Unconditional, throttled dump of all fork counters (to stderr).
+
+        Gives positive evidence even on a healthy run: we can see forks being
+        counted and whether the OS-level parent-fork count tracks the Python
+        before_fork count. A divergence (parent_gap > 0 or bare_fork_live_runtime
+        > 0) is the signature of a fork that bypassed os.register_at_fork.
+        """
+        now = time.monotonic()
+        if not force and (now - NativeRuntime._last_heartbeat_ts) < _HEARTBEAT_INTERVAL_S:
+            return
+        NativeRuntime._last_heartbeat_ts = now
+        os_prepare, os_parent, os_child, bare = self._native_fork_counts()
+        gap = (os_parent - NativeRuntime.before_fork_calls) if os_parent >= 0 else -1
+        sys.stderr.write(
+            "ddtrace fork-diag heartbeat (%s pid=%d): "
+            "py(before=%d after_parent=%d after_child=%d skipped=%d) "
+            "os_forks(prepare=%d parent=%d child=%d) bare_fork_live_runtime=%d parent_gap=%d\n"
+            % (
+                where,
+                os.getpid(),
+                NativeRuntime.before_fork_calls,
+                NativeRuntime.after_fork_parent_calls,
+                NativeRuntime.after_fork_child_calls,
+                NativeRuntime.before_fork_skipped,
+                os_prepare,
+                os_parent,
+                os_child,
+                bare,
+                gap,
+            )
+        )
+        sys.stderr.flush()
 
     def before_fork(self) -> None:
         NativeRuntime.before_fork_calls += 1
         self._before_fork_ran = True
         super().before_fork()
+        self._heartbeat("before_fork")
 
     def after_fork_parent(self) -> None:
         NativeRuntime.after_fork_parent_calls += 1
@@ -82,6 +128,7 @@ class NativeRuntime(SharedRuntime):
         # Parent side runs on every os.fork(); a good place to notice that the
         # OS has serviced more forks than our before_fork hook saw.
         self._report_fork_divergence("after_fork_parent")
+        self._heartbeat("after_fork_parent")
 
     def _native_fork_counts(self):
         """Best-effort read of the native OS-level fork counters.
@@ -166,6 +213,7 @@ class NativeRuntime(SharedRuntime):
                 )
             # Child side: also surface bypassing forks observed by this worker.
             self._report_fork_divergence("after_fork_child")
+            self._heartbeat("after_fork_child")
 
     def _atexit(self) -> None:
         try:
