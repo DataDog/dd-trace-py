@@ -2344,7 +2344,13 @@ venv = Venv(
             name="algoliasearch",
             command="pytest {cmdargs} tests/contrib/algoliasearch",
             pys=select_pys(),
-            pkgs={"urllib3": "~=1.26.15", "pytest-randomly": latest, "algoliasearch": "~=2.6"},
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                # Legacy 2.x line — pinned urllib3 required by the older http backend.
+                Venv(pkgs={"urllib3": "~=1.26.15", "algoliasearch": "~=2.6"}),
+                # Modern 4.x line — new SearchClient(Sync) API, pydantic responses.
+                Venv(pkgs={"algoliasearch": ["~=4.0", latest]}),
+            ],
         ),
         Venv(
             name="aiopg",
