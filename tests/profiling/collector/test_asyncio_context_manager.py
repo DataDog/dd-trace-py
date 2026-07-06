@@ -3,15 +3,11 @@ import pytest
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_context_manager",
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     ),
-    err=None,
 )
-# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_context_manager_wall_time() -> None:
     import asyncio
-    import os
     from sys import version_info as PYVERSION
     from types import TracebackType
     from typing import Union
@@ -19,6 +15,7 @@ def test_asyncio_context_manager_wall_time() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -47,191 +44,24 @@ def test_asyncio_context_manager_wall_time() -> None:
     async def main() -> None:
         await asynchronous_function()
 
-    p = profiler.Profiler()
-    p.start()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
 
-    p.stop()
+        p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+        assert len(samples) > 0
 
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    assert len(samples) > 0
-
-    # Test that we see the context manager functions
-    if PYVERSION >= (3, 11):
-        # Context Manager Enter
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="sleep",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="context_manager_dep",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=context_manager_dep.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="AsyncContextManager.__aenter__",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=AsyncContextManager.__aenter__.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="main",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=main.__code__.co_firstlineno + 1,
-                    ),
-                ],
-            ),
-        )
-
-        # Actual function call
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="sleep",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="some_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=some_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 2,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="main",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=main.__code__.co_firstlineno + 1,
-                    ),
-                ],
-            ),
-        )
-
-        # Context Manager Exit
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="sleep",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="AsyncContextManager.__aexit__",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=AsyncContextManager.__aexit__.__code__.co_firstlineno + 6,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="main",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=main.__code__.co_firstlineno + 1,
-                    ),
-                ],
-            ),
-        )
-    else:
-        # Context Manager Enter
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="sleep",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="context_manager_dep",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=context_manager_dep.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="__aenter__",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=AsyncContextManager.__aenter__.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="main",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=main.__code__.co_firstlineno + 1,
-                    ),
-                ],
-            ),
-        )
-
-        # Actual function call
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="sleep",
-                        filename="",
-                        line_no=-1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="some_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=some_function.__code__.co_firstlineno + 1,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 2,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="main",
-                        filename="test_asyncio_context_manager.py",
-                        line_no=main.__code__.co_firstlineno + 1,
-                    ),
-                ],
-            ),
-        )
-
-        # Context Manager Exit
-        if PYVERSION >= (3, 10):
+        # Test that we see the context manager functions
+        if PYVERSION >= (3, 11):
+            # Context Manager Enter
             pprof_utils.assert_profile_has_sample(
                 profile,
                 samples,
@@ -244,7 +74,74 @@ def test_asyncio_context_manager_wall_time() -> None:
                             line_no=-1,
                         ),
                         pprof_utils.StackLocation(
-                            function_name="__aexit__",
+                            function_name="context_manager_dep",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=context_manager_dep.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="AsyncContextManager.__aenter__",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=AsyncContextManager.__aenter__.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="asynchronous_function",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=asynchronous_function.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="main",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=main.__code__.co_firstlineno + 1,
+                        ),
+                    ],
+                ),
+            )
+
+            # Actual function call
+            pprof_utils.assert_profile_has_sample(
+                profile,
+                samples,
+                expected_sample=pprof_utils.StackEvent(
+                    thread_name="MainThread",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            function_name="sleep",
+                            filename="",
+                            line_no=-1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="some_function",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=some_function.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="asynchronous_function",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=asynchronous_function.__code__.co_firstlineno + 2,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="main",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=main.__code__.co_firstlineno + 1,
+                        ),
+                    ],
+                ),
+            )
+
+            # Context Manager Exit
+            pprof_utils.assert_profile_has_sample(
+                profile,
+                samples,
+                expected_sample=pprof_utils.StackEvent(
+                    thread_name="MainThread",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            function_name="sleep",
+                            filename="",
+                            line_no=-1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="AsyncContextManager.__aexit__",
                             filename="test_asyncio_context_manager.py",
                             line_no=AsyncContextManager.__aexit__.__code__.co_firstlineno + 6,
                         ),
@@ -262,6 +159,7 @@ def test_asyncio_context_manager_wall_time() -> None:
                 ),
             )
         else:
+            # Context Manager Enter
             pprof_utils.assert_profile_has_sample(
                 profile,
                 samples,
@@ -274,9 +172,45 @@ def test_asyncio_context_manager_wall_time() -> None:
                             line_no=-1,
                         ),
                         pprof_utils.StackLocation(
-                            function_name="__aexit__",
+                            function_name="context_manager_dep",
                             filename="test_asyncio_context_manager.py",
-                            line_no=AsyncContextManager.__aexit__.__code__.co_firstlineno + 6,
+                            line_no=context_manager_dep.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="__aenter__",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=AsyncContextManager.__aenter__.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="asynchronous_function",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=asynchronous_function.__code__.co_firstlineno + 1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="main",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=main.__code__.co_firstlineno + 1,
+                        ),
+                    ],
+                ),
+            )
+
+            # Actual function call
+            pprof_utils.assert_profile_has_sample(
+                profile,
+                samples,
+                expected_sample=pprof_utils.StackEvent(
+                    thread_name="MainThread",
+                    locations=[
+                        pprof_utils.StackLocation(
+                            function_name="sleep",
+                            filename="",
+                            line_no=-1,
+                        ),
+                        pprof_utils.StackLocation(
+                            function_name="some_function",
+                            filename="test_asyncio_context_manager.py",
+                            line_no=some_function.__code__.co_firstlineno + 1,
                         ),
                         pprof_utils.StackLocation(
                             function_name="asynchronous_function",
@@ -291,3 +225,65 @@ def test_asyncio_context_manager_wall_time() -> None:
                     ],
                 ),
             )
+
+            # Context Manager Exit
+            if PYVERSION >= (3, 10):
+                pprof_utils.assert_profile_has_sample(
+                    profile,
+                    samples,
+                    expected_sample=pprof_utils.StackEvent(
+                        thread_name="MainThread",
+                        locations=[
+                            pprof_utils.StackLocation(
+                                function_name="sleep",
+                                filename="",
+                                line_no=-1,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="__aexit__",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=AsyncContextManager.__aexit__.__code__.co_firstlineno + 6,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="asynchronous_function",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=asynchronous_function.__code__.co_firstlineno + 1,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="main",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=main.__code__.co_firstlineno + 1,
+                            ),
+                        ],
+                    ),
+                )
+            else:
+                pprof_utils.assert_profile_has_sample(
+                    profile,
+                    samples,
+                    expected_sample=pprof_utils.StackEvent(
+                        thread_name="MainThread",
+                        locations=[
+                            pprof_utils.StackLocation(
+                                function_name="sleep",
+                                filename="",
+                                line_no=-1,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="__aexit__",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=AsyncContextManager.__aexit__.__code__.co_firstlineno + 6,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="asynchronous_function",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=asynchronous_function.__code__.co_firstlineno + 2,
+                            ),
+                            pprof_utils.StackLocation(
+                                function_name="main",
+                                filename="test_asyncio_context_manager.py",
+                                line_no=main.__code__.co_firstlineno + 1,
+                            ),
+                        ],
+                    ),
+                )

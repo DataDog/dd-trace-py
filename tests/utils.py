@@ -1182,6 +1182,10 @@ class TestAgentClient:
                 reqs.append(req)
         return reqs
 
+    def profiling_requests(self) -> list[TestAgentRequest]:
+        """Return requests that hit the /profiling/v1/input endpoint."""
+        return [req for req in self.requests() if "/profiling/v1/input" in req.get("url", "")]
+
     def crash_messages(self) -> list[TestAgentRequest]:
         reqs = []
         for req in self.telemetry_requests(telemetry_type="logs"):

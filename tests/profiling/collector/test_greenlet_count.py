@@ -13,22 +13,33 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason="gevent is not available or not compatible with this Python version",
 )
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_greenlet_count",
-        DD_PROFILING_UPLOAD_INTERVAL="1",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess(err=None)
 def test_greenlet_count_present():
     """greenlet_count is present and positive when gevent greenlets are active."""
+    # Start the capture server BEFORE monkey.patch_all() so that
+    # the server socket is created with standard Python sockets. After gevent
+    # patches Python sockets, a pre-existing server socket continues to work
+    # correctly with gevent's event loop.
+    import os
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from tests.profiling.utils import _ProfilingCaptureServer
+    from tests.profiling.utils import get_all_metadata_from_agent
+
+    _capture_server = _ProfilingCaptureServer()
+    _capture_server.start()
+    _url = f"http://127.0.0.1:{_capture_server.port}"
+    os.environ["_DD_PROFILING_TEST_AGENT_URL"] = _url
+    _config_url = getattr(ddup, "config_url", None)
+    if _config_url is not None:
+        _config_url(_url)
+    # Force 1s upload interval so we get multiple uploads during the 3s sleep.
+    os.environ["DD_PROFILING_UPLOAD_INTERVAL"] = "1"
+
     from gevent import monkey
 
     monkey.patch_all()
 
-    import glob
-    import json
-    import os
     import time
 
     import gevent
@@ -52,14 +63,11 @@ def test_greenlet_count_present():
     gevent.joinall(greenlets, timeout=5)
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
-    assert files, "Expected at least one internal_metadata.json file"
+    files = get_all_metadata_from_agent(_capture_server, min_count=2)
+    assert files, "Expected at least one metadata upload"
 
     found_positive = False
-    for f in files:
-        with open(f) as fp:
-            metadata = json.load(fp)
+    for metadata in files:
         if "greenlet_count" in metadata:
             assert isinstance(metadata["greenlet_count"], int)
             assert metadata["greenlet_count"] >= 0
@@ -67,3 +75,8 @@ def test_greenlet_count_present():
                 found_positive = True
 
     assert found_positive, "Expected at least one metadata file with greenlet_count > 0"
+
+    # Don't call _capture_server.stop() here: after monkey.patch_all(), calling
+    # socketserver.shutdown() deadlocks because threading.Event.wait() is gevent-patched
+    # and tries to switch to the gevent hub which no longer exists at this point.
+    # The capture server is a daemon thread and will be killed when the subprocess exits.

@@ -7,17 +7,11 @@ uvloop_available = test_utils.uvloop_available()
 
 
 @pytest.mark.skipif(not uvloop_available, reason="uvloop is not installed in this environment")
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_uvloop_variations",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_uvloop_variations_install_and_run() -> None:
     """Test that we properly profile Tasks when running uvloop with uvloop.install, then asyncio.run."""
     import asyncio
-    import os
     import time
 
     import uvloop
@@ -25,6 +19,7 @@ def test_uvloop_variations_install_and_run() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import ProfilerContextManager
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -46,12 +41,12 @@ def test_uvloop_variations_install_and_run() -> None:
         t2 = asyncio.create_task(inner2(), name="inner 2")
         await asyncio.wait(fs=(t1, t2), return_when=asyncio.ALL_COMPLETED)
 
-    with ProfilerContextManager():
-        uvloop.install()
-        asyncio.run(outer())
+    with with_profiling_test_agent() as agent_client:
+        with ProfilerContextManager():
+            uvloop.install()
+            asyncio.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
@@ -129,17 +124,11 @@ def test_uvloop_variations_install_and_run() -> None:
 
 
 @pytest.mark.skipif(not uvloop_available, reason="uvloop is not installed in this environment")
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_uvloop_variations_uvloop_run",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_uvloop_variations_uvloop_run() -> None:
     """Test that we properly profile Tasks when running uvloop with uvloop.run."""
     import asyncio
-    import os
     import time
 
     import uvloop
@@ -147,6 +136,7 @@ def test_uvloop_variations_uvloop_run() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import ProfilerContextManager
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -168,11 +158,11 @@ def test_uvloop_variations_uvloop_run() -> None:
         t2 = asyncio.create_task(inner2(), name="inner 2")
         await asyncio.wait(fs=(t1, t2), return_when=asyncio.ALL_COMPLETED)
 
-    with ProfilerContextManager():
-        uvloop.run(outer())
+    with with_profiling_test_agent() as agent_client:
+        with ProfilerContextManager():
+            uvloop.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
@@ -250,17 +240,11 @@ def test_uvloop_variations_uvloop_run() -> None:
 
 
 @pytest.mark.skipif(not uvloop_available, reason="uvloop is not installed in this environment")
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_uvloop_variations_import_uvloop_dont_use_it",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
     """Test that we properly profile Tasks when importing uvloop but not using it."""
     import asyncio
-    import os
     import time
 
     import uvloop  # noqa: F401
@@ -268,6 +252,7 @@ def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import ProfilerContextManager
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -289,12 +274,12 @@ def test_uvloop_variations_import_uvloop_dont_use_it() -> None:
         t2 = asyncio.create_task(inner2(), name="inner 2")
         await asyncio.wait(fs=(t1, t2), return_when=asyncio.ALL_COMPLETED)
 
-    with ProfilerContextManager():
-        # uvloop is not installed nor used!
-        asyncio.run(outer())
+    with with_profiling_test_agent() as agent_client:
+        with ProfilerContextManager():
+            # uvloop is not installed nor used!
+            asyncio.run(outer())
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0

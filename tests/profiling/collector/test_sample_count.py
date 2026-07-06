@@ -1,24 +1,17 @@
 import pytest
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_sample_count",
-        DD_PROFILING_UPLOAD_INTERVAL="1",  # Upload every second
-    ),
-    err=None,
-)
+@pytest.mark.subprocess(err=None)
 def test_sample_count():
     import asyncio
-    import glob
-    import json
-    import os
     import time
     import uuid
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.utils import get_all_metadata_from_agent
+    from tests.profiling.utils import with_profiling_test_agent
 
     sleep_time = 0.2
     loop_run_time = 2
@@ -39,33 +32,30 @@ def test_sample_count():
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        maintask = loop.create_task(hello(), name="main")
-        loop.run_until_complete(maintask)
-    p.stop()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler(tracer=tracer)
+        p.start()
+        with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            maintask = loop.create_task(hello(), name="main")
+            loop.run_until_complete(maintask)
+        p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+        files = get_all_metadata_from_agent(agent_client, min_count=1)
 
     found_at_least_one_with_more_samples_than_sampling_events = False
-    for i, f in enumerate(files):
-        with open(f, "r") as fp:
-            internal_metadata = json.load(fp)
+    for i, internal_metadata in enumerate(files):
+        if i < len(files) - 1:
+            assert internal_metadata is not None
+            assert "sample_count" in internal_metadata
+            assert internal_metadata["sample_count"] > 0
 
-            if i < len(files) - 1:
-                assert internal_metadata is not None
-                assert "sample_count" in internal_metadata
-                assert internal_metadata["sample_count"] > 0
+        assert "sampling_event_count" in internal_metadata
+        assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
 
-            assert "sampling_event_count" in internal_metadata
-            assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
-
-            if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
-                found_at_least_one_with_more_samples_than_sampling_events = True
+        if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
+            found_at_least_one_with_more_samples_than_sampling_events = True
 
     assert found_at_least_one_with_more_samples_than_sampling_events, (
         "Expected at least one file with more samples than sampling events"

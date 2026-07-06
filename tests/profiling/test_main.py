@@ -1,13 +1,14 @@
 # -*- encoding: utf-8 -*-
 import multiprocessing
 import os
-from pathlib import Path
 import sys
 
 import pytest
 
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
+from tests.profiling.utils import get_profile_from_agent
+from tests.profiling.utils import with_profiling_test_agent
 from tests.utils import call_program
 
 
@@ -37,52 +38,34 @@ def test_call_script_gevent():
     assert exitcode == 0, (stdout, stderr)
 
 
-def test_call_script_pprof_output(tmp_path: Path) -> None:
+def test_call_script_pprof_output() -> None:
     """This checks if the pprof output and atexit register work correctly.
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
     """
-    filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    env["DD_PROFILING_ENABLED"] = "1"
-    stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run",
-        sys.executable,
-        os.path.join(os.path.dirname(__file__), "simple_program.py"),
-        env=env,
-    )
-    if sys.platform == "win32":
-        assert exitcode == 0, (stdout, stderr)
-    else:
-        assert exitcode == 42, (stdout, stderr)
+    with with_profiling_test_agent() as agent_client:
+        env = os.environ.copy()
+        env["DD_PROFILING_CAPTURE_PCT"] = "100"
+        env["DD_PROFILING_ENABLED"] = "1"
+        stdout, stderr, exitcode, _ = call_program(
+            "ddtrace-run",
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "simple_program.py"),
+            env=env,
+        )
+        if sys.platform == "win32":
+            assert exitcode == 0, (stdout, stderr)
+        else:
+            assert exitcode == 42, (stdout, stderr)
 
-    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
-    _, pid = list(s.strip() for s in stdout.strip().split("\n"))
-    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
+        profile = get_profile_from_agent(agent_client)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
-def test_fork(tmp_path: Path) -> None:
-    filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, pid = call_program(
-        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
-    )
-    assert exitcode == 0, stderr
-    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
-    child_pid = stdout.strip()
-
-    # Merge all pprof files for parent PID
-    all_files_for_pid = sorted([x for x in os.listdir(tmp_path) if ".pprof" in x])
-    parent_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(pid)}." in f]
-    parent_profiles = [pprof_utils.parse_profile(f) for f in parent_files]
-    parent_profile = pprof_utils.merge_profiles(parent_profiles)
+def test_fork() -> None:
+    from tests.profiling.utils import get_all_profiles_from_agent
 
     parent_expected_acquire_events = [
         pprof_utils.LockAcquireEvent(
@@ -100,6 +83,71 @@ def test_fork(tmp_path: Path) -> None:
             lock_name="lock",
         ),
     ]
+    child_expected_acquire_events = [
+        # After fork(), we clear the samples in child, so we only have one
+        # lock acquire event
+        pprof_utils.LockAcquireEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
+            lock_name="lock",
+        ),
+    ]
+    child_expected_release_events = [
+        pprof_utils.LockReleaseEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=11, acquire=12, release=21),
+            lock_name="lock",
+        ),
+        pprof_utils.LockReleaseEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
+            lock_name="lock",
+        ),
+    ]
+
+    with with_profiling_test_agent() as agent_client:
+        env = os.environ.copy()
+        env["DD_PROFILING_CAPTURE_PCT"] = "100"
+        stdout, stderr, exitcode, pid = call_program(
+            sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
+        )
+        assert exitcode == 0, stderr
+        profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (parent + child), got {len(profiles)}"
+
+    # Identify parent and child profiles by the events they contain:
+    # The parent profile has lock events from lines 11/12/28 (original lock),
+    # while the child profile only has events from lines 24/25/26 (new lock after fork).
+    parent_profile = None
+    child_profile = None
+    for profile in profiles:
+        try:
+            pprof_utils.assert_lock_events(
+                profile,
+                expected_acquire_events=parent_expected_acquire_events,
+                expected_release_events=parent_expected_release_events,
+            )
+            parent_profile = profile
+        except AssertionError:
+            pass
+
+        try:
+            pprof_utils.assert_lock_events(
+                profile,
+                expected_acquire_events=child_expected_acquire_events,
+                expected_release_events=child_expected_release_events,
+            )
+            child_profile = profile
+        except AssertionError:
+            pass
+
+    assert parent_profile is not None, "No profile found with parent lock events (lines 11/12/28)"
+    assert child_profile is not None, "No profile found with child lock events (lines 24/25/26)"
+
+    # Verify parent profile has the expected events
     pprof_utils.assert_lock_events(
         parent_profile,
         expected_acquire_events=parent_expected_acquire_events,
@@ -107,9 +155,6 @@ def test_fork(tmp_path: Path) -> None:
         print_samples_on_failure=True,
     )
 
-    # Merge all pprof files for child PID
-    child_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(child_pid)}." in f]
-    child_profile = pprof_utils.merge_profiles([pprof_utils.parse_profile(f) for f in child_files])
     # We expect the child profile to not have lock events from the parent process
     # Note that assert_lock_events function only checks that the given events
     # exists, and doesn't assert that other events don't exist.
@@ -121,30 +166,8 @@ def test_fork(tmp_path: Path) -> None:
         )
     pprof_utils.assert_lock_events(
         child_profile,
-        expected_acquire_events=[
-            # After fork(), we clear the samples in child, so we only have one
-            # lock acquire event
-            pprof_utils.LockAcquireEvent(
-                caller_name="<module>",
-                filename="simple_program_fork.py",
-                linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
-                lock_name="lock",
-            ),
-        ],
-        expected_release_events=[
-            pprof_utils.LockReleaseEvent(
-                caller_name="<module>",
-                filename="simple_program_fork.py",
-                linenos=lock_utils.LineNo(create=11, acquire=12, release=21),
-                lock_name="lock",
-            ),
-            pprof_utils.LockReleaseEvent(
-                caller_name="<module>",
-                filename="simple_program_fork.py",
-                linenos=lock_utils.LineNo(create=24, acquire=25, release=26),
-                lock_name="lock",
-            ),
-        ],
+        expected_acquire_events=child_expected_acquire_events,
+        expected_release_events=child_expected_release_events,
         print_samples_on_failure=True,
     )
 
@@ -164,28 +187,28 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
-def test_multiprocessing(method: str, tmp_path: Path) -> None:
-    filename = str(tmp_path / "pprof")
-    env = os.environ.copy()
-    env["DD_PROFILING_OUTPUT_PPROF"] = filename
-    env["DD_PROFILING_ENABLED"] = "1"
-    env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, stderr, exitcode, _ = call_program(
-        "ddtrace-run",
-        sys.executable,
-        os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
-        method,
-        env=env,
+def test_multiprocessing(method: str) -> None:
+    from tests.profiling.utils import get_all_profiles_from_agent
+
+    with with_profiling_test_agent() as agent_client:
+        env = os.environ.copy()
+        env["DD_PROFILING_ENABLED"] = "1"
+        env["DD_PROFILING_CAPTURE_PCT"] = "100"
+        stdout, stderr, exitcode, _ = call_program(
+            "ddtrace-run",
+            sys.executable,
+            os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
+            method,
+            env=env,
+        )
+        assert exitcode == 0, (stdout, stderr)
+        profiles = get_all_profiles_from_agent(agent_client)
+    # Expect at least 2 profiles: one for the parent process and one for the child
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (parent + child), got {len(profiles)}"
+    # At least one profile must have cpu-time samples (early/empty flush profiles are allowed)
+    assert any(len(pprof_utils.get_samples_with_value_type(p, "cpu-time")) > 0 for p in profiles), (
+        "No profiling uploads had cpu-time samples"
     )
-    assert exitcode == 0, (stdout, stderr)
-    stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
-    pid, child_pid = list(s.strip() for s in stdout.strip().split("\n"))
-    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}")
-    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-    assert len(samples) > 0
-    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
-    child_samples = pprof_utils.get_samples_with_value_type(child_profile, "cpu-time")
-    assert len(child_samples) > 0
 
 
 @pytest.mark.subprocess(

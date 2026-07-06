@@ -1,22 +1,16 @@
 import pytest
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_coroutines",
-    ),
-    err=None,
-)
-# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
+@pytest.mark.subprocess
 def test_asyncio_coroutines() -> None:
     import asyncio
     import math
-    import os
     import time
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -54,105 +48,104 @@ def test_asyncio_coroutines() -> None:
         await background_task
         await math_task
 
-    p = profiler.Profiler()
-    p.start()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
-    main_task = loop.create_task(outer_function(), name="main")
-    loop.run_until_complete(main_task)
+        main_task = loop.create_task(outer_function(), name="main")
+        loop.run_until_complete(main_task)
 
-    p.stop()
+        p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        wall_time_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        samples = wall_time_samples
 
-    wall_time_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-    samples = wall_time_samples
+        # Test that we see the sub_coro function
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name="main",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="sleep",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="sub_coro",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=sub_coro.__code__.co_firstlineno + 3,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="main_coro",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=main_coro.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="outer_function",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=outer_function.__code__.co_firstlineno + 5,
+                    ),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )
 
-    # Test that we see the sub_coro function
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="main",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="sleep",
-                    filename="",
-                    line_no=-1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="sub_coro",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=sub_coro.__code__.co_firstlineno + 3,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="main_coro",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=main_coro.__code__.co_firstlineno + 1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="outer_function",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=outer_function.__code__.co_firstlineno + 5,
-                ),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
+        # Test that we see the background_task_func task
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name="background_wait",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="sleep",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="background_task_func",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=background_task_func.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="outer_function",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=outer_function.__code__.co_firstlineno + 7,
+                    ),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )
 
-    # Test that we see the background_task_func task
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="background_wait",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="sleep",
-                    filename="",
-                    line_no=-1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="background_task_func",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=background_task_func.__code__.co_firstlineno + 1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="outer_function",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=outer_function.__code__.co_firstlineno + 7,
-                ),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
-
-    # Test that we see the background_math_function task in stack (wall-time) samples
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        wall_time_samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="background_math",
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="background_math_function",
-                    filename="test_asyncio_coroutines.py",
-                    line_no=-1,  # any line
-                ),
-                # TODO: We should see outer_function, but for some reason we simply do not...
-                # pprof_utils.StackLocation(
-                #     function_name="outer_function",
-                #     filename="test_asyncio_coroutines.py",
-                #     line_no=outer_function.__code__.co_firstlineno + 9,
-                # ),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
+        # Test that we see the background_math_function task in stack (wall-time) samples
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            wall_time_samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name="background_math",
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="background_math_function",
+                        filename="test_asyncio_coroutines.py",
+                        line_no=-1,  # any line
+                    ),
+                    # TODO: We should see outer_function, but for some reason we simply do not...
+                    # pprof_utils.StackLocation(
+                    #     function_name="outer_function",
+                    #     filename="test_asyncio_coroutines.py",
+                    #     line_no=outer_function.__code__.co_firstlineno + 9,
+                    # ),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )

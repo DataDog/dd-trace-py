@@ -1,12 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_fork",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess
 def test_asyncio_fork() -> None:
     """Test that asyncio event loop behaves as we assume on fork.
 

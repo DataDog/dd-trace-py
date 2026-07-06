@@ -3,9 +3,6 @@ import pytest
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_internal_adaptive_sampling",
-        # Upload every second
-        DD_PROFILING_UPLOAD_INTERVAL="1",
         # Enable adaptive sampling to test sampling_interval_us field
         _DD_PROFILING_STACK_V2_ADAPTIVE_SAMPLING_ENABLED="1",
     ),
@@ -13,15 +10,14 @@ import pytest
 )
 def test_internal_adaptive_sampling():
     import asyncio
-    import glob
-    import json
-    import os
     import time
     import uuid
 
     from ddtrace import ext
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.utils import get_all_metadata_from_agent
+    from tests.profiling.utils import with_profiling_test_agent
 
     sleep_time = 0.2
     loop_run_time = 4
@@ -42,17 +38,17 @@ def test_internal_adaptive_sampling():
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        main_task = loop.create_task(hello(), name="main")
-        loop.run_until_complete(main_task)
-    p.stop()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler(tracer=tracer)
+        p.start()
+        with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            main_task = loop.create_task(hello(), name="main")
+            loop.run_until_complete(main_task)
+        p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+        files = get_all_metadata_from_agent(agent_client, min_count=1)
 
     # With adaptive sampling enabled, the sampling interval can grow up to 1 second
     # (g_max_sampling_period_us). Since the upload interval is also 1 second, the
@@ -62,27 +58,24 @@ def test_internal_adaptive_sampling():
     found_at_least_one_with_more_samples_than_sampling_events = False
     found_at_least_one_with_sampling_interval = False
     total_sample_count = 0
-    for f in files:
-        with open(f, "r") as fp:
-            internal_metadata = json.load(fp)
+    for internal_metadata in files:
+        assert internal_metadata is not None
+        assert "sample_count" in internal_metadata
+        assert "sampling_event_count" in internal_metadata
+        assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
 
-            assert internal_metadata is not None
-            assert "sample_count" in internal_metadata
-            assert "sampling_event_count" in internal_metadata
-            assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
+        total_sample_count += internal_metadata["sample_count"]
 
-            total_sample_count += internal_metadata["sample_count"]
+        # With adaptive sampling enabled, we should have the sampling_interval_us field
+        # in files that have samples
+        if "sampling_interval_us" in internal_metadata:
+            assert internal_metadata["sampling_interval_us"] > 0, (
+                f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
+            )
+            found_at_least_one_with_sampling_interval = True
 
-            # With adaptive sampling enabled, we should have the sampling_interval_us field
-            # in files that have samples
-            if "sampling_interval_us" in internal_metadata:
-                assert internal_metadata["sampling_interval_us"] > 0, (
-                    f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
-                )
-                found_at_least_one_with_sampling_interval = True
-
-            if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
-                found_at_least_one_with_more_samples_than_sampling_events = True
+        if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
+            found_at_least_one_with_more_samples_than_sampling_events = True
 
         # Early exit if we have already found all the required conditions
         if (

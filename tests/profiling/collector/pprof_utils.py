@@ -1,6 +1,7 @@
 import ctypes
 from enum import Enum
 import glob
+import io
 import os
 import re
 from typing import TYPE_CHECKING
@@ -239,6 +240,90 @@ def parse_profile(filename: str) -> pprof_pb2.Profile:
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
     return profile
+
+
+def parse_profile_from_bytes(data: bytes) -> pprof_pb2.Profile:
+    """Parse a pprof profile from raw zstd-compressed bytes."""
+    dctx = zstd.ZstdDecompressor()
+    serialized_data = dctx.stream_reader(io.BytesIO(data)).read()
+    profile = pprof_pb2.Profile()
+    profile.ParseFromString(serialized_data)
+    return profile
+
+
+def _parse_multipart_parts(request: "dict[str, object]") -> "dict[str, bytes]":
+    """Parse all multipart form-data parts from a test agent profiling request.
+
+    Returns a dict mapping part name -> raw bytes payload.
+    """
+    import email
+
+    headers = cast("dict[str, str]", request["headers"])
+    body = cast(bytes, request["body"])
+    content_type = headers.get("content-type", "")
+    full_msg_bytes = ("Content-Type: " + content_type + "\r\n\r\n").encode() + body
+    msg = email.message_from_bytes(full_msg_bytes)
+    parts: "dict[str, bytes]" = {}
+    for part in msg.walk():
+        name = part.get_param("name", header="content-disposition")
+        if isinstance(name, str):
+            payload = part.get_payload(decode=True)
+            if isinstance(payload, bytes):
+                parts[name] = payload
+    return parts
+
+
+def parse_profile_from_request(request: "dict[str, object]") -> pprof_pb2.Profile:
+    """Extract and parse the pprof profile from a multipart/form-data profiling upload.
+
+    libdatadog sends the pprof as a multipart part named 'profile.pprof'.
+    """
+    parts = _parse_multipart_parts(request)
+    if "profile.pprof" not in parts:
+        raise ValueError(f"No 'profile.pprof' part found in profiling request. Available parts: {list(parts.keys())}")
+    return parse_profile_from_bytes(parts["profile.pprof"])
+
+
+def parse_internal_metadata_from_request(request: "dict[str, object]") -> "dict[str, object]":
+    """Extract the internal_metadata JSON from a profiling request.
+
+    libdatadog embeds internal_metadata as event["internal"] inside
+    the 'event' JSON field of the multipart upload.
+    """
+    import json
+
+    parts = _parse_multipart_parts(request)
+    if "event" not in parts:
+        raise ValueError(f"No 'event' part found in profiling request. Available parts: {list(parts.keys())}")
+    event: "dict[str, object]" = json.loads(parts["event"])
+    if "internal" not in event:
+        raise ValueError(f"No 'internal' key in event JSON. event keys: {list(event.keys())}")
+    result = event["internal"]
+    if not isinstance(result, dict):
+        raise ValueError(f"event['internal'] is not a dict: {type(result)}")
+    return result
+
+
+def get_profile_from_agent(client, timeout: float = 30.0, poll_interval: float = 0.5, assert_samples: bool = True):
+    """Poll the test agent until a profiling upload appears, then return the parsed profile.
+
+    Convenience for use inside @pytest.mark.subprocess test functions alongside the
+    other pprof_utils helpers. The client must have a profiling_requests() method
+    (a TestAgentClient scoped to a with_profiling_test_agent() session).
+    """
+    import time
+
+    end_time = time.time() + timeout
+    while time.time() < end_time:
+        reqs = client.profiling_requests()
+        if reqs:
+            profile = parse_profile_from_request(reqs[-1])
+            if assert_samples:
+                assert len(profile.sample) > 0, "No samples found in profile received from test agent"
+            return profile
+        time.sleep(poll_interval)
+
+    raise AssertionError(f"No profiling upload received from test agent within {timeout}s")
 
 
 def parse_newest_profile(

@@ -12,6 +12,8 @@ from cpython.unicode cimport PyUnicode_AsUTF8AndSize
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
+import os as _os
+
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
@@ -22,6 +24,12 @@ from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
+
+# AIDEV-NOTE: Upload URL override for testing. Read from env once at import time so
+# exec-based child processes (gunicorn workers, uwsgi) pick it up automatically.
+# Updated at runtime via config_url() by with_profiling_test_agent() for in-process tests.
+# Never read from os.environ inside _get_endpoint() so production has zero env-var overhead.
+_upload_url_override = _os.environ.get("_DD_PROFILING_TEST_AGENT_URL")
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -371,8 +379,7 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
+    call_func_with_str(ddup_config_output_filename, output_filename or "")
     if process_tags:
         call_func_with_str(ddup_config_process_tags, process_tags)
 
@@ -405,14 +412,21 @@ def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
-def _get_endpoint(tracer)-> str:
+def config_url(url: Optional[str]) -> None:
+    """Set or clear the upload URL override. Used by tests via with_profiling_test_agent()."""
+    global _upload_url_override
+    _upload_url_override = url
+
+
+def _get_endpoint(tracer) -> str:
     # DEV: ddtrace.profiling.utils has _get_endpoint but importing that function
     # leads to a circular import, so re-implementing it here.
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
+    if _upload_url_override is not None:
+        return _upload_url_override
     tracer_agent_url = tracer.agent_trace_url
-    endpoint = tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
-    return endpoint
+    return tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
 
 
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:

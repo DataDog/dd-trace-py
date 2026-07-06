@@ -1,25 +1,17 @@
 from __future__ import annotations
 
 import _thread
-import glob
 import os
 import pickle
 import sys
 import threading
 import time
-from typing import Callable
 from typing import Optional
 from typing import Union
-from typing import cast
 from unittest import mock
-import uuid
 
 import pytest
 
-from ddtrace import ext
-from ddtrace._trace.span import Span
-from ddtrace._trace.tracer import Tracer
-from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper as LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
@@ -27,13 +19,11 @@ from ddtrace.profiling.collector.threading import ThreadingConditionCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
-from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
-from tests.profiling.collector.pprof_utils import pprof_pb2  # type: ignore[attr-defined]
 from tests.profiling.collector.test_utils import init_ddup
 
 
@@ -58,35 +48,7 @@ CollectorTypeInst = Union[
 CollectorTypeClass = type[CollectorTypeInst]
 
 
-# Module-level globals for testing global lock profiling
-_test_global_lock: LockTypeInst
-
-
-class TestBar:
-    pass
-
-
-_test_global_bar_instance: TestBar
-
 init_linenos(__file__)
-
-
-# Helper classes for testing lock collector
-class Foo:
-    def __init__(self, lock_class: LockTypeClass) -> None:
-        self.foo_lock: LockTypeInst = lock_class()  # !CREATE! foolock
-
-    def foo(self) -> None:
-        with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock
-            pass
-
-
-class Bar:
-    def __init__(self, lock_class: LockTypeClass) -> None:
-        self.foo: Foo = Foo(lock_class)
-
-    def bar(self) -> None:
-        self.foo.foo()
 
 
 @pytest.mark.parametrize(
@@ -569,13 +531,13 @@ def test_user_threads_have_native_id():
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    err=None,
 )
 def test_lock_gevent_tasks() -> None:
     from gevent import monkey
 
     monkey.patch_all()
 
-    import glob
     import os
     import threading
 
@@ -584,20 +546,12 @@ def test_lock_gevent_tasks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert ddup.is_available, "ddup is not available"
 
     # Set up the ddup exporter
     test_name: str = "test_lock_gevent_tasks"
-    pprof_prefix: str = "/tmp" + os.sep + test_name
-    output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test",
-        service=test_name,
-        version="my_version",
-        output_filename=pprof_prefix,
-    )  # pyright: ignore[reportCallIssue]
-    ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -606,15 +560,25 @@ def test_lock_gevent_tasks() -> None:
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
 
-    def validate_and_cleanup() -> None:
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(
+            env="test",
+            service=test_name,
+            version="my_version",
+        )  # pyright: ignore[reportCallIssue]
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
+            t.start()
+            t.join()
+
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(  # pyright: ignore[reportInvalidTypeForm]
-            output_filename
-        )
+        profile = pprof_utils.get_profile_from_agent(agent_client)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -639,32 +603,19 @@ def test_lock_gevent_tasks() -> None:
             ],
         )
 
-        for f in glob.glob(pprof_prefix + ".*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error removing file: {}".format(e))
-
-    with ThreadingLockCollector(capture_pct=100):
-        t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
-        t.start()
-        t.join()
-
-    validate_and_cleanup()
-
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
 # which affects the whole process.
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT"), reason="gevent is not available")
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_FILE_PATH=__file__),
+    err=None,
 )
 def test_rlock_gevent_tasks() -> None:
     from gevent import monkey
 
     monkey.patch_all()
 
-    import glob
     import os
     import threading
 
@@ -673,20 +624,12 @@ def test_rlock_gevent_tasks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert ddup.is_available, "ddup is not available"
 
     # Set up the ddup exporter
     test_name: str = "test_rlock_gevent_tasks"
-    pprof_prefix: str = "/tmp" + os.sep + test_name
-    output_filename: str = pprof_prefix + "." + str(os.getpid())
-    ddup.config(
-        env="test",
-        service=test_name,
-        version="my_version",
-        output_filename=pprof_prefix,
-    )  # pyright: ignore[reportCallIssue]
-    ddup.start()
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -695,13 +638,25 @@ def test_rlock_gevent_tasks() -> None:
         lock.acquire()  # !ACQUIRE! test_rlock_gevent_tasks
         lock.release()  # !RELEASE! test_rlock_gevent_tasks
 
-    def validate_and_cleanup() -> None:
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(
+            env="test",
+            service=test_name,
+            version="my_version",
+        )  # pyright: ignore[reportCallIssue]
+        ddup.start()
+
+        with ThreadingRLockCollector(capture_pct=100):
+            t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
+            t.start()
+            t.join()
+
         ddup.upload()  # pyright: ignore[reportCallIssue]
 
         expected_filename: str = "test_threading.py"
         linenos: LineNo = get_lock_linenos(test_name)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -725,19 +680,6 @@ def test_rlock_gevent_tasks() -> None:
                 ),
             ],
         )
-
-        for f in glob.glob(pprof_prefix + ".*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error removing file: {}".format(e))
-
-    with ThreadingRLockCollector(capture_pct=100):
-        t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
-        t.start()
-        t.join()
-
-    validate_and_cleanup()
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
@@ -1049,72 +991,42 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
             bsem2.release()
 
 
-class LockCollectorTestBase:
-    """Minimal base class providing ddup setup/teardown for lock collector tests.
+# ---------------------------------------------------------------------------
+# Standalone parametrized PEP 604 test (replaces LockCollectorTestBase.test_pep604_type_union_syntax)
+# ---------------------------------------------------------------------------
 
-    Subclasses must define:
-    - collector_class: The collector class to use (e.g., ThreadingLockCollector)
-    - lock_class: The lock class to use (e.g., threading.Lock)
+
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
+@pytest.mark.parametrize(
+    "collector_class,lock_class",
+    [
+        (ThreadingLockCollector, threading.Lock),
+        (ThreadingRLockCollector, threading.RLock),
+        (ThreadingSemaphoreCollector, threading.Semaphore),
+        (ThreadingBoundedSemaphoreCollector, threading.BoundedSemaphore),
+        (ThreadingConditionCollector, threading.Condition),
+    ],
+)
+def test_pep604_type_union_syntax(collector_class: CollectorTypeClass, lock_class: LockTypeClass) -> None:
+    """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+    Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+    Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
     """
-
-    @property
-    def collector_class(self) -> CollectorTypeClass:
-        raise NotImplementedError("Child classes must implement collector_class")
-
-    @property
-    def lock_class(self) -> LockTypeClass:
-        raise NotImplementedError("Child classes must implement lock_class")
-
-    # setup_method and teardown_method which will be called before and after
-    # each test method, respectively, part of pytest api.
-    def setup_method(self, method: Callable[..., None]) -> None:
-        self.test_name: str = method.__qualname__ if PY_311_OR_ABOVE else method.__name__
-        self.pprof_prefix: str = "/tmp" + os.sep + self.test_name
-        # The output filename will be /tmp/method_name.<pid>.<counter>.
-        # The counter number is incremented for each test case, as the tests are
-        # all run in a single process and share the same exporter.
-        self.output_filename: str = self.pprof_prefix + "." + str(os.getpid())
-
-        # ddup is available when the native module is compiled
-        assert ddup.is_available, "ddup is not available"
-        ddup.config(
-            env="test",
-            service=self.test_name,
-            version="my_version",
-            output_filename=self.pprof_prefix,
-        )  # pyright: ignore[reportCallIssue]
-        ddup.start()
-
-        # Clear any accumulated samples that have been created by other unrelated tests
-        # and that may interfere with our tests.
-        ddup.upload()
-
-    def teardown_method(self) -> None:
-        # Clear any accumulated samples that have not been uploaded and may interfere
-        # with subsequent tests.
-        ddup.upload()
-
-        # might be unnecessary but this will ensure that the file is removed
-        # after each successful test, and when a test fails it's easier to
-        # pinpoint and debug.
-        for f in glob.glob(self.output_filename + ".*"):
-            try:
-                os.remove(f)
-            except Exception as e:
-                print("Error removing file: {}".format(e))
-
-    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
-    def test_pep604_type_union_syntax(self) -> None:
-        """Test that PEP 604 type union syntax works with wrapped lock classes.
-
-        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
-        Skips when the lock is a factory function (e.g., threading.Lock) rather than a type.
-        """
-        with self.collector_class(capture_pct=100):
-            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
+    with collector_class(capture_pct=100):
+        # After the collector starts, the module attribute is a _LockAllocatorWrapper.
+        # The parametrized lock_class is the original (pre-patch) reference, so we
+        # look up the live wrapped value by PATCHED_LOCK_NAME instead.
+        wrapped_lock_class = getattr(threading, collector_class.PATCHED_LOCK_NAME)
+        assert_pep604_type_union_syntax(wrapped_lock_class)  # type: ignore[arg-type]
 
 
-class TestGenericLockProfiling(LockCollectorTestBase):
+# ---------------------------------------------------------------------------
+# TestGenericLockProfiling — non-ddup-upload tests kept as a class
+# ---------------------------------------------------------------------------
+
+
+class TestGenericLockProfiling:
     """Generic lock profiling tests that run once with threading.Lock.
 
     These tests verify the core profiling infrastructure which is shared across
@@ -1122,6 +1034,9 @@ class TestGenericLockProfiling(LockCollectorTestBase):
     - All lock types use the same _ProfiledLock wrapper
     - The profiling logic (sampling, stack traces, ddup integration) is identical
     - Lock-type-specific behavior is tested in dedicated test classes
+
+    Only tests that do NOT call ddup.upload() remain here.
+    Tests that call ddup.upload() are converted to @pytest.mark.subprocess functions below.
     """
 
     @property
@@ -1164,739 +1079,6 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         """Test that profiled lock instances can be pickled (Python 3.14+ forkserver compat)."""
         with self.collector_class(capture_pct=100):
             self._assert_pickle_roundtrip(self.lock_class(), _ProfiledLock)
-
-    def test_lock_events(self) -> None:
-        # The first argument is the recorder.Recorder which is used for the
-        # v1 exporter. We don't need it for the v2 exporter.
-        with self.collector_class(capture_pct=100):
-            lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events
-            lock.acquire()  # !ACQUIRE! test_lock_events
-            lock.release()  # !RELEASE! test_lock_events
-        # Calling upload will trigger the exporter to write to a file
-        ddup.upload()
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        linenos: LineNo = get_lock_linenos("test_lock_events")
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="lock",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="lock",
-                ),
-            ],
-        )
-
-    def test_lock_events_truncate_frames(self) -> None:
-        """Ensure lock samples keep leaf callsite and use an omitted-frames root when truncated.
-
-        This builds a call stack deeper than max frames, then verifies that for both
-        lock-acquire and lock-release samples we can still find the expected callsite
-        as the leaf frame, while the root frame is the synthetic
-        "<N frame(s) omitted>" marker.
-        """
-        from ddtrace.internal.settings.profiling import config
-
-        # Force a deeper stack than configured max frames so truncation always happens.
-        recursion_depth = config.max_frames + 50
-
-        def deep_lock_ops(depth: int, lock: LockTypeInst) -> None:
-            if depth == 0:
-                lock.acquire()  # !ACQUIRE! test_lock_events_truncate_frames
-                lock.release()  # !RELEASE! test_lock_events_truncate_frames
-                return
-            deep_lock_ops(depth - 1, lock)
-
-        with self.collector_class(capture_pct=100):
-            lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_truncate_frames
-            deep_lock_ops(recursion_depth, lock)
-
-        ddup.upload()
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        linenos: LineNo = get_lock_linenos("test_lock_events_truncate_frames")
-        caller_name = deep_lock_ops.__qualname__ if PY_311_OR_ABOVE else deep_lock_ops.__name__
-
-        def _assert_callsite_sample_is_truncated(sample_type: str, expected_line: int) -> None:
-            samples = pprof_utils.get_samples_with_value_type(profile, sample_type)
-            assert len(samples) > 0
-
-            found_callsite_sample = False
-            for sample_idx, sample in enumerate(samples):
-                # Stack export allows one extra frame for the omitted-frames marker.
-                assert len(sample.location_id) <= config.max_frames + 1, (
-                    f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
-                )
-
-                leaf_location = pprof_utils.get_location_with_id(profile, sample.location_id[0])
-                leaf_line = leaf_location.line[0]
-                leaf_function = pprof_utils.get_function_with_id(profile, leaf_line.function_id)
-                leaf_function_name = profile.string_table[leaf_function.name]
-                if leaf_function_name == caller_name and leaf_line.line == expected_line:
-                    found_callsite_sample = True
-
-                    root_location = pprof_utils.get_location_with_id(profile, sample.location_id[-1])
-                    root_line = root_location.line[0]
-                    root_function = pprof_utils.get_function_with_id(profile, root_line.function_id)
-                    root_function_name = profile.string_table[root_function.name]
-                    assert root_function_name.startswith("<") and "omitted>" in root_function_name, (
-                        f"expected {sample_type} callsite sample root frame to be omitted marker, got"
-                        f" {root_function_name!r}"
-                    )
-                    break
-
-            assert found_callsite_sample, f"expected to find {sample_type} callsite sample"
-
-        _assert_callsite_sample_is_truncated("lock-acquire", linenos.acquire)
-        _assert_callsite_sample_is_truncated("lock-release", linenos.release)
-
-    def test_lock_acquire_events_class(self) -> None:
-        # Store reference to class for later qualname access
-        foobar_class: Optional[type] = None
-
-        with self.collector_class(capture_pct=100):
-            lock_class: LockTypeClass = self.lock_class  # Capture for inner class
-
-            class Foobar(object):
-                def lockfunc(self) -> None:
-                    lock: LockTypeInst = lock_class()  # !CREATE! test_lock_acquire_events_class
-                    lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
-
-            # Capture reference before context manager exits
-            foobar_class = Foobar
-            Foobar().lockfunc()
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        linenos: LineNo = get_lock_linenos("test_lock_acquire_events_class")
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        assert foobar_class is not None
-        caller_name = foobar_class.lockfunc.__qualname__ if PY_311_OR_ABOVE else foobar_class.lockfunc.__name__
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=caller_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="lock",
-                ),
-            ],
-        )
-
-    def test_lock_events_tracer(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
-        resource: str = str(uuid.uuid4())
-        span_type: str = ext.SpanTypes.WEB
-        with self.collector_class(
-            tracer=tracer,
-            capture_pct=100,
-        ):
-            lock1: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_tracer_1
-            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_1
-            with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_tracer_2
-                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
-                lock1.release()  # !RELEASE! test_lock_events_tracer_1
-                span_id: int = t.span_id
-
-            lock2.release()  # !RELEASE! test_lock_events_tracer_2
-        ddup.upload(tracer=tracer)
-
-        linenos1: LineNo = get_lock_linenos("test_lock_events_tracer_1")
-        linenos2: LineNo = get_lock_linenos("test_lock_events_tracer_2")
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                ),
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                    span_id=span_id,
-                    trace_endpoint=resource,
-                    trace_type=span_type,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                    span_id=span_id,
-                    trace_endpoint=resource,
-                    trace_type=span_type,
-                ),
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                ),
-            ],
-        )
-
-    def test_lock_events_tracer_non_web(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
-        resource: str = str(uuid.uuid4())
-        span_type: str = ext.SpanTypes.SQL
-        with self.collector_class(
-            tracer=tracer,
-            capture_pct=100,
-        ):
-            with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_tracer_non_web
-                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_non_web
-                span_id: int = t.span_id
-
-            lock2.release()  # !RELEASE! test_lock_events_tracer_non_web
-        ddup.upload(tracer=tracer)
-
-        linenos2: LineNo = get_lock_linenos("test_lock_events_tracer_non_web")
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                    span_id=span_id,
-                    # no trace endpoint for non-web spans
-                    trace_type=span_type,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                ),
-            ],
-        )
-
-    def test_lock_events_tracer_late_finish(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
-        resource: str = str(uuid.uuid4())
-        span_type: str = ext.SpanTypes.WEB
-        with self.collector_class(
-            tracer=tracer,
-            capture_pct=100,
-        ):
-            lock1: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_tracer_late_finish_1
-            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_1
-            span: Span = tracer.start_span(name="test", span_type=span_type)  # pyright: ignore[reportCallIssue]
-            lock2: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_tracer_late_finish_2
-            lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_2
-            lock1.release()  # !RELEASE! test_lock_events_tracer_late_finish_1
-            lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
-        span.resource = resource
-        span.finish()
-        ddup.upload(tracer=tracer)
-
-        linenos1: LineNo = get_lock_linenos("test_lock_events_tracer_late_finish_1")
-        linenos2: LineNo = get_lock_linenos("test_lock_events_tracer_late_finish_2")
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                ),
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                ),
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                ),
-            ],
-        )
-
-    def test_resource_not_collected(self, tracer: Tracer) -> None:
-        tracer._endpoint_call_counter_span_processor.enable()
-        resource: str = str(uuid.uuid4())
-        span_type: str = ext.SpanTypes.WEB
-        with self.collector_class(
-            tracer=tracer,
-            capture_pct=100,
-        ):
-            lock1: LockTypeInst = self.lock_class()  # !CREATE! test_resource_not_collected_1
-            lock1.acquire()  # !ACQUIRE! test_resource_not_collected_1
-            with tracer.trace("test", resource=resource, span_type=span_type) as t:
-                lock2: LockTypeInst = self.lock_class()  # !CREATE! test_resource_not_collected_2
-                lock2.acquire()  # !ACQUIRE! test_resource_not_collected_2
-                lock1.release()  # !RELEASE! test_resource_not_collected_1
-                span_id: int = t.span_id
-            lock2.release()  # !RELEASE! test_resource_not_collected_2
-        ddup.upload(tracer=tracer)
-
-        linenos1: LineNo = get_lock_linenos("test_resource_not_collected_1")
-        linenos2: LineNo = get_lock_linenos("test_resource_not_collected_2")
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                ),
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                    span_id=span_id,
-                    trace_endpoint=None,
-                    trace_type=span_type,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos1,
-                    lock_name="lock1",
-                    span_id=span_id,
-                    trace_endpoint=None,
-                    trace_type=span_type,
-                ),
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos2,
-                    lock_name="lock2",
-                ),
-            ],
-        )
-
-    def test_lock_enter_exit_events(self) -> None:
-        with self.collector_class(capture_pct=100):
-            th_lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_enter_exit_events
-            with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
-                pass
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        # for enter/exits, we need to update the lock_linenos for versions >= 3.10
-        linenos: LineNo = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="th_lock",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="th_lock",
-                ),
-            ],
-        )
-
-    @pytest.mark.parametrize(
-        "inspect_dir_enabled",
-        [True, False],
-    )
-    def test_class_member_lock(self, inspect_dir_enabled: bool) -> None:
-        with mock.patch(
-            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
-            inspect_dir_enabled,
-        ):
-            expected_lock_name: Optional[str] = "foo_lock" if inspect_dir_enabled else None
-
-            with self.collector_class(capture_pct=100):
-                foobar: Foo = Foo(self.lock_class)
-                foobar.foo()
-                bar: Bar = Bar(self.lock_class)
-                bar.bar()
-
-            ddup.upload()  # pyright: ignore[reportCallIssue]
-
-            linenos: LineNo = get_lock_linenos("foolock", with_stmt=True)
-            profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-            acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
-            assert len(acquire_samples) >= 2, "Expected at least 2 lock-acquire samples"
-            release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
-            assert len(release_samples) >= 2, "Expected at least 2 lock-release samples"
-
-            caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
-
-            pprof_utils.assert_lock_events(
-                profile,
-                expected_acquire_events=[
-                    pprof_utils.LockAcquireEvent(
-                        caller_name=caller_name,
-                        filename=os.path.basename(__file__),
-                        linenos=linenos,
-                        lock_name=expected_lock_name,
-                    ),
-                ],
-                expected_release_events=[
-                    pprof_utils.LockReleaseEvent(
-                        caller_name=caller_name,
-                        filename=os.path.basename(__file__),
-                        linenos=linenos,
-                        lock_name=expected_lock_name,
-                    ),
-                ],
-            )
-
-    def test_find_name_slots_object(self) -> None:
-        """Regression: _find_name resolves lock names on __slots__-based objects.
-
-        Objects with __slots__ have no __dict__, so the slots inspection path
-        in _find_name must be used. Previously, the TypeError from vars() was
-        caught and the name resolution was skipped entirely.
-        """
-
-        class SlottedHolder:
-            __slots__ = ("my_lock",)
-
-            def __init__(self, lock_class: LockTypeClass) -> None:
-                self.my_lock: LockTypeInst = lock_class()
-
-        with mock.patch(
-            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
-            True,
-        ):
-            with self.collector_class(capture_pct=100):
-                holder = SlottedHolder(self.lock_class)
-                assert isinstance(holder.my_lock, _ProfiledLock)
-                found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
-                assert found_name == "my_lock", (
-                    f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
-                )
-
-    def test_crashing_descriptor_does_not_crash(self) -> None:
-        """Regression: _find_name must not crash when an object has a descriptor that raises.
-
-        Ray's get_actor_name descriptor crashes when accessed from a non-actor
-        worker context. The old dir()+getattr() approach would invoke it and
-        crash. The fix uses __dict__ to avoid invoking class-level descriptors.
-        """
-
-        class CrashingDescriptor:
-            def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
-                raise RuntimeError("Simulated Ray descriptor crash")
-
-        class HolderWithCrashingDescriptor:
-            dangerous_attr = CrashingDescriptor()
-
-            def __init__(self, lock_class: LockTypeClass) -> None:
-                self.my_lock: LockTypeInst = lock_class()
-
-        with mock.patch(
-            "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
-            True,
-        ):
-            with self.collector_class(capture_pct=100):
-                holder = HolderWithCrashingDescriptor(self.lock_class)
-                assert isinstance(holder.my_lock, _ProfiledLock)
-                # Must not raise, even though accessing dangerous_attr crashes
-                found_name = holder.my_lock._find_name({"holder": holder})
-                assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
-
-    def test_private_lock(self) -> None:
-        # Store reference to class for later qualname access
-        foo_class: Optional[type] = None
-
-        class Foo:
-            def __init__(self, lock_class: LockTypeClass) -> None:
-                self.__lock: LockTypeInst = lock_class()  # !CREATE! test_private_lock
-
-            def foo(self) -> None:
-                with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
-                    pass
-
-        # Capture reference before context manager
-        foo_class = Foo
-
-        with self.collector_class(capture_pct=100):
-            foo: Foo = Foo(self.lock_class)
-            foo.foo()
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        linenos: LineNo = get_lock_linenos("test_private_lock", with_stmt=True)
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-
-        assert foo_class is not None
-        caller_name = foo_class.foo.__qualname__ if PY_311_OR_ABOVE else foo_class.foo.__name__
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=caller_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="_Foo__lock",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=caller_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name="_Foo__lock",
-                ),
-            ],
-        )
-
-    def test_inner_lock(self) -> None:
-        # Store reference to class for later qualname access
-        bar_class: Optional[type] = None
-
-        class Bar:
-            def __init__(self, lock_class: LockTypeClass) -> None:
-                self.foo: Foo = Foo(lock_class)
-
-            def bar(self) -> None:
-                with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
-                    pass
-
-        # Capture reference before context manager
-        bar_class = Bar
-
-        with self.collector_class(capture_pct=100):
-            bar: Bar = Bar(self.lock_class)
-            bar.bar()
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        linenos_foo: LineNo = get_lock_linenos("foolock")
-        linenos_bar: LineNo = get_lock_linenos("test_inner_lock", with_stmt=True)
-        linenos_bar = linenos_bar._replace(
-            create=linenos_foo.create,
-        )
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        assert bar_class is not None
-        caller_name = bar_class.bar.__qualname__ if PY_311_OR_ABOVE else bar_class.bar.__name__
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=caller_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_bar,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=caller_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_bar,
-                ),
-            ],
-        )
-
-    def test_anonymous_lock(self) -> None:
-        with self.collector_class(capture_pct=100):
-            with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
-                pass
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        linenos: LineNo = get_lock_linenos("test_anonymous_lock", with_stmt=True)
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                ),
-            ],
-        )
-
-    def test_global_locks(self) -> None:
-        global _test_global_lock, _test_global_bar_instance
-
-        # Store references to functions/classes for later qualname access
-        foo_func: Optional[Callable[[], None]] = None
-        test_bar_class: Optional[type] = None
-
-        with self.collector_class(capture_pct=100):
-            # Create true module-level globals
-            _test_global_lock = self.lock_class()  # !CREATE! _test_global_lock
-
-            class TestBar:
-                def __init__(self, lock_class: LockTypeClass) -> None:
-                    self.bar_lock: LockTypeInst = lock_class()  # !CREATE! bar_lock
-
-                def bar(self) -> None:
-                    with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
-                        pass
-
-            def foo() -> None:
-                global _test_global_lock
-                assert _test_global_lock is not None
-                with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
-                    pass
-
-            # Capture references before context manager exits
-            foo_func = foo
-            test_bar_class = TestBar
-
-            _test_global_bar_instance = TestBar(self.lock_class)  # type: ignore[assignment]
-
-            # Use the locks
-            foo()
-            _test_global_bar_instance.bar()  # type: ignore[attr-defined]
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        # Process this file to get the correct line numbers for our !CREATE! comments
-        init_linenos(__file__)
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        linenos_global: LineNo = get_lock_linenos("_test_global_lock", with_stmt=True)
-        linenos_bar: LineNo = get_lock_linenos("bar_lock", with_stmt=True)
-
-        assert foo_func is not None
-        assert test_bar_class is not None
-        caller_name_foo = foo_func.__qualname__ if PY_311_OR_ABOVE else foo_func.__name__
-        caller_name_bar = test_bar_class.bar.__qualname__ if PY_311_OR_ABOVE else test_bar_class.bar.__name__
-
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=caller_name_foo,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_global,
-                    lock_name="_test_global_lock",
-                ),
-                pprof_utils.LockAcquireEvent(
-                    caller_name=caller_name_bar,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_bar,
-                    lock_name="bar_lock",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=caller_name_foo,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_global,
-                    lock_name="_test_global_lock",
-                ),
-                pprof_utils.LockReleaseEvent(
-                    caller_name=caller_name_bar,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos_bar,
-                    lock_name="bar_lock",
-                ),
-            ],
-        )
-
-    def test_upload_resets_profile(self) -> None:
-        # This test checks that the profile is cleared after each upload() call
-        # It is added in test_threading.py as LockCollector can easily be
-        # configured to be deterministic with capture_pct=100.
-        with self.collector_class(capture_pct=100):
-            with self.lock_class():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
-                pass
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        linenos: LineNo = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
-
-        pprof: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        pprof_utils.assert_lock_events(
-            pprof,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                ),
-            ],
-        )
-
-        # Now we call upload() again, and we expect the profile to be empty
-        num_files_before_second_upload: int = len(glob.glob(self.output_filename + ".*.pprof"))
-
-        ddup.upload()  # pyright: ignore[reportCallIssue]
-
-        num_files_after_second_upload: int = len(glob.glob(self.output_filename + ".*.pprof"))
-
-        # A new profile file should always be created (upload_seq increments)
-        assert num_files_after_second_upload - num_files_before_second_upload == 1, (
-            f"Expected 1 new file, got {num_files_after_second_upload - num_files_before_second_upload}."
-        )
-
-        # The newest profile file should be empty (no samples), which causes an AssertionError
-        with pytest.raises(AssertionError, match="No samples found in profile"):
-            pprof_utils.parse_newest_profile(self.output_filename)
 
     def test_lock_hash(self) -> None:
         """Test that __hash__ allows profiled locks to be used in sets and dicts."""
@@ -2000,12 +1182,1100 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             f"profiled: {profiled_time_zero:.6f}s)"
         )
 
-    def test_release_not_sampled_when_acquire_not_sampled(self) -> None:
-        """Test that lock release events are NOT sampled if their corresponding acquire was not sampled."""
-        # Use capture_pct=0 to ensure acquire is NEVER sampled
-        with self.collector_class(capture_pct=0):
-            lock: LockTypeInst = self.lock_class()
-            # Do multiple acquire/release cycles
+
+# ---------------------------------------------------------------------------
+# Subprocess versions of TestGenericLockProfiling ddup-upload tests
+# Each subprocess function imports everything it needs inside its body.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_events() -> None:
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_lock_events():
+        lock = threading.Lock()  # !CREATE! test_lock_events
+        lock.acquire()  # !ACQUIRE! test_lock_events
+        lock.release()  # !RELEASE! test_lock_events
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_events", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            test_lock_events()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_lock_events")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_events_truncate_frames() -> None:
+    """Ensure lock samples keep leaf callsite and use an omitted-frames root when truncated."""
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.settings.profiling import config
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+    recursion_depth = config.max_frames + 50
+
+    def deep_lock_ops(depth, lock):
+        if depth == 0:
+            lock.acquire()  # !ACQUIRE! test_lock_events_truncate_frames
+            lock.release()  # !RELEASE! test_lock_events_truncate_frames
+            return
+        deep_lock_ops(depth - 1, lock)
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_events_truncate_frames", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock = threading.Lock()  # !CREATE! test_lock_events_truncate_frames
+            deep_lock_ops(recursion_depth, lock)
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_lock_events_truncate_frames")
+    caller_name = deep_lock_ops.__qualname__ if PY_311_OR_ABOVE else deep_lock_ops.__name__
+
+    def _assert_callsite_sample_is_truncated(sample_type, expected_line):
+        samples = pprof_utils.get_samples_with_value_type(profile, sample_type)
+        assert len(samples) > 0
+
+        found_callsite_sample = False
+        for sample_idx, sample in enumerate(samples):
+            assert len(sample.location_id) <= config.max_frames + 1, (
+                f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
+            )
+
+            leaf_location = pprof_utils.get_location_with_id(profile, sample.location_id[0])
+            leaf_line = leaf_location.line[0]
+            leaf_function = pprof_utils.get_function_with_id(profile, leaf_line.function_id)
+            leaf_function_name = profile.string_table[leaf_function.name]
+            if leaf_function_name == caller_name and leaf_line.line == expected_line:
+                found_callsite_sample = True
+
+                root_location = pprof_utils.get_location_with_id(profile, sample.location_id[-1])
+                root_line = root_location.line[0]
+                root_function = pprof_utils.get_function_with_id(profile, root_line.function_id)
+                root_function_name = profile.string_table[root_function.name]
+                assert root_function_name.startswith("<") and "omitted>" in root_function_name, (
+                    f"expected {sample_type} callsite sample root frame to be omitted marker, got"
+                    f" {root_function_name!r}"
+                )
+                break
+
+        assert found_callsite_sample, f"expected to find {sample_type} callsite sample"
+
+    _assert_callsite_sample_is_truncated("lock-acquire", linenos.acquire)
+    _assert_callsite_sample_is_truncated("lock-release", linenos.release)
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_acquire_events_class() -> None:
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    class Foobar(object):
+        def lockfunc(self):
+            lock = threading.Lock()  # !CREATE! test_lock_acquire_events_class
+            lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_acquire_events_class", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            Foobar().lockfunc()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_lock_acquire_events_class")
+    caller_name = Foobar.lockfunc.__qualname__ if PY_311_OR_ABOVE else Foobar.lockfunc.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_events_tracer() -> None:
+    import os
+    import threading
+    import uuid
+
+    import ddtrace
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_lock_events_tracer():
+        tracer = ddtrace.trace.tracer
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+
+        with ThreadingLockCollector(tracer=tracer, capture_pct=100):
+            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_1
+            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_1
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_2
+                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_2
+                lock1.release()  # !RELEASE! test_lock_events_tracer_1
+                span_id = t.span_id
+
+            lock2.release()  # !RELEASE! test_lock_events_tracer_2
+        return resource, span_type, span_id
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_events_tracer", version="my_version")
+        ddup.start()
+        resource, span_type, span_id = test_lock_events_tracer()
+        ddup.upload(tracer=ddtrace.trace.tracer)
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos1 = get_lock_linenos("test_lock_events_tracer_1")
+    linenos2 = get_lock_linenos("test_lock_events_tracer_2")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events_tracer",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+            ),
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events_tracer",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+                span_id=span_id,
+                trace_endpoint=resource,
+                trace_type=span_type,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events_tracer",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+                span_id=span_id,
+                trace_endpoint=resource,
+                trace_type=span_type,
+            ),
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events_tracer",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_events_tracer_non_web() -> None:
+    import os
+    import threading
+    import uuid
+
+    import ddtrace
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_lock_events_tracer_non_web():
+        tracer = ddtrace.trace.tracer
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.SQL
+
+        with ThreadingLockCollector(tracer=tracer, capture_pct=100):
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_non_web
+                lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_non_web
+                span_id = t.span_id
+
+            lock2.release()  # !RELEASE! test_lock_events_tracer_non_web
+        return resource, span_type, span_id
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_events_tracer_non_web", version="my_version")
+        ddup.start()
+        resource, span_type, span_id = test_lock_events_tracer_non_web()
+        ddup.upload(tracer=ddtrace.trace.tracer)
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events_tracer_non_web",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+                span_id=span_id,
+                trace_type=span_type,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events_tracer_non_web",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_events_tracer_late_finish() -> None:
+    import os
+    import threading
+    import uuid
+
+    import ddtrace
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_lock_events_tracer_late_finish():
+        tracer = ddtrace.trace.tracer
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+
+        with ThreadingLockCollector(tracer=tracer, capture_pct=100):
+            lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_1
+            lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_1
+            span = tracer.start_span(name="test", span_type=span_type)  # pyright: ignore[reportCallIssue]
+            lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_2
+            lock2.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_2
+            lock1.release()  # !RELEASE! test_lock_events_tracer_late_finish_1
+            lock2.release()  # !RELEASE! test_lock_events_tracer_late_finish_2
+        span.resource = resource
+        span.finish()
+        return resource, span_type
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_events_tracer_late_finish", version="my_version")
+        ddup.start()
+        resource, span_type = test_lock_events_tracer_late_finish()
+        ddup.upload(tracer=ddtrace.trace.tracer)
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
+    linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events_tracer_late_finish",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+            ),
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_events_tracer_late_finish",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events_tracer_late_finish",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+            ),
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_events_tracer_late_finish",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_resource_not_collected() -> None:
+    import os
+    import threading
+    import uuid
+
+    import ddtrace
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_resource_not_collected():
+        tracer = ddtrace.trace.tracer
+        tracer._endpoint_call_counter_span_processor.enable()
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
+
+        with ThreadingLockCollector(tracer=tracer, capture_pct=100):
+            lock1 = threading.Lock()  # !CREATE! test_resource_not_collected_1
+            lock1.acquire()  # !ACQUIRE! test_resource_not_collected_1
+            with tracer.trace("test", resource=resource, span_type=span_type) as t:
+                lock2 = threading.Lock()  # !CREATE! test_resource_not_collected_2
+                lock2.acquire()  # !ACQUIRE! test_resource_not_collected_2
+                lock1.release()  # !RELEASE! test_resource_not_collected_1
+                span_id = t.span_id
+            lock2.release()  # !RELEASE! test_resource_not_collected_2
+        return resource, span_type, span_id
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_resource_not_collected", version="my_version")
+        ddup.start()
+        resource, span_type, span_id = test_resource_not_collected()
+        ddup.upload(tracer=ddtrace.trace.tracer)
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos1 = get_lock_linenos("test_resource_not_collected_1")
+    linenos2 = get_lock_linenos("test_resource_not_collected_2")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_resource_not_collected",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+            ),
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_resource_not_collected",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+                span_id=span_id,
+                trace_endpoint=None,
+                trace_type=span_type,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_resource_not_collected",
+                filename="test_threading.py",
+                linenos=linenos1,
+                lock_name="lock1",
+                span_id=span_id,
+                trace_endpoint=None,
+                trace_type=span_type,
+            ),
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_resource_not_collected",
+                filename="test_threading.py",
+                linenos=linenos2,
+                lock_name="lock2",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_lock_enter_exit_events() -> None:
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_lock_enter_exit_events():
+        th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
+        with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
+            pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_lock_enter_exit_events", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            test_lock_enter_exit_events()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_lock_enter_exit_events",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="th_lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_lock_enter_exit_events",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="th_lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_class_member_lock_inspect_dir_enabled() -> None:
+    """test_class_member_lock with inspect_dir_enabled=True."""
+    import os
+    import sys
+    import threading
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    class Foo:
+        def __init__(self):
+            self.foo_lock = threading.Lock()  # !CREATE! foolock
+
+        def foo(self):
+            with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock
+                pass
+
+    class Bar:
+        def __init__(self):
+            self.foo = Foo()
+
+        def bar(self):
+            self.foo.foo()
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_class_member_lock_inspect_dir_enabled", version="my_version")
+        ddup.start()
+
+        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", True):
+            with ThreadingLockCollector(capture_pct=100):
+                foobar = Foo()
+                foobar.foo()
+                bar = Bar()
+                bar.bar()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("foolock", with_stmt=True)
+    acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+    assert len(acquire_samples) >= 2, "Expected at least 2 lock-acquire samples"
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    assert len(release_samples) >= 2, "Expected at least 2 lock-release samples"
+
+    caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="foo_lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="foo_lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_class_member_lock_inspect_dir_disabled() -> None:
+    """test_class_member_lock with inspect_dir_enabled=False."""
+    import os
+    import sys
+    import threading
+    from unittest import mock
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    class Foo:
+        def __init__(self):
+            self.foo_lock = threading.Lock()  # !CREATE! foolock_disabled
+
+        def foo(self):
+            with self.foo_lock:  # !RELEASE! !ACQUIRE! foolock_disabled
+                pass
+
+    class Bar:
+        def __init__(self):
+            self.foo = Foo()
+
+        def bar(self):
+            self.foo.foo()
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(
+            env="test", service="test_generic_lock_class_member_lock_inspect_dir_disabled", version="my_version"
+        )
+        ddup.start()
+
+        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", False):
+            with ThreadingLockCollector(capture_pct=100):
+                foobar = Foo()
+                foobar.foo()
+                bar = Bar()
+                bar.bar()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("foolock_disabled", with_stmt=True)
+    acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+    assert len(acquire_samples) >= 2, "Expected at least 2 lock-acquire samples"
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    assert len(release_samples) >= 2, "Expected at least 2 lock-release samples"
+
+    caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name=None,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name=None,
+            ),
+        ],
+    )
+
+
+def test_find_name_slots_object() -> None:
+    """Regression: _find_name resolves lock names on __slots__-based objects.
+
+    Objects with __slots__ have no __dict__, so the slots inspection path
+    in _find_name must be used. Previously, the TypeError from vars() was
+    caught and the name resolution was skipped entirely.
+    """
+
+    class SlottedHolder:
+        __slots__ = ("my_lock",)
+
+        def __init__(self) -> None:
+            self.my_lock = threading.Lock()
+
+    with mock.patch(
+        "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+        True,
+    ):
+        with ThreadingLockCollector(capture_pct=100):
+            holder = SlottedHolder()
+            assert isinstance(holder.my_lock, _ProfiledLock)
+            found_name: Optional[str] = holder.my_lock._find_name({"holder": holder})
+            assert found_name == "my_lock", (
+                f"Expected 'my_lock' but got {found_name!r}. Lock name resolution through __slots__ is broken."
+            )
+
+
+def test_crashing_descriptor_does_not_crash() -> None:
+    """Regression: _find_name must not crash when an object has a descriptor that raises.
+
+    Ray's get_actor_name descriptor crashes when accessed from a non-actor
+    worker context. The old dir()+getattr() approach would invoke it and
+    crash. The fix uses __dict__ to avoid invoking class-level descriptors.
+    """
+
+    class CrashingDescriptor:
+        def __get__(self, obj: object, objtype: Optional[type] = None) -> object:
+            raise RuntimeError("Simulated Ray descriptor crash")
+
+    class HolderWithCrashingDescriptor:
+        dangerous_attr = CrashingDescriptor()
+
+        def __init__(self) -> None:
+            self.my_lock = threading.Lock()
+
+    with mock.patch(
+        "ddtrace.internal.settings.profiling.config.lock.name_inspect_dir",
+        True,
+    ):
+        with ThreadingLockCollector(capture_pct=100):
+            holder = HolderWithCrashingDescriptor()
+            assert isinstance(holder.my_lock, _ProfiledLock)
+            # Must not raise, even though accessing dangerous_attr crashes
+            found_name = holder.my_lock._find_name({"holder": holder})
+            assert found_name == "my_lock", f"Expected 'my_lock' but got {found_name!r}."
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_private_lock() -> None:
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    class Foo:
+        def __init__(self):
+            self.__lock = threading.Lock()  # !CREATE! test_private_lock
+
+        def foo(self):
+            with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
+                pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_private_lock", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            foo = Foo()
+            foo.foo()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_private_lock", with_stmt=True)
+    caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="_Foo__lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="_Foo__lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_inner_lock() -> None:
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    class Foo:
+        def __init__(self):
+            self.foo_lock = threading.Lock()  # !CREATE! inner_lock_foolock
+
+        def foo(self):
+            with self.foo_lock:  # !RELEASE! !ACQUIRE! inner_lock_foolock
+                pass
+
+    class Bar:
+        def __init__(self):
+            self.foo = Foo()
+
+        def bar(self):
+            with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
+                pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_inner_lock", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            bar = Bar()
+            bar.bar()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos_foo = get_lock_linenos("inner_lock_foolock")
+    linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
+    linenos_bar = linenos_bar._replace(create=linenos_foo.create)
+    caller_name = Bar.bar.__qualname__ if PY_311_OR_ABOVE else Bar.bar.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos_bar,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name,
+                filename="test_threading.py",
+                linenos=linenos_bar,
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_anonymous_lock() -> None:
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_anonymous_lock():
+        with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
+            pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_anonymous_lock", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            test_anonymous_lock()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_anonymous_lock",
+                filename="test_threading.py",
+                linenos=linenos,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_anonymous_lock",
+                filename="test_threading.py",
+                linenos=linenos,
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_global_locks() -> None:
+    import os
+    import sys
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+    PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
+
+    _test_global_lock = None
+
+    class TestBar:
+        def __init__(self):
+            self.bar_lock = threading.Lock()  # !CREATE! bar_lock
+
+        def bar(self):
+            with self.bar_lock:  # !ACQUIRE! !RELEASE! bar_lock
+                pass
+
+    def foo():
+        global _test_global_lock
+        assert _test_global_lock is not None
+        with _test_global_lock:  # !ACQUIRE! !RELEASE! _test_global_lock
+            pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_global_locks", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            _test_global_lock = threading.Lock()  # !CREATE! _test_global_lock
+            test_bar_instance = TestBar()
+            foo()
+            test_bar_instance.bar()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos_global = get_lock_linenos("_test_global_lock", with_stmt=True)
+    linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
+    caller_name_foo = foo.__qualname__ if PY_311_OR_ABOVE else foo.__name__
+    caller_name_bar = TestBar.bar.__qualname__ if PY_311_OR_ABOVE else TestBar.bar.__name__
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name_foo,
+                filename="test_threading.py",
+                linenos=linenos_global,
+                lock_name="_test_global_lock",
+            ),
+            pprof_utils.LockAcquireEvent(
+                caller_name=caller_name_bar,
+                filename="test_threading.py",
+                linenos=linenos_bar,
+                lock_name="bar_lock",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name_foo,
+                filename="test_threading.py",
+                linenos=linenos_global,
+                lock_name="_test_global_lock",
+            ),
+            pprof_utils.LockReleaseEvent(
+                caller_name=caller_name_bar,
+                filename="test_threading.py",
+                linenos=linenos_bar,
+                lock_name="bar_lock",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_upload_resets_profile() -> None:
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_upload_resets_profile():
+        with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
+            pass
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_upload_resets_profile", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            test_upload_resets_profile()
+
+        ddup.upload()
+        linenos = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
+        pprof = pprof_utils.get_profile_from_agent(agent)
+        pprof_utils.assert_lock_events(
+            pprof,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name="test_upload_resets_profile",
+                    filename="test_threading.py",
+                    linenos=linenos,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name="test_upload_resets_profile",
+                    filename="test_threading.py",
+                    linenos=linenos,
+                ),
+            ],
+        )
+
+        # Second upload should produce empty profile (no samples)
+        agent.clear()
+        ddup.upload()
+        empty_pprof = pprof_utils.get_profile_from_agent(agent, assert_samples=False)
+        assert len(empty_pprof.sample) == 0, (
+            f"Expected empty profile after second upload, got {len(empty_pprof.sample)} samples"
+        )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_release_not_sampled_when_acquire_not_sampled() -> None:
+    import os
+    import threading
+    import time
+    from typing import cast
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(
+            env="test",
+            service="test_generic_lock_release_not_sampled_when_acquire_not_sampled",
+            version="my_version",
+        )
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=0):
+            lock = threading.Lock()
             for _ in range(10):
                 lock.acquire()
                 assert cast(_ProfiledLock, lock).acquired_time is None
@@ -2013,24 +2283,36 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 lock.release()
 
         ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent, assert_samples=False)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename, assert_samples=False)
-        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    assert len(release_samples) == 0, (
+        f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
+    )
 
-        # release samples should NOT be generated when acquire wasn't sampled
-        assert len(release_samples) == 0, (
-            f"Expected no release samples when acquire wasn't sampled, got {len(release_samples)}"
-        )
 
-    def test_failed_acquire_produces_no_sample(self) -> None:
-        """Test that a failed non-blocking acquire produces no acquire/release samples.
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_generic_lock_failed_acquire_produces_no_sample() -> None:
+    import os
+    import threading
+    from typing import cast
 
-        When acquire(blocking=False) returns False (lock unavailable), acquired_time
-        must NOT be set. Setting it would produce a spurious acquire sample and corrupt
-        the hold-time of the thread that actually holds the lock.
-        """
-        with self.collector_class(capture_pct=100):
-            lock: LockTypeInst = self.lock_class()
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector._lock import _ProfiledLock
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_generic_lock_failed_acquire_produces_no_sample", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100):
+            lock = threading.Lock()
             lock.acquire()
             profiled = cast(_ProfiledLock, lock)
             acquired_time_after_success = profiled.acquired_time
@@ -2041,22 +2323,25 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             assert profiled.acquired_time == acquired_time_after_success, (
                 "acquired_time must not change after a failed acquire"
             )
-
             lock.release()
 
         ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
 
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-        acquire_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
-        release_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "lock-release")
-
-        assert len(acquire_samples) == 1, (
-            f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
-        )
-        assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
+    acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
+    release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
+    assert len(acquire_samples) == 1, (
+        f"Expected exactly 1 acquire sample (the successful one), got {len(acquire_samples)}"
+    )
+    assert len(release_samples) == 1, f"Expected exactly 1 release sample, got {len(release_samples)}"
 
 
-class TestThreadingLockCollector(LockCollectorTestBase):
+# ---------------------------------------------------------------------------
+# TestThreadingLockCollector — Lock-specific non-ddup tests
+# ---------------------------------------------------------------------------
+
+
+class TestThreadingLockCollector:
     """Test Lock-specific profiling behavior.
 
     Generic profiling tests are in TestGenericLockProfiling.
@@ -2084,8 +2369,6 @@ class TestThreadingLockCollector(LockCollectorTestBase):
         """Test that __getattr__ delegates Lock-specific attributes."""
         with self.collector_class(capture_pct=100):
             lock: LockTypeInst = self.lock_class()
-            from ddtrace.profiling.collector._lock import _ProfiledLock
-
             assert isinstance(lock, _ProfiledLock)
 
             # acquire_lock and release_lock are aliases that exist on _thread.lock
@@ -2099,7 +2382,12 @@ class TestThreadingLockCollector(LockCollectorTestBase):
             lock.release_lock()
 
 
-class TestThreadingRLockCollector(LockCollectorTestBase):
+# ---------------------------------------------------------------------------
+# TestThreadingRLockCollector — RLock-specific non-ddup tests
+# ---------------------------------------------------------------------------
+
+
+class TestThreadingRLockCollector:
     """Test RLock-specific profiling behavior.
 
     Generic profiling tests are in TestGenericLockProfiling.
@@ -2127,8 +2415,6 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
         """Test that __getattr__ delegates RLock-specific attributes."""
         with self.collector_class(capture_pct=100):
             lock: LockTypeInst = self.lock_class()
-            from ddtrace.profiling.collector._lock import _ProfiledLock
-
             assert isinstance(lock, _ProfiledLock)
 
             # _is_owned() is an RLock-specific method that should be delegated via __getattr__
@@ -2148,123 +2434,41 @@ class TestThreadingRLockCollector(LockCollectorTestBase):
             assert not lock._is_owned()
 
 
-class BaseSemaphoreTest(LockCollectorTestBase):
+# ---------------------------------------------------------------------------
+# BaseSemaphoreTest — shared non-ddup Semaphore tests
+# ---------------------------------------------------------------------------
+
+
+class BaseSemaphoreTest:
     """Base test class for Semaphore-like locks (Semaphore and BoundedSemaphore).
 
-    Contains tests that apply to both regular Semaphore and BoundedSemaphore,
-    particularly those related to internal lock detection and Condition-based implementation.
-    Generic profiling tests are in TestGenericLockProfiling.
+    Contains non-ddup-upload tests that apply to both Semaphore and BoundedSemaphore.
+    Tests that call ddup.upload() are converted to standalone subprocess functions.
     """
 
-    def test_subclassing_wrapped_lock(self) -> None:
-        """Test that subclassing of a wrapped lock type works when profiling is active.
+    @property
+    def collector_class(self) -> CollectorTypeClass:
+        raise NotImplementedError("Child classes must implement collector_class")
 
-        This test is only valid for Semaphore-like types (pure Python classes).
-        threading.Lock and threading.RLock are C types that don't support subclassing
-        through __mro_entries__.
-        """
+    @property
+    def lock_class(self) -> LockTypeClass:
+        raise NotImplementedError("Child classes must implement lock_class")
+
+    def test_subclassing_wrapped_lock(self) -> None:
+        """Test that subclassing of a wrapped lock type works when profiling is active."""
         with self.collector_class():
             assert isinstance(self.lock_class, LockAllocatorWrapper)
 
-            # This should NOT raise TypeError
             class CustomLock(self.lock_class):  # type: ignore[unreachable, name-defined]
                 def __init__(self) -> None:
                     super().__init__()
 
-            # Verify subclassing and functionality
             custom_lock: CustomLock = CustomLock()
             assert custom_lock.acquire()
             custom_lock.release()
 
-    def _verify_no_double_counting(self, marker_name: str, lock_var_name: str) -> None:
-        """Helper method to verify no double-counting in profile output.
-
-        Args:
-            marker_name: The marker name used in !CREATE! comments (e.g., "test_no_double_counting")
-            lock_var_name: The lock variable name to check in profile (e.g., "sem")
-        """
-        ddup.upload()
-
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-
-        # Count lock events (we expect 1 and only 1 acquire / release pair of samples.)
-        acquire_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
-        release_samples_count: int = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
-
-        # Should have exactly 1 event!
-        # 1 event = Semaphore-like lock profiled, internal Lock skipped (correct)
-        # 2+ events = Both Semaphore-like AND internal Lock profiled (double-counting bug)
-        lock_type_name: str = self.lock_class.__name__
-        assert acquire_samples_count == 1, (
-            f"Expected 1 acquire event ({lock_type_name} only), got {acquire_samples_count}."
-        )
-        assert release_samples_count == 1, (
-            f"Expected 1 release event ({lock_type_name} only), got {release_samples_count}."
-        )
-
-        # Verify the single event is the Semaphore-like lock (not the internal Lock)
-        linenos: LineNo = get_lock_linenos(marker_name)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name=lock_var_name,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name=lock_var_name,
-                ),
-            ],
-        )
-
-    def _verify_stack_trace_to_user_code(self, marker_name: str, lock_var_name: str) -> None:
-        """Helper method to verify stack traces point to user code, not threading.py internals.
-
-        Args:
-            marker_name: The marker name used in !CREATE! comments
-            lock_var_name: The lock variable name to check in profile
-        """
-        ddup.upload()
-
-        linenos: LineNo = get_lock_linenos(marker_name)
-        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
-
-        # stack traces should show test_threading.py (this file),
-        # not threading.py (where Condition/Semaphore internals live)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name=lock_var_name,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name=self.test_name,
-                    filename=os.path.basename(__file__),
-                    linenos=linenos,
-                    lock_name=lock_var_name,
-                ),
-            ],
-        )
-
     def test_stdlib_internal_lock_is_native(self) -> None:
-        """Locks created internally by threading.py (e.g., inside Condition/Semaphore) must be
-        native (not _ProfiledLock), because threading/asyncio are always excluded from profiling.
-        """
-        from ddtrace.profiling.collector._lock import _ProfiledLock
-        from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
+        """Locks created internally by threading.py must be native (not _ProfiledLock)."""
         with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
             regular_lock: LockTypeInst = threading.Lock()
             assert isinstance(regular_lock, _ProfiledLock), "User lock should be profiled"
@@ -2272,39 +2476,33 @@ class BaseSemaphoreTest(LockCollectorTestBase):
             sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
             assert isinstance(sem, _ProfiledLock), "User semaphore should be profiled"
 
-            # Internal lock (Semaphore -> Condition -> Lock, allocated inside threading.py)
-            # must be a native lock, NOT a _ProfiledLock
             internal_lock = sem._cond._lock
             assert not isinstance(internal_lock, _ProfiledLock), (
                 f"Lock created by threading.py (inside Condition) should be native, got {type(internal_lock).__name__}"
             )
 
     def test_acquire_return_values_preserved(self) -> None:
-        """Test that profiling wrapper preserves acquire() return values (transparency test).
-
-        This verifies the wrapper doesn't break different acquire() modes.
-        Both Semaphore and BoundedSemaphore have identical acquire() behavior.
-
-        Note: We use capture_pct=0 because we only care about behavior, not profile output.
-        """
+        """Test that profiling wrapper preserves acquire() return values."""
         with self.collector_class(capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)  # type: ignore[call-arg, arg-type]
 
-            # Test that blocking acquire succeeds
             result1 = sem.acquire(blocking=True)
             assert result1 in (True, None), "Wrapper must preserve blocking acquire return value"
 
-            # Test that non-blocking acquire on unavailable semaphore returns False
             result2 = sem.acquire(blocking=False)
             assert result2 is False, "Wrapper must preserve non-blocking acquire return value (False when unavailable)"
 
             sem.release()
 
-            # Test that non-blocking acquire on available semaphore returns True
             result3 = sem.acquire(blocking=False)
             assert result3 is True, "Wrapper must preserve non-blocking acquire return value (True when available)"
 
             sem.release()
+
+
+# ---------------------------------------------------------------------------
+# TestThreadingSemaphoreCollector — Semaphore non-ddup tests
+# ---------------------------------------------------------------------------
 
 
 class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
@@ -2318,48 +2516,132 @@ class TestThreadingSemaphoreCollector(BaseSemaphoreTest):
     def lock_class(self) -> type[threading.Semaphore]:
         return threading.Semaphore
 
-    def test_stack_trace_points_to_user_code(self) -> None:
-        """Verify Semaphore stack traces point to user code (uses Semaphore-specific markers)."""
-        with self.collector_class(capture_pct=100):
-            sem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_sem
-            sem.acquire()  # !ACQUIRE! test_stack_trace_sem
-            sem.release()  # !RELEASE! test_stack_trace_sem
-
-        self._verify_stack_trace_to_user_code("test_stack_trace_sem", "sem")
-
-    def test_no_double_counting_with_lock_collector(self) -> None:
-        """Verify no double-counting with Semaphore (uses Semaphore-specific markers)."""
-        from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            sem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting
-            sem.acquire()  # !ACQUIRE! test_no_double_counting
-            sem.release()  # !RELEASE! test_no_double_counting
-
-        self._verify_no_double_counting("test_no_double_counting", "sem")
-
     def test_unbounded_behavior_preserved(self) -> None:
-        """Test that profiling wrapper preserves Semaphore's unbounded behavior (transparency test).
-
-        Unlike BoundedSemaphore, regular Semaphore allows unlimited releases (no ValueError).
-        This verifies our profiling wrapper preserves this behavior.
-
-        Note: We use capture_pct=0 because we only care about behavior, not profile output.
-        """
+        """Test that profiling wrapper preserves Semaphore's unbounded behavior."""
         with self.collector_class(capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)
-
-            # Acquire and release normally
             sem.acquire()
             sem.release()
-
-            # Regular Semaphore allows releasing beyond initial value (no exception)
-            # This is the key difference from BoundedSemaphore
             sem.release()  # Should NOT raise ValueError
-            sem.release()  # Can keep releasing
-
-            # Verify we can still acquire (value has increased)
+            sem.release()
             assert sem.acquire(blocking=False) is True, "Semaphore should allow acquire after extra releases"
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_semaphore_stack_trace_points_to_user_code() -> None:
+    """Verify Semaphore stack traces point to user code."""
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_stack_trace():
+        sem = threading.Semaphore(2)  # !CREATE! test_stack_trace_sem
+        sem.acquire()  # !ACQUIRE! test_stack_trace_sem
+        sem.release()  # !RELEASE! test_stack_trace_sem
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_semaphore_stack_trace_points_to_user_code", version="my_version")
+        ddup.start()
+
+        with ThreadingSemaphoreCollector(capture_pct=100):
+            test_stack_trace()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_stack_trace_sem")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_stack_trace",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="sem",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_stack_trace",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="sem",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_semaphore_no_double_counting_with_lock_collector() -> None:
+    """Verify no double-counting with Semaphore."""
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_no_double_counting():
+        sem = threading.Semaphore(1)  # !CREATE! test_no_double_counting
+        sem.acquire()  # !ACQUIRE! test_no_double_counting
+        sem.release()  # !RELEASE! test_no_double_counting
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_semaphore_no_double_counting_with_lock_collector", version="my_version")
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
+            test_no_double_counting()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    acquire_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
+    release_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
+    assert acquire_samples_count == 1, f"Expected 1 acquire event (Semaphore only), got {acquire_samples_count}."
+    assert release_samples_count == 1, f"Expected 1 release event (Semaphore only), got {release_samples_count}."
+
+    linenos = get_lock_linenos("test_no_double_counting")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_no_double_counting",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="sem",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_no_double_counting",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="sem",
+            ),
+        ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# TestThreadingBoundedSemaphoreCollector — BoundedSemaphore non-ddup tests
+# ---------------------------------------------------------------------------
 
 
 class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
@@ -2373,58 +2655,130 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
     def lock_class(self) -> type[threading.BoundedSemaphore]:
         return threading.BoundedSemaphore
 
-    def test_stack_trace_points_to_user_code(self) -> None:
-        """Verify BoundedSemaphore stack traces point to user code (uses BoundedSemaphore-specific markers)."""
-        with self.collector_class(capture_pct=100):
-            bsem: LockTypeInst = self.lock_class(2)  # !CREATE! test_stack_trace_bsem
-            bsem.acquire()  # !ACQUIRE! test_stack_trace_bsem
-            bsem.release()  # !RELEASE! test_stack_trace_bsem
-
-        self._verify_stack_trace_to_user_code("test_stack_trace_bsem", "bsem")
-
-    def test_no_double_counting_with_lock_collector(self) -> None:
-        """Verify no double-counting with BoundedSemaphore (uses BoundedSemaphore-specific markers)."""
-        from ddtrace.profiling.collector.threading import ThreadingLockCollector
-
-        with ThreadingLockCollector(capture_pct=100), self.collector_class(capture_pct=100):
-            bsem: LockTypeInst = self.lock_class(1)  # !CREATE! test_no_double_counting_bounded
-            bsem.acquire()  # !ACQUIRE! test_no_double_counting_bounded
-            bsem.release()  # !RELEASE! test_no_double_counting_bounded
-
-        self._verify_no_double_counting("test_no_double_counting_bounded", "bsem")
-
     def test_bounded_behavior_preserved(self) -> None:
-        """Test that profiling wrapper preserves BoundedSemaphore's bounded behavior (transparency test).
-
-        This verifies the wrapper doesn't interfere with BoundedSemaphore's unique characteristic:
-        raising ValueError when releasing beyond the initial value.
-
-        Note: We use capture_pct=0 because we only care about behavior, not profile output.
-        """
+        """Test that profiling wrapper preserves BoundedSemaphore's bounded behavior."""
         with self.collector_class(capture_pct=0):
             sem: LockTypeInst = self.lock_class(1)
             sem.acquire()
             sem.release()
-            # BoundedSemaphore should raise ValueError when releasing more than initial value
-            # This proves our profiling wrapper doesn't break BoundedSemaphore's behavior
             with pytest.raises(ValueError, match="Semaphore released too many times"):
                 sem.release()
 
 
-class TestThreadingConditionCollector(LockCollectorTestBase):
-    """Test threading.Condition-specific profiling behavior.
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_bounded_semaphore_stack_trace_points_to_user_code() -> None:
+    """Verify BoundedSemaphore stack traces point to user code."""
+    import os
+    import threading
 
-    Generic profiling tests are in TestGenericLockProfiling.
-    This class can be extended with Condition-specific tests (e.g., wait/notify behavior).
-    """
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
 
-    @property
-    def collector_class(self) -> type[ThreadingConditionCollector]:
-        return ThreadingConditionCollector
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
-    @property
-    def lock_class(self) -> type[threading.Condition]:
-        return threading.Condition
+    def test_stack_trace_bsem():
+        bsem = threading.BoundedSemaphore(2)  # !CREATE! test_stack_trace_bsem
+        bsem.acquire()  # !ACQUIRE! test_stack_trace_bsem
+        bsem.release()  # !RELEASE! test_stack_trace_bsem
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(env="test", service="test_bounded_semaphore_stack_trace_points_to_user_code", version="my_version")
+        ddup.start()
+
+        with ThreadingBoundedSemaphoreCollector(capture_pct=100):
+            test_stack_trace_bsem()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    linenos = get_lock_linenos("test_stack_trace_bsem")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_stack_trace_bsem",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="bsem",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_stack_trace_bsem",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="bsem",
+            ),
+        ],
+    )
+
+
+@pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
+def test_bounded_semaphore_no_double_counting_with_lock_collector() -> None:
+    """Verify no double-counting with BoundedSemaphore."""
+    import os
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
+    from ddtrace.profiling.collector.threading import ThreadingLockCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import get_lock_linenos
+    from tests.profiling.collector.lock_utils import init_linenos
+    from tests.profiling.utils import with_profiling_test_agent
+
+    init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
+
+    def test_no_double_counting_bounded():
+        bsem = threading.BoundedSemaphore(1)  # !CREATE! test_no_double_counting_bounded
+        bsem.acquire()  # !ACQUIRE! test_no_double_counting_bounded
+        bsem.release()  # !RELEASE! test_no_double_counting_bounded
+
+    assert ddup.is_available, "ddup is not available"
+    with with_profiling_test_agent() as agent:
+        ddup.config(
+            env="test",
+            service="test_bounded_semaphore_no_double_counting_with_lock_collector",
+            version="my_version",
+        )
+        ddup.start()
+
+        with ThreadingLockCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+            test_no_double_counting_bounded()
+
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent(agent)
+
+    acquire_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
+    release_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
+    assert acquire_samples_count == 1, f"Expected 1 acquire event (BoundedSemaphore only), got {acquire_samples_count}."
+    assert release_samples_count == 1, f"Expected 1 release event (BoundedSemaphore only), got {release_samples_count}."
+
+    linenos = get_lock_linenos("test_no_double_counting_bounded")
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_no_double_counting_bounded",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="bsem",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_no_double_counting_bounded",
+                filename="test_threading.py",
+                linenos=linenos,
+                lock_name="bsem",
+            ),
+        ],
+    )
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))

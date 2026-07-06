@@ -1,29 +1,22 @@
-import _thread
+import inspect
 import os
-from pathlib import Path
 import sys
 import threading
 import time
-from typing import TYPE_CHECKING
-from typing import Generator
-from unittest.mock import patch
-import uuid
 
 import pytest
-from pytest import FixtureRequest
-from pytest import MonkeyPatch
 
-from ddtrace import ext
-from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
-from ddtrace.trace import Tracer
-from tests.conftest import get_original_test_name
-from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
 
 
-if TYPE_CHECKING:
-    from tests.profiling.collector.pprof_pb2 import Sample  # pyright: ignore[reportMissingModuleSource]
+def _lineno_of(func, substring):
+    """Return the 1-based line number of the first source line of func containing substring."""
+    source_lines, start_lineno = inspect.getsourcelines(func)
+    for offset, line in enumerate(source_lines):
+        if substring in line:
+            return start_lineno + offset
+    raise AssertionError(f"{substring!r} not found in source of {func.__name__}")
 
 
 # Python 3.11.9 is not compatible with gevent, https://github.com/gevent/gevent/issues/2040
@@ -64,7 +57,6 @@ def func5() -> None:
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
     )
 )
 def test_collect_truncate() -> None:
@@ -73,20 +65,20 @@ def test_collect_truncate() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
-
-    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
-    output_filename = pprof_prefix + "." + str(os.getpid())
+    from tests.profiling.utils import with_profiling_test_agent
 
     max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
 
-    p = profiler.Profiler()
-    p.start()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
 
-    func1()
+        func1()
 
-    p.stop()
+        p.stop()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
     for sample in samples:
@@ -94,32 +86,42 @@ def test_collect_truncate() -> None:
         assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
 
 
-def test_stack_locations(tmp_path: Path) -> None:
+@pytest.mark.subprocess(err=None)
+def test_stack_locations() -> None:
+    import _thread
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_stack_locations"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    def baz() -> None:
-        time.sleep(0.1)
+        def baz() -> None:
+            time.sleep(0.1)
 
-    def bar() -> None:
-        baz()
+        def bar() -> None:
+            baz()
 
-    def foo() -> None:
-        bar()
+        def foo() -> None:
+            bar()
 
-    with stack.StackCollector():
-        for _ in range(10):
-            foo()
+        with stack.StackCollector():
+            for _ in range(10):
+                foo()
 
-    ddup.upload()
+        ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -150,35 +152,46 @@ def test_stack_locations(tmp_path: Path) -> None:
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
-def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
+@pytest.mark.subprocess(err=None)
+def test_push_span() -> None:
+    import time
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_push_span"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     tracer._endpoint_call_counter_span_processor.enable()
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    resource = str(uuid.uuid4())
-    span_type = ext.SpanTypes.WEB
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
 
-    with stack.StackCollector(
-        tracer=tracer,
-    ):
-        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(10):
-                time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+        with stack.StackCollector(
+            tracer=tracer,
+        ):
+            with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
+                span_id = span.span_id
+                local_root_span_id = span._local_root.span_id
+                for _ in range(10):
+                    time.sleep(0.1)
+        ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
 
-    samples: list[Sample] = []
+    samples = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -199,41 +212,54 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, tracer: Tracer) -> None:
+@pytest.mark.subprocess(err=None)
+def test_push_span_unregister_thread() -> None:
+    import threading
+    import time
+    from unittest.mock import patch
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     with patch("ddtrace.internal.datadog.profiling.stack.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
 
         test_name = "test_push_span_unregister_thread"
-        pprof_prefix = str(tmp_path / test_name)
-        output_filename = pprof_prefix + "." + str(os.getpid())
 
         assert ddup.is_available
-        ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-        ddup.start()
-        ddup.upload()
+        with with_profiling_test_agent() as agent_client:
+            ddup.config(env="test", service=test_name, version="my_version")
+            ddup.start()
+            ddup.upload()
 
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
+            resource = str(uuid.uuid4())
+            span_type = ext.SpanTypes.WEB
 
-        def target_fun() -> None:
-            for _ in range(10):
-                time.sleep(0.1)
+            def target_fun() -> None:
+                for _ in range(10):
+                    time.sleep(0.1)
 
-        with stack.StackCollector(
-            tracer=tracer,
-        ):
-            with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-                span_id = span.span_id
-                local_root_span_id = span._local_root.span_id
-                t = threading.Thread(target=target_fun)
-                t.start()
-                t.join()
-                thread_id = t.ident
-        ddup.upload(tracer=tracer)
+            with stack.StackCollector(
+                tracer=tracer,
+            ):
+                with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
+                    span_id = span.span_id
+                    local_root_span_id = span._local_root.span_id
+                    t = threading.Thread(target=target_fun)
+                    t.start()
+                    t.join()
+                    thread_id = t.ident
+            ddup.upload(tracer=tracer)
 
-        profile = pprof_utils.parse_newest_profile(output_filename)
+            profile = pprof_utils.get_profile_from_agent(agent_client)
+
         samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-        samples: list[Sample] = []
+        samples = []
         for sample in samples_with_span_id:
             locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
             if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -252,37 +278,51 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
             print_samples_on_failure=True,
         )
 
-        unregister_thread.assert_called_with(thread_id)
+        # Use assert_any_call rather than assert_called_with because the
+        # StackCollector may unregister multiple threads on stop, so the last
+        # call to unregister_thread may not be for the thread we created.
+        unregister_thread.assert_any_call(thread_id)
 
 
-def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
+@pytest.mark.subprocess(err=None)
+def test_push_non_web_span() -> None:
+    import time
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     tracer._endpoint_call_counter_span_processor.enable()
 
     test_name = "test_push_non_web_span"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    resource = str(uuid.uuid4())
-    span_type = ext.SpanTypes.SQL
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.SQL
 
-    with stack.StackCollector(
-        tracer=tracer,
-    ):
-        with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(10):
-                time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+        with stack.StackCollector(
+            tracer=tracer,
+        ):
+            with tracer.trace("foobar", resource=resource, span_type=span_type) as span:
+                span_id = span.span_id
+                local_root_span_id = span._local_root.span_id
+                for _ in range(10):
+                    time.sleep(0.1)
+        ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: list[Sample] = []
+    samples = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -302,36 +342,46 @@ def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
+@pytest.mark.subprocess(err=None)
+def test_push_span_none_span_type() -> None:
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
+    import time
+    import uuid
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_push_span_none_span_type"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
+        tracer._endpoint_call_counter_span_processor.enable()
 
-    resource = str(uuid.uuid4())
+        resource = str(uuid.uuid4())
 
-    with stack.StackCollector(
-        tracer=tracer,
-    ):
-        # Explicitly set None span_type as the default could change in the
-        # future.
-        with tracer.trace("foobar", resource=resource, span_type=None) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-            for _ in range(10):
-                time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+        with stack.StackCollector(
+            tracer=tracer,
+        ):
+            # Explicitly set None span_type as the default could change in the
+            # future.
+            with tracer.trace("foobar", resource=resource, span_type=None) as span:
+                span_id = span.span_id
+                local_root_span_id = span._local_root.span_id
+                for _ in range(10):
+                    time.sleep(0.1)
+        ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: list[Sample] = []
+    samples = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -351,7 +401,17 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_collect_once_with_class(tmp_path: Path) -> None:
+@pytest.mark.subprocess(err=None)
+def test_collect_once_with_class() -> None:
+    import _thread
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.utils import with_profiling_test_agent
+
     class SomeClass(object):
         @classmethod
         def sleep_class(cls) -> None:
@@ -362,20 +422,20 @@ def test_collect_once_with_class(tmp_path: Path) -> None:
                 time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    with stack.StackCollector():
-        SomeClass.sleep_class()
+        with stack.StackCollector():
+            SomeClass.sleep_class()
 
-    ddup.upload()
+        ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -397,9 +457,11 @@ def test_collect_once_with_class(tmp_path: Path) -> None:
                     line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
                 ),
                 pprof_utils.StackLocation(
-                    function_name="test_collect_once_with_class",
+                    function_name="<module>",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class.__code__.co_firstlineno + 20,
+                    line_no=_test_stack_module._lineno_of(
+                        _test_stack_module.test_collect_once_with_class, "SomeClass.sleep_class()"
+                    ),
                 ),
             ],
         ),
@@ -407,12 +469,22 @@ def test_collect_once_with_class(tmp_path: Path) -> None:
     )
 
 
-def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
+@pytest.mark.subprocess(err=None)
+def test_collect_once_with_class_not_right_type() -> None:
     """Test that the stack collector profiles methods with non-conventional parameter names.
 
     Verifies the profiler handles methods where parameters don't follow standard conventions
     (e.g., using 'foobar' instead of 'self' or 'cls').
     """
+
+    import _thread
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.utils import with_profiling_test_agent
 
     class SomeClass(object):
         @classmethod
@@ -424,20 +496,20 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                 time.sleep(0.1)
 
     test_name = "test_collect_once_with_class"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    with stack.StackCollector():
-        SomeClass.sleep_class(123)
+        with stack.StackCollector():
+            SomeClass.sleep_class(123)
 
-    ddup.upload()
+        ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -459,9 +531,11 @@ def test_collect_once_with_class_not_right_type(tmp_path: Path) -> None:
                     line_no=SomeClass.sleep_class.__code__.co_firstlineno + 2,
                 ),
                 pprof_utils.StackLocation(
-                    function_name="test_collect_once_with_class_not_right_type",
+                    function_name="<module>",
                     filename="test_stack.py",
-                    line_no=test_collect_once_with_class_not_right_type.__code__.co_firstlineno + 26,
+                    line_no=_test_stack_module._lineno_of(
+                        _test_stack_module.test_collect_once_with_class_not_right_type, "SomeClass.sleep_class(123)"
+                    ),
                 ),
             ],
         ),
@@ -482,13 +556,12 @@ def _fib(n: int) -> int:
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
-@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_collect_gevent_thread_task() -> None:
     from gevent import monkey
 
     monkey.patch_all()
 
-    import os
     import threading
     import time
 
@@ -497,40 +570,41 @@ def test_collect_gevent_thread_task() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
     from tests.profiling.collector.test_stack import _main_thread_has_native_id
+    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_collect_gevent_thread_task"
-    pprof_prefix = "/tmp/" + test_name
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
 
-    # Start some (green)threads
-    def _do_fib() -> None:
-        for _ in range(5):
-            # spend some time in CPU so the profiler can catch something
-            # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
-            # And _fib() is called 5 times so it should take about 1 second
-            # We use 5 threads below so it should take about 5 seconds
-            _fib(32)
-            # Just make sure gevent switches threads/greenlets
-            time.sleep(0)
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    threads = []
+        # Start some (green)threads
+        def _do_fib() -> None:
+            for _ in range(5):
+                # spend some time in CPU so the profiler can catch something
+                # On a Mac w/ Apple M3 MAX with Python 3.11 it takes about 200ms to calculate _fib(32)
+                # And _fib() is called 5 times so it should take about 1 second
+                # We use 5 threads below so it should take about 5 seconds
+                _fib(32)
+                # Just make sure gevent switches threads/greenlets
+                time.sleep(0)
 
-    with stack.StackCollector():
-        for i in range(5):
-            t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
+        threads = []
 
-    ddup.upload()
+        with stack.StackCollector():
+            for i in range(5):
+                t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
+                t.start()
+                threads.append(t)
+            for t in threads:
+                t.join()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        ddup.upload()
+
+        profile = pprof_utils.get_profile_from_agent(agent_client)
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
@@ -570,18 +644,12 @@ def test_collect_gevent_thread_task() -> None:
     not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
-    ),
-    err=None,
-)
+@pytest.mark.subprocess(err=None)
 def test_collect_gevent_task_started_before_profiler() -> None:
     from gevent import monkey
 
     monkey.patch_all()
 
-    import os
     import threading
     import time
 
@@ -608,19 +676,21 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     # Import profiler modules after gevent patching and greenlet creation
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
 
-    p = profiler.Profiler()
-    p.start()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
 
-    try:
-        gevent.sleep(1.0)
-    finally:
-        should_stop.set()
-        pre_started_greenlet.join(timeout=2)
-        p.stop()
+        try:
+            gevent.sleep(1.0)
+        finally:
+            should_stop.set()
+            pre_started_greenlet.join(timeout=2)
+            p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
@@ -650,7 +720,6 @@ def test_collect_gevent_task_started_before_profiler() -> None:
 )
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_cpu_time_total_accuracy",
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     ),
     err=None,
@@ -675,13 +744,13 @@ def test_gevent_cpu_time_total_accuracy() -> None:
 
     monkey.patch_all()
 
-    import os
     import time
 
     import gevent
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
 
     DURATION_S = 3.0
     CPU_BURN_S = 0.01
@@ -696,31 +765,32 @@ def test_gevent_cpu_time_total_accuracy() -> None:
                 pass
             gevent.sleep(SLEEP_S)
 
-    p = profiler.Profiler()
-    p.start()
-    try:
-        # Stagger workers by CPU_BURN_S so their CPU bursts interleave with
-        # each other's sleep, which spreads the on-CPU greenlet across the
-        # unordered_map iteration order. Without staggering, the same greenlet
-        # tends to win the on-CPU position each sample, masking the bug.
-        workers = []
-        cpu_start_ns = time.process_time_ns()
-        for i in range(NUM_WORKERS):
-            if i > 0:
-                gevent.sleep(CPU_BURN_S)
-            workers.append(gevent.spawn(worker))
-        gevent.joinall(workers, timeout=DURATION_S + 10)
-        cpu_end_ns = time.process_time_ns()
-    finally:
-        p.stop()
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
+        try:
+            # Stagger workers by CPU_BURN_S so their CPU bursts interleave with
+            # each other's sleep, which spreads the on-CPU greenlet across the
+            # unordered_map iteration order. Without staggering, the same greenlet
+            # tends to win the on-CPU position each sample, masking the bug.
+            workers = []
+            cpu_start_ns = time.process_time_ns()
+            for i in range(NUM_WORKERS):
+                if i > 0:
+                    gevent.sleep(CPU_BURN_S)
+                workers.append(gevent.spawn(worker))
+            gevent.joinall(workers, timeout=DURATION_S + 10)
+            cpu_end_ns = time.process_time_ns()
+        finally:
+            p.stop()
+
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
     assert all(g.dead for g in workers), "gevent workers did not finish within timeout"
 
     actual_cpu_ns = cpu_end_ns - cpu_start_ns
     assert actual_cpu_ns > 0, "process_time_ns did not advance"
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    profile = pprof_utils.parse_newest_profile(output_filename)
     cpu_time_index = pprof_utils.get_sample_type_index(profile, "cpu-time")
     profile_cpu_ns = sum(sample.value[cpu_time_index] for sample in profile.sample)
 
@@ -774,88 +844,89 @@ exec(
 )
 
 
-def test_stress_threads_run_as_thread(tmp_path: Path) -> None:
+@pytest.mark.subprocess(err=None)
+def test_stress_threads_run_as_thread() -> None:
+    import threading
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_stress_threads_run_as_thread"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    quit_thread = threading.Event()
+        quit_thread = threading.Event()
 
-    def wait_for_quit() -> None:
-        quit_thread.wait()
+        def wait_for_quit() -> None:
+            quit_thread.wait()
 
-    with stack.StackCollector():
-        NB_THREADS = 40
+        with stack.StackCollector():
+            NB_THREADS = 40
 
-        threads = []
-        for _ in range(NB_THREADS):
-            t = threading.Thread(target=wait_for_quit)
-            t.start()
-            threads.append(t)
+            threads = []
+            for _ in range(NB_THREADS):
+                t = threading.Thread(target=wait_for_quit)
+                t.start()
+                threads.append(t)
 
-        time.sleep(3)
+            time.sleep(3)
 
-        quit_thread.set()
-        for t in threads:
-            t.join()
+            quit_thread.set()
+            for t in threads:
+                t.join()
 
-    ddup.upload()
+        ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
 
-# if you don't need to check the output profile, you can use this fixture
-@pytest.fixture
-def tracer_and_collector(
-    tracer: Tracer, request: FixtureRequest, tmp_path: Path
-) -> Generator[tuple[Tracer, stack.StackCollector], None, None]:
-    test_name = get_original_test_name(request)
-    pprof_prefix = str(tmp_path / test_name)
+@pytest.mark.subprocess(err=None)
+def test_collect_span_id() -> None:
+    import _thread
+    import os
+    import time
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.utils import with_profiling_test_agent
+
+    test_name = "test_collect_span_id"
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    c = stack.StackCollector(tracer=tracer)
-    c.start()
-    try:
-        yield tracer, c
-    finally:
-        c.stop()
+        tracer._endpoint_call_counter_span_processor.enable()
+        with stack.StackCollector(tracer=tracer):
+            resource = str(uuid.uuid4())
+            span_type = ext.SpanTypes.WEB
+            with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
+                for _ in range(10):
+                    time.sleep(0.1)
+                span_id = span.span_id
+                local_root_span_id = span._local_root.span_id
+
         ddup.upload(tracer=tracer)
 
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
-def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
-    test_name = "test_collect_span_id"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
-
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
-
-    tracer._endpoint_call_counter_span_processor.enable()
-    with stack.StackCollector(tracer=tracer):
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
-        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
-            for _ in range(10):
-                time.sleep(0.1)
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
-
-    ddup.upload(tracer=tracer)
-
-    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "trace endpoint")
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -868,9 +939,9 @@ def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
             trace_endpoint=resource,
             locations=[
                 pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    line_no=test_collect_span_id.__code__.co_firstlineno + 16,
+                    filename=os.path.basename(_test_stack_module.__file__),
+                    function_name="<module>",
+                    line_no=_test_stack_module._lineno_of(_test_stack_module.test_collect_span_id, "time.sleep(0.1)"),
                 )
             ],
         ),
@@ -878,26 +949,40 @@ def test_collect_span_id(tracer: Tracer, tmp_path: Path) -> None:
     )
 
 
-def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, request: FixtureRequest) -> None:
-    test_name = get_original_test_name(request)
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
+@pytest.mark.subprocess(err=None)
+def test_collect_span_resource_after_finish() -> None:
+    import _thread
+    import os
+    import time
+    import uuid
 
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.utils import with_profiling_test_agent
 
-    tracer._endpoint_call_counter_span_processor.enable()
-    with stack.StackCollector(tracer=tracer):
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
-        span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
-        for _ in range(10):
-            time.sleep(0.1)
-    ddup.upload(tracer=tracer)
-    span.finish()
+    test_name = "test_collect_span_resource_after_finish"
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
+
+        tracer._endpoint_call_counter_span_processor.enable()
+        with stack.StackCollector(tracer=tracer):
+            resource = str(uuid.uuid4())
+            span_type = ext.SpanTypes.WEB
+            span = tracer.start_span("foobar", activate=True, span_type=span_type, resource=resource)
+            for _ in range(10):
+                time.sleep(0.1)
+        ddup.upload(tracer=tracer)
+        span.finish()
+
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = profile.sample
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -910,9 +995,11 @@ def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, requ
             # trace_endpoint=resource,
             locations=[
                 pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    line_no=test_collect_span_resource_after_finish.__code__.co_firstlineno + 15,
+                    filename=os.path.basename(_test_stack_module.__file__),
+                    function_name="<module>",
+                    line_no=_test_stack_module._lineno_of(
+                        _test_stack_module.test_collect_span_resource_after_finish, "time.sleep(0.1)"
+                    ),
                 )
             ],
         ),
@@ -920,28 +1007,43 @@ def test_collect_span_resource_after_finish(tracer: Tracer, tmp_path: Path, requ
     )
 
 
-def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
+@pytest.mark.subprocess(err=None)
+def test_resource_not_collected() -> None:
+    import _thread
+    import os
+    import time
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_resource_not_collected"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    with stack.StackCollector(tracer=tracer):
-        # Give the Profiler some time to start
-        time.sleep(0.1)
+        with stack.StackCollector(tracer=tracer):
+            # Give the Profiler some time to start
+            time.sleep(0.1)
 
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
-        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
-            _fib(35)
+            resource = str(uuid.uuid4())
+            span_type = ext.SpanTypes.WEB
+            with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
+                _fib(35)
 
-    ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     pprof_utils.assert_profile_has_sample(
         profile,
         profile.sample,
@@ -951,9 +1053,9 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
             trace_type=span_type,
             locations=[
                 pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    line_no=test_resource_not_collected.__code__.co_firstlineno + 17,
+                    filename=os.path.basename(_test_stack_module.__file__),
+                    function_name="<module>",
+                    line_no=_test_stack_module._lineno_of(_test_stack_module.test_resource_not_collected, "_fib(35)"),
                 )
             ],
         ),
@@ -961,27 +1063,41 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
     )
 
 
-def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: FixtureRequest) -> None:
-    test_name = get_original_test_name(request)
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
+@pytest.mark.subprocess(err=None)
+def test_collect_nested_span_id() -> None:
+    import _thread
+    import os
+    import time
+    import uuid
+
+    from ddtrace import ext
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector import test_stack as _test_stack_module
+    from tests.profiling.utils import with_profiling_test_agent
+
+    test_name = "test_collect_nested_span_id"
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    tracer._endpoint_call_counter_span_processor.enable()
-    with stack.StackCollector(tracer=tracer):
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
-        with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type):
-            with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as child_span:
-                for _ in range(10):
-                    time.sleep(0.1)
-    ddup.upload(tracer=tracer)
+        tracer._endpoint_call_counter_span_processor.enable()
+        with stack.StackCollector(tracer=tracer):
+            resource = str(uuid.uuid4())
+            span_type = ext.SpanTypes.WEB
+            with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type):
+                with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as child_span:
+                    for _ in range(10):
+                        time.sleep(0.1)
+        ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
+
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -994,9 +1110,11 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
             trace_endpoint=resource,
             locations=[
                 pprof_utils.StackLocation(
-                    filename=os.path.basename(__file__),
-                    function_name=test_name,
-                    line_no=test_collect_nested_span_id.__code__.co_firstlineno + 17,
+                    filename=os.path.basename(_test_stack_module.__file__),
+                    function_name="<module>",
+                    line_no=_test_stack_module._lineno_of(
+                        _test_stack_module.test_collect_nested_span_id, "time.sleep(0.1)"
+                    ),
                 )
             ],
         ),
@@ -1009,9 +1127,6 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_greenlet_switch_not_blocked_by_profiler",
-    ),
     out=None,
     err=None,
 )
@@ -1099,79 +1214,113 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     )
 
 
-def test_greenlet_labels_do_not_depend_on_string_table_cleanup(tmp_path: Path) -> None:
+@pytest.mark.subprocess(err=None)
+def test_greenlet_labels_do_not_depend_on_string_table_cleanup() -> None:
     """Verify that tracking/untracking greenlets across many uploads does not
     crash or lose greenlet names now that greenlet labels are not StringTable entries.
     """
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack as native_stack
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
+
     test_name = "test_greenlet_labels_do_not_depend_on_string_table_cleanup"
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()
+    with with_profiling_test_agent() as agent_client:
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    from ddtrace.internal.datadog.profiling import stack as native_stack
+        with stack.StackCollector():
+            # Track a long-lived greenlet that should survive many uploads
+            long_lived_id = 0xDEAD0001
+            native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
 
-    with stack.StackCollector():
-        # Track a long-lived greenlet that should survive many uploads
-        long_lived_id = 0xDEAD0001
-        native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
+            # Track and untrack short-lived greenlets to exercise erase()
+            for i in range(50):
+                short_id = 0xBEEF0000 + i
+                native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
+                native_stack.untrack_greenlet(short_id)
 
-        # Track and untrack short-lived greenlets to exercise erase()
-        for i in range(50):
-            short_id = 0xBEEF0000 + i
-            native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
-            native_stack.untrack_greenlet(short_id)
+            # Do 30 uploads to exercise repeated profile serialization.
+            for _ in range(30):
+                ddup.upload()
 
-        # Do 30 uploads to exercise repeated profile serialization.
-        for _ in range(30):
-            ddup.upload()
+            # Track more short-lived greenlets after repeated uploads to make sure
+            # label handling remains functional
+            for i in range(50):
+                short_id = 0xCAFE0000 + i
+                native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
+                native_stack.untrack_greenlet(short_id)
 
-        # Track more short-lived greenlets after repeated uploads to make sure
-        # label handling remains functional
-        for i in range(50):
-            short_id = 0xCAFE0000 + i
-            native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
-            native_stack.untrack_greenlet(short_id)
+            # Give the sampler a moment to collect a sample with the long-lived greenlet
+            time.sleep(0.1)
 
-        # Give the sampler a moment to collect a sample with the long-lived greenlet
-        time.sleep(0.1)
+            native_stack.untrack_greenlet(long_lived_id)
 
-        native_stack.untrack_greenlet(long_lived_id)
+        # Final upload — if label handling is corrupted this would crash
+        ddup.upload()
 
-    # Final upload — if label handling is corrupted this would crash
-    ddup.upload()
+        # Verify we got a valid profile (no crash, no corruption)
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
-    # Verify we got a valid profile (no crash, no corruption)
-    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
 
-def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
-    tracer, _ = tracer_and_collector
+@pytest.mark.subprocess(err=None)
+def test_stress_trace_collection() -> None:
+    import threading
+    import time
 
-    def _trace() -> None:
-        for _ in range(5000):
-            with tracer.trace("hello"):
-                time.sleep(0.001)
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from ddtrace.trace import tracer
+    from tests.profiling.utils import with_profiling_test_agent
 
-    NB_THREADS = 30
+    test_name = "test_stress_trace_collection"
 
-    threads = []
-    for _ in range(NB_THREADS):
-        t = threading.Thread(target=_trace)
-        threads.append(t)
+    assert ddup.is_available
+    with with_profiling_test_agent():
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-    for t in threads:
-        t.start()
+        c = stack.StackCollector(tracer=tracer)
+        c.start()
+        try:
 
-    for t in threads:
-        t.join()
+            def _trace() -> None:
+                for _ in range(5000):
+                    with tracer.trace("hello"):
+                        time.sleep(0.001)
+
+            NB_THREADS = 30
+
+            threads = []
+            for _ in range(NB_THREADS):
+                t = threading.Thread(target=_trace)
+                threads.append(t)
+
+            for t in threads:
+                t.start()
+
+            for t in threads:
+                t.join()
+        finally:
+            c.stop()
+            ddup.upload(tracer=tracer)
 
 
+# This test intentionally keeps DD_PROFILING_OUTPUT_PPROF (file-based approach).
+# It uses ddtrace_run=True so the profiler auto-starts before the function body runs.
+# After os.fork(), the CHILD process must read its own profile before calling os._exit(0).
+# Since the child can't query a parent-process capture server usin the Python object,
+# file-based output is the only practical approach here.
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
 @pytest.mark.subprocess(
     ddtrace_run=True,

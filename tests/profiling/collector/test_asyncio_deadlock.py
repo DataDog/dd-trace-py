@@ -1,19 +1,14 @@
 import pytest
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_deadlock",
-    ),
-    err=None,
-)
-# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
+@pytest.mark.subprocess
 def test_asyncio_deadlock() -> None:
     import asyncio
     from typing import Optional
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -53,14 +48,15 @@ def test_asyncio_deadlock() -> None:
         except RecursionError:
             pass
 
-    p = profiler.Profiler()
-    p.start()
+    with with_profiling_test_agent():
+        p = profiler.Profiler()
+        p.start()
 
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
-    except RecursionError:
-        pass
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(main())
+        except RecursionError:
+            pass
 
-    p.stop()
+        p.stop()

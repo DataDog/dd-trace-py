@@ -15,7 +15,6 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
-import glob
 from importlib.metadata import version
 import logging
 import os
@@ -27,7 +26,6 @@ from subprocess import TimeoutExpired
 import sys
 import time
 from typing import IO
-from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Generator
 from typing import Optional
@@ -37,10 +35,8 @@ import pytest
 from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
-
-
-if TYPE_CHECKING:
-    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
+from tests.profiling.utils import get_all_profiles_from_agent
+from tests.profiling.utils import with_profiling_test_agent
 
 
 # uwsgi is not available on Windows
@@ -62,6 +58,9 @@ def uwsgi(
 ) -> Generator[Callable[..., subprocess.Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    # Force frequent uploads so the profiler uploads during the short test window
+    # rather than waiting for the default 60s interval or relying on atexit.
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -170,9 +169,7 @@ def test_uwsgi_threads_number_set(uwsgi: Callable[..., subprocess.Popen[bytes]])
     assert THREADS_MSG not in stdout
 
 
-def test_uwsgi_threads_enabled(
-    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_uwsgi_threads_enabled(uwsgi: Callable[..., subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that profiler works correctly with a single uwsgi worker.
 
     This is the simplest valid configuration:
@@ -182,18 +179,18 @@ def test_uwsgi_threads_enabled(
     The test verifies that:
     - The worker starts successfully and we can parse its PID from stdout
     - After running for a few seconds, the profiler collects wall-time samples
-    - The profile is written to the output file with the worker's PID suffix
+    - The profile is received by the test agent with wall-time samples
     """
-    filename = str(tmp_path / "uwsgi.pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads")
-    worker_pids: list[int] = _get_worker_pids(proc.stdout, 1)
-    # Give some time to the process to actually startup
-    time.sleep(3)
-    proc.terminate()
-    assert proc.wait() == 30
-    for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+    with with_profiling_test_agent() as agent_client:
+        proc = uwsgi("--enable-threads")
+        _get_worker_pids(proc.stdout, 1)
+        # Give some time to the process to actually startup
+        time.sleep(3)
+        proc.terminate()
+        assert proc.wait() == 30
+        profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 1, f"Expected at least 1 profiling upload, got {len(profiles)}"
+    for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -253,32 +250,8 @@ def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_start
     return worker_pids
 
 
-def _wait_for_profile_samples(
-    filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
-) -> list["pprof_pb2.Sample"]:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            files = glob.glob(f"{filename_prefix}.{pid}.*.pprof")
-            if not files:
-                raise FileNotFoundError(f"No profile files found for {filename_prefix}")
-
-            profiles = [pprof_utils.parse_profile(f) for f in files]
-            profile = pprof_utils.merge_profiles(profiles)
-        except (IndexError, FileNotFoundError):
-            time.sleep(interval)
-            continue
-
-        samples = pprof_utils.get_samples_with_value_type(profile, value_type)
-        if samples:
-            return samples
-        time.sleep(interval)
-
-    assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
-
-
 def test_uwsgi_threads_processes_primary(
-    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    uwsgi: Callable[..., subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that profiler works correctly with multiple workers and master process.
 
@@ -292,24 +265,24 @@ def test_uwsgi_threads_processes_primary(
     to restart the profiler in each worker after fork. The test verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
-    - Profiles are written with each worker's PID suffix
+    - Profiles are received by the test agent with wall-time samples
     """
-    filename = str(tmp_path / "uwsgi.pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
-    worker_pids = _get_worker_pids(proc.stdout, 2)
-    # Give some time to child to actually startup
-    time.sleep(3)
-    proc.terminate()
-    assert proc.wait() == 0
-    for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+    with with_profiling_test_agent() as agent_client:
+        proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
+        _get_worker_pids(proc.stdout, 2)
+        # Give some time to child to actually startup
+        time.sleep(3)
+        proc.terminate()
+        assert proc.wait() == 0
+        profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
+    for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
-    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    uwsgi: Callable[..., subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test profiler with --lazy-apps mode (app loaded independently in each worker).
 
@@ -324,23 +297,26 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
 
     The test verifies that each worker independently collects profile samples.
     """
-    filename = str(tmp_path / "uwsgi.pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
-    # the child process exits.
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
-    worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup and output a profile
-    time.sleep(3)
-    proc.terminate()
-    assert proc.wait() == 0
-    for pid in worker_pids:
-        _wait_for_profile_samples(filename, pid, "wall-time")
+
+    with with_profiling_test_agent() as agent_client:
+        # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+        # the child process exits.
+        proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
+        _get_worker_pids(proc.stdout, 2, 2)
+        # Give some time to child to actually startup and output a profile
+        time.sleep(3)
+        proc.terminate()
+        assert proc.wait() == 0
+        profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
+    for profile in profiles:
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
 def test_uwsgi_threads_processes_no_primary_lazy_apps(
-    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    uwsgi: Callable[..., subprocess.Popen[bytes]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test profiler with --lazy-apps but WITHOUT --master.
 
@@ -358,41 +334,44 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     Note: Without --master, termination is more complex - we manually kill processes
     and handle the case where workers may become zombies.
     """
-    filename = str(tmp_path / "uwsgi.pprof")
-    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
-    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
-    # the child process exits.
-    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
-    worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    assert len(worker_pids) == 2
 
-    # Give some time to child to actually startup before terminating the master
-    time.sleep(3)
+    with with_profiling_test_agent() as agent_client:
+        # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+        # the child process exits.
+        proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
+        worker_pids = _get_worker_pids(proc.stdout, 2, 2)
+        assert len(worker_pids) == 2
 
-    # Kill master process
-    parent_pid: int = worker_pids[0]
-    os.kill(parent_pid, signal.SIGTERM)
+        # Give some time to child to actually startup before terminating the master
+        time.sleep(3)
 
-    # Wait for master to exit
-    res_pid, res_status = os.waitpid(parent_pid, 0)
-    print("")
-    print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
+        # Kill master process
+        parent_pid: int = worker_pids[0]
+        os.kill(parent_pid, signal.SIGTERM)
 
-    # Attempt to kill worker proc once
-    worker_pid: int = worker_pids[1]
-    print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
-    try:
-        os.kill(worker_pid, 0)
-        print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
+        # Wait for master to exit
+        res_pid, res_status = os.waitpid(parent_pid, 0)
+        print("")
+        print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
 
-        os.kill(worker_pid, signal.SIGKILL)
-        print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
-    except OSError:
-        print(f"INFO: Worker {worker_pid} was successfully killed.")
+        # Attempt to kill worker proc once
+        worker_pid: int = worker_pids[1]
+        print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
+        try:
+            os.kill(worker_pid, 0)
+            print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
 
-    for pid in worker_pids:
-        _wait_for_profile_samples(filename, pid, "wall-time")
+            os.kill(worker_pid, signal.SIGKILL)
+            print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
+        except OSError:
+            print(f"INFO: Worker {worker_pid} was successfully killed.")
+
+        profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
+    for profile in profiles:
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
 
 @pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])

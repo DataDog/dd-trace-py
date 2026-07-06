@@ -1,16 +1,9 @@
 import pytest
 
 
-@pytest.mark.subprocess(
-    env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_utils_gather",
-    ),
-    err=None,
-)
-# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
+@pytest.mark.subprocess(err=None)
 def test_asyncio_gather() -> None:
     import asyncio
-    import os
     import time
     import uuid
 
@@ -19,6 +12,7 @@ def test_asyncio_gather() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -43,96 +37,97 @@ def test_asyncio_gather() -> None:
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    p = profiler.Profiler(tracer=tracer)
-    p.start()
-    with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
-        span_id = span.span_id
-        local_root_span_id = span._local_root.span_id
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler(tracer=tracer)
+        p.start()
+        with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
+            span_id = span.span_id
+            local_root_span_id = span._local_root.span_id
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        main_task = loop.create_task(outer(), name="outer")
-        loop.run_until_complete(main_task)
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            main_task = loop.create_task(outer(), name="outer")
+            loop.run_until_complete(main_task)
 
-    p.stop()
+        p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+        profile = pprof_utils.get_profile_from_agent(agent_client)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
+        samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
+        assert len(samples_with_span_id) > 0
 
-    samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    assert len(samples_with_span_id) > 0
+        # get samples with task_name
+        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+        # The next fails if stack is not properly configured with asyncio task
+        # tracking via ddtrace.profiling._asyncio
+        assert len(samples) > 0
 
-    # get samples with task_name
-    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-    # The next fails if stack is not properly configured with asyncio task
-    # tracking via ddtrace.profiling._asyncio
-    assert len(samples) > 0
+        # TODO: Currently, we never report Parent Tasks awaiting a Child Task as part of their own.
+        # This means we never see the 'await asyncio.gather(...)' tagged with Task name "outer"
+        # because it is always reported as part of the Stack of a Child Task.
+        # We will fix this in the future.
+        # pprof_utils.assert_profile_has_sample(
+        #     profile,
+        #     samples,
+        #     expected_sample=pprof_utils.StackEvent(
+        #         thread_name="MainThread",
+        #         task_name="outer",
+        #         span_id=span_id,
+        #         local_root_span_id=local_root_span_id,
+        #         locations=[
+        #             pprof_utils.StackLocation(
+        #                 function_name="outer"
+        #                 filename="test_asyncio_gather.py"
+        #                 line_no=outer.__code__.co_firstlineno+3
+        #             ),
+        #         ],
+        #     ),
+        # )
 
-    # TODO: Currently, we never report Parent Tasks awaiting a Child Task as part of their own.
-    # This means we never see the 'await asyncio.gather(...)' tagged with Task name "outer"
-    # because it is always reported as part of the Stack of a Child Task.
-    # We will fix this in the future.
-    # pprof_utils.assert_profile_has_sample(
-    #     profile,
-    #     samples,
-    #     expected_sample=pprof_utils.StackEvent(
-    #         thread_name="MainThread",
-    #         task_name="outer",
-    #         span_id=span_id,
-    #         local_root_span_id=local_root_span_id,
-    #         locations=[
-    #             pprof_utils.StackLocation(
-    #                 function_name="outer", filename="test_asyncio_gather.py", line_no=outer.__code__.co_firstlineno+3
-    #             ),
-    #         ],
-    #     ),
-    # )
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name="inner 1",
+                span_id=span_id,
+                local_root_span_id=local_root_span_id,
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="inner1",
+                        filename="test_asyncio_gather.py",
+                        line_no=inner1.__code__.co_firstlineno + 3,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="outer",
+                        filename="test_asyncio_gather.py",
+                        line_no=outer.__code__.co_firstlineno + 3,
+                    ),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )
 
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="inner 1",
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="inner1",
-                    filename="test_asyncio_gather.py",
-                    line_no=inner1.__code__.co_firstlineno + 3,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="outer",
-                    filename="test_asyncio_gather.py",
-                    line_no=outer.__code__.co_firstlineno + 3,
-                ),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
-
-    pprof_utils.assert_profile_has_sample(
-        profile,
-        samples,
-        expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
-            task_name="inner 2",
-            span_id=span_id,
-            local_root_span_id=local_root_span_id,
-            locations=[
-                pprof_utils.StackLocation(
-                    function_name="inner2",
-                    filename="test_asyncio_gather.py",
-                    line_no=inner2.__code__.co_firstlineno + 3,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="outer",
-                    filename="test_asyncio_gather.py",
-                    line_no=outer.__code__.co_firstlineno + 3,
-                ),
-            ],
-        ),
-        print_samples_on_failure=True,
-    )
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name="MainThread",
+                task_name="inner 2",
+                span_id=span_id,
+                local_root_span_id=local_root_span_id,
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="inner2",
+                        filename="test_asyncio_gather.py",
+                        line_no=inner2.__code__.co_firstlineno + 3,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="outer",
+                        filename="test_asyncio_gather.py",
+                        line_no=outer.__code__.co_firstlineno + 3,
+                    ),
+                ],
+            ),
+            print_samples_on_failure=True,
+        )

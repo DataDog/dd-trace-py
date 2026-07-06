@@ -101,9 +101,7 @@ Datadog::UploaderBuilder::set_process_tags(std::string_view p_tags)
 void
 Datadog::UploaderBuilder::set_output_filename(std::string_view _output_filename)
 {
-    if (!_output_filename.empty()) {
-        ProfilerState::get().output_filename = _output_filename;
-    }
+    ProfilerState::get().output_filename = _output_filename;
 }
 
 void

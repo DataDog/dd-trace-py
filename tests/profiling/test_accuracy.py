@@ -74,28 +74,29 @@ def assert_within_tolerance(
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_accuracy_stack.pprof",
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     )
 )
 def test_accuracy_stack():
     import collections
-    import os
 
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.test_accuracy import assert_almost_equal
     from tests.profiling.test_accuracy import assert_within_tolerance
     from tests.profiling.test_accuracy import spend_16
+    from tests.profiling.utils import get_profile_from_agent
+    from tests.profiling.utils import with_profiling_test_agent
 
     # Set this to 100 so we don't sleep too often and mess with the precision.
-    p = profiler.Profiler()
-    p.start()
-    spend_16()
-    p.stop()
-    wall_times = collections.defaultdict(lambda: 0)
-    cpu_times = collections.defaultdict(lambda: 0)
-    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    with with_profiling_test_agent() as agent_client:
+        p = profiler.Profiler()
+        p.start()
+        spend_16()
+        p.stop()
+        wall_times = collections.defaultdict(lambda: 0)
+        cpu_times = collections.defaultdict(lambda: 0)
+        profile = get_profile_from_agent(agent_client)
 
     for sample in profile.sample:
         wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")

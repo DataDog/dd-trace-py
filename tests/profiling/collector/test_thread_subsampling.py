@@ -11,22 +11,19 @@ import pytest
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_thread_subsampling_cap",
         _DD_PROFILING_STACK_MAX_THREADS="1",
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     ),
-    err=None,
 )
 def test_thread_subsampling_cap_respected() -> None:
     """With max_threads=1, at most 1 thread is sampled per cycle, even with many threads alive."""
-    import glob
-    import json
-    import os
     import threading
     import time
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
+    from tests.profiling.utils import get_all_metadata_from_agent
+    from tests.profiling.utils import with_profiling_test_agent
 
     N_THREADS = 10
     max_threads = 1
@@ -38,34 +35,31 @@ def test_thread_subsampling_cap_respected() -> None:
             time.sleep(0.01)
 
     test_name = "test_thread_subsampling_cap"
-    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
 
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()  # flush initial empty state; resets stats counters
+    with with_profiling_test_agent() as agent_client:
+        assert ddup.is_available
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()  # flush initial empty state; resets stats counters
 
-    threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
-    for t in threads:
-        t.start()
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
+        for t in threads:
+            t.start()
 
-    with stack.StackCollector():
-        time.sleep(2)
+        with stack.StackCollector():
+            time.sleep(2)
 
-    stop_event.set()
-    for t in threads:
-        t.join(timeout=2)
+        stop_event.set()
+        for t in threads:
+            t.join(timeout=2)
 
-    ddup.upload()
+        ddup.upload()
 
-    output_filename = pprof_prefix + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
-    assert files, f"No internal metadata files found at {output_filename}.*"
+        files = get_all_metadata_from_agent(agent_client, min_count=1)
 
-    for f in files:
-        with open(f) as fp:
-            metadata = json.load(fp)
+    assert files, "No internal metadata received from test agent"
 
+    for metadata in files:
         sampling_event_count: int = metadata.get("sampling_event_count", 0)
         sample_count: int = metadata.get("sample_count", 0)
 
@@ -81,11 +75,9 @@ def test_thread_subsampling_cap_respected() -> None:
 
 @pytest.mark.subprocess(
     env=dict(
-        DD_PROFILING_OUTPUT_PPROF="/tmp/test_thread_subsampling_nocap",
         _DD_PROFILING_STACK_MAX_THREADS="0",  # 0 = unlimited
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
     ),
-    err=None,
 )
 def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
     """Without a cap (max_threads=0), all threads are sampled each cycle.
@@ -93,14 +85,13 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
     With N_THREADS additional threads running, sample_count should be
     significantly greater than sampling_event_count.
     """
-    import glob
-    import json
-    import os
     import threading
     import time
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
+    from tests.profiling.utils import get_all_metadata_from_agent
+    from tests.profiling.utils import with_profiling_test_agent
 
     N_THREADS = 10
 
@@ -111,35 +102,31 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
             time.sleep(0.01)
 
     test_name = "test_thread_subsampling_nocap"
-    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
 
-    assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
-    ddup.start()
-    ddup.upload()  # flush initial empty state; resets stats counters
+    with with_profiling_test_agent() as agent_client:
+        assert ddup.is_available
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()  # flush initial empty state; resets stats counters
 
-    threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
-    for t in threads:
-        t.start()
+        threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
+        for t in threads:
+            t.start()
 
-    with stack.StackCollector():
-        time.sleep(2)
+        with stack.StackCollector():
+            time.sleep(2)
 
-    stop_event.set()
-    for t in threads:
-        t.join(timeout=2)
+        stop_event.set()
+        for t in threads:
+            t.join(timeout=2)
 
-    ddup.upload()
+        ddup.upload()
 
-    output_filename = pprof_prefix + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
-    assert files, f"No internal metadata files found at {output_filename}.*"
+        files = get_all_metadata_from_agent(agent_client, min_count=1)
 
     total_events: int = 0
     total_samples: int = 0
-    for f in files:
-        with open(f) as fp:
-            metadata = json.load(fp)
+    for metadata in files:
         total_events += metadata.get("sampling_event_count", 0)
         total_samples += metadata.get("sample_count", 0)
 
