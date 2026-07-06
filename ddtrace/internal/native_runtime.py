@@ -85,7 +85,7 @@ class NativeRuntime(SharedRuntime):
                 # once the instrumented native extension is built; guard for
                 # older builds.
                 try:
-                    native_forgotten = self.stale_runtimes_forgotten()  # type: ignore[attr-defined]
+                    native_forgotten = self.stale_runtimes_forgotten()
                 except Exception:
                     native_forgotten = -1
                 log.warning(
