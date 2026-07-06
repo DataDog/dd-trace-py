@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.contrib.internal.redis_utils import _get_cluster_pipeline_commands
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
@@ -17,11 +18,6 @@ async def instrumented_async_execute_pipeline(func, instance, args, kwargs):
 
 
 async def instrumented_async_execute_cluster_pipeline(func, instance, args, kwargs):
-    # Try to access command_stack, fallback to _command_stack for backward compatibility
-    command_stack = getattr(instance, "command_stack", None)
-    if command_stack is None:
-        command_stack = getattr(instance, "_command_stack", [])
-
-    cmds = [stringify_cache_args(c.args, cmd_max_len=config.redis.cmd_max_length) for c in command_stack]
+    cmds = _get_cluster_pipeline_commands(instance, config.redis.cmd_max_length)
     with _instrument_redis_execute_pipeline(config.redis, cmds, instance):
         return await func(*args, **kwargs)

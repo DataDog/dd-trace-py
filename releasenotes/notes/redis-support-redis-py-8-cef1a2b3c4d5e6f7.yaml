@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    redis: resolves an issue where cluster pipeline command tags (``redis.pipeline_length``
+    and the joined command string) were missing on ``redis-py`` 7.x and 8.x. Cluster
+    pipeline commands are now resolved from
+    ``instance._execution_strategy._command_queue`` when the legacy ``command_stack``
+    attribute is empty, restoring existing tracing behavior on the latest ``redis-py``
+    releases (up to 8.0.1).

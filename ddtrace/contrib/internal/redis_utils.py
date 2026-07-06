@@ -146,6 +146,30 @@ def _build_tags(query, instance, integration_name):
     return ret
 
 
+def _get_cluster_pipeline_commands(instance, cmd_max_len):
+    """Return a list of stringified commands from a ClusterPipeline instance.
+
+    redis-py reorganized ClusterPipeline internals between 6.x and 7.x/8.x:
+      - redis 4.x/5.x/6.x: commands live on ``instance.command_stack`` as ``PipelineCommand``
+        objects with an ``.args`` attribute.
+      - redis 7.x/8.x: ``instance.command_stack`` is initialized empty (sync) or absent (async);
+        commands live on ``instance._execution_strategy._command_queue`` as ``PipelineCommand``
+        objects with an ``.args`` attribute.
+      - Very old redis versions used ``instance._command_stack`` on the async ClusterPipeline.
+
+    Resolve in that order so all supported redis-py versions (>=4.6.0, <=8.0.1) produce
+    correct ``redis.pipeline_length`` and command tag values.
+    """
+    command_stack = getattr(instance, "command_stack", None)
+    if not command_stack:
+        execution_strategy = getattr(instance, "_execution_strategy", None)
+        if execution_strategy is not None:
+            command_stack = getattr(execution_strategy, "_command_queue", None)
+    if not command_stack:
+        command_stack = getattr(instance, "_command_stack", [])
+    return [stringify_cache_args(c.args, cmd_max_len=cmd_max_len) for c in command_stack]
+
+
 @contextmanager
 def _instrument_redis_execute_pipeline(config_integration, cmds, instance):
     cmd_string = resource = "\n".join(cmds)
