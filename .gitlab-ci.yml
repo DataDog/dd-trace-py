@@ -68,11 +68,11 @@ include:
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
   - project: 'DataDog/system-tests'
-    ref: nccatoni/gitlab
+    ref: main
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      ref: nccatoni/gitlab
+      ref: main
       condition: '$NIGHTLY_BUILD == "true"'
 
 system_tests_param:
