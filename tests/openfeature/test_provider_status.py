@@ -139,6 +139,31 @@ class TestProviderStatus:
             api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
             api.clear_providers()
 
+    @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
+    def test_sdk_ready_event_can_fire_before_datadog_config_ready(self):
+        """SDK-level PROVIDER_READY does not mean Datadog config has loaded."""
+        ready_events = []
+        ready_event = threading.Event()
+
+        def on_provider_ready(event_details):
+            ready_events.append(event_details)
+            ready_event.set()
+
+        api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+
+        try:
+            with override_global_config({"experimental_flagging_provider_enabled": True}):
+                provider = DataDogProvider()
+                _set_provider(provider)
+
+                assert ready_event.wait(timeout=1.0)
+                assert len(ready_events) >= 1
+                assert provider._status == ProviderStatus.NOT_READY
+                assert not provider._config_received.is_set()
+        finally:
+            api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+            api.clear_providers()
+
     def test_provider_status_after_shutdown(self):
         """Test that provider returns to NOT_READY after shutdown."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
