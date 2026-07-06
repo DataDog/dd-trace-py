@@ -20,7 +20,6 @@ object that implements the product protocol. This consists of a Python object
 | `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product; also called at process exit (see `skip_exit`) |
-| `post_preload() -> None` | A function with the logic required to finish initialization after the library preload stage |
 
 The product object needs to be made available to the Python plugin system by
 defining an entry point in the `project.entry-points.'ddtrace.products'` section
@@ -269,13 +268,16 @@ forksafe.register(my_after_child_hook)        # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
-**Keep hooks non-blocking.** By the time any fork hook runs, all periodic
-threads have already been stopped, so there are no concurrently held locks to
-worry about. The concern is speed: a hook that blocks delays the moment the
-child process becomes ready. Many parent processes (e.g. pre-fork web servers)
-wait with a bounded timeout for a signal from the child confirming it has
-started successfully. A slow hook can exhaust that timeout, causing the parent
-to treat the child as failed even though nothing went wrong.
+**Keep hooks non-blocking.** By the time a hook registered *after*
+`ddtrace.internal.threads._before_fork` runs, all periodic threads have already
+been stopped, so there are no locks held by those threads to worry about. (Hooks
+registered *before* that point run while periodic threads may still be active,
+so they must not assume threads have stopped.) The concern is speed: a hook that
+blocks
+delays the moment the child process becomes ready. Many parent processes (e.g.
+pre-fork web servers) wait with a bounded timeout for a signal from the child
+confirming it has started successfully. A slow hook can exhaust that timeout,
+causing the parent to treat the child as failed even though nothing went wrong.
 
 ### `PeriodicThread` fork protocol (`_threads.cpp`)
 
@@ -291,13 +293,25 @@ callback is suppressed during this stop so that writers do not flush their
 queues into the child — flushing would duplicate traces already buffered in
 the parent.
 
+> **Important:** `_before_fork` calls `join()` on every active worker with no
+> timeout. Blocking operations in a `periodic()` callback are fine, but they
+> must use their own timeouts — an unbounded block will prevent `fork()` from
+> returning until the operation completes, which can hang pre-fork servers.
+
 **Phase 2 — after fork**
 
-Both the parent and the child call `_after_fork()` on every thread. The parent
-always restarts its threads. In the child, restart is controlled by the
-`__autorestart__` attribute (default `True`): threads that leave it `True` are
-restarted transparently; threads that set it to `False` remain stopped and
-must arrange their own re-initialization (see `NativeWriter` below).
+Both the parent and the child call `_after_fork()` on every thread. In the
+child, restart is controlled by the `__autorestart__` attribute (default
+`True`): threads that leave it `True` are restarted transparently; threads that
+set it to `False` remain stopped and must arrange their own re-initialization
+(see `NativeWriter` below).
+
+In the parent, restarts are **asynchronous**: `_after_fork_parent` merely calls
+`ThreadRestartTimer.set()`, which schedules a deferred restart. The actual
+`_after_fork(force=True)` calls happen later, coalesced across repeated rapid
+forks. Parent-side periodic workers are therefore not immediately active after
+`fork()` returns; components that rely on parent-side metrics or flushing
+immediately after a fork should account for this delay.
 
 The default `__autorestart__ = True` means that for most `PeriodicService`
 subclasses **no fork-specific code is required** — the protocol handles
@@ -315,7 +329,10 @@ machinery in a well-defined order.
 
 - Register via `forksafe` — never call `os.register_at_fork()` directly.
 - Keep hooks **non-blocking** and **side-effect free** where possible.
-- If your component owns a `PeriodicService`, set `autorestart=False` and let
-  `_child_after_fork` recreate it rather than restarting the inherited thread.
+- If your component owns a `PeriodicService` **and has an explicit child
+  reinitialization path** (e.g. a `_child_after_fork` hook that recreates the
+  service), set `__autorestart__ = False` to suppress the automatic restart of
+  the inherited worker. Do not set this without a matching reinitialization
+  path — the service will be left marked as running with no active worker.
 - Never call `flush_queue()` or perform I/O in an after-child hook; flush only
   in after-parent hooks or at clean shutdown.
