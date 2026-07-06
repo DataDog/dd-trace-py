@@ -36,6 +36,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -82,9 +83,6 @@ DRAIN_INTERVAL = 0.1
 
 # Flag metadata key where the provider stamps the evaluation timestamp (ms).
 EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
-
-# Metadata key for allocation_key (same as _flageval_metrics.py METADATA_ALLOCATION_KEY).
-METADATA_ALLOCATION_KEY = "allocation_key"
 
 # Type-tag bytes for the canonical context key encoding (mirrors Go's ctxTag* constants).
 _TAG_STR = b"s"
@@ -750,15 +748,6 @@ def _encode_payload_event(
         event.get("flag", {}).get("key", ""),
     )
     return _PayloadEventResult(None, dropped_payload_limit=True)
-
-
-def _build_payloads(
-    events: list[dict[str, typing.Any]],
-    context: dict[str, str],
-    payload_size_limit: int = FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT,
-) -> typing.Iterator[tuple[bytes, int]]:
-    for payload in _build_payloads_with_stats(events, context, payload_size_limit).payloads:
-        yield payload
 
 
 def _build_payloads_with_stats(

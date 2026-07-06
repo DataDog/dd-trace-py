@@ -190,8 +190,11 @@ class DataDogProvider(AbstractProvider):
         """
         Initialize the provider.
 
-        Returns immediately; the provider transitions to READY asynchronously once
+        Returns immediately. This provider's internal status remains NOT_READY until
         Remote Config delivers the first FFE_FLAGS payload via on_configuration_received().
+        openfeature-sdk 0.8.x still dispatches PROVIDER_READY after initialize()
+        returns, so flag resolution itself remains gated on the loaded config rather than
+        the SDK registry's ready event.
 
         If RC has already delivered config before initialize() runs (e.g. in the master
         process of a pre-fork server), the fast path sets READY synchronously so the SDK
@@ -199,7 +202,7 @@ class DataDogProvider(AbstractProvider):
 
         Provider lifecycle:
             NOT_READY -> initialize() returns -> RC delivers config -> on_configuration_received()
-                      -> READY (PROVIDER_READY event emitted via emit_provider_ready)
+                      -> READY
         """
         if not self._enabled:
             return
@@ -231,9 +234,12 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # Config not yet available — return without blocking. The provider stays
-        # NOT_READY; on_configuration_received() will flip it to READY and emit
-        # PROVIDER_READY when RC delivers the FFE_FLAGS payload.
+        # Config not yet available — return without blocking. This provider's
+        # internal status stays NOT_READY; on_configuration_received() will flip it
+        # to READY when RC delivers the FFE_FLAGS payload. Note that openfeature-sdk
+        # 0.8.x dispatches PROVIDER_READY unconditionally after initialize()
+        # returns, even while our internal status and evaluation path are still
+        # waiting for config.
         # AIDEV-NOTE: Do NOT block here with _config_received.wait(). Blocking
         # initialize() breaks gunicorn/uWSGI pre-fork workers: when the OpenFeature
         # SDK runs initialize() in a background thread, fork() kills that thread in
@@ -557,6 +563,8 @@ class DataDogProvider(AbstractProvider):
 
         Updates status first, then signals the event for observers.
         Emits PROVIDER_READY for late arrivals after non-blocking initialize().
+        Some openfeature-sdk versions also emit PROVIDER_READY immediately after
+        initialize() returns; this late event is the Datadog config-loaded signal.
         """
         if not self._config_received.is_set():
             self._status = ProviderStatus.READY
