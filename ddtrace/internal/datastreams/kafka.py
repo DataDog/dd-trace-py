@@ -82,9 +82,6 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
 def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
-    if message.error() is not None:
-        return
-
     headers = {header[0]: header[1] for header in (message.headers() or [])}
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
