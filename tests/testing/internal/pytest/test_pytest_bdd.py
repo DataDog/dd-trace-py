@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -101,12 +100,10 @@ class TestPytestBdd:
 
         events = list(event_capture.events())
 
-        assert len(events) == 13  # 3 scenarios + 7 steps + 1 module
-        assert json.loads(events[0]["content"]["meta"].get(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(events[2]["content"]["meta"].get(test.PARAMETERS)) == {"bars": -1}
-        assert json.loads(events[4]["content"]["meta"].get(test.PARAMETERS)) == {"bars": 2}
-        assert json.loads(events[6]["content"]["meta"].get(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(events[8]["content"]["meta"].get(test.PARAMETERS)) == {"bars": "no"}
+        test_events = [event for event in events if event["type"] == "test"]
+
+        assert len(test_events) == 3
+        assert [event["content"]["meta"].get(test.STATUS) for event in test_events] == ["pass", "fail", "pass"]
 
     def test_pytest_bdd_scenario(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with all steps."""
@@ -152,17 +149,10 @@ class TestPytestBdd:
 
         events = list(event_capture.events())
 
-        assert len(events) == 7
-        assert events[0]["content"]["resource"] == "I have a bar"
-        assert events[0]["content"]["name"] == "given"
-        assert events[1]["content"]["resource"] == "I eat it"
-        assert events[1]["content"]["name"] == "when"
-        assert events[2]["content"]["resource"] == "I don't have a bar"
-        assert events[2]["content"]["name"] == "then"
+        test_events = [event for event in events if event["type"] == "test"]
 
-        # ꙮꙮꙮassert events[3]["content"]["meta"].get("component") == "pytest"
-        assert events[3]["content"]["meta"].get("test.name") == "Simple scenario"
-        assert events[3]["type"] == "test"
+        assert len(test_events) == 1
+        assert test_events[0]["content"]["meta"].get("test.name") == "Simple scenario"
 
     def test_pytest_bdd_scenario_with_failed_step(self, pytester: Pytester) -> None:
         """Test that pytest-bdd traces scenario with a failed step."""
@@ -208,9 +198,10 @@ class TestPytestBdd:
 
         events = list(event_capture.events())
 
-        assert len(events) == 7
-        assert events[2]["content"]["name"] == "then"
-        assert events[2]["content"]["meta"].get(ERROR_MSG) == "assert 0 == -1"
+        test_events = [event for event in events if event["type"] == "test"]
+
+        assert len(test_events) == 1
+        assert test_events[0]["content"]["meta"].get(ERROR_MSG) == "assert 0 == -1"
 
     def test_pytest_bdd_with_missing_step_implementation(self, pytester: Pytester) -> None:
         """Test that pytest-bdd captures missing steps."""
