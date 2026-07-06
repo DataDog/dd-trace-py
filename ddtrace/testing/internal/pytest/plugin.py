@@ -56,6 +56,7 @@ from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
@@ -411,6 +412,9 @@ class TestOptPlugin:
             # All workers have finished by this point, so the upload sentinel and lock
             # file are no longer needed. Clean them up to keep .git/ tidy.
             self.manager.cleanup_upload_artifacts()
+
+        if self.manager.settings.coverage_enabled:
+            uninstall_coverage()
 
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)

@@ -10,7 +10,6 @@ import pytest
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
-from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -478,18 +477,12 @@ class TestITR:
 
         monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
 
-        # Inject a predictable non-empty bitmap so the test is independent of ModuleCodeCollector
-        # singleton state (install() is idempotent; previous tests may have already installed it
-        # with a different include_paths, causing get_coverage_bitmaps to return empty).
-        fake_bitmaps = [("/test_foo.py", b"\x01")]
-
         with (
             patch(
                 "ddtrace.testing.internal.session_manager.APIClient",
                 return_value=mock_api_client_settings(coverage_enabled=True),
             ),
             setup_standard_mocks(workspace_path=str(pytester.path)),
-            patch.object(CoverageData, "get_coverage_bitmaps", return_value=fake_bitmaps),
         ):
             with patch.object(TestCoverageWriter, "put_event") as put_event_mock:
                 pytester.inline_run("--ddtrace", "-v", "-s")
