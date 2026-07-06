@@ -22,6 +22,7 @@ Key design properties:
 """
 
 from collections.abc import Mapping
+from collections.abc import Sequence
 import http.client as httplib
 import json
 import queue
@@ -96,6 +97,7 @@ FLAG_EVALUATION_DEGRADED_METRIC = "flagevaluation.rows.degraded"
 FLAG_EVALUATION_SPLITS_METRIC = "flagevaluation.payload.splits"
 
 FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
+FLAG_EVALUATION_REASON_CLOSED = "closed"
 FLAG_EVALUATION_REASON_DEGRADED_CAP = "degraded_cap"
 FLAG_EVALUATION_REASON_PAYLOAD_LIMIT = "payload_limit"
 FLAG_EVALUATION_REASON_CARDINALITY_CAP = "cardinality_cap"
@@ -188,7 +190,7 @@ def flatten_and_prune_context(attrs: dict[str, typing.Any]) -> dict[str, typing.
         return {}
 
     flat: dict[str, typing.Any] = {}
-    _flatten_recursive("", attrs, flat)
+    _flatten_recursive("", attrs, flat, set())
     if not flat:
         return {}
 
@@ -224,20 +226,38 @@ def _json_safe_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
     return {k: _json_safe_context_value(v) for k, v in attrs.items()}
 
 
-def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any]) -> None:
-    """Recursively flatten nested dicts into dot-notation keys."""
-    if not isinstance(attrs, Mapping):
-        if prefix:
-            out[prefix] = attrs
+def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any], seen: set[int]) -> None:
+    """Recursively flatten nested maps and sequences into dot/bracket notation keys."""
+    if isinstance(attrs, Mapping):
+        attrs_id = id(attrs)
+        if attrs_id in seen:
+            return
+        seen.add(attrs_id)
+        try:
+            for k, v in attrs.items():
+                if not prefix and k in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
+                    continue
+                full_key = f"{prefix}.{k}" if prefix else str(k)
+                _flatten_recursive(full_key, v, out, seen)
+        finally:
+            seen.remove(attrs_id)
         return
-    for k, v in attrs.items():
-        if not prefix and k in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
-            continue
-        full_key = f"{prefix}.{k}" if prefix else k
-        if isinstance(v, Mapping):
-            _flatten_recursive(full_key, v, out)
-        else:
-            out[full_key] = v
+
+    if isinstance(attrs, Sequence) and not isinstance(attrs, (str, bytes, bytearray)):
+        attrs_id = id(attrs)
+        if attrs_id in seen:
+            return
+        seen.add(attrs_id)
+        try:
+            for idx, value in enumerate(attrs):
+                full_key = f"{prefix}[{idx}]" if prefix else f"[{idx}]"
+                _flatten_recursive(full_key, value, out, seen)
+        finally:
+            seen.remove(attrs_id)
+        return
+
+    if prefix:
+        out[prefix] = attrs
 
 
 # ---------------------------------------------------------------------------
@@ -367,6 +387,7 @@ class FlagEvaluationWriter(PeriodicService):
         self._dropped_degraded_overflow: int = 0  # degraded-cap overflow drops
 
         self._drain_worker: typing.Optional[PeriodicThread] = None
+        self._accepting_events = True
 
     # ------------------------------------------------------------------
     # Public API used by FlagEvalEVPHook
@@ -380,6 +401,11 @@ class FlagEvaluationWriter(PeriodicService):
         only memory bound. On queue.Full, increments _dropped_queue (observable) and
         returns immediately — never blocks the evaluation hot path.
         """
+        if not self._accepting_events:
+            _count_metric(FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
+            logger.debug("FlagEvaluationWriter: dropped flag evaluation event after shutdown started")
+            return
+
         bounded_event = _EvalEvent(
             flag_key=event.flag_key,
             variant=event.variant,
@@ -406,6 +432,7 @@ class FlagEvaluationWriter(PeriodicService):
     # ------------------------------------------------------------------
 
     def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        self._accepting_events = True
         self._drain_worker = PeriodicThread(
             DRAIN_INTERVAL,
             target=self._drain_queue,
@@ -420,6 +447,7 @@ class FlagEvaluationWriter(PeriodicService):
             raise
 
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        self._accepting_events = False
         self._stop_drain_worker()
         super()._stop_service(*args, **kwargs)
 
@@ -558,6 +586,7 @@ class FlagEvaluationWriter(PeriodicService):
 
     def on_shutdown(self) -> None:  # type: ignore[override]
         """Final flush on service shutdown — drains the queue and flushes before exit."""
+        self._accepting_events = False
         self._stop_drain_worker()
         self.periodic()
 

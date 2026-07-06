@@ -29,6 +29,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VA
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DEGRADED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DROPPED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_CARDINALITY_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_CLOSED
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PAYLOAD_LIMIT
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_QUEUE_OVERFLOW
@@ -190,6 +191,19 @@ class TestFlattenAndPruneContext:
         assert "user.tier" in result
         assert result["user.id"] == "u1"
 
+    def test_nested_sequences_are_flattened_with_bracket_indexes(self):
+        attrs = {"cohorts": ["beta", {"name": "ga"}], "user": {"roles": ["admin"]}}
+        result = flatten_and_prune_context(attrs)
+        assert result["cohorts[0]"] == "beta"
+        assert result["cohorts[1].name"] == "ga"
+        assert result["user.roles[0]"] == "admin"
+
+    def test_cycles_do_not_recurse_forever(self):
+        attrs = {}
+        attrs["self"] = attrs
+        result = flatten_and_prune_context(attrs)
+        assert result == {}
+
     def test_dedicated_targeting_key_aliases_are_not_context_attrs(self):
         attrs = {"targetingKey": "user-1", "targeting_key": "user-1", "tier": "premium"}
         result = flatten_and_prune_context(attrs)
@@ -340,6 +354,15 @@ class TestEnqueue:
         queued = writer._queue.get_nowait()
         assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
 
+    def test_enqueue_after_shutdown_started_is_dropped_and_counted(self, writer):
+        writer.on_shutdown()
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.enqueue(_make_event(flag_key="late"))
+
+        assert writer._queue.qsize() == 0
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
+
 
 # ---------------------------------------------------------------------------
 # Periodic flush + EVP POST tests
@@ -488,7 +511,8 @@ class TestPeriodicFlush:
         ctx_eval = decoded["flagEvaluations"][0]["context"]["evaluation"]
         assert ctx_eval["amount"] == "12.34"
         assert ctx_eval["custom"] == "custom-value"
-        assert ctx_eval["list"] == ["1.5", "custom-value"]
+        assert ctx_eval["list[0]"] == "1.5"
+        assert ctx_eval["list[1]"] == "custom-value"
 
     def test_degraded_event_has_no_context_or_targeting_key(self, writer):
         """Degraded-tier events must not include targeting_key or context fields."""
