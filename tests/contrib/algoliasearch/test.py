@@ -10,6 +10,33 @@ from tests.utils import assert_is_measured
 
 V1 = parse_version("1.0")
 V2 = parse_version("2.0")
+V3 = parse_version("3.0")
+
+
+DUMMY_RESULT = {
+    "hits": [{"dummy": "dummy"}],
+    "processingTimeMS": 23,
+    "nbHits": 1,
+    "hitsPerPage": 20,
+    "exhaustiveNbHits": True,
+    "params": "query=xxx",
+    "nbPages": 1,
+    "query": "xxx",
+    "page": 0,
+}
+
+
+class _V3Response(dict):
+    """Stand-in for the pydantic ``SearchResponse`` returned by algoliasearch 3.x/4.x.
+
+    ``to_dict()`` mirrors the real client's ``model_dump(by_alias=True)`` output,
+    which uses the historical camelCase JSON keys (``processingTimeMS``,
+    ``nbHits``). The integration reads metrics via ``to_dict()`` so this shape
+    exercises the same code path that runs in production.
+    """
+
+    def to_dict(self):
+        return dict(self)
 
 
 class AlgoliasearchTest(TracerTestCase):
@@ -18,17 +45,7 @@ class AlgoliasearchTest(TracerTestCase):
 
         # dummy values
         def search(self, query, args=None, request_options=None):
-            return {
-                "hits": [{"dummy": "dummy"}],
-                "processingTimeMS": 23,
-                "nbHits": 1,
-                "hitsPerPage": 20,
-                "exhaustiveNbHits": True,
-                "params": "query=xxx",
-                "nbPages": 1,
-                "query": "xxx",
-                "page": 0,
-            }
+            return dict(DUMMY_RESULT)
 
         # Algolia search is a non free SaaS application, it isn't possible to add it to the
         # docker environment to enable a full-fledged integration test. The next best option
@@ -39,15 +56,24 @@ class AlgoliasearchTest(TracerTestCase):
 
             index_module.Index.search = search
             client = algoliasearch.algoliasearch.Client("X", "X")
-        else:
+            self.index = client.init_index("test_index")
+        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
             from algoliasearch.search_client import SearchClient
             import algoliasearch.search_index as index_module
 
             index_module.SearchIndex.search = search
             client = SearchClient.create("X", "X")
+            self.index = client.init_index("test_index")
+        else:
+            # algoliasearch 3.x/4.x — the SearchIndex/init_index() API is gone; the
+            # modern surface is SearchClientSync.search_single_index().
+            from algoliasearch.search.client import SearchClientSync
 
-        # use this index only to properly test stuff
-        self.index = client.init_index("test_index")
+            def search_single_index(self, index_name, search_params=None, request_options=None):
+                return _V3Response(DUMMY_RESULT)
+
+            SearchClientSync.search_single_index = search_single_index
+            self.client = SearchClientSync("APP_ID", "API_KEY")
 
     def patch_algoliasearch(self):
         patch()
@@ -61,8 +87,14 @@ class AlgoliasearchTest(TracerTestCase):
     def perform_search(self, query_text, query_args=None):
         if algoliasearch_version < V2 and algoliasearch_version >= V1:
             self.index.search(query_text, args=query_args)
-        else:
+        elif algoliasearch_version >= V2 and algoliasearch_version < V3:
             self.index.search(query_text, request_options=query_args)
+        else:
+            # v3/v4 combines query text and query args into the single
+            # ``search_params`` argument.
+            params = dict(query_args) if query_args else {}
+            params["query"] = query_text
+            self.client.search_single_index("test_index", search_params=params)
 
     def test_algoliasearch(self):
         self.patch_algoliasearch()
@@ -137,7 +169,7 @@ class AlgoliasearchTest(TracerTestCase):
         # Test unpatch
         unpatch()
 
-        self.index.search("test search")
+        self.perform_search("test search")
 
         spans = self.get_spans()
         self.reset()
@@ -147,7 +179,7 @@ class AlgoliasearchTest(TracerTestCase):
         self.reset()
         patch()
 
-        self.index.search("test search")
+        self.perform_search("test search")
 
         spans = self.get_spans()
         assert spans, spans
