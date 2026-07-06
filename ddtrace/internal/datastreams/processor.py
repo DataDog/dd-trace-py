@@ -172,15 +172,20 @@ class DataStreamsProcessor(PeriodicService):
 
         now_ns = int(now_sec * 1e9)
 
+        # Compute the bucket key and aggregation key OUTSIDE the lock. This runs on
+        # every message and the global lock is the dominant DSM cost at high
+        # concurrency, so keep the critical section as small as possible. Neither
+        # the arithmetic nor the ",".join(edge_tags) touches shared state.
+        bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
+        aggr_key = (",".join(edge_tags), hash_value, parent_hash)
+
         with self._lock:
-            # Align the span into the corresponding stats bucket
-            bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
-            aggr_key = (",".join(edge_tags), hash_value, parent_hash)
+            # stats is stored by reference in the defaultdict on first access, so
+            # the in-place .add() updates persist — no re-store needed.
             stats = self._buckets[bucket_time_ns].pathway_stats[aggr_key]
             stats.full_pathway_latency.add(full_pathway_latency_sec)
             stats.edge_latency.add(edge_latency_sec)
             stats.payload_size.add(payload_size)
-            self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
     def track_kafka_produce(self, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
