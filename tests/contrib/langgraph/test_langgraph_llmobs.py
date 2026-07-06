@@ -322,31 +322,15 @@ class TestLangGraphLLMObs:
         LANGGRAPH_VERSION < (0, 3, 21) or sys.version_info < (3, 11),
         reason="real interrupt() over astream() needs LangGraph 0.3.21+ and Python 3.11+ (async runnable context)",
     )
-    async def test_astream_break_on_interrupt_emits_llmobs_span(self, langgraph, langgraph_llmobs, test_spans):
-        """MLOS-701: the graph's LLMObs span must be emitted even when the consumer abandons the
-        stream on ``__interrupt__`` (human-in-the-loop) instead of draining it.
+    async def test_astream_break_on_interrupt_emits_llmobs_span(
+        self, langgraph_llmobs, async_interrupt_graph, test_spans
+    ):
+        """The graph's LLMObs span must be emitted even when the consumer abandons the stream on
+        ``__interrupt__`` (human-in-the-loop) instead of draining it.
         """
-        from langgraph.checkpoint.memory import MemorySaver
-        from langgraph.graph import END
-        from langgraph.graph import START
-        from langgraph.graph import StateGraph
-        from langgraph.types import interrupt
-
-        from .conftest import State
-
-        async def node_with_interrupt(state):
-            # Async node so interrupt() runs in the runnable context under astream() (a sync node
-            # is dispatched to an executor thread on async runs, where get_config() is unavailable).
-            interrupt({"question": "approve?"})
-            return {"a_list": ["done"]}
-
-        graph_builder = StateGraph(State)
-        graph_builder.add_node("interrupt_node", node_with_interrupt)
-        graph_builder.add_edge(START, "interrupt_node")
-        graph_builder.add_edge("interrupt_node", END)
-        graph = graph_builder.compile(checkpointer=MemorySaver())
-
-        stream = graph.astream({"a_list": [], "which": "a"}, config={"configurable": {"thread_id": "llmobs"}})
+        stream = async_interrupt_graph.astream(
+            {"a_list": [], "which": "a"}, config={"configurable": {"thread_id": "llmobs"}}
+        )
         saw_interrupt = False
         async for chunk in stream:
             if isinstance(chunk, dict) and "__interrupt__" in chunk:

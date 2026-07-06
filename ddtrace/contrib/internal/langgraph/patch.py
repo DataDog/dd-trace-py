@@ -198,10 +198,9 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                     yield item
                 except StopAsyncIteration:
                     break
-                # AIDEV-NOTE: do not widen to bare ``BaseException`` here — this wraps a ``yield``, so
+                # AIDEV-NOTE: do not widen to bare ``BaseException`` here - this wraps a ``yield``, so
                 # ``GeneratorExit`` / ``CancelledError`` from normal stream teardown must not be caught
-                # (they'd be mis-reported as span errors). The ``finally`` below still finishes the span
-                # on that teardown, just without an error, so abandoning the stream early does not leak it.
+                # (they'd be mis-reported as span errors). The ``finally`` below still closes the span.
                 except (DDBlockException, Exception) as e:
                     if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
                         LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
@@ -211,9 +210,8 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                     stream_exc = e
                     raise
         finally:
-            # Report whatever streamed so far on any non-error exit, including early abandonment
-            # (``GeneratorExit`` from a consumer ``break``). Only a real propagated exception
-            # suppresses the partial output.
+            # Report the partial output on any non-error exit (including ``GeneratorExit`` abandonment);
+            # a real propagated exception drops it.
             integration.llmobs_set_tags(
                 span,
                 args=args,
@@ -293,13 +291,10 @@ def traced_pregel_stream(func, instance, args, kwargs):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
-            # AIDEV-NOTE: finish in ``finally`` so an iterated stream is closed on every exit —
-            # including when the consumer abandons it early (e.g. ``break``), which tears the generator
-            # down via ``GeneratorExit``. ``GeneratorExit`` is intentionally not caught above, so this
-            # teardown is not marked as an error. ``response`` stays ``None`` unless the stream ran to
-            # completion, so abandonment does not report a misleading output. (A stream that is created
-            # but never iterated is a separate edge case: this body — and so this ``finally`` — never
-            # runs, so the span is not finished. That is not the abandonment path guarded here.)
+            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # abandonment - a consumer ``break`` tears the generator down via ``GeneratorExit``, which is
+            # intentionally not caught above, so teardown is not flagged as an error. ``response`` stays
+            # ``None`` unless the stream ran to completion, so abandonment reports no misleading output.
             integration.llmobs_set_tags(
                 span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
             )
@@ -347,14 +342,10 @@ def traced_pregel_astream(func, instance, args, kwargs):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
-            # AIDEV-NOTE: finish in ``finally`` so an iterated stream is closed on every exit —
-            # including when the consumer abandons it early (e.g. ``break`` on ``__interrupt__``),
-            # which tears the generator down via ``GeneratorExit``. ``GeneratorExit`` is intentionally
-            # not caught above, so this teardown is not marked as an error. ``response`` stays ``None``
-            # unless the stream ran to completion, so abandonment does not report a misleading output.
-            # (A stream that is created but never iterated is a separate edge case: this body — and so
-            # this ``finally`` — never runs, so the span is not finished. That is not the
-            # human-in-the-loop abandonment path this guards.)
+            # AIDEV-NOTE: finish in ``finally`` so the span closes on every exit, including early
+            # abandonment - a consumer ``break`` on ``__interrupt__`` (human-in-the-loop) tears the generator
+            # down via ``GeneratorExit``, which is intentionally not caught above, so teardown is not
+            # flagged as an error. ``response`` stays ``None`` unless the stream ran to completion.
             integration.llmobs_set_tags(
                 span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
             )

@@ -433,49 +433,24 @@ async def test_astream_teardown_not_marked_as_error(simple_graph, test_spans):
             assert span.error == 0, f"span {span.resource} wrongly marked as error on astream teardown"
 
 
-def _interrupt_graph(async_node=False):
-    """One-node graph whose node calls the real ``interrupt()`` primitive.
-
-    Use ``async_node=True`` for ``astream()`` runs: a sync node is dispatched to an executor
-    thread on async runs, where ``interrupt()`` cannot reach the run config (raises "Called
-    get_config outside of a runnable context") on Python 3.10 and older LangGraph. Sync
-    ``stream()`` runs the node in the runnable context, so a sync node works there.
-    """
-    from langgraph.types import interrupt
-
-    def node_with_interrupt(state):
-        interrupt({"question": "approve?"})
-        return {"a_list": ["done"]}
-
-    async def anode_with_interrupt(state):
-        interrupt({"question": "approve?"})
-        return {"a_list": ["done"]}
-
-    graph_builder = StateGraph(State)
-    graph_builder.add_node("interrupt_node", anode_with_interrupt if async_node else node_with_interrupt)
-    graph_builder.add_edge(START, "interrupt_node")
-    graph_builder.add_edge("interrupt_node", END)
-    return graph_builder.compile(checkpointer=MemorySaver())
-
-
 @pytest.mark.skipif(
     LANGGRAPH_VERSION < (0, 3, 21) or sys.version_info < (3, 11),
     reason="real interrupt() over astream() needs LangGraph 0.3.21+ and Python 3.11+ (async runnable context)",
 )
-async def test_astream_break_on_interrupt_emits_trace(langgraph, test_spans):
-    """MLOS-701: breaking out of astream() on ``__interrupt__`` must still emit the trace.
+async def test_astream_break_on_interrupt_emits_trace(async_interrupt_graph, test_spans):
+    """Breaking out of astream() on ``__interrupt__`` must still emit the trace.
 
     Reproduces the customer's human-in-the-loop pattern: the consumer stops iterating as soon
     as the graph interrupts, without draining the stream. The root graph span must still finish
     (via the wrapper's ``finally``) so the whole trace is not silently dropped.
     """
-    graph = _interrupt_graph(async_node=True)
-    config = {"configurable": {"thread_id": "mlos-701-async"}}
+    graph = async_interrupt_graph
+    config = {"configurable": {"thread_id": "interrupt-async"}}
 
     stream = graph.astream({"a_list": [], "which": "a"}, config=config)
     saw_interrupt = False
     async for chunk in stream:
-        # Iterate until the interrupt actually surfaces, then abandon — a bare break on the
+        # Iterate until the interrupt actually surfaces, then abandon - a bare break on the
         # first chunk could stop at the wrong point and pass spuriously.
         if isinstance(chunk, dict) and "__interrupt__" in chunk:
             saw_interrupt = True
@@ -494,10 +469,10 @@ async def test_astream_break_on_interrupt_emits_trace(langgraph, test_spans):
 @pytest.mark.skipif(
     LANGGRAPH_VERSION < (0, 3, 21), reason="real interrupt() streaming surface differs before LangGraph 0.3.21"
 )
-def test_stream_break_on_interrupt_emits_trace(langgraph, test_spans):
+def test_stream_break_on_interrupt_emits_trace(interrupt_graph, test_spans):
     """Sync variant of the interrupt-abandonment repro (``traced_pregel_stream``)."""
-    graph = _interrupt_graph()
-    config = {"configurable": {"thread_id": "mlos-701-sync"}}
+    graph = interrupt_graph
+    config = {"configurable": {"thread_id": "interrupt-sync"}}
 
     stream = graph.stream({"a_list": [], "which": "a"}, config=config)
     saw_interrupt = False
@@ -517,35 +492,28 @@ def test_stream_break_on_interrupt_emits_trace(langgraph, test_spans):
 
 
 async def test_astream_break_without_close_emits_trace(simple_graph, test_spans):
-    """Faithful inline customer shape: ``async for graph.astream(...): break`` with NO explicit
-    aclose(). The wrapper generator is finalized by GC; its ``finally`` must still emit the span.
-
-    This guards the real no-explicit-close path; the aclose()/close() tests above are the
-    deterministic proof of the same mechanism.
+    """Customer path: ``break`` out of astream() with no ``aclose()``. GC finalizes the
+    generator (GeneratorExit) and the wrapper's ``finally`` must still emit the span.
     """
     import asyncio
     import gc
 
     async def consume():
-        # The stream is an inline temporary; dropping out of this frame leaves it unreferenced.
         async for _ in simple_graph.astream({"a_list": [], "which": "a"}):
-            break
+            break  # abandon without closing
 
     await consume()
 
-    # Force + drive async-generator finalization deterministically rather than relying on
-    # pytest-asyncio teardown to do it.
     traces = []
     for _ in range(10):
         gc.collect()
-        await asyncio.sleep(0)
+        await asyncio.sleep(0)  # let the event loop run the asyncgen finalizer
         traces = test_spans.pop_traces()
         if traces:
             break
-    assert len(traces) >= 1, "trace must be emitted even when the stream is abandoned via bare break"
-    for trace in traces:
-        for span in trace:
-            assert span.error == 0, f"span {span.resource} wrongly marked as error on abandonment"
+    assert traces, "trace must be emitted when the stream is abandoned via bare break"
+    for span in traces[0]:
+        assert span.error == 0
 
 
 def test_regular_exception_still_marked_as_error(langgraph, test_spans):
