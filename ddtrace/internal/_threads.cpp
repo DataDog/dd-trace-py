@@ -420,11 +420,13 @@ static PyMemberDef PeriodicThread_members[] = {
 static int
 PeriodicThread_traverse(PeriodicThread* self, visitproc visit, void* arg)
 {
-    Py_VISIT(self->name);
-    Py_VISIT(self->ident);
-    Py_VISIT(self->_target);
-    Py_VISIT(self->_on_shutdown);
-    Py_VISIT(self->_ddtrace_profiling_ignore);
+    // GC-bisect build (gcbisect1): body intentionally emptied to test whether GC
+    // cycle-detection traversal of PeriodicThread members is what triggers the
+    // fork timeouts introduced by commit e91122d. Members are still visited in
+    // subsequent bisect builds if this one clears the symptom.
+    (void)self;
+    (void)visit;
+    (void)arg;
     return 0;
 }
 
@@ -432,11 +434,10 @@ PeriodicThread_traverse(PeriodicThread* self, visitproc visit, void* arg)
 static int
 PeriodicThread_clear(PeriodicThread* self)
 {
-    Py_CLEAR(self->name);
-    Py_CLEAR(self->ident);
-    Py_CLEAR(self->_target);
-    Py_CLEAR(self->_on_shutdown);
-    Py_CLEAR(self->_ddtrace_profiling_ignore);
+    // GC-bisect build (gcbisect1): body intentionally emptied. This accepts a
+    // member refcount leak (dealloc also routes through here) — acceptable for
+    // this diagnostic build; we only measure the fork-timeout rate.
+    (void)self;
     return 0;
 }
 

@@ -73,7 +73,9 @@ class NativeRuntime(SharedRuntime):
         # app's log level), and it stays invisible to tests that assert no WARNING
         # records are emitted during native module import (see tests/smoke_test.py).
         sys.stderr.write(
-            "ddtrace fork-hook diagnostics build active (version=%s pid=%d gc_change=yes os_fork_diag=yes)\n"
+            "ddtrace fork-hook diagnostics build active "
+            "(version=%s pid=%d gc_change=yes os_fork_diag=yes gc_bisect=1 "
+            "gc_traverse=empty gc_clear=empty)\n"
             % (__version__, os.getpid())
         )
         sys.stderr.flush()
