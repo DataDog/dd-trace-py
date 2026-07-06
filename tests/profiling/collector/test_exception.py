@@ -153,7 +153,7 @@ def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
 
-    assert profiling_config.exception.enabled is False
+    assert profiling_config.exception.enabled is True
     assert profiling_config.exception.sampling_interval == 100
     assert profiling_config.exception.collect_message is False
 
