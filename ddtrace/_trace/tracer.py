@@ -397,12 +397,56 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
+        # Fast-release the inherited trace exporter before recreating the writer.
+        #
+        # Background: PR #17780 added a Rust `impl Drop for TraceExporterPy` that
+        # calls `exporter.shutdown(3s)` — intended as a safety net so background
+        # workers drain even if shutdown() is never called explicitly.  PR #18363
+        # added GC tracking (`Py_TPFLAGS_HAVE_GC`) to PeriodicThread, making the
+        # `NativeWriter -> _worker._target (bound method) -> NativeWriter` cycle
+        # visible and collectable by the GC.
+        #
+        # Together these create the following failure in forked children:
+        #   1. _after_fork_child resets _skip_shutdown=False on all periodic threads.
+        #   2. _child_after_fork (this method) calls recreate(), dropping the last
+        #      strong Python reference to the old NativeWriter; only the bound-method
+        #      cycle keeps it alive (refcount=1).
+        #   3. Any allocation in the child crosses the gen-0 GC threshold.
+        #   4. GC detects the cycle, calls tp_clear on the old PeriodicThread,
+        #      refcount drops to 0, old NativeWriter is freed.
+        #   5. TraceExporterPy::Drop fires — calls exporter.shutdown(3s) with the
+        #      GIL held — blocking the child for up to 3 seconds.
+        #
+        # In forked children the parent's background Rust workers are dead and any
+        # flush attempt is both pointless and broken (stale socket/connection).
+        # Calling the explicit fast-drop PyO3 method takes `inner` without calling
+        # shutdown, making the implicit Drop a no-op when GC later collects the old
+        # writer object.
+        self._discard_writer_exporter()
         self._recreate(reset_buffer=True)
         self._new_process = True
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (active,))
+
+    def _discard_writer_exporter(self) -> None:
+        """Fast-release the current writer's native exporter without waiting for workers to drain.
+
+        Called in the forked child only, before the writer is recreated.  The
+        parent's background Rust workers do not survive fork; there is nothing
+        to flush and any pending network I/O would block on a broken connection.
+        Calling the explicit ``drop()`` PyO3 method takes the inner exporter
+        without invoking ``shutdown``, making the implicit ``impl Drop`` a no-op
+        when the GC later collects the old writer object.
+        """
+        writer = self._span_aggregator.writer
+        exporter = getattr(writer, "_exporter", None)
+        if exporter is not None and hasattr(exporter, "drop"):
+            try:
+                exporter.drop()
+            except Exception:
+                pass
 
     def _recreate(
         self,
