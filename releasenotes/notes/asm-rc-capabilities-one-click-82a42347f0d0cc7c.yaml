@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AAP: Fix blocking capabilities (IP, user, in-app WAF and custom rules) not being
+    advertised when AAP is enabled through one-click (remote) activation instead of the
+    ``DD_APPSEC_ENABLED`` environment variable, which could make the Threat Protection panel
+    wrongly report that a library update was required. Capabilities are now re-advertised on
+    remote activation and deactivation.
