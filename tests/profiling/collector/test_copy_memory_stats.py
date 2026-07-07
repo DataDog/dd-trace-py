@@ -102,11 +102,11 @@ def test_fast_copy_memory_enabled():
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
     # Poll the emitted metadata until the sampler upgrades to safe_memcpy. The warmup
-    # window is a fixed internal constant (kStackFastCopyWarmupSeconds in sampler.cpp);
-    # allow a generous margin above it before giving up.
+    # window is a fixed internal constant (kStackFastCopyWarmupSeconds in sampler.cpp,
+    # 15s); allow a margin above it before giving up while keeping CI feedback fast.
     saw_warmup = False
     saw_upgrade = False
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + 30
     while time.monotonic() < deadline and not saw_upgrade:
         time.sleep(1)
         for f in glob.glob(output_filename + ".*.internal_metadata.json"):
