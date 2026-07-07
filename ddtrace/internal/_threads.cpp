@@ -98,6 +98,26 @@ remove_pending_periodic_thread(module_state* state, PeriodicThread* self)
 }
 
 // ----------------------------------------------------------------------------
+// Remove self's entry from the periodic-thread registry, but ONLY if the entry
+// still maps to self. Thread ids are recyclable: after a worker exits, a newer
+// worker can reuse its ident and register itself. A stale thread (via its own
+// exit, fork cleanup, or a GC-triggered dealloc) must therefore never delete by
+// ident blindly, or it evicts the live worker that reused the id — which then
+// goes unstopped before a fork and deadlocks the child on join(). PyDict_GetItem
+// returns a borrowed ref and never raises; the GIL must be held so the
+// get/delete pair is atomic.
+static void
+unregister_periodic_thread_if_self(PyObject* periodic_threads, PyObject* ident, PyObject* self)
+{
+    if (periodic_threads == NULL || ident == NULL)
+        return;
+    if (PyDict_GetItem(periodic_threads, ident) == self) {
+        if (PyDict_DelItem(periodic_threads, ident) < 0)
+            PyErr_Clear();
+    }
+}
+
+// ----------------------------------------------------------------------------
 /**
  * Truncate thread names with format "module.path:ClassName".
  * Prioritizes keeping the part after the colon (class name) as it's more useful.
@@ -730,7 +750,7 @@ _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false
                         PeriodicThread__on_shutdown(self);
 
                     // Remove the thread from the mapping of active threads.
-                    PyDict_DelItem(state->periodic_threads, self->ident);
+                    unregister_periodic_thread_if_self(state->periodic_threads, self->ident, (PyObject*)self);
                 }
 
                 // Inner scope ends here. GILGuard::~GILGuard releases the GIL and
@@ -1010,14 +1030,11 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* args, PyObject* kwarg
         // exited in the parent; leaving it set means join() returns immediately
         // rather than blocking indefinitely.
 
-        // Remove the stale parent-process ident from periodic_threads so
-        // this thread is not picked up by subsequent fork cycles. The thread
-        // removes itself on exit, so the entry may already be gone — ignore
-        // the KeyError in that case.
-        if (self->ident != Py_None && self->_state != nullptr && self->_state->periodic_threads != NULL) {
-            if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
-                PyErr_Clear();
-        }
+        // Remove the stale parent-process ident from periodic_threads so this
+        // thread is not picked up by subsequent fork cycles. The thread removes
+        // itself on exit, so the entry may already be gone.
+        if (self->ident != Py_None && self->_state != nullptr)
+            unregister_periodic_thread_if_self(self->_state->periodic_threads, self->ident, (PyObject*)self);
         Py_DECREF(self->ident);
         Py_INCREF(Py_None);
         self->ident = Py_None;
@@ -1076,9 +1093,8 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Full cleanup is therefore correct in all cases;
 
     // Unmap the PeriodicThread from periodic_threads.
-    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL &&
-        PyDict_Contains(self->_state->periodic_threads, self->ident))
-        PyDict_DelItem(self->_state->periodic_threads, self->ident);
+    if (self->ident != NULL && self->_state != nullptr)
+        unregister_periodic_thread_if_self(self->_state->periodic_threads, self->ident, (PyObject*)self);
 
     PeriodicThread_clear(self);
 
