@@ -19,7 +19,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
 
 
-config._add("mistralai", {})
+config._add("mistralai", {})  # type: ignore[no-untyped-call]
 
 
 def _supported_versions() -> dict[str, str]:
@@ -111,7 +111,7 @@ def traced_generate_stream(
     )
     try:
         resp = func(*args, **kwargs)
-        return make_traced_stream(resp, MistralAIStreamHandler(integration, span, args, enriched_kwargs))
+        return make_traced_stream(resp, MistralAIStreamHandler(integration, span, args, enriched_kwargs))  # type: ignore[no-untyped-call]
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=None, operation="llm")
@@ -138,7 +138,7 @@ async def traced_async_generate_stream(
     )
     try:
         resp = await func(*args, **kwargs)
-        return make_traced_stream(resp, MistralAIAsyncStreamHandler(integration, span, args, enriched_kwargs))
+        return make_traced_stream(resp, MistralAIAsyncStreamHandler(integration, span, args, enriched_kwargs))  # type: ignore[no-untyped-call]
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=list(args), kwargs=enriched_kwargs, response=None, operation="llm")

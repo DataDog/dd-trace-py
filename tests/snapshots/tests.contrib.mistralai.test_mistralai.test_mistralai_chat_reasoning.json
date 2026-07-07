@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "mistralai.request",
+    "service": "tests.contrib.mistralai",
+    "resource": "Chat.complete",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a4a9bcd00000000",
+      "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.mistralai",
+      "language": "python",
+      "mistralai.request.model": "magistral-medium-latest",
+      "mistralai.request.provider": "mistral",
+      "runtime-id": "5d78817c0d7540e5b3214888bba55b66"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 522.0
+    },
+    "duration": 12729482,
+    "start": 1783274445999776888
+  }]]

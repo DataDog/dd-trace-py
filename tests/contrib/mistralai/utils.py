@@ -32,16 +32,24 @@ FULL_CHAT_REQUEST_KWARGS = {
     "frequency_penalty": 0.0,
 }
 
+REASONING_CHAT_REQUEST_KWARGS = {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_tokens": 500,
+    "random_seed": 42,
+}
+
 # Full set of supported embed kwargs
 FULL_EMBED_REQUEST_KWARGS = {
     "encoding_format": "float",
 }
 
 
-def get_expected_chat_metadata():
+def get_expected_chat_metadata(request_kwargs=None):
+    request_kwargs = request_kwargs if request_kwargs is not None else FULL_CHAT_REQUEST_KWARGS
     metadata = {}
     for param in GENERATE_METADATA_PARAMS:
-        value = FULL_CHAT_REQUEST_KWARGS.get(param)
+        value = request_kwargs.get(param)
         if value is not None:
             metadata[param] = value
     return metadata
