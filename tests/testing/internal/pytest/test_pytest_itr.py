@@ -360,7 +360,8 @@ class TestITR:
 
     def test_itr_deselect_suite_level(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
         """Suite mode without deselect: skippable suite's tests are skip-marked at runtime, not
-        ignored at collection. Proves _DD_CIVISIBILITY_ITR_DESELECT is opt-in for suite mode too."""
+        ignored at collection. Proves _DD_CIVISIBILITY_ITR_DESELECT is opt-in for suite mode too.
+        """
         pytester.makepyfile(
             test_skippable="""
             def test_inside_skippable_suite():
