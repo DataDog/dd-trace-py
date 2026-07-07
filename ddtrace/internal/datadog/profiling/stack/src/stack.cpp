@@ -7,6 +7,7 @@
 #include "echion/echion_sampler.h"
 #include "echion/vm.h"
 
+#include <cmath>
 #include <string_view>
 #include <utility>
 
@@ -845,6 +846,12 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     double seconds_value = 0.0;
 
     if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
         return NULL;
     }
 

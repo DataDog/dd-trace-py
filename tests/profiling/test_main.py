@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from ddtrace.internal.datadog.profiling import stack as _stack_ext
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
 from tests.utils import call_program
@@ -220,6 +221,7 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(_DD_PROFILING_STACK_FAST_COPY="1"),
     out="OK\n",
