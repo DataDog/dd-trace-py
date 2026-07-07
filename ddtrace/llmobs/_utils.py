@@ -364,9 +364,8 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
 
 # Pending ManagedPrompt.format() renders, scoped to the current thread/task via a ContextVar
 # (same idiom as LLMObsContextProvider in _context.py) rather than trace-context baggage - no
-# span needs to exist yet when format() runs. Capped so a render that's never consumed by an
-# LLM call (e.g. a skipped code path) can't grow this unboundedly on a long-lived worker thread.
-_MAX_PENDING_PROMPTS = 8
+# span needs to exist yet when format() runs. A render that's never consumed by an LLM call
+# (e.g. a skipped code path) stays here until the next matching call pops it or the thread ends.
 _pending_prompts: contextvars.ContextVar[Optional[list[tuple[Any, Prompt]]]] = contextvars.ContextVar(
     "dd_llmobs_pending_prompts", default=None
 )
@@ -380,8 +379,6 @@ def register_pending_prompt(rendered_value: Any, prompt: Prompt) -> None:
     if pending is None:
         pending = []
         _pending_prompts.set(pending)
-    elif len(pending) >= _MAX_PENDING_PROMPTS:
-        pending.pop(0)
     pending.append((rendered_value, prompt))
 
 
