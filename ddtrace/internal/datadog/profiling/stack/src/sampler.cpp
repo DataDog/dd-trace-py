@@ -24,13 +24,6 @@
 
 using namespace Datadog;
 
-// Number of seconds the stack sampler runs on the safe syscall-based memory copy
-// before upgrading to the faster safe_memcpy path. Running on the safe path during
-// the import-heavy startup window means a fault there can never crash, even if
-// another component (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC) installs its
-// own SIGSEGV handler during that window (PROF-14568).
-static constexpr long kStackFastCopyWarmupSeconds = 15;
-
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <ctime>
@@ -299,7 +292,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     const bool fast_copy_warmup = fast_copy_desired && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
-    const auto fast_copy_warmup_deadline = sample_time_prev + seconds(kStackFastCopyWarmupSeconds);
+    const auto fast_copy_warmup_deadline =
+      sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
         // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);

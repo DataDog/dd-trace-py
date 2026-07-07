@@ -22,6 +22,19 @@ def set_interval(new_interval: float) -> None: ...
 # Memory copy strategy
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
+def fast_copy_memory_active() -> bool:
+    """Return True if the fast safe_memcpy copy path is currently active.
+
+    The sampler starts on the safe syscall-based copy during the startup warmup
+    window (PROF-14568) and flips this to True only after it upgrades, so tests can
+    observe the warmup -> upgrade transition without scraping metadata files.
+    """
+    ...
+
+def _set_fast_copy_warmup_seconds(seconds: float) -> None:
+    """Test-only: set the fast-copy startup warmup duration (must be set before start)."""
+    ...
+
 def segv_handler_installed() -> bool:
     """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
 

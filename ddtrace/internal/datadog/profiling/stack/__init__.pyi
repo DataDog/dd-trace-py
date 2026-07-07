@@ -37,6 +37,19 @@ def set_interval(new_interval: float) -> None: ...
 # Memory copy strategy
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
+def fast_copy_memory_active() -> bool:
+    """Return True if the fast safe_memcpy copy path is currently active.
+
+    The sampler starts on the safe syscall-based copy during the startup warmup
+    window (PROF-14568) and flips this to True only after it upgrades, so tests can
+    observe the warmup -> upgrade transition without scraping metadata files.
+    """
+    ...
+
+# Note: _set_fast_copy_warmup_seconds is intentionally not re-exported here; it is a
+# test-only, underscore-prefixed native symbol accessed via the _stack submodule
+# (see _stack.pyi), since `from ._stack import *` skips underscored names.
+
 def uninstall_segv_handler() -> None: ...
 def reinstall_segv_handler() -> None:
     """Reinstall SIGSEGV/SIGBUS handlers after another component overwrites them.
