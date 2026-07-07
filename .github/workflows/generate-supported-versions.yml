@@ -64,10 +64,19 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - run: python scripts/freshvenvs.py generate
+      - name: Generate supported versions
+        run: python scripts/integration_registry/generate_supported_versions.py
 
-      - name: Generate table
-        run: python scripts/generate_table.py
+      - name: Preview supported versions output
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          supported_versions = json.loads(Path("supported_versions.json").read_text())
+          print(f"Generated {len(supported_versions)} supported version entries.")
+          print(json.dumps(supported_versions[:3], indent=2))
+          PY
 
       - run: git diff
 
@@ -83,12 +92,12 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           branch: "update-supported-versions"
-          commit-message: "Update supported versions table"
+          commit-message: "Update supported versions"
           delete-branch: true
           base: main
           title: "chore: update supported versions"
           labels: changelog/no-changelog
           body: |
-            Generates / updates the supported versions table for integrations.
+            Generates / updates the supported versions for integrations.
             This should be tied to releases, or triggered manually.
             Workflow runs: [Generate Supported Integration Versions](https://github.com/DataDog/dd-trace-py/actions/workflows/generate-supported-versions.yml)

@@ -158,6 +158,7 @@ DEFAULT_PROJECT_NAME = "default-project"
 # Fallback markers for prompt tracking when OpenAI strips values
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
+AUDIO_FALLBACK_MARKER = "[audio]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"
@@ -226,6 +227,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "crewai": "crewai",
     "openai_agents": "openai_agents",
     "mcp": "mcp",
+    "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
 }
