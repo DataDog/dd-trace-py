@@ -14,12 +14,16 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import rand64bits
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -41,6 +45,7 @@ from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
+    from ddtrace._trace.tracer import Tracer
     from ddtrace.llmobs._writer import LLMObsSpanData
 
 
@@ -359,6 +364,78 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
+
+
+# Pending ManagedPrompt.format() renders, keyed by trace-context id (the same
+# ANNOTATIONS_CONTEXT_ID baggage annotation_context uses). Matched against the raw
+# kwargs of an auto-instrumented LLM call in consume_matching_prompt.
+_pending_prompts_lock = RLock()
+_pending_prompts: dict[int, list[tuple[Any, Prompt]]] = {}
+
+
+def _get_or_create_trace_context_id(tracer: "Tracer") -> int:
+    current_ctx = tracer.current_trace_context()
+    if current_ctx is None:
+        # No trace context exists yet (e.g. .format() called before any span starts).
+        # Bootstrap one, same approach LLMObs.annotation_context uses. If no LLM call
+        # ever follows, this context is never referenced again and is garbage collected
+        # normally - nothing to clean up.
+        current_ctx = Context(is_remote=False)
+        tracer.context_provider.activate(current_ctx)
+    ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+    if not ctx_id:
+        ctx_id = rand64bits()
+        current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
+    return ctx_id
+
+
+def register_pending_prompt(tracer: "Tracer", rendered_value: Any, prompt: Prompt) -> None:
+    """Record a ManagedPrompt.format() render so it can be auto-attached to whichever
+    auto-instrumented LLM call ends up receiving that exact rendered value.
+    """
+    ctx_id = _get_or_create_trace_context_id(tracer)
+    with _pending_prompts_lock:
+        _pending_prompts.setdefault(ctx_id, []).append((rendered_value, prompt))
+
+
+def consume_matching_prompt(span: Span, kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Find and remove the pending prompt render whose value matches one of this call's
+    raw kwargs.
+
+    Matches by content, not by order: safe under concurrent calls rendering different
+    prompts in the same trace. Falls back to the single remaining pending entry if
+    there's no ambiguity; otherwise returns None rather than guessing.
+    """
+    ctx_id = span.context.get_baggage_item(ANNOTATIONS_CONTEXT_ID) if span.context else None
+    if not ctx_id:
+        return None
+    with _pending_prompts_lock:
+        pending = _pending_prompts.get(ctx_id)
+        if not pending:
+            return None
+        values = list(kwargs.values())
+        for i, (rendered_value, prompt) in enumerate(pending):
+            for value in values:
+                try:
+                    matched = rendered_value == value
+                except Exception:
+                    matched = False
+                if matched:
+                    return pending.pop(i)[1]
+        if len(pending) == 1:
+            return pending.pop(0)[1]
+    return None
+
+
+def discard_pending_prompts(span: Span) -> None:
+    """Drop any never-consumed pending prompts once the local trace's root span finishes."""
+    if span._parent is not None or span.context is None:
+        return
+    ctx_id = span.context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
+    if not ctx_id:
+        return
+    with _pending_prompts_lock:
+        _pending_prompts.pop(ctx_id, None)
 
 
 def get_llmobs_span_name(span: Span) -> Optional[str]:
