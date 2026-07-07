@@ -373,10 +373,8 @@ def attach_prompt(rendered_value: Union[str, list[Message]], prompt: Prompt) -> 
     """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
     if not config._llmobs_enabled:
         return rendered_value
-    if isinstance(rendered_value, str):
-        tracked: Union[_TrackedPromptStr, _TrackedPromptList] = _TrackedPromptStr(rendered_value)
-    else:
-        tracked = _TrackedPromptList(rendered_value)
+    tracked_cls = _TrackedPromptStr if isinstance(rendered_value, str) else _TrackedPromptList
+    tracked = tracked_cls(rendered_value)
     tracked.dd_prompt = prompt
     return tracked
 
