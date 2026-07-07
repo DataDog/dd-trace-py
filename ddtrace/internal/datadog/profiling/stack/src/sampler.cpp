@@ -244,21 +244,27 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Mark thread as running
     thread_running.store(true);
 
-    // Re-install SIGSEGV/SIGBUS handlers here, after Python initialization.
-    // The handlers may have been installed during static init, but Python or
-    // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
-    // Re-installing here ensures our handler is active when the sampling thread runs.
-    // Only do this once to avoid overwriting g_old_segv with our own handler.
+    // (Re)arm our SIGSEGV/SIGBUS fault-recovery handlers here, after Python
+    // initialization, but ONLY if we still own them. Our handler is installed by
+    // the library constructor at import; Python or libraries may overwrite it
+    // afterwards. Done once, on a std::once_flag.
     //
-    // Intentionally call_once: for foreign handlers we cannot wrap (PyTorch/CUDA,
-    // abseil via vLLM/gRPC - see PROF-14568), the sampler does NOT keep reinstalling
-    // to stay on top. Instead the loop below detects loss of ownership and falls
-    // back to the syscall copy. Re-arming here on every cycle would reintroduce the
-    // handler-chaining races that made safe_memcpy recovery unreliable in the first
-    // place, so leave this as a one-time install.
+    // Crucially, do NOT overwrite a foreign handler. If a component we cannot wrap
+    // (abseil via vLLM/gRPC, PyTorch/CUDA - see PROF-14568) already owns the
+    // dispositions when the sampling thread starts, stomping it here would (a)
+    // reintroduce the handler-chaining races that made safe_memcpy recovery
+    // unreliable, and (b) make segv_handler_installed() falsely report ownership,
+    // defeating the warmup + per-cycle fallback below. When a foreign handler is
+    // present we leave it authoritative and let the sampler stay on / fall back to
+    // the safe syscall-based copy instead. (init_segv_catcher is a near no-op when
+    // we already own both signals - it just re-ensures the alternate stack.)
     static std::once_flag segv_handler_once;
     if (fast_copy_active) {
-        std::call_once(segv_handler_once, init_segv_catcher);
+        std::call_once(segv_handler_once, []() {
+            if (segv_handler_installed()) {
+                init_segv_catcher();
+            }
+        });
     }
 
     using namespace std::chrono;
