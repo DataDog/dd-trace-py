@@ -50,8 +50,12 @@ class ManagedPrompt:
         Returns:
             str (for text templates) or list[Message] (for chat templates)
         """
-        render_fn = safe_substitute if isinstance(self.template, str) else render_chat
-        return attach_prompt(render_fn(self.template, variables), self.to_annotation_dict(**variables))
+        rendered: Union[str, list[Message]]
+        if isinstance(self.template, str):
+            rendered = safe_substitute(self.template, variables)
+        else:
+            rendered = render_chat(self.template, variables)
+        return attach_prompt(rendered, self.to_annotation_dict(**variables))
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:
         """
