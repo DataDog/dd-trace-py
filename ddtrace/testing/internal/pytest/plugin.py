@@ -737,13 +737,8 @@ class TestOptPlugin:
         For quarantined tests (that are not ATF), this converts failed reports to look like xfail results.
         This is applied after all retries so that ATR can see real FAIL status during retries.
         """
-        if not test.is_quarantined() or test.is_attempt_to_fix():
-            return
-
         for report in reports.values():
-            if report.failed:
-                report.outcome = "skipped"
-                report.wasxfail = "dd_quarantined"
+            self._apply_quarantine_masking_to_report(test, report)
 
     def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
         """Apply quarantine masking to a single report (e.g. the final retry report)."""
