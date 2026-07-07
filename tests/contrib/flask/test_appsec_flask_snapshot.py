@@ -96,11 +96,9 @@ def flask_client(
         time.sleep(0.2)
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
-        proc.communicate()
+        stdout, stderr = proc.communicate()
     # DEV uncomment those lines if you need more info locally
-    # stdout = proc.stdout.read()
-    # print(stdout)
-    # stderr = proc.stderr.read()
+    # print(stdout.decode("UTF-8"))
     # print(stderr.decode("UTF-8"))
 
 
