@@ -37,6 +37,34 @@ def test_call_script_gevent():
     assert exitcode == 0, (stdout, stderr)
 
 
+def test_dd_profiling_output_pprof(tmp_path) -> None:
+    """Verify that DD_PROFILING_OUTPUT_PPROF writes pprof files to disk.
+
+    This code path is used for local/one-off debugging (e.g. inspecting profiles
+    with pprof without a running agent).  It must continue to work independently
+    of the mock-agent test infrastructure.
+    """
+    output_prefix = str(tmp_path / "test_output")
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    env["DD_PROFILING_OUTPUT_PPROF"] = output_prefix
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "simple_program.py"),
+        env=env,
+    )
+    if sys.platform == "win32":
+        assert exitcode == 0, (stdout, stderr)
+    else:
+        assert exitcode == 42, (stdout, stderr)
+
+    profile = pprof_utils.parse_newest_profile(output_prefix)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+
 def test_call_script_pprof_output() -> None:
     """This checks if the pprof output and atexit register work correctly.
 

@@ -341,7 +341,7 @@ class _ProfilingMiniAgentClient:
 
     def _request(self, method: str, path: str) -> "tuple[int, bytes]":
         parsed = urllib.parse.urlparse(self._base_url)
-        conn = _httplib.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
+        conn = _httplib.HTTPConnection(parsed.hostname or "127.0.0.1", parsed.port, timeout=10)
         try:
             conn.request(method, path)
             resp = conn.getresponse()
@@ -349,15 +349,15 @@ class _ProfilingMiniAgentClient:
         finally:
             conn.close()
 
-    def profiling_requests(self) -> "list[dict]":
+    def profiling_requests(self) -> "list[dict[str, object]]":
         """Return all profiling uploads stored under this session token."""
         status, body = self._request("GET", f"/session/{self._token}/requests")
         if status != 200:
             return []
-        stored = json.loads(body)
+        stored: "list[dict[str, object]]" = json.loads(body)
         for req in stored:
             if isinstance(req.get("body"), str):
-                req["body"] = base64.b64decode(req["body"])
+                req["body"] = base64.b64decode(str(req["body"]))
         return stored
 
     def clear(self) -> None:
