@@ -1202,6 +1202,58 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             for _ in llm.stream("When do you use 'whom' instead of 'who'?"):
                 pass
 
+    @staticmethod
+    def _call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        # Simulates langchain-google-genai<4: a client not backed by google.genai, so ddtrace's
+        # google_genai integration never patches it regardless of whether it's enabled elsewhere.
+        class _LegacyClient:
+            class models:
+                @staticmethod
+                def generate_content(*args, **kwargs):
+                    return mock_response
+
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+        llm.client = _LegacyClient()
+        llm.invoke("When do you use 'whom' instead of 'who'?")
+
+    @staticmethod
+    def _call_google_genai_llm(GoogleGenerativeAI):
+        from google.genai import types
+
+        mock_response = types.GenerateContentResponse(
+            candidates=[
+                types.Candidate(
+                    content=types.Content(
+                        role="model",
+                        parts=[types.Part.from_text(text="You use 'whom' as the object of a verb or preposition.")],
+                    )
+                )
+            ],
+            usage_metadata=types.GenerateContentResponseUsageMetadata(
+                prompt_token_count=10, candidates_token_count=12, total_token_count=22
+            ),
+        )
+
+        with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
+            llm = GoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
+            llm.invoke("When do you use 'whom' instead of 'who'?")
+
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):
         from langchain_openai import OpenAI
@@ -1335,6 +1387,48 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_google_genai_chat_stream(ChatGoogleGenerativeAI)
         self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_enabled_legacy_client(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_chat_legacy_client(ChatGoogleGenerativeAI)
+        self._assert_span_kinds(["llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_llm_enabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import GoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True, google_genai=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_llm(GoogleGenerativeAI)
+        self._assert_span_kinds(["workflow", "llm"])
+
+    @run_in_subprocess(env_overrides=google_genai_env_config)
+    def test_llmobs_with_google_genai_llm_disabled(self):
+        try:
+            import google.genai  # noqa: F401
+            from langchain_google_genai import GoogleGenerativeAI
+        except ImportError:
+            self.skipTest("langchain-google-genai or google-genai SDK not installed")
+
+        patch(langchain=True)
+
+        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
+        self._call_google_genai_llm(GoogleGenerativeAI)
+        self._assert_span_kinds(["llm"])
 
 
 def test_shadow_tags_chat_when_llmobs_disabled(tracer):

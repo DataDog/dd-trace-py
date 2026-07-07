@@ -52,6 +52,7 @@ OPENAI_PROVIDER_NAME = "openai"
 AZURE_OAI_PROVIDER_NAME = "azure"
 VERTEXAI_PROVIDER_NAME = "vertexai"
 GOOGLE_GENAI_PROVIDER_NAME = "google-generative-ai"
+GOOGLE_GENAI_LLM_PROVIDER_NAME = "google_gemini"
 
 ROLE_MAPPING = {
     "human": "user",
@@ -119,6 +120,16 @@ def _is_chain_instance(instance):
     return instance and hasattr(instance, "steps")
 
 
+def _is_google_genai_backed(instance) -> bool:
+    """True if the instance's client uses the google.genai SDK surface ddtrace
+    can patch, not the legacy client used by langchain-google-genai<4.
+    """
+    client = getattr(instance, "client", None)
+    client = getattr(client, "client", client)
+    module = type(client).__module__ if client is not None else ""
+    return module == "google.genai" or module.startswith("google.genai.")
+
+
 class LangChainIntegration(BaseLLMIntegration):
     _integration_name = "langchain"
 
@@ -164,6 +175,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
+        instance = self._instances.get(span)
 
         is_workflow = False
 
@@ -180,8 +192,23 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "anthropic"
             # raw (unnormalized) provider strings differ between the non-streaming and streaming
             # code paths for this provider (e.g. "google-generative-ai" vs "chat-google-generative-ai"),
-            # so match by substring rather than prefix, mirroring the openai/azure check above.
-            elif operation == "chat" and GOOGLE_GENAI_PROVIDER_NAME in model_provider:
+            # so match by substring rather than prefix, mirroring the openai/azure check above. Also
+            # confirm the instance is actually backed by the patched SDK: langchain-google-genai<4 uses
+            # a legacy client ddtrace never patches, so the google_genai integration being enabled
+            # elsewhere in the process doesn't mean this call will produce a child span.
+            elif (
+                operation == "chat"
+                and GOOGLE_GENAI_PROVIDER_NAME in model_provider
+                and _is_google_genai_backed(instance)
+            ):
+                llmobs_integration = "google_genai"
+            # GoogleGenerativeAI (the non-chat LLM wrapper) delegates to an inner ChatGoogleGenerativeAI,
+            # so it hits the same double-span case via the llm operation instead of chat.
+            elif (
+                operation == "llm"
+                and model_provider == GOOGLE_GENAI_LLM_PROVIDER_NAME
+                and _is_google_genai_backed(instance)
+            ):
                 llmobs_integration = "google_genai"
 
             is_workflow = (
