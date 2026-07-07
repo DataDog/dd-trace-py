@@ -509,8 +509,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         super(HTTPWriter, self)._stop_service()
         try:
             self.join(timeout=timeout)
-        except:
-            log.error("Join on periodic thread failed", exc_info=True))
+        except Exception:
+            log.error("Join on periodic thread failed", exc_info=True)
 
     def on_shutdown(self):
         try:
