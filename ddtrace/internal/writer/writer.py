@@ -503,7 +503,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _stop_service(
         self,
-        timeout: Optional[float] = None,
+        timeout: Optional[float] = 0.1,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
