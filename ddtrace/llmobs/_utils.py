@@ -366,9 +366,8 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
-# Pending ManagedPrompt.format() renders, keyed by trace-context id (the same
-# ANNOTATIONS_CONTEXT_ID baggage annotation_context uses). Matched against the raw
-# kwargs of an auto-instrumented LLM call in consume_matching_prompt.
+# Pending ManagedPrompt.format() renders, keyed by trace-context id (the ANNOTATIONS_CONTEXT_ID
+# baggage annotation_context also uses).
 _pending_prompts_lock = RLock()
 _pending_prompts: dict[int, list[tuple[Any, Prompt]]] = {}
 
@@ -390,22 +389,16 @@ def _get_or_create_trace_context_id(tracer: "Tracer") -> int:
 
 
 def register_pending_prompt(tracer: "Tracer", rendered_value: Any, prompt: Prompt) -> None:
-    """Record a ManagedPrompt.format() render so it can be auto-attached to whichever
-    auto-instrumented LLM call ends up receiving that exact rendered value.
-    """
+    """Record a ManagedPrompt.format() render for auto-attachment to the next matching LLM call."""
+    if not config._llmobs_enabled:
+        return
     ctx_id = _get_or_create_trace_context_id(tracer)
     with _pending_prompts_lock:
         _pending_prompts.setdefault(ctx_id, []).append((rendered_value, prompt))
 
 
-def consume_matching_prompt(span: Span, kwargs: dict[str, Any]) -> Optional[Prompt]:
-    """Find and remove the pending prompt render whose value matches one of this call's
-    raw kwargs.
-
-    Matches by content, not by order: safe under concurrent calls rendering different
-    prompts in the same trace. Falls back to the single remaining pending entry if
-    there's no ambiguity; otherwise returns None rather than guessing.
-    """
+def consume_matching_prompt(span: Span, args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Find and remove the pending prompt render passed by identity into this call's args/kwargs."""
     ctx_id = span.context.get_baggage_item(ANNOTATIONS_CONTEXT_ID) if span.context else None
     if not ctx_id:
         return None
@@ -413,17 +406,10 @@ def consume_matching_prompt(span: Span, kwargs: dict[str, Any]) -> Optional[Prom
         pending = _pending_prompts.get(ctx_id)
         if not pending:
             return None
-        values = list(kwargs.values())
+        values = [*args, *kwargs.values()]
         for i, (rendered_value, prompt) in enumerate(pending):
-            for value in values:
-                try:
-                    matched = rendered_value == value
-                except Exception:
-                    matched = False
-                if matched:
-                    return pending.pop(i)[1]
-        if len(pending) == 1:
-            return pending.pop(0)[1]
+            if any(rendered_value is value for value in values):
+                return pending.pop(i)[1]
     return None
 
 

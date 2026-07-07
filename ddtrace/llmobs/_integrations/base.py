@@ -113,9 +113,9 @@ class BaseLLMIntegration:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
-        if span._get_ctx_item(INPUT_PROMPT) is None:
+        if span.span_type == SpanTypes.LLM and span._get_ctx_item(INPUT_PROMPT) is None:
             try:
-                prompt = consume_matching_prompt(span, kwargs)
+                prompt = consume_matching_prompt(span, args, kwargs)
                 if prompt is not None:
                     LLMObs.annotate(
                         span,
