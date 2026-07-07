@@ -549,6 +549,58 @@ build_collapsed_forest(const ObjectGraph& g,
         }
     }
 
+    // Approximate retained size per opaque object: its own shallow size plus the
+    // shallow size of every generic container it reaches through transparent-only
+    // paths (its __dict__ and the nested dicts/lists/sets hanging off it),
+    // stopping at the next opaque object. Collapsed edges are weighted by this
+    // instead of the target's bare header size, so a small wrapper that owns a
+    // large container scaffold (e.g. an index object whose 16-byte header fronts
+    // many nested dicts/sets) is ranked by what it holds rather than disappearing
+    // as the lightest child under a tight node budget. Bounded per object by
+    // kCollapseMaxVisitPerObject; a per-source epoch stamp keeps a shared
+    // container from being counted twice within one object's walk.
+    std::vector<uint64_t> node_retained(n_nodes, 0);
+    std::vector<uint64_t> type_retained(n_types, 0);
+    {
+        std::vector<uint32_t> rseen(n_nodes, 0);
+        uint32_t repoch = 0;
+        std::vector<uint32_t> rstack;
+        for (uint32_t o = 0; o < n_nodes; ++o) {
+            if (g.node_transparent[o] != 0) {
+                continue; // only opaque objects are ever recorded as collapsed-edge targets
+            }
+            ++repoch;
+            rseen[o] = repoch;
+            uint64_t total = g.node_size[o];
+            rstack.clear();
+            for (uint32_t e = adj_off[o]; e < adj_off[o + 1]; ++e) {
+                uint32_t s = adj_nodes[e];
+                if (g.node_transparent[s] != 0 && rseen[s] != repoch) {
+                    rseen[s] = repoch;
+                    rstack.push_back(s);
+                }
+            }
+            size_t visited = 0;
+            while (!rstack.empty()) {
+                uint32_t cur = rstack.back();
+                rstack.pop_back();
+                total += g.node_size[cur];
+                if (++visited > kCollapseMaxVisitPerObject) {
+                    break;
+                }
+                for (uint32_t e = adj_off[cur]; e < adj_off[cur + 1]; ++e) {
+                    uint32_t s = adj_nodes[e];
+                    if (g.node_transparent[s] != 0 && rseen[s] != repoch) {
+                        rseen[s] = repoch;
+                        rstack.push_back(s);
+                    }
+                }
+            }
+            node_retained[o] = total;
+            type_retained[g.node_type[o]] += total;
+        }
+    }
+
     // Collapse: from every opaque (non-container), non-excluded holder object,
     // walk through transparent referents (its __dict__, the dicts/lists/sets it
     // owns, ...) and record an edge holder_type -> first opaque type reached.
@@ -596,13 +648,16 @@ build_collapsed_forest(const ObjectGraph& g,
             }
             // Reached an opaque object: record the collapsed edge once per
             // holder (the epoch-dedup guarantees once), then stop -- do not
-            // descend through application objects.
+            // descend through application objects. The edge is weighted by the
+            // reached object's retained size (self + owned container scaffold),
+            // not its bare header, so wrappers that front large scaffolds rank
+            // by what they hold.
             uint32_t ttype = g.node_type[cur];
             if (type_excluded[ttype] == 0) {
                 uint64_t key = (static_cast<uint64_t>(htype) << 32) | ttype;
                 auto& agg = edges[key];
                 agg.first += 1;
-                agg.second += g.node_size[cur];
+                agg.second += node_retained[cur];
             }
         }
     }
@@ -632,8 +687,9 @@ build_collapsed_forest(const ObjectGraph& g,
             root_order.push_back(idx);
         }
     }
-    std::sort(
-      root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) { return g.type_sizes[a] > g.type_sizes[b]; });
+    std::sort(root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) {
+        return type_retained[a] > type_retained[b];
+    });
 
     // Budget policy. A single global cap lets one densely connected root eat the
     // whole forest, starving every other type. Instead the global cap is split
@@ -1102,7 +1158,8 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
     // {"t":type_idx,"ic":refs,"ts":bytes,"ch":[...]} -- see serialize_node. A
     // root node's ic/ts are the type's live instance count and total shallow
     // size; a child node's ic/ts are the number of references from the parent
-    // type to the child type and the shallow bytes they retain.
+    // type to the child type and the bytes they retain (each held object's own
+    // shallow size plus the generic-container scaffold it owns).
     out << ",\"rt\":[";
     for (size_t i = 0; i < ref_tree.size(); ++i) {
         if (i > 0) {
