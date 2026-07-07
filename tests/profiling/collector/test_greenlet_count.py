@@ -16,23 +16,31 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
 @pytest.mark.subprocess(err=None)
 def test_greenlet_count_present():
     """greenlet_count is present and positive when gevent greenlets are active."""
-    # Start the capture server BEFORE monkey.patch_all() so that
-    # the server socket is created with standard Python sockets. After gevent
-    # patches Python sockets, a pre-existing server socket continues to work
-    # correctly with gevent's event loop.
+    # Start the mini agent BEFORE monkey.patch_all() so that its server socket is
+    # created with standard Python sockets. After gevent patches Python sockets,
+    # a pre-existing server socket continues to work correctly with gevent's
+    # event loop.  We also can't call server.stop() after monkey.patch_all()
+    # because socketserver.shutdown() deadlocks with gevent-patched threading.
+    # The server runs on a daemon thread and will be killed when the subprocess exits.
     import os
+    import uuid
 
     from ddtrace.internal.datadog.profiling import ddup
-    from tests.profiling.utils import _ProfilingCaptureServer
+    from tests.profiling.utils import _ProfilingMiniAgent
+    from tests.profiling.utils import _ProfilingMiniAgentClient
     from tests.profiling.utils import get_all_metadata_from_agent
 
-    _capture_server = _ProfilingCaptureServer()
-    _capture_server.start()
-    _url = f"http://127.0.0.1:{_capture_server.port}"
-    os.environ["_DD_PROFILING_TEST_AGENT_URL"] = _url
-    _config_url = getattr(ddup, "config_url", None)
-    if _config_url is not None:
-        _config_url(_url)
+    _token = str(uuid.uuid4())
+    _server = _ProfilingMiniAgent()
+    _server.start()
+    _base_url = f"http://127.0.0.1:{_server.port}"
+
+    os.environ["_DD_PROFILING_TEST_TOKEN"] = _token
+    os.environ["_DD_PROFILING_TEST_PROXY_URL"] = _base_url
+    _config_test_token = getattr(ddup, "config_test_token", None)
+    if _config_test_token is not None:
+        _config_test_token(_token, _base_url)
+
     # Force 1s upload interval so we get multiple uploads during the 3s sleep.
     os.environ["DD_PROFILING_UPLOAD_INTERVAL"] = "1"
 
@@ -63,7 +71,8 @@ def test_greenlet_count_present():
     gevent.joinall(greenlets, timeout=5)
     p.stop()
 
-    files = get_all_metadata_from_agent(_capture_server, min_count=2)
+    _client = _ProfilingMiniAgentClient(base_url=_base_url, token=_token)
+    files = get_all_metadata_from_agent(_client, min_count=2)
     assert files, "Expected at least one metadata upload"
 
     found_positive = False
@@ -76,7 +85,7 @@ def test_greenlet_count_present():
 
     assert found_positive, "Expected at least one metadata file with greenlet_count > 0"
 
-    # Don't call _capture_server.stop() here: after monkey.patch_all(), calling
+    # Don't call _server.stop() here: after monkey.patch_all(), calling
     # socketserver.shutdown() deadlocks because threading.Event.wait() is gevent-patched
     # and tries to switch to the gevent hub which no longer exists at this point.
-    # The capture server is a daemon thread and will be killed when the subprocess exits.
+    # The server runs on a daemon thread and will be killed when the subprocess exits.

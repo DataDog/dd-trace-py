@@ -18,7 +18,6 @@ from typing_extensions import TypeAlias
 
 from tests.profiling.collector import pprof_utils
 from tests.profiling.utils import get_all_profiles_from_agent
-from tests.profiling.utils import with_profiling_test_agent
 
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
@@ -78,93 +77,94 @@ def _get_worker_pids(stdout: str) -> list[int]:
 def _test_gunicorn(
     gunicorn: RunGunicornFunc,
     monkeypatch: pytest.MonkeyPatch,
+    agent_client,
     *args: str,
 ) -> None:
     monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
-    with with_profiling_test_agent() as agent_client:
-        proc = gunicorn("-w", "1", *args)
-        # Wait for the workers to start
-        time.sleep(5)
+    proc = gunicorn("-w", "1", *args)
+    # Wait for the workers to start
+    time.sleep(5)
 
-        if proc.poll() is not None:
-            pytest.fail("Gunicorn failed to start")
+    if proc.poll() is not None:
+        pytest.fail("Gunicorn failed to start")
 
-        debug_print("Making request to gunicorn server")
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
-                status_code = f.getcode()
-                assert status_code == 200, status_code
-                response = f.read().decode()
-                debug_print(response)
-        except Exception as e:
-            proc.terminate()
-            assert proc.stdout is not None
-            output = proc.stdout.read().decode()
-            print(output)
-            pytest.fail(f"Failed to make request to gunicorn server {e}")
-        finally:
-            # Need to terminate the process to get the output and release the port
-            proc.terminate()
-
-        debug_print("Reading gunicorn worker output to get PIDs")
+    debug_print("Making request to gunicorn server")
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+            status_code = f.getcode()
+            assert status_code == 200, status_code
+            response = f.read().decode()
+            debug_print(response)
+    except Exception as e:
+        proc.terminate()
         assert proc.stdout is not None
         output = proc.stdout.read().decode()
-        worker_pids = _get_worker_pids(output)
-        debug_print(f"Gunicorn worker PIDs: {worker_pids}")
+        print(output)
+        pytest.fail(f"Failed to make request to gunicorn server {e}")
+    finally:
+        # Need to terminate the process to get the output and release the port
+        proc.terminate()
 
-        for line in output.splitlines():
-            debug_print(line)
+    debug_print("Reading gunicorn worker output to get PIDs")
+    assert proc.stdout is not None
+    output = proc.stdout.read().decode()
+    worker_pids = _get_worker_pids(output)
+    debug_print(f"Gunicorn worker PIDs: {worker_pids}")
 
-        assert len(worker_pids) == 1, output
+    for line in output.splitlines():
+        debug_print(line)
 
-        debug_print("Waiting for gunicorn process to terminate")
+    assert len(worker_pids) == 1, output
+
+    debug_print("Waiting for gunicorn process to terminate")
+    try:
+        assert proc.wait(timeout=5) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Failed to terminate gunicorn process: {output}")
+    assert "module 'threading' has no attribute '_active'" not in output, output
+
+    debug_print("Retrieving profiles from capture server")
+    # Multiple uploads may arrive (periodic scheduler + shutdown flush + master process).
+    # Search all of them for the worker profile that has cpu-time samples with fib.
+    profiles = get_all_profiles_from_agent(agent_client)
+
+    # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
+    # when run on GitLab CI. We need to match either of these two.
+    filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
+    expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=9)
+
+    found = False
+    for profile in profiles:
+        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+        if not samples:
+            continue
         try:
-            assert proc.wait(timeout=5) == 0, output
-        except subprocess.TimeoutExpired:
-            pytest.fail(f"Failed to terminate gunicorn process: {output}")
-        assert "module 'threading' has no attribute '_active'" not in output, output
-
-        debug_print("Retrieving profiles from capture server")
-        # Multiple uploads may arrive (periodic scheduler + shutdown flush + master process).
-        # Search all of them for the worker profile that has cpu-time samples with fib.
-        profiles = get_all_profiles_from_agent(agent_client)
-
-        # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
-        # when run on GitLab CI. We need to match either of these two.
-        filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=9)
-
-        found = False
-        for profile in profiles:
-            samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-            if not samples:
-                continue
-            try:
-                pprof_utils.assert_profile_has_sample(
-                    profile,
-                    samples=samples,
-                    # DEV: we expect multiple locations as fibonacci is recursive
-                    expected_sample=pprof_utils.StackEvent(locations=[expected_location, expected_location]),
-                )
-                found = True
-                break
-            except AssertionError:
-                continue
-        assert found, (
-            f"Expected fib samples not found in any of {len(profiles)} profile upload(s). "
-            "Worker may not have been profiled during the request."
-        )
+            pprof_utils.assert_profile_has_sample(
+                profile,
+                samples=samples,
+                # DEV: we expect multiple locations as fibonacci is recursive
+                expected_sample=pprof_utils.StackEvent(locations=[expected_location, expected_location]),
+            )
+            found = True
+            break
+        except AssertionError:
+            continue
+    assert found, (
+        f"Expected fib samples not found in any of {len(profiles)} profile upload(s). "
+        "Worker may not have been profiled during the request."
+    )
 
 
 def test_gunicorn(
     gunicorn: RunGunicornFunc,
     monkeypatch: pytest.MonkeyPatch,
+    profiling_test_agent,
 ) -> None:
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
-    _test_gunicorn(gunicorn, monkeypatch, *args)
+    _test_gunicorn(gunicorn, monkeypatch, profiling_test_agent, *args)
 
 
 def _run_sigterm_graceful_shutdown_test(
@@ -288,109 +288,111 @@ def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPat
 def test_gunicorn_profile_export_count_two_workers(
     gunicorn: RunGunicornFunc,
     monkeypatch: pytest.MonkeyPatch,
+    profiling_test_agent,
 ) -> None:
     monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
 
-    with with_profiling_test_agent() as agent_client:
-        proc = gunicorn("-w", "2", *args, app="tests.profiling.gunicorn_count_app:app")
-        time.sleep(5)
+    agent_client = profiling_test_agent
+    proc = gunicorn("-w", "2", *args, app="tests.profiling.gunicorn_count_app:app")
+    time.sleep(5)
 
-        if proc.poll() is not None:
-            assert proc.stdout is not None
-            output = proc.stdout.read().decode()
-            pytest.fail(f"Gunicorn failed to start: {output}")
-
-        try:
-            for _ in range(4):
-                with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
-                    assert f.getcode() == 200
-        except Exception as e:
-            proc.terminate()
-            assert proc.stdout is not None
-            output = proc.stdout.read().decode()
-            pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
-        finally:
-            proc.terminate()
-
+    if proc.poll() is not None:
         assert proc.stdout is not None
         output = proc.stdout.read().decode()
-        worker_pids = _get_worker_pids(output)
-        assert len(worker_pids) == 2, output
+        pytest.fail(f"Gunicorn failed to start: {output}")
 
-        try:
-            assert proc.wait(timeout=5) == 0, output
-        except subprocess.TimeoutExpired:
-            pytest.fail(f"Failed to terminate gunicorn process: {output}")
+    try:
+        for _ in range(4):
+            with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+                assert f.getcode() == 200
+    except Exception as e:
+        proc.terminate()
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
+    finally:
+        proc.terminate()
 
-        # With 2 workers + 1 master process, expect at least 2 profiling uploads
-        # (one per worker minimum; master may or may not upload depending on timing).
-        profiles = get_all_profiles_from_agent(agent_client)
-        assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
+    assert proc.stdout is not None
+    output = proc.stdout.read().decode()
+    worker_pids = _get_worker_pids(output)
+    assert len(worker_pids) == 2, output
+
+    try:
+        assert proc.wait(timeout=5) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Failed to terminate gunicorn process: {output}")
+
+    # With 2 workers + 1 master process, expect at least 2 profiling uploads
+    # (one per worker minimum; master may or may not upload depending on timing).
+    profiles = get_all_profiles_from_agent(agent_client)
+    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
 
 
 def test_gunicorn_profile_export_count_two_workers_flush_false(
     gunicorn: RunGunicornFunc,
     monkeypatch: pytest.MonkeyPatch,
+    profiling_test_agent,
 ) -> None:
     monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
 
-    with with_profiling_test_agent() as agent_client:
-        proc = subprocess.Popen(
-            [
-                "ddtrace-run",
-                "gunicorn",
-                "--bind",
-                "127.0.0.1:7644",
-                "--worker-tmp-dir",
-                _WORKER_TMP_DIR,
-                "-c",
-                os.path.dirname(__file__) + "/gunicorn.conf.py",
-                "--chdir",
-                os.path.dirname(__file__),
-                "-w",
-                "2",
-                *args,
-                "tests.profiling.gunicorn_count_app:app",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+    agent_client = profiling_test_agent
+    proc = subprocess.Popen(
+        [
+            "ddtrace-run",
+            "gunicorn",
+            "--bind",
+            "127.0.0.1:7644",
+            "--worker-tmp-dir",
+            _WORKER_TMP_DIR,
+            "-c",
+            os.path.dirname(__file__) + "/gunicorn.conf.py",
+            "--chdir",
+            os.path.dirname(__file__),
+            "-w",
+            "2",
+            *args,
+            "tests.profiling.gunicorn_count_app:app",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
 
-        time.sleep(5)
-        if proc.poll() is not None:
-            assert proc.stdout is not None
-            output = proc.stdout.read().decode()
-            pytest.fail(f"Gunicorn failed to start: {output}")
+    time.sleep(5)
+    if proc.poll() is not None:
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Gunicorn failed to start: {output}")
 
-        try:
-            with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
-                assert f.getcode() == 200
-        except Exception as e:
-            os.killpg(proc.pid, signal.SIGKILL)
-            assert proc.stdout is not None
-            output = proc.stdout.read().decode()
-            pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
-
-        # Clear any periodic uploads that happened before we issue SIGKILL.
-        agent_client.clear()
-
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+            assert f.getcode() == 200
+    except Exception as e:
         os.killpg(proc.pid, signal.SIGKILL)
         assert proc.stdout is not None
         output = proc.stdout.read().decode()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            pytest.fail(f"Failed to kill gunicorn process group: {output}")
+        pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
 
-        # After SIGKILL (no graceful shutdown), no additional profiling data
-        # should be uploaded — SIGKILL doesn't allow atexit/shutdown flushes.
-        import time as _time
+    # Clear any periodic uploads that happened before we issue SIGKILL.
+    agent_client.clear()
 
-        _time.sleep(1)  # give any in-flight uploads a moment to arrive
-        profiles = agent_client.profiling_requests()
-        assert profiles == [], f"Expected no profiling uploads after SIGKILL, got {len(profiles)}"
+    os.killpg(proc.pid, signal.SIGKILL)
+    assert proc.stdout is not None
+    output = proc.stdout.read().decode()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Failed to kill gunicorn process group: {output}")
+
+    # After SIGKILL (no graceful shutdown), no additional profiling data
+    # should be uploaded — SIGKILL doesn't allow atexit/shutdown flushes.
+    import time as _time
+
+    _time.sleep(1)  # give any in-flight uploads a moment to arrive
+    profiles = agent_client.profiling_requests()
+    assert profiles == [], f"Expected no profiling uploads after SIGKILL, got {len(profiles)}"

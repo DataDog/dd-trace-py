@@ -16,7 +16,6 @@ def test_asyncio_task_count_present():
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
     async def worker():
         await asyncio.sleep(0.5)
@@ -25,27 +24,26 @@ def test_asyncio_task_count_present():
         tasks = [asyncio.create_task(worker(), name=f"worker-{i}") for i in range(10)]
         await asyncio.gather(*tasks)
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        # Run multiple rounds to ensure tasks are active during profiling
-        for _ in range(4):
-            loop.run_until_complete(main())
-        time.sleep(1)
-        p.stop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    # Run multiple rounds to ensure tasks are active during profiling
+    for _ in range(4):
+        loop.run_until_complete(main())
+    time.sleep(1)
+    p.stop()
 
-        all_metadata = get_all_metadata_from_agent(agent_client, min_count=1)
-        assert all_metadata, "Expected at least one internal_metadata entry"
+    all_metadata = get_all_metadata_from_agent(min_count=1)
+    assert all_metadata, "Expected at least one internal_metadata entry"
 
-        found_positive = False
-        for metadata in all_metadata:
-            if "asyncio_task_count" in metadata:
-                assert isinstance(metadata["asyncio_task_count"], int)
-                assert metadata["asyncio_task_count"] >= 0
-                if metadata["asyncio_task_count"] > 0:
-                    found_positive = True
+    found_positive = False
+    for metadata in all_metadata:
+        if "asyncio_task_count" in metadata:
+            assert isinstance(metadata["asyncio_task_count"], int)
+            assert metadata["asyncio_task_count"] >= 0
+            if metadata["asyncio_task_count"] > 0:
+                found_positive = True
 
-        assert found_positive, "Expected at least one metadata file with asyncio_task_count > 0"
+    assert found_positive, "Expected at least one metadata file with asyncio_task_count > 0"

@@ -46,16 +46,14 @@ def test_heap_samples_collected() -> None:
     from ddtrace.profiling.profiler import Profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
-    from tests.profiling.utils import with_profiling_test_agent
 
     # Test for https://github.com/DataDog/dd-trace-py/issues/11069
-    with with_profiling_test_agent() as agent_client:
-        p = Profiler()
-        p.start()
-        x = _allocate_1k()  # noqa: F841
-        p.stop()
+    p = Profiler()
+    p.start()
+    x = _allocate_1k()  # noqa: F841
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
@@ -74,21 +72,19 @@ def test_memory_collector() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _ALLOC_LINE_NUMBER
     from tests.profiling.collector.test_memalloc import _allocate_1k
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=256)
-        with mc:
-            live_objects = _allocate_1k()  # noqa: F841
-            mc.snapshot()
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+    with mc:
+        live_objects = _allocate_1k()  # noqa: F841
+        mc.snapshot()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     # Gets samples with alloc-space > 0
     samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
@@ -133,36 +129,34 @@ def test_memory_collector_ignore_profiler() -> None:
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_ignore_profiler"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(ignore_profiler=True)
-        quit_thread = threading.Event()
+    mc = memalloc.MemoryCollector(ignore_profiler=True)
+    quit_thread = threading.Event()
 
-        with mc:
+    with mc:
 
-            def alloc() -> None:
-                _allocate_1k()
-                quit_thread.wait()
+        def alloc() -> None:
+            _allocate_1k()
+            quit_thread.wait()
 
-            alloc_thread = threading.Thread(name="allocator", target=alloc)
-            alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]
-            alloc_thread.start()
+        alloc_thread = threading.Thread(name="allocator", target=alloc)
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]
+        alloc_thread.start()
 
-            mc.snapshot()
+        mc.snapshot()
 
-        # We need to wait for the data collection to happen so it gets the
-        # `_ddtrace_profiling_ignore` Thread attribute from the global thread list.
-        quit_thread.set()
-        alloc_thread.join()
+    # We need to wait for the data collection to happen so it gets the
+    # `_ddtrace_profiling_ignore` Thread attribute from the global thread list.
+    quit_thread.set()
+    alloc_thread.join()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client, assert_samples=False)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent(assert_samples=False)
     assert len(profile.sample) == 0, "Expected no samples in profile when profiler is ignored"
 
 
@@ -528,87 +522,79 @@ def test_memory_collector_allocation_tracking_across_snapshots() -> None:
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
     from tests.profiling.collector.test_memalloc import one
     from tests.profiling.collector.test_memalloc import two
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_allocation_tracking_across_snapshots"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=64)
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
 
-        with mc:
-            data_to_free = []
-            for _ in range(10):
-                data_to_free.append(one(256))
+    with mc:
+        data_to_free = []
+        for _ in range(10):
+            data_to_free.append(one(256))
 
-            data_to_keep = []
-            for _ in range(10):
-                data_to_keep.append(two(512))
+        data_to_keep = []
+        for _ in range(10):
+            data_to_keep.append(two(512))
 
-            del data_to_free
+        del data_to_free
 
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
-            # Get sample type indices
-            heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
-            alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
-            alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
+        # Get sample type indices
+        heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+        alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
 
-            # Assert that required sample types exist
-            assert heap_space_idx >= 0, "heap-space sample type not found in profile"
-            assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
-            assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+        # Assert that required sample types exist
+        assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+        assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-            initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
-            assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
+        initial_allocations_valid = all(sample.value[alloc_space_idx] > 0 for sample in profile.sample)
+        assert initial_allocations_valid, "Initial snapshot should have alloc-space>0 (new allocations)"
 
-            # Get freed samples (alloc-space > 0, heap-space == 0)
-            freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]
-            # Get live samples (heap-space > 0)
-            live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+        # Get freed samples (alloc-space > 0, heap-space == 0)
+        freed_samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0 and s.value[heap_space_idx] == 0]
+        # Get live samples (heap-space > 0)
+        live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
 
-            assert len(freed_samples) > 0, "Should have some freed samples after deletion"
+        assert len(freed_samples) > 0, "Should have some freed samples after deletion"
 
-            assert len(live_samples) > 0, "Should have some live samples"
+        assert len(live_samples) > 0, "Should have some live samples"
 
-            # Validate all samples have valid values
-            for sample in profile.sample:
-                has_heap = sample.value[heap_space_idx] > 0
-                has_alloc = sample.value[alloc_space_idx] > 0
-                assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-                assert sample.value[alloc_count_idx] >= 0, (
-                    f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-                )
-
-            one_freed_samples = [
-                sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)
-            ]
-
-            assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
-            one_freed_samples_valid = all(
-                sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
-            )
-            assert one_freed_samples_valid, (
-                "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        # Validate all samples have valid values
+        for sample in profile.sample:
+            has_heap = sample.value[heap_space_idx] > 0
+            has_alloc = sample.value[alloc_space_idx] > 0
+            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_count_idx] >= 0, (
+                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-            two_live_samples = [
-                sample for sample in live_samples if has_function_in_profile_sample(profile, sample, two)
-            ]
+        one_freed_samples = [sample for sample in freed_samples if has_function_in_profile_sample(profile, sample, one)]
 
-            assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
-            two_live_samples_valid = all(
-                sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in two_live_samples
-            )
-            assert two_live_samples_valid, (
-                "Live samples from function 'two' should have heap-space > 0 and alloc-space > 0"
-            )
+        assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
+        one_freed_samples_valid = all(
+            sample.value[heap_space_idx] == 0 and sample.value[alloc_space_idx] > 0 for sample in one_freed_samples
+        )
+        assert one_freed_samples_valid, (
+            "Freed samples from function 'one' should have heap-space == 0 and alloc-space > 0"
+        )
 
-            del data_to_keep
+        two_live_samples = [sample for sample in live_samples if has_function_in_profile_sample(profile, sample, two)]
+
+        assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
+        two_live_samples_valid = all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in two_live_samples
+        )
+        assert two_live_samples_valid, "Live samples from function 'two' should have heap-space > 0 and alloc-space > 0"
+
+        del data_to_keep
 
 
 @pytest.mark.subprocess(err=None)
@@ -621,108 +607,107 @@ def test_memory_collector_python_interface_with_allocation_tracking() -> None:
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
     from tests.profiling.collector.test_memalloc import one
     from tests.profiling.collector.test_memalloc import two
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_python_interface_with_allocation_tracking"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=32)
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
 
-        with mc:
-            first_batch: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(20):
-                first_batch.append(one(256))
+    with mc:
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(20):
+            first_batch.append(one(256))
 
-            # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
-            mc.snapshot()
-            ddup.upload()
-            agent_client.clear()
+        # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
+        mc.snapshot()
+        ddup.upload()
+        from tests.profiling.utils import clear_agent_session
 
-            second_batch: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(15):
-                second_batch.append(two(512))
+        clear_agent_session()
 
-            del first_batch
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(15):
+            second_batch.append(two(512))
 
-            # Force a full GC collection to clear CPython's internal free lists
-            # (tuple, float, list, dict, etc.).  On Python < 3.13, calling
-            # bytearray(256) inside one() goes through _PyObject_MakeTpCall,
-            # which creates a temporary 1-element args tuple (256,).  When that
-            # tuple's refcount drops to zero, tupledealloc caches it in the
-            # tuple free list WITHOUT calling PyObject_Free, so the profiler's
-            # memalloc_free hook is never triggered and the allocation stays
-            # tracked as "live" in allocs_m even though the Python object is
-            # logically dead.  gc.collect(generation=2) calls clear_freelists()
-            # -> _PyTuple_ClearFreeList() -> PyObject_GC_Del() -> PyObject_Free(),
-            # which properly fires memalloc_free -> untrack and removes these
-            # ghost entries.
-            gc.collect()
+        del first_batch
 
-            mc.snapshot()
-            ddup.upload()
-            final_profile = pprof_utils.get_profile_from_agent(agent_client)
+        # Force a full GC collection to clear CPython's internal free lists
+        # (tuple, float, list, dict, etc.).  On Python < 3.13, calling
+        # bytearray(256) inside one() goes through _PyObject_MakeTpCall,
+        # which creates a temporary 1-element args tuple (256,).  When that
+        # tuple's refcount drops to zero, tupledealloc caches it in the
+        # tuple free list WITHOUT calling PyObject_Free, so the profiler's
+        # memalloc_free hook is never triggered and the allocation stays
+        # tracked as "live" in allocs_m even though the Python object is
+        # logically dead.  gc.collect(generation=2) calls clear_freelists()
+        # -> _PyTuple_ClearFreeList() -> PyObject_GC_Del() -> PyObject_Free(),
+        # which properly fires memalloc_free -> untrack and removes these
+        # ghost entries.
+        gc.collect()
 
-        assert len(final_profile.sample) > 0, "Final snapshot should have samples"
+        mc.snapshot()
+        ddup.upload()
+        final_profile = pprof_utils.get_profile_from_agent()
 
-        # Get sample type indices
-        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
-        alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
-        alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
+    assert len(final_profile.sample) > 0, "Final snapshot should have samples"
 
-        # Assert that required sample types exist in the profile
-        assert heap_space_idx >= 0, "heap-space sample type not found in profile"
-        assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
-        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+    # Get sample type indices
+    heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
+    alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
+    alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
 
-        # Validate all samples have valid values
-        for sample in final_profile.sample:
-            # Check that at least one value type is non-zero
-            has_heap = sample.value[heap_space_idx] > 0
-            has_alloc = sample.value[alloc_space_idx] > 0
-            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-            assert sample.value[alloc_count_idx] >= 0, (
-                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-            )
+    # Assert that required sample types exist in the profile
+    assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+    assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
+    assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-        # Get live samples (heap-space > 0)
-        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
-
-        # Check that we have no significant live samples with 'one' in traceback (they were freed).
-        # Small residual allocations (< min_alloc_size) may remain due to CPython internal
-        # caching (type caches, inline bytecode caches, descriptor objects, etc.) that are
-        # allocated while one() is on the call stack and not freed by del + gc.collect().
-        # With aggressive sampling (heap_sample_size=32), these are occasionally sampled.
-        # We only assert on allocations large enough to be the actual one() result object
-        # (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
-        min_alloc_size = 256
-        one_samples_in_final = [
-            sample
-            for sample in live_samples
-            if has_function_in_profile_sample(final_profile, sample, one)
-            and sample.value[heap_space_idx] >= min_alloc_size
-        ]
-
-        assert len(one_samples_in_final) == 0, (
-            f"Should have no live samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+    # Validate all samples have valid values
+    for sample in final_profile.sample:
+        # Check that at least one value type is non-zero
+        has_heap = sample.value[heap_space_idx] > 0
+        has_alloc = sample.value[alloc_space_idx] > 0
+        assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+        assert sample.value[alloc_count_idx] >= 0, (
+            f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
         )
 
-        # Check that we have live samples from function 'two'
-        batch_two_live_samples = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
-        ]
+    # Get live samples (heap-space > 0)
+    live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-        assert len(batch_two_live_samples) > 0, (
-            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
-        )
-        batch_two_valid = all(
-            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0 for sample in batch_two_live_samples
-        )
-        assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space >= 0"
+    # Check that we have no significant live samples with 'one' in traceback (they were freed).
+    # Small residual allocations (< min_alloc_size) may remain due to CPython internal
+    # caching (type caches, inline bytecode caches, descriptor objects, etc.) that are
+    # allocated while one() is on the call stack and not freed by del + gc.collect().
+    # With aggressive sampling (heap_sample_size=32), these are occasionally sampled.
+    # We only assert on allocations large enough to be the actual one() result object
+    # (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
+    min_alloc_size = 256
+    one_samples_in_final = [
+        sample
+        for sample in live_samples
+        if has_function_in_profile_sample(final_profile, sample, one) and sample.value[heap_space_idx] >= min_alloc_size
+    ]
 
-        del second_batch
+    assert len(one_samples_in_final) == 0, (
+        f"Should have no live samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
+    )
+
+    # Check that we have live samples from function 'two'
+    batch_two_live_samples = [
+        sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
+    ]
+
+    assert len(batch_two_live_samples) > 0, (
+        f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+    )
+    batch_two_valid = all(
+        sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] >= 0 for sample in batch_two_live_samples
+    )
+    assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space >= 0"
+
+    del second_batch
 
 
 @pytest.mark.subprocess(err=None)
@@ -733,114 +718,112 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
     from tests.profiling.collector.test_memalloc import one
     from tests.profiling.collector.test_memalloc import two
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_python_interface_with_allocation_tracking_no_deletion"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=32)
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
 
-        with mc:
-            # Take initial snapshot to reset allocation tracking (may have no samples)
-            mc.snapshot()
-            ddup.upload()
-            agent_client.clear()
+    with mc:
+        # Take initial snapshot to reset allocation tracking (may have no samples)
+        mc.snapshot()
+        ddup.upload()
+        from tests.profiling.utils import clear_agent_session
 
-            first_batch: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(20):
-                first_batch.append(one(256))
+        clear_agent_session()
 
-            mc.snapshot()
-            ddup.upload()
-            after_first_batch_profile = pprof_utils.get_profile_from_agent(agent_client)
-            agent_client.clear()
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(20):
+            first_batch.append(one(256))
 
-            second_batch: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(15):
-                second_batch.append(two(512))
+        mc.snapshot()
+        ddup.upload()
+        after_first_batch_profile = pprof_utils.get_profile_from_agent()
+        from tests.profiling.utils import clear_agent_session
 
-            mc.snapshot()
-            ddup.upload()
-            final_profile = pprof_utils.get_profile_from_agent(agent_client)
+        clear_agent_session()
 
-            # After initial snapshot, allocation tracking resets
-            # So after_first_batch should have samples from the 20 allocations since last snapshot
-            after_first_batch_count = len(after_first_batch_profile.sample)
-            final_count = len(final_profile.sample)
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(15):
+            second_batch.append(two(512))
 
-            assert after_first_batch_count > 0, (
-                f"Should have samples from first batch allocations. Got {after_first_batch_count}"
-            )
-            assert final_count > 0, f"Final snapshot should have samples. Got {final_count}"
+        mc.snapshot()
+        ddup.upload()
+        final_profile = pprof_utils.get_profile_from_agent()
 
-            # Get sample type indices
-            heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
-            alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
-            alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
+        # After initial snapshot, allocation tracking resets
+        # So after_first_batch should have samples from the 20 allocations since last snapshot
+        after_first_batch_count = len(after_first_batch_profile.sample)
+        final_count = len(final_profile.sample)
 
-            # Assert that required sample types exist
-            assert heap_space_idx >= 0, "heap-space sample type not found in profile"
-            assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
-            assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+        assert after_first_batch_count > 0, (
+            f"Should have samples from first batch allocations. Got {after_first_batch_count}"
+        )
+        assert final_count > 0, f"Final snapshot should have samples. Got {final_count}"
 
-            # Since no objects were deleted, heap samples should accumulate (first_batch + second_batch)
-            # Count heap samples in both profiles
-            after_first_heap_samples = [s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0]
-            final_heap_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        # Get sample type indices
+        heap_space_idx = pprof_utils.get_sample_type_index(final_profile, "heap-space")
+        alloc_space_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-space")
+        alloc_count_idx = pprof_utils.get_sample_type_index(final_profile, "alloc-samples")
 
-            assert len(final_heap_samples) > len(after_first_heap_samples), (
-                f"Final should have more heap samples than after first batch (nothing deleted). "
-                f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
-            )
+        # Assert that required sample types exist
+        assert heap_space_idx >= 0, "heap-space sample type not found in profile"
+        assert alloc_space_idx >= 0, "alloc-space sample type not found in profile"
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-            # Validate all samples in final profile have valid values
-            for sample in final_profile.sample:
-                has_heap = sample.value[heap_space_idx] > 0
-                has_alloc = sample.value[alloc_space_idx] > 0
-                assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
-                assert sample.value[alloc_count_idx] >= 0, (
-                    f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
-                )
+        # Since no objects were deleted, heap samples should accumulate (first_batch + second_batch)
+        # Count heap samples in both profiles
+        after_first_heap_samples = [s for s in after_first_batch_profile.sample if s.value[heap_space_idx] > 0]
+        final_heap_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-            # Get live samples (heap-space > 0)
-            live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
+        assert len(final_heap_samples) > len(after_first_heap_samples), (
+            f"Final should have more heap samples than after first batch (nothing deleted). "
+            f"Got final={len(final_heap_samples)}, after_first={len(after_first_heap_samples)}"
+        )
 
-            batch_one_live_samples = [
-                sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
-            ]
-
-            batch_two_live_samples = [
-                sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
-            ]
-
-            assert len(batch_one_live_samples) > 0, (
-                f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
-            )
-            assert len(batch_two_live_samples) > 0, (
-                f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        # Validate all samples in final profile have valid values
+        for sample in final_profile.sample:
+            has_heap = sample.value[heap_space_idx] > 0
+            has_alloc = sample.value[alloc_space_idx] > 0
+            assert has_heap or has_alloc, "Sample should have either heap-space or alloc-space > 0"
+            assert sample.value[alloc_count_idx] >= 0, (
+                f"alloc-samples should be non-negative, got {sample.value[alloc_count_idx]}"
             )
 
-            # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
-            # batch_two samples are new allocations, so alloc-space should be > 0
-            batch_one_valid = all(
-                sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0
-                for sample in batch_one_live_samples
-            )
-            assert batch_one_valid, (
-                "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
-            )
+        # Get live samples (heap-space > 0)
+        live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-            batch_two_valid = all(
-                sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0
-                for sample in batch_two_live_samples
-            )
-            assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space > 0 (new allocations)"
+        batch_one_live_samples = [
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
+        ]
 
-            del first_batch
-            del second_batch
+        batch_two_live_samples = [
+            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, two)
+        ]
+
+        assert len(batch_one_live_samples) > 0, (
+            f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
+        )
+        assert len(batch_two_live_samples) > 0, (
+            f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
+        )
+
+        # batch_one samples were reported in first snapshot, so alloc-space should be 0 in later snapshots
+        # batch_two samples are new allocations, so alloc-space should be > 0
+        batch_one_valid = all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] == 0 for sample in batch_one_live_samples
+        )
+        assert batch_one_valid, "Batch one samples should have heap-space > 0 and alloc-space == 0 (already reported)"
+
+        batch_two_valid = all(
+            sample.value[heap_space_idx] > 0 and sample.value[alloc_space_idx] > 0 for sample in batch_two_live_samples
+        )
+        assert batch_two_valid, "Batch two samples should have heap-space > 0 and alloc-space > 0 (new allocations)"
+
+        del first_batch
+        del second_batch
 
 
 @pytest.mark.subprocess(err=None)
@@ -854,79 +837,79 @@ def test_heap_live_samples_drops_after_free() -> None:
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
     from tests.profiling.collector.test_memalloc import one
     from tests.profiling.collector.test_memalloc import two
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_heap_live_samples_drops_after_free"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=32)
+    mc = memalloc.MemoryCollector(heap_sample_size=32)
 
-        with mc:
-            # Allocate objects via 'one' and 'two', keep them alive
-            batch_one: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(30):
-                batch_one.append(one(256))
+    with mc:
+        # Allocate objects via 'one' and 'two', keep them alive
+        batch_one: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_one.append(one(256))
 
-            batch_two: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(30):
-                batch_two.append(two(512))
+        batch_two: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(30):
+            batch_two.append(two(512))
 
-            mc.snapshot()
-            ddup.upload()
-            profile_before = pprof_utils.get_profile_from_agent(agent_client)
-            agent_client.clear()
+        mc.snapshot()
+        ddup.upload()
+        profile_before = pprof_utils.get_profile_from_agent()
+        from tests.profiling.utils import clear_agent_session
 
-            heap_space_idx = pprof_utils.get_sample_type_index(profile_before, "heap-space")
-            heap_live_idx = pprof_utils.get_sample_type_index(profile_before, "heap-live-samples")
-            assert heap_space_idx >= 0
-            assert heap_live_idx >= 0
+        clear_agent_session()
 
-            # Both 'one' and 'two' should have live samples
-            live_before = [s for s in profile_before.sample if s.value[heap_space_idx] > 0]
-            one_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, one)]
-            two_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, two)]
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_before, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_before, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
 
-            assert len(one_live_before) > 0, "Expected live samples from 'one' before free"
-            assert len(two_live_before) > 0, "Expected live samples from 'two' before free"
+        # Both 'one' and 'two' should have live samples
+        live_before = [s for s in profile_before.sample if s.value[heap_space_idx] > 0]
+        one_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, one)]
+        two_live_before = [s for s in live_before if has_function_in_profile_sample(profile_before, s, two)]
 
-            # Verify heap-live-samples > 0 for all live entries
-            for s in live_before:
-                assert s.value[heap_live_idx] > 0, "Live sample should have heap-live-samples > 0"
+        assert len(one_live_before) > 0, "Expected live samples from 'one' before free"
+        assert len(two_live_before) > 0, "Expected live samples from 'two' before free"
 
-            # Free batch_one, keep batch_two
-            del batch_one
-            gc.collect()
+        # Verify heap-live-samples > 0 for all live entries
+        for s in live_before:
+            assert s.value[heap_live_idx] > 0, "Live sample should have heap-live-samples > 0"
 
-            mc.snapshot()
-            ddup.upload()
-            profile_after = pprof_utils.get_profile_from_agent(agent_client)
+        # Free batch_one, keep batch_two
+        del batch_one
+        gc.collect()
 
-            heap_space_idx = pprof_utils.get_sample_type_index(profile_after, "heap-space")
-            heap_live_idx = pprof_utils.get_sample_type_index(profile_after, "heap-live-samples")
+        mc.snapshot()
+        ddup.upload()
+        profile_after = pprof_utils.get_profile_from_agent()
 
-            live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
+        heap_space_idx = pprof_utils.get_sample_type_index(profile_after, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile_after, "heap-live-samples")
 
-            # 'one' should have no significant live samples (freed)
-            min_alloc_size = 256
-            one_live_after = [
-                s
-                for s in live_after
-                if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
-            ]
-            assert len(one_live_after) == 0, (
-                f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
-            )
+        live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
 
-            # 'two' should still have live samples with heap-live-samples > 0
-            two_live_after = [s for s in live_after if has_function_in_profile_sample(profile_after, s, two)]
-            assert len(two_live_after) > 0, "Expected live samples from 'two' to persist after freeing 'one'"
-            for s in two_live_after:
-                assert s.value[heap_live_idx] > 0, "Surviving live sample should have heap-live-samples > 0"
+        # 'one' should have no significant live samples (freed)
+        min_alloc_size = 256
+        one_live_after = [
+            s
+            for s in live_after
+            if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
+        ]
+        assert len(one_live_after) == 0, (
+            f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
+        )
 
-            del batch_two
+        # 'two' should still have live samples with heap-live-samples > 0
+        two_live_after = [s for s in live_after if has_function_in_profile_sample(profile_after, s, two)]
+        assert len(two_live_after) > 0, "Expected live samples from 'two' to persist after freeing 'one'"
+        for s in two_live_after:
+            assert s.value[heap_live_idx] > 0, "Surviving live sample should have heap-live-samples > 0"
+
+        del batch_two
 
 
 @pytest.mark.subprocess(err=None)
@@ -941,60 +924,58 @@ def test_heap_live_samples_aggregate_accuracy() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
     from tests.profiling.collector.test_memalloc import one
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_heap_live_samples_aggregate_accuracy"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        sample_interval = 64
-        num_objects = 500
-        object_size = 256
-        mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
+    sample_interval = 64
+    num_objects = 500
+    object_size = 256
+    mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
 
-        with mc:
-            # Allocate a known number of objects, all kept alive
-            live_objects: list[Union[tuple[None, ...], bytearray]] = []
-            for _ in range(num_objects):
-                live_objects.append(one(object_size))
+    with mc:
+        # Allocate a known number of objects, all kept alive
+        live_objects: list[Union[tuple[None, ...], bytearray]] = []
+        for _ in range(num_objects):
+            live_objects.append(one(object_size))
 
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
-            heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
-            heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
-            assert heap_space_idx >= 0
-            assert heap_live_idx >= 0
+        heap_space_idx = pprof_utils.get_sample_type_index(profile, "heap-space")
+        heap_live_idx = pprof_utils.get_sample_type_index(profile, "heap-live-samples")
+        assert heap_space_idx >= 0
+        assert heap_live_idx >= 0
 
-            # Sum heap-live-samples across all live entries attributed to 'one'
-            live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
-            one_live_samples = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
+        # Sum heap-live-samples across all live entries attributed to 'one'
+        live_samples = [s for s in profile.sample if s.value[heap_space_idx] > 0]
+        one_live_samples = [s for s in live_samples if has_function_in_profile_sample(profile, s, one)]
 
-            assert len(one_live_samples) > 0, "Expected live samples from 'one'"
+        assert len(one_live_samples) > 0, "Expected live samples from 'one'"
 
-            total_heap_live_count = sum(s.value[heap_live_idx] for s in one_live_samples)
+        total_heap_live_count = sum(s.value[heap_live_idx] for s in one_live_samples)
 
-            print(f"Actual live objects: {num_objects}")
-            print(f"Reported heap-live-samples: {total_heap_live_count}")
-            print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
+        print(f"Actual live objects: {num_objects}")
+        print(f"Reported heap-live-samples: {total_heap_live_count}")
+        print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
 
-            # The aggregate should be close to the actual count.
-            # With the Horvitz-Thompson estimator w = 1/(1-exp(-S/R)), the weight
-            # is deterministic for a given allocation size. For our allocations
-            # (size much greater than R), w ~= 1, so the sum should be very close to num_objects.
-            # We allow some slack (not all 500 may be sampled if
-            # an allocation lands exactly on a boundary, and bytearray allocations skew the count higher)
-            assert total_heap_live_count > 0, "heap-live-samples aggregate should be > 0"
-            ratio = total_heap_live_count / num_objects
-            assert 1 <= ratio <= 2, (
-                f"heap-live-samples aggregate ({total_heap_live_count}) should be within 2x of "
-                f"actual count ({num_objects}), got ratio={ratio:.2f}"
-            )
+        # The aggregate should be close to the actual count.
+        # With the Horvitz-Thompson estimator w = 1/(1-exp(-S/R)), the weight
+        # is deterministic for a given allocation size. For our allocations
+        # (size much greater than R), w ~= 1, so the sum should be very close to num_objects.
+        # We allow some slack (not all 500 may be sampled if
+        # an allocation lands exactly on a boundary, and bytearray allocations skew the count higher)
+        assert total_heap_live_count > 0, "heap-live-samples aggregate should be > 0"
+        ratio = total_heap_live_count / num_objects
+        assert 1 <= ratio <= 2, (
+            f"heap-live-samples aggregate ({total_heap_live_count}) should be within 2x of "
+            f"actual count ({num_objects}), got ratio={ratio:.2f}"
+        )
 
-            del live_objects
+        del live_objects
 
 
 @pytest.mark.subprocess(err=None)
@@ -1005,32 +986,32 @@ def test_memory_collector_exception_handling() -> None:
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_exception_handling"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=256)
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
 
-        with pytest.raises(ValueError):
-            with mc:
-                _allocate_1k()
-                mc.snapshot()
-                ddup.upload()
-                profile = pprof_utils.get_profile_from_agent(agent_client)
-                assert profile is not None
-                agent_client.clear()
-                raise ValueError("Test exception")
-
-        with mc:  # type: ignore[unreachable]
+    with pytest.raises(ValueError):
+        with mc:
             _allocate_1k()
             mc.snapshot()
             ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+            profile = pprof_utils.get_profile_from_agent()
             assert profile is not None
+            from tests.profiling.utils import clear_agent_session
+
+            clear_agent_session()
+            raise ValueError("Test exception")
+
+    with mc:  # type: ignore[unreachable]
+        _allocate_1k()
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
+        assert profile is not None
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1"))
@@ -1094,96 +1075,94 @@ def test_memory_collector_buffer_pool_exhaustion() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _create_allocation
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_buffer_pool_exhaustion"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=64)
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
 
-        # Store reference to nested function for later qualname access
-        deep_alloc_func = None
+    # Store reference to nested function for later qualname access
+    deep_alloc_func = None
 
-        num_threads = 10
-        thread_ids: set[int] = set()
-        thread_ids_lock = threading.Lock()
+    num_threads = 10
+    thread_ids: set[int] = set()
+    thread_ids_lock = threading.Lock()
 
-        with mc:
-            threads: list[threading.Thread] = []
-            barrier = threading.Barrier(num_threads)
+    with mc:
+        threads: list[threading.Thread] = []
+        barrier = threading.Barrier(num_threads)
 
-            def allocate_with_traceback() -> None:
-                # Record this thread's ID before waiting
-                with thread_ids_lock:
-                    thread_ids.add(threading.current_thread().ident)  # type: ignore[arg-type]
-                barrier.wait()
+        def allocate_with_traceback() -> None:
+            # Record this thread's ID before waiting
+            with thread_ids_lock:
+                thread_ids.add(threading.current_thread().ident)  # type: ignore[arg-type]
+            barrier.wait()
 
-                def deep_alloc(depth: int) -> Union[tuple[None, ...], bytearray]:
-                    if depth == 0:
-                        return _create_allocation(100)
-                    return deep_alloc(depth - 1)
+            def deep_alloc(depth: int) -> Union[tuple[None, ...], bytearray]:
+                if depth == 0:
+                    return _create_allocation(100)
+                return deep_alloc(depth - 1)
 
-                # Capture reference to deep_alloc for later use
-                nonlocal deep_alloc_func
-                deep_alloc_func = deep_alloc
-                # Multiple allocations per thread to make sampling more reliable
-                for _ in range(5):
-                    data = deep_alloc(50)
-                    del data
+            # Capture reference to deep_alloc for later use
+            nonlocal deep_alloc_func
+            deep_alloc_func = deep_alloc
+            # Multiple allocations per thread to make sampling more reliable
+            for _ in range(5):
+                data = deep_alloc(50)
+                del data
 
-            for _ in range(num_threads):
-                t = threading.Thread(target=allocate_with_traceback)
-                threads.append(t)
-                t.start()
+        for _ in range(num_threads):
+            t = threading.Thread(target=allocate_with_traceback)
+            threads.append(t)
+            t.start()
 
-            for t in threads:
-                t.join()
+        for t in threads:
+            t.join()
 
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
-            # Get sample type indices
-            alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
-            assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
+        # Get sample type indices
+        alloc_count_idx = pprof_utils.get_sample_type_index(profile, "alloc-samples")
+        assert alloc_count_idx >= 0, "alloc-samples sample type not found in profile"
 
-            deep_alloc_total_count = 0
-            max_stack_depth = 0
-            sampled_thread_ids: set[int] = set()
+        deep_alloc_total_count = 0
+        max_stack_depth = 0
+        sampled_thread_ids: set[int] = set()
 
-            for sample in profile.sample:
-                # Buffer pool test: All samples should have stack frames
-                assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
-                stack_depth = len(sample.location_id)
-                max_stack_depth = max(max_stack_depth, stack_depth)
+        for sample in profile.sample:
+            # Buffer pool test: All samples should have stack frames
+            assert len(sample.location_id) > 0, "Buffer pool test: All samples should have stack frames"
+            stack_depth = len(sample.location_id)
+            max_stack_depth = max(max_stack_depth, stack_depth)
 
-                if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
-                    # Samples with identical stack traces are merged in pprof profiles,
-                    # so we need to sum the alloc-samples count value
-                    deep_alloc_total_count += sample.value[alloc_count_idx]
-                    # Track which threads got sampled
-                    thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
-                    if thread_id_label is not None:
-                        sampled_thread_ids.add(thread_id_label.num)
+            if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
+                # Samples with identical stack traces are merged in pprof profiles,
+                # so we need to sum the alloc-samples count value
+                deep_alloc_total_count += sample.value[alloc_count_idx]
+                # Track which threads got sampled
+                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+                if thread_id_label is not None:
+                    sampled_thread_ids.add(thread_id_label.num)
 
-            assert deep_alloc_total_count >= 10, (
-                f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
-            )
+        assert deep_alloc_total_count >= 10, (
+            f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        )
 
-            # Verify we got samples from all threads
-            assert sampled_thread_ids == thread_ids, (
-                f"Buffer pool test: Expected samples from all {num_threads} threads, "
-                f"but only got samples from {len(sampled_thread_ids)} threads. "
-                f"Missing: {thread_ids - sampled_thread_ids}"
-            )
+        # Verify we got samples from all threads
+        assert sampled_thread_ids == thread_ids, (
+            f"Buffer pool test: Expected samples from all {num_threads} threads, "
+            f"but only got samples from {len(sampled_thread_ids)} threads. "
+            f"Missing: {thread_ids - sampled_thread_ids}"
+        )
 
-            assert max_stack_depth >= 50, (
-                f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
-                f"but max depth was only {max_stack_depth}"
-            )
+        assert max_stack_depth >= 50, (
+            f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
+            f"but max depth was only {max_stack_depth}"
+        )
 
 
 @pytest.mark.subprocess(err=None)
@@ -1198,57 +1177,55 @@ def test_memory_collector_thread_lifecycle() -> None:
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import has_function_in_profile_sample
-    from tests.profiling.utils import with_profiling_test_agent
 
     PY_314_OR_ABOVE = sys.version_info[:2] >= (3, 14)
 
     test_name = "test_memory_collector_thread_lifecycle"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc = memalloc.MemoryCollector(heap_sample_size=8)
+    mc = memalloc.MemoryCollector(heap_sample_size=8)
 
-        with mc:
-            threads: list[threading.Thread] = []
+    with mc:
+        threads: list[threading.Thread] = []
 
-            def worker():
-                for i in range(10):
-                    # On Python 3.14+, increase the allocation size to more reliably
-                    # trigger sampling. The CPython internal could have optimized
-                    # small allocations, and/or allocations that are deallocated too
-                    # quickly.
-                    if PY_314_OR_ABOVE:
-                        data = [i] * 10000000
-                    else:
-                        data = [i] * 100
-                    del data
+        def worker():
+            for i in range(10):
+                # On Python 3.14+, increase the allocation size to more reliably
+                # trigger sampling. The CPython internal could have optimized
+                # small allocations, and/or allocations that are deallocated too
+                # quickly.
+                if PY_314_OR_ABOVE:
+                    data = [i] * 10000000
+                else:
+                    data = [i] * 100
+                del data
 
-            for i in range(20):
-                t = threading.Thread(target=worker)
-                t.start()
-                threads.append(t)
+        for i in range(20):
+            t = threading.Thread(target=worker)
+            t.start()
+            threads.append(t)
 
-                if i > 5:
-                    old_thread = threads.pop(0)
-                    old_thread.join()
+            if i > 5:
+                old_thread = threads.pop(0)
+                old_thread.join()
 
-            for t in threads:
-                t.join()
+        for t in threads:
+            t.join()
 
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
-            worker_samples = 0
-            for sample in profile.sample:
-                if has_function_in_profile_sample(profile, sample, worker):
-                    worker_samples += 1
+        worker_samples = 0
+        for sample in profile.sample:
+            if has_function_in_profile_sample(profile, sample, worker):
+                worker_samples += 1
 
-            assert worker_samples > 0, (
-                "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
-            )
+        assert worker_samples > 0, (
+            "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+        )
 
 
 def test_start_twice() -> None:
@@ -1375,50 +1352,49 @@ def test_no_duplicate_dropped_frames_indicator() -> None:
     from ddtrace.internal.settings.profiling import config
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_no_duplicate_dropped_frames_indicator"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        # Stack depth that should exceed max_nframes to trigger frame dropping
-        DEEP_STACK_DEPTH = 100
+    # Stack depth that should exceed max_nframes to trigger frame dropping
+    DEEP_STACK_DEPTH = 100
 
-        # Verify that max_nframes is less than our deep stack depth
-        # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
-        assert config.max_frames < DEEP_STACK_DEPTH, (
-            f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames})"
-            f" < {DEEP_STACK_DEPTH} to trigger frame dropping"
-        )
+    # Verify that max_nframes is less than our deep stack depth
+    # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
+    assert config.max_frames < DEEP_STACK_DEPTH, (
+        f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames}) < {DEEP_STACK_DEPTH} to trigger frame dropping"
+    )
 
-        # Create a very deep call stack to trigger frame dropping
-        def make_deep_stack(depth: int):
-            """Recursively creates a call stack of given depth."""
-            if depth == 0:
-                # Allocate at the leaf to create a sample
-                return [object() for _ in range(100)]
-            return make_deep_stack(depth - 1)
+    # Create a very deep call stack to trigger frame dropping
+    def make_deep_stack(depth: int):
+        """Recursively creates a call stack of given depth."""
+        if depth == 0:
+            # Allocate at the leaf to create a sample
+            return [object() for _ in range(100)]
+        return make_deep_stack(depth - 1)
 
-        mc = memalloc.MemoryCollector(heap_sample_size=64)
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
 
-        # Keep allocated objects alive throughout both snapshots
-        junk = []
+    # Keep allocated objects alive throughout both snapshots
+    junk = []
 
-        with mc:
-            # Create allocations from a deep stack to trigger frame dropping
-            for _ in range(10):
-                junk.append(make_deep_stack(DEEP_STACK_DEPTH))
+    with mc:
+        # Create allocations from a deep stack to trigger frame dropping
+        for _ in range(10):
+            junk.append(make_deep_stack(DEEP_STACK_DEPTH))
 
-            # Call snapshot twice in a row to potentially export the same sample multiple times
-            # The objects in junk remain alive, so the samples persist across both exports
-            mc.snapshot()
-            ddup.upload()
-            agent_client.clear()
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        # Call snapshot twice in a row to potentially export the same sample multiple times
+        # The objects in junk remain alive, so the samples persist across both exports
+        mc.snapshot()
+        ddup.upload()
+        from tests.profiling.utils import clear_agent_session
+
+        clear_agent_session()
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
     # Check each sample for duplicate dropped frames indicators
     for sample_idx, sample in enumerate(profile.sample):
@@ -1458,36 +1434,34 @@ def test_memory_collector_stack_order() -> None:
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _create_allocation
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_memory_collector_stack_order"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        # Define nested functions to create a known call stack
-        def outer_frame() -> Union[tuple[None, ...], bytearray]:
-            return middle_frame()
+    # Define nested functions to create a known call stack
+    def outer_frame() -> Union[tuple[None, ...], bytearray]:
+        return middle_frame()
 
-        def middle_frame() -> Union[tuple[None, ...], bytearray]:
-            return inner_frame()
+    def middle_frame() -> Union[tuple[None, ...], bytearray]:
+        return inner_frame()
 
-        def inner_frame() -> Union[tuple[None, ...], bytearray]:
-            # This is the leaf frame where the actual allocation happens
-            return _create_allocation(256)
+    def inner_frame() -> Union[tuple[None, ...], bytearray]:
+        # This is the leaf frame where the actual allocation happens
+        return _create_allocation(256)
 
-        mc = memalloc.MemoryCollector(heap_sample_size=64)
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
 
-        with mc:
-            # Create allocations with our known call stack
-            data = []
-            for _ in range(20):
-                data.append(outer_frame())
+    with mc:
+        # Create allocations with our known call stack
+        data = []
+        for _ in range(20):
+            data.append(outer_frame())
 
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
 
     # Get samples with alloc-space > 0
     alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
@@ -1632,23 +1606,21 @@ def test_mem_domain_allocations_appear_in_heap_samples() -> None:
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _make_mem_domain_object
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_mem_domain_heap_samples"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        # 512 KB sampling interval; 16 MB allocation → expected ~32 samples.
-        mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
-        obj: object
-        with mc:
-            obj = _make_mem_domain_object(16 * 1024 * 1024)
-            mc.snapshot()
+    # 512 KB sampling interval; 16 MB allocation → expected ~32 samples.
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+    obj: object
+    with mc:
+        obj = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, (
@@ -1670,22 +1642,20 @@ def test_bytearray_tracked_on_py313() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_bytearray_tracked_py313"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
-        ba: bytearray
-        with mc:
-            ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13+)
-            mc.snapshot()
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+    ba: bytearray
+    with mc:
+        ba = bytearray(8 * 1024 * 1024)  # 8 MB via PyMem_Malloc (MEM domain, 3.13+)
+        mc.snapshot()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, (
@@ -1709,34 +1679,34 @@ def test_mem_domain_free_untracks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _count_heap_samples_with_function
     from tests.profiling.collector.test_memalloc import _make_mem_domain_object
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_mem_domain_free_untracks"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=512 * 1024, mem_domain_enabled=True)
 
-        samples_after_alloc: int
-        samples_after_free: int
+    samples_after_alloc: int
+    samples_after_free: int
 
-        with mc:
-            obj: object = _make_mem_domain_object(16 * 1024 * 1024)
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
-            heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
-            samples_after_alloc = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+    with mc:
+        obj: object = _make_mem_domain_object(16 * 1024 * 1024)
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_alloc = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
-            del obj
-            agent_client.clear()
-            mc.snapshot()
-            ddup.upload()
-            profile = pprof_utils.get_profile_from_agent(agent_client)
-            heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
-            samples_after_free = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
+        del obj
+        from tests.profiling.utils import clear_agent_session
+
+        clear_agent_session()
+        mc.snapshot()
+        ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
+        heap_samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
+        samples_after_free = _count_heap_samples_with_function(profile, heap_samples, "_make_mem_domain_object")
 
     assert samples_after_alloc > 0, "Expected heap-space samples attributed to _make_mem_domain_object after alloc"
     assert samples_after_free < samples_after_alloc, (
@@ -1752,23 +1722,21 @@ def test_mem_domain_realloc_retracks() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_mem_domain_realloc"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
-        lst: list[None]
-        with mc:
-            lst = []
-            for _ in range(200_000):  # repeated appends trigger ob_item reallocs
-                lst.append(None)
-            mc.snapshot()
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
+    lst: list[None]
+    with mc:
+        lst = []
+        for _ in range(200_000):  # repeated appends trigger ob_item reallocs
+            lst.append(None)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "heap tracker must not be corrupted by repeated MEM reallocs"
@@ -1782,23 +1750,21 @@ def test_obj_and_mem_domain_coexist() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_obj_mem_coexist"
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(service=test_name, version="test", env="test")
-        ddup.start()
+    ddup.config(service=test_name, version="test", env="test")
+    ddup.start()
 
-        mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
-        d: dict[int, int]
-        lst: list[None]
-        with mc:
-            d = {i: i for i in range(50_000)}  # OBJ domain
-            lst = [None] * 200_000  # MEM domain (ob_item)
-            mc.snapshot()
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=256 * 1024, mem_domain_enabled=True)
+    d: dict[int, int]
+    lst: list[None]
+    with mc:
+        d = {i: i for i in range(50_000)}  # OBJ domain
+        lst = [None] * 200_000  # MEM domain (ob_item)
+        mc.snapshot()
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0, "OBJ + MEM coexistence test: expected heap-space samples"

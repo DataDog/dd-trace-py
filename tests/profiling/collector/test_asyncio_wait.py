@@ -14,91 +14,89 @@ def test_asyncio_wait() -> None:
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import async_run
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
-    with with_profiling_test_agent() as agent_client:
-        sleep_time = 0.2
-        loop_run_time = 3
+    sleep_time = 0.2
+    loop_run_time = 3
 
-        async def inner1() -> None:
-            start_time = time.time()
-            while time.time() < start_time + loop_run_time:
-                await asyncio.sleep(sleep_time)
+    async def inner1() -> None:
+        start_time = time.time()
+        while time.time() < start_time + loop_run_time:
+            await asyncio.sleep(sleep_time)
 
-        async def inner2() -> None:
-            start_time = time.time()
-            while time.time() < start_time + loop_run_time:
-                await asyncio.sleep(sleep_time)
+    async def inner2() -> None:
+        start_time = time.time()
+        while time.time() < start_time + loop_run_time:
+            await asyncio.sleep(sleep_time)
 
-        async def outer() -> None:
-            t1 = asyncio.create_task(inner1(), name="inner 1")
-            t2 = asyncio.create_task(inner2(), name="inner 2")
-            await asyncio.wait(fs=(t1, t2), return_when=asyncio.ALL_COMPLETED)
+    async def outer() -> None:
+        t1 = asyncio.create_task(inner1(), name="inner 1")
+        t2 = asyncio.create_task(inner2(), name="inner 2")
+        await asyncio.wait(fs=(t1, t2), return_when=asyncio.ALL_COMPLETED)
 
-        resource = str(uuid.uuid4())
-        span_type = ext.SpanTypes.WEB
+    resource = str(uuid.uuid4())
+    span_type = ext.SpanTypes.WEB
 
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
-        with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
+        span_id = span.span_id
+        local_root_span_id = span._local_root.span_id
 
-            async_run(outer())
+        async_run(outer())
 
-        p.stop()
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
-        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-        assert len(samples) > 0
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="inner 1",
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner1",
-                        filename="test_asyncio_wait.py",
-                        line_no=inner1.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_wait.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="inner 1",
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="inner1",
+                    filename="test_asyncio_wait.py",
+                    line_no=inner1.__code__.co_firstlineno + 3,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="outer",
+                    filename="test_asyncio_wait.py",
+                    line_no=outer.__code__.co_firstlineno + 3,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="inner 2",
-                span_id=span_id,
-                local_root_span_id=local_root_span_id,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="inner2",
-                        filename="test_asyncio_wait.py",
-                        line_no=inner2.__code__.co_firstlineno + 3,
-                    ),
-                    pprof_utils.StackLocation(
-                        function_name="outer",
-                        filename="test_asyncio_wait.py",
-                        line_no=outer.__code__.co_firstlineno + 3,
-                    ),
-                ],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="inner 2",
+            span_id=span_id,
+            local_root_span_id=local_root_span_id,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="inner2",
+                    filename="test_asyncio_wait.py",
+                    line_no=inner2.__code__.co_firstlineno + 3,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="outer",
+                    filename="test_asyncio_wait.py",
+                    line_no=outer.__code__.co_firstlineno + 3,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

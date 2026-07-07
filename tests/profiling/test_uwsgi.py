@@ -36,7 +36,6 @@ from ddtrace.profiling import profiler
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
 from tests.profiling.utils import get_all_profiles_from_agent
-from tests.profiling.utils import with_profiling_test_agent
 
 
 # uwsgi is not available on Windows
@@ -181,14 +180,13 @@ def test_uwsgi_threads_enabled(uwsgi: Callable[..., subprocess.Popen[bytes]], mo
     - After running for a few seconds, the profiler collects wall-time samples
     - The profile is received by the test agent with wall-time samples
     """
-    with with_profiling_test_agent() as agent_client:
-        proc = uwsgi("--enable-threads")
-        _get_worker_pids(proc.stdout, 1)
-        # Give some time to the process to actually startup
-        time.sleep(3)
-        proc.terminate()
-        assert proc.wait() == 30
-        profiles = get_all_profiles_from_agent(agent_client)
+    proc = uwsgi("--enable-threads")
+    _get_worker_pids(proc.stdout, 1)
+    # Give some time to the process to actually startup
+    time.sleep(3)
+    proc.terminate()
+    assert proc.wait() == 30
+    profiles = get_all_profiles_from_agent()
     assert len(profiles) >= 1, f"Expected at least 1 profiling upload, got {len(profiles)}"
     for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -267,14 +265,13 @@ def test_uwsgi_threads_processes_primary(
     - Each worker independently collects wall-time samples
     - Profiles are received by the test agent with wall-time samples
     """
-    with with_profiling_test_agent() as agent_client:
-        proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
-        _get_worker_pids(proc.stdout, 2)
-        # Give some time to child to actually startup
-        time.sleep(3)
-        proc.terminate()
-        assert proc.wait() == 0
-        profiles = get_all_profiles_from_agent(agent_client)
+    proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
+    _get_worker_pids(proc.stdout, 2)
+    # Give some time to child to actually startup
+    time.sleep(3)
+    proc.terminate()
+    assert proc.wait() == 0
+    profiles = get_all_profiles_from_agent()
     assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
     for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -299,16 +296,15 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     """
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    with with_profiling_test_agent() as agent_client:
-        # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
-        # the child process exits.
-        proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
-        _get_worker_pids(proc.stdout, 2, 2)
-        # Give some time to child to actually startup and output a profile
-        time.sleep(3)
-        proc.terminate()
-        assert proc.wait() == 0
-        profiles = get_all_profiles_from_agent(agent_client)
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
+    _get_worker_pids(proc.stdout, 2, 2)
+    # Give some time to child to actually startup and output a profile
+    time.sleep(3)
+    proc.terminate()
+    assert proc.wait() == 0
+    profiles = get_all_profiles_from_agent()
     assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
     for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
@@ -336,38 +332,37 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
     """
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    with with_profiling_test_agent() as agent_client:
-        # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
-        # the child process exits.
-        proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
-        worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-        assert len(worker_pids) == 2
+    # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
+    # the child process exits.
+    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps", "--skip-atexit")
+    worker_pids = _get_worker_pids(proc.stdout, 2, 2)
+    assert len(worker_pids) == 2
 
-        # Give some time to child to actually startup before terminating the master
-        time.sleep(3)
+    # Give some time to child to actually startup before terminating the master
+    time.sleep(3)
 
-        # Kill master process
-        parent_pid: int = worker_pids[0]
-        os.kill(parent_pid, signal.SIGTERM)
+    # Kill master process
+    parent_pid: int = worker_pids[0]
+    os.kill(parent_pid, signal.SIGTERM)
 
-        # Wait for master to exit
-        res_pid, res_status = os.waitpid(parent_pid, 0)
-        print("")
-        print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
+    # Wait for master to exit
+    res_pid, res_status = os.waitpid(parent_pid, 0)
+    print("")
+    print(f"INFO: Master process {parent_pid} exited with status {res_status} and pid {res_pid}")
 
-        # Attempt to kill worker proc once
-        worker_pid: int = worker_pids[1]
-        print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
-        try:
-            os.kill(worker_pid, 0)
-            print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
+    # Attempt to kill worker proc once
+    worker_pid: int = worker_pids[1]
+    print(f"DEBUG: Checking worker {worker_pid} status after master exit:")
+    try:
+        os.kill(worker_pid, 0)
+        print(f"WARNING: Worker {worker_pid} is a zombie (will be cleaned up by init).")
 
-            os.kill(worker_pid, signal.SIGKILL)
-            print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
-        except OSError:
-            print(f"INFO: Worker {worker_pid} was successfully killed.")
+        os.kill(worker_pid, signal.SIGKILL)
+        print(f"WARNING: Worker {worker_pid} could not be killed with SIGKILL (will be cleaned up by init).")
+    except OSError:
+        print(f"INFO: Worker {worker_pid} was successfully killed.")
 
-        profiles = get_all_profiles_from_agent(agent_client)
+    profiles = get_all_profiles_from_agent()
     assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
     for profile in profiles:
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")

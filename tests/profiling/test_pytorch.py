@@ -4,8 +4,7 @@ import sys
 import pytest
 
 from tests.profiling.collector import pprof_utils
-from tests.profiling.utils import get_profile_from_agent
-from tests.profiling.utils import with_profiling_test_agent
+from tests.profiling.collector.pprof_utils import get_profile_from_agent
 from tests.utils import call_program
 
 
@@ -28,12 +27,11 @@ def test_call_script_pytorch_cpu(monkeypatch):
     """
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    with with_profiling_test_agent() as agent_client:
-        _, stderr, exitcode, _ = call_program(
-            "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_cpu.py")
-        )
-        assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
-        profile = get_profile_from_agent(agent_client)
+    _, stderr, exitcode, _ = call_program(
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_cpu.py")
+    )
+    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
+    profile = get_profile_from_agent()
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0, "Expected at least one cpu-time sample"
 
@@ -64,12 +62,11 @@ def test_call_script_pytorch_gpu(monkeypatch):
 
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_PYTORCH_ENABLED", "1")
-    with with_profiling_test_agent() as agent_client:
-        _, stderr, exitcode, _ = call_program(
-            "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
-        )
-        assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
-        profile = get_profile_from_agent(agent_client)
+    _, stderr, exitcode, _ = call_program(
+        "ddtrace-run", sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_pytorch_gpu.py")
+    )
+    assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
+    profile = get_profile_from_agent()
     samples = pprof_utils.get_samples_with_value_type(profile, "gpu-time")
     assert len(samples) > 0
     print("number of gpu time samples: ", len(samples))

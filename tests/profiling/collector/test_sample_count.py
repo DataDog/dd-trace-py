@@ -11,7 +11,6 @@ def test_sample_count():
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
     sleep_time = 0.2
     loop_run_time = 2
@@ -32,17 +31,16 @@ def test_sample_count():
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
-        with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            maintask = loop.create_task(hello(), name="main")
-            loop.run_until_complete(maintask)
-        p.stop()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        maintask = loop.create_task(hello(), name="main")
+        loop.run_until_complete(maintask)
+    p.stop()
 
-        files = get_all_metadata_from_agent(agent_client, min_count=1)
+    files = get_all_metadata_from_agent(min_count=1)
 
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, internal_metadata in enumerate(files):

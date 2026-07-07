@@ -13,39 +13,37 @@ def test_heap_tracker_count_present():
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
 
-        time.sleep(0.3)
+    time.sleep(0.3)
 
-        # Allocate objects after the profiler starts so the heap tracker sees them.
-        # With DD_PROFILING_HEAP_SAMPLE_SIZE=64, even small allocations trigger samples.
-        held = [bytearray(1024) for _ in range(100)]
+    # Allocate objects after the profiler starts so the heap tracker sees them.
+    # With DD_PROFILING_HEAP_SAMPLE_SIZE=64, even small allocations trigger samples.
+    held = [bytearray(1024) for _ in range(100)]
 
-        time.sleep(0.3)
+    time.sleep(0.3)
 
-        p.stop()
+    p.stop()
 
-        files = get_all_metadata_from_agent(agent_client, min_count=1)
-        assert files, "Expected at least one metadata upload"
+    files = get_all_metadata_from_agent(min_count=1)
+    assert files, "Expected at least one metadata upload"
 
-        for metadata in files:
-            assert "heap_tracker_count" in metadata, f"Missing heap_tracker_count in metadata: {metadata}"
-            assert isinstance(metadata["heap_tracker_count"], int), f"heap_tracker_count must be an integer: {metadata}"
-            assert metadata["heap_tracker_count"] >= 0, f"heap_tracker_count must be non-negative: {metadata}"
-            assert "heap_tracker_cap_drops" in metadata, f"Missing heap_tracker_cap_drops in metadata: {metadata}"
-            assert isinstance(metadata["heap_tracker_cap_drops"], int), (
-                f"heap_tracker_cap_drops must be an integer: {metadata}"
-            )
+    for metadata in files:
+        assert "heap_tracker_count" in metadata, f"Missing heap_tracker_count in metadata: {metadata}"
+        assert isinstance(metadata["heap_tracker_count"], int), f"heap_tracker_count must be an integer: {metadata}"
+        assert metadata["heap_tracker_count"] >= 0, f"heap_tracker_count must be non-negative: {metadata}"
+        assert "heap_tracker_cap_drops" in metadata, f"Missing heap_tracker_cap_drops in metadata: {metadata}"
+        assert isinstance(metadata["heap_tracker_cap_drops"], int), (
+            f"heap_tracker_cap_drops must be an integer: {metadata}"
+        )
 
-        # The last file may be a partial flush, so check the penultimate one has tracked allocations
-        if len(files) >= 2:
-            metadata = files[-2]
-            assert metadata["heap_tracker_count"] > 0, (
-                f"Expected heap_tracker_count > 0 in penultimate metadata, got {metadata}. held={len(held)}"
-            )
+    # The last file may be a partial flush, so check the penultimate one has tracked allocations
+    if len(files) >= 2:
+        metadata = files[-2]
+        assert metadata["heap_tracker_count"] > 0, (
+            f"Expected heap_tracker_count > 0 in penultimate metadata, got {metadata}. held={len(held)}"
+        )
 
     del held

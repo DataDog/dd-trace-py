@@ -194,7 +194,6 @@ def test_asyncio_lock_lock_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -205,15 +204,14 @@ def test_asyncio_lock_lock_events() -> None:
         lock.release()  # !RELEASE! asyncio_test_lock_events
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_lock_lock_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_asyncio_lock_lock_events", version="my_version")
+    ddup.start()
 
-        with AsyncioLockCollector(capture_pct=100):
-            asyncio.run(test_lock_events())
+    with AsyncioLockCollector(capture_pct=100):
+        asyncio.run(test_lock_events())
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("asyncio_test_lock_events")
     expected_thread_id = _thread.get_ident()
@@ -251,7 +249,6 @@ def test_asyncio_semaphore_lock_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -262,15 +259,14 @@ def test_asyncio_semaphore_lock_events() -> None:
         lock.release()  # !RELEASE! asyncio_semaphore_lock_events
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_semaphore_lock_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_asyncio_semaphore_lock_events", version="my_version")
+    ddup.start()
 
-        with AsyncioSemaphoreCollector(capture_pct=100):
-            asyncio.run(test_lock_events())
+    with AsyncioSemaphoreCollector(capture_pct=100):
+        asyncio.run(test_lock_events())
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("asyncio_semaphore_lock_events")
     expected_thread_id = _thread.get_ident()
@@ -308,7 +304,6 @@ def test_asyncio_bounded_semaphore_lock_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -319,15 +314,14 @@ def test_asyncio_bounded_semaphore_lock_events() -> None:
         lock.release()  # !RELEASE! asyncio_bounded_semaphore_lock_events
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_bounded_semaphore_lock_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_asyncio_bounded_semaphore_lock_events", version="my_version")
+    ddup.start()
 
-        with AsyncioBoundedSemaphoreCollector(capture_pct=100):
-            asyncio.run(test_lock_events())
+    with AsyncioBoundedSemaphoreCollector(capture_pct=100):
+        asyncio.run(test_lock_events())
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("asyncio_bounded_semaphore_lock_events")
     expected_thread_id = _thread.get_ident()
@@ -365,7 +359,6 @@ def test_asyncio_condition_lock_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -376,15 +369,14 @@ def test_asyncio_condition_lock_events() -> None:
         lock.release()  # !RELEASE! asyncio_condition_lock_events
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_condition_lock_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_asyncio_condition_lock_events", version="my_version")
+    ddup.start()
 
-        with AsyncioConditionCollector(capture_pct=100):
-            asyncio.run(test_lock_events())
+    with AsyncioConditionCollector(capture_pct=100):
+        asyncio.run(test_lock_events())
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("asyncio_condition_lock_events")
     expected_thread_id = _thread.get_ident()
@@ -425,7 +417,6 @@ def test_asyncio_lock_lock_events_tracer() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -452,12 +443,11 @@ def test_asyncio_lock_lock_events_tracer() -> None:
         return span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_lock_lock_events_tracer", version="my_version")
-        ddup.start()
-        span_id = asyncio.run(test_lock_events_tracer())
-        ddup.upload(tracer=tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_asyncio_lock_lock_events_tracer", version="my_version")
+    ddup.start()
+    span_id = asyncio.run(test_lock_events_tracer())
+    ddup.upload(tracer=tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_1 = get_lock_linenos("asyncio_lock_events_tracer_1")
     linenos_2 = get_lock_linenos("asyncio_lock_events_tracer_2")
@@ -535,7 +525,6 @@ def test_asyncio_semaphore_lock_events_tracer() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -562,12 +551,11 @@ def test_asyncio_semaphore_lock_events_tracer() -> None:
         return span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_semaphore_lock_events_tracer", version="my_version")
-        ddup.start()
-        span_id = asyncio.run(test_lock_events_tracer())
-        ddup.upload(tracer=tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_asyncio_semaphore_lock_events_tracer", version="my_version")
+    ddup.start()
+    span_id = asyncio.run(test_lock_events_tracer())
+    ddup.upload(tracer=tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_1 = get_lock_linenos("asyncio_semaphore_events_tracer_1")
     linenos_2 = get_lock_linenos("asyncio_semaphore_events_tracer_2")
@@ -645,7 +633,6 @@ def test_asyncio_bounded_semaphore_lock_events_tracer() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -672,12 +659,11 @@ def test_asyncio_bounded_semaphore_lock_events_tracer() -> None:
         return span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_bounded_semaphore_lock_events_tracer", version="my_version")
-        ddup.start()
-        span_id = asyncio.run(test_lock_events_tracer())
-        ddup.upload(tracer=tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_asyncio_bounded_semaphore_lock_events_tracer", version="my_version")
+    ddup.start()
+    span_id = asyncio.run(test_lock_events_tracer())
+    ddup.upload(tracer=tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_1 = get_lock_linenos("asyncio_bsem_events_tracer_1")
     linenos_2 = get_lock_linenos("asyncio_bsem_events_tracer_2")
@@ -755,7 +741,6 @@ def test_asyncio_condition_lock_events_tracer() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -782,12 +767,11 @@ def test_asyncio_condition_lock_events_tracer() -> None:
         return span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_asyncio_condition_lock_events_tracer", version="my_version")
-        ddup.start()
-        span_id = asyncio.run(test_lock_events_tracer())
-        ddup.upload(tracer=tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_asyncio_condition_lock_events_tracer", version="my_version")
+    ddup.start()
+    span_id = asyncio.run(test_lock_events_tracer())
+    ddup.upload(tracer=tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_1 = get_lock_linenos("asyncio_condition_events_tracer_1")
     linenos_2 = get_lock_linenos("asyncio_condition_events_tracer_2")

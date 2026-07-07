@@ -7,8 +7,7 @@ import pytest
 
 from tests.profiling.collector import lock_utils
 from tests.profiling.collector import pprof_utils
-from tests.profiling.utils import get_profile_from_agent
-from tests.profiling.utils import with_profiling_test_agent
+from tests.profiling.collector.pprof_utils import get_profile_from_agent
 from tests.utils import call_program
 
 
@@ -43,22 +42,21 @@ def test_call_script_pprof_output() -> None:
 
     The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
     """
-    with with_profiling_test_agent() as agent_client:
-        env = os.environ.copy()
-        env["DD_PROFILING_CAPTURE_PCT"] = "100"
-        env["DD_PROFILING_ENABLED"] = "1"
-        stdout, stderr, exitcode, _ = call_program(
-            "ddtrace-run",
-            sys.executable,
-            os.path.join(os.path.dirname(__file__), "simple_program.py"),
-            env=env,
-        )
-        if sys.platform == "win32":
-            assert exitcode == 0, (stdout, stderr)
-        else:
-            assert exitcode == 42, (stdout, stderr)
+    env = os.environ.copy()
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    env["DD_PROFILING_ENABLED"] = "1"
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "simple_program.py"),
+        env=env,
+    )
+    if sys.platform == "win32":
+        assert exitcode == 0, (stdout, stderr)
+    else:
+        assert exitcode == 42, (stdout, stderr)
 
-        profile = get_profile_from_agent(agent_client)
+    profile = get_profile_from_agent()
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
@@ -108,14 +106,13 @@ def test_fork() -> None:
         ),
     ]
 
-    with with_profiling_test_agent() as agent_client:
-        env = os.environ.copy()
-        env["DD_PROFILING_CAPTURE_PCT"] = "100"
-        stdout, stderr, exitcode, pid = call_program(
-            sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
-        )
-        assert exitcode == 0, stderr
-        profiles = get_all_profiles_from_agent(agent_client)
+    env = os.environ.copy()
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
+    )
+    assert exitcode == 0, stderr
+    profiles = get_all_profiles_from_agent()
     assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (parent + child), got {len(profiles)}"
 
     # Identify parent and child profiles by the events they contain:
@@ -190,19 +187,18 @@ methods = multiprocessing.get_all_start_methods()
 def test_multiprocessing(method: str) -> None:
     from tests.profiling.utils import get_all_profiles_from_agent
 
-    with with_profiling_test_agent() as agent_client:
-        env = os.environ.copy()
-        env["DD_PROFILING_ENABLED"] = "1"
-        env["DD_PROFILING_CAPTURE_PCT"] = "100"
-        stdout, stderr, exitcode, _ = call_program(
-            "ddtrace-run",
-            sys.executable,
-            os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
-            method,
-            env=env,
-        )
-        assert exitcode == 0, (stdout, stderr)
-        profiles = get_all_profiles_from_agent(agent_client)
+    env = os.environ.copy()
+    env["DD_PROFILING_ENABLED"] = "1"
+    env["DD_PROFILING_CAPTURE_PCT"] = "100"
+    stdout, stderr, exitcode, _ = call_program(
+        "ddtrace-run",
+        sys.executable,
+        os.path.join(os.path.dirname(__file__), "_test_multiprocessing.py"),
+        method,
+        env=env,
+    )
+    assert exitcode == 0, (stdout, stderr)
+    profiles = get_all_profiles_from_agent()
     # Expect at least 2 profiles: one for the parent process and one for the child
     assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (parent + child), got {len(profiles)}"
     # At least one profile must have cpu-time samples (early/empty flush profiles are allowed)

@@ -9,7 +9,6 @@ def test_asyncio_executor_wall_time() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -42,44 +41,43 @@ def test_asyncio_executor_wall_time() -> None:
     async def main() -> None:
         await asynchronous_function()
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler()
-        p.start()
+    p = profiler.Profiler()
+    p.start()
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
 
-        p.stop()
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
-        task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-        assert len(task_samples) > 0
+    task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(task_samples) > 0
 
-        def loc(f_name: str) -> pprof_utils.StackLocation:
-            return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
+    def loc(f_name: str) -> pprof_utils.StackLocation:
+        return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
 
-        # Thread Pool Executor
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            task_samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
-                task_name="Task-1",
-                locations=list(
-                    reversed(
-                        [
-                            # loc("Task-1"),
-                            loc("main"),
-                            loc("asynchronous_function"),
-                            loc("async_generator"),
-                            loc("async_generator_dep"),
-                            loc("deep_dependency"),
-                            loc("sleep"),
-                        ]
-                    )
-                ),
+    # Thread Pool Executor
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        task_samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name="Task-1",
+            locations=list(
+                reversed(
+                    [
+                        # loc("Task-1"),
+                        loc("main"),
+                        loc("asynchronous_function"),
+                        loc("async_generator"),
+                        loc("async_generator_dep"),
+                        loc("deep_dependency"),
+                        loc("sleep"),
+                    ]
+                )
             ),
-            print_samples_on_failure=True,
-        )
+        ),
+        print_samples_on_failure=True,
+    )

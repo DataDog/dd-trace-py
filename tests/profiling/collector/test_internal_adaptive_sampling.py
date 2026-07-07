@@ -17,7 +17,6 @@ def test_internal_adaptive_sampling():
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
     sleep_time = 0.2
     loop_run_time = 4
@@ -38,17 +37,16 @@ def test_internal_adaptive_sampling():
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
-        with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            main_task = loop.create_task(hello(), name="main")
-            loop.run_until_complete(main_task)
-        p.stop()
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("test_asyncio", resource=resource, span_type=span_type):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        main_task = loop.create_task(hello(), name="main")
+        loop.run_until_complete(main_task)
+    p.stop()
 
-        files = get_all_metadata_from_agent(agent_client, min_count=1)
+    files = get_all_metadata_from_agent(min_count=1)
 
     # With adaptive sampling enabled, the sampling interval can grow up to 1 second
     # (g_max_sampling_period_us). Since the upload interval is also 1 second, the

@@ -16,7 +16,6 @@ def test_lock_acquire_events():
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -35,21 +34,20 @@ def test_lock_acquire_events():
         async_run(_lock())
         lock.release()  # !RELEASE! test_lock_acquire_events_2
 
-    with with_profiling_test_agent() as agent_client:
-        # start a complete profiler so asyncio policy is setup
-        p = profiler.Profiler()
-        p.start()
-        t = threading.Thread(target=asyncio_run_func, name="foobar")
-        t.start()
-        t.join()
-        p.stop()
+    # start a complete profiler so asyncio policy is setup
+    p = profiler.Profiler()
+    p.start()
+    t = threading.Thread(target=asyncio_run_func, name="foobar")
+    t.start()
+    t.join()
+    p.stop()
 
-        expected_filename = "test_threading_asyncio.py"
+    expected_filename = "test_threading_asyncio.py"
 
-        linenos_1 = get_lock_linenos("test_lock_acquire_events_1")
-        linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
+    linenos_1 = get_lock_linenos("test_lock_acquire_events_1")
+    linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
     task_name_regex = r"Task-\d+$"
 

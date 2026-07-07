@@ -8,7 +8,6 @@ def test_asyncio_deadlock() -> None:
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -48,15 +47,14 @@ def test_asyncio_deadlock() -> None:
         except RecursionError:
             pass
 
-    with with_profiling_test_agent():
-        p = profiler.Profiler()
-        p.start()
+    p = profiler.Profiler()
+    p.start()
 
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(main())
-        except RecursionError:
-            pass
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
+    except RecursionError:
+        pass
 
-        p.stop()
+    p.stop()

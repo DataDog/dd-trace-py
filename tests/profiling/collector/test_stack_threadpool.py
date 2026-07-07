@@ -52,7 +52,6 @@ def test_threadpool_worker_with_explicit_child_span() -> None:
     from ddtrace.profiling.collector import stack
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     futures_patch()
     try:
@@ -61,48 +60,47 @@ def test_threadpool_worker_with_explicit_child_span() -> None:
         tracer._endpoint_call_counter_span_processor.enable()
 
         assert ddup.is_available
-        with with_profiling_test_agent() as agent_client:
-            ddup.config(env="test", service=test_name, version="my_version")
-            ddup.start()
-            ddup.upload()
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-            resource = str(uuid.uuid4())
-            span_type = ext.SpanTypes.WEB
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
 
-            child_span_ids: list[int] = []
+        child_span_ids: list[int] = []
 
-            def worker_with_span() -> None:
-                with tracer.trace("worker.query", resource=resource, span_type=span_type) as child_span:
-                    child_span_ids.append(child_span.span_id)
-                    for _ in range(20):
-                        time.sleep(0.1)
+        def worker_with_span() -> None:
+            with tracer.trace("worker.query", resource=resource, span_type=span_type) as child_span:
+                child_span_ids.append(child_span.span_id)
+                for _ in range(20):
+                    time.sleep(0.1)
 
-            with stack.StackCollector(tracer=tracer):
-                with tracer.trace("executing_queries", resource=resource, span_type=span_type) as parent_span:
-                    local_root_span_id = parent_span._local_root.span_id
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        executor.submit(worker_with_span).result()
+        with stack.StackCollector(tracer=tracer):
+            with tracer.trace("executing_queries", resource=resource, span_type=span_type) as parent_span:
+                local_root_span_id = parent_span._local_root.span_id
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    executor.submit(worker_with_span).result()
 
-            ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer)
 
-            assert child_span_ids, "worker_with_span() did not run"
-            child_span_id = child_span_ids[0]
+        assert child_span_ids, "worker_with_span() did not run"
+        child_span_id = child_span_ids[0]
 
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        profile = pprof_utils.get_profile_from_agent()
 
-            all_span_samples = pprof_utils.get_samples_with_label_key(profile, "span id")
-            assert all_span_samples, "Profile has no samples with a 'span id' label — is the StackCollector running?"
+        all_span_samples = pprof_utils.get_samples_with_label_key(profile, "span id")
+        assert all_span_samples, "Profile has no samples with a 'span id' label — is the StackCollector running?"
 
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=all_span_samples,
-                expected_sample=pprof_utils.StackEvent(
-                    span_id=child_span_id,
-                    local_root_span_id=local_root_span_id,
-                    trace_type=span_type,
-                ),
-                print_samples_on_failure=True,
-            )
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=all_span_samples,
+            expected_sample=pprof_utils.StackEvent(
+                span_id=child_span_id,
+                local_root_span_id=local_root_span_id,
+                trace_type=span_type,
+            ),
+            print_samples_on_failure=True,
+        )
     finally:
         futures_unpatch()
 
@@ -123,7 +121,6 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler() -> None:
     from ddtrace.profiling.collector import stack
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     def _get_threadpool_samples(profile):
         result = []
@@ -140,48 +137,47 @@ def test_threadpool_worker_context_propagated_not_linked_to_profiler() -> None:
         tracer._endpoint_call_counter_span_processor.enable()
 
         assert ddup.is_available
-        with with_profiling_test_agent() as agent_client:
-            ddup.config(env="test", service=test_name, version="my_version")
-            ddup.start()
-            ddup.upload()
+        ddup.config(env="test", service=test_name, version="my_version")
+        ddup.start()
+        ddup.upload()
 
-            resource = str(uuid.uuid4())
-            span_type = ext.SpanTypes.WEB
+        resource = str(uuid.uuid4())
+        span_type = ext.SpanTypes.WEB
 
-            def worker_context_only() -> None:
-                for _ in range(20):
-                    time.sleep(0.1)
+        def worker_context_only() -> None:
+            for _ in range(20):
+                time.sleep(0.1)
 
-            with stack.StackCollector(tracer=tracer):
-                with tracer.trace("executing_queries", resource=resource, span_type=span_type) as parent_span:
-                    parent_span_id = parent_span.span_id
-                    local_root_span_id = parent_span._local_root.span_id
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        executor.submit(worker_context_only).result()
+        with stack.StackCollector(tracer=tracer):
+            with tracer.trace("executing_queries", resource=resource, span_type=span_type) as parent_span:
+                parent_span_id = parent_span.span_id
+                local_root_span_id = parent_span._local_root.span_id
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    executor.submit(worker_context_only).result()
 
-            ddup.upload(tracer=tracer)
+        ddup.upload(tracer=tracer)
 
-            profile = pprof_utils.get_profile_from_agent(agent_client)
+        profile = pprof_utils.get_profile_from_agent()
 
-            all_worker_samples = _get_threadpool_samples(profile)
-            assert all_worker_samples, "No samples found from ThreadPoolExecutor worker threads."
+        all_worker_samples = _get_threadpool_samples(profile)
+        assert all_worker_samples, "No samples found from ThreadPoolExecutor worker threads."
 
-            worker_samples_with_span_id = [
-                s
-                for s in all_worker_samples
-                if pprof_utils.get_label_with_key(profile.string_table, s, "span id") is not None
-            ]
-            assert worker_samples_with_span_id, "Worker thread samples have no 'span id' label."
+        worker_samples_with_span_id = [
+            s
+            for s in all_worker_samples
+            if pprof_utils.get_label_with_key(profile.string_table, s, "span id") is not None
+        ]
+        assert worker_samples_with_span_id, "Worker thread samples have no 'span id' label."
 
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=worker_samples_with_span_id,
-                expected_sample=pprof_utils.StackEvent(
-                    span_id=parent_span_id,
-                    local_root_span_id=local_root_span_id,
-                    trace_type=span_type,
-                ),
-                print_samples_on_failure=True,
-            )
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=worker_samples_with_span_id,
+            expected_sample=pprof_utils.StackEvent(
+                span_id=parent_span_id,
+                local_root_span_id=local_root_span_id,
+                trace_type=span_type,
+            ),
+            print_samples_on_failure=True,
+        )
     finally:
         futures_unpatch()

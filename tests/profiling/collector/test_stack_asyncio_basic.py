@@ -13,7 +13,6 @@ def test_asyncio_basic() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -34,21 +33,20 @@ def test_asyncio_basic() -> None:
     resource = str(uuid.uuid4())
     span_type = ext.SpanTypes.WEB
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler(tracer=tracer)
-        p.start()
-        with tracer.trace("test_asyncio_basic", resource=resource, span_type=span_type) as span:
-            span_id = span.span_id
-            local_root_span_id = span._local_root.span_id
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    with tracer.trace("test_asyncio_basic", resource=resource, span_type=span_type) as span:
+        span_id = span.span_id
+        local_root_span_id = span._local_root.span_id
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            main_task = loop.create_task(hello(), name="main")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        main_task = loop.create_task(hello(), name="main")
 
-            t1, t2 = loop.run_until_complete(main_task)
-        p.stop()
+        t1, t2 = loop.run_until_complete(main_task)
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
     t1_name = t1.get_name()
     t2_name = t2.get_name()

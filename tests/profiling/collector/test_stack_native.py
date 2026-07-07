@@ -92,26 +92,24 @@ def test_native_frames_detection() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     test_name = "test_native_frames_detection"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sleep_loop() -> None:
-            for _ in range(10):
-                time.sleep(0.1)
+    def sleep_loop() -> None:
+        for _ in range(10):
+            time.sleep(0.1)
 
-        with stack.StackCollector():
-            sleep_loop()
+    with stack.StackCollector():
+        sleep_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -159,7 +157,6 @@ def test_native_frames_preserved_after_fork() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -169,65 +166,64 @@ def test_native_frames_preserved_after_fork() -> None:
     test_name = "test_native_frames_preserved_after_fork"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
+
+    def compress_loop() -> None:
+        data = b"x" * 100000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
+
+    # Start the profiler and warm up call sites. sys.monitoring returns DISABLE
+    # after the first fire, so the callback won't trigger again for these sites.
+    # Fork while the profiler is still running (like gunicorn workers).
+    collector = stack.StackCollector()
+    collector.start()
+    compress_loop()
+
+    # Fork while profiler is running. The sampler restarts via the atfork
+    # handler, and the NativeCallRegistry data is preserved.
+    pid = os.fork()
+    if pid == 0:
+        # ----- child process -----
+        # The child inherits _DD_PROFILING_TEST_TOKEN / _DD_PROFILING_TEST_PROXY_URL
+        # and uploads through the same proxy session as the parent.
         ddup.config(env="test", service=test_name, version="my_version")
         ddup.start()
         ddup.upload()
 
-        def compress_loop() -> None:
-            data = b"x" * 100000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                zlib.compress(data)
-
-        # Start the profiler and warm up call sites. sys.monitoring returns DISABLE
-        # after the first fire, so the callback won't trigger again for these sites.
-        # Fork while the profiler is still running (like gunicorn workers).
-        collector = stack.StackCollector()
-        collector.start()
+        # The sampler restarted automatically via atfork. Run the same C
+        # calls — the registry should still have the call site entries from
+        # the parent, so native frames should appear.
         compress_loop()
 
-        # Fork while profiler is running. The sampler restarts via the atfork
-        # handler, and the NativeCallRegistry data is preserved.
-        pid = os.fork()
-        if pid == 0:
-            # ----- child process -----
-            # The child inherits _DD_PROFILING_TEST_AGENT_URL and uploads to the
-            # same capture server as the parent.
-            ddup.config(env="test", service=test_name, version="my_version")
-            ddup.start()
-            ddup.upload()
+        collector.stop()
+        ddup.upload()
 
-            # The sampler restarted automatically via atfork. Run the same C
-            # calls — the registry should still have the call site entries from
-            # the parent, so native frames should appear.
-            compress_loop()
+        os._exit(0)
+    else:
+        # ----- parent process -----
+        collector.stop()
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.waitstatus_to_exitcode(status)
+        assert exit_code == 0, "Child process failed: native frames were not preserved after fork"
 
-            collector.stop()
-            ddup.upload()
+        profile = pprof_utils.get_profile_from_agent()
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
 
-            os._exit(0)
-        else:
-            # ----- parent process -----
-            collector.stop()
-            _, status = os.waitpid(pid, 0)
-            exit_code = os.waitstatus_to_exitcode(status)
-            assert exit_code == 0, "Child process failed: native frames were not preserved after fork"
-
-            profile = pprof_utils.get_profile_from_agent(agent_client)
-            samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-            assert len(samples) > 0
-
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(),
-                    thread_name="MainThread",
-                    locations=[loc("compress"), loc("compress_loop", FILE_NAME)],
-                ),
-                print_samples_on_failure=True,
-            )
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(),
+                thread_name="MainThread",
+                locations=[loc("compress"), loc("compress_loop", FILE_NAME)],
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -241,7 +237,6 @@ def test_native_frames_detection_hashlib() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -251,41 +246,40 @@ def test_native_frames_detection_hashlib() -> None:
     test_name = "test_native_frames_detection_hashlib"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sha256_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                hashlib.sha256(b"Hello, world!")
+    def sha256_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(b"Hello, world!")
 
-        with stack.StackCollector():
-            sha256_loop()
+    with stack.StackCollector():
+        sha256_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("sha256"), loc("sha256_loop", FILE_NAME)],
-            [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("sha256"), loc("sha256_loop", FILE_NAME)],
+        [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(),
-                    thread_name="MainThread",
-                    locations=exp_stack,
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(),
+                thread_name="MainThread",
+                locations=exp_stack,
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -299,7 +293,6 @@ def test_native_frames_detection_hashlib_kwarg() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -309,39 +302,38 @@ def test_native_frames_detection_hashlib_kwarg() -> None:
     test_name = "test_native_frames_detection_hashlib"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sha256_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                hashlib.sha256(b"Hello, world!")
+    def sha256_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(b"Hello, world!")
 
-        with stack.StackCollector():
-            sha256_loop()
+    with stack.StackCollector():
+        sha256_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("sha256"), loc("sha256_loop", FILE_NAME)],
-            [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("sha256"), loc("sha256_loop", FILE_NAME)],
+        [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -360,7 +352,6 @@ def test_native_frames_detection_numpy_flat() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -370,36 +361,35 @@ def test_native_frames_detection_numpy_flat() -> None:
     test_name = "test_native_frames_detection_hashlib"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def numpy_loop() -> None:
-            test_start = time.monotonic()
-            while time.monotonic() - test_start < 2:
-                mat = np.random.rand(1000, 1000)
-                np.matmul(mat, mat)
+    def numpy_loop() -> None:
+        test_start = time.monotonic()
+        while time.monotonic() - test_start < 2:
+            mat = np.random.rand(1000, 1000)
+            np.matmul(mat, mat)
 
-        with stack.StackCollector():
-            numpy_loop()
+    with stack.StackCollector():
+        numpy_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -418,7 +408,6 @@ def test_native_frames_detection_numpy_nested() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -428,35 +417,34 @@ def test_native_frames_detection_numpy_nested() -> None:
     test_name = "test_native_frames_detection_hashlib"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def numpy_loop() -> None:
-            test_start = time.monotonic()
-            while time.monotonic() - test_start < 2:
-                np.matmul(np.random.rand(1000, 1000), np.random.rand(1000, 1000))
+    def numpy_loop() -> None:
+        test_start = time.monotonic()
+        while time.monotonic() - test_start < 2:
+            np.matmul(np.random.rand(1000, 1000), np.random.rand(1000, 1000))
 
-        with stack.StackCollector():
-            numpy_loop()
+    with stack.StackCollector():
+        numpy_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -470,7 +458,6 @@ def test_native_frames_detection_zlib() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -480,36 +467,35 @@ def test_native_frames_detection_zlib() -> None:
     test_name = "test_native_frames_detection_zlib"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def zlib_loop() -> None:
-            data = b"x" * 100000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                zlib.compress(data)
+    def zlib_loop() -> None:
+        data = b"x" * 100000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
 
-        with stack.StackCollector():
-            zlib_loop()
+    with stack.StackCollector():
+        zlib_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("compress"), loc("zlib_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("compress"), loc("zlib_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -522,7 +508,6 @@ def test_native_frames_detection_sorted_builtin() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -532,36 +517,35 @@ def test_native_frames_detection_sorted_builtin() -> None:
     test_name = "test_native_frames_detection_sorted_builtin"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sorted_loop() -> None:
-            data = list(range(10000, 0, -1))
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                sorted(data)
+    def sorted_loop() -> None:
+        data = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            sorted(data)
 
-        with stack.StackCollector():
-            sorted_loop()
+    with stack.StackCollector():
+        sorted_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("sorted"), loc("sorted_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sorted"), loc("sorted_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -574,7 +558,6 @@ def test_native_frames_detection_list_sort_method() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -584,37 +567,36 @@ def test_native_frames_detection_list_sort_method() -> None:
     test_name = "test_native_frames_detection_list_sort"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sort_loop() -> None:
-            original = list(range(10000, 0, -1))
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                data = original.copy()
-                data.sort()
+    def sort_loop() -> None:
+        original = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            data = original.copy()
+            data.sort()
 
-        with stack.StackCollector():
-            sort_loop()
+    with stack.StackCollector():
+        sort_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("sort"), loc("sort_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sort"), loc("sort_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -628,7 +610,6 @@ def test_native_frames_detection_regex_method() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -638,37 +619,36 @@ def test_native_frames_detection_regex_method() -> None:
     test_name = "test_native_frames_detection_regex"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def regex_loop() -> None:
-            pattern = re.compile(r"[a-z]+")
-            text = "hello world foo bar baz " * 10000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                pattern.findall(text)
+    def regex_loop() -> None:
+        pattern = re.compile(r"[a-z]+")
+        text = "hello world foo bar baz " * 10000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            pattern.findall(text)
 
-        with stack.StackCollector():
-            regex_loop()
+    with stack.StackCollector():
+        regex_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("findall"), loc("regex_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("findall"), loc("regex_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -682,7 +662,6 @@ def test_native_frames_detection_expression_arg() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -692,37 +671,36 @@ def test_native_frames_detection_expression_arg() -> None:
     test_name = "test_native_frames_detection_expression_arg"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def compress_concat_loop() -> None:
-            chunk_a = b"x" * 50000
-            chunk_b = b"y" * 50000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                zlib.compress(chunk_a + chunk_b)
+    def compress_concat_loop() -> None:
+        chunk_a = b"x" * 50000
+        chunk_b = b"y" * 50000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(chunk_a + chunk_b)
 
-        with stack.StackCollector():
-            compress_concat_loop()
+    with stack.StackCollector():
+        compress_concat_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("compress"), loc("compress_concat_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("compress"), loc("compress_concat_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -738,7 +716,6 @@ def test_native_frames_detection_nested_c_calls() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -748,40 +725,39 @@ def test_native_frames_detection_nested_c_calls() -> None:
     test_name = "test_native_frames_detection_nested_c_calls"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def nested_loop() -> None:
-            data = os.urandom(100000)
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                hashlib.sha256(zlib.compress(data))
+    def nested_loop() -> None:
+        data = os.urandom(100000)
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(zlib.compress(data))
 
-        with stack.StackCollector():
-            nested_loop()
+    with stack.StackCollector():
+        nested_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("sha256"), loc("nested_loop", FILE_NAME)],
-            [loc("compress"), loc("nested_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("sha256"), loc("nested_loop", FILE_NAME)],
+        [loc("compress"), loc("nested_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -794,7 +770,6 @@ def test_native_frames_detection_call_kw() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -804,36 +779,35 @@ def test_native_frames_detection_call_kw() -> None:
     test_name = "test_native_frames_detection_call_kw"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sorted_kw_loop() -> None:
-            data = list(range(10000, 0, -1))
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                sorted(data, reverse=True)
+    def sorted_kw_loop() -> None:
+        data = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            sorted(data, reverse=True)
 
-        with stack.StackCollector():
-            sorted_kw_loop()
+    with stack.StackCollector():
+        sorted_kw_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("sorted"), loc("sorted_kw_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sorted"), loc("sorted_kw_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -847,7 +821,6 @@ def test_native_frames_detection_many_args() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -857,35 +830,34 @@ def test_native_frames_detection_many_args() -> None:
     test_name = "test_native_frames_detection_many_args"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def pbkdf2_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 50000)
+    def pbkdf2_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 50000)
 
-        with stack.StackCollector():
-            pbkdf2_loop()
+    with stack.StackCollector():
+        pbkdf2_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("pbkdf2_hmac"), loc("pbkdf2_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("pbkdf2_hmac"), loc("pbkdf2_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -899,7 +871,6 @@ def test_native_frames_detection_method_two_args() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -909,37 +880,36 @@ def test_native_frames_detection_method_two_args() -> None:
     test_name = "test_native_frames_detection_method_two_args"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def regex_sub_loop() -> None:
-            pattern = re.compile(r"[a-z]+")
-            text = "hello world foo bar baz " * 10000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                pattern.sub("X", text)
+    def regex_sub_loop() -> None:
+        pattern = re.compile(r"[a-z]+")
+        text = "hello world foo bar baz " * 10000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            pattern.sub("X", text)
 
-        with stack.StackCollector():
-            regex_sub_loop()
+    with stack.StackCollector():
+        regex_sub_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("sub"), loc("regex_sub_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sub"), loc("regex_sub_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -952,7 +922,6 @@ def test_native_frames_detection_method_on_literal() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -962,36 +931,35 @@ def test_native_frames_detection_method_on_literal() -> None:
     test_name = "test_native_frames_detection_method_on_literal"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def join_loop() -> None:
-            chunks = [b"x" * 1000] * 1000
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                b"".join(chunks)
+    def join_loop() -> None:
+        chunks = [b"x" * 1000] * 1000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            b"".join(chunks)
 
-        with stack.StackCollector():
-            join_loop()
+    with stack.StackCollector():
+        join_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("join"), loc("join_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("join"), loc("join_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1007,7 +975,6 @@ def test_native_frames_detection_sequential_calls() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1017,41 +984,40 @@ def test_native_frames_detection_sequential_calls() -> None:
     test_name = "test_native_frames_detection_sequential_calls"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def sequential_loop() -> None:
-            data = os.urandom(100000)
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                zlib.compress(data)
-                hashlib.sha256(data)
+    def sequential_loop() -> None:
+        data = os.urandom(100000)
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
+            hashlib.sha256(data)
 
-        with stack.StackCollector():
-            sequential_loop()
+    with stack.StackCollector():
+        sequential_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("compress"), loc("sequential_loop", FILE_NAME)],
-            [loc("sha256"), loc("sequential_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("compress"), loc("sequential_loop", FILE_NAME)],
+        [loc("sha256"), loc("sequential_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1065,7 +1031,6 @@ def test_native_frames_detection_math_factorial() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1075,35 +1040,34 @@ def test_native_frames_detection_math_factorial() -> None:
     test_name = "test_native_frames_detection_math_factorial"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def factorial_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                math.factorial(10000)
+    def factorial_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            math.factorial(10000)
 
-        with stack.StackCollector():
-            factorial_loop()
+    with stack.StackCollector():
+        factorial_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("factorial"), loc("factorial_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("factorial"), loc("factorial_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1116,7 +1080,6 @@ def test_native_frames_detection_isinstance() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1126,38 +1089,37 @@ def test_native_frames_detection_isinstance() -> None:
     test_name = "test_native_frames_detection_isinstance"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def isinstance_loop() -> None:
-            classes = (int, float, str, bytes, list, dict, tuple, set, frozenset, bool)
-            obj = "hello"
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                for _ in range(10000):
-                    isinstance(obj, classes)
+    def isinstance_loop() -> None:
+        classes = (int, float, str, bytes, list, dict, tuple, set, frozenset, bool)
+        obj = "hello"
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            for _ in range(10000):
+                isinstance(obj, classes)
 
-        with stack.StackCollector():
-            isinstance_loop()
+    with stack.StackCollector():
+        isinstance_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("isinstance"), loc("isinstance_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("isinstance"), loc("isinstance_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1170,7 +1132,6 @@ def test_native_frames_detection_constructors() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1180,54 +1141,53 @@ def test_native_frames_detection_constructors() -> None:
     test_name = "test_native_frames_detection_constructors"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        source = [(i, i) for i in range(10000)]
+    source = [(i, i) for i in range(10000)]
 
-        def dict_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                dict(source)
+    def dict_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            dict(source)
 
-        def list_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                list(source)
+    def list_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            list(source)
 
-        def set_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                set(source)
+    def set_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            set(source)
 
-        with stack.StackCollector():
-            dict_loop()
-            list_loop()
-            set_loop()
+    with stack.StackCollector():
+        dict_loop()
+        list_loop()
+        set_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("dict"), loc("dict_loop", FILE_NAME)],
-            [loc("list"), loc("list_loop", FILE_NAME)],
-            [loc("set"), loc("set_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("dict"), loc("dict_loop", FILE_NAME)],
+        [loc("list"), loc("list_loop", FILE_NAME)],
+        [loc("set"), loc("set_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1240,7 +1200,6 @@ def test_native_frames_detection_eval() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1250,37 +1209,36 @@ def test_native_frames_detection_eval() -> None:
     test_name = "test_native_frames_detection_eval"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        code = compile("sum(range(10000))", "<string>", "eval")
+    code = compile("sum(range(10000))", "<string>", "eval")
 
-        def eval_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                eval(code)
+    def eval_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            eval(code)
 
-        with stack.StackCollector():
-            eval_loop()
+    with stack.StackCollector():
+        eval_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(),
-                thread_name="MainThread",
-                locations=[loc("eval"), loc("eval_loop", FILE_NAME)],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("eval"), loc("eval_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1293,7 +1251,6 @@ def test_native_frames_detection_str_repr() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1303,47 +1260,46 @@ def test_native_frames_detection_str_repr() -> None:
     test_name = "test_native_frames_detection_str_repr"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        big_list = list(range(100000))
+    big_list = list(range(100000))
 
-        def str_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                str(big_list)
+    def str_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            str(big_list)
 
-        def repr_loop() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                repr(big_list)
+    def repr_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            repr(big_list)
 
-        with stack.StackCollector():
-            str_loop()
-            repr_loop()
+    with stack.StackCollector():
+        str_loop()
+        repr_loop()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            [loc("str"), loc("str_loop", FILE_NAME)],
-            [loc("repr"), loc("repr_loop", FILE_NAME)],
-        ]
+    expected_stacks = [
+        [loc("str"), loc("str_loop", FILE_NAME)],
+        [loc("repr"), loc("repr_loop", FILE_NAME)],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -1357,7 +1313,6 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     FILE_NAME = "test_stack_native.py"
 
@@ -1367,56 +1322,55 @@ def test_top_c_frame_detection_nested_sort_with_key() -> None:
     test_name = "test_top_c_frame_detection_nested_sort_with_key"
 
     assert ddup.is_available
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()
 
-        def inner_key(x: int) -> int:
-            return math.factorial(x + 2000)
+    def inner_key(x: int) -> int:
+        return math.factorial(x + 2000)
 
-        def outer_key(x: int) -> int:
-            inner_data = list(range(x + 1))
-            inner_data.sort(key=inner_key)
-            return inner_data[-1] if inner_data else 0
+    def outer_key(x: int) -> int:
+        inner_data = list(range(x + 1))
+        inner_data.sort(key=inner_key)
+        return inner_data[-1] if inner_data else 0
 
-        def outer_func() -> None:
-            end = time.monotonic() + 2
-            while time.monotonic() < end:
-                data = list(range(15, 0, -1))
-                data.sort(key=outer_key)
+    def outer_func() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            data = list(range(15, 0, -1))
+            data.sort(key=outer_key)
 
-        with stack.StackCollector():
-            outer_func()
+    with stack.StackCollector():
+        outer_func()
 
-        ddup.upload()
+    ddup.upload()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
-        assert len(samples) > 0
+    profile = pprof_utils.get_profile_from_agent()
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
 
-        expected_stacks = [
-            # outer sort called from outer_func
-            [loc("sort"), loc("outer_func", FILE_NAME)],
-            # inner sort called from outer_key, which is the key for the outer sort
-            [loc("sort"), loc("outer_key", FILE_NAME), loc("sort"), loc("outer_func", FILE_NAME)],
-            # factorial called from inner_key, which is the key for the inner sort
-            [
-                loc("factorial"),
-                loc("inner_key", FILE_NAME),
-                loc("sort"),
-                loc("outer_key", FILE_NAME),
-                loc("sort"),
-                loc("outer_func", FILE_NAME),
-            ],
-        ]
+    expected_stacks = [
+        # outer sort called from outer_func
+        [loc("sort"), loc("outer_func", FILE_NAME)],
+        # inner sort called from outer_key, which is the key for the outer sort
+        [loc("sort"), loc("outer_key", FILE_NAME), loc("sort"), loc("outer_func", FILE_NAME)],
+        # factorial called from inner_key, which is the key for the inner sort
+        [
+            loc("factorial"),
+            loc("inner_key", FILE_NAME),
+            loc("sort"),
+            loc("outer_key", FILE_NAME),
+            loc("sort"),
+            loc("outer_func", FILE_NAME),
+        ],
+    ]
 
-        for exp_stack in expected_stacks:
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples=samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-                ),
-                print_samples_on_failure=True,
-            )
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )

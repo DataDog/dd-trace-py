@@ -10,7 +10,6 @@ def test_asyncio_as_completed() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -45,57 +44,56 @@ def test_asyncio_as_completed() -> None:
         # before returning x, and all tasks are started around the same time.
         assert sorted(result) == result
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler()
-        p.start()
+    p = profiler.Profiler()
+    p.start()
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
 
-        p.stop()
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
-        samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-        assert len(samples) > 0
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
 
+    locations = [
+        pprof_utils.StackLocation(
+            function_name="wait_and_return_delay",
+            filename="test_asyncio_as_completed.py",
+            line_no=wait_and_return_delay.__code__.co_firstlineno + 1,
+        ),
+        pprof_utils.StackLocation(
+            function_name="main",
+            filename="test_asyncio_as_completed.py",
+            line_no=main.__code__.co_firstlineno + 17,
+        ),
+    ]
+
+    if PYVERSION < (3, 13):
         locations = [
             pprof_utils.StackLocation(
-                function_name="wait_and_return_delay",
-                filename="test_asyncio_as_completed.py",
-                line_no=wait_and_return_delay.__code__.co_firstlineno + 1,
+                function_name="sleep",
+                filename="",
+                line_no=-1,
             ),
             pprof_utils.StackLocation(
-                function_name="main",
+                function_name="other",
                 filename="test_asyncio_as_completed.py",
-                line_no=main.__code__.co_firstlineno + 17,
+                line_no=other.__code__.co_firstlineno + 1,
             ),
-        ]
+        ] + locations
 
-        if PYVERSION < (3, 13):
-            locations = [
-                pprof_utils.StackLocation(
-                    function_name="sleep",
-                    filename="",
-                    line_no=-1,
-                ),
-                pprof_utils.StackLocation(
-                    function_name="other",
-                    filename="test_asyncio_as_completed.py",
-                    line_no=other.__code__.co_firstlineno + 1,
-                ),
-            ] + locations
-
-        # Now, check that we have seen those locations for each Task we've created.
-        # (They should be named Task-2 .. Task-11, which is the automatic name assigned to Tasks by asyncio.create_task)
-        for i in range(2, 12):
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    task_name=f"Task-{i}",
-                    thread_name="MainThread",
-                    locations=locations,
-                ),
-            )
+    # Now, check that we have seen those locations for each Task we've created.
+    # (They should be named Task-2 .. Task-11, which is the automatic name assigned to Tasks by asyncio.create_task)
+    for i in range(2, 12):
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                task_name=f"Task-{i}",
+                thread_name="MainThread",
+                locations=locations,
+            ),
+        )

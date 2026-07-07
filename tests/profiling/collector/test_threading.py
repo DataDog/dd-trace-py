@@ -546,7 +546,6 @@ def test_lock_gevent_tasks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert ddup.is_available, "ddup is not available"
 
@@ -560,48 +559,47 @@ def test_lock_gevent_tasks() -> None:
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
 
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(
-            env="test",
-            service=test_name,
-            version="my_version",
-        )  # pyright: ignore[reportCallIssue]
-        ddup.start()
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+    )  # pyright: ignore[reportCallIssue]
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
-            t.start()
-            t.join()
+    with ThreadingLockCollector(capture_pct=100):
+        t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
+        t.start()
+        t.join()
 
-        ddup.upload()  # pyright: ignore[reportCallIssue]
+    ddup.upload()  # pyright: ignore[reportCallIssue]
 
-        expected_filename: str = "test_threading.py"
-        linenos: LineNo = get_lock_linenos(test_name)
+    expected_filename: str = "test_threading.py"
+    linenos: LineNo = get_lock_linenos(test_name)
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
-                ),
-            ],
-        )
+    profile = pprof_utils.get_profile_from_agent()
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+    )
 
 
 # This test has to be run in a subprocess because it calls gevent.monkey.patch_all()
@@ -624,7 +622,6 @@ def test_rlock_gevent_tasks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert ddup.is_available, "ddup is not available"
 
@@ -638,48 +635,47 @@ def test_rlock_gevent_tasks() -> None:
         lock.acquire()  # !ACQUIRE! test_rlock_gevent_tasks
         lock.release()  # !RELEASE! test_rlock_gevent_tasks
 
-    with with_profiling_test_agent() as agent_client:
-        ddup.config(
-            env="test",
-            service=test_name,
-            version="my_version",
-        )  # pyright: ignore[reportCallIssue]
-        ddup.start()
+    ddup.config(
+        env="test",
+        service=test_name,
+        version="my_version",
+    )  # pyright: ignore[reportCallIssue]
+    ddup.start()
 
-        with ThreadingRLockCollector(capture_pct=100):
-            t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
-            t.start()
-            t.join()
+    with ThreadingRLockCollector(capture_pct=100):
+        t: threading.Thread = threading.Thread(name="foobar", target=play_with_lock)
+        t.start()
+        t.join()
 
-        ddup.upload()  # pyright: ignore[reportCallIssue]
+    ddup.upload()  # pyright: ignore[reportCallIssue]
 
-        expected_filename: str = "test_threading.py"
-        linenos: LineNo = get_lock_linenos(test_name)
+    expected_filename: str = "test_threading.py"
+    linenos: LineNo = get_lock_linenos(test_name)
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
-        pprof_utils.assert_lock_events(
-            profile,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="play_with_lock",
-                    filename=expected_filename,
-                    linenos=linenos,
-                    lock_name="lock",
-                    task_id=t.ident,
-                    task_name="foobar",
-                ),
-            ],
-        )
+    profile = pprof_utils.get_profile_from_agent()
+    pprof_utils.assert_lock_events(
+        profile,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="play_with_lock",
+                filename=expected_filename,
+                linenos=linenos,
+                lock_name="lock",
+                task_id=t.ident,
+                task_name="foobar",
+            ),
+        ],
+    )
 
 
 @pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLE_ASSERTS="true"))
@@ -1199,7 +1195,6 @@ def test_generic_lock_lock_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1209,15 +1204,14 @@ def test_generic_lock_lock_events() -> None:
         lock.release()  # !RELEASE! test_lock_events
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_lock_events", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            test_lock_events()
+    with ThreadingLockCollector(capture_pct=100):
+        test_lock_events()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_lock_events")
     pprof_utils.assert_lock_events(
@@ -1254,7 +1248,6 @@ def test_generic_lock_lock_events_truncate_frames() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1269,16 +1262,15 @@ def test_generic_lock_lock_events_truncate_frames() -> None:
         deep_lock_ops(depth - 1, lock)
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_events_truncate_frames", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_lock_events_truncate_frames", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            lock = threading.Lock()  # !CREATE! test_lock_events_truncate_frames
-            deep_lock_ops(recursion_depth, lock)
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()  # !CREATE! test_lock_events_truncate_frames
+        deep_lock_ops(recursion_depth, lock)
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_lock_events_truncate_frames")
     caller_name = deep_lock_ops.__qualname__ if PY_311_OR_ABOVE else deep_lock_ops.__name__
@@ -1327,7 +1319,6 @@ def test_generic_lock_lock_acquire_events_class() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -1338,15 +1329,14 @@ def test_generic_lock_lock_acquire_events_class() -> None:
             lock.acquire()  # !ACQUIRE! test_lock_acquire_events_class
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_acquire_events_class", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_lock_acquire_events_class", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            Foobar().lockfunc()
+    with ThreadingLockCollector(capture_pct=100):
+        Foobar().lockfunc()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_lock_acquire_events_class")
     caller_name = Foobar.lockfunc.__qualname__ if PY_311_OR_ABOVE else Foobar.lockfunc.__name__
@@ -1376,7 +1366,6 @@ def test_generic_lock_lock_events_tracer() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1399,12 +1388,11 @@ def test_generic_lock_lock_events_tracer() -> None:
         return resource, span_type, span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_events_tracer", version="my_version")
-        ddup.start()
-        resource, span_type, span_id = test_lock_events_tracer()
-        ddup.upload(tracer=ddtrace.trace.tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_generic_lock_lock_events_tracer", version="my_version")
+    ddup.start()
+    resource, span_type, span_id = test_lock_events_tracer()
+    ddup.upload(tracer=ddtrace.trace.tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos1 = get_lock_linenos("test_lock_events_tracer_1")
     linenos2 = get_lock_linenos("test_lock_events_tracer_2")
@@ -1460,7 +1448,6 @@ def test_generic_lock_lock_events_tracer_non_web() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1480,12 +1467,11 @@ def test_generic_lock_lock_events_tracer_non_web() -> None:
         return resource, span_type, span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_events_tracer_non_web", version="my_version")
-        ddup.start()
-        resource, span_type, span_id = test_lock_events_tracer_non_web()
-        ddup.upload(tracer=ddtrace.trace.tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_generic_lock_lock_events_tracer_non_web", version="my_version")
+    ddup.start()
+    resource, span_type, span_id = test_lock_events_tracer_non_web()
+    ddup.upload(tracer=ddtrace.trace.tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
     pprof_utils.assert_lock_events(
@@ -1524,7 +1510,6 @@ def test_generic_lock_lock_events_tracer_late_finish() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1547,12 +1532,11 @@ def test_generic_lock_lock_events_tracer_late_finish() -> None:
         return resource, span_type
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_events_tracer_late_finish", version="my_version")
-        ddup.start()
-        resource, span_type = test_lock_events_tracer_late_finish()
-        ddup.upload(tracer=ddtrace.trace.tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_generic_lock_lock_events_tracer_late_finish", version="my_version")
+    ddup.start()
+    resource, span_type = test_lock_events_tracer_late_finish()
+    ddup.upload(tracer=ddtrace.trace.tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
     linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
@@ -1602,7 +1586,6 @@ def test_generic_lock_resource_not_collected() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1624,12 +1607,11 @@ def test_generic_lock_resource_not_collected() -> None:
         return resource, span_type, span_id
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_resource_not_collected", version="my_version")
-        ddup.start()
-        resource, span_type, span_id = test_resource_not_collected()
-        ddup.upload(tracer=ddtrace.trace.tracer)
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.config(env="test", service="test_generic_lock_resource_not_collected", version="my_version")
+    ddup.start()
+    resource, span_type, span_id = test_resource_not_collected()
+    ddup.upload(tracer=ddtrace.trace.tracer)
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos1 = get_lock_linenos("test_resource_not_collected_1")
     linenos2 = get_lock_linenos("test_resource_not_collected_2")
@@ -1682,7 +1664,6 @@ def test_generic_lock_lock_enter_exit_events() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -1692,15 +1673,14 @@ def test_generic_lock_lock_enter_exit_events() -> None:
             pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_lock_enter_exit_events", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_lock_enter_exit_events", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            test_lock_enter_exit_events()
+    with ThreadingLockCollector(capture_pct=100):
+        test_lock_enter_exit_events()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
     pprof_utils.assert_lock_events(
@@ -1737,7 +1717,6 @@ def test_generic_lock_class_member_lock_inspect_dir_enabled() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -1758,19 +1737,18 @@ def test_generic_lock_class_member_lock_inspect_dir_enabled() -> None:
             self.foo.foo()
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_class_member_lock_inspect_dir_enabled", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_class_member_lock_inspect_dir_enabled", version="my_version")
+    ddup.start()
 
-        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", True):
-            with ThreadingLockCollector(capture_pct=100):
-                foobar = Foo()
-                foobar.foo()
-                bar = Bar()
-                bar.bar()
+    with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", True):
+        with ThreadingLockCollector(capture_pct=100):
+            foobar = Foo()
+            foobar.foo()
+            bar = Bar()
+            bar.bar()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("foolock", with_stmt=True)
     acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
@@ -1813,7 +1791,6 @@ def test_generic_lock_class_member_lock_inspect_dir_disabled() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -1834,21 +1811,18 @@ def test_generic_lock_class_member_lock_inspect_dir_disabled() -> None:
             self.foo.foo()
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(
-            env="test", service="test_generic_lock_class_member_lock_inspect_dir_disabled", version="my_version"
-        )
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_class_member_lock_inspect_dir_disabled", version="my_version")
+    ddup.start()
 
-        with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", False):
-            with ThreadingLockCollector(capture_pct=100):
-                foobar = Foo()
-                foobar.foo()
-                bar = Bar()
-                bar.bar()
+    with mock.patch("ddtrace.internal.settings.profiling.config.lock.name_inspect_dir", False):
+        with ThreadingLockCollector(capture_pct=100):
+            foobar = Foo()
+            foobar.foo()
+            bar = Bar()
+            bar.bar()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("foolock_disabled", with_stmt=True)
     acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
@@ -1946,7 +1920,6 @@ def test_generic_lock_private_lock() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -1960,16 +1933,15 @@ def test_generic_lock_private_lock() -> None:
                 pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_private_lock", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_private_lock", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            foo = Foo()
-            foo.foo()
+    with ThreadingLockCollector(capture_pct=100):
+        foo = Foo()
+        foo.foo()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_private_lock", with_stmt=True)
     caller_name = Foo.foo.__qualname__ if PY_311_OR_ABOVE else Foo.foo.__name__
@@ -2005,7 +1977,6 @@ def test_generic_lock_inner_lock() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -2027,16 +1998,15 @@ def test_generic_lock_inner_lock() -> None:
                 pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_inner_lock", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_inner_lock", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            bar = Bar()
-            bar.bar()
+    with ThreadingLockCollector(capture_pct=100):
+        bar = Bar()
+        bar.bar()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_foo = get_lock_linenos("inner_lock_foolock")
     linenos_bar = get_lock_linenos("test_inner_lock", with_stmt=True)
@@ -2071,7 +2041,6 @@ def test_generic_lock_anonymous_lock() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2080,15 +2049,14 @@ def test_generic_lock_anonymous_lock() -> None:
             pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_anonymous_lock", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_anonymous_lock", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            test_anonymous_lock()
+    with ThreadingLockCollector(capture_pct=100):
+        test_anonymous_lock()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
     pprof_utils.assert_lock_events(
@@ -2121,7 +2089,6 @@ def test_generic_lock_global_locks() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
     PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
@@ -2143,18 +2110,17 @@ def test_generic_lock_global_locks() -> None:
             pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_global_locks", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_global_locks", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            _test_global_lock = threading.Lock()  # !CREATE! _test_global_lock
-            test_bar_instance = TestBar()
-            foo()
-            test_bar_instance.bar()
+    with ThreadingLockCollector(capture_pct=100):
+        _test_global_lock = threading.Lock()  # !CREATE! _test_global_lock
+        test_bar_instance = TestBar()
+        foo()
+        test_bar_instance.bar()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos_global = get_lock_linenos("_test_global_lock", with_stmt=True)
     linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
@@ -2203,7 +2169,6 @@ def test_generic_lock_upload_resets_profile() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2212,41 +2177,42 @@ def test_generic_lock_upload_resets_profile() -> None:
             pass
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_upload_resets_profile", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_upload_resets_profile", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            test_upload_resets_profile()
+    with ThreadingLockCollector(capture_pct=100):
+        test_upload_resets_profile()
 
-        ddup.upload()
-        linenos = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
-        pprof = pprof_utils.get_profile_from_agent(agent)
-        pprof_utils.assert_lock_events(
-            pprof,
-            expected_acquire_events=[
-                pprof_utils.LockAcquireEvent(
-                    caller_name="test_upload_resets_profile",
-                    filename="test_threading.py",
-                    linenos=linenos,
-                ),
-            ],
-            expected_release_events=[
-                pprof_utils.LockReleaseEvent(
-                    caller_name="test_upload_resets_profile",
-                    filename="test_threading.py",
-                    linenos=linenos,
-                ),
-            ],
-        )
+    ddup.upload()
+    linenos = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
+    pprof = pprof_utils.get_profile_from_agent()
+    pprof_utils.assert_lock_events(
+        pprof,
+        expected_acquire_events=[
+            pprof_utils.LockAcquireEvent(
+                caller_name="test_upload_resets_profile",
+                filename="test_threading.py",
+                linenos=linenos,
+            ),
+        ],
+        expected_release_events=[
+            pprof_utils.LockReleaseEvent(
+                caller_name="test_upload_resets_profile",
+                filename="test_threading.py",
+                linenos=linenos,
+            ),
+        ],
+    )
 
-        # Second upload should produce empty profile (no samples)
-        agent.clear()
-        ddup.upload()
-        empty_pprof = pprof_utils.get_profile_from_agent(agent, assert_samples=False)
-        assert len(empty_pprof.sample) == 0, (
-            f"Expected empty profile after second upload, got {len(empty_pprof.sample)} samples"
-        )
+    # Second upload should produce empty profile (no samples)
+    from tests.profiling.utils import clear_agent_session
+
+    clear_agent_session()
+    ddup.upload()
+    empty_pprof = pprof_utils.get_profile_from_agent(assert_samples=False)
+    assert len(empty_pprof.sample) == 0, (
+        f"Expected empty profile after second upload, got {len(empty_pprof.sample)} samples"
+    )
 
 
 @pytest.mark.subprocess(err=None, env=dict(DD_PROFILING_FILE_PATH=__file__))
@@ -2261,29 +2227,27 @@ def test_generic_lock_release_not_sampled_when_acquire_not_sampled() -> None:
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(
-            env="test",
-            service="test_generic_lock_release_not_sampled_when_acquire_not_sampled",
-            version="my_version",
-        )
-        ddup.start()
+    ddup.config(
+        env="test",
+        service="test_generic_lock_release_not_sampled_when_acquire_not_sampled",
+        version="my_version",
+    )
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=0):
-            lock = threading.Lock()
-            for _ in range(10):
-                lock.acquire()
-                assert cast(_ProfiledLock, lock).acquired_time is None
-                time.sleep(0.001)
-                lock.release()
+    with ThreadingLockCollector(capture_pct=0):
+        lock = threading.Lock()
+        for _ in range(10):
+            lock.acquire()
+            assert cast(_ProfiledLock, lock).acquired_time is None
+            time.sleep(0.001)
+            lock.release()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent, assert_samples=False)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent(assert_samples=False)
 
     release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
     assert len(release_samples) == 0, (
@@ -2302,31 +2266,29 @@ def test_generic_lock_failed_acquire_produces_no_sample() -> None:
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_generic_lock_failed_acquire_produces_no_sample", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_generic_lock_failed_acquire_produces_no_sample", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100):
-            lock = threading.Lock()
-            lock.acquire()
-            profiled = cast(_ProfiledLock, lock)
-            acquired_time_after_success = profiled.acquired_time
-            assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
+    with ThreadingLockCollector(capture_pct=100):
+        lock = threading.Lock()
+        lock.acquire()
+        profiled = cast(_ProfiledLock, lock)
+        acquired_time_after_success = profiled.acquired_time
+        assert acquired_time_after_success is not None, "acquired_time must be set after successful acquire"
 
-            result = lock.acquire(blocking=False)
-            assert result is False, "Non-blocking acquire on held lock must return False"
-            assert profiled.acquired_time == acquired_time_after_success, (
-                "acquired_time must not change after a failed acquire"
-            )
-            lock.release()
+        result = lock.acquire(blocking=False)
+        assert result is False, "Non-blocking acquire on held lock must return False"
+        assert profiled.acquired_time == acquired_time_after_success, (
+            "acquired_time must not change after a failed acquire"
+        )
+        lock.release()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
     release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
@@ -2538,7 +2500,6 @@ def test_semaphore_stack_trace_points_to_user_code() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2548,15 +2509,14 @@ def test_semaphore_stack_trace_points_to_user_code() -> None:
         sem.release()  # !RELEASE! test_stack_trace_sem
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_semaphore_stack_trace_points_to_user_code", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_semaphore_stack_trace_points_to_user_code", version="my_version")
+    ddup.start()
 
-        with ThreadingSemaphoreCollector(capture_pct=100):
-            test_stack_trace()
+    with ThreadingSemaphoreCollector(capture_pct=100):
+        test_stack_trace()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_stack_trace_sem")
     pprof_utils.assert_lock_events(
@@ -2592,7 +2552,6 @@ def test_semaphore_no_double_counting_with_lock_collector() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2602,15 +2561,14 @@ def test_semaphore_no_double_counting_with_lock_collector() -> None:
         sem.release()  # !RELEASE! test_no_double_counting
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_semaphore_no_double_counting_with_lock_collector", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_semaphore_no_double_counting_with_lock_collector", version="my_version")
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
-            test_no_double_counting()
+    with ThreadingLockCollector(capture_pct=100), ThreadingSemaphoreCollector(capture_pct=100):
+        test_no_double_counting()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     acquire_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
     release_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))
@@ -2676,7 +2634,6 @@ def test_bounded_semaphore_stack_trace_points_to_user_code() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2686,15 +2643,14 @@ def test_bounded_semaphore_stack_trace_points_to_user_code() -> None:
         bsem.release()  # !RELEASE! test_stack_trace_bsem
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(env="test", service="test_bounded_semaphore_stack_trace_points_to_user_code", version="my_version")
-        ddup.start()
+    ddup.config(env="test", service="test_bounded_semaphore_stack_trace_points_to_user_code", version="my_version")
+    ddup.start()
 
-        with ThreadingBoundedSemaphoreCollector(capture_pct=100):
-            test_stack_trace_bsem()
+    with ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        test_stack_trace_bsem()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     linenos = get_lock_linenos("test_stack_trace_bsem")
     pprof_utils.assert_lock_events(
@@ -2730,7 +2686,6 @@ def test_bounded_semaphore_no_double_counting_with_lock_collector() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
-    from tests.profiling.utils import with_profiling_test_agent
 
     init_linenos(os.environ["DD_PROFILING_FILE_PATH"])
 
@@ -2740,19 +2695,18 @@ def test_bounded_semaphore_no_double_counting_with_lock_collector() -> None:
         bsem.release()  # !RELEASE! test_no_double_counting_bounded
 
     assert ddup.is_available, "ddup is not available"
-    with with_profiling_test_agent() as agent:
-        ddup.config(
-            env="test",
-            service="test_bounded_semaphore_no_double_counting_with_lock_collector",
-            version="my_version",
-        )
-        ddup.start()
+    ddup.config(
+        env="test",
+        service="test_bounded_semaphore_no_double_counting_with_lock_collector",
+        version="my_version",
+    )
+    ddup.start()
 
-        with ThreadingLockCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
-            test_no_double_counting_bounded()
+    with ThreadingLockCollector(capture_pct=100), ThreadingBoundedSemaphoreCollector(capture_pct=100):
+        test_no_double_counting_bounded()
 
-        ddup.upload()
-        profile = pprof_utils.get_profile_from_agent(agent)
+    ddup.upload()
+    profile = pprof_utils.get_profile_from_agent()
 
     acquire_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-acquire"))
     release_samples_count = len(pprof_utils.get_samples_with_value_type(profile, "lock-release"))

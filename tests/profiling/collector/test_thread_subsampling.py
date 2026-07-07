@@ -23,7 +23,6 @@ def test_thread_subsampling_cap_respected() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
     N_THREADS = 10
     max_threads = 1
@@ -36,26 +35,25 @@ def test_thread_subsampling_cap_respected() -> None:
 
     test_name = "test_thread_subsampling_cap"
 
-    with with_profiling_test_agent() as agent_client:
-        assert ddup.is_available
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()  # flush initial empty state; resets stats counters
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()  # flush initial empty state; resets stats counters
 
-        threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
-        for t in threads:
-            t.start()
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
+    for t in threads:
+        t.start()
 
-        with stack.StackCollector():
-            time.sleep(2)
+    with stack.StackCollector():
+        time.sleep(2)
 
-        stop_event.set()
-        for t in threads:
-            t.join(timeout=2)
+    stop_event.set()
+    for t in threads:
+        t.join(timeout=2)
 
-        ddup.upload()
+    ddup.upload()
 
-        files = get_all_metadata_from_agent(agent_client, min_count=1)
+    files = get_all_metadata_from_agent(min_count=1)
 
     assert files, "No internal metadata received from test agent"
 
@@ -91,7 +89,6 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import stack
     from tests.profiling.utils import get_all_metadata_from_agent
-    from tests.profiling.utils import with_profiling_test_agent
 
     N_THREADS = 10
 
@@ -103,26 +100,25 @@ def test_thread_subsampling_all_threads_sampled_without_cap() -> None:
 
     test_name = "test_thread_subsampling_nocap"
 
-    with with_profiling_test_agent() as agent_client:
-        assert ddup.is_available
-        ddup.config(env="test", service=test_name, version="my_version")
-        ddup.start()
-        ddup.upload()  # flush initial empty state; resets stats counters
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version")
+    ddup.start()
+    ddup.upload()  # flush initial empty state; resets stats counters
 
-        threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
-        for t in threads:
-            t.start()
+    threads = [threading.Thread(target=worker, daemon=True) for _ in range(N_THREADS)]
+    for t in threads:
+        t.start()
 
-        with stack.StackCollector():
-            time.sleep(2)
+    with stack.StackCollector():
+        time.sleep(2)
 
-        stop_event.set()
-        for t in threads:
-            t.join(timeout=2)
+    stop_event.set()
+    for t in threads:
+        t.join(timeout=2)
 
-        ddup.upload()
+    ddup.upload()
 
-        files = get_all_metadata_from_agent(agent_client, min_count=1)
+    files = get_all_metadata_from_agent(min_count=1)
 
     total_events: int = 0
     total_samples: int = 0

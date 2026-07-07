@@ -25,11 +25,12 @@ from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 
-# AIDEV-NOTE: Upload URL override for testing. Read from env once at import time so
-# exec-based child processes (gunicorn workers, uwsgi) pick it up automatically.
-# Updated at runtime via config_url() by with_profiling_test_agent() for in-process tests.
-# Never read from os.environ inside _get_endpoint() so production has zero env-var overhead.
-_upload_url_override = _os.environ.get("_DD_PROFILING_TEST_AGENT_URL")
+# Test session token for ddapm-test-agent per-test isolation. When set,
+# _get_endpoint() routes uploads through a local forwarding proxy that injects the
+# X-Datadog-Test-Session-Token header (libdatadog's exporter has no custom-header API).
+# Never set in production; only written by config_test_token() which is test-only.
+_test_token_override: Optional[str] = _os.environ.get("_DD_PROFILING_TEST_TOKEN")
+_test_proxy_base_url: Optional[str] = _os.environ.get("_DD_PROFILING_TEST_PROXY_URL")
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -412,10 +413,20 @@ def set_profiler_settings_json(settings_json: StringType) -> None:
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
-def config_url(url: Optional[str]) -> None:
-    """Set or clear the upload URL override. Used by tests via with_profiling_test_agent()."""
-    global _upload_url_override
-    _upload_url_override = url
+def config_test_token(token: Optional[str], proxy_base_url: Optional[str] = None) -> None:
+    """Test-only: configure a session token for ddapm-test-agent per-test isolation.
+
+    When token is set, _get_endpoint() returns a proxy URL of the form
+    ``{proxy_base_url}/session/{token}`` so that libdatadog uploads to
+    ``{proxy_base_url}/session/{token}/profiling/v1/input``.  The local proxy
+    extracts the token from the path, injects X-Datadog-Test-Session-Token, and
+    forwards to the real ddapm-test-agent.
+
+    Never called in production code.
+    """
+    global _test_token_override, _test_proxy_base_url
+    _test_token_override = token
+    _test_proxy_base_url = proxy_base_url
 
 
 def _get_endpoint(tracer) -> str:
@@ -423,8 +434,10 @@ def _get_endpoint(tracer) -> str:
     # leads to a circular import, so re-implementing it here.
     # TODO(taegyunkim): support agentless mode by modifying uploader_builder to
     # build exporter for agentless mode too.
-    if _upload_url_override is not None:
-        return _upload_url_override
+    if _test_token_override is not None and _test_proxy_base_url is not None:
+        # Route through the local forwarding proxy so the upload carries the
+        # test session token.  libdatadog appends /profiling/v1/input to this.
+        return f"{_test_proxy_base_url}/session/{_test_token_override}"
     tracer_agent_url = tracer.agent_trace_url
     return tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
 

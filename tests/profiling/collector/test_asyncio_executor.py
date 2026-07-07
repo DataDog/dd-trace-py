@@ -12,7 +12,6 @@ def test_asyncio_executor_wall_time() -> None:
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_utils import async_run
-    from tests.profiling.utils import with_profiling_test_agent
 
     assert stack.is_available, stack.failure_msg
 
@@ -25,138 +24,137 @@ def test_asyncio_executor_wall_time() -> None:
     async def main() -> None:
         await asynchronous_function()
 
-    with with_profiling_test_agent() as agent_client:
-        p = profiler.Profiler()
-        p.start()
+    p = profiler.Profiler()
+    p.start()
 
-        async_run(main())
+    async_run(main())
 
-        p.stop()
+    p.stop()
 
-        profile = pprof_utils.get_profile_from_agent(agent_client)
+    profile = pprof_utils.get_profile_from_agent()
 
-        task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
-        assert len(task_samples) > 0
+    task_samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(task_samples) > 0
 
-        # Test that we see the asynchronous function stack
+    # Test that we see the asynchronous function stack
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        task_samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="asynchronous_function",
+                    filename="test_asyncio_executor.py",
+                    line_no=asynchronous_function.__code__.co_firstlineno + 1,
+                ),
+            ],
+        ),
+    )
+
+    samples = pprof_utils.get_samples_with_label_key(profile, "thread name")
+    assert len(samples) > 0
+
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+
+    # uvloop uses ThreadPoolExecutor naming instead of asyncio naming
+    if use_uvloop:
+        executor_thread_name = "ThreadPoolExecutor-0_0"
+    elif PYVERSION >= (3, 9):
+        executor_thread_name = "asyncio_0"
+    else:
+        executor_thread_name = "ThreadPoolExecutor-0_0"
+
+    if PYVERSION >= (3, 11):
+        # Thread Pool Executor
         pprof_utils.assert_profile_has_sample(
             profile,
-            task_samples,
+            samples,
             expected_sample=pprof_utils.StackEvent(
-                thread_name="MainThread",
+                thread_name=executor_thread_name,
                 locations=[
                     pprof_utils.StackLocation(
-                        function_name="asynchronous_function",
+                        function_name="slow_sync_function",
                         filename="test_asyncio_executor.py",
-                        line_no=asynchronous_function.__code__.co_firstlineno + 1,
+                        line_no=slow_sync_function.__code__.co_firstlineno + 1,
+                    ),
+                    # pprof_utils.StackLocation(
+                    #     function_name="_WorkItem.run",
+                    #     filename="",
+                    #     line_no=-1,
+                    # ),
+                    # pprof_utils.StackLocation(
+                    #     function_name="_worker",
+                    #     filename="",
+                    #     line_no=-1,
+                    # ),
+                    # pprof_utils.StackLocation(
+                    #     function_name="Thread.run",
+                    #     filename="",
+                    #     line_no=-1,
+                    # ),
+                ],
+            ),
+        )
+    elif PYVERSION >= (3, 9):
+        # Thread Pool Executor
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name=executor_thread_name,
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="slow_sync_function",
+                        filename="test_asyncio_executor.py",
+                        line_no=slow_sync_function.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="run",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="_worker",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="run",
+                        filename="",
+                        line_no=-1,
                     ),
                 ],
             ),
         )
-
-        samples = pprof_utils.get_samples_with_label_key(profile, "thread name")
-        assert len(samples) > 0
-
-        use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
-
-        # uvloop uses ThreadPoolExecutor naming instead of asyncio naming
-        if use_uvloop:
-            executor_thread_name = "ThreadPoolExecutor-0_0"
-        elif PYVERSION >= (3, 9):
-            executor_thread_name = "asyncio_0"
-        else:
-            executor_thread_name = "ThreadPoolExecutor-0_0"
-
-        if PYVERSION >= (3, 11):
-            # Thread Pool Executor
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_name=executor_thread_name,
-                    locations=[
-                        pprof_utils.StackLocation(
-                            function_name="slow_sync_function",
-                            filename="test_asyncio_executor.py",
-                            line_no=slow_sync_function.__code__.co_firstlineno + 1,
-                        ),
-                        # pprof_utils.StackLocation(
-                        #     function_name="_WorkItem.run",
-                        #     filename="",
-                        #     line_no=-1,
-                        # ),
-                        # pprof_utils.StackLocation(
-                        #     function_name="_worker",
-                        #     filename="",
-                        #     line_no=-1,
-                        # ),
-                        # pprof_utils.StackLocation(
-                        #     function_name="Thread.run",
-                        #     filename="",
-                        #     line_no=-1,
-                        # ),
-                    ],
-                ),
-            )
-        elif PYVERSION >= (3, 9):
-            # Thread Pool Executor
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_name=executor_thread_name,
-                    locations=[
-                        pprof_utils.StackLocation(
-                            function_name="slow_sync_function",
-                            filename="test_asyncio_executor.py",
-                            line_no=slow_sync_function.__code__.co_firstlineno + 1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="run",
-                            filename="",
-                            line_no=-1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="_worker",
-                            filename="",
-                            line_no=-1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="run",
-                            filename="",
-                            line_no=-1,
-                        ),
-                    ],
-                ),
-            )
-        else:
-            # Thread Pool Executor
-            pprof_utils.assert_profile_has_sample(
-                profile,
-                samples,
-                expected_sample=pprof_utils.StackEvent(
-                    thread_name=executor_thread_name,
-                    locations=[
-                        pprof_utils.StackLocation(
-                            function_name="slow_sync_function",
-                            filename="test_asyncio_executor.py",
-                            line_no=slow_sync_function.__code__.co_firstlineno + 1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="run",
-                            filename="",
-                            line_no=-1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="_worker",
-                            filename="",
-                            line_no=-1,
-                        ),
-                        pprof_utils.StackLocation(
-                            function_name="run",
-                            filename="",
-                            line_no=-1,
-                        ),
-                    ],
-                ),
-            )
+    else:
+        # Thread Pool Executor
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_name=executor_thread_name,
+                locations=[
+                    pprof_utils.StackLocation(
+                        function_name="slow_sync_function",
+                        filename="test_asyncio_executor.py",
+                        line_no=slow_sync_function.__code__.co_firstlineno + 1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="run",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="_worker",
+                        filename="",
+                        line_no=-1,
+                    ),
+                    pprof_utils.StackLocation(
+                        function_name="run",
+                        filename="",
+                        line_no=-1,
+                    ),
+                ],
+            ),
+        )
