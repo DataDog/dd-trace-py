@@ -309,6 +309,24 @@ def parse_internal_metadata_from_request(request: "dict[str, object]") -> "dict[
     return result
 
 
+def parse_pid_from_request(request: "dict[str, object]") -> int:
+    """Extract the process_id from the tags_profiler field of a profiling upload event.
+
+    libdatadog encodes process_id as a tag in the comma-separated tags_profiler string,
+    e.g. "runtime:CPython,process_id:1234,...".
+    """
+    parts = _parse_multipart_parts(request)
+    if "event" not in parts:
+        raise ValueError(f"No 'event' part found in profiling request. Available parts: {list(parts.keys())}")
+    event: "dict[str, object]" = json.loads(parts["event"])
+    tags_profiler = str(event.get("tags_profiler", ""))
+    for tag in tags_profiler.split(","):
+        tag = tag.strip()
+        if tag.startswith("process_id:"):
+            return int(tag.split(":", 1)[1])
+    raise ValueError(f"No 'process_id' tag in tags_profiler: {tags_profiler!r}")
+
+
 class _ProfilingMiniAgentClient:
     """HTTP client for _ProfilingMiniAgent.
 

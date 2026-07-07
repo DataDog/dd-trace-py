@@ -17,7 +17,8 @@ import pytest
 from typing_extensions import TypeAlias
 
 from tests.profiling.collector import pprof_utils
-from tests.profiling.utils import get_all_profiles_from_agent
+from tests.profiling.collector.pprof_utils import parse_pid_from_request
+from tests.profiling.utils import get_all_requests_from_agent
 
 
 # DEV: gunicorn tests are hard to debug, so keeping these print statements for
@@ -129,7 +130,8 @@ def _test_gunicorn(
     debug_print("Retrieving profiles from capture server")
     # Multiple uploads may arrive (periodic scheduler + shutdown flush + master process).
     # Search all of them for the worker profile that has cpu-time samples with fib.
-    profiles = get_all_profiles_from_agent(agent_client)
+    reqs = get_all_requests_from_agent(agent_client)
+    profiles = [pprof_utils.parse_profile_from_request(r) for r in reqs]
 
     # DEV: somehow the filename is reported as either __init__.py or gunicorn-app.py
     # when run on GitLab CI. We need to match either of these two.
@@ -325,10 +327,13 @@ def test_gunicorn_profile_export_count_two_workers(
     except subprocess.TimeoutExpired:
         pytest.fail(f"Failed to terminate gunicorn process: {output}")
 
-    # With 2 workers + 1 master process, expect at least 2 profiling uploads
-    # (one per worker minimum; master may or may not upload depending on timing).
-    profiles = get_all_profiles_from_agent(agent_client)
-    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (one per worker), got {len(profiles)}"
+    # Expect one upload per worker; poll until both worker PIDs have uploaded.
+    reqs = get_all_requests_from_agent(agent_client, min_count=2)
+    upload_pids = {parse_pid_from_request(req) for req in reqs}
+    for wpid in worker_pids:
+        assert wpid in upload_pids, (
+            f"Worker PID {wpid} did not upload a profile. Worker PIDs: {worker_pids}, uploaded PIDs: {upload_pids}"
+        )
 
 
 def test_gunicorn_profile_export_count_two_workers_flush_false(

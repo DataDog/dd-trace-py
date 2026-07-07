@@ -1,7 +1,7 @@
 import pytest
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
     from ddtrace.internal.datadog.profiling import stack
@@ -122,7 +122,7 @@ def test_asyncio_start_profiler_from_process_before_importing_asyncio() -> None:
     )
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
     import asyncio
@@ -241,7 +241,7 @@ def test_asyncio_start_profiler_from_process_before_starting_loop() -> None:
 
 
 @pytest.mark.xfail(reason="No way to get the current loop if it is set but not running.")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
     import asyncio
@@ -361,7 +361,7 @@ def test_asyncio_start_profiler_from_process_after_creating_loop() -> None:
 
 
 @pytest.mark.xfail(reason="This test fails because there's no way to get the current loop if it's not already running.")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 # For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio_import_profiler_from_process_after_starting_loop() -> None:
     import asyncio

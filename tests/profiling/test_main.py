@@ -185,7 +185,7 @@ methods = multiprocessing.get_all_start_methods()
     set(methods) - {"forkserver", "fork"},
 )
 def test_multiprocessing(method: str) -> None:
-    from tests.profiling.utils import get_all_profiles_from_agent
+    from tests.profiling.utils import get_all_requests_from_agent
 
     env = os.environ.copy()
     env["DD_PROFILING_ENABLED"] = "1"
@@ -198,13 +198,21 @@ def test_multiprocessing(method: str) -> None:
         env=env,
     )
     assert exitcode == 0, (stdout, stderr)
-    profiles = get_all_profiles_from_agent()
-    # Expect at least 2 profiles: one for the parent process and one for the child
-    assert len(profiles) >= 2, f"Expected at least 2 profiling uploads (parent + child), got {len(profiles)}"
-    # At least one profile must have cpu-time samples (early/empty flush profiles are allowed)
-    assert any(len(pprof_utils.get_samples_with_value_type(p, "cpu-time")) > 0 for p in profiles), (
-        "No profiling uploads had cpu-time samples"
+    reqs = get_all_requests_from_agent(min_count=2)
+    # Group profiles by PID; require at least 2 distinct PIDs (parent + child).
+    from collections import defaultdict
+
+    profiles_by_pid: "dict[int, list]" = defaultdict(list)
+    for req in reqs:
+        pid = pprof_utils.parse_pid_from_request(req)
+        profiles_by_pid[pid].append(pprof_utils.parse_profile_from_request(req))
+    assert len(profiles_by_pid) >= 2, (
+        f"Expected profiles from at least 2 processes (parent + child), got PIDs: {list(profiles_by_pid.keys())}"
     )
+    for pid, pid_profiles in profiles_by_pid.items():
+        assert any(len(pprof_utils.get_samples_with_value_type(p, "cpu-time")) > 0 for p in pid_profiles), (
+            f"Process {pid} did not upload any profile with cpu-time samples"
+        )
 
 
 @pytest.mark.subprocess(

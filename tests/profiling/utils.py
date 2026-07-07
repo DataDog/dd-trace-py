@@ -179,26 +179,44 @@ def clear_agent_session() -> None:
     _client_from_env().clear()
 
 
+def get_all_requests_from_agent(
+    client: "Optional[_ProfilingMiniAgentClient]" = None,
+    min_count: int = 1,
+    timeout: float = 30.0,
+    poll_interval: float = 0.5,
+) -> "list[dict]":
+    """Poll the mini agent and return raw request dicts.
+
+    Keeps polling until at least min_count uploads have arrived.
+    When called without a client, builds one automatically from env vars set by the parent fixture.
+    """
+    _client = client or _client_from_env()
+    end_time = time.time() + timeout
+    reqs: "list[dict]" = []
+    while time.time() < end_time:
+        reqs = _client.profiling_requests()
+        if len(reqs) >= min_count:
+            return reqs
+        time.sleep(poll_interval)
+
+    raise AssertionError(f"Expected at least {min_count} profiling upload(s) within {timeout}s, got {len(reqs)}")
+
+
 def get_all_profiles_from_agent(
     client: "Optional[_ProfilingMiniAgentClient]" = None,
+    min_count: int = 1,
     timeout: float = 30.0,
     poll_interval: float = 0.5,
 ):
     """Poll the mini agent and return all profiling uploads parsed as pprof profiles.
 
+    Keeps polling until at least min_count uploads have arrived.
     When called without a client, builds one automatically from env vars set by the parent fixture.
     """
     from tests.profiling.collector.pprof_utils import parse_profile_from_request
 
-    _client = client or _client_from_env()
-    end_time = time.time() + timeout
-    while time.time() < end_time:
-        reqs = _client.profiling_requests()
-        if reqs:
-            return [parse_profile_from_request(req) for req in reqs]
-        time.sleep(poll_interval)
-
-    raise AssertionError(f"No profiling uploads received within {timeout}s")
+    reqs = get_all_requests_from_agent(client=client, min_count=min_count, timeout=timeout, poll_interval=poll_interval)
+    return [parse_profile_from_request(req) for req in reqs]
 
 
 def get_all_metadata_from_agent(
