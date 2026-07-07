@@ -776,6 +776,7 @@ class TestOptPlugin:
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = last_reports.get(TestPhase.TEARDOWN)
+        self._apply_quarantine_masking_to_report(test, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
