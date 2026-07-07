@@ -69,7 +69,8 @@ segv_handler(int signo, siginfo_t*, void*)
             // handler: the handler chain has cycled back to us. Restore the
             // default disposition and re-raise to guarantee the process
             // terminates instead of looping forever.
-            struct sigaction dfl{};
+            struct sigaction dfl
+            {};
             dfl.sa_handler = SIG_DFL;
             sigemptyset(&dfl.sa_mask);
             dfl.sa_flags = 0;
@@ -101,7 +102,8 @@ init_segv_catcher()
         return -1;
     }
 
-    struct sigaction sa{};
+    struct sigaction sa
+    {};
     sa.sa_sigaction = segv_handler;
     sigemptyset(&sa.sa_mask);
     // SA_SIGINFO for 3-arg handler; SA_ONSTACK to run on alt stack; SA_NODEFER to avoid having to use savemask
