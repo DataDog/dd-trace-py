@@ -32,6 +32,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import consume_matching_prompt
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -113,7 +114,7 @@ class BaseLLMIntegration:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:
             log.error("Error extracting LLMObs fields for span %s, likely due to malformed data", span, exc_info=True)
-        if span.span_type == SpanTypes.LLM and span._get_ctx_item(INPUT_PROMPT) is None:
+        if get_llmobs_span_kind(span) == "llm" and span._get_ctx_item(INPUT_PROMPT) is None:
             try:
                 prompt = consume_matching_prompt(span, args, kwargs)
                 if prompt is not None:

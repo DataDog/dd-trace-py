@@ -12,7 +12,6 @@ from ddtrace.llmobs._utils import register_pending_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.trace import tracer
 
 
 @dataclass(frozen=True)
@@ -56,7 +55,7 @@ class ManagedPrompt:
             rendered = safe_substitute(self.template, variables)
         else:
             rendered = render_chat(self.template, variables)
-        register_pending_prompt(tracer, rendered, self.to_annotation_dict(**variables))
+        register_pending_prompt(rendered, self.to_annotation_dict(**variables))
         return rendered
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:

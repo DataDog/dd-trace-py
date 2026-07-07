@@ -148,7 +148,6 @@ from ddtrace.llmobs._utils import _sanitize_span_event_depth
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
-from ddtrace.llmobs._utils import discard_pending_prompts
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
@@ -588,8 +587,6 @@ class LLMObs(Service):
             self._do_annotations(span)
 
     def _on_span_finish(self, span: Span) -> None:
-        if span._parent is None:
-            discard_pending_prompts(span)
         if not self.enabled or span.span_type != SpanTypes.LLM:
             return
         span_kind = get_llmobs_span_kind(span)

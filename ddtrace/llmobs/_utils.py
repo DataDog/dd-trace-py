@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -14,16 +15,12 @@ from typing import Union
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.context import Context
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import rand64bits
-from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
@@ -45,7 +42,6 @@ from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
-    from ddtrace._trace.tracer import Tracer
     from ddtrace.llmobs._writer import LLMObsSpanData
 
 
@@ -366,62 +362,39 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
-# Pending ManagedPrompt.format() renders, keyed by trace-context id (the ANNOTATIONS_CONTEXT_ID
-# baggage annotation_context also uses).
-_pending_prompts_lock = RLock()
-_pending_prompts: dict[int, list[tuple[Any, Prompt]]] = {}
+# Pending ManagedPrompt.format() renders, scoped to the current thread/task via a ContextVar
+# (same idiom as LLMObsContextProvider in _context.py) rather than trace-context baggage - no
+# span needs to exist yet when format() runs. Capped so a render that's never consumed by an
+# LLM call (e.g. a skipped code path) can't grow this unboundedly on a long-lived worker thread.
+_MAX_PENDING_PROMPTS = 8
+_pending_prompts: contextvars.ContextVar[Optional[list[tuple[Any, Prompt]]]] = contextvars.ContextVar(
+    "dd_llmobs_pending_prompts", default=None
+)
 
 
-def _get_or_create_trace_context_id(tracer: "Tracer") -> int:
-    current_ctx = tracer.current_trace_context()
-    if current_ctx is None:
-        # No trace context exists yet (e.g. .format() called before any span starts).
-        # Bootstrap one, same approach LLMObs.annotation_context uses. If no LLM call
-        # ever follows, this context is never referenced again and is garbage collected
-        # normally - nothing to clean up.
-        current_ctx = Context(is_remote=False)
-        tracer.context_provider.activate(current_ctx)
-    ctx_id = current_ctx.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
-    if not ctx_id:
-        ctx_id = rand64bits()
-        current_ctx.set_baggage_item(ANNOTATIONS_CONTEXT_ID, ctx_id)
-    return ctx_id
-
-
-def register_pending_prompt(tracer: "Tracer", rendered_value: Any, prompt: Prompt) -> None:
+def register_pending_prompt(rendered_value: Any, prompt: Prompt) -> None:
     """Record a ManagedPrompt.format() render for auto-attachment to the next matching LLM call."""
     if not config._llmobs_enabled:
         return
-    ctx_id = _get_or_create_trace_context_id(tracer)
-    with _pending_prompts_lock:
-        _pending_prompts.setdefault(ctx_id, []).append((rendered_value, prompt))
+    pending = _pending_prompts.get()
+    if pending is None:
+        pending = []
+        _pending_prompts.set(pending)
+    elif len(pending) >= _MAX_PENDING_PROMPTS:
+        pending.pop(0)
+    pending.append((rendered_value, prompt))
 
 
 def consume_matching_prompt(span: Span, args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
     """Find and remove the pending prompt render passed by identity into this call's args/kwargs."""
-    ctx_id = span.context.get_baggage_item(ANNOTATIONS_CONTEXT_ID) if span.context else None
-    if not ctx_id:
+    pending = _pending_prompts.get()
+    if not pending:
         return None
-    with _pending_prompts_lock:
-        pending = _pending_prompts.get(ctx_id)
-        if not pending:
-            return None
-        values = [*args, *kwargs.values()]
-        for i, (rendered_value, prompt) in enumerate(pending):
-            if any(rendered_value is value for value in values):
-                return pending.pop(i)[1]
+    values = [*args, *kwargs.values()]
+    for i, (rendered_value, prompt) in enumerate(pending):
+        if any(rendered_value is value for value in values):
+            return pending.pop(i)[1]
     return None
-
-
-def discard_pending_prompts(span: Span) -> None:
-    """Drop any never-consumed pending prompts once the local trace's root span finishes."""
-    if span._parent is not None or span.context is None:
-        return
-    ctx_id = span.context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
-    if not ctx_id:
-        return
-    with _pending_prompts_lock:
-        _pending_prompts.pop(ctx_id, None)
 
 
 def get_llmobs_span_name(span: Span) -> Optional[str]:
