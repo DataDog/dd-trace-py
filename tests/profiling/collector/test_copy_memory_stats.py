@@ -80,41 +80,27 @@ def test_fast_copy_memory_disabled():
     ),
     err=None,
 )
-def test_fast_copy_memory_enabled():
-    """With _DD_PROFILING_STACK_FAST_COPY=1 the sampler eventually uses safe_memcpy.
-
-    It first runs on the safe syscall-based copy for a startup warmup window
-    (PROF-14568) and upgrades to safe_memcpy afterwards once it confirms it still
-    owns the SIGSEGV handler. We read the live copy mode via the native
-    fast_copy_memory_active() introspection instead of scraping metadata files, and
-    shrink the warmup via the test-only _set_fast_copy_warmup_seconds() knob so the
-    warmup -> upgrade transition can be observed quickly.
-    """
+def test_fast_copy_memory_enabled() -> None:
+    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-14568)."""
     import time
 
-    # _set_fast_copy_warmup_seconds is underscore-prefixed, so it lives only on the
-    # native _stack submodule (`from ._stack import *` skips underscored names).
+    # Underscore-prefixed, so only on the _stack submodule (`import *` skips it).
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
 
-    # Shrink the 15s production warmup so the upgrade happens quickly. Must be set
-    # before the sampler thread starts.
     _stack._set_fast_copy_warmup_seconds(1.0)
 
-    p = profiler.Profiler(tracer=tracer)
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    # First confirm the sampler runs on the safe syscall copy during warmup
-    # (fast_copy_memory_active() is False), then that it upgrades to safe_memcpy
-    # (True). We only accept the upgrade after seeing the warmup so the brief
-    # constructor-time True (before the sampling thread drops to the warmup copy)
-    # can't be mistaken for the upgrade.
-    saw_warmup = False
-    saw_upgrade = False
-    deadline = time.monotonic() + 10
+    # Require warmup (False) before accepting the upgrade (True), so the brief
+    # constructor-time True isn't mistaken for it.
+    saw_warmup: bool = False
+    saw_upgrade: bool = False
+    deadline: float = time.monotonic() + 10
     while time.monotonic() < deadline:
-        active = _stack.fast_copy_memory_active()
+        active: bool = _stack.fast_copy_memory_active()
         if not saw_warmup:
             if active is False:
                 saw_warmup = True
@@ -126,4 +112,4 @@ def test_fast_copy_memory_enabled():
     p.stop()
 
     assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
-    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy (fast_copy_memory_active()=True) after warmup"
+    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"

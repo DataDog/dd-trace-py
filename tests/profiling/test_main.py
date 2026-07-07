@@ -256,17 +256,9 @@ def test_profiler_start_up_with_module_clean_up_in_protobuf_app() -> None:
     err=None,
 )
 def test_stack_profiler_foreign_segv_handler_detection() -> None:
-    # Regression test for PROF-14568: safe_memcpy's fault recovery only works while
-    # we own BOTH the SIGSEGV and SIGBUS handlers (a copy fault can be delivered as
-    # either). If another component (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC)
-    # installs its own handler for either signal, the native sampler must detect that
-    # it no longer owns the handler so it can stay on / fall back to the syscall-based
-    # memory copy instead of crashing.
-    #
-    # segv_handler_installed() is the primitive that drives that decision. Our
-    # handler is installed at native import time when fast copy is enabled, so the
-    # predicate can be verified deterministically here without waiting on the
-    # sampler's startup warmup window.
+    # Regression test for PROF-14568: safe_memcpy's fault recovery needs us to own
+    # BOTH SIGSEGV and SIGBUS. segv_handler_installed() drives the sampler's
+    # detect-and-fallback decision; assert it flips when either signal is taken over.
     import signal
 
     from ddtrace.internal.datadog.profiling import stack

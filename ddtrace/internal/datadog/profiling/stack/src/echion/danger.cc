@@ -143,11 +143,8 @@ init_segv_catcher()
 bool
 segv_handler_installed()
 {
-    // safe_memcpy's fault recovery relies on owning BOTH SIGSEGV and SIGBUS:
-    // init_segv_catcher installs our 3-arg (SA_SIGINFO) handler for both, and a
-    // copy fault can be delivered as either. If a foreign component has taken over
-    // either signal - or replaced our handler with a 1-arg (non SA_SIGINFO) one -
-    // recovery is no longer guaranteed, so report that our handler is not installed.
+    // Recovery needs our 3-arg (SA_SIGINFO) handler to own BOTH SIGSEGV and SIGBUS
+    // (a copy fault can arrive as either); anything else means we can't recover.
     const int signals[] = { SIGSEGV, SIGBUS };
     for (int signo : signals) {
         struct sigaction current;
