@@ -1,14 +1,7 @@
 ---
 fixes:
   - |
-    profiling: The stack profiler no longer crashes in environments where another
-    component (for example PyTorch/CUDA, or abseil pulled in by vLLM/gRPC) installs
-    its own ``SIGSEGV``/``SIGBUS`` handler that the profiler cannot wrap. The sampler
-    now runs on a syscall-based memory copy during a short startup warmup window,
-    upgrades to the faster fault-recovery copy only if it still owns both fault
-    handlers afterwards, and permanently falls back to the syscall-based copy (or
-    stops sampling if no safe copy method is available) if a foreign handler is
-    installed later. This complements the existing ``faulthandler`` integration,
-    which keeps the profiler's handler on top of components it can intercept, and
-    removes the need for the ``_DD_PROFILING_STACK_FAST_COPY=0`` workaround in these
-    environments.
+    profiling: crash fix for stack sampler in case where another
+    component installs its own ``SIGSEGV``/``SIGBUS`` handler that the profiler cannot wrap (e.g. CUDA, PyTorch, etc.).
+    The sampler upgrades to the faster fault-recovery copy if it still owns both fault handlers afterwards.
+    Otherwise, it permanently falls back to the syscall-based copy.
