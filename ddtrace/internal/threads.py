@@ -67,6 +67,17 @@ def _safe_restart(start: t.Callable[[], None], name: t.Optional[str] = None) -> 
         log.error("failed to start periodic thread %s: %s", name, e)
 
 
+def _safe_restart_in_child(start: t.Callable[[], None]) -> None:
+    """Invoke a child at-fork restart without touching logging locks."""
+    try:
+        start()
+    except Exception:
+        # AIDEV-NOTE: Never log from after_in_child. Logging handlers may hold
+        # locks inherited from vanished parent threads, so even best-effort
+        # error reporting here can deadlock before os.fork() returns.
+        return
+
+
 class PeriodicThread(_PeriodicThread):
     """A fork-safe periodic thread."""
 
@@ -167,16 +178,17 @@ def _after_fork_child():
     # the child so application code can resume immediately after fork. Parent
     # process threads are still restarted in _after_fork_parent() below.
     for thread in _threads_to_restart_after_fork.copy():
-        log.debug("Restarting thread %s after fork in child", thread.name)
         try:
             thread._after_fork(force=False)
-        except Exception as e:
-            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
+        except Exception:  # nosec B112
+            # AIDEV-NOTE: Never log from after_in_child. Logging handlers may
+            # hold locks inherited from vanished parent threads, so logging here
+            # can deadlock before os.fork() returns.
+            continue
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
-        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
-        _safe_restart(thread_start, thread_start.__self__.name)
+        _safe_restart_in_child(thread_start)
     _threads_to_start_after_fork.clear()
 
 

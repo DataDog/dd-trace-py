@@ -1,0 +1,3 @@
+fixes:
+  - |
+    core: Fixes a deadlock that could occur in forked child processes when restarting ddtrace periodic threads after fork.
