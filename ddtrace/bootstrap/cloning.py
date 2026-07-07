@@ -76,6 +76,7 @@ def cleanup_loaded_modules() -> None:
             "attr",
             "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
+            "numpy",  # its C extension cannot be re-initialized in >= 2.4 (numpy/numpy#29030)
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch

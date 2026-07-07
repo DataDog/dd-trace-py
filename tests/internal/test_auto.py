@@ -129,6 +129,27 @@ def test_dataclasses_not_unloaded():
     assert b
 
 
+@pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_numpy_not_unloaded():
+    import sys
+
+    import ddtrace  # noqa
+
+    # numpy >= 2.4 refuses to re-initialize its C extension, so if cleanup drops
+    # it and user code re-imports, the second import raises ImportError. Keep it
+    # loaded across the cleanup. Regression test for issue #18276.
+    have_numpy = True
+    try:
+        import numpy  # noqa
+    except ImportError:
+        have_numpy = False
+
+    import ddtrace.auto  # noqa
+
+    if have_numpy:
+        assert "numpy" in sys.modules
+
+
 def test_uwsgi_gevent():
     """
     Test that we support uwsgi + gevent when threads are patched.
