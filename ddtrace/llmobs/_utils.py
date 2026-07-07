@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextvars
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
@@ -362,35 +361,33 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     return cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY) or {})
 
 
-# Pending ManagedPrompt.format() renders, scoped to the current thread/task via a ContextVar
-# (same idiom as LLMObsContextProvider in _context.py) rather than trace-context baggage - no
-# span needs to exist yet when format() runs. A render that's never consumed by an LLM call
-# (e.g. a skipped code path) stays here until the next matching call pops it or the thread ends.
-_pending_prompts: contextvars.ContextVar[Optional[list[tuple[Any, Prompt]]]] = contextvars.ContextVar(
-    "dd_llmobs_pending_prompts", default=None
-)
+class _TrackedPromptStr(str):
+    dd_prompt: Prompt
 
 
-def register_pending_prompt(rendered_value: Any, prompt: Prompt) -> None:
-    """Record a ManagedPrompt.format() render for auto-attachment to the next matching LLM call."""
+class _TrackedPromptList(list):
+    dd_prompt: Prompt
+
+
+def attach_prompt(rendered_value: Any, prompt: Prompt) -> Any:
+    """Wrap a ManagedPrompt.format() render so it carries its prompt metadata into the LLM call."""
     if not config._llmobs_enabled:
-        return
-    pending = _pending_prompts.get()
-    if pending is None:
-        pending = []
-        _pending_prompts.set(pending)
-    pending.append((rendered_value, prompt))
+        return rendered_value
+    if isinstance(rendered_value, str):
+        tracked: Union[_TrackedPromptStr, _TrackedPromptList] = _TrackedPromptStr(rendered_value)
+    elif isinstance(rendered_value, list):
+        tracked = _TrackedPromptList(rendered_value)
+    else:
+        return rendered_value
+    tracked.dd_prompt = prompt
+    return tracked
 
 
-def consume_matching_prompt(span: Span, args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
-    """Find and remove the pending prompt render passed by identity into this call's args/kwargs."""
-    pending = _pending_prompts.get()
-    if not pending:
-        return None
-    values = [*args, *kwargs.values()]
-    for i, (rendered_value, prompt) in enumerate(pending):
-        if any(rendered_value is value for value in values):
-            return pending.pop(i)[1]
+def get_tracked_prompt(args: list[Any], kwargs: dict[str, Any]) -> Optional[Prompt]:
+    """Return the managed-prompt metadata carried by any value passed into this LLM call, if any."""
+    for value in (*args, *kwargs.values()):
+        if isinstance(value, (_TrackedPromptStr, _TrackedPromptList)):
+            return value.dd_prompt
     return None
 
 

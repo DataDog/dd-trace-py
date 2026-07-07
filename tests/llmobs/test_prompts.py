@@ -395,6 +395,23 @@ class TestPrompts:
         assert get_llmobs_input_prompt(span_a)["id"] == "greeting"
         assert get_llmobs_input_prompt(span_b)["id"] == "assistant"
 
+    def test_auto_prompt_tracking_skips_untracked_input(self, tracer):
+        """A request that carries no managed-prompt render (e.g. the render was copied or rebuilt)
+        leaves the span untagged rather than guessing.
+        """
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        integration = BaseLLMIntegration(IntegrationConfig(config, "fake_llm"))
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("greeting")
+        rendered = prompt.format(name="Alice")
+
+        with LLMObs.llm(model_name="test-model", name="test") as span:
+            # str() drops the tracked-prompt subclass, mirroring a caller that copies the render
+            integration.llmobs_set_tags(span, args=[], kwargs={"messages": str(rendered)})
+
+        assert get_llmobs_input_prompt(span) is None
+
     def test_trigger_background_refresh_does_not_leave_stale_thread_entry(self):
         manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
 

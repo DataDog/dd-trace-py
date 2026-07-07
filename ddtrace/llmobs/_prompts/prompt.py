@@ -8,7 +8,7 @@ from typing import Union
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
-from ddtrace.llmobs._utils import register_pending_prompt
+from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
@@ -55,7 +55,7 @@ class ManagedPrompt:
             rendered = safe_substitute(self.template, variables)
         else:
             rendered = render_chat(self.template, variables)
-        register_pending_prompt(rendered, self.to_annotation_dict(**variables))
+        rendered = attach_prompt(rendered, self.to_annotation_dict(**variables))
         return rendered
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:
