@@ -55,8 +55,7 @@ class ManagedPrompt:
             rendered = safe_substitute(self.template, variables)
         else:
             rendered = render_chat(self.template, variables)
-        rendered = attach_prompt(rendered, self.to_annotation_dict(**variables))
-        return rendered
+        return attach_prompt(rendered, self.to_annotation_dict(**variables))
 
     def to_annotation_dict(self, **variables: Any) -> Prompt:
         """
