@@ -23,6 +23,13 @@ def set_interval(new_interval: float) -> None: ...
 # Memory copy strategy
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
+def segv_handler_installed() -> bool:
+    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
+
+    Used to detect when another component (e.g. PyTorch/CUDA) has taken over either
+    signal, in which case safe_memcpy's fault recovery would no longer work.
+    """
+    ...
 
 # span <-> profile association
 def link_span(
