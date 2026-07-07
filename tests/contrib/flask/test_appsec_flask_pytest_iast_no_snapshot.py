@@ -37,8 +37,9 @@ def test_flask_pytest_iast(iast_enabled, iast_request_sampling):
     try:
         time.sleep(0.2)
     finally:
-        _, stderr = proc.communicate()
+        stdout, stderr = proc.communicate()
     # DEV uncomment this line if you need more info locally
+    # print(stdout.decode("utf-8"))
     split_stderr = stderr.decode("utf-8").split("\n")
 
     found = False
