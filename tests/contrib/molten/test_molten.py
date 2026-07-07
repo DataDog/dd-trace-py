@@ -17,6 +17,7 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+from tests.utils import snapshot
 
 
 MOLTEN_VERSION = parse_version(molten.__version__)
@@ -71,6 +72,7 @@ class TestMolten(TracerTestCase):
             uri = self.app.reverse_uri("hello", name="Jim", age=24)
         return self.client.request("GET", uri, headers=headers, params=params)
 
+    @snapshot()
     def test_route_success(self):
         """Tests request was a success with the expected span tags"""
         response = self.make_request()
