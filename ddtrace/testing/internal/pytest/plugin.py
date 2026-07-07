@@ -1427,10 +1427,6 @@ def pytest_configure(config: pytest.Config) -> None:
             config.pluginmanager.register(BddTestOptPlugin(plugin))
         except Exception:
             log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
-        try:
-            config.pluginmanager.register(BddTestOptPlugin(plugin))
-        except Exception:
-            log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
