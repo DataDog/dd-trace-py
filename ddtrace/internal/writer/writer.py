@@ -11,6 +11,7 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
+from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -507,6 +508,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
+        if timeout is None and forksafe.is_fork_child():
+            # In a forked child the worker's OS thread does not exist (fork only
+            # copies the calling thread), so a blocking join would wait forever on
+            # a condition variable that is never signaled, hanging os.fork().
+            timeout = 0
         self.join(timeout=timeout)
 
     def on_shutdown(self):
@@ -1005,6 +1011,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(NativeWriter, self)._stop_service()
+        if timeout is None and forksafe.is_fork_child():
+            # In a forked child the worker's OS thread does not exist (fork only
+            # copies the calling thread), so a blocking join would wait forever on
+            # a condition variable that is never signaled, hanging os.fork().
+            timeout = 0
         self.join(timeout=timeout)
 
     def on_shutdown(self):
