@@ -1,9 +1,11 @@
 import abc
 import binascii
 from collections import defaultdict
+import functools
 import gzip
 import sys
 import threading
+import weakref
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -11,7 +13,6 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -29,6 +30,7 @@ from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
 from .. import compat
+from .. import forksafe
 from .. import periodic
 from .. import process_tags
 from .. import service
@@ -110,6 +112,29 @@ class NoEncodableSpansError(Exception):
 DEFAULT_SMA_WINDOW = 10
 
 
+def make_weak_method_hook(bound_method):
+    """
+    Wrap a bound method so that it is called via a weakref to its instance.
+    If the instance has been garbage-collected, the hook is a no-op.
+    """
+    if not hasattr(bound_method, "__self__") or bound_method.__self__ is None:
+        raise TypeError("make_weak_method_hook expects a bound method")
+
+    instance = bound_method.__self__
+    func = bound_method.__func__
+    instance_ref = weakref.ref(instance)
+
+    @functools.wraps(func)
+    def hook(*args, **kwargs):
+        inst = instance_ref()
+        if inst is None:
+            # The instance was garbage-collected
+            return
+        return func(inst, *args, **kwargs)
+
+    return hook
+
+
 def _human_size(nbytes: float) -> str:
     """Return a human-readable size."""
     i = 0
@@ -129,6 +154,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        fork_child: bool = False,
     ) -> "TraceWriter":
         pass
 
@@ -157,6 +183,7 @@ class LogWriter(TraceWriter):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        fork_child: bool = False,
     ) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
@@ -517,11 +544,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
-        if timeout is None and forksafe.is_fork_child():
-            # In a forked child the worker's OS thread does not exist (fork only
-            # copies the calling thread), so a blocking join would wait forever on
-            # a condition variable that is never signaled, hanging os.fork().
-            timeout = 0
         self.join(timeout=timeout)
 
     def on_shutdown(self):
@@ -626,9 +648,14 @@ class AgentlessTraceWriter(HTTPWriter):
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        fork_child: bool = False,
     ) -> "AgentlessTraceWriter":
         try:
-            self.stop()
+            # In a forked child the inherited worker's OS thread does not exist
+            # (fork only copies the calling thread), so a blocking join would wait
+            # forever on a condition variable that is never signaled, hanging
+            # os.fork(). Use a non-blocking stop for that stale worker only.
+            self.stop(timeout=0) if fork_child else self.stop()
         except ServiceStatusError:
             pass
         return self.__class__(
@@ -800,7 +827,27 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
+        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
+        self._fork_hook = before_fork_hook
+        forksafe.register_before_fork(before_fork_hook)
+
         self._exporter = self._create_exporter()
+
+    def before_fork_hook(self):
+        """Bring the native runtime to a stopped state before forking.
+
+        When the PeriodicService is running, its worker's ``_before_fork`` (installed
+        in ``_start_service``) stops+joins the worker and shuts down the native runtime
+        in the parent. When it is not running, there is no worker to do so, so we stop
+        the native runtime here. Either way the child never inherits a live/half-stopped
+        native runtime, which is what caused os.fork() to block on the writer join.
+        """
+        if self.status != service.ServiceStatus.RUNNING:
+            self._exporter.stop_worker()
+
+    def __del__(self):
+        if hasattr(self, "_fork_hook") and self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
 
     @staticmethod
     def _parse_otlp_headers() -> list:
@@ -859,20 +906,36 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         self._exporter = self._create_exporter()
 
+    def _discard_exporter(self) -> None:
+        self._exporter.drop()
+
     def recreate(
         self,
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
+        fork_child: bool = False,
     ) -> "NativeWriter":
         # Ensure AppSec metadata / LLM Observability meta_struct payload is encoded by setting
         # the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
-            self.stop()
+            # Safety net: in a forked child the inherited worker's OS thread does not
+            # exist (fork only copies the calling thread), so a blocking join would
+            # wait forever on a condition variable that is never signaled, hanging
+            # os.fork(). The before-fork hook should already have stopped it in the
+            # parent, but use a non-blocking stop here for that stale worker just in
+            # case. Parent-side recreations keep the blocking stop so buffered traces
+            # are flushed by on_shutdown().
+            self.stop(timeout=0) if fork_child else self.stop()
         except ServiceStatusError:
             # Writers like AgentWriter may not start until the first trace is encoded.
             # Stopping them before that will raise a ServiceStatusError.
             pass
+        finally:
+            if fork_child:
+                # The inherited native exporter's tokio runtime is unusable in the
+                # child; drop it so the freshly-created writer below builds a new one.
+                self._discard_exporter()
 
         api_version = "v0.4" if (appsec_enabled or llmobs_enabled) else self._api_version
         return self.__class__(
@@ -1086,14 +1149,32 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self,
         timeout: Optional[float] = None,
     ) -> None:
-        # FIXME: don't join() on stop(), let the caller handle this
-        super(NativeWriter, self)._stop_service()
-        if timeout is None and forksafe.is_fork_child():
-            # In a forked child the worker's OS thread does not exist (fork only
-            # copies the calling thread), so a blocking join would wait forever on
-            # a condition variable that is never signaled, hanging os.fork().
-            timeout = 0
-        self.join(timeout=timeout)
+        try:
+            # FIXME: don't join() on stop(), let the caller handle this
+            super(NativeWriter, self)._stop_service()
+            self.join(timeout=timeout)
+        # Native threads should be stopped even if the writer is not running
+        finally:
+            self._exporter.stop_worker()
+            if self._fork_hook:
+                forksafe.unregister_before_fork(self._fork_hook)
+                self._fork_hook = None
+
+    def _start_service(self, *args, **kwargs):
+        super()._start_service(*args, **kwargs)
+
+        # While the service is running, the generic threads.py before-fork machinery
+        # calls the worker's _before_fork() in the parent. Install one that fully
+        # stops the worker (join) and shuts down the native runtime before the fork,
+        # so the child never inherits a live/half-stopped runtime or a running worker.
+        def _before_fork(worker: periodic.PeriodicThread) -> None:
+            super(periodic.PeriodicThread, worker)._before_fork()
+            super(periodic.PeriodicThread, worker).join()
+            self._exporter.stop_worker()
+
+        assert self._worker is not None  # nosec
+
+        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
 
     def on_shutdown(self):
         try:

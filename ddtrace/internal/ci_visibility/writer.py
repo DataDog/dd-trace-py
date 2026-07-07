@@ -229,7 +229,7 @@ class CIVisibilityWriter(HTTPWriter):
             super(CIVisibilityWriter, self).stop(timeout=timeout)
 
     def recreate(
-        self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None
+        self, appsec_enabled: Optional[bool] = None, llmobs_enabled: Optional[bool] = None, fork_child: bool = False
     ) -> "CIVisibilityWriter":
         return self.__class__(
             intake_url=self.intake_url,

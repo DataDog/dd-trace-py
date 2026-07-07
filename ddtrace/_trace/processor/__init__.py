@@ -549,6 +549,7 @@ class SpanAggregator(SpanProcessor):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        fork_child: bool = False,
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
@@ -562,7 +563,9 @@ class SpanAggregator(SpanProcessor):
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+        self.writer = self.writer.recreate(
+            appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled, fork_child=fork_child
+        )
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
