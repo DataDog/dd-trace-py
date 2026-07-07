@@ -1167,10 +1167,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             ),
         )
 
-        # No VCR proxy exists for google_genai in the test agent. ddtrace patches the public
-        # Models.generate_content method, which internally calls the private _generate_content;
-        # mocking the private method (not the public one ddtrace wraps) keeps the real patch
-        # wrapper in the call path so the google_genai integration's own span still fires.
+        # Mock below ddtrace-patched generate_content so the google_genai span is still created.
         with mock.patch("google.genai.models.Models._generate_content", return_value=mock_response):
             llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
             llm.invoke("When do you use 'whom' instead of 'who'?")
@@ -1193,10 +1190,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             ),
         )
 
-        # LangChain's ChatGoogleGenerativeAI.stream() calls client.models.generate_content_stream,
-        # which ddtrace patches; mocking the private _generate_content_stream (not the public
-        # method ddtrace wraps) keeps the real patch wrapper in the call path, same rationale as
-        # _call_google_genai_chat above.
         with mock.patch("google.genai.models.Models._generate_content_stream", return_value=iter([mock_chunk])):
             llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, max_output_tokens=15)
             for _ in llm.stream("When do you use 'whom' instead of 'who'?"):

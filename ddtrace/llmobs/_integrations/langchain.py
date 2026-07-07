@@ -121,8 +121,8 @@ def _is_chain_instance(instance):
 
 
 def _is_google_genai_backed(instance) -> bool:
-    """True if the instance's client uses the google.genai SDK surface ddtrace
-    can patch, not the legacy client used by langchain-google-genai<4.
+    """True if the client is a google.genai object ddtrace can patch (not the legacy
+    langchain-google-genai<4 client), so demoting the span leaves a google_genai child span in its place.
     """
     client = getattr(instance, "client", None)
     client = getattr(client, "client", client)
@@ -190,20 +190,16 @@ class LangChainIntegration(BaseLLMIntegration):
                 llmobs_integration = "openai"
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
-            # raw (unnormalized) provider strings differ between the non-streaming and streaming
-            # code paths for this provider (e.g. "google-generative-ai" vs "chat-google-generative-ai"),
-            # so match by substring rather than prefix, mirroring the openai/azure check above. Also
-            # confirm the instance is actually backed by the patched SDK: langchain-google-genai<4 uses
-            # a legacy client ddtrace never patches, so the google_genai integration being enabled
-            # elsewhere in the process doesn't mean this call will produce a child span.
+            # match by substring, not prefix: the raw provider string differs between the
+            # non-streaming and streaming code paths ("google-generative-ai" vs "chat-google-generative-ai")
             elif (
                 operation == "chat"
                 and GOOGLE_GENAI_PROVIDER_NAME in model_provider
                 and _is_google_genai_backed(instance)
             ):
                 llmobs_integration = "google_genai"
-            # GoogleGenerativeAI (the non-chat LLM wrapper) delegates to an inner ChatGoogleGenerativeAI,
-            # so it hits the same double-span case via the llm operation instead of chat.
+            # GoogleGenerativeAI (the LLM wrapper) delegates to an inner ChatGoogleGenerativeAI, so it would
+            # also produce two llm-kind spans for one call (like chat) unless demoted.
             elif (
                 operation == "llm"
                 and model_provider == GOOGLE_GENAI_LLM_PROVIDER_NAME
