@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    CI Visibility: This fix resolves an issue where quarantined tests were not retried by Auto Test Retry (ATR). Quarantine masking is now deferred until after ATR completes its retries, allowing the plugin to detect failures and trigger retries before marking tests as quarantined.
+    CI Visibility: This fix resolves an issue where quarantined tests were not retried by Auto Test Retry (ATR).
