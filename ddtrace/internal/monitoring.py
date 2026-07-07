@@ -42,9 +42,9 @@ _tool_id: Optional[int] = None
 _tool_lock = Lock()
 
 # The set of global-only events currently enabled via sys.monitoring.set_events.
-_active_global_events = 0
+_active_global_events: int = 0
 
-_registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_registry: "weakref.WeakKeyDictionary[CodeType, dict[int, _Entry]]" = weakref.WeakKeyDictionary()
 _registry_lock = Lock()
 
 
@@ -76,9 +76,9 @@ class MonitoringEventHandler(ABC):
 
 def _events_for_handler(handler: MonitoringEventHandler) -> int:
     """Return the OR of events corresponding to overridden handler methods."""
-    cls = type(handler)
-    base = MonitoringEventHandler
-    events = 0
+    cls: type[MonitoringEventHandler] = type(handler)
+    base: type[MonitoringEventHandler] = MonitoringEventHandler
+    events: int = 0
     if cls.on_py_start is not base.on_py_start:
         events |= _E.PY_START
     if cls.on_py_return is not base.on_py_return:
@@ -90,8 +90,8 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
     return events
 
 
-def _events_for(entries: dict) -> int:
-    events = 0
+def _events_for(entries: "dict[int, _Entry]") -> int:
+    events: int = 0
     for e in list(entries.values()):
         events |= e.events
     return events
@@ -137,7 +137,7 @@ def _setup() -> int:
 
 
 def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
-    entries = _registry.get(code)
+    entries: Optional[dict[int, _Entry]] = _registry.get(code)
     if not entries:
         return _DISABLE
     for e in list(entries.values()):
@@ -147,7 +147,7 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
 
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
-    entries = _registry.get(code)
+    entries: Optional[dict[int, _Entry]] = _registry.get(code)
     if not entries:
         return _DISABLE
     for e in list(entries.values()):
@@ -157,7 +157,7 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 
 
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
-    entries = _registry.get(code)
+    entries: Optional[dict[int, _Entry]] = _registry.get(code)
     # PY_UNWIND is a global event, so this callback fires for every unwinding
     # frame regardless of registration. We must not return DISABLE for
     # unregistered code: doing so would permanently disable the event for that
@@ -173,10 +173,10 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
 
 
 def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
-    entries = _registry.get(code)
+    entries: Optional[dict[int, _Entry]] = _registry.get(code)
     if not entries:
         return _DISABLE
-    disable = True
+    disable: bool = True
     for e in list(entries.values()):
         if e.events & _E.LINE:
             if e.handler.on_py_line(code, line_number) is not _DISABLE:
@@ -203,7 +203,7 @@ def _recompute_global_events() -> None:
     global _active_global_events
     if _tool_id is None:
         return
-    needed = 0
+    needed: int = 0
     for entries in _registry.values():
         needed |= _events_for(entries)
     needed &= _GLOBAL_EVENTS
@@ -218,19 +218,19 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     The handler instance itself is the registration key; pass the same object
     to :func:`unregister` to remove it.
     """
-    handler_events = _events_for_handler(handler)
+    handler_events: int = _events_for_handler(handler)
     if not handler_events:
         raise ValueError("Handler overrides no MonitoringEventHandler methods")
 
-    tool_id = _setup()
-    entry = _Entry(handler, handler_events)
+    tool_id: int = _setup()
+    entry: _Entry = _Entry(handler, handler_events)
 
     with _registry_lock:
-        entries = _registry.get(code)
+        entries: Optional[dict[int, _Entry]] = _registry.get(code)
         if entries is None:
             _registry[code] = entries = {}
         entries[id(handler)] = entry
-        all_events = _events_for(entries)
+        all_events: int = _events_for(entries)
         sys.monitoring.set_local_events(tool_id, code, all_events & _LOCAL_EVENTS)
         _enable_global_events(all_events & _GLOBAL_EVENTS)
 
@@ -242,7 +242,7 @@ def refresh(code: CodeType) -> None:
     disabled via a ``DISABLE`` return from :meth:`MonitoringEventHandler.on_py_line`.
     """
     with _registry_lock:
-        entries = _registry.get(code)
+        entries: Optional[dict[int, _Entry]] = _registry.get(code)
         if entries and _tool_id is not None:
             sys.monitoring.set_local_events(_tool_id, code, _events_for(entries) & _LOCAL_EVENTS)
 
@@ -250,7 +250,7 @@ def refresh(code: CodeType) -> None:
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Remove *handler* from the handlers registered for *code*."""
     with _registry_lock:
-        existing = _registry.get(code)
+        existing: Optional[dict[int, _Entry]] = _registry.get(code)
         if existing is None:
             return
 

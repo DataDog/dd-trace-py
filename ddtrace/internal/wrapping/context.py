@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 import sys
+from types import CodeType
 from types import FrameType
 from types import FunctionType
 from types import TracebackType
@@ -47,7 +48,7 @@ class _ContextRecord:
 
     @property
     def uwc(self) -> t.Optional["_UniversalWrappingContext"]:
-        ref = self._uwc_ref
+        ref: t.Optional[weakref.ref["_UniversalWrappingContext"]] = self._uwc_ref
         return ref() if ref is not None else None
 
     @uwc.setter
@@ -56,7 +57,7 @@ class _ContextRecord:
 
     @classmethod
     def get_or_create(cls, f: FunctionType) -> "_ContextRecord":
-        record = _registry.get(f)
+        record: t.Optional["_ContextRecord"] = _registry.get(f)
         if record is None:
             with _registry_lock:
                 record = _registry.get(f)
@@ -353,7 +354,7 @@ if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object solely for is_wrapped/extract lookups (not dispatch).
-    _ctx_registry: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+    _ctx_registry: "weakref.WeakKeyDictionary[CodeType, _UniversalWrappingContext]" = weakref.WeakKeyDictionary()
     _ctx_registry_lock = Lock()
 
 
@@ -501,7 +502,7 @@ else:
         @classmethod
         def is_wrapped(cls, f: FunctionType) -> bool:
             with _registry_lock:
-                record = _registry.get(f)
+                record: t.Optional[_ContextRecord] = _registry.get(f)
                 if record is None:
                     return False
                 return any(isinstance(c, cls) for c in record.lazy_contexts)
@@ -526,9 +527,9 @@ else:
 
                             self._trampoline = None
 
-                            inconsistent = False
+                            inconsistent: bool = False
                             with _registry_lock:
-                                record = _registry.get(t.cast(FunctionType, f))
+                                record: t.Optional[_ContextRecord] = _registry.get(t.cast(FunctionType, f))
                                 if record is not None:
                                     inconsistent = self not in record.lazy_contexts
                                     record.lazy_contexts.discard(self)
@@ -553,7 +554,7 @@ else:
                     super().unwrap()
                 elif self._trampoline is not None:
                     with _registry_lock:
-                        record = _registry.get(t.cast(FunctionType, self.__wrapped__))
+                        record: t.Optional[_ContextRecord] = _registry.get(t.cast(FunctionType, self.__wrapped__))
                         if record is not None:
                             record.lazy_contexts.discard(self)
                             if not record.lazy_contexts and record.uwc is None:
@@ -691,7 +692,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         @classmethod
         def is_wrapped(cls, f: FunctionType) -> bool:
             try:
-                code = get_function_code(f)
+                code: CodeType = get_function_code(f)
                 if code not in _ctx_registry:
                     return False
                 # Also verify that THIS function instance is wrapped, not just some
@@ -703,14 +704,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         @classmethod
         def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":
-            ctx = _ctx_registry.get(get_function_code(f))
+            ctx: t.Optional["_UniversalWrappingContext"] = _ctx_registry.get(get_function_code(f))
             if ctx is None:
                 raise ValueError("Function is not wrapped")
             return ctx
 
         def wrap(self) -> None:
-            f = self.__wrapped__
-            code = get_function_code(f)
+            f: FunctionType = self.__wrapped__
+            code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
                 if code in _ctx_registry:
                     # Allow wrapping a new function instance that shares the same
@@ -725,15 +726,15 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     except AttributeError:
                         pass
                     # Stale entry: clean up old monitoring before re-registering.
-                    old = _ctx_registry.pop(code)
+                    old: "_UniversalWrappingContext" = _ctx_registry.pop(code)
                     _monitoring.unregister(code, old)
                 _ctx_registry[code] = self
             _monitoring.register(code, self)
             t.cast(ContextWrappedFunction, f).__dd_context_wrapped__ = self
 
         def unwrap(self) -> None:
-            f = self.__wrapped__
-            code = get_function_code(f)
+            f: FunctionType = self.__wrapped__
+            code: CodeType = get_function_code(f)
             with _ctx_registry_lock:
                 if code not in _ctx_registry:
                     return
@@ -750,7 +751,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         def is_wrapped(cls, f: FunctionType) -> bool:
             try:
                 with _registry_lock:
-                    record = _registry.get(f)
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
                     if record is None or record.uwc is None:
                         return False
                     # Verify the registry entry matches actual bytecode wrapping.
@@ -919,7 +920,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     set_function_code(f, bc.to_code())
 
                     # Clear the UWC from the registry; remove the record if fully empty.
-                    record = _registry.get(f)
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
                     if record is not None:
                         record.uwc = None
                         if not record.lazy_contexts:
@@ -999,7 +1000,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     set_function_code(f, bc.to_code())
 
                     # Clear the UWC from the registry; remove the record if fully empty.
-                    record = _registry.get(f)
+                    record: t.Optional[_ContextRecord] = _registry.get(f)
                     if record is not None:
                         record.uwc = None
                         if not record.lazy_contexts:
@@ -1020,5 +1021,5 @@ else:
     def wrapping_context_for(f: FunctionType) -> "t.Optional[_UniversalWrappingContext]":
         """Return the _UniversalWrappingContext for *f*, or None if not context-wrapped."""
         with _registry_lock:
-            record = _registry.get(f)
+            record: t.Optional[_ContextRecord] = _registry.get(f)
             return record.uwc if record is not None else None

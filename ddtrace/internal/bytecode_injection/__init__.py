@@ -40,7 +40,7 @@ if PY >= (3, 15):
             self._hooks: dict[int, list[tuple[HookType, Any]]] = {}
 
         def on_py_line(self, code: Any, line_number: int) -> Any:
-            hooks = self._hooks.get(line_number)
+            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
             if not hooks:
                 return _monitoring.DISABLE  # type: ignore[has-type]
             for hook, arg in hooks:
@@ -51,7 +51,7 @@ if PY >= (3, 15):
             self._hooks.setdefault(line, []).append((hook, arg))
 
         def remove(self, line: int, hook: HookType, arg: Any) -> None:
-            hooks = self._hooks.get(line)
+            hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line)
             if hooks is not None:
                 try:
                     hooks.remove((hook, arg))
@@ -76,15 +76,15 @@ if PY >= (3, 15):
 
         Returns the list of hooks that failed to be injected.
         """
-        code = get_function_code(f)
-        valid_lines = linenos(code)
-        failed = []
+        code: CodeType = get_function_code(f)
+        valid_lines: set[int] = linenos(code)
+        failed: list[HookInfoType] = []
 
         with _line_hook_lock:
             handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 handler = _LineHookHandler()
-                new_handler = True
+                new_handler: bool = True
             else:
                 new_handler = False
 
@@ -112,16 +112,16 @@ if PY >= (3, 15):
 
         Returns the list of hooks that failed to be ejected.
         """
-        code = get_function_code(f)
-        failed = []
+        code: CodeType = get_function_code(f)
+        failed: list[HookInfoType] = []
 
         with _line_hook_lock:
-            handler = _line_hook_registry.get(code)
+            handler: _LineHookHandler | None = _line_hook_registry.get(code)
             if handler is None:
                 return list(hooks)
 
             for hook, line, arg in hooks:
-                before = len(handler._hooks.get(line, ()))
+                before: int = len(handler._hooks.get(line, ()))
                 handler.remove(line, hook, arg)
                 if len(handler._hooks.get(line, ())) == before:
                     failed.append((hook, line, arg))
@@ -134,14 +134,14 @@ if PY >= (3, 15):
 
     def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Inject a hook into a function at the given line number."""
-        failed = inject_hooks(f, [(hook, line, arg)])
+        failed: list[HookInfoType] = inject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not exist or is either blank or a comment" % line)
         return f
 
     def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> FunctionType:
         """Eject a hook from a function at the given line number."""
-        failed = eject_hooks(f, [(hook, line, arg)])
+        failed: list[HookInfoType] = eject_hooks(f, [(hook, line, arg)])
         if failed:
             raise InvalidLine("Line %d does not contain a hook" % line)
         return f
