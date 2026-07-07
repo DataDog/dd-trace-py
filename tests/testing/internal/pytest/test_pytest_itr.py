@@ -317,8 +317,49 @@ class TestITR:
         covered_files = set(f["filename"] for f in coverage_events[0]["files"])
         assert covered_files == {"/test_foo.py", "/lib_constants.py"}
 
+    def test_itr_deselect_test_level(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Deselect mode (TEST level): skippable test is deselected, not skip-marked."""
+        pytester.makepyfile(
+            test_foo="""
+            def test_should_be_deselected():
+                assert False  # would fail if it ran
+
+            def test_should_run():
+                assert True
+            """
+        )
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_deselected"),
+        }
+
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_DESELECT", "1")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(skipping_enabled=True, skippable_items=skippable_items),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        # Deselected test is never skipped via skip-marker, so only 1 test ran.
+        result.assertoutcome(passed=1)
+
+        # 1 test event + 1 suite + 1 module + 1 session = 4 (deselected test has no event)
+        assert len(list(event_capture.events())) == 4
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"]["test.itr.tests_skipping.type"] == "test"
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
+        assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
+        assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
     def test_itr_suite_level_emits_skip_events(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Suite-level ITR: ignored file gets a test_suite_end with status=skip, no test events inside."""
+        """Suite deselect mode: ignored file gets a test_suite_end with status=skip, no test events inside."""
         pytester.makepyfile(
             test_skippable="""
             def test_inside_skipped_suite():
@@ -334,6 +375,7 @@ class TestITR:
             SuiteRef(ModuleRef(""), "test_skippable.py"),
         }
 
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_DESELECT", "1")
         monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
 
         with (
@@ -374,7 +416,7 @@ class TestITR:
     def test_itr_suite_level_unskippable_file_runs_normally(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Suite-level ITR: a file with datadog_itr_unskippable is NOT ignored and its tests run."""
+        """Suite deselect mode: a file with datadog_itr_unskippable is NOT ignored and its tests run."""
         pytester.makepyfile(
             test_unskippable="""
             import pytest
@@ -389,6 +431,7 @@ class TestITR:
             SuiteRef(ModuleRef(""), "test_unskippable.py"),
         }
 
+        monkeypatch.setenv("_DD_CIVISIBILITY_ITR_DESELECT", "1")
         monkeypatch.setenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", "1")
 
         with (

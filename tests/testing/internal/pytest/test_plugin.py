@@ -222,7 +222,8 @@ class TestSkippingAndITRFeatures:
 
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
+        with patch.dict(os.environ, {"_DD_CIVISIBILITY_ITR_DESELECT": "1"}):
+            result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
 
         assert result is True
         assert test_file in plugin._itr_ignored_suite_paths
@@ -250,7 +251,8 @@ class TestSkippingAndITRFeatures:
 
         plugin = TestOptPlugin(session_manager=mock_manager)
 
-        result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
+        with patch.dict(os.environ, {"_DD_CIVISIBILITY_ITR_DESELECT": "1"}):
+            result = plugin.pytest_ignore_collect(collection_path=test_file, config=Mock())
 
         assert result is None
         assert not plugin._itr_ignored_suite_paths
