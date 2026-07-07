@@ -91,13 +91,7 @@ class Sampler
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
-    // Seconds the sampler runs on the safe syscall-based memory copy before
-    // upgrading to the faster safe_memcpy path. Running on the safe path during
-    // the import-heavy startup window means a fault there can never crash, even
-    // if another component (PyTorch/CUDA, or abseil pulled in by vLLM/gRPC)
-    // installs its own SIGSEGV handler during that window (PROF-14568). Read once
-    // by the sampling thread at startup; set (before start) only by tests to keep
-    // the warmup fast.
+    // Fast-copy startup warmup in seconds.
     double fast_copy_warmup_seconds = 15.0;
 
     // Tracks whether the sampler was running when prefork was called,
@@ -160,8 +154,6 @@ class Sampler
     // Set the percentile (0–100) used to compute p_stable from the rolling window.
     void set_p_stable_percentile(double percentile) { p_stable_percentile_frac = percentile / 100.0; }
 
-    // Set the fast-copy startup warmup duration (seconds). Test-only knob; must be
-    // called before the sampler is started so the sampling thread reads the value.
     void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork

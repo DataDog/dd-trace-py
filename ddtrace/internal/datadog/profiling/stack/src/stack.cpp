@@ -808,10 +808,8 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Introspection used by tests: reports whether our fault-recovery handler is
-    // the currently installed disposition for both SIGSEGV and SIGBUS. This is the
-    // same primitive the sampler uses to decide whether safe_memcpy's fault
-    // recovery is still trustworthy.
+    // Test introspection: do we still own both SIGSEGV and SIGBUS? (same primitive
+    // the sampler uses to decide whether safe_memcpy recovery is trustworthy)
     if (segv_handler_installed()) {
         Py_RETURN_TRUE;
     }
@@ -833,11 +831,7 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Introspection used by tests: reports whether the fast safe_memcpy path is the
-    // currently active copy method. The sampler starts on the safe syscall-based
-    // copy during the startup warmup window (PROF-14568) and flips this to true only
-    // after upgrading, so tests can observe the warmup -> upgrade transition without
-    // scraping the emitted pprof metadata files.
+    // Test introspection: is the fast safe_memcpy path active? (PROF-14568)
     if (fast_copy_active) {
         Py_RETURN_TRUE;
     }
@@ -847,9 +841,7 @@ stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(arg
 static PyObject*
 stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    // Test-only knob: shrink the fast-copy startup warmup window so the
-    // warmup -> safe_memcpy upgrade can be observed quickly instead of waiting out
-    // the 15s production default. Must be set before the sampler starts.
+    // Test-only: shrink the fast-copy warmup; must be set before the sampler starts.
     double seconds_value = 0.0;
 
     if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
