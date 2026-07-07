@@ -198,10 +198,7 @@ def test_mistralai_chat_reasoning(mistral_client):
     )
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_reasoning",
-    ignores=["resource"],
-)
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_mistralai_chat_reasoning_async(mistral_client):
     await mistral_client.chat.complete_async(
         model="magistral-medium-latest",
@@ -220,10 +217,7 @@ def test_mistralai_chat_reasoning_stream(mistral_client):
         pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_reasoning_stream",
-    ignores=["resource"],
-)
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_mistralai_chat_reasoning_stream_async(mistral_client):
     async for _ in await mistral_client.chat.stream_async(
         model="magistral-medium-latest",
@@ -244,10 +238,7 @@ def test_mistralai_chat_stream_with_tools(mistral_client):
         pass
 
 
-@pytest.mark.snapshot(
-    token="tests.contrib.mistralai.test_mistralai.test_mistralai_chat_stream_with_tools",
-    ignores=["resource"],
-)
+@pytest.mark.snapshot(ignores=["resource"])
 async def test_mistralai_chat_stream_with_tools_async(mistral_client):
     async for _ in await mistral_client.chat.stream_async(
         model="mistral-large-latest",
