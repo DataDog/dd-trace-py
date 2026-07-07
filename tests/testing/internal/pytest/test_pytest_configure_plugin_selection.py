@@ -13,6 +13,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.testing.internal.pytest.plugin import _EXTERNAL_RERUN_PLUGINS
+from ddtrace.testing.internal.pytest.plugin import _HOOKIMPL_SUPPORTS_SPECNAME
 from ddtrace.testing.internal.pytest.plugin import SESSION_MANAGER_STASH_KEY
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import TestOptPluginWithProtocol
@@ -127,9 +128,21 @@ class TestPluginClassSelection:
         assert any("rerunfailures" in message for message in messages)
         assert any("flaky" in message for message in messages)
 
-    def test_base_plugin_has_no_runtest_protocol_hook(self):
-        """TestOptPlugin must not define pytest_runtest_protocol (the external plugin drives execution)."""
-        assert not hasattr(TestOptPlugin, "pytest_runtest_protocol")
+    def test_bdd_plugin_registration_error_does_not_crash_session(self):
+        config, _ = _make_mock_config(plugin_names={"bdd"})
+
+        with (
+            mock.patch(f"{_PLUGIN_MODULE}.BddTestOptPlugin", side_effect=Exception("pytest-bdd not installed")),
+            mock.patch(f"{_PLUGIN_MODULE}.log.debug") as mock_debug,
+        ):
+            pytest_configure(config)
+
+        assert any("Could not register BDD plugin integration" in call.args[0] for call in mock_debug.call_args_list)
+
+    def test_base_plugin_runtest_protocol_hook_registration(self):
+        """TestOptPlugin only exposes pytest_runtest_protocol directly when specname= is unavailable."""
+        assert hasattr(TestOptPlugin, "pytest_runtest_protocol") is not _HOOKIMPL_SUPPORTS_SPECNAME
+        assert hasattr(TestOptPlugin, "pytest_runtest_protocol_wrapper") is _HOOKIMPL_SUPPORTS_SPECNAME
 
     def test_with_protocol_plugin_has_runtest_protocol_hook(self):
         assert hasattr(TestOptPluginWithProtocol, "pytest_runtest_protocol")

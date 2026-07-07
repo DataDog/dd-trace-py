@@ -624,9 +624,8 @@ class TestOptPlugin:
             tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol"
         )(pytest_runtest_protocol_wrapper)
     else:
-        pytest_runtest_protocol_wrapper = pytest.hookimpl(tryfirst=True, hookwrapper=True)(
-            pytest_runtest_protocol_wrapper
-        )
+        pytest_runtest_protocol = pytest.hookimpl(tryfirst=True, hookwrapper=True)(pytest_runtest_protocol_wrapper)
+        del pytest_runtest_protocol_wrapper
 
     def _reset_pytest_timeout(self, item: pytest.Item) -> None:
         """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
@@ -1424,7 +1423,10 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
 
     if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
-        config.pluginmanager.register(BddTestOptPlugin(plugin))
+        try:
+            config.pluginmanager.register(BddTestOptPlugin(plugin))
+        except Exception:
+            log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
