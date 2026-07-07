@@ -503,11 +503,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _stop_service(
         self,
-        timeout: Optional[float] = None,
+        timeout: Optional[float] = 0.1,
     ) -> None:
         # FIXME: don't join() on stop(), let the caller handle this
         super(HTTPWriter, self)._stop_service()
-        self.join(timeout=timeout)
+        try:
+            self.join(timeout=timeout)
+        except:
+            log.error("Join on periodic thread failed", exc_info=True)
 
     def on_shutdown(self):
         try:
