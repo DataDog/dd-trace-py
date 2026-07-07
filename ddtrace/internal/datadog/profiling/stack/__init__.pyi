@@ -37,18 +37,9 @@ def set_interval(new_interval: float) -> None: ...
 # Memory copy strategy
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
-def fast_copy_memory_active() -> bool:
-    """Return True if the fast safe_memcpy copy path is currently active.
+def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
 
-    The sampler starts on the safe syscall-based copy during the startup warmup
-    window (PROF-14568) and flips this to True only after it upgrades, so tests can
-    observe the warmup -> upgrade transition without scraping metadata files.
-    """
-    ...
-
-# Note: _set_fast_copy_warmup_seconds is intentionally not re-exported here; it is a
-# test-only, underscore-prefixed native symbol accessed via the _stack submodule
-# (see _stack.pyi), since `from ._stack import *` skips underscored names.
+# _set_fast_copy_warmup_seconds is test-only; accessed via _stack (import * skips it).
 
 def uninstall_segv_handler() -> None: ...
 def reinstall_segv_handler() -> None:
@@ -61,11 +52,7 @@ def reinstall_segv_handler() -> None:
     ...
 
 def segv_handler_installed() -> bool:
-    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
-
-    Used to detect when another component (e.g. PyTorch/CUDA) has taken over either
-    signal, in which case safe_memcpy's fault recovery would no longer work.
-    """
+    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS."""
     ...
 
 # Pause/resume sampling
