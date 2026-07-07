@@ -442,41 +442,16 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-        if (
-            asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT"))
-            and self.manager.itr_skipping_level == ITRSkippingLevel.TEST
-        ):
-            selected = []
-            deselected = []
-            for item in items:
-                test_ref = item_to_test_ref(item)
-                test_props = self.manager.test_properties.get(test_ref)
-                if (
-                    self.manager.is_skippable_test(test_ref)
-                    and not _is_test_unskippable(item)
-                    and not (test_props and test_props.attempt_to_fix)
-                ):
-                    deselected.append(item)
-                    self.session.tests_skipped_by_itr += 1
-                else:
-                    selected.append(item)
-            if deselected:
-                config.hook.pytest_deselected(items=deselected)
-                items[:] = selected
-
     def pytest_ignore_collect(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
 
         This fires before the file is imported, saving the cost of module import and test discovery.
         We only ignore a file when we are sure it is safe to do so:
-          - the ITR deselect mode is active, and
+          - suite-level ITR skipping is active, and
           - no test in the file carries the unskippable marker (checked via a fast text scan — if the
             marker string is present anywhere in the source we fall back to normal collection so that
             pytest_collection_modifyitems can handle the file test-by-test).
         """
-        if not asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT")):
-            return None
-
         if collection_path.suffix != ".py":
             return None
 
@@ -1046,10 +1021,6 @@ class TestOptPlugin:
 
         if test.is_unskippable():
             test.mark_forced_run()
-            return
-
-        if asbool(env.get("_DD_CIVISIBILITY_ITR_DESELECT")):
-            # Skippable tests are already deselected in pytest_collection_modifyitems.
             return
 
         if test.is_attempt_to_fix():
