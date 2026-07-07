@@ -196,6 +196,17 @@ def _expected_tool_followup_span_data(**overrides):
     return kwargs
 
 
+def _expected_reasoning_span_data(span):
+    return _expected_chat_span_data(
+        span,
+        model_name="magistral-medium-latest",
+        input_messages=[{"role": "user", "content": "What is 2+2?"}],
+        output_messages=REASONING_CHAT_OUTPUT_MESSAGES,
+        metrics={"input_tokens": 10, "output_tokens": 112, "total_tokens": 122, "reasoning_output_tokens": 80},
+        metadata=get_expected_chat_metadata(REASONING_CHAT_REQUEST_KWARGS),
+    )
+
+
 def test_chat_complete(mistral_client, mistralai_llmobs, test_spans):
     mistral_client.chat.complete(
         model="mistral-large-latest",
@@ -456,17 +467,6 @@ async def test_async_chat_stream_error(mistral_client, mistralai_llmobs, test_sp
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
     assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
-
-
-def _expected_reasoning_span_data(span):
-    return _expected_chat_span_data(
-        span,
-        model_name="magistral-medium-latest",
-        input_messages=[{"role": "user", "content": "What is 2+2?"}],
-        output_messages=REASONING_CHAT_OUTPUT_MESSAGES,
-        metrics={"input_tokens": 10, "output_tokens": 112, "total_tokens": 122},
-        metadata=get_expected_chat_metadata(REASONING_CHAT_REQUEST_KWARGS),
-    )
 
 
 def test_chat_reasoning(mistral_client, mistralai_llmobs, test_spans):

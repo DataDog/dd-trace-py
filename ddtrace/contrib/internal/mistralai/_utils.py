@@ -30,6 +30,20 @@ def _accumulate_tool_calls(tool_calls_map: dict[int, dict[str, Any]], tool_calls
                 accumulated["function"]["arguments"] += arguments
 
 
+def _process_thinking(content: list[Any], text_parts: list[str], thinking_parts: list[str]) -> None:
+    for content_chunk in content:
+        thinking = _get_attr(content_chunk, "thinking", None)
+        if isinstance(thinking, list):
+            for thinking_chunk in thinking:
+                thinking_chunk_text = _get_attr(thinking_chunk, "text", None)
+                if isinstance(thinking_chunk_text, str):
+                    thinking_parts.append(thinking_chunk_text)
+            continue  # Extracted thinking chunks, skip to next content_chunk
+        text = _get_attr(content_chunk, "text", None)
+        if isinstance(text, str):
+            text_parts.append(text)
+
+
 def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
     if not chunks:
         return None
@@ -60,17 +74,7 @@ def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
             if isinstance(content, str):
                 text_parts.append(content)
             elif isinstance(content, list):
-                for content_chunk in content:
-                    thinking = _get_attr(content_chunk, "thinking", None)
-                    if isinstance(thinking, list):
-                        for thinking_chunk in thinking:
-                            thinking_chunk_text = _get_attr(thinking_chunk, "text", None)
-                            if isinstance(thinking_chunk_text, str):
-                                thinking_parts.append(thinking_chunk_text)
-                        continue  # Extracted thinking chunks, skip to next content_chunk
-                    text = _get_attr(content_chunk, "text", None)
-                    if isinstance(text, str):
-                        text_parts.append(text)
+                _process_thinking(content, text_parts, thinking_parts)
 
             tool_calls = _get_attr(delta, "tool_calls", None)
             if isinstance(tool_calls, list):
