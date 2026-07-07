@@ -33,6 +33,24 @@ Individual pre-commit hooks (run in numeric order):
 | `08-run-sg` | Runs `ast-grep scan` on staged Python files using rules in `.sg/rules/`. Catches anti-patterns and deprecated API usage. Skipped when no Python files are staged. |
 | `09-run-error-log-check` | Checks that `log.error()`, `add_error_log`, and `iast_error` calls use constant string literals as their first argument (LOG001) |
 
+### pre-push (blocking)
+Runs before `git push`. A non-zero exit code **aborts the push**. Contains:
+
+| Hook | Description |
+|------|-------------|
+| `01-clang-tidy-profiling` | When the push includes changes to the profiling native extension's C/C++ sources or headers, runs the same clang-tidy analysis as the CI `clang-tidy profiling` job (`-warnings-as-errors='*'`, via `ddtrace/internal/datadog/profiling/run_clang_tidy.sh`). Catches issues plain clang-format cannot, e.g. `clang-analyzer-optin.performance.Padding` (excessive struct padding). No-op when no profiling native files changed. |
+
+The clang-tidy hook is heavier than a format check (it needs `clang-tidy` 18+, `cmake`, and `jq`), so it only runs on push, only when relevant files changed, and reuses a cached build dir. clang-tidy has no auto-fix for these diagnostics, so the hook only **detects** — it never edits files.
+
+Escape hatches:
+```bash
+git push --no-verify                          # skip all pre-push hooks
+SKIP_CLANG_TIDY_PROFILING=1 git push          # skip only this check
+DDTRACE_PREPUSH_CLANG_TIDY_STRICT=1 git push  # fail (not skip) if the toolchain is missing
+```
+
+When the toolchain is not installed the hook prints a note and lets the push through (relying on CI), unless strict mode is set.
+
 ### post-merge (non-blocking)
 Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
 - **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and Python dependency files, and alerts you to rebuild or reinstall
@@ -214,6 +232,8 @@ hooks/
 ├── pre-commit/              # Pre-commit hooks
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
+├── pre-push/                # Pre-push hooks
+│   └── 01-clang-tidy-profiling # clang-tidy on profiling native changes
 ├── post-merge/              # Post-merge hooks
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
