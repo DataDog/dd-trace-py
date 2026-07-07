@@ -405,6 +405,10 @@ detect_circular_imports:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   script:
     - pip install uv
     - cd ..
