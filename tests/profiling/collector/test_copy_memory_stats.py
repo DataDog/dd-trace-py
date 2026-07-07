@@ -85,43 +85,45 @@ def test_fast_copy_memory_enabled():
 
     It first runs on the safe syscall-based copy for a startup warmup window
     (PROF-14568) and upgrades to safe_memcpy afterwards once it confirms it still
-    owns the SIGSEGV handler, so the emitted metadata reports
-    fast_copy_memory_enabled=False during warmup and True after the upgrade.
+    owns the SIGSEGV handler. We read the live copy mode via the native
+    fast_copy_memory_active() introspection instead of scraping metadata files, and
+    shrink the warmup via the test-only _set_fast_copy_warmup_seconds() knob so the
+    warmup -> upgrade transition can be observed quickly.
     """
-    import glob
-    import json
-    import os
     import time
 
+    # _set_fast_copy_warmup_seconds is underscore-prefixed, so it lives only on the
+    # native _stack submodule (`from ._stack import *` skips underscored names).
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+
+    # Shrink the 15s production warmup so the upgrade happens quickly. Must be set
+    # before the sampler thread starts.
+    _stack._set_fast_copy_warmup_seconds(1.0)
 
     p = profiler.Profiler(tracer=tracer)
     p.start()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-
-    # Poll the emitted metadata until the sampler upgrades to safe_memcpy. The warmup
-    # window is a fixed internal constant (kStackFastCopyWarmupSeconds in sampler.cpp,
-    # 15s); allow a margin above it before giving up while keeping CI feedback fast.
+    # First confirm the sampler runs on the safe syscall copy during warmup
+    # (fast_copy_memory_active() is False), then that it upgrades to safe_memcpy
+    # (True). We only accept the upgrade after seeing the warmup so the brief
+    # constructor-time True (before the sampling thread drops to the warmup copy)
+    # can't be mistaken for the upgrade.
     saw_warmup = False
     saw_upgrade = False
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline and not saw_upgrade:
-        time.sleep(1)
-        for f in glob.glob(output_filename + ".*.internal_metadata.json"):
-            try:
-                with open(f) as fp:
-                    enabled = json.load(fp).get("fast_copy_memory_enabled")
-            except (json.JSONDecodeError, OSError):
-                # The most recent file may still be mid-write; skip and retry.
-                continue
-            if enabled is False:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        active = _stack.fast_copy_memory_active()
+        if not saw_warmup:
+            if active is False:
                 saw_warmup = True
-            elif enabled is True:
-                saw_upgrade = True
+        elif active is True:
+            saw_upgrade = True
+            break
+        time.sleep(0.05)
 
     p.stop()
 
     assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
-    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy (fast_copy_memory_enabled=True) after warmup"
+    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy (fast_copy_memory_active()=True) after warmup"
