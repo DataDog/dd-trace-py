@@ -2110,6 +2110,10 @@ class LLMObs(Service):
             sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
+        # Fall back to the trace-level default session when the parent chain carries none (e.g. a
+        # span under a session-less parent). The default is the first session set anywhere in the
+        # trace; an explicit session_id on this span still overrides it (applied after activation).
+        session_id = session_id or span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
 
         resolved_name = span.name
         if span.name in _STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":

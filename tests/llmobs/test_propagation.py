@@ -73,6 +73,28 @@ def test_inject_llmobs_no_session_id(llmobs):
     assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None
 
 
+def test_session_id_trace_default_fills_sibling_gap(llmobs):
+    """The first session set in a trace becomes the default; a sibling under a session-less parent inherits it."""
+    with llmobs.workflow(name="root"):  # no session on the root
+        with llmobs.llm(name="first", session_id="trace-session") as first:
+            pass
+        with llmobs.llm(name="second") as second:  # sibling, no explicit session
+            pass
+    assert get_llmobs_session_id(first) == "trace-session"
+    assert get_llmobs_session_id(second) == "trace-session"
+
+
+def test_session_id_local_override_beats_trace_default(llmobs):
+    """An explicit session_id overrides the trace default locally; gap spans still get the default."""
+    with llmobs.workflow(name="root", session_id="trace-session"):
+        with llmobs.llm(name="override", session_id="other-session") as override_span:
+            pass
+        with llmobs.llm(name="default") as default_span:  # no explicit session
+            pass
+    assert get_llmobs_session_id(override_span) == "other-session"
+    assert get_llmobs_session_id(default_span) == "trace-session"
+
+
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
