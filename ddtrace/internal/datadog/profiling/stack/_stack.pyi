@@ -32,6 +32,9 @@ def segv_handler_installed() -> bool:
     """
     ...
 
+def uninstall_segv_handler() -> None: ...  # remove our handler before another component installs one
+def reinstall_segv_handler() -> None: ...  # reclaim our handler after another component overwrote it
+
 # span <-> profile association
 def link_span(
     span_id: int,
