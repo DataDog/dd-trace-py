@@ -59,7 +59,6 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 os.environ.setdefault("DD_TRACE_STARTUP_LOGS", "0")
 
 import ddtrace.auto  # noqa: F401 — starts tracer + all periodic threads
