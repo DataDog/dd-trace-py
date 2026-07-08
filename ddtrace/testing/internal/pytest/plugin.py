@@ -517,11 +517,8 @@ class TestOptPlugin:
         for module_name, paths in ignored_by_module.items():
             test_module, created_module = self.session.get_or_create_child(module_name)
             if created_module:
-                module_dir = paths[0].parent
-                try:
-                    module_path = module_dir.relative_to(self.manager.workspace_path)
-                except ValueError:
-                    module_path = module_dir
+                # paths[0] already passed the workspace-relative filter above, so this cannot raise.
+                module_path = paths[0].parent.relative_to(self.manager.workspace_path)
                 test_module.set_location(module_path=module_path)
                 test_module.start()
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
