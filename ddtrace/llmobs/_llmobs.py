@@ -1994,7 +1994,7 @@ class LLMObs(Service):
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
-            agentless=bool(config._llmobs_agentless_enabled),
+            agentless=should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled),
         )
 
     @classmethod
