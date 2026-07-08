@@ -763,7 +763,7 @@ def test_writer_recreate_fork_child_does_not_deadlock():
     """Regression: a forked child must not hang joining a periodic thread that an
     identity-blind registry delete dropped after a recycled thread id.
 
-    Root cause (``ddtrace/internal/_threads.cpp``): entries in the module-level
+    Root cause (ddtrace/internal/_threads.cpp): entries in the module-level
     ``periodic_threads`` dict were deleted by thread ident without checking that
     the entry still belonged to the deleting thread. Thread ids are recyclable,
     so this sequence corrupted the registry and deadlocked a fork child:
