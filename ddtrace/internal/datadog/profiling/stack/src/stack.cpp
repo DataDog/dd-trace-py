@@ -812,8 +812,8 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
+    // Reinstall our SIGSEGV/SIGBUS handlers when fast copy is desired (see the gate
+    // below). This is used to reclaim the handler after another component (e.g., Python's
     // faulthandler module) overwrites it. Our handler chains to the previous one
     // for non-recovery faults, so both systems coexist correctly.
     // Gated on fast_copy_desired (not fast_copy_active) so a handler swap that happens

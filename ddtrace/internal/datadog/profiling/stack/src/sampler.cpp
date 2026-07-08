@@ -340,10 +340,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Foreign handler handling (see notes before the loop); faulthandler's
         // transient swaps are safe since the sampler is paused around them.
         if (fast_copy_desired && !fast_copy_upgraded) {
-            // Warmup window: still on the safe syscall copy. Once it elapses,
-            // upgrade to safe_memcpy only if we still own the handlers.
+            // Warmup window: still on the safe syscall copy. When it elapses we make the
+            // one-time warmup decision. fast_copy_upgraded records that the decision has
+            // been made, not that safe_memcpy is now active: we upgrade only if we still
+            // own the handlers, otherwise we stay on the syscall copy for good.
             if (sample_time_now >= fast_copy_warmup_deadline) {
-                fast_copy_upgraded = true; // decide once
+                fast_copy_upgraded = true; // warmup decision made (may or may not upgrade)
                 if (segv_handler_installed()) {
                     set_fast_copy_enabled(true);
                 } else {
