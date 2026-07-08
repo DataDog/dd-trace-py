@@ -39,6 +39,17 @@ try:
 except ImportError:
     LangGraphGraphInterruptError = None
 
+
+def _is_langgraph_control_flow(exc):
+    """Return True if ``exc`` is a LangGraph control-flow signal (``GraphInterrupt`` or
+    ``ParentCommand``) rather than a real error. LangGraph uses these for human-in-the-loop
+    pauses and subgraph routing, so the span must not be marked as an error.
+    """
+    return (LangGraphParentCommandError is not None and isinstance(exc, LangGraphParentCommandError)) or (
+        LangGraphGraphInterruptError is not None and isinstance(exc, LangGraphGraphInterruptError)
+    )
+
+
 LANGGRAPH_VERSION = parse_version(get_version())
 
 LANGGRAPH_MODULE_MAP = {
@@ -108,9 +119,7 @@ def traced_runnable_seq_invoke(func, instance, args, kwargs):
     try:
         result = func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -135,9 +144,7 @@ async def traced_runnable_seq_ainvoke(func, instance, args, kwargs):
     try:
         result = await func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -169,9 +176,7 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
     try:
         result = func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
         span.finish()
@@ -202,10 +207,7 @@ def traced_runnable_seq_astream(func, instance, args, kwargs):
                 # ``GeneratorExit`` / ``CancelledError`` from normal stream teardown must not be caught
                 # (they'd be mis-reported as span errors). The ``finally`` below still closes the span.
                 except (DDBlockException, Exception) as e:
-                    if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                        LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                    ):
-                        # This error is caught in the LangGraph framework, we shouldn't mark it as a runtime error.
+                    if not _is_langgraph_control_flow(e):
                         span.set_exc_info(*sys.exc_info())
                     stream_exc = e
                     raise
@@ -265,9 +267,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
     try:
         result = func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
@@ -285,9 +285,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
                     response = item[-1] if isinstance(item, tuple) else item
                     break
                 except (DDBlockException, Exception) as e:
-                    if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                        LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                    ):
+                    if not _is_langgraph_control_flow(e):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
@@ -316,9 +314,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
     try:
         result = func(*args, **kwargs)
     except (DDBlockException, Exception) as e:
-        if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-            LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-        ):
+        if not _is_langgraph_control_flow(e):
             span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
@@ -336,9 +332,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
                     response = item[-1] if isinstance(item, tuple) else item
                     break
                 except (DDBlockException, Exception) as e:
-                    if (LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError)) and (
-                        LangGraphGraphInterruptError is None or not isinstance(e, LangGraphGraphInterruptError)
-                    ):
+                    if not _is_langgraph_control_flow(e):
                         span.set_exc_info(*sys.exc_info())
                     raise
         finally:
