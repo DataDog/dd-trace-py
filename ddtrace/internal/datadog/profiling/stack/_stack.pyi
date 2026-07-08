@@ -25,7 +25,11 @@ def is_safe_copy_failed() -> bool: ...
 def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
 def _set_fast_copy_warmup_seconds(seconds: float) -> None: ...  # test-only; before start
 def segv_handler_installed() -> bool:
-    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS."""
+    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
+
+    Primarily test introspection: it queries the live disposition via sigaction(2)
+    for both signals on every call, so it is not free. Do not call it on hot paths.
+    """
     ...
 
 # span <-> profile association

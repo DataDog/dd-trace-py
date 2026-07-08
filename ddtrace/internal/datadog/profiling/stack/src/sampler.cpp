@@ -243,7 +243,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Mark thread as running
     thread_running.store(true);
 
-    // (Re)arm our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them. If a
+    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them. If a
     // foreign component we can't wrap (abseil via vLLM/gRPC, PyTorch/CUDA) already owns
     // them, overwriting it would cause handler-chaining races and make
     // segv_handler_installed() report incorrectly, so leave it authoritative.
@@ -326,7 +326,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 }
             } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
                 // A handler was taken over after upgrading; fall back permanently
-                // (no debounce - a false positive just costs the slower copy path).
+                // (no debounce). This is not free: it pins the process to the slower
+                // syscall copy for its remaining lifetime, which can meaningfully
+                // degrade sample quality (e.g. on asyncio workloads). We still prefer
+                // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
                 std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
                              "component; falling back to syscall-based memory copy to avoid crashing."
