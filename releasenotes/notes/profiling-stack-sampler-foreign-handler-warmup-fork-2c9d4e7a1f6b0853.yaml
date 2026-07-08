@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    profiling: hardens the stack sampler's fault-handler ownership tracking so it
+    keeps using the faster fault-recovery memory copy in more cases. Handler swaps
+    coordinated by ``faulthandler`` during the sampler's startup warmup are now
+    reclaimed correctly, processes forked during that warmup window re-enable the
+    fast copy instead of staying on the slower syscall copy, and the sampler
+    re-checks fault-handler ownership before each thread is sampled so a foreign
+    ``SIGSEGV``/``SIGBUS`` handler installed mid-cycle (e.g. by CUDA/vLLM) is
+    detected and handled before it can crash the process.

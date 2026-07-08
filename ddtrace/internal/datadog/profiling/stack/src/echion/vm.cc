@@ -56,6 +56,7 @@ init_safe_copy()
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
         fast_copy_requested = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
     } else {
         // std::cerr might not have been fully initialized at this point.
@@ -83,6 +84,7 @@ init_safe_copy()
         safe_copy = safe_memcpy_wrapper;
         fast_copy_active = true;
         fast_copy_requested = true;
+        fast_copy_desired = true;
         safe_memcpy_initialized = true;
         return;
     }

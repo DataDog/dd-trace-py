@@ -69,7 +69,11 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
-// Set at init; survives toggling fast_copy_active.
+// Persistent intent: not toggled by warmup/fallback; survives fork() (PROF-14568).
+inline bool fast_copy_desired = false;
+
+// Whether init_segv_catcher succeeded at constructor time. Persists even if
+// fast_copy_active is later toggled off by set_fast_copy_enabled.
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX

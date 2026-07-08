@@ -783,6 +783,8 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     } else {
         fast_copy_requested = true;
     }
+    // Record intent separately from the active copy path (persists across warmup/fork).
+    fast_copy_desired = want && safe_memcpy_initialized;
     set_fast_copy_enabled(want);
     publish_fast_copy_profiler_metadata();
 
@@ -797,7 +799,9 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    // Gated on fast_copy_desired (not fast_copy_active) so it still works during the
+    // sampler's startup warmup, when safe_memcpy is temporarily inactive (PROF-14568).
+    if (fast_copy_desired) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -810,7 +814,10 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // This is used to reclaim the handler after another component (e.g., Python's
     // faulthandler module) overwrites it. Our handler chains to the previous one
     // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    // Gated on fast_copy_desired (not fast_copy_active) so a handler swap that happens
+    // during the startup warmup is still reclaimed, instead of leaving the foreign
+    // handler in place and forcing a permanent syscall-copy fallback (PROF-14568).
+    if (fast_copy_desired) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;

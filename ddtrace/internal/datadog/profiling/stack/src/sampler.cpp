@@ -271,7 +271,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // If a foreign owner is already authoritative, leave it in place and fall back to
     // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
-    if (fast_copy_active) {
+    if (fast_copy_desired) {
         std::call_once(segv_handler_once, []() {
             if (segv_handler_installed()) {
                 init_segv_catcher();
@@ -285,7 +285,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
     // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    const bool fast_copy_desired = fast_copy_requested;
+    // fast_copy_desired is the persistent global intent (see vm.h), not the transient
+    // fast_copy_active: a child forked mid-warmup therefore still re-warms into fast
+    // copy instead of inheriting fast_copy_active == false and staying on the syscall
+    // copy for the life of the child.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
@@ -352,24 +355,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
                                   << std::endl;
                     }
                 }
-            } else if (fast_copy_active && !handler_fallback_done && !segv_handler_installed()) {
-                // A handler was taken over after upgrading; fall back permanently
-                // (no debounce). This is not free: it pins the process to the slower
-                // syscall copy for its remaining lifetime, which can meaningfully
-                // degrade sample quality (e.g. on asyncio workloads). We still prefer
-                // it over the alternative, which is crashing under a foreign handler.
-                handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                std::cerr << "ddtrace stack profiler: SIGSEGV/SIGBUS handler was taken over by another "
-                             "component; falling back to syscall-based memory copy to avoid crashing."
-                          << std::endl;
-                if (!set_fast_copy_enabled(false)) {
-                    // No safe fallback available (e.g. process_vm_readv blocked), so
-                    // safe_memcpy is still active; reading under a foreign handler would
-                    // crash - stop sampling instead.
-                    std::cerr << "ddtrace stack profiler: no safe memory-copy fallback available; "
-                                 "stopping stack sampling to avoid crashing."
-                              << std::endl;
+            } else {
+                // Already upgraded to safe_memcpy. Re-check ownership at the start of the
+                // cycle and fall back permanently if a handler was taken over. Falling back
+                // is not free: it pins the process to the slower syscall copy for its
+                // remaining lifetime, which can meaningfully degrade sample quality (e.g. on
+                // asyncio workloads). We still prefer it over crashing under a foreign
+                // handler. The per-thread checks in the sampling loop cover mid-cycle swaps.
+                if (!ensure_fast_copy_safe()) {
                     break;
                 }
             }
@@ -384,6 +377,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
         if (max_threads_per_sample == 0) {
             for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
                 for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                    // Re-verify handler ownership before running safe_memcpy for this thread.
+                    if (!ensure_fast_copy_safe()) {
+                        return;
+                    }
                     auto success = thread.sample(*echion, tstate, wall_time_us);
                     if (success) {
                         Sample::profile_borrow().stats().increment_sample_count();
@@ -434,6 +431,12 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
             size_t fallback_idx = sample_count;
             for (size_t i = 0; i < sample_count; i++) {
+                // Re-verify handler ownership before running safe_memcpy for this thread.
+                // Done before taking the thread_info_map lock so a syscall probe never
+                // extends the lock hold time.
+                if (!ensure_fast_copy_safe()) {
+                    break;
+                }
                 // The lock is acquired per iteration rather than for the whole loop so that new
                 // threads can register (which also needs this lock) between stack unwinds. Holding
                 // it for the entire loop would block thread registration for the full sampling cycle.
@@ -467,6 +470,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
             }
+        }
+
+        // A mid-cycle handler takeover with no safe fallback means we must stop entirely.
+        if (stop_sampling) {
+            break;
         }
 
         // Collect greenlet count before acquiring the profile lock to avoid
