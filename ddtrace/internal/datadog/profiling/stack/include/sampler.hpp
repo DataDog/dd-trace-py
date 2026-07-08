@@ -31,10 +31,6 @@ class Sampler
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
-    //
-    // NOTE: fields below are ordered largest-to-smallest alignment to minimize padding
-    // (enforced by clang-analyzer-optin.performance.Padding). Keep new members grouped
-    // by size rather than by logical role.
     std::unique_ptr<EchionSampler> echion;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
@@ -45,15 +41,55 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
+    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
+    // where stop() could miss the notification and hang forever (or until timeout).
+    std::atomic<bool> thread_running{ false };
+    // Whether the sampler is currently active. Unlike thread_running (which tracks
+    // the thread's actual lifecycle) this is set synchronously in start/stop, so
+    // it is not subject to the sampling-thread startup race.
+    // It becomes false in stop and also when the sampling thread aborts on an
+    // unexpected exception, since the sampler is then no longer active.
+    // prefork reads this to decide whether to restart the sampler after fork,
+    // ensuring a sampler that stopped due to an error is not silently restarted.
+    std::atomic<bool> sampler_active_{ false };
+    std::mutex thread_exit_mutex;
+    std::condition_variable thread_exit_cv;
+
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
+
+    // This is a singleton, so no public constructor
+    Sampler();
+
+    // One-time setup of echion
+    void one_time_setup();
+
     // Internal perf counters
     uint64_t process_count = 0;
     uint64_t sampler_thread_count = 0;
 
+    bool do_adaptive_sampling = true;
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
+    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     std::minstd_rand rng{ std::random_device{}() };
+    std::vector<PyThreadState> thread_candidates;
+    void adapt_sampling_interval();
 
-    // Ring-buffer head for the p_stable process_delta window (see process_delta_window below).
+    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
+    // when max_threads_per_sample is set).
+    void capture_samples(microsecond_t wall_time_us);
+
+    // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
+    // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
+    // that doesn't collapse to zero during brief idle periods.
+    std::vector<double> process_delta_window;
     size_t process_delta_window_head = 0;
 
     // Baseline CPU budget (us per adapt window) corresponding to an absolute floor overhead.
@@ -64,60 +100,16 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
-    // Fast-copy startup warmup in seconds.
+    // Fast-copy startup warmup in seconds. Grouped with the other doubles so it adds
+    // no struct padding (clang-analyzer-optin.performance.Padding).
     double fast_copy_warmup_seconds = 15.0;
-
-    std::vector<PyThreadState> thread_candidates;
-
-    // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
-    // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
-    // that doesn't collapse to zero during brief idle periods.
-    std::vector<double> process_delta_window;
-
-    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
-    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
-    // where stop() could miss the notification and hang forever (or until timeout).
-    std::mutex thread_exit_mutex;
-    // Pause synchronization — allows the faulthandler wrapper to temporarily
-    // suspend sampling so signal handlers can be safely swapped without racing
-    // with in-flight safe_memcpy calls.
-    std::mutex pause_mutex_;
-    std::condition_variable thread_exit_cv;
-    std::condition_variable pause_cv_;
-
-    unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
 
     // Rolling window duration in seconds; controls the ring buffer capacity.
     uint32_t p_stable_window_s = 600;
 
-    std::atomic<bool> thread_running{ false };
-    // Whether the sampler is currently active. Unlike thread_running (which tracks
-    // the thread's actual lifecycle) this is set synchronously in start/stop, so
-    // it is not subject to the sampling-thread startup race.
-    // It becomes false in stop and also when the sampling thread aborts on an
-    // unexpected exception, since the sampler is then no longer active.
-    // prefork reads this to decide whether to restart the sampler after fork,
-    // ensuring a sampler that stopped due to an error is not silently restarted.
-    std::atomic<bool> sampler_active_{ false };
-    std::atomic<bool> pause_requested_{ false };
-    std::atomic<bool> paused_{ false };
-    bool do_adaptive_sampling = true;
-
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
-
-    // This is a singleton, so no public constructor
-    Sampler();
-
-    // One-time setup of echion
-    void one_time_setup();
-
-    void adapt_sampling_interval();
-
-    // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
-    // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
 
     void atfork_child();
     friend void stack_atfork_prepare();
