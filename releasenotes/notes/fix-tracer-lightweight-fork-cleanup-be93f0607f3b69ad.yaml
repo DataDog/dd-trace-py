@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracer: fixed an issue that could have caused fork child processes to hang
+    indefinitely.

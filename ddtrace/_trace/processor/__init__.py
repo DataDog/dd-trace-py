@@ -552,15 +552,15 @@ class SpanAggregator(SpanProcessor):
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
-        user-defined processors, and optionally the trace buffer and span metrics.
+        and user-defined processors, and optionally the trace buffer and span metrics.
 
-        This method is typically used after a process fork or during runtime reconfiguration.
-        Arguments that are None will not override existing values.
+        This method is typically used during runtime reconfiguration (e.g. Tracer.configure()).
+        It must not be used after a fork -- see reset_after_fork(). Arguments that are None will
+        not override existing values.
         """
-        if not reset_buffer:
-            # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
-            # are not dropped when the writer is recreated. This operation should not be handled after a fork.
-            self.writer.flush_queue()
+        # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
+        # are not dropped when the writer is recreated.
+        self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
@@ -574,10 +574,29 @@ class SpanAggregator(SpanProcessor):
             self.user_processors = user_processors
 
         # Reset the trace buffer and span metrics.
-        # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
             self._traces = defaultdict(lambda: _Trace())
             self._span_metrics = {
                 "spans_created": defaultdict(int),
                 "spans_finished": defaultdict(int),
             }
+
+    def reset_after_fork(self) -> None:
+        """
+        Resets the internal state of the SpanAggregator after a fork, without blocking.
+
+        The writer's periodic thread was already stopped by forksafe hooks before the fork and
+        does not survive it, so reset() (which calls recreate(), which stops and joins the
+        worker) must not be used here -- it would block forever waiting on a thread that no
+        longer exists. writer.reset_after_fork() only rebuilds the fork-unsafe bits (buffers,
+        connections/native handles) without touching the worker/service state.
+
+        The trace buffer and span metrics are also cleared, to prevent sending duplicate spans
+        from parent and child processes.
+        """
+        self.writer.reset_after_fork()
+        self._traces = defaultdict(lambda: _Trace())
+        self._span_metrics = {
+            "spans_created": defaultdict(int),
+            "spans_finished": defaultdict(int),
+        }

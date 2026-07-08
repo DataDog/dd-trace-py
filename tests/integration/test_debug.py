@@ -265,6 +265,9 @@ def test_custom_writer():
         def recreate(self) -> TraceWriter:
             return self
 
+        def reset_after_fork(self) -> None:
+            pass
+
         def stop(self, timeout: Optional[float] = None) -> None:
             pass
 
