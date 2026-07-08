@@ -15,7 +15,7 @@ if git rev-parse --is-inside-work-tree > /dev/null 2>&1
 then
     if command -v uv > /dev/null 2>&1
     then
-        version=$(uvx --from=setuptools_scm --quiet setuptools-scm)
+        version=$(uvx --from='setuptools_scm<10' --quiet setuptools-scm)
     else
         version=$(git describe --tags --abbrev=0 --match "v[0-9]*" | sed 's/^v//')
     fi

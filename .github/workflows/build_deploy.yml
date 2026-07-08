@@ -42,7 +42,7 @@ jobs:
       - name: Compute Version
         id: compute-version
         run: |
-          pip install "setuptools_scm[toml]>=4"
+          pip install "setuptools_scm[toml]>=4,<10"
 
           # If we are on the main or release branch, strip away the dev version
           if [[ "$GITHUB_REF_NAME" == "main" || \
@@ -92,7 +92,7 @@ jobs:
           python-version: '3.12'
       - name: Build sdist
         run: |
-          pip install "setuptools_scm[toml]>=4" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
+          pip install "setuptools_scm[toml]>=4,<10" "cython" "cmake>=3.24.2,<3.28" "setuptools-rust"
           python setup.py sdist
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
