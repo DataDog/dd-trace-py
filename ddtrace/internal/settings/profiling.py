@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import itertools
 import math
+import sys
+import sysconfig
 import typing as t
 
 from envier import Env
@@ -592,7 +594,6 @@ ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
-report_configuration(config)
 
 ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
@@ -620,6 +621,28 @@ if not stack_is_available:
             "Failed to load stack module (%s), disabling stack profiling" % msg,
         )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Exception profiling requires sys.monitoring (Python 3.12+) and is not
+# supported on free-threaded builds.  Disable the config so that
+# config_str() / profiler_config tags reflect the effective collector state.
+
+
+def _check_for_exception_available() -> tuple[str, bool]:
+    if not hasattr(sys, "monitoring"):
+        return ("sys.monitoring unavailable (requires Python 3.12+)", False)
+    if sysconfig.get_config_var("Py_GIL_DISABLED"):
+        return ("not supported on free-threaded builds", False)
+    return ("", True)
+
+
+exception_failure_msg, exception_is_available = _check_for_exception_available()
+
+if not exception_is_available and config.exception.enabled:
+    config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Report configuration after all availability overrides so telemetry
+# reflects the effective state.
+report_configuration(config)
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
