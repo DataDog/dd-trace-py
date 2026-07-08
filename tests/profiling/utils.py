@@ -11,6 +11,7 @@
 # No external ddapm-test-agent required: profiling tests are self-contained.
 import base64
 from contextlib import contextmanager
+import http.client as _httplib
 import http.server
 import json
 import os
@@ -19,10 +20,8 @@ import threading
 import time
 from typing import Generator
 from typing import Optional
+import urllib.parse
 import uuid
-
-from tests.profiling.collector.pprof_utils import _client_from_env
-from tests.profiling.collector.pprof_utils import _ProfilingMiniAgentClient
 
 
 class _ProfilingMiniAgent:
@@ -38,7 +37,7 @@ class _ProfilingMiniAgent:
     """
 
     def __init__(self) -> None:
-        self._requests: "dict[str, list[dict]]" = {}
+        self._requests: "dict[str, list[dict[str, object]]]" = {}
         self._lock = threading.Lock()
         self._server: socketserver.TCPServer
         self._thread: threading.Thread
@@ -124,8 +123,57 @@ class _ProfilingMiniAgent:
         self._thread.join(timeout=5)
 
 
+class _ProfilingMiniAgentClient:
+    """HTTP client for _ProfilingMiniAgent.
+
+    Implements the profiling_requests() / clear() interface used by the
+    get_profile_from_agent helpers, so they work whether called in-process or
+    from inside a @pytest.mark.subprocess test body.
+    """
+
+    def __init__(self, base_url: str, token: str) -> None:
+        self._base_url = base_url
+        self._token = token
+
+    def _request(self, method: str, path: str) -> "tuple[int, bytes]":
+        parsed = urllib.parse.urlparse(self._base_url)
+        conn = _httplib.HTTPConnection(parsed.hostname or "127.0.0.1", parsed.port, timeout=10)
+        try:
+            conn.request(method, path)
+            resp = conn.getresponse()
+            return resp.status, resp.read()
+        finally:
+            conn.close()
+
+    def profiling_requests(self) -> "list[dict[str, object]]":
+        """Return all profiling uploads stored under this session token."""
+        status, body = self._request("GET", f"/session/{self._token}/requests")
+        if status != 200:
+            return []
+        stored: "list[dict[str, object]]" = json.loads(body)
+        for req in stored:
+            if isinstance(req.get("body"), str):
+                req["body"] = base64.b64decode(str(req["body"]))
+        return stored
+
+    def clear(self) -> None:
+        """Clear all stored uploads for this session token."""
+        self._request("GET", f"/session/{self._token}/clear")
+
+
+def _client_from_env() -> _ProfilingMiniAgentClient:
+    """Build a _ProfilingMiniAgentClient from env vars set by the parent profiling_test_agent fixture.
+
+    Used by get_profile_from_agent when called without an explicit client inside
+    @pytest.mark.subprocess test bodies.
+    """
+    token = os.environ.get("_DD_PROFILING_TEST_TOKEN", "")
+    base_url = os.environ.get("_DD_PROFILING_TEST_PROXY_URL", "http://127.0.0.1:0")
+    return _ProfilingMiniAgentClient(base_url=base_url, token=token)
+
+
 @contextmanager
-def with_profiling_test_agent() -> "Generator":  # yields _ProfilingMiniAgentClient
+def with_profiling_test_agent() -> "Generator[_ProfilingMiniAgentClient, None, None]":
     """Context manager that starts a self-contained mini agent and configures ddup to upload to it.
 
     Generates a unique session token so that concurrent tests are isolated.
@@ -184,7 +232,7 @@ def get_all_requests_from_agent(
     min_count: int = 1,
     timeout: float = 30.0,
     poll_interval: float = 0.5,
-) -> "list[dict]":
+) -> "list[dict[str, object]]":
     """Poll the mini agent and return raw request dicts.
 
     Keeps polling until at least min_count uploads have arrived.
@@ -192,7 +240,7 @@ def get_all_requests_from_agent(
     """
     _client = client or _client_from_env()
     end_time = time.time() + timeout
-    reqs: "list[dict]" = []
+    reqs: "list[dict[str, object]]" = []
     while time.time() < end_time:
         reqs = _client.profiling_requests()
         if len(reqs) >= min_count:
@@ -224,7 +272,7 @@ def get_all_metadata_from_agent(
     min_count: int = 1,
     timeout: float = 30.0,
     poll_interval: float = 0.5,
-) -> "list[dict]":
+) -> "list[dict[str, object]]":
     """Poll the mini agent and return internal_metadata dicts from all profiling uploads.
 
     Waits until at least min_count uploads with parseable internal_metadata appear.

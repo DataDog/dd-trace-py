@@ -327,53 +327,33 @@ def parse_pid_from_request(request: "dict[str, object]") -> int:
     raise ValueError(f"No 'process_id' tag in tags_profiler: {tags_profiler!r}")
 
 
-class _ProfilingMiniAgentClient:
-    """HTTP client for _ProfilingMiniAgent.
+class _EnvClient:
+    """Minimal profiling mini-agent client built from env vars.
 
-    Implements the profiling_requests() / clear() interface used by the
-    get_profile_from_agent helpers, so they work whether called in-process or
-    from inside a @pytest.mark.subprocess test body.
+    Used by get_profile_from_agent() when no explicit client is supplied.
+    Kept in pprof_utils so the function has no runtime dependency on
+    tests.profiling.utils (which may not be importable in all test venvs).
     """
 
-    def __init__(self, base_url: str, token: str) -> None:
-        self._base_url = base_url
-        self._token = token
+    def __init__(self) -> None:
+        self._token = os.environ.get("_DD_PROFILING_TEST_TOKEN", "")
+        self._base_url = os.environ.get("_DD_PROFILING_TEST_PROXY_URL", "http://127.0.0.1:0")
 
-    def _request(self, method: str, path: str) -> "tuple[int, bytes]":
+    def profiling_requests(self) -> "list[dict[str, object]]":
         parsed = urllib.parse.urlparse(self._base_url)
         conn = _httplib.HTTPConnection(parsed.hostname or "127.0.0.1", parsed.port, timeout=10)
         try:
-            conn.request(method, path)
+            conn.request("GET", f"/session/{self._token}/requests")
             resp = conn.getresponse()
-            return resp.status, resp.read()
+            if resp.status != 200:
+                return []
+            stored: "list[dict[str, object]]" = json.loads(resp.read())
+            for req in stored:
+                if isinstance(req.get("body"), str):
+                    req["body"] = base64.b64decode(str(req["body"]))
+            return stored
         finally:
             conn.close()
-
-    def profiling_requests(self) -> "list[dict[str, object]]":
-        """Return all profiling uploads stored under this session token."""
-        status, body = self._request("GET", f"/session/{self._token}/requests")
-        if status != 200:
-            return []
-        stored: "list[dict[str, object]]" = json.loads(body)
-        for req in stored:
-            if isinstance(req.get("body"), str):
-                req["body"] = base64.b64decode(str(req["body"]))
-        return stored
-
-    def clear(self) -> None:
-        """Clear all stored uploads for this session token."""
-        self._request("GET", f"/session/{self._token}/clear")
-
-
-def _client_from_env() -> _ProfilingMiniAgentClient:
-    """Build a _ProfilingMiniAgentClient from env vars set by the parent profiling_test_agent fixture.
-
-    Used by get_profile_from_agent when called without an explicit client inside
-    @pytest.mark.subprocess test bodies.
-    """
-    token = os.environ.get("_DD_PROFILING_TEST_TOKEN", "")
-    base_url = os.environ.get("_DD_PROFILING_TEST_PROXY_URL", "http://127.0.0.1:0")
-    return _ProfilingMiniAgentClient(base_url=base_url, token=token)
 
 
 def get_profile_from_agent(client=None, timeout: float = 30.0, poll_interval: float = 0.5, assert_samples: bool = True):
@@ -384,7 +364,7 @@ def get_profile_from_agent(client=None, timeout: float = 30.0, poll_interval: fl
     parent profiling_test_agent fixture.
     """
     if client is None:
-        client = _client_from_env()
+        client = _EnvClient()
 
     end_time = time.time() + timeout
     while time.time() < end_time:
