@@ -56,13 +56,13 @@ cdef class _SamplerState:
 # to share sampler state, because the profiler is process scoped, not thread scoped
 cdef _SamplerState _state = None
 
-# Reentrancy guard: _collect_exception can trigger EXCEPTION_HANDLED callbacks
+# Reentrancy guard: _collect_exception can trigger Raise callbacks
 # (via str(exc_value) raising, or ddup internals). Without this guard,
 # the callback would recurse.
 cdef bint _collecting = False
 
 
-cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object exc_traceback) except *:
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object frame) except *:
     if not ddup.is_available:
         return
 
@@ -87,14 +87,14 @@ cdef void _collect_exception(_SamplerState state, object exc_type, object exc_va
     thread = _current_thread()
     handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
 
-    handle.push_pytraceback(exc_traceback)
+    handle.push_pyframes(frame)
     handle.push_monotonic_ns(time.monotonic_ns())
 
     handle.flush_sample()
 
 
-cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
-    """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
+cpdef void _on_exception(object code, int instruction_offset, object exception):
+    """sys.monitoring.RAISE callback — HOT PATH."""
     global _collecting
 
     if _collecting:
@@ -115,10 +115,18 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     # If an exception ever leaks from _collect_exception, this will silently
     # disable sys.monitoring. Guard against that and against reentrancy
     # (next_sample == 1 and _collect_exception triggers another
-    # EXCEPTION_HANDLED callback internally).
+    # RAISE callback internally).
     _collecting = True
     try:
-        _collect_exception(state, type(exception), exception, exception.__traceback__)
+        # The `code` parameter is the code object of the frame where raise occurred.
+        # On Python 3.14+, Cython cpdef functions called using vectorcall don't push a
+        # Python frame, so sys._getframe(0) is already the raising frame. On older
+        # versions where the cpdef wrapper creates a frame, sys._getframe(0) is the
+        # callback's own frame and we need f_back to reach the raising frame.
+        frame = sys._getframe(0)
+        if frame.f_code is not code:
+            frame = frame.f_back
+        _collect_exception(state, type(exception), exception, frame)
     except Exception:
         LOG.debug("Failed to collect exception")
     finally:
@@ -148,11 +156,11 @@ class ExceptionCollector(collector.Collector):
                 # Claim the tool ID *before* writing _state so that a ValueError
                 # (tool ID already in use) leaves the existing _state untouched.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+                sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
-                    sys.monitoring.events.EXCEPTION_HANDLED,
-                    _on_exception_handled,
+                    sys.monitoring.events.RAISE,
+                    _on_exception,
                 )
             except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
@@ -181,7 +189,7 @@ class ExceptionCollector(collector.Collector):
         try:
             sys.monitoring.register_callback(
                 _MONITORING_TOOL_ID,
-                sys.monitoring.events.EXCEPTION_HANDLED,
+                sys.monitoring.events.RAISE,
                 None,
             )
         except Exception:
