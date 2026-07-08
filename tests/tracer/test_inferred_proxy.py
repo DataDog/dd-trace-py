@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
@@ -96,12 +98,14 @@ def test_create_inferred_proxy_span_for_azure_apim(tracer) -> None:
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
 
+
 def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     ctx = ExecutionContext("test")
     headers = {
         "x-dd-proxy": "azure-fd",
         "x-dd-proxy-request-time-ms": "1736973768000",
-        "x-dd-proxy-path": "/api/my-function",
+        # path intentionally missing leading slash to test normalization
+        "x-dd-proxy-path": "api/my-function",
         "x-dd-proxy-httpmethod": "GET",
         "x-dd-proxy-domain-name": "my-app.azurefd.net",
         "x-dd-proxy-resource-path": "/api/{resource}",
@@ -119,10 +123,49 @@ def test_create_inferred_proxy_span_for_azure_frontdoor(tracer) -> None:
     assert span.resource == "GET /api/{resource}"
     assert span.service == "my-app.azurefd.net"
     assert span.start_ns == 1736973768000 * 1000000
-    assert span.get_tag("component") == "azure-frontdoor"
+    assert span.get_tag("component") == "azure-fd"
     assert span.get_tag("http.method") == "GET"
     assert span.get_tag("http.url") == "https://my-app.azurefd.net/api/my-function"
     assert span.get_tag("http.route") == "/api/{resource}"
     assert span.get_metric("_dd.inferred_span") == 1
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
+
+
+def test_create_inferred_proxy_span_for_azure_frontdoor_without_timestamp(tracer) -> None:
+    """Azure Front Door does not provide a timestamp header so the tracer falls back to the current time."""
+    ctx = ExecutionContext("test")
+    before = time.time_ns() // 1_000_000
+    headers = {
+        "x-dd-proxy": "azure-fd",
+        "x-dd-proxy-path": "/api/my-function",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "my-app.azurefd.net",
+    }
+
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+    after = time.time_ns() // 1_000_000
+
+    span: Span = ctx.get_item("inferred_proxy_span")
+    assert span is not None
+    assert span.name == "azure.frontdoor"
+    # start_ns should be approximately now — between before and after (with ms precision)
+    assert before * 1_000_000 <= span.start_ns <= after * 1_000_000
+
+    assert ctx.get_item("inferred_proxy_finish_callback") is not None
+
+
+def test_create_inferred_proxy_span_not_created_for_empty_timestamp_on_timestamp_provider(tracer) -> None:
+    """Proxies that provide timestamps should not create a span if the timestamp header is present but empty."""
+    ctx = ExecutionContext("test")
+    headers = {
+        "x-dd-proxy": "aws-apigateway",
+        "x-dd-proxy-request-time-ms": "",
+        "x-dd-proxy-path": "/test",
+        "x-dd-proxy-httpmethod": "GET",
+        "x-dd-proxy-domain-name": "example.com",
+    }
+
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
+
+    assert ctx.get_item("inferred_proxy_span") is None

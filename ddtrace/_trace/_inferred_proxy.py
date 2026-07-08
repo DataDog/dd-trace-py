@@ -198,8 +198,12 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
     proxy_info = supported_proxies[proxy_header_system]
 
+    # ensure a slash is prepended to path if one isn't already
+    if proxy_header_path and not proxy_header_path.startswith("/"):
+        proxy_header_path = f"/{proxy_header_path}"
+
     # Exit if start time header is not present and using a proxy system
-    if proxy_header_start_time_ms is None:
+    if not proxy_header_start_time_ms:
         if proxy_info.does_provide_timestamp:
             return None
         else:
