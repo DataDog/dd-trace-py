@@ -1,0 +1,3 @@
+[resolver]
+# Prefer deps compatible with src/native rust-version (musllinux i686 image ships older rustc).
+incompatible-rust-versions = "fallback"
