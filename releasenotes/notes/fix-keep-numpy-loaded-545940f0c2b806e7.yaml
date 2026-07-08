@@ -3,5 +3,4 @@ fixes:
   - |
     tracing: This fix resolves an ``ImportError: cannot load module more than once per process``
     that could occur when ``numpy`` (2.4 or later) was imported both before and after
-    ``ddtrace.auto``. ``numpy`` is now preserved during module cleanup, matching the existing
-    handling for ``google.protobuf``.
+    ``ddtrace.auto``.

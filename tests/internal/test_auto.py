@@ -133,18 +133,18 @@ def test_dataclasses_not_unloaded():
 def test_numpy_not_unloaded():
     import sys
 
-    import ddtrace  # noqa
+    import ddtrace  # noqa: F401
 
     # numpy >= 2.4 refuses to re-initialize its C extension, so if cleanup drops
     # it and user code re-imports, the second import raises ImportError. Keep it
     # loaded across the cleanup. Regression test for issue #18276.
     have_numpy = True
     try:
-        import numpy  # noqa
+        import numpy  # noqa: F401
     except ImportError:
         have_numpy = False
 
-    import ddtrace.auto  # noqa
+    import ddtrace.auto  # noqa: F401
 
     if have_numpy:
         assert "numpy" in sys.modules
