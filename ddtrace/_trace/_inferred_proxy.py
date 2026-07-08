@@ -177,7 +177,7 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     # Exit if proxy header system name is not present or is a system we don't support
     if not (proxy_header_system and proxy_header_system in supported_proxies):
         log.debug(
-            "Received headers to create inferred proxy span but headers include an unsupported proxy type", headers
+            "Received headers to create inferred proxy span but missing or unsupported proxy type: %r", proxy_header_system
         )
         return None
 
