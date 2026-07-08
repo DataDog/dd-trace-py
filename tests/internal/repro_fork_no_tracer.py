@@ -1,71 +1,94 @@
 """
-Tracer-agnostic reproducer attempt for the periodic-thread registry corruption.
+Tracer-agnostic reproducer for periodic-thread registry corruption.
 
-WIP — this version does not yet reliably reproduce the deadlock.
+This does not need the tracer/NativeWriter object graph. It reproduces the
+underlying registry bug directly:
 
-The core difficulty: for the buggy dealloc delete (DEL #3) to fire with a
-non-NULL ident, the GC must collect the *container* object (NativeWriter or
-the _Holder here) *before* running tp_clear on the PeriodicThread itself.
-If tp_clear runs first it nulls the ident and the delete is skipped safely.
-Getting that ordering without the full tracer's allocation graph is unreliable.
+  1. PeriodicThread A exits and removes periodic_threads[tid].
+  2. PeriodicThread B starts and the OS may recycle the same tid, registering
+     periodic_threads[tid] = B.
+  3. A NativeWriter-like container teardown drops the last reference to A while
+     A.ident is still non-NULL.
+  4. On buggy builds, PeriodicThread.tp_dealloc blindly deletes by ident and
+     evicts B from periodic_threads.
 
-See repro_fork_registry_corruption.py for the stable tracer-based reproducer.
+The tracer-based reproducer demonstrates the fork deadlock consequence. This
+script reports the registry corruption directly, which is more reliable without
+pulling in tracer internals.
 
 Usage
 -----
     python tests/internal/repro_fork_no_tracer.py
+
+Useful knobs:
+    NFORKS=1000 POOL_SIZE=1 python tests/internal/repro_fork_no_tracer.py
 """
 
 import gc
 import os
-import signal
 import sys
 import time
 
-from ddtrace.internal.periodic import PeriodicThread
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal.periodic import PeriodicThread
 
-NFORKS = int(os.environ.get("NFORKS", "25"))
+
+NFORKS = int(os.environ.get("NFORKS", "1000"))
 DEADLINE = float(os.environ.get("DEADLINE", "3.0"))
-POOL_SIZE = int(os.environ.get("POOL_SIZE", "4"))
+POOL_SIZE = int(os.environ.get("POOL_SIZE", "1"))
+DO_FORK = os.environ.get("DO_FORK", "0") == "1"
 
 
 class _Holder:
-    """Closes the reference cycle that makes old PeriodicThread objects
-    GC-collectible.
+    """NativeWriter-like owner for a PeriodicThread.
 
-    Cycle: PeriodicThread._target -> _Holder.work (bound method)
-           -> _Holder._thread -> PeriodicThread
+    The important bit is that teardown can drop the holder -> thread edge before
+    PeriodicThread.tp_clear has cleared ``thread.ident``. NativeWriter has a more
+    complex object graph that naturally hits this ordering; this minimal holder
+    lets the reproducer exercise the same native dealloc path directly.
     """
 
-    def __init__(self):
-        self._thread = None
+    def __init__(self, name: str) -> None:
+        self.thread = PeriodicThread(60.0, self.work, name=name)
+        self.thread.start()
 
     def work(self) -> None:
         pass
 
 
-def _make_thread(name: str) -> PeriodicThread:
-    h = _Holder()
-    t = PeriodicThread(60.0, h.work, name=name)
-    h._thread = t
-    t.start()
-    return t
+def _make_holder(name: str) -> _Holder:
+    return _Holder(name)
 
 
-def _one_fork(pool: list, idx: int):
-    old = pool[idx % len(pool)]
+def _one_iteration(pool: list[_Holder], idx: int):
+    old_holder = pool[idx % len(pool)]
+    old_thread = old_holder.thread
+    old_ident = old_thread.ident
+
     try:
-        old.stop()
+        old_thread.stop()
     except Exception:
         pass
-    old.join(timeout=1.0)
+    old_thread.join(timeout=1.0)
 
-    new_t = _make_thread("churn-%d" % idx)
-    pool[idx % len(pool)] = new_t
+    new_holder = _make_holder("churn-%d" % idx)
+    new_thread = new_holder.thread
+    new_ident = new_thread.ident
+    pool[idx % len(pool)] = new_holder
 
-    del old
+    # Simulate container teardown after replacement: drop the old owner ->
+    # PeriodicThread edge while old_thread.ident is still populated. If the OS
+    # recycled old_ident for new_thread, buggy tp_dealloc deletes the live
+    # new_thread entry from periodic_threads.
+    old_holder.thread = None
+    del old_thread
     gc.collect()
+
+    if old_ident == new_ident and periodic_threads.get(new_ident) is not new_thread:
+        return "corrupt", old_ident, new_ident
+
+    if not DO_FORK:
+        return 0, old_ident, new_ident
 
     pid = os.fork()
     if pid == 0:
@@ -76,54 +99,60 @@ def _one_fork(pool: list, idx: int):
         try:
             wpid, status = os.waitpid(pid, os.WNOHANG)
         except ChildProcessError:
-            return 0
+            return 0, old_ident, new_ident
         if wpid == pid:
-            return status
+            return status, old_ident, new_ident
         if time.monotonic() > deadline:
             try:
                 os.kill(pid, 9)
                 os.waitpid(pid, 0)
             except (ChildProcessError, ProcessLookupError):
                 pass
-            return None
+            return None, old_ident, new_ident
         time.sleep(0.02)
 
 
 def main() -> int:
-    pool = [_make_thread("pool-%d" % i) for i in range(POOL_SIZE)]
+    pool = [_make_holder("pool-%d" % i) for i in range(POOL_SIZE)]
     time.sleep(0.2)
 
-    n = len(periodic_threads)
-    print("pool size: %d  (periodic_threads: %d)" % (POOL_SIZE, n), flush=True)
+    print("pool size: %d  (periodic_threads: %d)" % (POOL_SIZE, len(periodic_threads)), flush=True)
+    print("Running %d iterations with %.1fs deadline each..." % (NFORKS, DEADLINE), flush=True)
 
-    print("Running %d forks with %.1fs deadline each..." % (NFORKS, DEADLINE),
-          flush=True)
-
-    hung = 0
+    bad = 0
     for i in range(NFORKS):
-        status = _one_fork(pool, i)
-        if status is None:
-            print("  fork %2d: HUNG ❌" % i, flush=True)
-            hung += 1
-            if hung >= 3:
+        status, old_ident, new_ident = _one_iteration(pool, i)
+        if status == "corrupt":
+            print(
+                "  iter %3d: REGISTRY CORRUPTED old_ident=%r new_ident=%r ❌" % (i, old_ident, new_ident),
+                flush=True,
+            )
+            bad += 1
+            if bad >= 3:
+                break
+        elif status is None:
+            print("  iter %3d: HUNG ❌" % i, flush=True)
+            bad += 1
+            if bad >= 3:
                 break
         elif not (os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0):
-            print("  fork %2d: CRASHED ❌" % i, flush=True)
-            hung += 1
-        else:
-            print("  fork %2d: ok ✓" % i, flush=True)
+            print("  iter %3d: CRASHED ❌" % i, flush=True)
+            bad += 1
+        elif i < 10 or i % 100 == 0:
+            print("  iter %3d: ok ✓" % i, flush=True)
 
-    for t in pool:
-        try:
-            t.stop()
-        except Exception:
-            pass
+    for holder in pool:
+        if holder.thread is not None:
+            try:
+                holder.thread.stop()
+            except Exception:
+                pass
 
     print()
-    if hung:
-        print("REPRODUCED: %d fork(s) hung/crashed" % hung)
+    if bad:
+        print("REPRODUCED: %d corrupted registry/hung/crashed iteration(s)" % bad)
         return 1
-    print("PASS: all %d forks completed" % NFORKS)
+    print("PASS: all %d iterations completed" % NFORKS)
     return 0
 
 
