@@ -27,10 +27,7 @@ def normalize_to_pypi_name(name: str) -> str:
     if deps and len(deps) == 1:
         return next(iter(deps))
     if deps and len(deps) > 1:
-        raise SystemExit(
-            f"Venv '{name}' maps to multiple PyPI packages: {sorted(deps)}. "
-            f"Pass the exact PyPI name."
-        )
+        raise SystemExit(f"Venv '{name}' maps to multiple PyPI packages: {sorted(deps)}. Pass the exact PyPI name.")
 
     return key
 
