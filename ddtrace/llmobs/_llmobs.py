@@ -1898,8 +1898,8 @@ class LLMObs(Service):
 
         Example::
 
-            # Simple usage. With DD_ENV set, the HTTP fallback uses DD_ENV as the label;
-            # without DD_ENV, the HTTP path returns the latest version.
+            # Simple usage. If DD_ENV is set, an environment-scoped variant is resolved
+            # without DD_ENV, the latest resolved version is returned.
             prompt = LLMObs.get_prompt("greeting")
             messages = prompt.format(user="Alice")
 
