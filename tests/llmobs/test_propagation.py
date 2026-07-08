@@ -14,12 +14,14 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLE_RATE
 from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
 from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.trace import Context
@@ -57,6 +59,18 @@ def test_inject_llmobs_ml_app_override(llmobs):
     with llmobs.workflow(name="LLMObs span", ml_app="test-ml-app") as span:
         llmobs._inject_llmobs_context(span.context, {})
     assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "test-ml-app"
+
+
+def test_inject_llmobs_session_id(llmobs):
+    with llmobs.workflow(name="LLMObs span", session_id="test-session-id") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session-id"
+
+
+def test_inject_llmobs_no_session_id(llmobs):
+    with llmobs.workflow(name="LLMObs span") as span:
+        llmobs._inject_llmobs_context(span.context, {})
+    assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None
 
 
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
@@ -345,6 +359,60 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
         assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
+
+
+def test_activate_distributed_headers_for_session_id(ddtrace_run_python_code_in_subprocess, llmobs):
+    """A session_id set on service A's root LLMObs span is inherited by service B's LLMObs child span."""
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "session-from-service-a"
+
+
+def test_activate_distributed_headers_local_session_id_wins(ddtrace_run_python_code_in_subprocess, llmobs):
+    """An explicit session_id on service B's span overrides the session propagated from service A."""
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="LLMObs span", session_id="session-from-service-a") as root_span:
+    with tracer.trace("Non-LLMObs span") as child_span:
+        headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model", session_id="local-session") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "local-session"
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(

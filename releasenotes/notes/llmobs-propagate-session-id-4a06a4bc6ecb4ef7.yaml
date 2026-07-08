@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: Introduces cross-service propagation of ``session_id``.
+    When a distributed trace crosses a service boundary, LLM Observability spans
+    in the downstream service now inherit the ``session_id`` set on the upstream
+    service's span, so all spans in the session are grouped together. A
+    ``session_id`` set explicitly on a span still takes precedence over a
+    propagated one.
