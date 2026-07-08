@@ -289,6 +289,11 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
+        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
+        # same ignored suites), but we must only report/count them once per session. We elect the
+        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_ignored_suite_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -306,6 +311,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
+                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -489,8 +495,12 @@ class TestOptPlugin:
         Mirrors what the JS tracer has always done: one suite-skip event per ignored file, no
         test-level spans inside it.  Also starts/finishes any TestModule whose every suite was
         ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
+
+        Under xdist, every worker performs a full, unsharded collection pass and so discovers the
+        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        actually emits events/metrics to avoid multiplying counts by the number of workers.
         """
-        if not self._itr_ignored_suite_paths:
+        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
             return
 
         running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
