@@ -38,7 +38,7 @@ jobs:
           if [ -n "${{ inputs.library_version}}" ]; then
             LIBRARY_VERSION="${{ inputs.library_version}}"
           else
-            pip install "setuptools_scm[toml]>=4"
+            pip install "setuptools_scm[toml]>=4,<10"
             LIBRARY_VERSION=$(setuptools-scm)
           fi
 
