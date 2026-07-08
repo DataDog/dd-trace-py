@@ -26,4 +26,4 @@ for module in previous_loaded_modules - loaded_modules:
     del sys.modules[module]
 
 
-__all__ = ["threading_Lock", "threading_RLock", "threading_Event", "unpatched_open", "unpatched_json_loads"]
+__all__ = ["threading_Lock", "threading_RLock", "threading_Event", "unpatched_open", "unpatched_json_loads", "_threading"]
