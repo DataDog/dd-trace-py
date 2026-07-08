@@ -18,8 +18,12 @@
 # Falls back to "main" whenever the branch can't be determined (e.g. no open
 # PR for the ref, or the GitHub lookup fails), rather than erroring out.
 #
-# Requires `git` and, for the feature/PR-branch fallback, an authenticated
-# `gh` CLI (GH_TOKEN exported or `gh auth login` already done by the caller).
+# Requires `git`, `curl` and `jq`. For the feature/PR-branch fallback it
+# queries the GitHub REST API directly (rather than shelling out to the `gh`
+# CLI, which isn't installed in every image this script runs in) against
+# GH_REPO (defaults to DataDog/dd-trace-py) — independent of whatever the
+# local `origin` remote happens to point at (e.g. a GitLab mirror). Set
+# GH_TOKEN to avoid unauthenticated GitHub API rate limits.
 
 set -euo pipefail
 
@@ -58,11 +62,23 @@ elif [[ "${REF}" =~ ^gh-readonly-queue/([^/]+)/ ]]; then
   log "Ref is a GitHub merge-queue branch; extracted target branch '${BASE_BRANCH}'"
 
 else
-  log "Ref looks like a feature/PR branch; asking GitHub for its PR base branch via 'gh pr view'"
-  if BASE_BRANCH="$(gh pr view --json baseRefName --jq ".baseRefName" "${REF}" 2>&1)" && [ -n "${BASE_BRANCH}" ]; then
-    log "GitHub reports PR base branch: '${BASE_BRANCH}'"
+  GITHUB_REPO="${GH_REPO:-DataDog/dd-trace-py}"
+  GITHUB_OWNER="${GITHUB_REPO%%/*}"
+  log "Ref looks like a feature/PR branch; querying the GitHub API for its PR base branch (repo: ${GITHUB_REPO})"
+
+  AUTH_HEADER=()
+  if [ -n "${GH_TOKEN:-}" ]; then
+    AUTH_HEADER=(-H "Authorization: Bearer ${GH_TOKEN}")
+  fi
+
+  API_URL="https://api.github.com/repos/${GITHUB_REPO}/pulls?head=${GITHUB_OWNER}:${REF}&state=open"
+  RESPONSE="$(curl -sS "${AUTH_HEADER[@]}" -H "Accept: application/vnd.github+json" "${API_URL}" 2>&1)" || RESPONSE=""
+  BASE_BRANCH="$(echo "${RESPONSE}" | jq -r '.[0].base.ref // empty' 2>/dev/null || true)"
+
+  if [ -n "${BASE_BRANCH}" ]; then
+    log "GitHub API reports PR base branch: '${BASE_BRANCH}'"
   else
-    log "Could not resolve a PR base branch for '${REF}' (gh output: ${BASE_BRANCH:-<empty>}); falling back to main"
+    log "Could not resolve a PR base branch for '${REF}' in ${GITHUB_REPO} (API response: ${RESPONSE:-<empty>}); falling back to main"
     BASE_BRANCH="main"
   fi
 fi
