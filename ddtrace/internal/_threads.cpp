@@ -1174,14 +1174,20 @@ PeriodicThread_dealloc(PeriodicThread* self)
     //
     // Full cleanup is therefore correct in all cases;
 
-    // Unmap the PeriodicThread from periodic_threads. Use unconditional DelItem
-    // + error clear instead of Contains+DelItem to avoid a TOCTOU race in
-    // free-threaded mode: another thread may delete the key between the two
-    // calls. KeyError on a missing key is harmless.
-    if (self->ident != NULL && self->_state != nullptr && self->_state->periodic_threads != NULL) {
-        if (PyDict_DelItem(self->_state->periodic_threads, self->ident) < 0)
-            PyErr_Clear();
-    }
+    // Do NOT delete from periodic_threads here.
+    //
+    // The OS thread always removes itself from periodic_threads at exit
+    // (thread lambda, line ~829). The only case where that delete is skipped
+    // is when is_finalizing() is true — but that path returns early above,
+    // so dealloc never reaches this point during finalisation.
+    //
+    // A blind PyDict_DelItem here is dangerous because thread IDs are
+    // recyclable: between the OS thread's self-removal and this GC-triggered
+    // dealloc, a new thread may have started and registered itself under the
+    // same ident. Deleting by ident without an identity check would evict the
+    // live new worker from the registry, causing _before_fork() to miss it,
+    // leaving its _stopped event permanently unset, and deadlocking any fork
+    // child that calls join() on it.
 
     PeriodicThread_clear(self);
 
