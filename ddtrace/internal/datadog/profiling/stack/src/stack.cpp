@@ -800,8 +800,10 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
     // Gated on fast_copy_desired (not fast_copy_active) so it still works during the
-    // sampler's startup warmup, when safe_memcpy is temporarily inactive (PROF-14568).
-    if (fast_copy_desired) {
+    // sampler's startup warmup, when safe_memcpy is temporarily inactive. Skipped once a
+    // foreign handler has taken over: after surrendering we stay out of the handler
+    // entirely rather than churning it around a foreign owner (PROF-14568).
+    if (fast_copy_desired && !fast_copy_foreign_takeover) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -816,8 +818,10 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // for non-recovery faults, so both systems coexist correctly.
     // Gated on fast_copy_desired (not fast_copy_active) so a handler swap that happens
     // during the startup warmup is still reclaimed, instead of leaving the foreign
-    // handler in place and forcing a permanent syscall-copy fallback (PROF-14568).
-    if (fast_copy_desired) {
+    // handler in place and forcing a permanent syscall-copy fallback. Skipped once a
+    // foreign handler has taken over: reclaiming then would let a later restart/fork
+    // re-enable safe_memcpy on top of that foreign owner and crash (PROF-14568).
+    if (fast_copy_desired && !fast_copy_foreign_takeover) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;

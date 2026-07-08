@@ -6,6 +6,8 @@ fixes:
     coordinated by ``faulthandler`` during the sampler's startup warmup are now
     reclaimed correctly, processes forked during that warmup window re-enable the
     fast copy instead of staying on the slower syscall copy, and the sampler
-    re-checks fault-handler ownership before each thread is sampled so a foreign
-    ``SIGSEGV``/``SIGBUS`` handler installed mid-cycle (e.g. by CUDA/vLLM) is
-    detected and handled before it can crash the process.
+    re-checks fault-handler ownership before each batch of memory reads so a
+    foreign ``SIGSEGV``/``SIGBUS`` handler installed mid-cycle (e.g. by CUDA/vLLM)
+    is detected and handled before it can crash the process. Once a foreign
+    handler has taken over, the sampler stops trying to reclaim it so a later
+    cooperative handler swap cannot re-enable the fast copy on top of it.

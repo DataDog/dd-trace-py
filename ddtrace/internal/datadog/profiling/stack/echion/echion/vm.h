@@ -72,6 +72,15 @@ mark_fast_copy_syscall_fallback()
 // Persistent intent: not toggled by warmup/fallback; survives fork() (PROF-14568).
 inline bool fast_copy_desired = false;
 
+// Sticky flag set once a foreign (non-cooperative) SIGSEGV/SIGBUS handler has taken
+// ownership and the sampler has surrendered to the syscall copy. It is intentionally
+// permanent for the lifetime of the process (and inherited across fork()): once we
+// have deferred to a foreign owner we must stop reclaiming the handler, otherwise a
+// later cooperative swap (e.g. faulthandler.disable()) could hand ownership back to us
+// on top of that foreign handler and let a restart/fork re-enable safe_memcpy over it
+// (PROF-14568). Gates handler reclaim and the fast-copy warmup/upgrade.
+inline bool fast_copy_foreign_takeover = false;
+
 // Whether init_segv_catcher succeeded at constructor time. Persists even if
 // fast_copy_active is later toggled off by set_fast_copy_enabled.
 inline bool safe_memcpy_initialized = false;
