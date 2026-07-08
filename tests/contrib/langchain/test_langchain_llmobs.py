@@ -1,3 +1,4 @@
+import contextlib
 import importlib
 import json
 from operator import itemgetter
@@ -1046,32 +1047,45 @@ def test_llmobs_set_tags_with_none_response(langchain_core):
     )
 
 
-def test_llmobs_chat_model_empty_stream(langchain_core, langchain_llmobs):
-    """A traced chat-model stream that yields no chunks must not raise or log an error.
+def test_llmobs_chat_model_empty_stream(langchain_core, langchain_llmobs, test_spans):
+    """A traced chat-model ``.stream()`` that yields no chunks enriches the span with an empty
+    output message instead of logging an error (end-to-end regression test for issue #18551).
 
-    When ``traced_chat_stream`` folds an empty stream it falls back to an empty list
-    (``ddtrace/contrib/internal/langchain/patch.py`` ``_on_span_finished``), which the
-    chat-model tagger previously dereferenced as ``response.content`` -> ``AttributeError:
-    'list' object has no attribute 'content'``. The error was swallowed and logged once
-    per empty stream. The span should instead carry an empty output message.
+    An empty stream is a normal outcome (content-filtered request, provider error before the
+    first token, empty completion). Driving a real ``BaseChatModel.stream()`` — which ddtrace
+    patches directly — exercises the actual streaming code path rather than hand-crafting the
+    integration's internal response.
+
+    On every currently supported langchain-core, an empty ``_stream`` makes ``.stream()`` raise
+    (``AssertionError`` on <0.3, ``ValueError("No generation chunks were returned")`` on >=0.3),
+    which marks the span errored; span enrichment still runs in ``TracedStream``'s ``finally``
+    block and the errored span carries an empty output message. The model-side error is therefore
+    suppressed here and the assertion is made on the span.
     """
-    integration = langchain_core._datadog_integration
-    span = integration.trace("langchain.request", submit_to_llmobs=True)
-    span.set_tag("langchain.request.stream", "True")
-    span.set_tag("langchain.request.provider", "fake")
 
-    # The empty-stream fallback in ``_on_span_finished`` passes an empty list as the response.
-    integration._llmobs_set_tags(
-        span=span,
-        args=[[langchain_core.messages.HumanMessage(content="hi")]],
-        kwargs={},
-        response=[],
-        operation="chat",
-    )
-    span.finish()
+    class _EmptyStreamChatModel(langchain_core.language_models.chat_models.BaseChatModel):
+        """A chat model whose stream completes without yielding any chunks."""
 
-    output_messages = get_llmobs_output_messages(span)
-    assert output_messages == [{"content": "", "role": ""}]
+        @property
+        def _llm_type(self):
+            return "empty-stream-fake"
+
+        def _stream(self, messages, stop=None, run_manager=None, **kwargs):
+            return iter(())
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            message = langchain_core.messages.AIMessage(content="")
+            return langchain_core.outputs.ChatResult(
+                generations=[langchain_core.outputs.ChatGeneration(message=message)]
+            )
+
+    with contextlib.suppress(ValueError, AssertionError):
+        for _ in _EmptyStreamChatModel().stream("hi"):
+            pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    assert len(spans) == 1
+    assert get_llmobs_output_messages(spans[0]) == [{"content": "", "role": ""}]
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
