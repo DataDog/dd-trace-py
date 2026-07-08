@@ -86,6 +86,7 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
 # DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED for the venv env.
 _nightly_build = os.environ.get("NIGHTLY_BUILD") == "true"
 _base_env = {
+    "DD_CIVISIBILITY_ENABLED": "false",
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",
     "DD_REMOTE_CONFIGURATION_ENABLED": "false",
