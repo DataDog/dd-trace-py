@@ -600,6 +600,7 @@ def test_memory_collector_allocation_tracking_across_snapshots() -> None:
 @pytest.mark.subprocess(err=None)
 def test_memory_collector_python_interface_with_allocation_tracking() -> None:
     import gc
+    from typing import Union  # noqa: F401
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
@@ -712,6 +713,8 @@ def test_memory_collector_python_interface_with_allocation_tracking() -> None:
 
 @pytest.mark.subprocess(err=None)
 def test_memory_collector_python_interface_with_allocation_tracking_no_deletion() -> None:
+    from typing import Union  # noqa: F401
+
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
@@ -830,6 +833,7 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 def test_heap_live_samples_drops_after_free() -> None:
     """Verify heap-live-samples disappear from a stack after its objects are freed."""
     import gc
+    from typing import Union  # noqa: F401
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
@@ -912,13 +916,15 @@ def test_heap_live_samples_drops_after_free() -> None:
         del batch_two
 
 
-@pytest.mark.subprocess(err=None)
+@pytest.mark.subprocess(err=None, out=None)
 def test_heap_live_samples_aggregate_accuracy() -> None:
     """Verify the sum of heap-live-samples is a reasonable estimate of actual live object count.
 
     With a small sampling interval and many allocations, the aggregate heap-live-samples
     should approximate the real number of live objects within a tolerance.
     """
+    from typing import Union  # noqa: F401
+
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
     from tests.profiling.collector import pprof_utils
@@ -957,10 +963,6 @@ def test_heap_live_samples_aggregate_accuracy() -> None:
         assert len(one_live_samples) > 0, "Expected live samples from 'one'"
 
         total_heap_live_count = sum(s.value[heap_live_idx] for s in one_live_samples)
-
-        print(f"Actual live objects: {num_objects}")
-        print(f"Reported heap-live-samples: {total_heap_live_count}")
-        print(f"Count ratio: {total_heap_live_count / num_objects:.2f}")
 
         # The aggregate should be close to the actual count.
         # With the Horvitz-Thompson estimator w = 1/(1-exp(-S/R)), the weight
@@ -1069,6 +1071,7 @@ def test_memory_collector_buffer_pool_exhaustion() -> None:
     stack traces, which could potentially exhaust internal buffer pools.
     """
     import threading
+    from typing import Union  # noqa: F401
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc
@@ -1084,7 +1087,7 @@ def test_memory_collector_buffer_pool_exhaustion() -> None:
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     # Store reference to nested function for later qualname access
-    deep_alloc_func = None
+    deep_alloc_ref: list = [None]
 
     num_threads = 10
     thread_ids: set[int] = set()
@@ -1106,8 +1109,7 @@ def test_memory_collector_buffer_pool_exhaustion() -> None:
                 return deep_alloc(depth - 1)
 
             # Capture reference to deep_alloc for later use
-            nonlocal deep_alloc_func
-            deep_alloc_func = deep_alloc
+            deep_alloc_ref[0] = deep_alloc
             # Multiple allocations per thread to make sampling more reliable
             for _ in range(5):
                 data = deep_alloc(50)
@@ -1139,7 +1141,7 @@ def test_memory_collector_buffer_pool_exhaustion() -> None:
             stack_depth = len(sample.location_id)
             max_stack_depth = max(max_stack_depth, stack_depth)
 
-            if deep_alloc_func and has_function_in_profile_sample(profile, sample, deep_alloc_func):
+            if deep_alloc_ref[0] and has_function_in_profile_sample(profile, sample, deep_alloc_ref[0]):
                 # Samples with identical stack traces are merged in pprof profiles,
                 # so we need to sum the alloc-samples count value
                 deep_alloc_total_count += sample.value[alloc_count_idx]
@@ -1429,6 +1431,7 @@ def test_memory_collector_stack_order() -> None:
     reported in the order: inner, middle, outer (leaf-to-root).
     """
     import threading
+    from typing import Union  # noqa: F401
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector import memalloc

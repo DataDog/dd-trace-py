@@ -544,6 +544,7 @@ def test_lock_gevent_tasks() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import LineNo  # noqa: F401
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
 
@@ -620,6 +621,7 @@ def test_rlock_gevent_tasks() -> None:
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.profiling.collector.threading import ThreadingRLockCollector
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.lock_utils import LineNo  # noqa: F401
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
 
