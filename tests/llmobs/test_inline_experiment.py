@@ -2,6 +2,9 @@ import asyncio
 
 import pytest
 
+import ddtrace
+import ddtrace.llmobs as llmobs_pkg
+from ddtrace.llmobs._inline_experiment import _REGISTRY
 from ddtrace.llmobs._inline_experiment import Mode
 from ddtrace.llmobs._inline_experiment import _ExperimentStop
 from ddtrace.llmobs._inline_experiment import _reset
@@ -40,8 +43,6 @@ def test_capture_single_function_unit_with_output_extractor():
 
 
 def test_evaluators_stored_on_spec_and_not_resolved_when_off():
-    from ddtrace.llmobs._inline_experiment import _REGISTRY
-
     calls = []
 
     def boom():  # a thunk that would blow up if resolved — stands in for a credentialed LLMJudge
@@ -164,8 +165,6 @@ class _FakeLLMObs:
 
 
 def test_capture_with_trace_links_case_to_span(monkeypatch):
-    import ddtrace.llmobs as llmobs_pkg
-
     _FakeLLMObs.annotations = []
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
     _set_mode(Mode.CAPTURE)
@@ -182,8 +181,6 @@ def test_capture_with_trace_links_case_to_span(monkeypatch):
 
 
 def test_capture_with_trace_emit_shape_links_case(monkeypatch):
-    import ddtrace.llmobs as llmobs_pkg
-
     _FakeLLMObs.annotations = []
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
     _set_mode(Mode.CAPTURE)
@@ -205,8 +202,6 @@ def test_capture_with_trace_emit_shape_links_case(monkeypatch):
 
 
 def test_capture_with_trace_link_uses_real_span_and_no_wrapper(monkeypatch):
-    import ddtrace.llmobs as llmobs_pkg
-
     _FakeLLMObs.annotations = []
     _FakeLLMObs.workflow_calls = 0
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
@@ -229,9 +224,6 @@ def test_capture_with_trace_link_uses_real_span_and_no_wrapper(monkeypatch):
 def test_capture_with_trace_reuses_active_span_without_trace_link(monkeypatch):
     # When a real LLM Obs span is already active (e.g. experiment_start nested inside an
     # @workflow/@agent), --trace reuses it: no synthetic span, no trace_link needed.
-    import ddtrace
-    import ddtrace.llmobs as llmobs_pkg
-
     _FakeLLMObs.annotations = []
     _FakeLLMObs.workflow_calls = 0
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
@@ -253,8 +245,6 @@ def test_capture_with_trace_reuses_active_span_without_trace_link(monkeypatch):
 def test_capture_with_trace_but_llmobs_disabled_is_safe(monkeypatch):
     class _Disabled:
         enabled = False
-
-    import ddtrace.llmobs as llmobs_pkg
 
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _Disabled)
     _set_mode(Mode.CAPTURE)

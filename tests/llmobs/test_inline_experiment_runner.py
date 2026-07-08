@@ -1,7 +1,12 @@
 import pytest
 
 from ddtrace.commands import ddtrace_experiment as cli
+import ddtrace.llmobs as llmobs_pkg
 from ddtrace.llmobs import _inline_experiment_runner as runner
+from ddtrace.llmobs import _inline_experiment_sdk as sdk
+from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import MultiEvaluatorResult
 from ddtrace.llmobs._inline_experiment import Mode
 from ddtrace.llmobs._inline_experiment import _reset
 from ddtrace.llmobs._inline_experiment import _set_mode
@@ -179,8 +184,6 @@ def test_replay_from_loaded_baseline_cases():
 
 # --- SDK bridge (Slice C) -------------------------------------------------- #
 def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
-    from ddtrace.llmobs import _inline_experiment_sdk as sdk
-
     @experiment_start(name="e", inputs=["x"], output=lambda r: r)
     def f(x):
         return {"v": x, "ts": "volatile"}
@@ -208,9 +211,6 @@ def test_resolve_evaluators():
 
 
 def test_evaluate_one_dispatches_function_class_and_errors():
-    from ddtrace.llmobs._experiment import BaseEvaluator
-    from ddtrace.llmobs._experiment import EvaluatorResult
-
     def eq(input_data, output_data, expected_output):  # plain function returning bool
         return output_data == expected_output
 
@@ -236,10 +236,6 @@ def test_evaluate_one_dispatches_function_class_and_errors():
 
 
 def test_evaluate_one_expands_multi_evaluator_result():
-    from ddtrace.llmobs._experiment import BaseEvaluator
-    from ddtrace.llmobs._experiment import EvaluatorResult
-    from ddtrace.llmobs._experiment import MultiEvaluatorResult
-
     class Multi(BaseEvaluator):  # one evaluator emitting several named sub-metrics
         def __init__(self):
             super().__init__(name="quality")
@@ -278,9 +274,6 @@ def test_replay_scores_attached_evaluators_only_when_enabled():
 
 
 def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
-    import ddtrace.llmobs as llmobs_pkg
-    from ddtrace.llmobs import _inline_experiment_sdk as sdk
-
     captured: dict = {}
 
     class _Exp:
