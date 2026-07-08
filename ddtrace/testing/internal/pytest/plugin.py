@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from functools import lru_cache
 from io import StringIO
 import logging
 from pathlib import Path
@@ -152,6 +153,15 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
         return abs_path
 
 
+@lru_cache(maxsize=512)
+def _cached_relative_path(item_path: Path, workspace_path: Path) -> t.Optional[str]:
+    """Return item_path relative to workspace_path as a string, or None if not under workspace."""
+    try:
+        return str(item_path.relative_to(workspace_path))
+    except ValueError:
+        return None
+
+
 def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
@@ -165,7 +175,9 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.
     try:
         # Get absolute path from item
         item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
-        relative_path = str(item_path.relative_to(workspace_path))
+        relative_path = _cached_relative_path(item_path, workspace_path)
+        if relative_path is None:
+            raise ValueError(f"{item_path!r} is not under workspace {workspace_path!r}")
 
         # Try to get precise source line information
         start_line, end_line = _get_source_lines(item, item_path)
@@ -409,6 +421,22 @@ class TestOptPlugin:
 
         self.manager.finish()
 
+    def pytest_collection_modifyitems(
+        self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
+    ) -> None:
+        if not self.manager.atf_all_flaky_tests:
+            return
+        selected = []
+        deselected = []
+        for item in items:
+            if item_to_test_ref(item) in self.manager.test_properties:
+                selected.append(item)
+            else:
+                deselected.append(item)
+        if deselected:
+            config.hook.pytest_deselected(items=deselected)
+        items[:] = selected
+
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
         Discover modules, suites, and tests that have been selected by pytest.
@@ -620,6 +648,8 @@ class TestOptPlugin:
                 item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
             )
         else:
+            # Apply quarantine masking before logging reports (non-retry path).
+            self._apply_quarantine_masking(test, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
 
@@ -701,6 +731,24 @@ class TestOptPlugin:
 
         return retry_reports, reports
 
+    def _apply_quarantine_masking(self, test: Test, reports: _ReportGroup) -> None:
+        """Apply quarantine masking to test reports so failures don't break the pipeline.
+
+        For quarantined tests (that are not ATF), this converts failed reports to look like xfail results.
+        This is applied after all retries so that ATR can see real FAIL status during retries.
+        """
+        for report in reports.values():
+            self._apply_quarantine_masking_to_report(test, report)
+
+    def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
+        """Apply quarantine masking to a single report (e.g. the final retry report)."""
+        if not test.is_quarantined() or test.is_attempt_to_fix():
+            return
+
+        if report.outcome == "failed":
+            report.outcome = "skipped"
+            report.wasxfail = "dd_quarantined"
+
     def _log_retry_final_reports(
         self,
         item: pytest.Item,
@@ -715,11 +763,15 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
+        # Apply quarantine masking to the final report after retries are done.
+        self._apply_quarantine_masking_to_report(test, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = last_reports.get(TestPhase.TEARDOWN)
+        self._apply_quarantine_masking_to_report(test, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -962,6 +1014,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
         failed attempt should fail the test from pytest's point of view.
+
+        Quarantined tests also do NOT use xfail here: applying xfail upfront causes pytest to report failures as
+        "skipped" (xfail), which prevents ATR from seeing a FAIL status and retrying. Instead, quarantine masking is
+        applied after all retries in _apply_quarantine_masking.
         """
         if not self.manager.settings.test_management.enabled:
             return
@@ -970,7 +1026,8 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         elif test.is_attempt_to_fix():
             return
         elif test.is_quarantined():
-            item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
+            # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
+            return
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
