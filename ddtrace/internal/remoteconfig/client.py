@@ -261,6 +261,10 @@ class RemoteConfigClient:
         for capability in capabilities:
             self._capabilities |= capability
 
+    def update_capabilities(self, mask: int, capabilities: int) -> None:
+        """Replace the bits within ``mask`` with ``capabilities`` (can clear bits, unlike add_capabilities)."""
+        self._capabilities = (self._capabilities & ~mask) | (capabilities & mask)
+
     def update_product_callback(self, product_name: str, callback: Callable) -> bool:
         pubsub_instance = self._products.get(product_name)
         if pubsub_instance:
