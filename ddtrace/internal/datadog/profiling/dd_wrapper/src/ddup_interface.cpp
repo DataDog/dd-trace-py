@@ -307,7 +307,6 @@ ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-su
     sample->push_pyframes(frame);
 }
 
-
 void
 ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
 {

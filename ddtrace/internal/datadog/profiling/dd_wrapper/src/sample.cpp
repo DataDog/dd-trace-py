@@ -259,7 +259,6 @@ Datadog::Sample::incr_dropped_frames(size_t count)
     dropped_frames += count;
 }
 
-
 void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {

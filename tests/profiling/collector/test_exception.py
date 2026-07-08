@@ -672,3 +672,113 @@ def test_exception_uses_push_monotonic_ns() -> None:
         ts: int = call[0][0]
         assert isinstance(ts, int), f"Expected int timestamp, got {type(ts)}"
         assert before <= ts <= after, f"Expected monotonic timestamp in [{before}, {after}], got {ts}"
+
+
+def _propagate_depth_3() -> None:
+    raise ValueError("propagated")
+
+
+def _propagate_depth_2() -> None:
+    _propagate_depth_3()
+
+
+def _propagate_depth_1() -> None:
+    _propagate_depth_2()
+
+
+def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
+    """
+    Verify that RAISE fires once at the raise site, not once per unwound frame.
+    """
+    output_filename = _setup_profiler(tmp_path, "test_raise_fires_once")
+
+    n_raises = 10
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(n_raises):
+            try:
+                _propagate_depth_1()
+            except ValueError:
+                pass
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+
+    # With sampling_interval=1, most raises are sampled. ddup aggregates samples
+    # with identical stacks into a single pprof row with a summed count value.
+    # the invariant we are looking for is that the total exception-samples count must not exceed
+    # n_raises. If RAISE fired once per unwound frame (depth=3), we'd see 3x.
+    sample_type_idx = pprof_utils.get_sample_type_index(profile, "exception-samples")
+    total_exception_count = sum(s.value[sample_type_idx] for s in samples)
+    assert total_exception_count <= n_raises, (
+        f"Expected at most {n_raises} exception events, got {total_exception_count}. "
+        f"RAISE is firing per unwound frame instead of once at the raise site."
+    )
+    assert total_exception_count >= n_raises // 2, (
+        f"Expected at least {n_raises // 2} exception events, got {total_exception_count}. "
+        f"Deduplication may be too aggressive."
+    )
+
+
+def _full_stack_leaf() -> None:
+    raise RuntimeError("leaf error")
+
+
+def _full_stack_middle() -> None:
+    _full_stack_leaf()
+
+
+def _full_stack_top() -> None:
+    try:
+        _full_stack_middle()
+    except RuntimeError:
+        pass
+
+
+def test_exception_captures_full_python_stack(tmp_path: Path) -> None:
+    """
+    Test that the captured stack spans from the leaf raise site to the top-level caller.
+    """
+    output_filename = _setup_profiler(tmp_path, "test_full_stack")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            _full_stack_top()
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.RuntimeError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_leaf",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_leaf, "raise RuntimeError"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_middle",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_middle, "_full_stack_leaf()"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_full_stack_top",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_full_stack_top, "_full_stack_middle()"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="test_exception_captures_full_python_stack",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(test_exception_captures_full_python_stack, "_full_stack_top()"),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

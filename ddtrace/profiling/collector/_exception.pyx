@@ -100,6 +100,18 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     if _collecting:
         return
 
+    # RAISE fires in every frame the exception unwinds through, not just at the
+    # raise site. Before invoking this callback CPython appends the current frame
+    # to exception.__traceback__, so the traceback length tells us how far the
+    # exception has already propagated.
+
+    # A single entry (tb_next is None) is the raise site, more than one entry
+    # is a propagation re-raise in an ancestor frame.
+    # We only sample the raise site.
+    tb = (<object> exception).__traceback__
+    if tb is None or tb.tb_next is not None:
+        return
+
     cdef _SamplerState state = _state
     if state is None:
         return
@@ -118,15 +130,9 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     # RAISE callback internally).
     _collecting = True
     try:
-        # The `code` parameter is the code object of the frame where raise occurred.
-        # On Python 3.14+, Cython cpdef functions called using vectorcall don't push a
-        # Python frame, so sys._getframe(0) is already the raising frame. On older
-        # versions where the cpdef wrapper creates a frame, sys._getframe(0) is the
-        # callback's own frame and we need f_back to reach the raising frame.
-        frame = sys._getframe(0)
-        if frame.f_code is not code:
-            frame = frame.f_back
-        _collect_exception(state, type(exception), exception, frame)
+        # At the raise site the head of the traceback is the raising frame; its
+        # f_back chain is the full Python stack up to the entry point.
+        _collect_exception(state, type(exception), exception, tb.tb_frame)
     except Exception:
         LOG.debug("Failed to collect exception")
     finally:
