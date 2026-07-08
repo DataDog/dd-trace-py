@@ -76,7 +76,7 @@ except ModuleNotFoundError:
 
     ReadLock = WriteLock = BaseWinLock  # type: ignore
 
-    def open_file(path, mode):  # type: ignore
+    def open_file(path, mode):
         import _winapi
 
         # force all modes to be read/write binary

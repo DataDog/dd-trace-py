@@ -180,7 +180,7 @@ def _after_fork_child():
     _threads_to_start_after_fork.clear()
 
 
-@forksafe.register_after_parent
+@forksafe.register_after_parent  # type: ignore[misc]
 def _after_fork_parent() -> None:
     global _forking
 
@@ -190,7 +190,7 @@ def _after_fork_parent() -> None:
         ThreadRestartTimer.set()
 
 
-@forksafe.register_before_fork
+@forksafe.register_before_fork  # type: ignore[misc]
 def _before_fork() -> None:
     global _threads_to_restart_after_fork, _forking_lock, _forking
 

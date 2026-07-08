@@ -266,7 +266,7 @@ class ProductManager:
         except uWSGIMasterProcess:
             # We are in the uWSGI master process, we should handle products in the
             # post-fork callback
-            @forksafe.register
+            @forksafe.register  # type: ignore[misc]
             def _() -> None:
                 self._do_products()
                 forksafe.unregister(_)

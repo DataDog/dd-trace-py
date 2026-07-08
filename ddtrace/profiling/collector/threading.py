@@ -76,11 +76,11 @@ def init_stack() -> None:
 
         _thread_set_native_id = typing.cast(
             typing.Callable[[threading.Thread], None],
-            ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
+            ddtrace_threading.Thread._set_native_id,
         )
         _thread_bootstrap_inner = typing.cast(
             typing.Callable[[threading.Thread], None],
-            ddtrace_threading.Thread._bootstrap_inner,  # type: ignore[attr-defined]
+            ddtrace_threading.Thread._bootstrap_inner,
         )
 
         def thread_set_native_id(self: threading.Thread) -> None:
@@ -93,11 +93,11 @@ def init_stack() -> None:
             if self.ident is not None:
                 stack.unregister_thread(self.ident)
 
-        ddtrace_threading.Thread._set_native_id = thread_set_native_id  # type: ignore[attr-defined]
-        ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner  # type: ignore[attr-defined]
+        ddtrace_threading.Thread._set_native_id = thread_set_native_id
+        ddtrace_threading.Thread._bootstrap_inner = thread_bootstrap_inner
 
         # Instrument any living threads
-        for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
+        for thread_id, thread in ddtrace_threading._active.items():
             stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
 
         # Import _faulthandler to ensure faulthandler.enable wrapper is initialised.
