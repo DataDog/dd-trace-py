@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    bootstrap: keep ``yaml``/``_yaml`` loaded during the ``DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE``
+    module cleanup, fixing stale ``SafeLoader`` references that broke PyYAML consumers such as Airflow.
