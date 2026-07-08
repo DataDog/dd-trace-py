@@ -79,6 +79,68 @@ def test_periodic_join_positional_timeout_is_honored():
         t.join()
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="requires Linux pthread id reuse behavior")
+@pytest.mark.subprocess
+def test_periodic_thread_dealloc_does_not_evict_reused_ident():
+    """Regression: stale PeriodicThread dealloc must not evict a new worker.
+
+    PeriodicThread objects are registered in ``periodic_threads`` by native
+    thread id. Linux can quickly recycle a thread id after the old worker exits.
+    The old Python PeriodicThread may then be deallocated while its stale
+    ``ident`` still matches a new live worker. Dealloc must not blindly delete
+    ``periodic_threads[ident]`` in that case.
+    """
+    import gc
+
+    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.internal.periodic import PeriodicThread
+
+    class Holder:
+        """NativeWriter-like owner for a PeriodicThread."""
+
+        def __init__(self, name):
+            self.thread = PeriodicThread(60.0, self.work, name=name)
+            self.thread.start()
+
+        def work(self):
+            pass
+
+    holder = Holder("initial")
+    saw_reused_ident = False
+
+    try:
+        for i in range(1000):
+            old_holder = holder
+            old_thread = old_holder.thread
+            old_ident = old_thread.ident
+
+            old_thread.stop()
+            old_thread.join(timeout=1.0)
+
+            holder = Holder("replacement-%d" % i)
+            new_thread = holder.thread
+            new_ident = new_thread.ident
+
+            # Simulate NativeWriter-like owner teardown after replacement: drop
+            # the old holder -> PeriodicThread edge while old_thread.ident is
+            # still populated. On buggy builds, old_thread.tp_dealloc deletes
+            # periodic_threads[old_ident] even when it now belongs to new_thread.
+            old_holder.thread = None
+            del old_thread
+            gc.collect()
+
+            if old_ident == new_ident:
+                saw_reused_ident = True
+                assert periodic_threads.get(new_ident) is new_thread
+    finally:
+        if holder.thread is not None:
+            holder.thread.stop()
+            holder.thread.join(timeout=1.0)
+
+    if not saw_reused_ident:
+        pytest.skip("thread id was not recycled during the stress loop")
+
+
 def test_periodic_awake_after_stop_returns_not_hangs():
     """Regression: awake() after a completed stop() used to block forever.
 
