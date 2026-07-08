@@ -76,6 +76,7 @@ def record_llmobs_enabled(
     auto: bool,
     instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
+    sample_rate: float,
 ):
     tags = _base_tags(error)
     tags.extend(
@@ -85,6 +86,7 @@ def record_llmobs_enabled(
             ("auto", str(int(auto))),
             ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
             ("ml_app", ml_app or "N/A"),
+            ("sample_rate", str(sample_rate)),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
