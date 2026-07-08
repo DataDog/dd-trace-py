@@ -380,13 +380,8 @@ def config(
         call_func_with_str(ddup_config_env, env)
     if version:
         call_func_with_str(ddup_config_version, version)
-    # Always call ddup_config_output_filename even when output_filename is empty so that
-    # a previous file-output configuration is cleared.  call_func_with_str skips falsy
-    # strings, so call the C function directly with an empty string_view here.
     if output_filename:
         call_func_with_str(ddup_config_output_filename, output_filename)
-    else:
-        ddup_config_output_filename(string_view(<const char*>b"", 0))
     if process_tags:
         call_func_with_str(ddup_config_process_tags, process_tags)
 

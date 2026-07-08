@@ -1283,7 +1283,7 @@ def test_stress_trace_collection() -> None:
 # This test intentionally keeps DD_PROFILING_OUTPUT_PPROF (file-based approach).
 # It uses ddtrace_run=True so the profiler auto-starts before the function body runs.
 # After os.fork(), the CHILD process must read its own profile before calling os._exit(0).
-# Since the child can't query a parent-process capture server usin the Python object,
+# Since the child can't query a parent-process capture server using the Python object,
 # file-based output is the only practical approach here.
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
 @pytest.mark.subprocess(
