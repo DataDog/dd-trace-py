@@ -245,5 +245,4 @@ class PromptSource(str, Enum):
     REGISTRY = "registry"
     RESOLVE = "resolve"
     FF = "ff"
-    NOT_READY = "not_ready"
     FALLBACK = "fallback"

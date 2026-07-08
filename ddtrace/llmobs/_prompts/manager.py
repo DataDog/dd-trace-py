@@ -125,12 +125,10 @@ class PromptManager:
 
         dd_env = config.env
         if label is None and dd_env and not self._agentless:
-            prompt, not_ready = self._fetch_from_ff(prompt_id, targeting_key, attributes)
+            prompt = self._fetch_from_ff(prompt_id, targeting_key, attributes)
             if prompt is not None:
                 telemetry.record_prompt_source(PromptSource.FF)
                 return prompt
-            if not_ready:
-                telemetry.record_prompt_source(PromptSource.NOT_READY)
             # FF is the only positive hit. NOT_READY/NO_FLAG/DISABLED/ERROR all fall through to
             # the HTTP /resolve floor, which resolves the same env-scoped variant server-side.
 
@@ -310,17 +308,16 @@ class PromptManager:
         prompt_id: str,
         targeting_key: Optional[str],
         attributes: dict[str, Any],
-    ) -> tuple[Optional[ManagedPrompt], bool]:
+    ) -> Optional[ManagedPrompt]:
         """Evaluate a prompt via the OpenFeature SDK.
 
-        Returns (prompt, not_ready). A prompt is returned only on a positive FF hit; not_ready is
-        True when the provider has not yet received its Remote Config payload. All other outcomes
-        (disabled, no flag, error) return (None, False) and fall through to the HTTP floor.
+        Returns a prompt only on a positive FF hit. All other outcomes (not ready, disabled,
+        no flag, error) return None and fall through to the HTTP floor.
         """
         from ddtrace.internal.settings.openfeature import config as ffe_config
 
         if not ffe_config.experimental_flagging_provider_enabled:
-            return None, False
+            return None
 
         try:
             from openfeature import api
@@ -328,7 +325,7 @@ class PromptManager:
             from openfeature.exception import ErrorCode
         except ImportError:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
-            return None, False
+            return None
 
         self._ensure_ffe_rc()
         self._ensure_ffe_provider()
@@ -343,16 +340,16 @@ class PromptManager:
             details = client.get_object_details(flag_key, {}, context)
 
             if details.error_code == ErrorCode.PROVIDER_NOT_READY:
-                return None, True
+                return None
 
             value = details.value
             if isinstance(value, dict) and value:
-                return self._parse_prompt(value, source="ff"), False
+                return self._parse_prompt(value, source="ff")
 
-            return None, False
+            return None
         except Exception:
             log.debug("FF prompt evaluation failed for %s", prompt_id, exc_info=True)
-            return None, False
+            return None
 
     def _fetch_http(self, req: _PromptRequest, timeout: float) -> tuple[Optional[ManagedPrompt], bool, str]:
         """Fetch a prompt over HTTP. Returns (prompt, not_found, reason)."""
