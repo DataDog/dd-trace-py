@@ -7,6 +7,10 @@ def test_asyncio_executor_wall_time() -> None:
     import os
     from sys import version_info as PYVERSION
     import time
+    import warnings
+
+    # Need to filter deprecation warnings from asyncio
+    warnings.filterwarnings("ignore", message=".*iscoroutinefunction.*", category=DeprecationWarning)
 
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
