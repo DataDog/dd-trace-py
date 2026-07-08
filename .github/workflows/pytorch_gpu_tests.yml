@@ -75,6 +75,8 @@ jobs:
           cp "$REPO_ROOT/tests/utils.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/tests/subprocesstest.py" "$TEST_ROOT/"
           cp "$REPO_ROOT/tests/profiling/__init__.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/conftest.py" "$TEST_ROOT/profiling/"
+          cp "$REPO_ROOT/tests/profiling/utils.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/test_pytorch.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_gpu.py" "$TEST_ROOT/profiling/"
           cp "$REPO_ROOT/tests/profiling/simple_program_pytorch_cpu.py" "$TEST_ROOT/profiling/"
