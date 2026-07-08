@@ -14,7 +14,7 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.utils.threads import Lock
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.wrapping.asyncs import wrap_async
 from ddtrace.internal.utils.wrapping.generators import wrap_generator
 
