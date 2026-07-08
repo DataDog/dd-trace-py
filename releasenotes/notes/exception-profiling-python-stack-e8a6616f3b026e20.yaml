@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    profiling: Exception profiling now captures the full Python call stack at the point of the raise
+    instead of the exception's traceback. This provides richer context including the complete call
+    chain leading to the exception, consistent with how wall-time and CPU profiles capture stacks.
