@@ -18,16 +18,31 @@
       "message": "OK"
     },
     "headers": {
-      "Date": "Thu, 26 Jun 2026 12:00:00 GMT",
+      "Date": "Wed, 08 Jul 2026 14:54:44 GMT",
       "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
       "Connection": "keep-alive",
+      "set-cookie": "__cf_bm=gxP6wmSwqPPkuDD3kHiCg6o6PjITi0EEZZIBNmPLlfk-1783522481.725757-1.0.1.1-7pTzVJ9GHhbbHO4sKhJw8nedfRKnZRnuHrEbKq4jRl6dSCAxGcIEWoHsev82b0xwTz3H8M4ui0EcJj6Xhs888bzbGpJmKvqTiI5bc8d2u_yoc.X.vrKCROcTL2zsU6Q5; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 08 Jul 2026 15:24:44 GMT",
+      "mistral-correlation-id": "019f4239-567a-7b4c-a1cb-a8067baba046",
+      "x-kong-request-id": "019f4239-567a-7b4c-a1cb-a8067baba046",
+      "x-max-retry-attempts-reached": "false",
+      "x-ratelimit-limit-tokens-minute": "75000",
+      "x-ratelimit-remaining-tokens-minute": "74878",
+      "x-ratelimit-tokens-query-cost": "122",
+      "x-ratelimit-limit-req-minute": "5",
+      "x-ratelimit-remaining-req-minute": "4",
+      "x-envoy-upstream-service-time": "2543",
       "Server": "cloudflare",
       "access-control-allow-origin": "*",
+      "x-kong-upstream-latency": "2544",
+      "x-kong-proxy-latency": "9",
       "X-Content-Type-Options": "nosniff",
       "cf-cache-status": "DYNAMIC",
       "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a17fecf6ccba43b8-EWR",
       "alt-svc": "h3=\":443\"; ma=86400"
     },
-    "body": "{\"id\":\"63b74babb3b94796a4f54f370b373d6d\",\"created\":1783272402,\"model\":\"magistral-medium-latest\",\"usage\":{\"prompt_tokens\":10,\"total_tokens\":122,\"completion_tokens\":112,\"prompt_tokens_details\":{\"cached_tokens\":5},\"completion_tokens_details\":{\"reasoning_tokens\":80}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"Okay, the user has asked \\\"What is 2+2?\\\" This is a simple arithmetic question. I know that 2+2 equals 4. So, I should respond with \\\"4\\\".\"}],\"closed\":true},{\"type\":\"text\",\"text\":\"What is 2+2?\\n${answer}\\nTo solve the problem of 2+2, follow these steps:\\n\\n1. Start with the first number: 2\\n2. Add the second number: 2\\n3. Perform the addition: 2 + 2 = 4\\n\\nThus, the answer is **4**.\"}]}}]}"
+    "body": "{\"id\":\"8c7a4df0898f40aeb55ef18358b7ce9e\",\"created\":1783522481,\"model\":\"magistral-medium-latest\",\"usage\":{\"prompt_tokens\":10,\"total_tokens\":127,\"completion_tokens\":117,\"prompt_tokens_details\":{\"cached_tokens\":5}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"Okay, the user has asked \\\"What is 2+2?\\\" This is a simple arithmetic question. I know that 2+2 equals 4. So, I should respond with \\\"4\\\".\"}],\"closed\":true},{\"type\":\"text\",\"text\":\"What is 2+2?\\n${answer}\\nTo solve the problem of adding 2 and 2, follow these steps:\\n\\n1. Start with the first number: 2\\n2. Add the second number: 2\\n3. Perform the addition: 2 + 2 = 4\\n\\nTherefore, the answer is 4.\\n\\n${answer}\"}]}}]}"
   }
 }

@@ -18,16 +18,25 @@
       "message": "OK"
     },
     "headers": {
-      "Date": "Thu, 26 Jun 2026 12:00:00 GMT",
+      "Date": "Wed, 08 Jul 2026 14:56:33 GMT",
       "Content-Type": "text/event-stream; charset=utf-8",
+      "Transfer-Encoding": "chunked",
       "Connection": "keep-alive",
+      "mistral-correlation-id": "019f423b-01ac-71d2-896e-bc1bcd215741",
+      "x-kong-request-id": "019f423b-01ac-71d2-896e-bc1bcd215741",
+      "x-max-retry-attempts-reached": "false",
+      "x-envoy-upstream-service-time": "2757",
       "Server": "cloudflare",
       "access-control-allow-origin": "*",
+      "x-kong-upstream-latency": "2758",
+      "x-kong-proxy-latency": "11",
+      "set-cookie": "__cf_bm=3M7fgCbtxanzdwl.2sa8tEQhLd_xD7XqUuIrMl6R9NA-1783522591.0861845-1.0.1.1-Zv.k_9h7_vdUPC8nG0k8KgtqTP06x1MTUpQq9YY8WRwBLNs31flm6hvz_b_SM4cxOrt2Iig.nmH5D.9.8BlxicKnwPDH3wcNq8VjtbQO7ftas.2lRc5XgIuP8YtVcRCL; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 08 Jul 2026 15:26:33 GMT",
       "X-Content-Type-Options": "nosniff",
       "cf-cache-status": "DYNAMIC",
       "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "CF-RAY": "a17fefa2480e847d-EWR",
       "alt-svc": "h3=\":443\"; ma=86400"
     },
-    "body": "data: {\"id\":\"f3af4ca65eed4349ab96b38c283013ee\",\"object\":\"chat.completion.chunk\",\"created\":1783272214,\"model\":\"mistral-large-latest\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"f3af4ca65eed4349ab96b38c283013ee\",\"object\":\"chat.completion.chunk\",\"created\":1783272214,\"model\":\"mistral-large-latest\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"id\":\"ACqYt2JhD\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"New York City\\\"}\"},\"index\":0}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":72,\"total_tokens\":86,\"completion_tokens\":14,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"p\":\"abcdefg\"}\n\ndata: [DONE]\n\n"
+    "body": "data: {\"id\":\"76a8176f4f564bf983bb12c65c75e70b\",\"object\":\"chat.completion.chunk\",\"created\":1783522591,\"model\":\"mistral-large-latest\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"76a8176f4f564bf983bb12c65c75e70b\",\"object\":\"chat.completion.chunk\",\"created\":1783522591,\"model\":\"mistral-large-latest\",\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"id\":\"KXHmupO7X\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"New York City\\\"}\"},\"index\":0}]},\"finish_reason\":\"tool_calls\"}],\"usage\":{\"prompt_tokens\":72,\"total_tokens\":86,\"completion_tokens\":14,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"p\":\"abcdefghijklmnopqrstuvwxyz01\"}\n\ndata: [DONE]\n\n"
   }
 }

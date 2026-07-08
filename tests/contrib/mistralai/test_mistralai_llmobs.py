@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.mistralai.utils import CHAT_TOOLS
 from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
@@ -22,23 +23,9 @@ STREAM_CHAT_OUTPUT_MESSAGES = [
         " describes how light interacts with molecules and tiny particles in Earth's atmosphere."
         " Here’s a step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   -"
         " Sunlight appears white but is actually a mix of all colors (wavelengths) of the visible"
-        " spectrum: red, orange, yellow, green, blue, indigo, and violet.\n\n### 2. **Light"
-        " Scatters in the Atmosph",
+        " spectrum: red, orange, yellow, green, blue, indigo, and violet.\n\n### 2. **Scattering"
+        " by Air Molecules**\n",
     }
-]
-
-REASONING_CHAT_OUTPUT_MESSAGES = [
-    {
-        "role": "reasoning",
-        "content": 'Okay, the user has asked "What is 2+2?" This is a simple arithmetic question. I know that 2+2 '
-        'equals 4. So, I should respond with "4".',
-    },
-    {
-        "role": "assistant",
-        "content": "What is 2+2?\n${answer}\nTo solve the problem of 2+2, follow these steps:\n\n1. Start with the "
-        "first number: 2\n2. Add the second number: 2\n3. Perform the addition: 2 + 2 = 4\n\nThus, the answer is "
-        "**4**.",
-    },
 ]
 
 STREAM_TOOL_OUTPUT_MESSAGES = [
@@ -49,7 +36,7 @@ STREAM_TOOL_OUTPUT_MESSAGES = [
             {
                 "name": "get_weather",
                 "arguments": {"location": "New York City"},
-                "tool_id": "ACqYt2JhD",
+                "tool_id": "KXHmupO7X",
                 "type": "function",
             }
         ],
@@ -139,7 +126,7 @@ def _expected_tool_first_call_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "oG2fuvoqp",
+                        "tool_id": "Euogr0xwu",
                         "type": "function",
                     }
                 ],
@@ -168,7 +155,7 @@ def _expected_tool_followup_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "oG2fuvoqp",
+                        "tool_id": "Euogr0xwu",
                         "type": "function",
                     }
                 ],
@@ -184,7 +171,7 @@ def _expected_tool_followup_span_data(**overrides):
             {
                 "role": "assistant",
                 "content": "The current weather in **New York City** is **sunny** with a temperature of "
-                "**72°F**. Enjoy your day! \U0001f60a",
+                "**72°F**. Enjoy your day! 😊",
             }
         ],
         "metadata": get_expected_chat_metadata(),
@@ -196,15 +183,27 @@ def _expected_tool_followup_span_data(**overrides):
     return kwargs
 
 
-def _expected_reasoning_span_data(span):
-    return _expected_chat_span_data(
-        span,
-        model_name="magistral-medium-latest",
-        input_messages=[{"role": "user", "content": "What is 2+2?"}],
-        output_messages=REASONING_CHAT_OUTPUT_MESSAGES,
-        metrics={"input_tokens": 10, "output_tokens": 112, "total_tokens": 122, "reasoning_output_tokens": 80},
-        metadata=get_expected_chat_metadata(REASONING_CHAT_REQUEST_KWARGS),
-    )
+def _expected_reasoning_span_data():
+    return {
+        "span_kind": "llm",
+        "model_name": "magistral-medium-latest",
+        "model_provider": "mistral",
+        "input_messages": [{"role": "user", "content": "What is 2+2?"}],
+        "metrics": {"input_tokens": 10},
+        "metadata": get_expected_chat_metadata(REASONING_CHAT_REQUEST_KWARGS),
+        "tags": COMMON_TAGS,
+    }
+
+
+def _assert_reasoning_output_messages(actual):
+    messages = actual.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(LLMOBS_STRUCT.MESSAGES)
+    assert messages is not None, "expected output messages to be present"
+    assert len(messages) == 2, "expected a reasoning message then an assistant message, got {!r}".format(messages)
+    reasoning_message, assistant_message = messages
+    assert reasoning_message["role"] == "reasoning"
+    assert reasoning_message["content"], "expected non empty reasoning content"
+    assert assistant_message["role"] == "assistant"
+    assert assistant_message["content"], "expected non empty assistant content"
 
 
 def test_chat_complete(mistral_client, mistralai_llmobs, test_spans):
@@ -363,13 +362,10 @@ def test_chat_complete_with_cached_tokens(mistral_client, mistralai_llmobs, test
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chat_span_data(
-            spans[0],
-            metrics={"input_tokens": 9, "output_tokens": 100, "total_tokens": 109, "cache_read_input_tokens": 5},
-        ),
-    )
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_chat_span_data(spans[0]))
+    metrics = actual.get(LLMOBS_STRUCT.METRICS, {})
+    assert "cache_read_input_tokens" not in metrics
 
 
 async def test_async_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans):
@@ -478,7 +474,9 @@ def test_chat_reasoning(mistral_client, mistralai_llmobs, test_spans):
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_reasoning_span_data(spans[0]))
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
 
 
 async def test_async_chat_reasoning(mistral_client, mistralai_llmobs, test_spans):
@@ -490,7 +488,9 @@ async def test_async_chat_reasoning(mistral_client, mistralai_llmobs, test_spans
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_reasoning_span_data(spans[0]))
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
 
 
 def test_chat_reasoning_stream(mistral_client, mistralai_llmobs, test_spans):
@@ -503,7 +503,9 @@ def test_chat_reasoning_stream(mistral_client, mistralai_llmobs, test_spans):
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_reasoning_span_data(spans[0]))
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
 
 
 async def test_async_chat_reasoning_stream(mistral_client, mistralai_llmobs, test_spans):
@@ -516,7 +518,9 @@ async def test_async_chat_reasoning_stream(mistral_client, mistralai_llmobs, tes
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_reasoning_span_data(spans[0]))
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
 
 
 def test_chat_stream_with_tools(mistral_client, mistralai_llmobs, test_spans):

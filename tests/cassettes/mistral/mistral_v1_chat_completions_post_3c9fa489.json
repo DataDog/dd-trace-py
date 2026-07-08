@@ -1,0 +1,48 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.mistral.ai/v1/chat/completions",
+    "headers": {
+      "Accept-Encoding": "gzip, deflate",
+      "Connection": "keep-alive",
+      "Accept": "application/json",
+      "User-Agent": "mistral-client-python/2.4.9",
+      "Content-Type": "application/json",
+      "Content-Length": "798"
+    },
+    "body": "{\"model\":\"mistral-large-latest\",\"messages\":[{\"content\":\"What's the weather in NYC?\",\"role\":\"user\"},{\"role\":\"assistant\",\"content\":\"\",\"tool_calls\":[{\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"New York City\\\"}\"},\"id\":\"Euogr0xwu\",\"type\":\"function\",\"index\":0}],\"prefix\":false},{\"content\":\"{\\\"location\\\": \\\"New York, NY\\\", \\\"temperature\\\": 72, \\\"unit\\\": \\\"fahrenheit\\\", \\\"forecast\\\": \\\"Sunny\\\"}\",\"role\":\"tool\",\"tool_call_id\":\"Euogr0xwu\"}],\"temperature\":0.7,\"top_p\":0.9,\"max_tokens\":100,\"stream\":false,\"random_seed\":42,\"tools\":[{\"function\":{\"name\":\"get_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\"}},\"required\":[\"location\"]},\"description\":\"Get the current weather for a location.\"},\"type\":\"function\"}],\"presence_penalty\":0.0,\"frequency_penalty\":0.0}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "Date": "Wed, 08 Jul 2026 15:22:32 GMT",
+      "Content-Type": "application/json",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "mistral-correlation-id": "019f4252-d2e4-7c22-9f2a-b728f27ea46f",
+      "x-kong-request-id": "019f4252-d2e4-7c22-9f2a-b728f27ea46f",
+      "x-max-retry-attempts-reached": "false",
+      "x-ratelimit-limit-tokens-minute": "250000",
+      "x-ratelimit-remaining-tokens-minute": "249850",
+      "x-ratelimit-tokens-query-cost": "150",
+      "x-ratelimit-limit-req-minute": "4",
+      "x-ratelimit-remaining-req-minute": "3",
+      "x-envoy-upstream-service-time": "839",
+      "Server": "cloudflare",
+      "access-control-allow-origin": "*",
+      "x-kong-upstream-latency": "841",
+      "x-kong-proxy-latency": "11",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cf_bm=C6F.4176bpN0LUL32xC12UmWr8WlCYjfH6cqZblutxo-1783524151.9749815-1.0.1.1-T1mnHbrnGqgkt3gmdiyY.vAeyyHmSz.QV9upILEZnCPY5eH3kwK9_6d8vFHtKro0vTFeqvuNmhnGW235sIvmSLO.aFioxd6o0ah852qCRp_naYY3o0g4sz8_PTi9Fv7S; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 08 Jul 2026 15:52:32 GMT",
+      "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Encoding": "gzip",
+      "CF-RAY": "a18015bdda638c3c-EWR",
+      "alt-svc": "h3=\":443\"; ma=86400"
+    },
+    "body": "{\"id\":\"14074a460152439492fed430b61e8f2a\",\"created\":1783524152,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":118,\"total_tokens\":150,\"completion_tokens\":32,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"tool_calls\":null,\"content\":\"The current weather in **New York City** is **sunny** with a temperature of **72\u00b0F**. Enjoy your day! \ud83d\ude0a\"}}]}"
+  }
+}

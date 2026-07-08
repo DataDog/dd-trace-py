@@ -18,31 +18,31 @@
       "message": "OK"
     },
     "headers": {
-      "Date": "Wed, 17 Jun 2026 17:34:53 GMT",
+      "Date": "Wed, 08 Jul 2026 14:54:37 GMT",
       "Content-Type": "application/json",
       "Transfer-Encoding": "chunked",
       "Connection": "keep-alive",
-      "mistral-correlation-id": "019ed6a6-7170-7b64-ae43-01870ce8376d",
-      "x-kong-request-id": "019ed6a6-7170-7b64-ae43-01870ce8376d",
+      "mistral-correlation-id": "019f4239-44eb-71f6-a4e3-f1c72bde29dc",
+      "x-kong-request-id": "019f4239-44eb-71f6-a4e3-f1c72bde29dc",
       "x-max-retry-attempts-reached": "false",
       "x-ratelimit-limit-tokens-minute": "250000",
       "x-ratelimit-remaining-tokens-minute": "249805",
       "x-ratelimit-tokens-query-cost": "86",
       "x-ratelimit-limit-req-minute": "4",
       "x-ratelimit-remaining-req-minute": "2",
-      "x-envoy-upstream-service-time": "548",
+      "x-envoy-upstream-service-time": "491",
       "Server": "cloudflare",
       "access-control-allow-origin": "*",
-      "x-kong-upstream-latency": "549",
-      "x-kong-proxy-latency": "16",
+      "x-kong-upstream-latency": "492",
+      "x-kong-proxy-latency": "13",
       "cf-cache-status": "DYNAMIC",
-      "set-cookie": "__cf_bm=tua9Far25zQ84sEt2i6AI0h_rMt3upi51eW5rzTJrlQ-1781717692.7314537-1.0.1.1-cU891wFyaOIoIZvELbHSGKrN28Xq0b8FDpN5EvazK8gJMGQHfS8CIZ5LG0jsojagUMc8tfQRlfhvpqes6FTNzrnuNo1AaSMKJIyWS66FMiOgMDUXTjYZOgfpHc6_3GAI; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 17 Jun 2026 18:04:53 GMT, _cfuvid=JpBWe1R7Y0MBBBgi5_ozF9rgbNbKdJexPhs348nOTuc-1781717692.7314537-1.0.1.1-E834N_q8875tdXnz8e9HZEu57jKF.D0z0NrWenbfvKs; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai",
+      "set-cookie": "__cf_bm=1aAFt1xehRH5kYwppyaeY.m6HMMQKZDlt98VWFbIWv4-1783522477.2385247-1.0.1.1-gjFFOMixRKWEE7eyyrlfS7y74ZBRM7GQ7kDEwjAzNl.REcfQBCSQg7YYJIYrDMUFJzwOxAvl8S4E8f5_n68CZIdtPlY2KMMpIJq6ahhKVnzUqGre70d7br7bRTcCBRFb; HttpOnly; SameSite=None; Secure; Path=/; Domain=mistral.ai; Expires=Wed, 08 Jul 2026 15:24:37 GMT",
       "Strict-Transport-Security": "max-age=15552000; includeSubDomains; preload",
       "X-Content-Type-Options": "nosniff",
       "Content-Encoding": "gzip",
-      "CF-RAY": "a0d3cebb9ad13d3e-EWR",
+      "CF-RAY": "a17fecdab90322d7-EWR",
       "alt-svc": "h3=\":443\"; ma=86400"
     },
-    "body": "{\"id\":\"2a4e76999f964efc9c64c0867cac2f90\",\"created\":1781717692,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":72,\"total_tokens\":86,\"completion_tokens\":14,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"oG2fuvoqp\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"New York City\\\"}\"},\"index\":0}],\"content\":\"\"}}]}"
+    "body": "{\"id\":\"7565f95ce99b4736821888294d89a547\",\"created\":1783522477,\"model\":\"mistral-large-latest\",\"usage\":{\"prompt_tokens\":72,\"total_tokens\":86,\"completion_tokens\":14,\"prompt_tokens_details\":{\"cached_tokens\":0}},\"object\":\"chat.completion\",\"choices\":[{\"index\":0,\"finish_reason\":\"tool_calls\",\"message\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"Euogr0xwu\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\": \\\"New York City\\\"}\"},\"index\":0}],\"content\":\"\"}}]}"
   }
 }

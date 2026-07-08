@@ -48,7 +48,7 @@ def traced_chat_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -73,7 +73,7 @@ async def traced_async_chat_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> ChatCompletionResponse:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -98,7 +98,7 @@ def traced_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -125,7 +125,7 @@ async def traced_async_generate_stream(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -152,7 +152,7 @@ def traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")
@@ -179,7 +179,7 @@ async def async_traced_embed_generate(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> EmbeddingResponse:
-    integration = client._datadog_integration
+    integration: MistralAIIntegration = client._datadog_integration
     enriched_kwargs = _kwargs_with_server_url(instance, kwargs)
     provider_name = extract_provider(enriched_kwargs)
     model_name = kwargs.get("model", "")

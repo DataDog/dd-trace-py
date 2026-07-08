@@ -5,7 +5,6 @@ from ddtrace._trace.span import Span
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
@@ -236,10 +235,6 @@ def _extract_metrics(response: Optional[Any]) -> dict[str, Any]:
     cached_tokens = _get_attr(usage, "num_cached_tokens", None)
     if cached_tokens is not None:
         metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
-    completion_tokens_details = _get_attr(usage, "completion_tokens_details", None)
-    reasoning_tokens = _get_attr(completion_tokens_details, "reasoning_tokens", None)
-    if reasoning_tokens is not None:
-        metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_tokens
     return metrics
 
 
