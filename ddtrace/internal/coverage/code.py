@@ -264,7 +264,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             # active and update the DISABLE optimisation flag accordingly.  Then re-enable
             # monitoring only when the optimisation is active (restart_events is global and
             # would corrupt other tools' state if called unnecessarily).
-            # AIDEV-NOTE: This global restart_events() call is safe specifically because it is
+            # NOTE: This global restart_events() call is safe specifically because it is
             # gated on update_disable_optimization() having *just* confirmed no other tool is
             # registered -- there is no other tool's disabled-event state for it to corrupt at
             # this instant. Once another tool is detected, this branch stops firing for the rest

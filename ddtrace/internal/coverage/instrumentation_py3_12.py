@@ -63,7 +63,7 @@ _DD_CANDIDATE_SLOTS = (4, 3, 1)
 # Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
 _CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
 
-# AIDEV-NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
+# NOTE: When True (default), _event_handler returns sys.monitoring.DISABLE after recording a
 # line so Python stops firing that event for this code location — a performance optimisation that
 # avoids redundant callbacks in loops.  CollectInContext.__enter__ then calls restart_events() at
 # the start of each test to re-enable them (safe there: it only fires while we believe no other
