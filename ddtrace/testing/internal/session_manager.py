@@ -151,47 +151,53 @@ class SessionManager:
         # These are independent network calls that can safely run concurrently:
         # - BackendConnector is threading.local, so each thread gets its own connection.
         # - configuration_errors writes use non-overlapping keys per method.
+        # In ATF-all-flaky mode only test management properties are needed: known tests and
+        # skippable items play no role, so those network calls are skipped. Git data is still
+        # uploaded, since it is required to populate git metadata regardless of ATF mode.
         self.atf_all_flaky_tests: bool = asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false"))
 
+        # Snapshot the settings-derived flags before starting the concurrent fetches below:
+        # _upload_git_and_fetch_skippable() may replace self.settings (when require_git is
+        # enabled), and the sibling fetches must see a consistent, deterministic value rather
+        # than racing on when that replacement happens.
+        known_tests_enabled = self.settings.known_tests_enabled and not self.atf_all_flaky_tests
+        test_management_enabled = self.settings.test_management.enabled
+        itr_enabled = self.settings.itr_enabled and not self.atf_all_flaky_tests
+
+        def _fetch_known_tests() -> set[TestRef]:
+            return self.api_client.get_known_tests() if known_tests_enabled else set()
+
+        def _fetch_test_management_properties() -> dict[TestRef, TestProperties]:
+            if self.atf_all_flaky_tests:
+                return self.api_client.get_test_management_properties(
+                    statuses=("active", "quarantined", "disabled")
+                )
+            return self.api_client.get_test_management_properties() if test_management_enabled else {}
+
+        def _upload_git_and_fetch_skippable() -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+            self.upload_git_data()
+            if self.settings.require_git:
+                # Fetch settings again after uploading git data, as it may change ITR settings.
+                self.settings = self.api_client.get_settings()
+                self.override_settings_with_env_vars()
+            if itr_enabled:
+                return self.api_client.get_skippable_tests()
+            return set(), None
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            known_tests_future = executor.submit(_fetch_known_tests)
+            tm_properties_future = executor.submit(_fetch_test_management_properties)
+            skippable_future = executor.submit(_upload_git_and_fetch_skippable)
+
+            self.known_tests: set[TestRef] = known_tests_future.result()
+            self.test_properties: dict[TestRef, TestProperties] = tm_properties_future.result()
+            self.skippable_items, self.itr_correlation_id = skippable_future.result()
+
         if self.atf_all_flaky_tests:
-            # In ATF-all-flaky mode only test management properties are needed: known tests and
-            # skippable items play no role, so skip those network calls entirely.
-            self.test_properties: dict[TestRef, TestProperties] = self.api_client.get_test_management_properties(
-                statuses=("active", "quarantined", "disabled")
-            )
-            self.known_tests: set[TestRef] = set()
-            self.skippable_items = set()
-            self.itr_correlation_id = None
             log.info(
                 "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
                 len(self.test_properties),
             )
-        else:
-
-            def _fetch_known_tests() -> set[TestRef]:
-                return self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
-
-            def _fetch_test_management_properties() -> dict[TestRef, TestProperties]:
-                return self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-
-            def _upload_git_and_fetch_skippable() -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
-                self.upload_git_data()
-                if self.settings.require_git:
-                    # Fetch settings again after uploading git data, as it may change ITR settings.
-                    self.settings = self.api_client.get_settings()
-                    self.override_settings_with_env_vars()
-                if self.settings.itr_enabled:
-                    return self.api_client.get_skippable_tests()
-                return set(), None
-
-            with ThreadPoolExecutor(max_workers=3) as executor:
-                known_tests_future = executor.submit(_fetch_known_tests)
-                tm_properties_future = executor.submit(_fetch_test_management_properties)
-                skippable_future = executor.submit(_upload_git_and_fetch_skippable)
-
-                self.known_tests = known_tests_future.result()
-                self.test_properties = tm_properties_future.result()
-                self.skippable_items, self.itr_correlation_id = skippable_future.result()
 
         # Snapshot configuration errors before closing the client.
         self.configuration_errors = dict(self.api_client.configuration_errors)

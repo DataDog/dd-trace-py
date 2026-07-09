@@ -1196,6 +1196,36 @@ class TestParallelInit:
         mock_client.get_skippable_tests.assert_not_called()
         assert sm.skippable_items == set()
 
+    def test_known_tests_and_test_management_use_pre_upload_settings(self) -> None:
+        """known_tests/test_management decisions must use the settings captured before the
+        concurrent git-upload thread replaces self.settings, not whatever self.settings happens
+        to be when each thread runs (otherwise the outcome would race on thread scheduling)."""
+        settings_before_git = Settings(require_git=True, known_tests_enabled=True)
+        settings_before_git.test_management.enabled = True
+        settings_after_git = Settings(require_git=False, known_tests_enabled=False)
+        settings_after_git.test_management.enabled = False
+
+        mock_client = Mock()
+        mock_client.get_settings.side_effect = [settings_before_git, settings_after_git]
+        mock_client.get_known_tests.return_value = set()
+        mock_client.get_test_management_properties.return_value = {}
+        mock_client.get_known_commits.return_value = []
+        mock_client.send_git_pack_file.return_value = None
+        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.close.return_value = None
+        mock_client.configuration_errors = {}
+
+        with (
+            patch("ddtrace.testing.internal.session_manager.APIClient", return_value=mock_client),
+            setup_standard_mocks(),
+        ):
+            SessionManager(self.session)
+
+        # Both decisions were made when known_tests_enabled/test_management.enabled were True,
+        # regardless of the settings refetch triggered by require_git.
+        mock_client.get_known_tests.assert_called_once()
+        mock_client.get_test_management_properties.assert_called_once()
+
     # -------------------------------------------------------------------------
     # 3. Exceptions from background threads propagate to the caller
     # -------------------------------------------------------------------------
@@ -1266,8 +1296,10 @@ class TestParallelInit:
         assert len(atf_log_calls) == 1
         assert "1" in str(atf_log_calls[0])
 
-    def test_atf_all_flaky_skips_known_tests_and_git_upload(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """In ATF-all-flaky mode, get_known_tests and upload_git_data are not called."""
+    def test_atf_all_flaky_skips_known_tests_and_skippable_but_still_uploads_git(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In ATF-all-flaky mode, get_known_tests/get_skippable_tests are skipped, but git data is still uploaded."""
         mock_client = self._make_mock_client(test_management_enabled=True, known_tests_enabled=True)
         monkeypatch.setenv("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "true")
 
@@ -1280,7 +1312,7 @@ class TestParallelInit:
 
         mock_client.get_known_tests.assert_not_called()
         mock_client.get_skippable_tests.assert_not_called()
-        mock_upload.assert_not_called()
+        mock_upload.assert_called_once()
         assert sm.known_tests == set()
         assert sm.skippable_items == set()
 
