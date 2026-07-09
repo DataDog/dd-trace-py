@@ -1,6 +1,0 @@
----
-other:
-  - |
-    tracing: Adds instrumentation telemetry to ``AgentlessTraceWriter``, reporting spans enqueued for
-    serialization, trace chunks sent, trace chunks dropped (with failure reason), and trace API request/response/error
-    counts. Metric and tag names are aligned with equivalent HTTP client telemetry in dd-trace-dotnet.
