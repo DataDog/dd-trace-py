@@ -1023,7 +1023,7 @@ static PyMethodDef stack_methods[] = {
     { "segv_handler_installed",
       stack_segv_handler_installed,
       METH_NOARGS,
-      "Return True if our handler is the currently installed disposition for SIGSEGV and SIGBUS" },
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
     // Sampling pause/resume for safe signal handler swapping
     { "pause_sampling",
       stack_pause_sampling,
