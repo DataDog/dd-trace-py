@@ -858,6 +858,33 @@ stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(arg
 }
 
 static PyObject*
+stack_sampler_running(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().is_running()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_sampling_paused(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().is_sampling_paused()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_take_prefork_pause_observation(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (Sampler::get().take_prefork_pause_observation()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
 stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
 {
     double seconds_value = 0.0;
@@ -937,6 +964,18 @@ static PyMethodDef stack_methods[] = {
       stack_fast_copy_memory_active,
       METH_NOARGS,
       "Return True if the fast safe_memcpy copy path is currently active" },
+    { "sampler_running",
+      stack_sampler_running,
+      METH_NOARGS,
+      "Return True if the stack sampler thread is running (test introspection)" },
+    { "sampling_paused",
+      stack_sampling_paused,
+      METH_NOARGS,
+      "Return True if the stack sampler is at a pause point (test introspection)" },
+    { "_take_prefork_pause_observation",
+      stack_take_prefork_pause_observation,
+      METH_NOARGS,
+      "Test-only: return True once if prefork() paused the sampler for the last fork" },
     { "_set_fast_copy_warmup_seconds",
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,

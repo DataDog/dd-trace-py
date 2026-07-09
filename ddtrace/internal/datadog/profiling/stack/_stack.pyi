@@ -23,6 +23,9 @@ def set_interval(new_interval: float) -> None: ...
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
 def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
+def sampler_running() -> bool: ...  # test introspection: is the sampler thread running?
+def sampling_paused() -> bool: ...  # test introspection: is the sampler at a pause point?
+def _take_prefork_pause_observation() -> bool: ...  # test-only: prefork paused sampler for last fork
 def _set_fast_copy_warmup_seconds(seconds: float) -> None: ...  # test-only; before start
 def segv_handler_installed() -> bool:
     """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.

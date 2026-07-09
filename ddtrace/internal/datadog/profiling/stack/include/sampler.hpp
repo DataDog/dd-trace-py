@@ -100,6 +100,9 @@ class Sampler
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
 
+    // Set when prefork() paused the sampling thread so postfork_parent() can resume it.
+    bool paused_for_fork_{ false };
+
     void atfork_child();
     friend void stack_atfork_prepare();
     friend void stack_atfork_parent();
@@ -135,6 +138,8 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     bool is_running() const { return thread_running.load(); }
+    bool is_sampling_paused() const { return paused_.load(std::memory_order_acquire); }
+    bool take_prefork_pause_observation();
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)

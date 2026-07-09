@@ -16,6 +16,7 @@
 #include "echion/threads.h"
 #include "echion/vm.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
@@ -86,10 +87,7 @@ uint64_t
 get_thread_cpu_time_us()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
         return 0;
@@ -139,10 +137,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
@@ -597,6 +592,8 @@ Sampler::postfork_child()
     paused_.store(false);
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
+    paused_for_fork_ = false;
+    g_prefork_sampler_paused_observation.store(false, std::memory_order_release);
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
@@ -633,6 +630,13 @@ void
 Sampler::prefork()
 {
     was_running_at_fork_ = thread_seq_num.load() & 1;
+    paused_for_fork_ = false;
+    if (was_running_at_fork_) {
+        if (pause() == PauseResult::Paused) {
+            paused_for_fork_ = true;
+            g_prefork_sampler_paused_observation.store(true, std::memory_order_release);
+        }
+    }
 }
 
 void
@@ -641,6 +645,10 @@ Sampler::postfork_parent()
     // The parent's sampling thread survives the fork unchanged; no restart needed.
     // Calling start() here would launch a second thread, corrupt the thread_seq_num
     // parity invariant used by prefork(), and cause a data race on EchionSampler state.
+    if (paused_for_fork_) {
+        resume();
+        paused_for_fork_ = false;
+    }
 }
 
 void
@@ -651,6 +659,12 @@ Sampler::restart_after_fork()
     if (was_running_at_fork_) {
         start();
     }
+}
+
+bool
+Sampler::take_prefork_pause_observation()
+{
+    return g_prefork_sampler_paused_observation.exchange(false, std::memory_order_acq_rel);
 }
 
 static void
