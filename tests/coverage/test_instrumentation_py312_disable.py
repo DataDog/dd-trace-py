@@ -194,7 +194,8 @@ def test_update_disable_optimization_enables_when_alone():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
 def test_update_disable_optimization_rearmed_on_transition():
     """On True→False transition, update_disable_optimization() calls _rearm_all_events()
-    which re-enables events for our tool via set_local_events() without affecting other tools.
+    which re-enables events for our tool via a per-code-object set_local_events() toggle
+    (tool-scoped, does not touch any other registered tool's disabled-event state).
     """
     import sys
 
