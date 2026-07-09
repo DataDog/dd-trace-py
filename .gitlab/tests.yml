@@ -17,7 +17,6 @@ include:
     when: always
     paths:
       - core.*
-      - .riot/venv_*
       - ddtrace/**/*.so*
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
