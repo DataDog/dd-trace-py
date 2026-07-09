@@ -441,57 +441,6 @@ detect_circular_imports:
       - claude.stdout.log
     expire_in: 1 month
 
-
-package-oci:
-  needs:
-    - job: "package version"
-      artifacts: true
-    - job: "build linux"
-      artifacts: true
-    - job: "download_dependency_wheels"
-      artifacts: true
-
-promote-oci-to-prod:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-prod-beta:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-promote-oci-to-staging:
-  stage: release
-  needs:
-    - job: package-oci
-      artifacts: true
-    - job: oci-internal-publish
-      artifacts: true
-
-publish-lib-init-pinned-tags:
-  stage: release
-  rules:
-    - if: !reference [.is_non_rc_release]
-      when: on_success
-    - when: never
-  needs:
-    - job: release_pypi_prod
-    - job: create-multiarch-lib-injection-image
-    - job: generate-lib-init-pinned-tag-values
-      artifacts: true
-
 configure_system_tests:
   needs: []
   variables:
