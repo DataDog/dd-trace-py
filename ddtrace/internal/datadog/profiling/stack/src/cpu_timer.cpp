@@ -75,6 +75,9 @@ constexpr uint32_t kDefaultRingCapacity = 64;
 constexpr size_t kMinAltStackSize = 128 * 1024;
 constexpr size_t kAltStackSigstkszMultiplier = 4;
 constexpr size_t kMaxSlotBytes = 256 * 1024 * 1024;
+constexpr uint64_t kHealthWindowEvents = 128;
+constexpr uint64_t kHealthBadRatioPercent = 90;
+constexpr uint32_t kHealthBadWindowsLimit = 3;
 
 int g_cookie;
 
@@ -89,8 +92,8 @@ thread_cpu_clock(pid_t tid)
 {
     constexpr unsigned long CPUCLOCK_SCHED = 2;
     constexpr unsigned long CPUCLOCK_PERTHREAD_MASK = 4;
-    const unsigned long encoded = ((~static_cast<unsigned long>(tid)) << 3) |
-                                  (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
+    const unsigned long encoded =
+      ((~static_cast<unsigned long>(tid)) << 3) | (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK);
     return static_cast<clockid_t>(encoded);
 }
 
@@ -186,7 +189,7 @@ struct CaptureState
     std::string name;
     PyThreadState* tstate = nullptr;
     kernel_timer_id timer_id = -1;
-    uint64_t last_cpu_ns = 0;
+    std::atomic<uint64_t> last_cpu_ns{ 0 };
     OwnedAltStack altstack;
     CpuSampleRing ring;
     sigjmp_buf fault_env;
@@ -194,6 +197,7 @@ struct CaptureState
     bool timer_deleted = false;
     bool retired = false;
 
+    std::atomic<uint64_t> published_count{ 0 };
     std::atomic<uint64_t> dropped_count{ 0 };
     std::atomic<uint64_t> dropped_cpu_ns{ 0 };
     std::atomic<uint64_t> capture_failed_count{ 0 };
@@ -201,6 +205,14 @@ struct CaptureState
     std::atomic<uint64_t> residual_cpu_ns{ 0 };
     std::atomic<uint64_t> timer_overrun_total{ 0 };
     std::atomic<uint64_t> coalesced_signal_count{ 0 };
+
+    uint64_t health_seen_published_count = 0;
+    uint64_t health_seen_dropped_count = 0;
+    uint64_t health_seen_capture_failed_count = 0;
+    uint64_t health_window_published_count = 0;
+    uint64_t health_window_dropped_count = 0;
+    uint64_t health_window_capture_failed_count = 0;
+    uint32_t health_bad_window_count = 0;
 
     CaptureState(uint64_t thread_id, uint64_t tid, const char* thread_name)
       : python_thread_id(thread_id)
@@ -234,8 +246,9 @@ struct EngineState
     std::unique_ptr<std::atomic<bool>[]> handler_active;
     size_t slot_capacity = 0;
 
-    struct sigaction previous_sigprof{};
-    bool has_previous_sigprof = false;
+    struct sigaction previous_sigprof
+    {};
+    std::atomic<bool> has_previous_sigprof{ false };
     bool exit_handler_registered = false;
 
     std::atomic<uint64_t> pending_unprepared{ 0 };
@@ -247,7 +260,7 @@ struct EngineState
     std::atomic<uint64_t> timer_syscall_failures{ 0 };
     std::atomic<uint64_t> accepted_signal_oob_tid_count{ 0 };
     std::atomic<uint64_t> handler_hijack_disable_count{ 0 };
-    std::atomic<uint64_t> fast_copy_conflict_count{ 0 };
+    std::atomic<uint64_t> health_disable_count{ 0 };
     std::atomic<uint64_t> stage2_invalid_frame_count{ 0 };
 };
 
@@ -258,8 +271,10 @@ struct EngineState
 // plane valid until the kernel tears the process down.
 EngineState& g_state = *new EngineState();
 
-void cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext);
-bool cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext);
+void
+cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext);
+bool
+cpu_timer_fault_recover(int signo, siginfo_t* si, void* ucontext);
 
 void
 cpu_timer_process_exit()
@@ -273,7 +288,8 @@ cpu_timer_process_exit()
         return;
     }
 
-    struct sigaction ignore_action{};
+    struct sigaction ignore_action
+    {};
     ignore_action.sa_handler = SIG_IGN;
     sigemptyset(&ignore_action.sa_mask);
     ignore_action.sa_flags = 0;
@@ -307,7 +323,7 @@ forward_sigaction(const struct sigaction& previous, int signo, siginfo_t* si, vo
 void
 forward_foreign_sigprof(int signo, siginfo_t* si, void* ucontext)
 {
-    if (!g_state.has_previous_sigprof) {
+    if (!g_state.has_previous_sigprof.load(std::memory_order_acquire)) {
         return;
     }
 
@@ -315,32 +331,57 @@ forward_foreign_sigprof(int signo, siginfo_t* si, void* ucontext)
 }
 
 bool
+sigprof_action_is_ours(const struct sigaction& action)
+{
+    constexpr int required_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+    return (action.sa_flags & required_flags) == required_flags && action.sa_sigaction == cpu_timer_signal_handler;
+}
+
+bool
 install_sigprof_handler()
 {
-    struct sigaction sa{};
+    struct sigaction sa
+    {};
     sa.sa_sigaction = cpu_timer_signal_handler;
     sigemptyset(&sa.sa_mask);
     sigaddset(&sa.sa_mask, SIGPROF);
     sa.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
 
-    struct sigaction previous{};
+    struct sigaction current
+    {};
+    if (sigaction(SIGPROF, nullptr, &current) == 0 && (current.sa_flags & SA_SIGINFO) != 0 &&
+        current.sa_sigaction == cpu_timer_signal_handler) {
+        // AIDEV-NOTE: After fork, the child inherits our SIGPROF disposition. Do not reinstall
+        // over ourselves or previous_sigprof would point back at cpu_timer_signal_handler and
+        // foreign SIGPROF forwarding could recurse until stack overflow. If the inherited action
+        // lost hardening flags, restore them without replacing previous_sigprof.
+        if (!sigprof_action_is_ours(current) && sigaction(SIGPROF, &sa, nullptr) != 0) {
+            return false;
+        }
+        return true;
+    }
+
+    struct sigaction previous
+    {};
+    g_state.has_previous_sigprof.store(false, std::memory_order_release);
     if (sigaction(SIGPROF, &sa, &previous) != 0) {
         return false;
     }
 
     g_state.previous_sigprof = previous;
-    g_state.has_previous_sigprof = true;
+    g_state.has_previous_sigprof.store(true, std::memory_order_release);
     return true;
 }
 
 bool
 sigprof_handler_still_installed()
 {
-    struct sigaction current{};
+    struct sigaction current
+    {};
     if (sigaction(SIGPROF, nullptr, &current) != 0) {
         return false;
     }
-    return (current.sa_flags & SA_SIGINFO) != 0 && current.sa_sigaction == cpu_timer_signal_handler;
+    return sigprof_action_is_ours(current);
 }
 
 bool
@@ -370,8 +411,8 @@ disable_current_thread_altstack(OwnedAltStack& altstack)
         return;
     }
 
-    const bool current_is_ours = !(current.ss_flags & SS_DISABLE) && current.ss_sp == altstack.stack_sp &&
-                                 current.ss_size == altstack.stack_size;
+    const bool current_is_ours =
+      !(current.ss_flags & SS_DISABLE) && current.ss_sp == altstack.stack_sp && current.ss_size == altstack.stack_size;
     if (current_is_ours) {
         stack_t disable{};
         disable.ss_flags = SS_DISABLE;
@@ -459,7 +500,8 @@ delete_timer(CaptureState& state)
 bool
 create_timer(CaptureState& state)
 {
-    struct sigevent sev{};
+    struct sigevent sev
+    {};
     sev.sigev_notify = SIGEV_THREAD_ID;
     sev.sigev_signo = SIGPROF;
     sev.sigev_value.sival_ptr = &g_cookie;
@@ -506,7 +548,8 @@ initial_timer_offset_ns(const CaptureState& state, uint64_t interval_ns)
 bool
 arm_timer(CaptureState& state)
 {
-    struct itimerspec its{};
+    struct itimerspec its
+    {};
     const uint64_t interval_ns = g_state.interval_ms.load(std::memory_order_relaxed) * 1'000'000ULL;
     set_timespec_ns(its.it_value, initial_timer_offset_ns(state, interval_ns));
     set_timespec_ns(its.it_interval, interval_ns);
@@ -541,8 +584,9 @@ retire_state_locked(std::unique_ptr<CaptureState> state, bool current_thread)
 
     if (current_thread) {
         const uint64_t now = thread_cpu_time_ns();
-        if (now > state->last_cpu_ns) {
-            state->residual_cpu_ns.fetch_add(now - state->last_cpu_ns, std::memory_order_relaxed);
+        const uint64_t last_cpu_ns = state->last_cpu_ns.load(std::memory_order_relaxed);
+        if (now > last_cpu_ns) {
+            state->residual_cpu_ns.fetch_add(now - last_cpu_ns, std::memory_order_relaxed);
         }
         disable_current_thread_altstack(state->altstack);
     } else if (state->altstack.installed && !state->altstack.using_existing && state->altstack.mapping != nullptr &&
@@ -671,6 +715,49 @@ drain_state(EchionSampler& echion, CaptureState& state)
     }
 }
 
+uint64_t
+counter_delta(uint64_t current, uint64_t& seen)
+{
+    const uint64_t delta = current >= seen ? current - seen : 0;
+    seen = current;
+    return delta;
+}
+
+bool
+capture_state_health_should_disable(CaptureState& state)
+{
+    // AIDEV-NOTE: Health is evaluated on the sampler thread, never in the SIGPROF handler.
+    // The handler only increments lock-free counters. Timer deletion and state retirement stay
+    // on the normal control path so pathological capture failures cannot turn into signal-time
+    // locking or allocation.
+    const uint64_t published = state.published_count.load(std::memory_order_relaxed);
+    const uint64_t dropped = state.dropped_count.load(std::memory_order_relaxed);
+    const uint64_t failed = state.capture_failed_count.load(std::memory_order_relaxed);
+
+    state.health_window_published_count += counter_delta(published, state.health_seen_published_count);
+    state.health_window_dropped_count += counter_delta(dropped, state.health_seen_dropped_count);
+    state.health_window_capture_failed_count += counter_delta(failed, state.health_seen_capture_failed_count);
+
+    const uint64_t bad_events = state.health_window_dropped_count + state.health_window_capture_failed_count;
+    const uint64_t total_events = bad_events + state.health_window_published_count;
+    if (total_events < kHealthWindowEvents) {
+        return false;
+    }
+
+    const bool bad_window = bad_events * 100 >= total_events * kHealthBadRatioPercent;
+    state.health_window_published_count = 0;
+    state.health_window_dropped_count = 0;
+    state.health_window_capture_failed_count = 0;
+
+    if (!bad_window) {
+        state.health_bad_window_count = 0;
+        return false;
+    }
+
+    state.health_bad_window_count++;
+    return state.health_bad_window_count >= kHealthBadWindowsLimit;
+}
+
 void
 disable_all_timers_locked()
 {
@@ -691,6 +778,19 @@ disable_all_timers_for_hijack()
         return;
     }
     g_state.handler_hijack_disable_count.fetch_add(1, std::memory_order_relaxed);
+    g_state.active.store(false, std::memory_order_release);
+    g_state.replacing_wall_cpu.store(false, std::memory_order_release);
+    g_state.permanently_disabled.store(true, std::memory_order_release);
+    disable_all_timers_locked();
+}
+
+void
+disable_all_timers_for_health_locked()
+{
+    if (!g_state.active.load(std::memory_order_acquire)) {
+        return;
+    }
+    g_state.health_disable_count.fetch_add(1, std::memory_order_relaxed);
     g_state.active.store(false, std::memory_order_release);
     g_state.replacing_wall_cpu.store(false, std::memory_order_release);
     g_state.permanently_disabled.store(true, std::memory_order_release);
@@ -795,11 +895,11 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     }
 
     const uint64_t now = thread_cpu_time_ns();
+    const uint64_t last_cpu_ns = state->last_cpu_ns.exchange(now, std::memory_order_relaxed);
     uint64_t delta = 0;
-    if (now > state->last_cpu_ns) {
-        delta = now - state->last_cpu_ns;
+    if (now > last_cpu_ns) {
+        delta = now - last_cpu_ns;
     }
-    state->last_cpu_ns = now;
 
     RawSample* sample = state->ring.reserve_for_producer();
     if (sample == nullptr) {
@@ -850,8 +950,8 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        PyCodeObject* code = reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) &
-                                                             ~static_cast<uintptr_t>(7));
+        PyCodeObject* code =
+          reinterpret_cast<PyCodeObject*>(static_cast<uintptr_t>(executable_bits) & ~static_cast<uintptr_t>(7));
         if (code == nullptr || instr_ptr == nullptr) {
             failed = true;
             break;
@@ -863,9 +963,9 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
-        const int lasti = static_cast<int>((instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(code)) -
-                                           static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) /
-                                                                  sizeof(_Py_CODEUNIT)));
+        const int lasti =
+          static_cast<int>((instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(code)) -
+                           static_cast<ptrdiff_t>(offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT)));
         RawFrame& raw_frame = sample->frames[sample->depth];
         raw_frame.code_object = reinterpret_cast<uintptr_t>(code);
         raw_frame.lasti = lasti;
@@ -883,6 +983,7 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
     }
 
     state->ring.publish_for_producer();
+    state->published_count.fetch_add(1, std::memory_order_relaxed);
     g_state.handler_active[tid].store(false, std::memory_order_seq_cst);
     errno = saved_errno;
 }
@@ -1050,10 +1151,18 @@ Engine::postfork_child()
     if (was_active && !g_state.stopped_once.load(std::memory_order_acquire) &&
         !g_state.permanently_disabled.load(std::memory_order_acquire)) {
         register_profiling_fault_recover(cpu_timer_fault_recover);
-        init_profiling_fault_handler();
-        install_sigprof_handler();
-        g_state.active.store(true, std::memory_order_release);
-        g_state.replacing_wall_cpu.store(false, std::memory_order_release);
+        if (init_profiling_fault_handler() == 0 && install_sigprof_handler()) {
+            // AIDEV-NOTE: Do not forward foreign SIGPROF to a handler inherited across a
+            // multi-threaded fork. The inherited handler may depend on runtime state that
+            // only existed in now-vanished parent threads. Own timer signals still carry
+            // g_cookie and are handled normally; foreign SIGPROF is dropped in the child.
+            g_state.has_previous_sigprof.store(false, std::memory_order_release);
+            g_state.active.store(true, std::memory_order_release);
+            g_state.replacing_wall_cpu.store(false, std::memory_order_release);
+        } else {
+            unregister_profiling_fault_recover(cpu_timer_fault_recover);
+            g_state.permanently_disabled.store(true, std::memory_order_release);
+        }
     }
 #endif
 }
@@ -1108,7 +1217,8 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         return;
     }
 
-    state->last_cpu_ns = current_thread ? thread_cpu_time_ns() : thread_cpu_time_ns(static_cast<pid_t>(native_id));
+    state->last_cpu_ns.store(current_thread ? thread_cpu_time_ns() : thread_cpu_time_ns(static_cast<pid_t>(native_id)),
+                             std::memory_order_relaxed);
     CaptureState* state_ptr = state.get();
     {
         std::lock_guard<std::mutex> lock(g_state.registry_lock);
@@ -1122,8 +1232,9 @@ Engine::register_thread(uint64_t python_thread_id, uint64_t native_id, const cha
         auto existing = g_state.live_by_thread_id.find(python_thread_id);
         if (existing != g_state.live_by_thread_id.end()) {
             auto old = std::move(existing->second);
+            const bool old_current_thread = current_tid == static_cast<pid_t>(old->native_tid);
             g_state.live_by_thread_id.erase(existing);
-            retire_state_locked(std::move(old), current_thread);
+            retire_state_locked(std::move(old), old_current_thread);
         }
         g_state.live_by_thread_id.emplace(python_thread_id, std::move(state));
         g_state.slots[native_id].store(state_ptr, std::memory_order_seq_cst);
@@ -1216,6 +1327,22 @@ Engine::drain(EchionSampler& echion)
     for (auto& state : ready_to_free) {
         drain_state(echion, *state);
     }
+
+    {
+        std::lock_guard<std::mutex> lock(g_state.registry_lock);
+        bool should_disable = false;
+        if (g_state.active.load(std::memory_order_acquire)) {
+            for (auto& item : g_state.live_by_thread_id) {
+                if (capture_state_health_should_disable(*item.second)) {
+                    should_disable = true;
+                    break;
+                }
+            }
+        }
+        if (should_disable) {
+            disable_all_timers_for_health_locked();
+        }
+    }
 #else
     (void)echion;
 #endif
@@ -1271,7 +1398,7 @@ Engine::debug_stats() const
     stats.timer_syscall_failures = g_state.timer_syscall_failures.load(std::memory_order_relaxed);
     stats.accepted_signal_oob_tid_count = g_state.accepted_signal_oob_tid_count.load(std::memory_order_relaxed);
     stats.handler_hijack_disable_count = g_state.handler_hijack_disable_count.load(std::memory_order_relaxed);
-    stats.fast_copy_conflict_count = g_state.fast_copy_conflict_count.load(std::memory_order_relaxed);
+    stats.health_disable_count = g_state.health_disable_count.load(std::memory_order_relaxed);
     stats.stage2_invalid_frame_count = g_state.stage2_invalid_frame_count.load(std::memory_order_relaxed);
 
     std::lock_guard<std::mutex> lock(g_state.registry_lock);

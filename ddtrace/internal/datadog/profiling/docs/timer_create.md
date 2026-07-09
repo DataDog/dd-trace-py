@@ -73,7 +73,11 @@ Current mitigations:
   while a thread is blocked off-CPU.
 - Clamp the effective minimum interval to 2 ms. The default remains 10 ms.
 - Keep the feature off by default behind `_DD_PROFILING_STACK_CPU_TIMER_ENABLED`.
-- Use signal-origin cookie validation and foreign `SIGPROF` forwarding.
+- Use signal-origin cookie validation and foreign `SIGPROF` forwarding. In a
+  post-fork child, foreign `SIGPROF` forwarding is disabled: only the forking
+  thread survives, and an inherited handler can depend on runtime state owned by
+  vanished parent threads. Own CPU-timer signals still carry the profiler cookie
+  and are handled normally.
 - Do not arm pure native threads that are not visible to CPython.
 - Cover Python-level syscall behavior with
   `test_cpu_timer_syscall_readv_loop_does_not_surface_eintr`.
