@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -273,3 +275,120 @@ def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
         p.stop()
 
     print("OK")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fork not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_rewarm",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_fast_copy_rewarms_in_forked_child_during_warmup() -> None:
+    """A child forked during warmup re-warms into safe_memcpy on its own (PROF-14568).
+
+    fast_copy_desired is persistent across fork(), so the child sampling thread must
+    re-run the warmup decision instead of inheriting fast_copy_active == false for life.
+    """
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+
+    _stack._set_fast_copy_warmup_seconds(10.0)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    try:
+        deadline: float = time.monotonic() + 5
+        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not False:
+            time.sleep(0.02)
+        assert _stack.fast_copy_memory_active() is False, "expected syscall copy during warmup before fork"
+
+        pid: int = os.fork()
+        if pid == 0:
+            try:
+                saw_upgrade: bool = False
+                child_deadline: float = time.monotonic() + 15
+                while time.monotonic() < child_deadline:
+                    if _stack.fast_copy_memory_active() is True:
+                        saw_upgrade = True
+                        break
+                    time.sleep(0.05)
+                if not saw_upgrade:
+                    os._exit(1)
+            except Exception:
+                os._exit(1)
+            os._exit(0)
+        else:
+            _, status = os.waitpid(pid, 0)
+            assert os.WIFEXITED(status), f"child killed by signal {os.WTERMSIG(status)}"
+            assert os.WEXITSTATUS(status) == 0, "child did not re-warm into fast copy after fork"
+    finally:
+        p.stop()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="fork not supported on Windows")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_takeover",
+        DD_PROFILING_UPLOAD_INTERVAL="1",
+        _DD_PROFILING_STACK_FAST_COPY="1",
+    ),
+    err=None,
+)
+def test_forked_child_inherits_foreign_takeover_after_parent_fallback() -> None:
+    """A child inherits the sticky foreign-takeover flag and stays on the syscall copy.
+
+    After the parent falls back from a mid-run foreign handler takeover, fork() must
+    propagate fast_copy_foreign_takeover so the child cannot reclaim our handler or
+    re-enable safe_memcpy.
+    """
+    import os
+    import signal
+    import time
+
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+
+    _stack._set_fast_copy_warmup_seconds(0.5)
+
+    p: profiler.Profiler = profiler.Profiler(tracer=tracer)
+    p.start()
+    try:
+        deadline: float = time.monotonic() + 10
+        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not True:
+            time.sleep(0.02)
+        assert _stack.fast_copy_memory_active() is True, "sampler never upgraded to safe_memcpy"
+
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        assert _stack.segv_handler_installed() is False
+
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not False:
+            time.sleep(0.02)
+        assert _stack.fast_copy_memory_active() is False, "parent did not fall back after takeover"
+
+        pid: int = os.fork()
+        if pid == 0:
+            try:
+                _stack.reinstall_segv_handler()
+                if _stack.segv_handler_installed() is not False:
+                    os._exit(1)
+                if _stack.fast_copy_memory_active() is not False:
+                    os._exit(2)
+            except Exception:
+                os._exit(3)
+            os._exit(0)
+        else:
+            _, status = os.waitpid(pid, 0)
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, (
+                f"child did not inherit sticky foreign takeover (status={status})"
+            )
+    finally:
+        p.stop()
