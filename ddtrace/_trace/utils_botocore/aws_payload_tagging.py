@@ -2,7 +2,6 @@ from decimal import Decimal
 import json
 from typing import Any
 from typing import Optional
-from typing import Set
 
 from ddtrace import config
 from ddtrace._trace.span import Span
@@ -58,7 +57,7 @@ class AWSPayloadTagging:
         "$..Endpoints.*.Token",
         "$..PlatformApplication.*.PlatformCredential",
         "$..PlatformApplication.*.PlatformPrincipal",
-        "$..Subscriptions.*.Endpoint",
+        "$..Subscriptions[*].Endpoint",
         "$..PhoneNumbers[*].PhoneNumber",
         "$..phoneNumbers[*]",
         # // S3
@@ -71,10 +70,13 @@ class AWSPayloadTagging:
         self.validated = False
         self.request_redaction_paths = None
         self.response_redaction_paths = None
-        # Holds the id()s of payload values that must be emitted as "redacted" for
-        # the current expand_payload_as_tags call. Rebuilt each call. This is stored on the instance to
-        # avoid threading an extra parameter through all recursive _tag_object calls.
-        self._current_redacted_ids: Set[int] = set()
+        # Parsed once on first call and reused; parsing 15+ default paths on every invocation
+        # was a meaningful source of overhead.
+        self._parsed_request_expressions = []
+        self._parsed_response_expressions = []
+        # id()s of values matched by redaction expressions for the current payload. Rebuilt each
+        # call; stored on the instance so _tag_object can check it without an extra parameter.
+        self._current_redacted_ids: set[int] = set()
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
@@ -83,6 +85,8 @@ class AWSPayloadTagging:
         if not self.validated:
             self.request_redaction_paths = self._get_redaction_paths_request()
             self.response_redaction_paths = self._get_redaction_paths_response()
+            self._parsed_request_expressions = [parse(p) for p in self.request_redaction_paths]
+            self._parsed_response_expressions = [parse(p) for p in self.response_redaction_paths]
             self.validated = True
 
         if not self.request_redaction_paths and not self.response_redaction_paths:
@@ -91,10 +95,24 @@ class AWSPayloadTagging:
         if not result:
             return
 
+        # Run redaction expressions read-only against the original payload and record the id() of
+        # each matched value. _tag_object emits "redacted" for any object whose id is in the set,
+        # avoiding the need to deep-copy the payload before mutating it.
+        #
+        # id() is safe here because AWS sensitive values (tokens, keys, passwords) are long strings
+        # that Python does not intern, so each has a unique identity within the dict. Interned
+        # objects (None, True, small ints) are never targeted by redaction paths.
+        #
+        # Only the expression set matching the payload side is evaluated — request paths have no
+        # business running against response payloads and vice versa.
         self._current_redacted_ids = set()
-        all_paths = (self.request_redaction_paths or []) + (self.response_redaction_paths or [])
-        for path in all_paths:
-            for match in parse(path).find(result):
+        exprs = (
+            self._parsed_request_expressions
+            if key.startswith("aws.request")
+            else self._parsed_response_expressions
+        )
+        for expr in exprs:
+            for match in expr.find(result):
                 self._current_redacted_ids.add(id(match.value))
 
         self.current_tag_count = 0
@@ -193,8 +211,6 @@ class AWSPayloadTagging:
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
             return
-        # Check to see the redaction set before any other processing. id() is used here
-        # rather than value equality — see the note in expand_payload_as_tags for the rationale.
         if id(obj) in self._current_redacted_ids:
             self.current_tag_count += 1
             span.set_tag(key, "redacted")
