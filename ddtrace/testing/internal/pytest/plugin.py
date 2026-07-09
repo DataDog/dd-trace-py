@@ -367,6 +367,11 @@ class TestOptPlugin:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
+        # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+            session.exitstatus = pytest.ExitCode.OK
+
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
@@ -461,6 +466,14 @@ class TestOptPlugin:
         if collection_path.suffix != ".py":
             return None
 
+        # Check suite-level skippability first (cheap: returns False immediately in test mode
+        # or when the suite is not in the skippable set) to avoid unnecessary file I/O.
+        if not self.manager.is_skippable_suite_path(collection_path, root_path=config.rootpath):
+            return None
+
+        # The suite is skippable — scan the source for the unskippable marker before committing
+        # to the skip.  If the marker string appears anywhere in the file we fall back to normal
+        # collection so that pytest_collection_modifyitems can handle it test-by-test.
         try:
             source = collection_path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -469,11 +482,8 @@ class TestOptPlugin:
         if ITR_UNSKIPPABLE_REASON in source:
             return None
 
-        if self.manager.is_skippable_suite_path(collection_path):
-            self._itr_ignored_suite_paths.append(collection_path)
-            return True
-
-        return None
+        self._itr_ignored_suite_paths.append(collection_path)
+        return True
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -503,12 +513,15 @@ class TestOptPlugin:
         if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
             return
 
+        # Use rootdir so module names match what item_to_test_ref produces from nodeids.
+        root_path = session.config.rootpath
+
         running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
 
         ignored_by_module: dict[str, list[Path]] = defaultdict(list)
         for path in self._itr_ignored_suite_paths:
             try:
-                relative = path.relative_to(self.manager.workspace_path)
+                relative = path.relative_to(root_path)
             except ValueError:
                 continue
             module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
@@ -517,14 +530,14 @@ class TestOptPlugin:
         for module_name, paths in ignored_by_module.items():
             test_module, created_module = self.session.get_or_create_child(module_name)
             if created_module:
-                # paths[0] already passed the workspace-relative filter above, so this cannot raise.
-                module_path = paths[0].parent.relative_to(self.manager.workspace_path)
+                # paths[0] already passed the root-relative filter above, so this cannot raise.
+                module_path = paths[0].parent.relative_to(root_path)
                 test_module.set_location(module_path=module_path)
                 test_module.start()
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
 
             for path in paths:
-                relative = path.relative_to(self.manager.workspace_path)
+                relative = path.relative_to(root_path)
                 suite_name = relative.name
                 test_suite, _ = test_module.get_or_create_child(suite_name)
                 if not test_suite.is_started():
