@@ -11,6 +11,15 @@ build_base_venvs:
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+    # Pin resources and disable the VPA. This job compiles every native
+    # extension at CMAKE_BUILD_PARALLEL_LEVEL-way parallelism whenever the
+    # ext_cache is cold (e.g. a newly added Python version), which peaks well
+    # above the ~5Gi the VPA otherwise tunes it down to and gets OOMKilled.
+    # Matches the resource requests used by the native package build jobs.
+    KUBERNETES_CPU_REQUEST: '6'
+    KUBERNETES_MEMORY_REQUEST: '10Gi'
+    KUBERNETES_MEMORY_LIMIT: '10Gi'
+    DD_DISABLE_VPA: 'true'
     # Disable link time optimization settings to improve build times, the impact will be larger binary sizes
     CARGO_PROFILE_RELEASE_LTO: 'off'
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
