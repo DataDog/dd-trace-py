@@ -1,8 +1,8 @@
-import copy
 from decimal import Decimal
 import json
 from typing import Any
 from typing import Optional
+from typing import Set
 
 from ddtrace import config
 from ddtrace._trace.span import Span
@@ -71,6 +71,10 @@ class AWSPayloadTagging:
         self.validated = False
         self.request_redaction_paths = None
         self.response_redaction_paths = None
+        # Holds the id()s of payload values that must be emitted as "redacted" for
+        # the current expand_payload_as_tags call. Rebuilt each call. This is stored on the instance to
+        # avoid threading an extra parameter through all recursive _tag_object calls.
+        self._current_redacted_ids: Set[int] = set()
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
@@ -87,16 +91,15 @@ class AWSPayloadTagging:
         if not result:
             return
 
-        # we will be redacting at least one of request/response
-        redacted_dict = copy.deepcopy(result)
-        self.current_tag_count = 0
-        if self.request_redaction_paths:
-            self._redact_json(redacted_dict, span, self.request_redaction_paths)
-        if self.response_redaction_paths:
-            self._redact_json(redacted_dict, span, self.response_redaction_paths)
+        self._current_redacted_ids = set()
+        all_paths = (self.request_redaction_paths or []) + (self.response_redaction_paths or [])
+        for path in all_paths:
+            for match in parse(path).find(result):
+                self._current_redacted_ids.add(id(match.value))
 
+        self.current_tag_count = 0
         # flatten the payload into span tags
-        for key2, value in redacted_dict.items():
+        for key2, value in result.items():
             escaped_sub_key = key2.replace(".", "\\.")
             self._tag_object(span, f"{key}.{escaped_sub_key}", value)
             if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
@@ -131,15 +134,6 @@ class AWSPayloadTagging:
                 return False
 
         return True
-
-    def _redact_json(self, data: dict[str, Any], span: Span, paths: list) -> None:
-        """
-        Redact sensitive data in the JSON payload based on default and user-provided JSONPath expressions
-        """
-        for path in paths:
-            expression = parse(path)
-            for match in expression.find(data):
-                match.context.value[match.path.fields[0]] = "redacted"
 
     def _get_redaction_paths_response(self) -> list:
         """
@@ -198,6 +192,12 @@ class AWSPayloadTagging:
         # if we've hit the maximum allowed tags, mark the expansion as incomplete
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
+            return
+        # AIDEV-NOTE: Check the redaction set before any other processing. id() is used here
+        # rather than value equality — see the note in expand_payload_as_tags for the rationale.
+        if id(obj) in self._current_redacted_ids:
+            self.current_tag_count += 1
+            span.set_tag(key, "redacted")
             return
         if obj is None:
             self.current_tag_count += 1
