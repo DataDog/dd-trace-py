@@ -2,6 +2,7 @@ from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -86,6 +87,33 @@ class UnvalidatedRedirect(VulnerabilityBase):
     secure_mark = VulnerabilityType.UNVALIDATED_REDIRECT
 
 
+def _already_reported_unvalidated_redirect(value: Text) -> bool:
+    """Return True if an UNVALIDATED_REDIRECT with the same evidence value was already
+    reported in the current request.
+
+    A single ``redirect(location)`` reaches IAST through two independent code paths that
+    report at different locations (so hash-based deduplication cannot merge them): the
+    ``redirect()`` wrapper (reports at the app call site) and the ``Location`` header sink,
+    which fires again when Werkzeug re-writes the header during WSGI response finalization
+    (``Response.get_wsgi_headers`` runs ``iri_to_uri(location)``, producing a *new* string
+    that does not carry the ``secure_mark`` set on the original). Relying on the secure mark
+    to suppress the duplicate is therefore flaky; deduplicating on the already-reported
+    evidence value is not.
+
+    Only vulnerabilities that were actually emitted are stored in the reporter, so skipping
+    on a match can only ever collapse a duplicate (2 -> 1) and never suppress the sole
+    report (1 -> 0)."""
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8", "ignore")
+    report = get_iast_reporter()
+    if report is None:
+        return False
+    return any(
+        vuln.type == VULN_UNVALIDATED_REDIRECT and vuln.evidence.value == value
+        for vuln in report.vulnerabilities
+    )
+
+
 def _iast_report_unvalidated_redirect(headers):
     if headers and isinstance(headers, IAST.TEXT_TYPES):
         try:
@@ -94,7 +122,7 @@ def _iast_report_unvalidated_redirect(headers):
             )
 
             if is_tainted:
-                if UnvalidatedRedirect.has_quota():
+                if UnvalidatedRedirect.has_quota() and not _already_reported_unvalidated_redirect(headers):
                     UnvalidatedRedirect.report(evidence_value=headers)
                 add_secure_mark(headers, [VulnerabilityType.UNVALIDATED_REDIRECT])
 
