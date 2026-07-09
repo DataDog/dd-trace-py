@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from ddtrace import tracer
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 
 
 fake_secret_token = "DataDog"

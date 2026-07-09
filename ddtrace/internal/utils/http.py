@@ -16,12 +16,12 @@ from typing import Pattern  # noqa:F401
 from typing import Union  # noqa:F401
 from urllib import parse
 
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY

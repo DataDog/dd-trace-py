@@ -15,6 +15,7 @@ import pytest
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
@@ -1106,7 +1107,6 @@ def test_writer_reuse_connections_false():
 @pytest.mark.subprocess(env=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
 def test_trace_with_128bit_trace_ids():
     """Ensure 128bit trace ids are correctly encoded"""
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from tests.utils import TracerSpanContainer
     from tests.utils import scoped_tracer
 

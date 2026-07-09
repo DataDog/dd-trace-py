@@ -9,6 +9,9 @@ import pytest
 
 import ddtrace
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace._trace.constants import LAST_DD_PARENT_ID_KEY
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
@@ -22,7 +25,6 @@ from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
-from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
@@ -91,8 +93,6 @@ def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
     env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_DATADOG),
 )
 def test_inject_128bit_trace_id_datadog():
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import Context
     from ddtrace.trace import tracer  # noqa:F811  # noqa:F811
@@ -716,7 +716,6 @@ def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
 )
 def test_extract_128bit_trace_ids_datadog():
     from ddtrace import config
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS  # noqa:F401
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
 
@@ -750,7 +749,6 @@ def test_extract_128bit_trace_ids_datadog():
     check_logs=False,
 )
 def test_extract_128bit_trace_id_uppercase_tid_is_rejected():
-    from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
     from ddtrace.propagation.http import HTTPPropagator
     from ddtrace.trace import tracer  # noqa:F811
 
@@ -3831,7 +3829,6 @@ def test_inject_span_without_sampling_priority():
 
 def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
 
     # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag

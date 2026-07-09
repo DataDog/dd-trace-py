@@ -5,8 +5,8 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import process_tags
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
 from ddtrace.internal.telemetry.data import _get_container_id
@@ -58,6 +58,7 @@ def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):
         """
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace import config
+from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
 
 application = get_application(config.service, config.version, config.env)
 assert application["service_name"] == "test_service"

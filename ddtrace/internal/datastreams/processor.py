@@ -10,11 +10,11 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
+from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config

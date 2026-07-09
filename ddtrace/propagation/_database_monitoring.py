@@ -4,9 +4,9 @@ from typing import Union  # noqa:F401
 
 import ddtrace
 from ddtrace import config as dd_config
+from ddtrace._trace.constants import PROPAGATED_HASH
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
-from ddtrace.internal.constants import PROPAGATED_HASH
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.vendor.sqlcommenter import generate_sql_comment as _generate_sql_comment

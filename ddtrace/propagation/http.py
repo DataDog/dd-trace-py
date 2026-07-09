@@ -6,6 +6,8 @@ from typing import Union
 import urllib.parse
 
 from ddtrace._trace._span_link import SpanLink
+from ddtrace._trace.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace._trace.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -39,8 +41,6 @@ from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 from ..internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
-from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
-from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY

@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
@@ -1512,7 +1513,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
                 if not apm_tracing_enabled:
                     span_sampling_priority = entry_span()._span.context.sampling_priority
-                    sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
+                    sampling_decision = get_entry_span_tag(SAMPLING_DECISION_TRACE_TAG_KEY)
                     assert span_sampling_priority == constants.USER_KEEP, (
                         f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
                     )
@@ -2215,7 +2216,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             assert get_entry_span_tag("dd.appsec.custom_tag_value") == f"tag_this_trace_{random_value}"
             # test for sampling priority changes. Appsec should not change the sampling priority (keep=false)
             span_sampling_priority = entry_span()._span.context.sampling_priority
-            sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
+            sampling_decision = get_entry_span_tag(SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])

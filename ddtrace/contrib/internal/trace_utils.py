@@ -20,6 +20,8 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.constants import _SERVICE_SOURCE
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
@@ -35,8 +37,6 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
-from ddtrace.internal.constants import _SERVICE_SOURCE
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config

@@ -2,12 +2,12 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config

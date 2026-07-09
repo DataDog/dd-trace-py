@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from ddtrace._trace.constants import PROCESS_TAGS
 from ddtrace.internal import process_tags
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_MODULE
 from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_SCRIPT
@@ -221,7 +222,6 @@ def test_process_tags_partial_flush():
 
 @pytest.mark.subprocess()
 def test_process_tags_without_reload():
-    from ddtrace.internal.constants import PROCESS_TAGS
     from ddtrace.internal.process_tags import ENTRYPOINT_BASEDIR_TAG
     from ddtrace.internal.process_tags import ENTRYPOINT_NAME_TAG
     from ddtrace.internal.process_tags import ENTRYPOINT_TYPE_TAG
@@ -246,7 +246,6 @@ def test_process_tags_without_reload():
 
 @pytest.mark.subprocess(env=dict(DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="False"))
 def test_process_tags_deactivated():
-    from ddtrace.internal.constants import PROCESS_TAGS
     from tests.utils import scoped_tracer
 
     with scoped_tracer() as tracer:

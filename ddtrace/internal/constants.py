@@ -14,20 +14,11 @@ SAMPLING_HASH_MODULO = 1 << 64
 # Big prime number to make hashing better distributed, it has to be the same factor as the Agent
 # and other tracers to allow chained sampling
 SAMPLING_KNUTH_FACTOR = 1111111111111111111
-SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
-LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
-DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
-HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
 MIN_INT_64BITS = -(2**63)
 MAX_INT_64BITS = 2**63 - 1
-SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
-SAMPLING_DECISION_MAKER_SERVICE = "_dd.dm.service"
-SAMPLING_DECISION_MAKER_RESOURCE = "_dd.dm.resource"
-SPAN_LINK_KIND = "dd.kind"
-SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
 SPAN_API_OTEL = "otel"
@@ -52,9 +43,6 @@ HTTP_REQUEST_UPGRADED = "http.upgraded"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
-PROCESS_TAGS = "_dd.tags.process"
-PROPAGATED_HASH = "_dd.propagated_hash"
-_SERVICE_SOURCE = "_dd.svc_src"
 
 CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
 CONTAINER_TAGS_HASH = "Datadog-Container-Tags-Hash"
@@ -91,7 +79,6 @@ DD_TRACE_TRACESTATE_MAX_BYTES = 512
 # Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
 DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
 
-SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
 
 LOG_ATTR_TRACE_ID = "dd.trace_id"

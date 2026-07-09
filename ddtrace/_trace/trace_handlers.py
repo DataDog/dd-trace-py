@@ -20,6 +20,7 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.constants import SPAN_LINK_KIND
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -77,7 +78,6 @@ from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags

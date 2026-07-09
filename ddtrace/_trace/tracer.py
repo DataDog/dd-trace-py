@@ -16,6 +16,8 @@ from typing import TypeVar
 from typing import Union
 from typing import cast
 
+from ddtrace._trace.constants import _SERVICE_SOURCE
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
@@ -35,7 +37,6 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -43,7 +44,6 @@ from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
 from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
 from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger

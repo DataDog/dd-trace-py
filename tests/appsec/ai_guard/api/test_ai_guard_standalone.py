@@ -3,10 +3,10 @@ from unittest.mock import patch
 import pytest
 
 import ddtrace
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.settings.asm import ai_guard_config
 from ddtrace.internal.settings.asm import config as asm_config

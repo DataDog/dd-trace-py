@@ -4,6 +4,10 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 
+from ddtrace._trace.constants import SAMPLING_DECISION_MAKER_INHERITED
+from ddtrace._trace.constants import SAMPLING_DECISION_MAKER_RESOURCE
+from ddtrace._trace.constants import SAMPLING_DECISION_MAKER_SERVICE
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
@@ -15,10 +19,6 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES

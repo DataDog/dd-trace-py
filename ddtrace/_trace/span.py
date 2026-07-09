@@ -14,6 +14,7 @@ from typing import cast
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.context import Context
 from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
@@ -36,7 +37,6 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger

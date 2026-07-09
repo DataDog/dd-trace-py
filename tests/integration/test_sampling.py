@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from tests.integration.utils import AGENT_VERSION
 
 
@@ -37,7 +38,6 @@ def test_supported_sampling_mechanism():
     """
     validate_sampling_decision should not give errors for supported sampling mechanisms
     """
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.constants import SamplingMechanism
     from ddtrace.internal.sampling import validate_sampling_decision
 
@@ -61,7 +61,6 @@ def test_unsupported_sampling_mechanism():
     """
     Unsupported sampling mechanisms actually return a decoding error in validate_sampling_decision
     """
-    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import validate_sampling_decision
 
     meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}

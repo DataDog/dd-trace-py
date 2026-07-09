@@ -23,12 +23,12 @@ import wrapt
 
 import ddtrace
 from ddtrace import config as dd_config
+from ddtrace._trace.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import process_tags
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
