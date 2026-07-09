@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: crash fix for stack sampler in case where another
+    component installs its own ``SIGSEGV``/``SIGBUS`` handler that the profiler cannot wrap (e.g. CUDA, PyTorch, etc.).
+    The sampler upgrades to the faster fault-recovery copy if it still owns both fault handlers afterwards.
+    Otherwise, it permanently falls back to the syscall-based copy.
