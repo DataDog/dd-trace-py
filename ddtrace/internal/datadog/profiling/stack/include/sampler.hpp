@@ -88,8 +88,7 @@ class Sampler
     // Percentile (0..1) used for p_stable; configurable, default p95.
     double p_stable_percentile_frac = 0.95;
 
-    // Fast-copy startup warmup in seconds. Grouped with the other doubles so it adds
-    // no struct padding (clang-analyzer-optin.performance.Padding).
+    // Fast-copy startup warmup in seconds.
     double fast_copy_warmup_seconds = 15.0;
 
     // Rolling window duration in seconds; controls the ring buffer capacity.
