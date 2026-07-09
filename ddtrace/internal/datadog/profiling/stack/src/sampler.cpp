@@ -87,7 +87,10 @@ uint64_t
 get_thread_cpu_time_us()
 {
 #if defined(__linux__)
-    struct timespec ts{ 0, 0 };
+    struct timespec ts
+    {
+        0, 0
+    };
 
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
         return 0;
@@ -137,7 +140,10 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts{ 0, 0 };
+    struct timespec ts
+    {
+        0, 0
+    };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
@@ -419,9 +425,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                   for_each_thread(
                     *echion,
                     interp,
-                    [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                        thread_candidates.push_back(*tstate);
-                    },
+                    [&](PyThreadState* tstate, ThreadInfo& /*thread*/) { thread_candidates.push_back(*tstate); },
                     verify_fast_copy_before_read);
               },
               verify_fast_copy_before_read);
