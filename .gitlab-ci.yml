@@ -4,7 +4,6 @@ stages:
   - system-tests
   - fuzz
   - benchmarks
-  - publish-pypi
   - shared-pipeline
 
 variables:
