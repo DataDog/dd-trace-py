@@ -396,7 +396,9 @@ stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args)
         set_debug_stat(dict, "capture_failed_count", stats.capture_failed_count) != 0 ||
         set_debug_stat(dict, "capture_failed_cpu_ns", stats.capture_failed_cpu_ns) != 0 ||
         set_debug_stat(dict, "residual_cpu_ns", stats.residual_cpu_ns) != 0 ||
-        set_debug_stat(dict, "stage2_invalid_frame_count", stats.stage2_invalid_frame_count) != 0) {
+        set_debug_stat(dict, "stage2_invalid_frame_count", stats.stage2_invalid_frame_count) != 0 ||
+        set_debug_stat(dict, "timer_overrun_total", stats.timer_overrun_total) != 0 ||
+        set_debug_stat(dict, "coalesced_signal_count", stats.coalesced_signal_count) != 0) {
         Py_DECREF(dict);
         return nullptr;
     }

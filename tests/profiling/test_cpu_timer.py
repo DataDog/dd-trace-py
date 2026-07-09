@@ -56,6 +56,47 @@ def test_cpu_timer_profiler_emits_cpu_samples():
 
 @pytest.mark.subprocess(
     env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_overrun_accounting",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",
+        "_DD_PROFILING_STACK_CPU_TIMER_INTERVAL_MS": "1",
+    },
+    err=None,
+)
+@pytest.mark.skipif(CPU_TIMER_SKIP, reason=CPU_TIMER_SKIP_REASON)
+def test_cpu_timer_reports_overrun_accounting_counters():
+    import time
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    def cpu_timer_busy_loop():
+        deadline = time.thread_time_ns() + 300_000_000
+        value = 0
+        while time.thread_time_ns() < deadline:
+            value += 1
+        return value
+
+    p = profiler.Profiler()
+    p.start()
+    assert cpu_timer_busy_loop() > 0
+    stats = stack._cpu_timer_debug_stats()
+    p.stop()
+
+    # The counters are always present and are non-negative integers. We do not assert they are
+    # strictly positive: whether expirations coalesce depends on load and scheduling, so requiring
+    # overruns would be flaky.
+    assert "timer_overrun_total" in stats, stats
+    assert "coalesced_signal_count" in stats, stats
+    assert isinstance(stats["timer_overrun_total"], int) and stats["timer_overrun_total"] >= 0, stats
+    assert isinstance(stats["coalesced_signal_count"], int) and stats["coalesced_signal_count"] >= 0, stats
+    # Each coalesced signal contributes an si_overrun of at least 1, so the summed overruns can never
+    # be smaller than the number of coalesced signals.
+    assert stats["timer_overrun_total"] >= stats["coalesced_signal_count"], stats
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_cpu_timer_auxiliary_start_main_thread",
         "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
         "_DD_PROFILING_STACK_CPU_TIMER_ENABLED": "1",

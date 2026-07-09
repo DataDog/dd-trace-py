@@ -38,6 +38,12 @@ struct DebugStats
     uint64_t capture_failed_cpu_ns = 0;
     uint64_t residual_cpu_ns = 0;
     uint64_t stage2_invalid_frame_count = 0;
+    // AIDEV-NOTE: Overrun accounting only. cpu_delta_ns already conserves CPU across
+    // coalesced expirations (it is measured from the thread CPU clock), so these are a
+    // sampling-quality signal, not a sample weight. timer_overrun_total sums si_overrun
+    // (missed expirations); coalesced_signal_count counts signals with si_overrun > 0.
+    uint64_t timer_overrun_total = 0;
+    uint64_t coalesced_signal_count = 0;
 };
 
 class Engine

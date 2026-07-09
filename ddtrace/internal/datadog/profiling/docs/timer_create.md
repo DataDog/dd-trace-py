@@ -108,7 +108,15 @@ Required hardening before considering broader rollout:
    including asyncio, uvloop, Trio or AnyIO if available, and representative HTTP
    client/server workloads.
 3. Add debug counters for skipped thread arming reasons, own and foreign
-   `SIGPROF` counts, ring overflow, reentrant drops, and timer overruns.
+   `SIGPROF` counts, ring overflow, reentrant drops, and timer overruns. Timer
+   overruns are now tracked: `timer_overrun_total` sums `si_overrun` (missed
+   expirations that coalesced into a delivered signal) and
+   `coalesced_signal_count` counts signals with `si_overrun > 0`. These are a
+   sampling-quality signal only. Because `cpu_delta_ns` is measured from the
+   thread CPU clock, it already conserves the CPU consumed during coalesced
+   expirations, so overruns are not used to weight samples (doing so would
+   double-count CPU). A rising overrun rate indicates the handler or interval is
+   dropping sampling resolution and is a cue to widen the interval.
 4. Keep the 2 ms minimum interval until the native syscall and ecosystem tests
    show that a lower interval is safe. Do not expose the interval as public API
    while this remains experimental.

@@ -199,6 +199,8 @@ struct CaptureState
     std::atomic<uint64_t> capture_failed_count{ 0 };
     std::atomic<uint64_t> capture_failed_cpu_ns{ 0 };
     std::atomic<uint64_t> residual_cpu_ns{ 0 };
+    std::atomic<uint64_t> timer_overrun_total{ 0 };
+    std::atomic<uint64_t> coalesced_signal_count{ 0 };
 
     CaptureState(uint64_t thread_id, uint64_t tid, const char* thread_name)
       : python_thread_id(thread_id)
@@ -782,6 +784,16 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
         return;
     }
 
+    // AIDEV-NOTE: Overrun accounting for sampling-quality diagnostics only. si_overrun is the
+    // number of additional timer expirations that coalesced into this one delivered signal. The
+    // CPU those expirations consumed is already captured by the cpu_delta_ns below (measured from
+    // the thread CPU clock), so do NOT weight the sample by si_overrun here or CPU is double-counted.
+    const long overrun = si->si_overrun;
+    if (overrun > 0) {
+        state->timer_overrun_total.fetch_add(static_cast<uint64_t>(overrun), std::memory_order_relaxed);
+        state->coalesced_signal_count.fetch_add(1, std::memory_order_relaxed);
+    }
+
     const uint64_t now = thread_cpu_time_ns();
     uint64_t delta = 0;
     if (now > state->last_cpu_ns) {
@@ -1273,6 +1285,8 @@ Engine::debug_stats() const
         stats.capture_failed_count += state.capture_failed_count.load(std::memory_order_relaxed);
         stats.capture_failed_cpu_ns += state.capture_failed_cpu_ns.load(std::memory_order_relaxed);
         stats.residual_cpu_ns += state.residual_cpu_ns.load(std::memory_order_relaxed);
+        stats.timer_overrun_total += state.timer_overrun_total.load(std::memory_order_relaxed);
+        stats.coalesced_signal_count += state.coalesced_signal_count.load(std::memory_order_relaxed);
     }
     for (const auto& state_ptr : g_state.retired) {
         const CaptureState& state = *state_ptr;
@@ -1281,6 +1295,8 @@ Engine::debug_stats() const
         stats.capture_failed_count += state.capture_failed_count.load(std::memory_order_relaxed);
         stats.capture_failed_cpu_ns += state.capture_failed_cpu_ns.load(std::memory_order_relaxed);
         stats.residual_cpu_ns += state.residual_cpu_ns.load(std::memory_order_relaxed);
+        stats.timer_overrun_total += state.timer_overrun_total.load(std::memory_order_relaxed);
+        stats.coalesced_signal_count += state.coalesced_signal_count.load(std::memory_order_relaxed);
     }
 #endif
     return stats;
