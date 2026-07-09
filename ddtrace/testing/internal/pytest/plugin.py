@@ -1362,7 +1362,7 @@ def pytest_load_initial_conftests(
     # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
     # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
     # when we know if pytest-cov is available.
-    if session_manager.settings.coverage_enabled:  # and not session_manager.settings.coverage_report_upload_enabled:
+    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
         # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
 
