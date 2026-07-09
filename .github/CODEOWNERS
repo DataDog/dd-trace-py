@@ -179,7 +179,7 @@ src/native/crashtracker*                     @DataDog/profiling-python @DataDog/
 
 # MLObs
 ddtrace/llmobs/                                               @DataDog/ml-observability
-ddtrace/contrib/internal/openai                               @DataDog/ml-observability
+ddtrace/contrib/internal/openai                               @DataDog/ml-observability @DataDog/asm-python
 ddtrace/contrib/internal/langchain                            @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock.py         @DataDog/ml-observability
 ddtrace/contrib/internal/botocore/services/bedrock_agents.py  @DataDog/ml-observability
@@ -189,6 +189,7 @@ ddtrace/contrib/internal/google_adk                           @DataDog/ml-observ
 ddtrace/contrib/internal/google_generativeai                  @DataDog/ml-observability
 ddtrace/contrib/internal/google_genai                         @DataDog/ml-observability
 ddtrace/contrib/internal/vertexai                             @DataDog/ml-observability
+ddtrace/contrib/internal/mistralai                            @DataDog/ml-observability
 ddtrace/contrib/internal/langgraph                            @DataDog/ml-observability
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
@@ -213,6 +214,7 @@ tests/contrib/google_adk                                      @DataDog/ml-observ
 tests/contrib/google_generativeai                             @DataDog/ml-observability
 tests/contrib/google_genai                                    @DataDog/ml-observability
 tests/contrib/vertexai                                        @DataDog/ml-observability
+tests/contrib/mistralai                                       @DataDog/ml-observability
 tests/contrib/langgraph                                       @DataDog/ml-observability
 tests/contrib/crewai                                          @DataDog/ml-observability
 tests/contrib/openai_agents                                   @DataDog/ml-observability
@@ -233,6 +235,7 @@ tests/snapshots/tests.contrib.botocore.test_bedrock_agents.*  @DataDog/ml-observ
 tests/snapshots/tests.contrib.botocore.test_bedrock.*         @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_adk.*                    @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_generativeai.*           @DataDog/ml-observability
+tests/snapshots/tests.contrib.mistralai.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
 tests/snapshots/tests.contrib.openai_agents.*                 @DataDog/ml-observability
@@ -332,10 +335,6 @@ tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @Da
 docker/Dockerfile.fuzz            @DataDog/chaos-engineering @DataDog/profiling-python
 
 # Supported versions
-supported_versions_table.csv                    @DataDog/apm-core-python @DataDog/apm-idm-python
-supported_versions_output.json                  @DataDog/apm-core-python @DataDog/apm-idm-python
+supported_versions.json                         @DataDog/apm-core-python @DataDog/apm-idm-python
 scripts/integration_registry/registry.yaml      @DataDog/apm-core-python @DataDog/apm-idm-python
-
-# Tested versions
-tested_versions.json            @DataDog/apm-core-python @DataDog/apm-idm-python
-scripts/tested_versions/*       @DataDog/apm-core-python @DataDog/apm-idm-python
+scripts/integration_registry/generate_supported_versions.py  @DataDog/apm-core-python @DataDog/apm-idm-python

@@ -128,7 +128,7 @@ CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
-LIBDDWAF_VERSION = "1.30.1"
+LIBDDWAF_VERSION = "2.0.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog b8f8c6de3c0028133d78996926d4777aa20f45c9 requires rust 1.87.0.
