@@ -143,7 +143,7 @@ init_segv_catcher()
 bool
 segv_handler_installed()
 {
-    // Recovery needs our 3-arg (SA_SIGINFO) handler to own BOTH SIGSEGV and SIGBUS
+    // Recovery needs our handler to own BOTH SIGSEGV and SIGBUS
     // (a copy fault can arrive as either); anything else means we can't recover.
     const int signals[] = { SIGSEGV, SIGBUS };
     for (int signo : signals) {
