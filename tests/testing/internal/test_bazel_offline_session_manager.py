@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from unittest.mock import Mock
 from unittest.mock import patch
 
 # Path is also used in test_env_tags_non_empty_in_online_mode for get_workspace_path mock
@@ -16,6 +15,7 @@ import ddtrace.testing.internal.offline_mode as offline_module
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import TestSession
 from tests.testing.mocks import MockDefaults
+from tests.testing.mocks import get_mock_git_instance
 from tests.testing.mocks import mock_api_client_settings
 
 
@@ -163,10 +163,7 @@ class TestUploadGitDataSkipping:
 
         sm = self._build_sm_with_mocked_api(monkeypatch, env)
 
-        mock_git_instance = Mock()
-        mock_git_instance.get_latest_commits.return_value = []
-        mock_git_instance.get_filtered_revisions.return_value = []
-        mock_git_instance.pack_objects.return_value = iter([])
+        mock_git_instance = get_mock_git_instance()
 
         with (
             patch("ddtrace.testing.internal.session_manager.Git", return_value=mock_git_instance) as mock_git_cls,
