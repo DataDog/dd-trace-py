@@ -41,6 +41,42 @@ def _smells_like_prod() -> bool:
     return not_a_tty and env.get("DD_ENV", "").lower() in ("prod", "production")
 
 
+def _load_env_file(path: str) -> int:
+    """Load ``KEY=VALUE`` lines from a ``.env`` file into the process environment.
+
+    Dependency-free (dd-trace-py ships no dotenv library). Writes through
+    ``ddtrace.internal.settings.env`` (the repo-mandated accessor, which sets
+    ``os.environ``) and **does not override** variables already set in the real
+    environment — so exported values always win. Supports blank lines, ``#`` comments,
+    an optional ``export`` prefix, and single/double-quoted values. Returns how many
+    variables were set.
+    """
+    from ddtrace.internal.settings import env
+
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        return 0
+
+    loaded = 0
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export ") :].lstrip()
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]  # strip surrounding matching quotes
+        if not key or key in env:  # skip empty keys and never override the real env
+            continue
+        env[key] = value
+        loaded += 1
+    return loaded
+
+
 def _import_target(target: str) -> tuple[Any, Any]:
     """Resolve 'module' or 'module:callable'; importing registers decorated subjects."""
     mod_name, _, attr = target.partition(":")
@@ -116,9 +152,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ddtrace-experiment", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    # Shared: load config from a .env file so DD_API_KEY / OPENAI_API_KEY / DD_LLMOBS_ML_APP
+    # etc. don't have to be exported in the shell. Real env vars take precedence.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument(
+        "--env-file",
+        default=None,
+        help="load KEY=VALUE vars from this file first (default: .env in the current "
+        "directory if present); real environment variables take precedence",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    cap = sub.add_parser("capture", help="run the entrypoint and persist a baseline")
+    cap = sub.add_parser("capture", parents=[common], help="run the entrypoint and persist a baseline")
     cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
     cap.add_argument("--out", default=None, help="baseline file to write (default: .llmobs_experiments.json)")
     cap.add_argument(
@@ -129,7 +174,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     cap.add_argument("--ml-app", default=None, help="ml_app for --trace (default: $DD_LLMOBS_ML_APP)")
 
-    rep = sub.add_parser("replay", help="replay the current code against a persisted baseline")
+    rep = sub.add_parser("replay", parents=[common], help="replay the current code against a persisted baseline")
     rep.add_argument("target", help="module to import (registers the decorated subjects)")
     rep.add_argument(
         "--in", dest="infile", default=None, help="baseline file to read (default: .llmobs_experiments.json)"
@@ -154,7 +199,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "On --publish, evaluators always run through the Experiments engine.",
     )
 
-    lst = sub.add_parser("list", help="import the target and list registered experiment subjects")
+    lst = sub.add_parser("list", parents=[common], help="import the target and list registered experiment subjects")
     lst.add_argument("target", help="module[:entrypoint] to import")
     return parser
 
@@ -162,6 +207,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = _build_arg_parser()
     args = parser.parse_args()
+
+    # Load a local .env first — before the prod fail-safe reads config and before the
+    # app/LLM Obs are imported — so DD_*/OPENAI_API_KEY needn't be exported. Real env wins.
+    env_file = args.env_file or ".env"
+    if os.path.exists(env_file):
+        loaded = _load_env_file(env_file)
+        if loaded:
+            print("ddtrace-experiment: loaded %d var(s) from %s" % (loaded, env_file))
 
     if _smells_like_prod():
         print("ddtrace-experiment: refusing to run — looks like production (no TTY and DD_ENV=prod).", file=sys.stderr)

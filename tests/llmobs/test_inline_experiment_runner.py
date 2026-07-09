@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from ddtrace.commands import ddtrace_experiment as cli
@@ -399,6 +401,28 @@ def test_cli_arg_parser():
     assert p.parse_args(["replay", "myapp", "--evaluate"]).evaluate is True
     assert p.parse_args(["replay", "myapp"]).evaluate is False
     assert p.parse_args(["list", "myapp"]).command == "list"
+    # --env-file is shared across all subcommands (default None -> falls back to .env)
+    assert p.parse_args(["capture", "m:e", "--env-file", "x.env"]).env_file == "x.env"
+    assert p.parse_args(["replay", "myapp"]).env_file is None
+    assert p.parse_args(["list", "myapp", "--env-file", "y.env"]).env_file == "y.env"
+
+
+def test_cli_load_env_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(os, "environ", {"OPENAI_API_KEY": "from-shell"})
+    p = tmp_path / ".env"
+    p.write_text(
+        "# a comment\n"
+        "\n"
+        "export DD_LLMOBS_ML_APP=my-app\n"
+        'DD_API_KEY="secret123"\n'  # quotes stripped
+        "OPENAI_API_KEY=from-file\n"  # must NOT override the exported value
+    )
+    loaded = cli._load_env_file(str(p))
+    assert loaded == 2  # DD_LLMOBS_ML_APP + DD_API_KEY set; OPENAI_API_KEY skipped (already set)
+    assert os.environ["DD_LLMOBS_ML_APP"] == "my-app"
+    assert os.environ["DD_API_KEY"] == "secret123"
+    assert os.environ["OPENAI_API_KEY"] == "from-shell"  # real env wins
+    assert cli._load_env_file(str(tmp_path / "missing.env")) == 0  # absent file -> no-op
 
 
 def _ev(name, assessment, error=None, value=True):

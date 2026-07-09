@@ -12,4 +12,7 @@ features:
     experiment (the captured outputs) over the same dataset and prints a compare-view link, so the
     baseline-vs-current diff is viewable immediately. Or pass ``ddtrace-experiment capture --trace``
     to also enable LLM Observability during the capture run so it is viewable as traces (each case
-    linked to its trace). These APIs are experimental and may change or be removed without notice.
+    linked to its trace). All ``ddtrace-experiment`` subcommands accept ``--env-file`` (and auto-load
+    a ``.env`` in the current directory) to read ``DD_API_KEY`` / ``OPENAI_API_KEY`` / ``DD_LLMOBS_ML_APP``
+    etc. without exporting them; real environment variables take precedence. These APIs are
+    experimental and may change or be removed without notice.
