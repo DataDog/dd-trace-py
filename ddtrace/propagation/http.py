@@ -19,11 +19,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.propagation._constants import _PROPAGATION_STYLE_BAGGAGE
-from ddtrace.propagation._constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_MULTI
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_SINGLE
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_DATADOG
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT

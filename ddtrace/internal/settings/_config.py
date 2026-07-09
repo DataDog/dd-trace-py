@@ -36,9 +36,9 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_ALL
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_DEFAULT
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_NONE
-from ddtrace.propagation._constants import _PROPAGATION_STYLE_ALL
 from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
@@ -262,7 +262,9 @@ def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
         if not style or style == _PROPAGATION_STYLE_NONE:
             continue
         if style not in _PROPAGATION_STYLE_ALL:
-            log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, _PROPAGATION_STYLE_ALL)
+            log.warning(
+                "Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, _PROPAGATION_STYLE_ALL
+            )
             continue
         styles.append(style)
     return styles
