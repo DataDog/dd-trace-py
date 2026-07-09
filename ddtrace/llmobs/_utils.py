@@ -27,7 +27,6 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
-from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -634,12 +633,6 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
             span._set_ctx_item(SESSION_ID, session_id)
-            # The first session_id seen in a trace becomes the trace-level default: it is stored on
-            # the trace-shared propagating context so later spans whose parent chain carries no
-            # session (e.g. siblings under a session-less parent) fall back to it, and it propagates
-            # across service boundaries. An explicit session_id on a span still overrides locally.
-            if span.context._meta.get(PROPAGATED_SESSION_ID_KEY) is None:
-                span.context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
         if config is not None:
