@@ -18,12 +18,12 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.propagation.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.propagation.constants import _PROPAGATION_STYLE_BAGGAGE
-from ddtrace.propagation.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
-from ddtrace.propagation.constants import PROPAGATION_STYLE_B3_MULTI
-from ddtrace.propagation.constants import PROPAGATION_STYLE_B3_SINGLE
-from ddtrace.propagation.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_BAGGAGE
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_MULTI
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_SINGLE
+from ddtrace.propagation._constants import _PROPAGATION_STYLE_DATADOG
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -292,7 +292,7 @@ class _DatadogMultiHeader:
                 log.warning("failed to encode x-datadog-tags", exc_info=True)
 
         # Record telemetry for successful injection
-        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
     def _extract(headers: dict[str, str]) -> Optional[Context]:
@@ -443,7 +443,7 @@ class _B3MultiHeader:
                 headers[_HTTP_HEADER_B3_FLAGS] = "1"
 
         # Record telemetry for successful injection
-        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_B3_MULTI)
 
     @staticmethod
     def _extract(headers: dict[str, str]) -> Optional[Context]:
@@ -560,7 +560,7 @@ class _B3SingleHeader:
         headers[_HTTP_HEADER_B3_SINGLE] = single_header
 
         # Record telemetry for successful injection
-        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
     def _extract(headers: dict[str, str]) -> Optional[Context]:
@@ -1110,9 +1110,9 @@ class _BaggageHeader:
 
 
 _PROP_STYLES = {
-    PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
-    PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
-    PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
+    _PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
+    _PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
+    _PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
     _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
     _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
@@ -1224,8 +1224,8 @@ class HTTPPropagator(object):
                     primary_context._meta[W3C_TRACESTATE_KEY] = ts
                 if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
                     dd_context = None
-                    if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
-                        dd_context = contexts[styles_w_ctx.index(PROPAGATION_STYLE_DATADOG)]
+                    if _PROPAGATION_STYLE_DATADOG in styles_w_ctx:
+                        dd_context = contexts[styles_w_ctx.index(_PROPAGATION_STYLE_DATADOG)]
                     if LAST_DD_PARENT_ID_KEY in context._meta:
                         # tracecontext headers contain a p value, ensure this value is sent to backend
                         primary_context._meta[LAST_DD_PARENT_ID_KEY] = context._meta[LAST_DD_PARENT_ID_KEY]
@@ -1298,11 +1298,11 @@ class HTTPPropagator(object):
             for key in span_context._baggage:
                 headers[_HTTP_BAGGAGE_PREFIX + key] = span_context._baggage[key]
 
-        if PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
+        if _PROPAGATION_STYLE_DATADOG in config._propagation_style_inject:
             _DatadogMultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
+        if _PROPAGATION_STYLE_B3_MULTI in config._propagation_style_inject:
             _B3MultiHeader._inject(span_context, headers)
-        if PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
+        if _PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
         if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)
