@@ -169,9 +169,7 @@ class SessionManager:
 
         def _fetch_test_management_properties() -> dict[TestRef, TestProperties]:
             if self.atf_all_flaky_tests:
-                return self.api_client.get_test_management_properties(
-                    statuses=("active", "quarantined", "disabled")
-                )
+                return self.api_client.get_test_management_properties(statuses=("active", "quarantined", "disabled"))
             return self.api_client.get_test_management_properties() if test_management_enabled else {}
 
         def _upload_git_and_fetch_skippable() -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
