@@ -346,7 +346,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
             // been made, not that safe_memcpy is now active: we upgrade only if we still
             // own the handlers, otherwise we stay on the syscall copy for good.
             if (sample_time_now >= fast_copy_warmup_deadline) {
-                fast_copy_upgraded = true; // warmup decision made (may or may not upgrade)
+                // Warmup window ended. We may upgrade to safe_memcpy only if we still own
+                // the handlers; otherwise fast_copy_upgraded is set but safe_memcpy stays off.
+                fast_copy_upgraded = true;
                 if (segv_handler_installed()) {
                     set_fast_copy_enabled(true);
                 } else {
@@ -374,8 +376,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // would be hit by the traversal copies first. Falling back is not free: it pins the
         // process to the slower syscall copy for the rest of its life (degrading sample
         // quality, e.g. on asyncio workloads), but we prefer it over crashing under a foreign
-        // handler. The per-thread checks below additionally narrow mid-cycle swaps.
-        if (!ensure_fast_copy_safe()) {
+        // handler. The per-thread checks below additionally narrow mid-cycle swaps between
+        // traversal and thread.sample().
+        const auto verify_fast_copy_before_read = [&]() -> bool { return ensure_fast_copy_safe(); };
+        if (!verify_fast_copy_before_read()) {
             break;
         }
 
@@ -386,26 +390,41 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // reservoir sampling (Algorithm R) to select a uniform random subset, and only
         // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
         if (max_threads_per_sample == 0) {
-            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                    // Re-verify handler ownership before running safe_memcpy for this thread.
-                    if (!ensure_fast_copy_safe()) {
-                        return;
-                    }
-                    auto success = thread.sample(*echion, tstate, wall_time_us);
-                    if (success) {
-                        Sample::profile_borrow().stats().increment_sample_count();
-                    }
-                });
-            });
+            for_each_interp(
+              runtime,
+              [&](InterpreterInfo& interp) -> void {
+                  for_each_thread(
+                    *echion,
+                    interp,
+                    [&](PyThreadState* tstate, ThreadInfo& thread) {
+                        // Re-verify before thread.sample(); traversal copies are gated by
+                        // verify_fast_copy_before_read inside for_each_interp/for_each_thread.
+                        if (!ensure_fast_copy_safe()) {
+                            return;
+                        }
+                        auto success = thread.sample(*echion, tstate, wall_time_us);
+                        if (success) {
+                            Sample::profile_borrow().stats().increment_sample_count();
+                        }
+                    },
+                    verify_fast_copy_before_read);
+              },
+              verify_fast_copy_before_read);
         } else {
             thread_candidates.clear();
 
-            for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-                for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                    thread_candidates.push_back(*tstate);
-                });
-            });
+            for_each_interp(
+              runtime,
+              [&](InterpreterInfo& interp) -> void {
+                  for_each_thread(
+                    *echion,
+                    interp,
+                    [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
+                        thread_candidates.push_back(*tstate);
+                    },
+                    verify_fast_copy_before_read);
+              },
+              verify_fast_copy_before_read);
 
             // Algorithm R: if we have more threads than the cap, select a uniform random subset.
             // Selected threads are placed in [0, sample_count). Overflow threads remain in

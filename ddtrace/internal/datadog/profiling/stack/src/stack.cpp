@@ -812,15 +812,13 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall our SIGSEGV/SIGBUS handlers when fast copy is desired (see the gate
-    // below). This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
-    // for non-recovery faults, so both systems coexist correctly.
-    // Gated on fast_copy_desired (not fast_copy_active) so a handler swap that happens
-    // during the startup warmup is still reclaimed, instead of leaving the foreign
-    // handler in place and forcing a permanent syscall-copy fallback. Skipped once a
-    // foreign handler has taken over: reclaiming then would let a later restart/fork
-    // re-enable safe_memcpy on top of that foreign owner and crash (PROF-14568).
+    // Reinstall our SIGSEGV/SIGBUS handlers when fast copy is still desired (see the gate
+    // below). Used to reclaim the handler after a cooperative swap (e.g. faulthandler)
+    // overwrites it. Our handler chains to the previous one for non-recovery faults.
+    // Gated on fast_copy_desired (not fast_copy_active) so a swap during the startup
+    // warmup is still reclaimed. Skipped once fast_copy_foreign_takeover is set: after
+    // a foreign handler forced fallback we never reclaim, so a later cooperative swap
+    // cannot hand ownership back to us on top of that foreign owner (PROF-14568).
     if (fast_copy_desired && !fast_copy_foreign_takeover) {
         init_segv_catcher();
     }
