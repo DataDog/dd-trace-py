@@ -231,10 +231,19 @@ def main() -> None:
             if name not in ie.registered_experiments():
                 print("  (skipping %r — not registered by %r)" % (name, args.target))
                 continue
-            exp = sdk.run_as_experiment(
+            result = sdk.run_as_experiment(
                 name, cases, comparator, experiment_name=args.experiment_name, project_name=args.project
             )
-            print("published experiment %r -> %s" % (name, sdk.experiment_url(exp) or "LLM Obs -> Experiments"))
+            print("published experiment %r:" % name)
+            if result.get("baseline") is not None:
+                print("  baseline -> %s" % (sdk.experiment_url(result["baseline"]) or "?"))
+            print("  current  -> %s" % (sdk.experiment_url(result["current"]) or "LLM Obs -> Experiments"))
+            compare = sdk.compare_url(result.get("baseline"), result["current"])
+            if compare:
+                print("  compare  -> %s" % compare)
+            dataset = sdk.dataset_url(result.get("dataset"))
+            if dataset:
+                print("  dataset  -> %s" % dataset)
         return
 
     ie._set_mode(ie.Mode.REPLAY)

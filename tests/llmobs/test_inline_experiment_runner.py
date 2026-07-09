@@ -309,6 +309,82 @@ def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
     assert evs[1] is my_check  # user evaluator stacked on top
 
 
+def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
+    created = []
+    datasets = []
+
+    class _Exp:
+        def __init__(self, name):
+            self.name = name
+            self._id = "id-" + name
+
+        def run(self):
+            pass
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, **kw):
+            datasets.append(name)
+            return object()
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            created.append((name, task))
+            return _Exp(name)
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 11}], runner.structural)
+
+    names = [n for n, _ in created]
+    assert names == ["inline-e-baseline", "inline-e"]  # baseline reference first, then current
+    assert datasets == ["inline-experiment-e"]  # both runs share one dataset
+
+    baseline_task = created[0][1]  # the baseline task echoes the captured output (no re-run)
+    assert baseline_task({"x": 1}, None) == 11
+
+    cu = sdk.compare_url(result["baseline"], result["current"])  # compare view links both runs
+    assert cu and cu.endswith("experiments=id-inline-e-baseline,id-inline-e")
+
+
+def test_publish_baseline_can_be_disabled(monkeypatch):
+    created = []
+
+    class _E:
+        _id = "x"
+
+        def run(self):
+            pass
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, **kw):
+            return object()
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            created.append(name)
+            return _E()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural, publish_baseline=False)
+    assert created == ["inline-e"]  # only the current run, no baseline
+    assert result["baseline"] is None
+
+
 # --- CLI helpers ----------------------------------------------------------- #
 def test_cli_arg_parser():
     p = cli._build_arg_parser()

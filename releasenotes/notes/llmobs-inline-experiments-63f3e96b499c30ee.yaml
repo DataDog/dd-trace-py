@@ -8,6 +8,8 @@ features:
     with the new ``ddtrace-experiment`` command, which captures a baseline and replays the current
     code against it, reporting per-case ``MATCH`` / ``CHANGED``. Pass ``ddtrace-experiment replay
     --publish`` to run the replay through the LLM Obs Experiments SDK so results appear in the
-    Experiments UI with eval metrics, or ``ddtrace-experiment capture --trace`` to also enable LLM
-    Observability during the baseline run so the captured run is viewable as traces (each case is
+    Experiments UI with eval metrics; ``--publish`` also publishes a companion *baseline*
+    experiment (the captured outputs) over the same dataset and prints a compare-view link, so the
+    baseline-vs-current diff is viewable immediately. Or pass ``ddtrace-experiment capture --trace``
+    to also enable LLM Observability during the capture run so it is viewable as traces (each case
     linked to its trace). These APIs are experimental and may change or be removed without notice.
