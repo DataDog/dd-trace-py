@@ -233,8 +233,12 @@ class TestPluginClassSelection:
             item.add_marker.assert_not_called()
             assert item.user_properties == []
 
-    def test_child_plugin_uses_xfail_for_quarantine_without_atf(self):
-        """Child plugin uses xfail for quarantined non-ATF tests (same as base)."""
+    def test_child_plugin_defers_quarantine_masking_without_atf(self):
+        """Child plugin does NOT apply xfail for quarantined non-ATF tests.
+
+        Quarantine masking is deferred to after retries so ATR can see real FAIL status.
+        The base plugin still uses xfail because it doesn't control the retry loop.
+        """
         plugin = mock.MagicMock()
         plugin.manager.settings.test_management.enabled = True
 
@@ -248,13 +252,8 @@ class TestPluginClassSelection:
 
         TestOptPluginWithProtocol._apply_test_management_markers(plugin, item=item, test=test)
 
-        xfail_calls = [
-            call
-            for call in item.add_marker.call_args_list
-            if len(call[0]) > 0 and hasattr(call[0][0], "mark") and call[0][0].mark.name == "xfail"
-        ]
-        assert len(xfail_calls) == 1
-        assert xfail_calls[0][0][0].mark.kwargs["reason"] == "dd_quarantined"
+        # No markers should be applied — masking happens after retries in _apply_quarantine_masking.
+        item.add_marker.assert_not_called()
         assert item.user_properties == []
 
     @pytest.mark.parametrize("plugin_class", [TestOptPlugin, TestOptPluginWithProtocol])
