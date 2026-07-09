@@ -334,3 +334,26 @@ def test_google_genai_chat_send_message(mock_generate_content, genai_client, sna
     with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_chat_send_message"):
         chat = genai_client.chats.create(model="gemini-2.0-flash-001")
         chat.send_message("tell me a story")
+
+
+def test_google_genai_none_optional_fields_do_not_crash():
+    """Regression: google-genai>=2.6.0 declares several fields as Optional; explicit None must not raise TypeError."""
+    from types import SimpleNamespace
+
+    from ddtrace.llmobs._integrations.google_genai import GoogleGenAIIntegration
+    from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
+
+    # All token usage fields None — fallback arithmetic must not raise
+    response = SimpleNamespace(
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=None,
+            candidates_token_count=None,
+            thoughts_token_count=None,
+            total_token_count=None,
+        )
+    )
+    assert extract_generation_metrics_google_genai(response) == {}
+
+    # candidates=None — must not raise when iterating
+    integration = object.__new__(GoogleGenAIIntegration)
+    assert integration._extract_output_messages(SimpleNamespace(candidates=None)) == []

@@ -10,6 +10,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
+from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
@@ -330,9 +331,14 @@ def test_django_authenticated_request_tags_session_id(client, test_spans, tracer
         assert response.status_code == 200
 
         request_span = test_spans.find_span(name="django.request")
-        assert request_span.get_tag(user.SESSION_ID) == session_key
         if mode == LOGIN_EVENTS_MODE.IDENT:
+            assert request_span.get_tag(user.SESSION_ID) == session_key
             assert request_span.get_tag(user.ID)
+        else:
+            # in anonymization mode the session id (a session cookie token for default backends)
+            # must be hashed before being exported as a tag
+            assert request_span.get_tag(user.SESSION_ID) == _hash_user_id(session_key)
+            assert request_span.get_tag(user.SESSION_ID) != session_key
 
 
 @pytest.mark.django_db

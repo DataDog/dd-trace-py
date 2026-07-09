@@ -208,6 +208,27 @@ def _normalize_route_django_fast_path(route: str) -> Optional[str]:
     return "/" + _DJANGO_STRIP_CONVERTER.sub(r"{\1}", route)
 
 
+def _skip_char_class(s: str, start: int) -> int:
+    r"""Return the index just past the ``]`` closing the class that opens at ``s[start] == '['``.
+
+    Handles Python ``re``'s literal-``]`` rules and backslash escapes inside the class.
+    """
+    n = len(s)
+    j = start + 1
+    if j < n and s[j] == "^":
+        j += 1
+    if j < n and s[j] == "]":
+        j += 1  # leading ] is a literal class member, not the close
+    while j < n and s[j] != "]":
+        if s[j] == "\\" and j + 1 < n:
+            j += 2
+        else:
+            j += 1
+    if j < n:
+        j += 1  # skip closing ]
+    return j
+
+
 def _balance_group_body(segment: str, start: int, capture_idx_in: int) -> tuple[int, int, int]:
     """Walk from ``start`` (just after the opening ``(``) until depth returns to 0.
 
@@ -216,8 +237,8 @@ def _balance_group_body(segment: str, start: int, capture_idx_in: int) -> tuple[
     other ``(?...)`` syntaxes (``(?:``, lookarounds, comments, inline flags, ``(?P=name)``, conditionals) are balanced
     through transparently — matching Python ``re``'s group numbering rules.
 
-    Returns ``(end_idx, depth, new_capture_idx)``. ``depth != 0`` means the body was unbalanced (e.g. a group spanning
-    a slash) — the caller treats this as malformed and omits the tag.
+    Returns ``(end_idx, depth, new_capture_idx)``. ``depth != 0`` means the body was unbalanced — the caller treats
+    this as malformed and omits the tag.
     """
     depth = 1
     j = start
@@ -230,21 +251,7 @@ def _balance_group_body(segment: str, start: int, capture_idx_in: int) -> tuple[
             j += 2
             continue
         if cc == "[":
-            # Character class: ``(``/``)`` inside it are literal; ``\]`` is too. Python ``re`` also treats a leading
-            # ``]`` (optionally after a leading ``^`` for a negated class) as a literal class member, not the closer,
-            # so ``[]a)b]`` is a valid class of ``]a)b`` and ``[^]a)b]`` excludes those four chars. Skip past either
-            # form before searching for the real ``]``.
-            j += 1
-            if j < n and segment[j] == "^":
-                j += 1
-            if j < n and segment[j] == "]":
-                j += 1
-            while j < n and segment[j] != "]":
-                if segment[j] == "\\" and j + 1 < n:
-                    j += 2
-                else:
-                    j += 1
-            j += 1
+            j = _skip_char_class(segment, j)
             continue
         if cc == "(":
             depth += 1
@@ -398,6 +405,52 @@ def _parse_django_segment(
     return atoms, capture_idx, next_paramN
 
 
+def _split_regex_body(body: str) -> list[str]:
+    r"""Split a re_path() route body on '/' while respecting character classes and groups.
+
+    A plain ``str.split("/")`` fragments segments that contain ``/`` inside ``[...]`` (e.g.
+    ``[^/-]``) or group bodies.  Only a ``/`` at paren depth 0 and outside any character class is
+    treated as a URL segment separator.  ``\/`` at depth 0 (a regex-escaped literal slash) is also
+    split on with the backslash consumed, so ``foo\/bar`` yields ``["foo", "bar"]``.
+
+    Character classes are skipped via ``_skip_char_class``; the group depth logic mirrors
+    ``_balance_group_body``.  See also ``_split_route_body`` (Tornado) which is the depth-unaware
+    counterpart used when group bodies have already been replaced by ``%s`` placeholders.
+    """
+    segments: list[str] = []
+    start = 0
+    i = 0
+    n = len(body)
+    depth = 0
+
+    while i < n:
+        c = body[i]
+        if c == "\\" and i + 1 < n:
+            if body[i + 1] == "/" and depth == 0:
+                # \/ is a literal slash — split here, consuming both chars.
+                segments.append(body[start:i])
+                start = i + 2
+                i += 2
+            else:
+                i += 2
+            continue
+        if c == "[":
+            i = _skip_char_class(body, i)
+            continue
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth > 0:
+                depth -= 1
+        elif c == "/" and depth == 0:
+            segments.append(body[start:i])
+            start = i + 1
+        i += 1
+
+    segments.append(body[start:])
+    return segments
+
+
 @lru_cache(maxsize=256)
 def _parse_django_route(route: str) -> Optional[_ParsedRoute]:
     """Parse a Django route into ``(segments_atoms, keep_trailing)``.
@@ -419,6 +472,16 @@ def _parse_django_route(route: str) -> Optional[_ParsedRoute]:
         body = body[1:]
     if body.endswith("$"):
         body = body[:-1]
+    # ``\/`` is a regex-escaped literal slash — semantically identical to a plain ``/`` in every
+    # structural position.  Normalise it before the leading-slash and trailing-slash checks below so
+    # those checks work uniformly.
+    if is_regex:
+        if body.startswith("\\/"):
+            body = body[1:]  # strip the \ so the leading-/ check below fires
+        if body.endswith("\\/"):
+            body = body[:-2] + "/"  # strip the \ so the trailing-/ check below fires
+        elif body.endswith("\\/?"):
+            body = body[:-3] + "/?"  # normalise \/ to / so the /? check below fires
     # ``/?`` declares an optional trailing slash on regex routes. Per RFC-1103 rule 1 that is not "declared with a
     # trailing slash". Only strip on ``is_regex`` — ``path("foo/?", view)`` produces ``resolver_match.route == "foo/?"``
     # with a literal ``?`` (Django escapes via ``re.escape`` in ``path()``), so the same suffix must stay intact.
@@ -445,7 +508,13 @@ def _parse_django_route(route: str) -> Optional[_ParsedRoute]:
     else:
         used_paramN = _EMPTY_INT_SET
 
-    segments = body.split("/")
+    # For re_path() routes, '/' may appear inside character classes (e.g. ``[^/-]``) or group bodies.
+    # Use the regex-aware splitter only when the body actually contains those constructs.
+    segments = (
+        body.split("/")
+        if not is_regex or ("[" not in body and "(" not in body and "\\" not in body)
+        else _split_regex_body(body)
+    )
     parsed: list[tuple[_Atom, ...]] = []
     last_idx = len(segments) - 1
     # ``re``'s group numbering is global to the regex, so ``capture_idx`` (the index into Django's ``args`` tuple) and
@@ -697,41 +766,13 @@ def normalize_route_flask(route: Optional[str], path_params: _PathParams = None)
 # (``(?:...)``, ``[a-z]``, ``\d``, etc.) and backslash escapes (``\(``, ``\.``) verbatim in
 # ``http.route``.  ``_classify_static_segment`` maps each count-0 segment to one of three
 # outcomes so the cached function can emit the right thing without re-parsing.
-#
-# ``_split_route_body`` replaces the naive ``body.split("/")`` so that ``/`` characters
-# inside character classes (e.g. ``[^/]``) are treated as part of the class, not as URL
-# segment separators.  Without this, ``items/[^/]+/detail`` would be split into
-# ``["items", "[^", "]+", "detail"]`` instead of the correct
-# ``["items", "[^/]+", "detail"]``.
-#
-# ``_skip_char_class`` is the shared scanner used by both functions to walk past a
-# ``[...]`` character class.
+# ``_split_route_body`` replaces the naive ``body.split("/")`` so that ``/`` inside ``[...]``
+# is not treated as a URL segment separator.  ``_skip_char_class`` (defined earlier) is the
+# shared character-class scanner used by both the Django and Tornado walkers.
 
 # Group prefixes that indicate a zero-width assertion or atomic group — these produce no
 # URL-path content and cannot be normalized as static or dynamic.
 _LOOKAHEAD_PREFIXES = ("?=", "?!", "?<=", "?<!", "?>")
-
-
-def _skip_char_class(s: str, start: int) -> int:
-    r"""Return the index just past the ``]`` that closes the class opening at ``s[start] == '['``.
-
-    Handles Python ``re``'s literal-``]`` rules — a ``]`` immediately after ``[`` or after a
-    negating ``[^`` is a class member, not the closer — and backslash escapes inside the class.
-    """
-    n = len(s)
-    j = start + 1
-    if j < n and s[j] == "^":
-        j += 1
-    if j < n and s[j] == "]":
-        j += 1  # leading ] is a literal class member, not the close
-    while j < n and s[j] != "]":
-        if s[j] == "\\" and j + 1 < n:
-            j += 2
-        else:
-            j += 1
-    if j < n:
-        j += 1  # skip closing ]
-    return j
 
 
 def _classify_static_segment(seg: str) -> tuple[str, str]:
@@ -845,6 +886,9 @@ def _split_route_body(body: str) -> list[str]:
     character class ``[^/]``.  This function produces the correct result
     ``["items", "[^/]+", "detail"]`` by treating any ``/`` inside ``[...]``
     as part of the class rather than as a URL segment separator.
+
+    Tornado-specific: group bodies are already ``%s`` placeholders so no paren-depth
+    tracking is needed.  See ``_split_regex_body`` for the depth-aware Django variant.
     """
     segments: list[str] = []
     current: list[str] = []
