@@ -832,7 +832,6 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Test introspection: is the fast safe_memcpy path active? (PROF-14568)
     if (fast_copy_active) {
         Py_RETURN_TRUE;
     }
