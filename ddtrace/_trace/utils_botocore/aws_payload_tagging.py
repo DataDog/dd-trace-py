@@ -76,6 +76,7 @@ class AWSPayloadTagging:
         self._parsed_response_expressions = []
         # Read from config once during initialization and stored so _tag_object
         # doesn't need to call config.botocore.get() on every recursive invocation.
+        self._max_tags: int = 0
         self._max_depth: int = 0
         self._init_lock = threading.Lock()
 
