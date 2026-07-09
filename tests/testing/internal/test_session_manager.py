@@ -343,7 +343,8 @@ class TestSessionManagerIsSkippableSuitePath:
 
         session_manager = (
             session_manager_mock()
-            .with_skipping_enabled(True)
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
             .with_workspace_path(str(workspace))
             .with_itr_skipping_level(ITRSkippingLevel.SUITE)
             .with_skippable_items({suite_ref})
@@ -373,7 +374,8 @@ class TestSessionManagerIsSkippableSuitePath:
 
         session_manager = (
             session_manager_mock()
-            .with_skipping_enabled(True)
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
             .with_workspace_path(str(workspace))
             .with_itr_skipping_level(ITRSkippingLevel.SUITE)
             .with_skippable_items({suite_ref})
