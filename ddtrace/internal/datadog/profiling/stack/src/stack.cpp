@@ -809,8 +809,6 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Test introspection: do we still own both SIGSEGV and SIGBUS? (same primitive
-    // the sampler uses to decide whether safe_memcpy recovery is trustworthy)
     if (segv_handler_installed()) {
         Py_RETURN_TRUE;
     }
