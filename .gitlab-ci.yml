@@ -4,6 +4,7 @@ stages:
   - system-tests
   - fuzz
   - benchmarks
+  - publish-pypi
   - shared-pipeline
 
 variables:
@@ -455,6 +456,7 @@ publishing-gate:
     - job: microbenchmarks
     - job: serverless lambda tests
     - job: run-tests-trigger
+    - job: release_pypi_prod
 
 configure_system_tests:
   needs: []
