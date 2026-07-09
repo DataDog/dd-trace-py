@@ -50,3 +50,44 @@ def record_span_pointer_calculation_issue(
         value=1,
         tags=tags,
     )
+
+
+def record_writer_spans_enqueued(count: int) -> None:
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.TRACERS, name="spans_enqueued_for_serialization", value=count
+    )
+
+
+def record_writer_trace_chunks_sent(count: int) -> None:
+    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.TRACERS, name="trace_chunks_sent", value=count)
+
+
+def record_writer_trace_chunks_dropped(count: int, reason: str) -> None:
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.TRACERS,
+        name="trace_chunks_dropped",
+        value=count,
+        tags=(("reason", reason),),
+    )
+
+
+def record_writer_trace_api_request() -> None:
+    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.TRACERS, name="trace_api.requests", value=1)
+
+
+def record_writer_trace_api_response(status_code: int) -> None:
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.TRACERS,
+        name="trace_api.responses",
+        value=1,
+        tags=(("status_code", str(status_code)),),
+    )
+
+
+def record_writer_trace_api_error(error_type: str) -> None:
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.TRACERS,
+        name="trace_api.errors",
+        value=1,
+        tags=(("type", error_type),),
+    )
