@@ -16,6 +16,12 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.propagation.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.propagation.constants import _PROPAGATION_STYLE_BAGGAGE
+from ddtrace.propagation.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.propagation.constants import PROPAGATION_STYLE_B3_MULTI
+from ddtrace.propagation.constants import PROPAGATION_STYLE_B3_SINGLE
+from ddtrace.propagation.constants import PROPAGATION_STYLE_DATADOG
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -27,9 +33,6 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
@@ -39,9 +42,6 @@ from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
-from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
-from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
