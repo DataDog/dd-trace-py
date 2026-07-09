@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Code Security (IAST): fixed a spurious duplicate ``UNVALIDATED_REDIRECT`` vulnerability
+    reported for a single ``redirect()`` call. A redirect is detected both at the framework
+    ``redirect()`` call site and at the ``Location`` header sink, which fires a second time when
+    the web framework re-writes the header during response finalization using a newly derived
+    string that did not carry the internal secure mark. The two reports have different locations,
+    so hash deduplication could not merge them. The sink now deduplicates on the already-reported
+    evidence value within the request, keeping a single vulnerability without suppressing the
+    legitimate report.

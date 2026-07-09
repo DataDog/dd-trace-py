@@ -72,6 +72,47 @@ def test_unvalidated_redirect_secure_mark_applied_even_when_dedup_filters(iast_c
     )
 
 
+def test_unvalidated_redirect_deduplicated_across_distinct_objects_same_value(iast_context_defaults):
+    """Regression test: a single redirect must yield one vulnerability even when the second
+    detection path sees a DIFFERENT string object that carries taint but not the secure mark.
+
+    Flask's ``redirect(location)`` reports once at the call site, then Werkzeug re-writes the
+    ``Location`` header during WSGI finalization via ``get_wsgi_headers`` ->
+    ``iri_to_uri(location)``, which returns a *new* string. That copy does not carry the
+    ``secure_mark`` placed on the original ``location``, so the secure-mark dedup cannot stop
+    the header sink from reporting a duplicate (with a different location, so hash dedup can't
+    merge it either). The fix deduplicates on the already-reported evidence value.
+    """
+    original = taint_pyobject(
+        "http://evil.com/redir",
+        source_name="location",
+        source_value="http://evil.com/redir",
+        source_origin=OriginType.PARAMETER,
+    )
+    # First detection path (e.g. flask.redirect wrapper) reports and secure-marks `original`.
+    _iast_report_unvalidated_redirect(original)
+    report = get_iast_reporter()
+    assert report is not None
+    assert len(list(report.vulnerabilities)) == 1
+
+    # Second detection path receives a *distinct* tainted string with the same value and no
+    # secure mark (mimicking the iri_to_uri copy). Without value dedup this reports again.
+    finalization_copy = taint_pyobject(
+        "http://evil.com/redir",
+        source_name="location",
+        source_value="http://evil.com/redir",
+        source_origin=OriginType.PARAMETER,
+    )
+    assert UnvalidatedRedirect.is_tainted_pyobject(finalization_copy) is True
+    _iast_report_unvalidated_redirect(finalization_copy)
+
+    vulns_after = list(get_iast_reporter().vulnerabilities)
+    assert len(vulns_after) == 1, (
+        f"Expected exactly 1 vulnerability but got {len(vulns_after)}; the duplicate from the "
+        "WSGI-finalization Location re-write (distinct object, same value) was not deduplicated"
+    )
+
+
 def test_unvalidated_redirect_secure_mark_applied_when_quota_exhausted(iast_context_defaults):
     """Regression test: secure mark must be applied even when vulnerability quota is exhausted.
 
