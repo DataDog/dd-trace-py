@@ -2,8 +2,5 @@
 features:
   - |
     LLM Observability: ``session_id`` now propagates to following spans in a
-    trace. The first ``session_id`` set in a trace becomes the trace default, so
-    later spans that do not set one - including spans under a session-less parent
-    and spans in downstream services across a distributed trace - are grouped
-    into that session. A ``session_id`` set explicitly on a span still takes
+    trace. If ``session_id`` is set explicitly on a span, this will take
     precedence over the inherited or propagated value.
