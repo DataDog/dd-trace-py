@@ -124,11 +124,7 @@ async def _traced_clientsession_request(func, instance, args, kwargs):
             return resp
         finally:
             if resp is not None:
-                # aiohttp's ClientResponse.json() is async, so it can't route through the
-                # event's synchronous set_response; assign the scalar fields directly instead.
-                ctx.event.response_status_code = resp.status
-                ctx.event.response_status_msg = resp.reason
-                ctx.event.response_headers = dict(resp.headers)
+                ctx.event.set_response(resp)
 
 
 def _traced_clientsession_init(func, instance, args, kwargs):
