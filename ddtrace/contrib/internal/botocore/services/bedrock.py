@@ -71,6 +71,10 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         if exception:
             return
         execution_ctx = self.options.get("execution_ctx", {})
+        # Extract token usage metrics from the streamed chunks (e.g. the trailing
+        # ``amazon-bedrock-invocationMetrics`` event) and set them on the context so
+        # LLM Observability spans report accurate token counts instead of zeros.
+        _extract_streamed_response_metadata(execution_ctx, self.chunks)
         formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
         core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
 
