@@ -2,6 +2,39 @@ import sys
 
 import pytest
 
+from ddtrace.internal.datadog.profiling import stack as _stack_ext
+
+
+def _wait_for_fast_copy_upgrade(_stack, timeout: float = 10.0, *, require_warmup: bool = True) -> tuple[bool, bool]:
+    """Wait until warmup (syscall copy) then upgrade to safe_memcpy.
+
+    Returns (saw_warmup, saw_upgrade). When process_vm_readv is unavailable the
+    sampler may skip warmup and stay on safe_memcpy (saw_warmup=False).
+    """
+    import time
+
+    saw_warmup: bool = False
+    saw_upgrade: bool = False
+    deadline: float = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        active: bool = _stack.fast_copy_memory_active()
+        if not saw_warmup:
+            if active is False:
+                saw_warmup = True
+        elif active is True:
+            saw_upgrade = True
+            break
+        time.sleep(0.05)
+
+    # When process_vm_readv is unavailable the sampler skips warmup and stays on safe_memcpy.
+    if not saw_upgrade and _stack.fast_copy_memory_active():
+        saw_upgrade = True
+
+    if require_warmup:
+        assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
+    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
+    return saw_warmup, saw_upgrade
+
 
 @pytest.mark.subprocess(
     env=dict(
@@ -84,6 +117,7 @@ def test_fast_copy_memory_disabled():
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_memory_enabled",
@@ -110,22 +144,7 @@ def test_fast_copy_memory_enabled() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
-    saw_warmup: bool = False
-    saw_upgrade: bool = False
-    deadline: float = time.monotonic() + 10
-    while time.monotonic() < deadline:
-        active: bool = _stack.fast_copy_memory_active()
-        if not saw_warmup:
-            if active is False:
-                saw_warmup = True
-        elif active is True:
-            saw_upgrade = True
-            break
-        time.sleep(0.05)
-
-    # When process_vm_readv is unavailable the sampler skips warmup and stays on safe_memcpy.
-    if not saw_upgrade and _stack.fast_copy_memory_active():
-        saw_upgrade = True
+    saw_warmup, saw_upgrade = _wait_for_fast_copy_upgrade(_stack, require_warmup=False)
 
     # Wait for a metadata upload cycle while the profiler is still running so
     # fast_copy_memory_enabled reflects the post-warmup state before stop().
@@ -160,8 +179,8 @@ def test_fast_copy_memory_enabled() -> None:
     else:
         assert saw_upgrade, "Expected safe_memcpy to stay active when warmup is skipped"
 
-
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_reinstall_during_warmup",
@@ -202,6 +221,7 @@ def test_fast_copy_reinstall_segv_handler_works_during_warmup() -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_takeover_fallback",
@@ -225,10 +245,7 @@ def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
     try:
-        deadline: float = time.monotonic() + 10
-        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not True:
-            time.sleep(0.02)
-        assert _stack.fast_copy_memory_active() is True, "sampler never upgraded to safe_memcpy"
+        _wait_for_fast_copy_upgrade(_stack)
         assert _stack.segv_handler_installed() is True
 
         signal.signal(signal.SIGSEGV, signal.SIG_DFL)
@@ -251,6 +268,7 @@ def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork not supported on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_rewarm",
@@ -302,6 +320,7 @@ def test_fast_copy_rewarms_in_forked_child_during_warmup() -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork not supported on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_takeover",
@@ -325,10 +344,7 @@ def test_forked_child_inherits_foreign_takeover_after_parent_fallback() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
     try:
-        deadline: float = time.monotonic() + 10
-        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not True:
-            time.sleep(0.02)
-        assert _stack.fast_copy_memory_active() is True, "sampler never upgraded to safe_memcpy"
+        _wait_for_fast_copy_upgrade(_stack)
 
         signal.signal(signal.SIGSEGV, signal.SIG_DFL)
         assert _stack.segv_handler_installed() is False
@@ -359,6 +375,7 @@ def test_forked_child_inherits_foreign_takeover_after_parent_fallback() -> None:
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork not supported on Windows")
+@pytest.mark.skipif(not _stack_ext.is_available, reason="stack v2 native extension not available")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fork_pauses_sampler",
@@ -370,7 +387,6 @@ def test_forked_child_inherits_foreign_takeover_after_parent_fallback() -> None:
 def test_fork_pauses_sampler_before_safe_memcpy() -> None:
     """prefork() pauses the sampling thread so fork() does not span safe_memcpy (PROF-14568)."""
     import os
-    import time
 
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
@@ -381,10 +397,7 @@ def test_fork_pauses_sampler_before_safe_memcpy() -> None:
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
     try:
-        deadline: float = time.monotonic() + 10
-        while time.monotonic() < deadline and _stack.fast_copy_memory_active() is not True:
-            time.sleep(0.02)
-        assert _stack.fast_copy_memory_active() is True, "sampler never upgraded to safe_memcpy"
+        _wait_for_fast_copy_upgrade(_stack)
 
         pid: int = os.fork()
         if pid == 0:
