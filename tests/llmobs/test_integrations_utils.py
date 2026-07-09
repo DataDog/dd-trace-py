@@ -2,22 +2,22 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.audio_utils import g711_variant
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
+from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
-from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
-from ddtrace.llmobs._integrations.utils import concat_base64_audio
-from ddtrace.llmobs._integrations.utils import format_audio_part
-from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
-from ddtrace.llmobs._integrations.utils import g711_to_pcm16
-from ddtrace.llmobs._integrations.utils import g711_variant
-from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
-from ddtrace.llmobs._integrations.utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
-from ddtrace.llmobs._integrations.utils import pcm16_to_wav
-from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 

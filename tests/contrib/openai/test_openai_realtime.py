@@ -743,3 +743,148 @@ async def test_realtime_async_integration_spans(openai, openai_llmobs, test_span
         metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
     )
     assert data.get("session_id")
+
+
+def _turn_messages(response_id, item_id, out_audio_b64, out_transcript):
+    """Server events for one full turn: committed input, transcription, response with output audio."""
+    return [
+        json.dumps({"type": "input_audio_buffer.committed", "event_id": "c" + response_id, "item_id": item_id}),
+        json.dumps(
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "event_id": "t" + response_id,
+                "item_id": item_id,
+                "transcript": "hi " + response_id,
+            }
+        ),
+        json.dumps({"type": "response.created", "event_id": "rc" + response_id, "response": {"id": response_id}}),
+        json.dumps(
+            {
+                "type": "response.output_audio.delta",
+                "event_id": "ad" + response_id,
+                "response_id": response_id,
+                "delta": out_audio_b64,
+            }
+        ),
+        json.dumps(
+            {
+                "type": "response.output_audio_transcript.done",
+                "event_id": "td" + response_id,
+                "response_id": response_id,
+                "transcript": out_transcript,
+            }
+        ),
+        json.dumps(
+            {
+                "type": "response.done",
+                "event_id": "rd" + response_id,
+                "response": {"id": response_id, "status": "completed"},
+            }
+        ),
+    ]
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_integration_multi_turn_with_output_audio(openai, openai_llmobs, test_spans):
+    """Two turns over one connection produce two llm spans sharing a session_id, each with output audio."""
+    session = json.dumps(
+        {
+            "type": "session.created",
+            "event_id": "e0",
+            "session": {
+                "type": "realtime",
+                "model": "gpt-realtime",
+                "audio": {
+                    "input": {"format": {"type": "audio/pcm"}},
+                    "output": {"format": {"type": "audio/pcm"}, "voice": "alloy"},
+                },
+            },
+        }
+    )
+    messages = [session]
+    messages += _turn_messages("r1", "item_1", _b64(b"\x01\x02"), "first answer")
+    messages += _turn_messages("r2", "item_2", _b64(b"\x03\x04"), "second answer")
+
+    conn = RealtimeConnection(_FakeWebSocket(messages))
+    client = openai.OpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+    for _ in range(len(messages)):
+        conn.recv()
+    conn.close()
+
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.resource for s in spans] == ["createRealtimeResponse", "createRealtimeResponse"]
+    datas = [_get_llmobs_data_metastruct(s) for s in spans]
+    # Both turns grouped into one conversation.
+    assert datas[0]["session_id"] == datas[1]["session_id"]
+    # Each turn's output carries a playable WAV audio_part.
+    for data, raw in zip(datas, (b"\x01\x02", b"\x03\x04")):
+        out = data["meta"]["output"]["messages"][0]
+        assert out["audio_parts"] == [{"mime_type": "audio/wav", "content": _wav_b64(raw)}]
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
+    """A function_call in response.done is captured as a tool_call on the turn span (real integration)."""
+    messages = [
+        json.dumps(
+            {"type": "session.created", "event_id": "e0", "session": {"type": "realtime", "model": "gpt-realtime"}}
+        ),
+        json.dumps({"type": "response.created", "event_id": "rc", "response": {"id": "r1"}}),
+        json.dumps(
+            {
+                "type": "response.done",
+                "event_id": "rd",
+                "response": {
+                    "id": "r1",
+                    "status": "completed",
+                    "output": [
+                        {
+                            "type": "function_call",
+                            "name": "get_weather",
+                            "call_id": "call_1",
+                            "arguments": '{"city": "Paris"}',
+                        }
+                    ],
+                },
+            }
+        ),
+    ]
+    conn = RealtimeConnection(_FakeWebSocket(messages))
+    client = openai.OpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+    for _ in range(len(messages)):
+        conn.recv()
+    conn.close()
+
+    from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert [s.resource for s in spans] == ["createRealtimeResponse"]
+    out = _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"][0]
+    assert out["tool_calls"] == [
+        {"name": "get_weather", "arguments": {"city": "Paris"}, "tool_id": "call_1", "type": "function"}
+    ]
+
+
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
+def test_realtime_patch_and_unpatch(openai):
+    """patch() wraps the realtime connection methods; unpatch() restores them."""
+    from ddtrace.contrib.internal.openai.patch import patch
+    from ddtrace.contrib.internal.openai.patch import unpatch
+
+    methods = ("parse_event", "send", "recv", "close")
+    # The `openai` fixture already called patch().
+    for m in methods:
+        assert hasattr(getattr(RealtimeConnection, m), "__wrapped__"), "%s should be wrapped" % m
+        assert hasattr(getattr(AsyncRealtimeConnection, m), "__wrapped__"), "async %s should be wrapped" % m
+
+    unpatch()
+    for m in methods:
+        assert not hasattr(getattr(RealtimeConnection, m), "__wrapped__"), "%s should be unwrapped" % m
+        assert not hasattr(getattr(AsyncRealtimeConnection, m), "__wrapped__"), "async %s should be unwrapped" % m
+
+    patch()  # restore for the fixture's teardown
+    assert hasattr(RealtimeConnection.parse_event, "__wrapped__")

@@ -35,6 +35,7 @@ Known limitations (deferred by design):
 """
 
 import importlib
+import os
 from types import ModuleType
 from types import SimpleNamespace
 from typing import Any
@@ -47,19 +48,21 @@ import openai
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._integrations.utils import G711_SAMPLE_RATE
-from ddtrace.llmobs._integrations.utils import concat_base64_audio
-from ddtrace.llmobs._integrations.utils import format_audio_part_with_guard
-from ddtrace.llmobs._integrations.utils import g711_to_pcm16
-from ddtrace.llmobs._integrations.utils import g711_variant
-from ddtrace.llmobs._integrations.utils import is_pcm16_audio_mime
-from ddtrace.llmobs._integrations.utils import pcm16_to_wav
-from ddtrace.llmobs._integrations.utils import realtime_audio_format_to_mime
+from ddtrace.llmobs._integrations.audio_utils import G711_SAMPLE_RATE
+from ddtrace.llmobs._integrations.audio_utils import LLMOBS_AUDIO_INLINE_MAX_BYTES
+from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
+from ddtrace.llmobs._integrations.audio_utils import format_audio_part_with_guard
+from ddtrace.llmobs._integrations.audio_utils import g711_to_pcm16
+from ddtrace.llmobs._integrations.audio_utils import g711_variant
+from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
+from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
+from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
@@ -91,11 +94,50 @@ def _normalize_response_event_type(event_type: str) -> str:
     )
 
 
-class _InputTurn:
-    """Accumulated user input (audio chunks + transcript/text) for a single turn."""
+# Cap how much audio we buffer per side of a turn. Beyond this the size guard would drop it anyway
+# (it exceeds the per-span-event budget once encoded), so we stop storing to avoid holding megabytes
+# of audio in memory only to discard it at finalize.
+_AUDIO_ACCUM_MAX_BYTES = LLMOBS_AUDIO_INLINE_MAX_BYTES
+
+
+class _AudioAccumulator:
+    """Collects base64 audio chunks with a running decoded-byte cap.
+
+    ``present`` records that audio was seen at all (so a turn can still surface an ``[audio]`` marker
+    even when the bytes were dropped), and ``oversize`` marks that the cap was hit.
+    """
 
     def __init__(self) -> None:
-        self.audio_chunks: list[str] = []
+        self.chunks: list[str] = []
+        self.present: bool = False
+        self.oversize: bool = False
+        self._bytes: int = 0
+
+    def append(self, b64: str) -> None:
+        if not b64:
+            return
+        self.present = True
+        if self.oversize:
+            return
+        self._bytes += (len(b64) * 3) // 4  # decoded size ~= 3/4 of the base64 length
+        if self._bytes > _AUDIO_ACCUM_MAX_BYTES:
+            self.oversize = True
+            self.chunks = []  # free what we had — the guard would drop the whole thing anyway
+            return
+        self.chunks.append(b64)
+
+    def clear(self) -> None:
+        self.chunks = []
+        self.present = False
+        self.oversize = False
+        self._bytes = 0
+
+
+class _InputTurn:
+    """Accumulated user input (audio + transcript/text) for a single turn."""
+
+    def __init__(self) -> None:
+        self.audio = _AudioAccumulator()
         self.text: str = ""
         self.transcript: str = ""
         self.item_id: Optional[str] = None
@@ -108,7 +150,7 @@ class _ResponseTurn:
 
     def __init__(self, input_turn: _InputTurn) -> None:
         self.input = input_turn
-        self.audio_chunks: list[str] = []
+        self.audio = _AudioAccumulator()
         self.transcript: str = ""
         self.text: str = ""
         self.usage: Any = None
@@ -157,10 +199,10 @@ class _RealtimeState:
             elif event_type == "input_audio_buffer.append":
                 audio = _get_attr(event, "audio", None)
                 if audio:
-                    self._pending_input.audio_chunks.append(audio)
+                    self._pending_input.audio.append(audio)
             elif event_type == "input_audio_buffer.clear":
                 # Discarded input audio must not be attributed to the next response.
-                self._pending_input.audio_chunks = []
+                self._pending_input.audio.clear()
             elif event_type == "conversation.item.create":
                 self._absorb_input_item(_get_attr(event, "item", None))
         except Exception:
@@ -176,7 +218,7 @@ class _RealtimeState:
                 self._pending_input.item_id = _get_attr(event, "item_id", None)
                 return
             if event_type == "input_audio_buffer.cleared":
-                self._pending_input.audio_chunks = []
+                self._pending_input.audio.clear()
                 return
             if event_type == "conversation.item.input_audio_transcription.completed":
                 item_id = _get_attr(event, "item_id", None)
@@ -221,7 +263,7 @@ class _RealtimeState:
         if normalized == "response.audio.delta":
             delta = _get_attr(event, "delta", None)
             if delta:
-                turn.audio_chunks.append(delta)
+                turn.audio.append(delta)
         elif normalized == "response.audio_transcript.delta":
             turn.transcript += str(_get_attr(event, "delta", "") or "")
         elif normalized == "response.audio_transcript.done":
@@ -322,7 +364,7 @@ class _RealtimeState:
         input_message = self._build_message(
             "user",
             turn.input.transcript or turn.input.text,
-            turn.input.audio_chunks,
+            turn.input.audio,
             self._input_audio_mime,
             self._input_audio_rate,
         )
@@ -335,7 +377,7 @@ class _RealtimeState:
         output_message = self._build_message(
             "assistant",
             turn.transcript or turn.text,
-            turn.audio_chunks,
+            turn.audio,
             self._output_audio_mime,
             self._output_audio_rate,
         )
@@ -360,11 +402,11 @@ class _RealtimeState:
         )
 
     def _build_message(
-        self, role: str, content: str, audio_chunks: list[str], mime_type: str, sample_rate: int
+        self, role: str, content: str, audio: "_AudioAccumulator", mime_type: str, sample_rate: int
     ) -> Optional[Message]:
         audio_part = None
-        if audio_chunks:
-            audio_bytes = concat_base64_audio(audio_chunks)
+        if audio.chunks:
+            audio_bytes = concat_base64_audio(audio.chunks)
             g711 = g711_variant(mime_type)
             if is_pcm16_audio_mime(mime_type):
                 # Raw PCM16 isn't renderable on its own; wrap it in a WAV container (lossless) so it
@@ -377,10 +419,10 @@ class _RealtimeState:
                 audio_part = format_audio_part_with_guard(pcm16_to_wav(pcm, G711_SAMPLE_RATE), "audio/wav")
             else:
                 audio_part = format_audio_part_with_guard(audio_bytes, mime_type)
-        if not content and not audio_part and audio_chunks:
-            # Audio was captured but couldn't be turned into a playable part (unsupported format or
-            # over the size budget) and there's no transcript; surface a marker so the turn isn't
-            # silently empty.
+        if not content and not audio_part and audio.present:
+            # Audio was captured but couldn't be turned into a playable part (unsupported format, or
+            # over the size budget / accumulation cap) and there's no transcript; surface a marker so
+            # the turn isn't silently empty.
             content = AUDIO_FALLBACK_MARKER
         if not content and not audio_part:
             return None
@@ -469,7 +511,7 @@ class _RealtimeState:
             elif part_type in ("input_audio", "audio"):
                 audio = _get_attr(part, "audio", None)
                 if audio:
-                    self._pending_input.audio_chunks.append(audio)
+                    self._pending_input.audio.append(audio)
                 transcript = _get_attr(part, "transcript", None)
                 if transcript:
                     self._pending_input.transcript += str(transcript)
@@ -704,6 +746,10 @@ def _realtime_modules() -> list[ModuleType]:
 
 
 def patch_realtime() -> None:
+    # Realtime is a large, event-driven wrapping surface; allow disabling just it (while keeping the
+    # rest of the OpenAI integration) via DD_OPENAI_REALTIME_ENABLED=false.
+    if not asbool(os.environ.get("DD_OPENAI_REALTIME_ENABLED", "true")):
+        return
     for module in _realtime_modules():
         for class_name, method_name, wrapper in _REALTIME_WRAPS:
             cls = getattr(module, class_name, None)

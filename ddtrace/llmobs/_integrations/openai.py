@@ -189,18 +189,25 @@ class OpenAIIntegration(BaseLLMIntegration):
         conversation in the UI (there is no parent session span).
         """
         provider = span.get_tag("openai.request.provider") or "OpenAI"
+        model_provider = self._get_model_provider(span)
         _annotate_llmobs_span_data(
             span,
             name="{}.{}".format(provider, span.resource) if span.resource else None,
             kind="llm",
             model_name=model_name or "unknown_model",
-            model_provider=self._get_model_provider(span),
+            model_provider=model_provider,
             input_messages=input_messages or None,
             output_messages=output_messages or None,
             metadata=metadata or {},
             metrics=metrics or None,
             session_id=session_id,
         )
+        # Mirror the base llmobs_set_tags path: also stamp the LLMObs->APM shadow token metrics so
+        # realtime spans are consistent with every other OpenAI span for APM-only users.
+        try:
+            self._apply_shadow_metrics(span, metrics, "llm", model_name=model_name, model_provider=model_provider)
+        except Exception:
+            log.debug("Error applying shadow metrics for realtime span %s", span, exc_info=True)
 
     def _set_apm_shadow_tags(self, span, args, kwargs, response=None, operation=""):
         span_kind = (
