@@ -18,8 +18,8 @@ from ._utils cimport PyBytesLike_Check
 # DEV: This only occurs because there is a `constants.py` module
 #   in both `ddtrace` and `ddtrace.internal`
 
+from ddtrace._trace.constants import SPAN_LINKS_KEY
 from ..constants import _ORIGIN_KEY as ORIGIN_KEY
-from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .logger import get_logger
 from .._trace._limits import MAX_SPAN_META_VALUE_LEN
