@@ -40,15 +40,15 @@ if sys.platform == "linux":
 
         def _on_context_activate(ctx: Optional[ActiveTrace]) -> None:
             """Publish active local spans to the native otel thread-context slot."""
-            if ctx is not Span:
-                _on_context_activate_native(None, None, None)
+            if isinstance(ctx, Span):
+                _on_context_activate_native(
+                    ctx.trace_id,
+                    ctx.span_id,
+                    ctx._local_root.span_id,
+                )
                 return
 
-            _on_context_activate_native(
-                ctx.trace_id,
-                ctx.span_id,
-                ctx._local_root.span_id,
-            )
+            _on_context_activate_native(None, None, None)
 
         core.on("ddtrace.context_provider.activate", _on_context_activate)
     except ImportError:
