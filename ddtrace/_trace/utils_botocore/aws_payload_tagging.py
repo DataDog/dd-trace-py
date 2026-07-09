@@ -208,10 +208,8 @@ class AWSPayloadTagging:
         # if we've hit the maximum allowed tags, mark the expansion as incomplete
         if tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
-
-            return
-        if id(obj) in _REDACTED_ID_SET.get():
-            self.current_tag_count += 1
+            return tag_count
+        if id(obj) in redacted_ids:
             span.set_tag(key, "redacted")
             return tag_count + 1
         if obj is None:
