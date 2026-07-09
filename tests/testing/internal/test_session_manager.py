@@ -1199,7 +1199,8 @@ class TestParallelInit:
     def test_known_tests_and_test_management_use_pre_upload_settings(self) -> None:
         """known_tests/test_management decisions must use the settings captured before the
         concurrent git-upload thread replaces self.settings, not whatever self.settings happens
-        to be when each thread runs (otherwise the outcome would race on thread scheduling)."""
+        to be when each thread runs (otherwise the outcome would race on thread scheduling).
+        """
         settings_before_git = Settings(require_git=True, known_tests_enabled=True)
         settings_before_git.test_management.enabled = True
         settings_after_git = Settings(require_git=False, known_tests_enabled=False)
