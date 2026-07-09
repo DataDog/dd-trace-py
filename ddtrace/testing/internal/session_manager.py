@@ -156,13 +156,14 @@ class SessionManager:
         # uploaded, since it is required to populate git metadata regardless of ATF mode.
         self.atf_all_flaky_tests: bool = asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false"))
 
-        # Snapshot the settings-derived flags before starting the concurrent fetches below:
-        # _upload_git_and_fetch_skippable() may replace self.settings (when require_git is
-        # enabled), and the sibling fetches must see a consistent, deterministic value rather
-        # than racing on when that replacement happens.
+        # Snapshot the settings-derived flags read by the OTHER two threads before starting the
+        # concurrent fetches below: _upload_git_and_fetch_skippable() may replace self.settings
+        # (when require_git is enabled), and _fetch_known_tests/_fetch_test_management_properties
+        # must see a consistent, deterministic value rather than racing on when that replacement
+        # happens. This doesn't apply to the itr_enabled check below, which runs sequentially,
+        # in-thread, after the possible refetch — it is meant to observe the refetched settings.
         known_tests_enabled = self.settings.known_tests_enabled and not self.atf_all_flaky_tests
         test_management_enabled = self.settings.test_management.enabled
-        itr_enabled = self.settings.itr_enabled and not self.atf_all_flaky_tests
 
         def _fetch_known_tests() -> set[TestRef]:
             return self.api_client.get_known_tests() if known_tests_enabled else set()
@@ -178,7 +179,7 @@ class SessionManager:
                 # Fetch settings again after uploading git data, as it may change ITR settings.
                 self.settings = self.api_client.get_settings()
                 self.override_settings_with_env_vars()
-            if itr_enabled:
+            if not self.atf_all_flaky_tests and self.settings.itr_enabled:
                 return self.api_client.get_skippable_tests()
             return set(), None
 
