@@ -29,7 +29,7 @@ def segv_handler_installed() -> bool:
     """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
 
     Primarily test introspection: it queries the live disposition via sigaction(2)
-    for both signals on every call, so it is not free. Do not call it on hot paths.
+    for both signals on every call, so it is costly. Do not call it on hot paths.
     """
     ...
 
