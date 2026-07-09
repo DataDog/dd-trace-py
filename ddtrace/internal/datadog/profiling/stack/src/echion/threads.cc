@@ -707,6 +707,48 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
     }
 }
 
+namespace {
+
+void
+render_unwound_stacks(EchionSampler& echion, ThreadInfo& thread)
+{
+    auto& renderer = echion.renderer();
+
+    // Render in this order of priority
+    // 1. asyncio Tasks stacks (if any)
+    // 2. Greenlets stacks (if any)
+    // 3. The normal thread stack (if no asyncio tasks or greenlets)
+    if (!thread.current_tasks.empty()) {
+        for (auto& task_stack_info : thread.current_tasks) {
+            task_stack_info->task_name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, task_stack_info->on_cpu); });
+
+            task_stack_info->stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+
+        thread.current_tasks.clear();
+    } else if (!thread.current_greenlets.empty()) {
+        for (auto& greenlet_stack : thread.current_greenlets) {
+            greenlet_stack->task_name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
+
+            auto& stack = greenlet_stack->stack;
+            stack.render(echion);
+
+            renderer.render_stack_end();
+        }
+
+        thread.current_greenlets.clear();
+    } else {
+        thread.python_stack.render(echion);
+        renderer.render_stack_end();
+    }
+}
+
+} // namespace
+
 // ----------------------------------------------------------------------------
 Result<void>
 ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
@@ -723,38 +765,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
     this->unwind(echion, tstate);
-
-    // Render in this order of priority
-    // 1. asyncio Tasks stacks (if any)
-    // 2. Greenlets stacks (if any)
-    // 3. The normal thread stack (if no asyncio tasks or greenlets)
-    if (!current_tasks.empty()) {
-        for (auto& task_stack_info : current_tasks) {
-            task_stack_info->task_name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, task_stack_info->on_cpu); });
-
-            task_stack_info->stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_tasks.clear();
-    } else if (!current_greenlets.empty()) {
-        for (auto& greenlet_stack : current_greenlets) {
-            greenlet_stack->task_name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, greenlet_stack->on_cpu); });
-
-            auto& stack = greenlet_stack->stack;
-            stack.render(echion);
-
-            renderer.render_stack_end();
-        }
-
-        current_greenlets.clear();
-    } else {
-        python_stack.render(echion);
-        renderer.render_stack_end();
-    }
+    render_unwound_stacks(echion, *this);
 
     return Result<void>::ok();
 }
