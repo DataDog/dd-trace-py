@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 from typing import Sequence
 
+from ddtrace.appsec._capabilities import _ALL_ASM_CAPABILITIES
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._capabilities import _rc_capabilities
 from ddtrace.appsec._constants import APPSEC
@@ -158,6 +159,9 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
             disable_asm(local_tracer)
     if "auto_user_instrum" in result:
         asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"].get("mode", None)
+    if "asm" in result or "auto_user_instrum" in result:
+        # Re-advertise capabilities so blocking/RASP follow one-click activation/deactivation.
+        remoteconfig_poller.update_capabilities(_ALL_ASM_CAPABILITIES, _rc_capabilities())
 
 
 def disable_asm(local_tracer: Tracer):

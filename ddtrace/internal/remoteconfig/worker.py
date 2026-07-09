@@ -179,6 +179,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
+    def update_capabilities(self, mask: enum.IntFlag, capabilities: enum.IntFlag) -> None:
+        """Re-advertise ``capabilities`` within ``mask`` when a product's set changes after registration."""
+        self._client.update_capabilities(int(mask), int(capabilities))
+
     def unregister(self, product):
         if rc_config.skip_shutdown:
             # If we are asked to skip shutdown, then we likely don't want to
