@@ -74,9 +74,7 @@ class AWSPayloadTagging:
         # was a meaningful source of overhead.
         self._parsed_request_expressions = []
         self._parsed_response_expressions = []
-        # id()s of values matched by redaction expressions for the current payload. Rebuilt each
-        # call; stored on the instance so _tag_object can check it without an extra parameter.
-        self._current_redacted_ids: set[int] = set()
+        # Per-call redaction ids are stored in _REDACTED_ID_SET (ContextVar) to keep shared instances safe.
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
@@ -211,7 +209,7 @@ class AWSPayloadTagging:
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
             return
-        if id(obj) in self._current_redacted_ids:
+        if id(obj) in _REDACTED_ID_SET.get():
             self.current_tag_count += 1
             span.set_tag(key, "redacted")
             return
