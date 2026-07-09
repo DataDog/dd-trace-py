@@ -83,6 +83,7 @@ def test_fast_copy_memory_disabled():
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_memory_enabled",
@@ -160,6 +161,7 @@ def test_fast_copy_memory_enabled() -> None:
         assert saw_upgrade, "Expected safe_memcpy to stay active when warmup is skipped"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_reinstall_during_warmup",
@@ -199,6 +201,7 @@ def test_fast_copy_reinstall_segv_handler_works_during_warmup() -> None:
     print("OK")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_takeover_fallback",
@@ -390,6 +393,6 @@ def test_fork_pauses_sampler_before_safe_memcpy() -> None:
             _, status = os.waitpid(pid, 0)
             assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, f"child failed (status={status})"
             assert _stack._take_prefork_pause_observation() is True, "prefork did not pause the sampler"
-            assert _stack.sampling_paused() is False, "parent sampler must resume after fork"
+            assert _stack._sampling_paused() is False, "parent sampler must resume after fork"
     finally:
         p.stop()
