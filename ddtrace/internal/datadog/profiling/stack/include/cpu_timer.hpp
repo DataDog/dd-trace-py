@@ -31,7 +31,7 @@ struct DebugStats
     uint64_t timer_syscall_failures = 0;
     uint64_t accepted_signal_oob_tid_count = 0;
     uint64_t handler_hijack_disable_count = 0;
-    uint64_t fast_copy_conflict_count = 0;
+    uint64_t health_disable_count = 0;
     uint64_t dropped_count = 0;
     uint64_t dropped_cpu_ns = 0;
     uint64_t capture_failed_count = 0;

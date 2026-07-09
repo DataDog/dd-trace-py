@@ -390,7 +390,7 @@ stack_cpu_timer_debug_stats(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args)
         set_debug_stat(dict, "timer_syscall_failures", stats.timer_syscall_failures) != 0 ||
         set_debug_stat(dict, "accepted_signal_oob_tid_count", stats.accepted_signal_oob_tid_count) != 0 ||
         set_debug_stat(dict, "handler_hijack_disable_count", stats.handler_hijack_disable_count) != 0 ||
-        set_debug_stat(dict, "fast_copy_conflict_count", stats.fast_copy_conflict_count) != 0 ||
+        set_debug_stat(dict, "health_disable_count", stats.health_disable_count) != 0 ||
         set_debug_stat(dict, "dropped_count", stats.dropped_count) != 0 ||
         set_debug_stat(dict, "dropped_cpu_ns", stats.dropped_cpu_ns) != 0 ||
         set_debug_stat(dict, "capture_failed_count", stats.capture_failed_count) != 0 ||

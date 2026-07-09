@@ -99,6 +99,9 @@ Current mitigations:
   blocks off-CPU where the per-thread CPU timer does not advance. They pass
   (no `EINTR`), which is the recorded result for the current Linux targets.
 - Run native-heavy ecosystem workloads before enabling this more broadly.
+- Permanently disable CPU-timer mode if health windows show a sustained high
+  rate of capture failures or ring overflows. This keeps pathological
+  environments from emitting failure-only timer traffic indefinitely.
 
 Required hardening before considering broader rollout:
 
@@ -120,7 +123,9 @@ Required hardening before considering broader rollout:
    thread CPU clock, it already conserves the CPU consumed during coalesced
    expirations, so overruns are not used to weight samples (doing so would
    double-count CPU). A rising overrun rate indicates the handler or interval is
-   dropping sampling resolution and is a cue to widen the interval.
+   dropping sampling resolution and is a cue to widen the interval. Sustained
+   high capture-failure or ring-overflow windows disable CPU-timer mode and are
+   reported with `health_disable_count`.
 4. Keep the 2 ms minimum interval until the native syscall and ecosystem tests
    show that a lower interval is safe. Do not expose the interval as public API
    while this remains experimental.
