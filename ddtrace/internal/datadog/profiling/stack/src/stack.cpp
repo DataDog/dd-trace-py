@@ -916,7 +916,6 @@ stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(arg
 static PyObject*
 stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
 {
-    // Test-only: shrink the fast-copy warmup; must be set before the sampler starts.
     double seconds_value = 0.0;
 
     if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
