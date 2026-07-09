@@ -79,21 +79,31 @@ Current mitigations:
   `test_cpu_timer_syscall_readv_loop_does_not_surface_eintr`.
 - Cover pure native pthread behavior with
   `test_cpu_timer_does_not_arm_raw_pthread_that_never_enters_python`.
-- Keep a native syscall hazard reproducer in
+- Keep native syscall hazard reproducers in
   `tests/profiling/cpu_timer_native_syscall_hazard_app.py`. The associated
   xfail,
   `test_cpu_timer_raw_native_ppoll_without_eintr_retry_is_not_interrupted`,
   demonstrates that a Python-visible native function can accumulate a pending
   CPU timer `SIGPROF`, atomically unblock it inside raw `ppoll`, and observe
   `EINTR` if it does not retry.
+- Cover the `read`/`readv` and `nanosleep`/`clock_nanosleep` variants with
+  `test_cpu_timer_raw_native_read_without_eintr_retry_is_not_interrupted` and
+  `test_cpu_timer_raw_native_nanosleep_without_eintr_retry_is_not_interrupted`.
+  These record that, unlike `ppoll`, those syscalls take no signal mask, so
+  there is no atomic unblock-inside-the-syscall race: the pending `SIGPROF` is
+  delivered when it is unblocked, before the syscall, and the syscall then
+  blocks off-CPU where the per-thread CPU timer does not advance. They pass
+  (no `EINTR`), which is the recorded result for the current Linux targets.
 - Run native-heavy ecosystem workloads before enabling this more broadly.
 
 Required hardening before considering broader rollout:
 
-1. Expand native extension syscall coverage. The current branch has a raw
-   `ppoll` reproducer; add at least `read` or `readv` and `nanosleep` or
-   `clock_nanosleep` variants. Record whether `EINTR` can surface when the
-   extension does not retry it.
+1. Expand native extension syscall coverage. Done for the initial set: raw
+   `ppoll` (atomic unblock inside the syscall, surfaces `EINTR`, xfail) plus
+   `read`/`readv` and `nanosleep`/`clock_nanosleep` (no signal-mask argument,
+   do not surface `EINTR` on the current Linux targets). Extend to further
+   syscalls (for example `recv`/`sendmsg`, `futex`-backed waits) if ecosystem
+   testing shows a concrete gap.
 2. Add event-loop and networking stress coverage with CPU timer enabled,
    including asyncio, uvloop, Trio or AnyIO if available, and representative HTTP
    client/server workloads.

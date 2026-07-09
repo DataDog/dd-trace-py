@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
+#include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -116,6 +117,183 @@ py_raw_ppoll_with_pending_sigprof(PyObject* self, PyObject* args, PyObject* kwar
     return PyLong_FromLong(result);
 }
 
+struct pipe_writer_args
+{
+    int write_fd;
+    long delay_ms;
+};
+
+static void*
+delayed_pipe_writer(void* opaque)
+{
+    struct pipe_writer_args* args = (struct pipe_writer_args*)opaque;
+    struct timespec ts;
+    ts.tv_sec = args->delay_ms / 1000;
+    ts.tv_nsec = (args->delay_ms % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
+    const char byte = 'x';
+    ssize_t written = write(args->write_fd, &byte, 1);
+    (void)written;
+    return NULL;
+}
+
+/*
+ * Unlike ppoll, read/readv take no signal mask, so there is no atomic
+ * unblock-inside-the-syscall race. A pending SIGPROF that we unblock with
+ * pthread_sigmask is delivered before read is entered, and the subsequent read
+ * blocks off-CPU, where a per-thread CPU timer does not advance. This models a
+ * native extension that does a blocking read without retrying EINTR, and lets
+ * the test record that a CPU timer does not surface EINTR here.
+ */
+static int
+raw_read_with_pending_sigprof_impl(long burn_ms, long timeout_ms, int use_readv)
+{
+    int fds[2];
+    if (pipe(fds) != 0) {
+        return errno;
+    }
+
+    sigset_t block_sigprof;
+    sigset_t old_mask;
+    sigemptyset(&block_sigprof);
+    sigaddset(&block_sigprof, SIGPROF);
+
+    int mask_rc = pthread_sigmask(SIG_BLOCK, &block_sigprof, &old_mask);
+    if (mask_rc != 0) {
+        close(fds[0]);
+        close(fds[1]);
+        return mask_rc;
+    }
+
+    burn_thread_cpu_ms(burn_ms);
+
+    /* Watchdog writer so the blocking read cannot hang the test. */
+    pthread_t writer;
+    struct pipe_writer_args writer_args;
+    writer_args.write_fd = fds[1];
+    writer_args.delay_ms = timeout_ms;
+    int have_writer = (pthread_create(&writer, NULL, delayed_pipe_writer, &writer_args) == 0);
+
+    /* Delivers the pending SIGPROF before read is entered. */
+    pthread_sigmask(SIG_SETMASK, &old_mask, NULL);
+
+    errno = 0;
+    char buf[1];
+    ssize_t rc;
+    if (use_readv) {
+        struct iovec iov;
+        iov.iov_base = buf;
+        iov.iov_len = sizeof(buf);
+        rc = readv(fds[0], &iov, 1);
+    } else {
+        rc = read(fds[0], buf, sizeof(buf));
+    }
+    const int saved_errno = errno;
+
+    if (have_writer) {
+        pthread_join(writer, NULL);
+    }
+    close(fds[0]);
+    close(fds[1]);
+
+    if (rc == -1) {
+        return saved_errno;
+    }
+    return 0;
+}
+
+static PyObject*
+py_raw_read_with_pending_sigprof(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    long burn_ms = 50;
+    long timeout_ms = 200;
+    int release_gil = 1;
+    int use_readv = 0;
+    static char* kwlist[] = { "burn_ms", "timeout_ms", "release_gil", "use_readv", NULL };
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|llpp", kwlist, &burn_ms, &timeout_ms, &release_gil, &use_readv)) {
+        return NULL;
+    }
+
+    int result;
+    if (release_gil) {
+        Py_BEGIN_ALLOW_THREADS result = raw_read_with_pending_sigprof_impl(burn_ms, timeout_ms, use_readv);
+        Py_END_ALLOW_THREADS
+    } else {
+        result = raw_read_with_pending_sigprof_impl(burn_ms, timeout_ms, use_readv);
+    }
+
+    return PyLong_FromLong(result);
+}
+
+/*
+ * nanosleep/clock_nanosleep also take no signal mask. The pending SIGPROF is
+ * delivered when it is unblocked, before the sleep begins, and the sleep itself
+ * is off-CPU so the per-thread CPU timer does not advance during it.
+ */
+static int
+raw_nanosleep_with_pending_sigprof_impl(long burn_ms, long timeout_ms, int use_clock_nanosleep)
+{
+    sigset_t block_sigprof;
+    sigset_t old_mask;
+    sigemptyset(&block_sigprof);
+    sigaddset(&block_sigprof, SIGPROF);
+
+    int mask_rc = pthread_sigmask(SIG_BLOCK, &block_sigprof, &old_mask);
+    if (mask_rc != 0) {
+        return mask_rc;
+    }
+
+    burn_thread_cpu_ms(burn_ms);
+
+    /* Delivers the pending SIGPROF before the sleep is entered. */
+    pthread_sigmask(SIG_SETMASK, &old_mask, NULL);
+
+    struct timespec req;
+    req.tv_sec = timeout_ms / 1000;
+    req.tv_nsec = (timeout_ms % 1000) * 1000000L;
+
+    if (use_clock_nanosleep) {
+        /* clock_nanosleep returns the error number directly and does not set errno. */
+        return clock_nanosleep(CLOCK_MONOTONIC, 0, &req, NULL);
+    }
+
+    struct timespec rem;
+    errno = 0;
+    int rc = nanosleep(&req, &rem);
+    const int saved_errno = errno;
+    if (rc == -1) {
+        return saved_errno;
+    }
+    return 0;
+}
+
+static PyObject*
+py_raw_nanosleep_with_pending_sigprof(PyObject* self, PyObject* args, PyObject* kwargs)
+{
+    long burn_ms = 50;
+    long timeout_ms = 200;
+    int release_gil = 1;
+    int use_clock_nanosleep = 0;
+    static char* kwlist[] = { "burn_ms", "timeout_ms", "release_gil", "use_clock_nanosleep", NULL };
+
+    if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|llpp", kwlist, &burn_ms, &timeout_ms, &release_gil, &use_clock_nanosleep)) {
+        return NULL;
+    }
+
+    int result;
+    if (release_gil) {
+        Py_BEGIN_ALLOW_THREADS result =
+          raw_nanosleep_with_pending_sigprof_impl(burn_ms, timeout_ms, use_clock_nanosleep);
+        Py_END_ALLOW_THREADS
+    } else {
+        result = raw_nanosleep_with_pending_sigprof_impl(burn_ms, timeout_ms, use_clock_nanosleep);
+    }
+
+    return PyLong_FromLong(result);
+}
+
 struct raw_pthread_args
 {
     long burn_ms;
@@ -157,6 +335,14 @@ static PyMethodDef module_methods[] = {
       (PyCFunction)py_raw_ppoll_with_pending_sigprof,
       METH_VARARGS | METH_KEYWORDS,
       "Block SIGPROF, burn thread CPU, then atomically unblock SIGPROF inside ppoll without retrying EINTR." },
+    { "raw_read_with_pending_sigprof",
+      (PyCFunction)py_raw_read_with_pending_sigprof,
+      METH_VARARGS | METH_KEYWORDS,
+      "Block SIGPROF, burn thread CPU, unblock SIGPROF, then blocking read/readv without retrying EINTR." },
+    { "raw_nanosleep_with_pending_sigprof",
+      (PyCFunction)py_raw_nanosleep_with_pending_sigprof,
+      METH_VARARGS | METH_KEYWORDS,
+      "Block SIGPROF, burn thread CPU, unblock SIGPROF, then nanosleep/clock_nanosleep without retrying EINTR." },
     { "raw_pthread_burn_cpu",
       py_raw_pthread_burn_cpu,
       METH_VARARGS,

@@ -8,6 +8,10 @@ scenarios that model native code the Python profiler cannot rewrite:
 - a Python-visible native function that blocks SIGPROF, accumulates a pending CPU
   timer signal, then atomically unblocks SIGPROF inside ppoll without retrying
   EINTR
+- Python-visible native functions that do the same block/accumulate/unblock dance
+  but then call read/readv or nanosleep/clock_nanosleep, none of which take a
+  signal mask, so the pending SIGPROF is delivered before the syscall and the
+  off-CPU syscall does not surface EINTR
 
 Run manually, for example:
 
@@ -133,6 +137,70 @@ def run_ppoll_scenario(build_dir: Path, burn_ms: int = 50, timeout_ms: int = 500
     }
 
 
+def run_read_scenario(
+    build_dir: Path, burn_ms: int = 50, timeout_ms: int = 200, use_readv: bool = False
+) -> dict[str, Any]:
+    native = import_native_module(build_dir)
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        time.sleep(0.05)
+        before = stack._cpu_timer_debug_stats()
+        err = native.raw_read_with_pending_sigprof(
+            burn_ms=burn_ms,
+            timeout_ms=timeout_ms,
+            release_gil=True,
+            use_readv=use_readv,
+        )
+        after = stack._cpu_timer_debug_stats()
+    finally:
+        p.stop()
+
+    return {
+        "scenario": "readv" if use_readv else "read",
+        "errno": err,
+        "errno_name": errno.errorcode.get(err),
+        "before": before,
+        "after": after,
+    }
+
+
+def run_nanosleep_scenario(
+    build_dir: Path, burn_ms: int = 50, timeout_ms: int = 200, use_clock_nanosleep: bool = False
+) -> dict[str, Any]:
+    native = import_native_module(build_dir)
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        time.sleep(0.05)
+        before = stack._cpu_timer_debug_stats()
+        err = native.raw_nanosleep_with_pending_sigprof(
+            burn_ms=burn_ms,
+            timeout_ms=timeout_ms,
+            release_gil=True,
+            use_clock_nanosleep=use_clock_nanosleep,
+        )
+        after = stack._cpu_timer_debug_stats()
+    finally:
+        p.stop()
+
+    return {
+        "scenario": "clock-nanosleep" if use_clock_nanosleep else "nanosleep",
+        "errno": err,
+        "errno_name": errno.errorcode.get(err),
+        "before": before,
+        "after": after,
+    }
+
+
 def run_raw_pthread_scenario(build_dir: Path, burn_ms: int = 250) -> dict[str, Any]:
     native = import_native_module(build_dir)
 
@@ -159,10 +227,14 @@ def run_raw_pthread_scenario(build_dir: Path, burn_ms: int = 250) -> dict[str, A
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--scenario", choices=("ppoll", "raw-pthread"), required=True)
+    parser.add_argument(
+        "--scenario",
+        choices=("ppoll", "raw-pthread", "read", "readv", "nanosleep", "clock-nanosleep"),
+        required=True,
+    )
     parser.add_argument("--build-dir", type=Path)
     parser.add_argument("--burn-ms", type=int)
-    parser.add_argument("--timeout-ms", type=int, default=500)
+    parser.add_argument("--timeout-ms", type=int)
     parser.add_argument(
         "--expect-no-eintr",
         action="store_true",
@@ -182,7 +254,21 @@ def main(argv: list[str] | None = None) -> int:
             result = run_ppoll_scenario(
                 build_dir,
                 burn_ms=args.burn_ms if args.burn_ms is not None else 50,
-                timeout_ms=args.timeout_ms,
+                timeout_ms=args.timeout_ms if args.timeout_ms is not None else 500,
+            )
+        elif args.scenario in ("read", "readv"):
+            result = run_read_scenario(
+                build_dir,
+                burn_ms=args.burn_ms if args.burn_ms is not None else 50,
+                timeout_ms=args.timeout_ms if args.timeout_ms is not None else 200,
+                use_readv=args.scenario == "readv",
+            )
+        elif args.scenario in ("nanosleep", "clock-nanosleep"):
+            result = run_nanosleep_scenario(
+                build_dir,
+                burn_ms=args.burn_ms if args.burn_ms is not None else 50,
+                timeout_ms=args.timeout_ms if args.timeout_ms is not None else 200,
+                use_clock_nanosleep=args.scenario == "clock-nanosleep",
             )
         else:
             result = run_raw_pthread_scenario(
