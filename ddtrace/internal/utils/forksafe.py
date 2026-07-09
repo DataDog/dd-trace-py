@@ -170,4 +170,31 @@ def Event() -> _unpatched.threading_Event:
     return ResetObject(_unpatched.threading_Event)
 
 
-__all__ = list(locals().keys())
+__all__ = [
+    "Event",
+    "Lock",
+    "_reset_objects",
+    "_registry",
+    "_registry_before_fork",
+    "_registry_after_parent",
+    "_soft",
+    "_forked",
+    "_fork_child",
+    "set_forked",
+    "has_forked",
+    "set_fork_child",
+    "is_fork_child",
+    "run_hooks",
+    "ddtrace_after_in_child",
+    "ddtrace_after_in_parent",
+    "ddtrace_before_fork",
+    "register_before_fork",
+    "register",
+    "register_after_parent",
+    "unregister",
+    "unregister_parent",
+    "unregister_before_fork",
+    "ResetObject",
+    "_resetable_objects",
+    "_reset_objects",
+]
