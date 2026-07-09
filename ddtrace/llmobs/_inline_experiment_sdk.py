@@ -90,10 +90,10 @@ def dataset_url(dataset: Any) -> Optional[str]:
 
 
 def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None) -> Optional[str]:
-    """URL for the Experiments compare view: the ``current`` run diffed against ``baseline``.
+    """URL for the Experiments compare view: the ``baseline`` run with ``current`` as the target.
 
-    The compare view is the current experiment's page with the baseline as the compare
-    target: ``/llm/experiments/{current}?compareTargetExperimentId={baseline}&project=...``.
+    The baseline experiment is the page (first id); the current run is the compare target:
+    ``/llm/experiments/{baseline}?compareTargetExperimentId={current}&project=...``.
     """
     try:
         from ddtrace.llmobs._experiment import _get_base_url
@@ -101,7 +101,7 @@ def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None)
         b, c = _experiment_id(baseline), _experiment_id(current)
         if not (b and c):
             return None
-        url = "%s/llm/experiments/%s?compareTargetExperimentId=%s" % (_get_base_url(), c, b)
+        url = "%s/llm/experiments/%s?compareTargetExperimentId=%s" % (_get_base_url(), b, c)
         if project_name:
             url += "&project=%s" % quote(project_name, safe="")
         return url
