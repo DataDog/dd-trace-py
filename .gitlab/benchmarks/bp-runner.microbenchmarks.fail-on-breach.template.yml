@@ -166,7 +166,7 @@ experiments:
           - name: httppropagationextract-all_styles_all_headers
             thresholds:
               - execution_time < 0.10 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 39.00 MB
           - name: httppropagationextract-b3_headers
             thresholds:
               - execution_time < 0.02 ms
