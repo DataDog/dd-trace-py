@@ -1,4 +1,5 @@
 import atexit
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import json
 import logging
@@ -146,34 +147,51 @@ class SessionManager:
 
         self.show_settings()
 
-        self.known_tests = self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+        # Fetch known tests, test management properties, and upload git data in parallel.
+        # These are independent network calls that can safely run concurrently:
+        # - BackendConnector is threading.local, so each thread gets its own connection.
+        # - configuration_errors writes use non-overlapping keys per method.
+        self.atf_all_flaky_tests: bool = asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false"))
 
-        if asbool(env.get("_DD_TEST_MANAGEMENT_ATF_ALL_FLAKY", "false")):
-            tm_properties = self.api_client.get_test_management_properties(
+        if self.atf_all_flaky_tests:
+            # In ATF-all-flaky mode only test management properties are needed: known tests and
+            # skippable items play no role, so skip those network calls entirely.
+            self.test_properties: dict[TestRef, TestProperties] = self.api_client.get_test_management_properties(
                 statuses=("active", "quarantined", "disabled")
             )
-            self.atf_all_flaky_tests: bool = True
-            self.test_properties: dict[TestRef, TestProperties] = tm_properties
-            log.info(
-                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
-                len(tm_properties),
-            )
-        else:
-            self.atf_all_flaky_tests = False
-            self.test_properties = (
-                self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
-            )
-
-        self.upload_git_data()
-        if self.settings.itr_enabled:
-            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
-        else:
+            self.known_tests: set[TestRef] = set()
             self.skippable_items = set()
             self.itr_correlation_id = None
-        if self.settings.require_git:
-            # Fetch settings again after uploading git data, as it may change ITR settings.
-            self.settings = self.api_client.get_settings()
-            self.override_settings_with_env_vars()
+            log.info(
+                "ATF-all-flaky mode: %d flaky tests will run with attempt_to_fix, all others will be omitted",
+                len(self.test_properties),
+            )
+        else:
+
+            def _fetch_known_tests() -> set[TestRef]:
+                return self.api_client.get_known_tests() if self.settings.known_tests_enabled else set()
+
+            def _fetch_test_management_properties() -> dict[TestRef, TestProperties]:
+                return self.api_client.get_test_management_properties() if self.settings.test_management.enabled else {}
+
+            def _upload_git_and_fetch_skippable() -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+                self.upload_git_data()
+                if self.settings.require_git:
+                    # Fetch settings again after uploading git data, as it may change ITR settings.
+                    self.settings = self.api_client.get_settings()
+                    self.override_settings_with_env_vars()
+                if self.settings.itr_enabled:
+                    return self.api_client.get_skippable_tests()
+                return set(), None
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                known_tests_future = executor.submit(_fetch_known_tests)
+                tm_properties_future = executor.submit(_fetch_test_management_properties)
+                skippable_future = executor.submit(_upload_git_and_fetch_skippable)
+
+                self.known_tests = known_tests_future.result()
+                self.test_properties = tm_properties_future.result()
+                self.skippable_items, self.itr_correlation_id = skippable_future.result()
 
         # Snapshot configuration errors before closing the client.
         self.configuration_errors = dict(self.api_client.configuration_errors)
