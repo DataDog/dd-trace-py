@@ -66,7 +66,6 @@ class AWSPayloadTagging:
     ]
 
     def __init__(self):
-        self.current_tag_count = 0
         self.validated = False
         self.request_redaction_paths = None
         self.response_redaction_paths = None
@@ -74,9 +73,6 @@ class AWSPayloadTagging:
         # was a meaningful source of overhead.
         self._parsed_request_expressions = []
         self._parsed_response_expressions = []
-        # id()s of values matched by redaction expressions for the current payload. Rebuilt each
-        # call; stored on the instance so _tag_object can check it without an extra parameter.
-        self._current_redacted_ids: set[int] = set()
 
     def expand_payload_as_tags(self, span: Span, result: dict[str, Any], key: str) -> None:
         """
@@ -105,7 +101,7 @@ class AWSPayloadTagging:
         #
         # Only the expression set matching the payload side is evaluated — request paths have no
         # business running against response payloads and vice versa.
-        self._current_redacted_ids = set()
+        redacted_ids: set[int] = set()
         exprs = (
             self._parsed_request_expressions
             if key.startswith("aws.request")
@@ -113,14 +109,14 @@ class AWSPayloadTagging:
         )
         for expr in exprs:
             for match in expr.find(result):
-                self._current_redacted_ids.add(id(match.value))
+                redacted_ids.add(id(match.value))
 
-        self.current_tag_count = 0
+        tag_count = 0
         # flatten the payload into span tags
         for key2, value in result.items():
             escaped_sub_key = key2.replace(".", "\\.")
-            self._tag_object(span, f"{key}.{escaped_sub_key}", value)
-            if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
+            tag_count = self._tag_object(span, f"{key}.{escaped_sub_key}", value, 0, tag_count, redacted_ids)
+            if tag_count >= config.botocore.get("payload_tagging_max_tags"):
                 return
 
     def _should_json_parse(self, obj: Any) -> bool:
@@ -187,7 +183,9 @@ class AWSPayloadTagging:
 
         return []
 
-    def _tag_object(self, span: Span, key: str, obj: Any, depth: int = 0) -> None:
+    def _tag_object(
+        self, span: Span, key: str, obj: Any, depth: int, tag_count: int, redacted_ids: set[int]
+    ) -> int:
         """
         Recursively expands the given AWS payload object and adds the values as flattened Span tags.
         It is not expected that AWS Payloads will be deeply nested so the number of recursive calls should be low.
@@ -208,53 +206,48 @@ class AWSPayloadTagging:
         "aws.response.body.HTTPHeaders.content-length": "5"
         """
         # if we've hit the maximum allowed tags, mark the expansion as incomplete
-        if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
+        if tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
-            return
-        if id(obj) in self._current_redacted_ids:
-            self.current_tag_count += 1
+            return tag_count
+        if id(obj) in redacted_ids:
             span.set_tag(key, "redacted")
-            return
+            return tag_count + 1
         if obj is None:
-            self.current_tag_count += 1
             span.set_tag(key, obj)
-            return
+            return tag_count + 1
         if depth >= config.botocore.get("payload_tagging_max_depth"):
-            self.current_tag_count += 1
             span.set_tag(
                 key, str(obj)[:_MAX_TAG_VALUE_LENGTH]
             )  # at the maximum depth - set the tag without further expansion
-            return
+            return tag_count + 1
         depth += 1
         if self._should_json_parse(obj):
             try:
                 parsed = json.loads(obj)
-                self._tag_object(span, key, parsed, depth)
+                return self._tag_object(span, key, parsed, depth, tag_count, redacted_ids)
             except ValueError:
-                self.current_tag_count += 1
                 span.set_tag(key, str(obj)[:_MAX_TAG_VALUE_LENGTH])
-            return
+                return tag_count + 1
         if isinstance(obj, (int, float, Decimal)):
-            self.current_tag_count += 1
             span.set_tag(key, str(obj))
-            return
+            return tag_count + 1
         if isinstance(obj, list):
             for k, v in enumerate(obj):
-                self._tag_object(span, f"{key}.{k}", v, depth)
-            return
+                tag_count = self._tag_object(span, f"{key}.{k}", v, depth, tag_count, redacted_ids)
+            return tag_count
         if hasattr(obj, "items"):
             for k, v in obj.items():
                 escaped_key = str(k).replace(".", "\\.")
-                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
-            return
+                tag_count = self._tag_object(span, f"{key}.{escaped_key}", v, depth, tag_count, redacted_ids)
+            return tag_count
         if hasattr(obj, "to_dict"):
             for k, v in obj.to_dict().items():
                 escaped_key = str(k).replace(".", "\\.")
-                self._tag_object(span, f"{key}.{escaped_key}", v, depth)
-            return
+                tag_count = self._tag_object(span, f"{key}.{escaped_key}", v, depth, tag_count, redacted_ids)
+            return tag_count
         try:
             value_as_str = str(obj)
         except Exception:
             value_as_str = "UNKNOWN"
-        self.current_tag_count += 1
         span.set_tag(key, value_as_str)
+        return tag_count + 1
