@@ -74,6 +74,9 @@ class Sampler
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
+    // Fast-copy startup warmup in seconds.
+    double fast_copy_warmup_seconds = 15.0;
+
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
@@ -120,6 +123,8 @@ class Sampler
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
+
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
