@@ -275,11 +275,78 @@ def test_replay_scores_attached_evaluators_only_when_enabled():
     assert on["regression_match"] == "match" and on["at_least_as_long"] == "pass"
 
 
-def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
+class _FakeDataset:
+    def __init__(self, records):
+        self._records = [dict(r) for r in records]
+        self.pushed = False
+        self.url = "http://ds"
+        self._id = "ds1"
+
+    def __iter__(self):
+        return iter(self._records)
+
+    def __getitem__(self, i):
+        return self._records[i]
+
+    def update(self, i, rec):
+        self._records[i].update(rec)
+
+    def push(self):
+        self.pushed = True
+
+
+def test_publish_baseline_runs_real_subject_and_backfills_expected(monkeypatch):
+    state: dict = {}
+
+    class _Exp:
+        def __init__(self, name, task, evaluators):
+            self.name, self._task, self.evaluators, self._id = name, task, evaluators, "id-" + name
+
+        def run(self):
+            # emulate the engine running the task over each dataset input (records cases in CAPTURE)
+            for r in state["dataset"]._records:
+                self._task(r["input_data"], None)
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, project_name=None, description="", records=None):
+            state["dataset_name"] = name
+            state["dataset"] = _FakeDataset(records or [])
+            return state["dataset"]
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            e = _Exp(name, task, evaluators)
+            state.setdefault("exps", []).append(e)
+            return e
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="portfolio", inputs=["tickers"], output=lambda ret: ret[0])
+    def analyze(tickers):
+        return ({"tickers": tickers, "n": len(tickers)}, {"span_id": "s", "trace_id": "t"})
+
+    result = sdk.publish_baseline("portfolio", [{"tickers": ["NVDA"]}, {"tickers": ["AAPL", "MSFT"]}])
+
+    # dataset created from inputs; one baseline experiment; no regression_match guard on baseline
+    assert state["dataset_name"] == "inline-experiment-portfolio"
+    assert [e.name for e in state["exps"]] == ["inline-portfolio-baseline"]
+    assert all(getattr(e, "__name__", "") != "regression_match" for e in (state["exps"][0].evaluators or []))
+    # expected_output backfilled from the real run's captured outputs, then pushed
+    recs = state["dataset"]._records
+    assert recs[0]["expected_output"] == {"tickers": ["NVDA"], "n": 1}
+    assert recs[1]["expected_output"] == {"tickers": ["AAPL", "MSFT"], "n": 2}
+    assert state["dataset"].pushed is True
+    assert result["baseline"]._id == "id-inline-portfolio-baseline"
+
+
+def test_publish_current_stacks_guard_and_reuses_shared_dataset(monkeypatch):
     captured: dict = {}
 
     class _Exp:
-        url = "http://exp"
+        _id = "cur"
 
         def run(self):
             pass
@@ -288,37 +355,36 @@ def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
         enabled = True
 
         @staticmethod
-        def create_dataset(name, **kw):
+        def pull_dataset(name, project_name=None):
+            captured["pulled"] = name  # reuse the dataset published at capture
             return object()
 
         @staticmethod
         def experiment(name, task, dataset, evaluators=None, **kw):
-            captured["evaluators"] = evaluators
+            captured["name"], captured["evaluators"] = name, evaluators
             return _Exp()
 
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
 
     def my_check(input_data, output_data, expected_output):
-        return output_data == expected_output
+        return True
 
     @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [my_check])
     def f(x):
         return x
 
-    sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural)
+    sdk.publish_current("e", [{"input": {"x": 1}, "output": 1}], runner.structural)
+    assert captured["pulled"] == "inline-experiment-e"  # reused, not recreated
+    assert captured["name"] == "inline-e"
     evs = captured["evaluators"]
-    assert evs[0].__name__ == "regression_match"  # always-on guard first
-    assert evs[1] is my_check  # user evaluator stacked on top
+    assert evs[0].__name__ == "regression_match" and evs[1] is my_check  # guard first, user stacked
 
 
-def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
-    created = []
-    datasets = []
+def test_publish_current_falls_back_to_creating_dataset(monkeypatch):
+    captured: dict = {}
 
     class _Exp:
-        def __init__(self, name):
-            self.name = name
-            self._id = "id-" + name
+        _id = "cur"
 
         def run(self):
             pass
@@ -327,14 +393,17 @@ def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
         enabled = True
 
         @staticmethod
-        def create_dataset(name, **kw):
-            datasets.append(name)
+        def pull_dataset(name, project_name=None):
+            raise RuntimeError("no baseline dataset")
+
+        @staticmethod
+        def create_dataset(name, project_name=None, description="", records=None):
+            captured["records"] = records
             return object()
 
         @staticmethod
         def experiment(name, task, dataset, evaluators=None, **kw):
-            created.append((name, task))
-            return _Exp(name)
+            return _Exp()
 
     monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
 
@@ -342,51 +411,22 @@ def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
     def f(x):
         return x
 
-    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 11}], runner.structural)
-
-    names = [n for n, _ in created]
-    assert names == ["inline-e-baseline", "inline-e"]  # baseline reference first, then current
-    assert datasets == ["inline-experiment-e"]  # both runs share one dataset
-
-    baseline_task = created[0][1]  # the baseline task echoes the captured output (no re-run)
-    assert baseline_task({"x": 1}, None) == 11
-
-    # compare view = baseline experiment page (first id) with current as the compare target
-    cu = sdk.compare_url(result["baseline"], result["current"], project_name="proj x")
-    assert cu and "/llm/experiments/id-inline-e-baseline?compareTargetExperimentId=id-inline-e" in cu
-    assert cu.endswith("&project=proj%20x")  # project is url-encoded
+    sdk.publish_current("e", [{"input": {"x": 1}, "output": 9}], runner.structural)
+    assert captured["records"] == [{"input_data": {"x": 1}, "expected_output": 9}]
 
 
-def test_publish_baseline_can_be_disabled(monkeypatch):
-    created = []
+def test_compare_url_from_ids():
+    u = sdk.compare_url_from_ids("BASE", "CUR", project_name="proj x")
+    assert u.endswith("/llm/experiments/BASE?compareTargetExperimentId=CUR&project=proj%20x")
+    assert sdk.compare_url_from_ids(None, "CUR") is None  # need both ids
 
-    class _E:
-        _id = "x"
 
-        def run(self):
-            pass
-
-    class _FakeLLMObs:
-        enabled = True
-
-        @staticmethod
-        def create_dataset(name, **kw):
-            return object()
-
-        @staticmethod
-        def experiment(name, task, dataset, evaluators=None, **kw):
-            created.append(name)
-            return _E()
-
-    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
-
-    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
-    def f(x):
-        return x
-
-    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural, publish_baseline=False)
-    assert created == ["inline-e"]  # only the current run, no baseline
-    assert result["baseline"] is None
+def test_publish_state_sidecar(tmp_path):
+    base = str(tmp_path / "b.json")
+    runner.save_publish_state(base, "portfolio", baseline_experiment_id="X")
+    runner.save_publish_state(base, "portfolio", dataset_id="D")  # merges into the same entry
+    assert runner.load_publish_state(base, "portfolio") == {"baseline_experiment_id": "X", "dataset_id": "D"}
+    assert runner.load_publish_state(base, "missing") is None
 
 
 # --- CLI helpers ----------------------------------------------------------- #
@@ -394,6 +434,8 @@ def test_cli_arg_parser():
     p = cli._build_arg_parser()
     a = p.parse_args(["capture", "myapp:gen", "--out", "b.json"])
     assert a.command == "capture" and a.target == "myapp:gen" and a.out == "b.json"
+    a = p.parse_args(["capture", "myapp", "--publish", "--project", "p", "--experiment-name", "e"])
+    assert a.publish is True and a.project == "p" and a.experiment_name == "e"
     a = p.parse_args(["replay", "myapp", "--ignore", "a,b"])
     assert a.command == "replay" and a.ignore == "a,b" and a.comparator == "structural"
     a = p.parse_args(["replay", "myapp", "--publish", "--project", "p", "--ml-app", "m"])

@@ -60,20 +60,8 @@ def _make_evaluator(comparator: Callable[[Any, Any], bool]) -> Callable[..., Any
     return as_evaluator(comparator, name="regression_match")
 
 
-def _baseline_task(cases: list[dict[str, Any]]) -> Callable[..., Any]:
-    """A task that echoes the captured (recorded) output for each case.
-
-    This is the **baseline reference run**: it re-runs nothing and makes no model calls —
-    it just returns what capture recorded, keyed by the record's input. Publishing it as
-    its own experiment lets the Experiments *compare* view diff baseline vs the current
-    replay immediately, so a user sees value the moment they run ``--publish``.
-    """
-    by_input = {json.dumps(c["input"], sort_keys=True, default=str): c["output"] for c in cases}
-
-    def task(input_data: Any, config: Any) -> Any:
-        return by_input.get(json.dumps(input_data, sort_keys=True, default=str))
-
-    return task
+def _dataset_name(name: str) -> str:
+    return "inline-experiment-%s" % name
 
 
 def experiment_url(experiment: Any) -> Optional[str]:
@@ -89,19 +77,19 @@ def dataset_url(dataset: Any) -> Optional[str]:
     return getattr(dataset, "url", None)
 
 
-def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None) -> Optional[str]:
-    """URL for the Experiments compare view: the ``baseline`` run with ``current`` as the target.
+def compare_url_from_ids(
+    baseline_id: Optional[str], current_id: Optional[str], project_name: Optional[str] = None
+) -> Optional[str]:
+    """URL for the Experiments compare view: baseline is the page, current the compare target.
 
-    The baseline experiment is the page (first id); the current run is the compare target:
-    ``/llm/experiments/{baseline}?compareTargetExperimentId={current}&project=...``.
+    ``/llm/experiments/{baseline}?compareTargetExperimentId={current}&project=...``
     """
     try:
         from ddtrace.llmobs._experiment import _get_base_url
 
-        b, c = _experiment_id(baseline), _experiment_id(current)
-        if not (b and c):
+        if not (baseline_id and current_id):
             return None
-        url = "%s/llm/experiments/%s?compareTargetExperimentId=%s" % (_get_base_url(), b, c)
+        url = "%s/llm/experiments/%s?compareTargetExperimentId=%s" % (_get_base_url(), baseline_id, current_id)
         if project_name:
             url += "&project=%s" % quote(project_name, safe="")
         return url
@@ -110,62 +98,112 @@ def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None)
         return None
 
 
-def run_as_experiment(
+def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None) -> Optional[str]:
+    """Compare-view URL from two experiment objects (baseline vs current)."""
+    return compare_url_from_ids(_experiment_id(baseline), _experiment_id(current), project_name)
+
+
+def _backfill_expected_output(dataset: Any, name: str) -> None:
+    """Set each dataset record's ``expected_output`` to the output captured for its input.
+
+    The baseline run (below) records ``(input, output)`` cases as it executes; matching them
+    back onto the dataset by input (order can differ under concurrency) makes the dataset the
+    shared golden reference, so a later ``current`` run's ``regression_match`` compares against
+    it. Best-effort — never fail the publish over a backfill hiccup.
+    """
+    from ddtrace.llmobs._inline_experiment import captured_cases
+
+    try:
+        by_input = {json.dumps(c["input"], sort_keys=True, default=str): c["output"] for c in captured_cases(name)}
+        changed = False
+        for i, record in enumerate(dataset):
+            key = json.dumps(record.get("input_data"), sort_keys=True, default=str)
+            if key in by_input:
+                dataset.update(i, {"expected_output": by_input[key]})
+                changed = True
+        if changed:
+            dataset.push()
+    except Exception:
+        log.debug("inline experiment: could not backfill baseline expected_output", exc_info=True)
+
+
+def publish_baseline(
     name: str,
-    cases: list[dict[str, Any]],
-    comparator: Callable[[Any, Any], bool],
-    experiment_name: Optional[str] = None,
+    inputs: list[dict[str, Any]],
     project_name: Optional[str] = None,
-    dataset_name: Optional[str] = None,
-    publish_baseline: bool = True,
+    experiment_name: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Create a Dataset from ``cases`` and publish it as LLM Obs experiment(s).
+    """``capture --publish``: run the REAL boundary as the ``<name>-baseline`` experiment.
 
-    Publishes two runs over the same dataset so the compare view has something to diff
-    immediately:
-      * ``baseline`` — echoes the captured outputs (no subject re-run, no model calls); the
-        known-good reference. Skipped when ``publish_baseline`` is False.
-      * ``current`` — replays the subject against the captured inputs (real re-execution).
-
-    Both are scored by the same evaluators (the always-on ``regression_match`` guard first,
-    then the subject's attached evaluators, resolved lazily here — never at import). Returns
-    ``{"current", "baseline", "dataset"}``. Requires ``LLMObs`` to be enabled.
+    Creates the dataset from ``inputs`` (kwargs dicts, e.g. ``{"tickers": [...]}``) and runs the
+    actual subject over them through the engine — a single real run, so the baseline carries
+    real spans + token/dollar cost. CAPTURE mode records the produced ``(input, output)`` cases
+    (read via ``captured_cases`` to persist locally), and the dataset's ``expected_output`` is
+    backfilled from them so a later ``current`` run compares against this baseline. Baseline
+    evaluators are the subject's attached evaluators only (no ``regression_match`` — there's
+    nothing to regress against yet). Returns ``{"baseline", "dataset"}``.
     """
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._experiment import DatasetRecordNew
 
-    records: list[DatasetRecordNew] = [{"input_data": c["input"], "expected_output": c["output"]} for c in cases]
+    records: list[DatasetRecordNew] = [{"input_data": inp} for inp in inputs]
     dataset = LLMObs.create_dataset(
-        dataset_name or ("inline-experiment-%s" % name),
+        _dataset_name(name),
         project_name=project_name,
-        description="Inline-experiment baseline for %r (captured locally)." % name,
+        description="Inline-experiment baseline for %r (captured from a real run)." % name,
         records=records,
     )
     spec = _REGISTRY.get(name, {})
-    evaluators = [_make_evaluator(comparator), *resolve_evaluators(spec.get("evaluators"))]
-    base_name = experiment_name or ("inline-%s" % name)
-
-    # Baseline reference run first (mode stays OFF — the task only echoes stored outputs,
-    # the subject is never invoked), so the compare view can diff it against `current`.
-    baseline = None
-    if publish_baseline:
-        baseline = LLMObs.experiment(
-            base_name + "-baseline",
-            _baseline_task(cases),
-            dataset,
-            evaluators=evaluators,
-            project_name=project_name,
-            tags={"source": "ddtrace-experiment", "inline_role": "baseline"},
-        )
-        baseline.run()
-
-    # Current run: replay the subject. REPLAY so an emit-shape end marker unwinds (set once;
-    # the engine may run tasks concurrently, and a single-function subject is unaffected).
-    current = LLMObs.experiment(
-        base_name,
+    baseline = LLMObs.experiment(
+        (experiment_name or ("inline-%s" % name)) + "-baseline",
         _make_task(name),
         dataset,
-        evaluators=evaluators,
+        evaluators=resolve_evaluators(spec.get("evaluators")),
+        project_name=project_name,
+        tags={"source": "ddtrace-experiment", "inline_role": "baseline"},
+    )
+    _set_mode(Mode.CAPTURE)  # record (input, output) cases as the real run executes
+    try:
+        baseline.run()
+    finally:
+        _set_mode(Mode.OFF)
+    _backfill_expected_output(dataset, name)
+    return {"baseline": baseline, "dataset": dataset}
+
+
+def publish_current(
+    name: str,
+    cases: list[dict[str, Any]],
+    comparator: Callable[[Any, Any], bool],
+    project_name: Optional[str] = None,
+    experiment_name: Optional[str] = None,
+) -> dict[str, Any]:
+    """``replay --publish``: run the CURRENT code as the ``<name>`` experiment.
+
+    Reuses the shared dataset published at capture (``pull_dataset``), falling back to building
+    it from ``cases`` if that fails. Scored by the ``regression_match`` guard plus the subject's
+    attached evaluators. Returns ``{"current", "dataset"}``.
+    """
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._experiment import DatasetRecordNew
+
+    try:
+        dataset = LLMObs.pull_dataset(_dataset_name(name), project_name=project_name)
+    except Exception:
+        log.debug("inline experiment: no baseline dataset to pull; building from local cases", exc_info=True)
+        records: list[DatasetRecordNew] = [{"input_data": c["input"], "expected_output": c["output"]} for c in cases]
+        dataset = LLMObs.create_dataset(
+            _dataset_name(name),
+            project_name=project_name,
+            description="Inline-experiment baseline for %r." % name,
+            records=records,
+        )
+    spec = _REGISTRY.get(name, {})
+    current = LLMObs.experiment(
+        experiment_name or ("inline-%s" % name),
+        _make_task(name),
+        dataset,
+        evaluators=[_make_evaluator(comparator), *resolve_evaluators(spec.get("evaluators"))],
         project_name=project_name,
         tags={"source": "ddtrace-experiment", "inline_role": "current"},
     )
@@ -174,4 +212,4 @@ def run_as_experiment(
         current.run()
     finally:
         _set_mode(Mode.OFF)
-    return {"current": current, "baseline": baseline, "dataset": dataset}
+    return {"current": current, "dataset": dataset}

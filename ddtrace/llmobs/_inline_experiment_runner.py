@@ -54,6 +54,36 @@ def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict[str, Any]:
     return data
 
 
+# Publish state (baseline experiment id, dataset name) is remembered between the separate
+# `capture --publish` and `replay --publish` invocations in a sidecar next to the baseline,
+# so replay can link the compare view to the baseline experiment capture published.
+def _publish_state_path(baseline_path: str) -> str:
+    return baseline_path + ".publish.json"
+
+
+def save_publish_state(baseline_path: str, name: str, **fields: Any) -> None:
+    path = _publish_state_path(baseline_path)
+    state: dict[str, Any] = {}
+    try:
+        with open(path) as f:
+            state = json.load(f)
+    except (OSError, ValueError):
+        state = {}
+    state[name] = {**state.get(name, {}), **fields}
+    with open(path, "w") as f:
+        json.dump(state, f, indent=2)
+
+
+def load_publish_state(baseline_path: str, name: str) -> Optional[dict[str, Any]]:
+    try:
+        with open(_publish_state_path(baseline_path)) as f:
+            state: dict[str, Any] = json.load(f)
+    except (OSError, ValueError):
+        return None
+    value = state.get(name)
+    return value if isinstance(value, dict) else None
+
+
 # --------------------------------------------------------------------------- #
 # Comparators — "is the new output equivalent to the recorded baseline?"
 # Real LLM output is non-deterministic, so `exact` reports CHANGED on every replay;

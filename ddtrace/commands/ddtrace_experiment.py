@@ -172,7 +172,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="also enable LLM Obs so the capture run's traces appear in the UI "
         "(needs DD_API_KEY or a Datadog agent); links each case to its trace",
     )
-    cap.add_argument("--ml-app", default=None, help="ml_app for --trace (default: $DD_LLMOBS_ML_APP)")
+    cap.add_argument("--ml-app", default=None, help="ml_app for --trace/--publish (default: $DD_LLMOBS_ML_APP)")
+    cap.add_argument(
+        "--publish",
+        action="store_true",
+        help="publish the capture as the baseline experiment (real run -> real spans + cost) "
+        "and a dataset in LLM Obs; requires the driver module to declare INPUTS (+ SUBJECT). "
+        "Without it, capture stays local (JSON only): no dataset, no cost, no compare.",
+    )
+    cap.add_argument("--project", default=None, help="project name for --publish")
+    cap.add_argument("--experiment-name", default=None, help="experiment name for --publish")
 
     rep = sub.add_parser("replay", parents=[common], help="replay the current code against a persisted baseline")
     rep.add_argument("target", help="module to import (registers the decorated subjects)")
@@ -233,6 +242,42 @@ def main() -> None:
         return
 
     if args.command == "capture":
+        if args.publish:
+            # Publish the capture AS the baseline experiment: run the real boundary through the
+            # engine over the driver's declared INPUTS (one real run -> real spans + cost), and
+            # a dataset. The module must declare INPUTS (+ SUBJECT); LLM Obs is enabled first.
+            ml_app: Optional[str] = _enable_llmobs(args.ml_app)
+            mod, _ = _import_target(args.target)  # registers subjects
+            inputs = getattr(mod, "INPUTS", None)
+            subject = getattr(mod, "SUBJECT", None)
+            registered = ie.registered_experiments()
+            if subject is None and len(registered) == 1:
+                subject = registered[0]
+            if not inputs or subject is None:
+                print(
+                    "capture --publish needs the driver module to declare INPUTS (a list of input "
+                    "dicts, e.g. [{'tickers': ['NVDA']}]) and SUBJECT (the experiment name).",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            from ddtrace.llmobs import _inline_experiment_sdk as sdk
+
+            published = sdk.publish_baseline(
+                subject, inputs, project_name=args.project, experiment_name=args.experiment_name
+            )
+            _flush_llmobs()
+            out = args.out or runner.DEFAULT_BASELINE_PATH
+            runner.save_baselines(out)  # persist the recorded (input, output) cases locally
+            runner.save_publish_state(out, subject, baseline_experiment_id=sdk._experiment_id(published["baseline"]))
+            print("published baseline for %r (ml_app: %s):" % (subject, ml_app))
+            print("  baseline -> %s" % (sdk.experiment_url(published["baseline"]) or "?"))
+            ds = sdk.dataset_url(published.get("dataset"))
+            if ds:
+                print("  dataset  -> %s" % ds)
+            print("  (baseline recorded locally -> %s; change code, then `replay --publish`)" % os.path.abspath(out))
+            return
+
+        # Local capture (no --publish): run the driver, record cases, write JSON.
         # Enable LLM Obs BEFORE importing the app so its LLM integrations are patched
         # before the app builds its clients (otherwise the calls aren't traced).
         ml_app = _enable_llmobs(args.ml_app) if args.trace else None
@@ -272,29 +317,28 @@ def main() -> None:
     comparator = runner.comparator_from_spec(args.comparator, ignore)
 
     if args.publish:
-        # Route through the real Experiments SDK so results land in the UI.
-        from ddtrace.internal.settings import env
-        from ddtrace.llmobs import LLMObs
+        # Run the CURRENT code as the `<name>` experiment over the shared dataset published at
+        # capture, and link the compare view to the baseline experiment capture recorded.
+        _enable_llmobs(args.ml_app)
         from ddtrace.llmobs import _inline_experiment_sdk as sdk
 
-        if not LLMObs.enabled:
-            ml_app = args.ml_app or env.get("DD_LLMOBS_ML_APP") or "inline-experiments"
-            LLMObs.enable(ml_app=ml_app, agentless_enabled=True)
         for name, cases in baselines.items():
             if name not in ie.registered_experiments():
                 print("  (skipping %r — not registered by %r)" % (name, args.target))
                 continue
-            result = sdk.run_as_experiment(
+            published = sdk.publish_current(
                 name, cases, comparator, experiment_name=args.experiment_name, project_name=args.project
             )
+            state = runner.load_publish_state(infile, name) or {}
+            baseline_id = state.get("baseline_experiment_id")
             print("published experiment %r:" % name)
-            if result.get("baseline") is not None:
-                print("  baseline -> %s" % (sdk.experiment_url(result["baseline"]) or "?"))
-            print("  current  -> %s" % (sdk.experiment_url(result["current"]) or "LLM Obs -> Experiments"))
-            compare = sdk.compare_url(result.get("baseline"), result["current"], project_name=args.project)
+            print("  current  -> %s" % (sdk.experiment_url(published["current"]) or "LLM Obs -> Experiments"))
+            compare = sdk.compare_url_from_ids(baseline_id, sdk._experiment_id(published["current"]), args.project)
             if compare:
                 print("  compare  -> %s" % compare)
-            dataset = sdk.dataset_url(result.get("dataset"))
+            elif baseline_id is None:
+                print("  (no baseline on record — run `capture --publish` first to get a compare view)")
+            dataset = sdk.dataset_url(published.get("dataset"))
             if dataset:
                 print("  dataset  -> %s" % dataset)
         return
