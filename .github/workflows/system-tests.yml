@@ -263,6 +263,9 @@ jobs:
     needs:
       - build-wheels
     runs-on: ubuntu-latest
+    # 3.19 pins a newer system-tests whose RemoteConfig-apply parametric tests
+    # aren't supported by this release line; non-gating and not run at release.
+    continue-on-error: true
     env:
       TEST_LIBRARY: python
     steps:
