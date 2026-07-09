@@ -15,6 +15,7 @@ import json
 from typing import Any
 from typing import Callable
 from typing import Optional
+from urllib.parse import quote
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._inline_experiment import _REGISTRY
@@ -88,12 +89,11 @@ def dataset_url(dataset: Any) -> Optional[str]:
     return getattr(dataset, "url", None)
 
 
-def compare_url(baseline: Any, current: Any) -> Optional[str]:
-    """Best-effort URL for the Experiments *compare* view (baseline vs current).
+def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None) -> Optional[str]:
+    """URL for the Experiments compare view: the ``current`` run diffed against ``baseline``.
 
-    FIXME: confirm the exact frontend route for the compare view — it is not defined in
-    dd-trace-py (the engine only exposes per-experiment URLs). Centralized here so it's a
-    one-line fix once verified against the live UI.
+    The compare view is the current experiment's page with the baseline as the compare
+    target: ``/llm/experiments/{current}?compareTargetExperimentId={baseline}&project=...``.
     """
     try:
         from ddtrace.llmobs._experiment import _get_base_url
@@ -101,7 +101,10 @@ def compare_url(baseline: Any, current: Any) -> Optional[str]:
         b, c = _experiment_id(baseline), _experiment_id(current)
         if not (b and c):
             return None
-        return "%s/llm/experiments/compare?experiments=%s,%s" % (_get_base_url(), b, c)
+        url = "%s/llm/experiments/%s?compareTargetExperimentId=%s" % (_get_base_url(), c, b)
+        if project_name:
+            url += "&project=%s" % quote(project_name, safe="")
+        return url
     except Exception:
         log.debug("inline experiment: could not build compare url", exc_info=True)
         return None

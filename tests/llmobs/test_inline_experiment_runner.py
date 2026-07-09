@@ -349,8 +349,10 @@ def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
     baseline_task = created[0][1]  # the baseline task echoes the captured output (no re-run)
     assert baseline_task({"x": 1}, None) == 11
 
-    cu = sdk.compare_url(result["baseline"], result["current"])  # compare view links both runs
-    assert cu and cu.endswith("experiments=id-inline-e-baseline,id-inline-e")
+    # compare view = current experiment page with baseline as the compare target
+    cu = sdk.compare_url(result["baseline"], result["current"], project_name="proj x")
+    assert cu and "/llm/experiments/id-inline-e?compareTargetExperimentId=id-inline-e-baseline" in cu
+    assert cu.endswith("&project=proj%20x")  # project is url-encoded
 
 
 def test_publish_baseline_can_be_disabled(monkeypatch):

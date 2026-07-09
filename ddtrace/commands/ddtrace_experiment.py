@@ -238,7 +238,7 @@ def main() -> None:
             if result.get("baseline") is not None:
                 print("  baseline -> %s" % (sdk.experiment_url(result["baseline"]) or "?"))
             print("  current  -> %s" % (sdk.experiment_url(result["current"]) or "LLM Obs -> Experiments"))
-            compare = sdk.compare_url(result.get("baseline"), result["current"])
+            compare = sdk.compare_url(result.get("baseline"), result["current"], project_name=args.project)
             if compare:
                 print("  compare  -> %s" % compare)
             dataset = sdk.dataset_url(result.get("dataset"))
