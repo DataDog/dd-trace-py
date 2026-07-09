@@ -1,11 +1,7 @@
 ---
 fixes:
   - |
-    CI Visibility: Test Impact Analysis per-test coverage and coverage report upload can
-    now run simultaneously. ``CollectInContext`` now dynamically detects other
-    ``sys.monitoring`` tools (e.g. coverage.py) at the start of each test and disables
-    the ``DISABLE`` optimisation when any are present, so per-test ``restart_events()``
-    calls stop happening once another tool is detected. The one remaining re-arm, which
-    fires exactly once at the moment another tool is first detected, is scoped to
-    Datadog's own tool via ``set_local_events()`` and cannot affect any other tool's
-    monitoring state.
+    CI Visibility: fixed an issue on Python 3.12+ where enabling coverage report upload
+    (``DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED=true``) alongside Test Impact
+    Analysis caused per-test coverage data to be silently empty. The two features can now
+    be enabled together.
