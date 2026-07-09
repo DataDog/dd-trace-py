@@ -3063,18 +3063,15 @@ class LLMObs(Service):
         parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
 
         ml_app = None
-        session_id = None
         if isinstance(active_span, Span):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
-            session_id = get_llmobs_session_id(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
             sample_rate = get_llmobs_sample_rate(active_span)
             sampling_decision = get_llmobs_sampling_decision(active_span)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))
-            session_id = active_context._meta.get(PROPAGATED_SESSION_ID_KEY)
             wire_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or str(generate_128bit_trace_id())
             sample_rate = active_context._meta.get(PROPAGATED_SAMPLE_RATE)
             sampling_decision = active_context._meta.get(PROPAGATED_SAMPLING_DECISION)
@@ -3090,8 +3087,6 @@ class LLMObs(Service):
 
         if ml_app is not None:
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
-        if session_id is not None:
-            span_context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         if sample_rate is not None:
             span_context._meta[PROPAGATED_SAMPLE_RATE] = sample_rate
         if sampling_decision is not None:
