@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where the tracer metadata published on process start
+    (including the OpenTelemetry process context) was not republished after ``fork()``, causing
+    forked child processes (such as pre-fork server workers) to run without a published process
+    context.
