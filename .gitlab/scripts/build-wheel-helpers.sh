@@ -25,6 +25,10 @@ setup_rust() {
   fi
   rustup default stable
   which rustc && rustc --version
+  if command -v apk &> /dev/null; then
+    apk add --no-cache lld
+    which ld.lld && ld.lld --version
+  fi
   section_end "install_rust"
 }
 

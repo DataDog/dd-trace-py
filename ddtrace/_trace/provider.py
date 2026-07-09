@@ -34,6 +34,26 @@ if sys.version_info < (3, 12):
 else:
     _activate_contextvar = _DD_CONTEXTVAR.set  # type: ignore[assignment]
 
+if sys.platform == "linux":
+    try:
+        from ddtrace.internal.native._native import on_context_activate as _on_context_activate_native
+
+        def _on_context_activate(ctx: Optional[ActiveTrace]) -> None:
+            """Publish active local spans to the native otel thread-context slot."""
+            if ctx is not Span:
+                _on_context_activate_native(None, None, None)
+                return
+
+            _on_context_activate_native(
+                ctx.trace_id,
+                ctx.span_id,
+                ctx._local_root.span_id,
+            )
+
+        core.on("ddtrace.context_provider.activate", _on_context_activate)
+    except ImportError:
+        pass
+
 
 class BaseContextProvider(metaclass=abc.ABCMeta):
     """

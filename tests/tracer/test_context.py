@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import pickle
+import sys
 from typing import Optional  # noqa:F401
 
 import pytest
@@ -394,3 +395,14 @@ def test_is_remote():
     # is_remote should be set to False on root spans.
     root = Span("root")
     assert root.context._is_remote is False
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is Linux-only")
+def test_otel_thread_ctx_sanity_check():
+    """The native extension must be linked so that `otel_thread_ctx_v1` is discoverable by an
+    out-of-process reader (exported as TLS GLOBAL, TLSDESC-only relocations). This guards against
+    a build regression silently breaking the OTel thread context feature (OTEP #4947).
+    """
+    from ddtrace.internal.native._native import otel_thread_ctx_sanity_check
+
+    otel_thread_ctx_sanity_check()

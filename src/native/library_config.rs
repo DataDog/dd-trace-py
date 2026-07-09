@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use libdd_library_config::tracer_metadata::ThreadLocalMetadata;
 use libdd_library_config::{
     tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
     Configurator, ProcessInfo,
@@ -127,6 +129,10 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
         service_version: data.service_version.clone(),
         process_tags: data.process_tags.clone(),
         container_id: data.container_id.clone(),
+        #[cfg(target_os = "linux")]
+        threadlocal_metadata: Some(ThreadLocalMetadata::default()),
+        #[cfg(not(target_os = "linux"))]
+        threadlocal_metadata: None,
     };
 
     let res = store_tracer_metadata(&metadata);

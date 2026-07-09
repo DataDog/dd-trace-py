@@ -568,6 +568,7 @@ dependencies = [
  "libdd-http-client",
  "libdd-library-config",
  "libdd-log",
+ "libdd-otel-thread-ctx",
  "libdd-profiling-ffi",
  "libdd-remote-config",
  "libdd-shared-runtime",
@@ -676,6 +677,12 @@ name = "either"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
+
+[[package]]
+name = "elf"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4445909572dbd556c457c849c4ca58623d84b27c8fff1e74b0b4227d8b90d17b"
 
 [[package]]
 name = "encoding_rs"
@@ -1612,7 +1619,7 @@ dependencies = [
  "libdd-tinybytes",
  "libdd-trace-normalization",
  "libdd-trace-obfuscation",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
  "libdd-trace-stats",
  "libdd-trace-utils",
  "rmp-serde",
@@ -1662,11 +1669,11 @@ dependencies = [
 [[package]]
 name = "libdd-library-config"
 version = "2.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+source = "git+https://github.com/DataDog/libdatadog?rev=7cdeb7896e92d1ba38bde495934e112dac2eda25#7cdeb7896e92d1ba38bde495934e112dac2eda25"
 dependencies = [
  "anyhow",
  "libc",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=7cdeb7896e92d1ba38bde495934e112dac2eda25)",
  "memfd",
  "prost",
  "rand 0.8.6",
@@ -1696,6 +1703,17 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "libdd-otel-thread-ctx"
+version = "1.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
+dependencies = [
+ "anyhow",
+ "build_common",
+ "cc",
+ "elf",
 ]
 
 [[package]]
@@ -1779,7 +1797,7 @@ dependencies = [
  "http",
  "http-body-util",
  "libdd-common",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
  "manual_future",
  "serde",
  "serde_json",
@@ -1863,7 +1881,7 @@ version = "2.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v37.0.0#86b7f5700d3db4e58076794b5e8073a40d780083"
 dependencies = [
  "anyhow",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
 ]
 
 [[package]]
@@ -1874,12 +1892,22 @@ dependencies = [
  "anyhow",
  "fluent-uri",
  "libdd-common",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
  "libdd-trace-utils",
  "log",
  "percent-encoding",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "libdd-trace-protobuf"
+version = "3.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=7cdeb7896e92d1ba38bde495934e112dac2eda25#7cdeb7896e92d1ba38bde495934e112dac2eda25"
+dependencies = [
+ "prost",
+ "serde",
+ "serde_bytes",
 ]
 
 [[package]]
@@ -1908,7 +1936,7 @@ dependencies = [
  "libdd-ddsketch",
  "libdd-shared-runtime",
  "libdd-trace-obfuscation",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
  "libdd-trace-utils",
  "rmp-serde",
  "serde",
@@ -1937,7 +1965,7 @@ dependencies = [
  "libdd-common",
  "libdd-tinybytes",
  "libdd-trace-normalization",
- "libdd-trace-protobuf",
+ "libdd-trace-protobuf 3.0.2 (git+https://github.com/DataDog/libdatadog?rev=v37.0.0)",
  "prost",
  "rand 0.8.6",
  "rmp",
