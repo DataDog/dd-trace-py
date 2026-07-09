@@ -1,5 +1,5 @@
 ---
-bug-fixes:
+fixes:
   - |
     aws payload tagging: Stop using copy.deepcopy -- use JSONPath as a read only and collect match values in separate variable.
     aws payload tagging: Cache already parsed expression on cold start instead of reparsing on every invocation.
