@@ -186,6 +186,8 @@ microbenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+    # Forward the external S3 destination override to the benchmark child pipeline.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
 apm-sdk-benchmarks:
   stage: benchmarks
@@ -214,6 +216,8 @@ macrobenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+    # Forward the external S3 destination override to the benchmark child pipeline.
+    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
   allow_failure: false
   rules:
     # Always run on nightly schedule or API triggered pipelines
