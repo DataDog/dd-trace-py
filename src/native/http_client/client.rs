@@ -16,7 +16,7 @@
 //! singleton.
 
 use libdd_http_client::{HttpClient, HttpClientError, HttpMethod, HttpRequest, RetryConfig};
-use libdd_shared_runtime::SharedRuntime;
+use libdd_shared_runtime::BlockingRuntime;
 #[cfg(not(unix))]
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, pybacked::PyBackedBytes};
@@ -24,7 +24,7 @@ use std::{sync::Arc, time::Duration};
 use url::Url;
 
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
-use crate::shared_runtime::SharedRuntimePy;
+use crate::shared_runtime::{NativeSharedRuntime, SharedRuntimePy};
 
 /// A pooled, base-URL HTTP client over `libdd_http_client::HttpClient`.
 ///
@@ -33,7 +33,7 @@ use crate::shared_runtime::SharedRuntimePy;
 /// it to inject the shared runtime.
 #[pyclass(name = "HTTPClient", subclass, frozen)]
 pub struct HttpClientPy {
-    inner: (HttpClient, Arc<SharedRuntime>),
+    inner: (HttpClient, Arc<NativeSharedRuntime>),
     // Request origin that relative paths are joined onto (e.g.
     // "http://localhost:8126"; "http://localhost" for UDS). No trailing slash.
     base: String,

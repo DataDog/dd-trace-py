@@ -7,7 +7,7 @@ use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
-use crate::shared_runtime::SharedRuntimePy;
+use crate::shared_runtime::{NativeSharedRuntime, SharedRuntimePy};
 use exceptions::TraceExporterErrorPy;
 
 /// A wrapper around [TraceExporterBuilder]
@@ -16,11 +16,11 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder>,
+    builder: Option<TraceExporterBuilder<NativeSharedRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
-    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder> {
+    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder<NativeSharedRuntime>> {
         self.builder
             .as_mut()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -222,7 +222,7 @@ impl TraceExporterBuilderPy {
 /// A python object wrapping a [TraceExporter] instance
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter<NativeCapabilities>>,
+    inner: Option<TraceExporter<NativeCapabilities, NativeSharedRuntime>>,
 }
 
 #[pymethods]
