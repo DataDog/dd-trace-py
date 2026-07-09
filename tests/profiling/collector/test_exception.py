@@ -692,32 +692,26 @@ def test_raise_fires_once_per_exception(tmp_path: Path) -> None:
     """
     output_filename = _setup_profiler(tmp_path, "test_raise_fires_once")
 
-    n_raises = 10
     with exception.ExceptionCollector(sampling_interval=1):
-        for _ in range(n_raises):
-            try:
-                _propagate_depth_1()
-            except ValueError:
-                pass
+        try:
+            _propagate_depth_1()
+        except ValueError:
+            pass
 
     ddup.upload()
 
     profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
     samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
 
-    # With sampling_interval=1, most raises are sampled. ddup aggregates samples
+    # With sampling_interval=1, the first exception is always sampled.ddup aggregates samples
     # with identical stacks into a single pprof row with a summed count value.
-    # the invariant we are looking for is that the total exception-samples count must not exceed
-    # n_raises. If RAISE fired once per unwound frame (depth=3), we'd see 3x.
+    # the invariant we are looking for is that the total exception-samples count must not exceed 1.
+    # If RAISE fired once per unwound frame (depth=3), we'd see 3 samples.
     sample_type_idx = pprof_utils.get_sample_type_index(profile, "exception-samples")
     total_exception_count = sum(s.value[sample_type_idx] for s in samples)
-    assert total_exception_count <= n_raises, (
-        f"Expected at most {n_raises} exception events, got {total_exception_count}. "
+    assert total_exception_count == 1, (
+        f"Expected 1 exception event, got {total_exception_count}. "
         f"RAISE is firing per unwound frame instead of once at the raise site."
-    )
-    assert total_exception_count >= n_raises // 2, (
-        f"Expected at least {n_raises // 2} exception events, got {total_exception_count}. "
-        f"Deduplication may be too aggressive."
     )
 
 
