@@ -589,7 +589,8 @@ def test_events_rearmed_when_other_tool_registers_after_early_execution():
     3. Another sys.monitoring tool registers (simulating coverage.py in pytest_configure).
     4. Per-test CollectInContext starts — update_disable_optimization() detects the other tool,
        transitions True→False, and calls _rearm_all_events() to re-enable our disabled events
-       via set_local_events() (per-tool, does not affect the other tool).
+       via a per-code-object set_local_events() toggle (tool-scoped: it cannot affect the other
+       tool's own disabled-event state, regardless of timing).
     5. The same code is called again inside the test context — events now fire and are recorded.
 
     Without the _rearm_all_events() fix, step 5 would produce an empty ITR bitmap for those lines.
