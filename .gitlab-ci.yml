@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "6b3152ec85b1274ebd2425a038ce2a1721313373"
+  SYSTEM_TESTS_REF: "77e6da9b53639436525bf7bfb076723e18e102c3"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -65,6 +65,7 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
+  - local: ".gitlab/config-registry.yml"
 
 "pipeline variables":
   stage: .pre
@@ -306,7 +307,7 @@ check_requirements_lockfiles:
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
-    - pip install toml==0.10.2
+    - pip install toml==0.10.2 pyyaml==6.0.2
     - scripts/compile-and-prune-test-requirements
     - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
     - python scripts/requirements_to_csv.py
@@ -373,6 +374,10 @@ detect_circular_imports:
   stage: tests
   needs: []
   extends: .testrunner
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
   script:
     - pip install uv
     - cd ..

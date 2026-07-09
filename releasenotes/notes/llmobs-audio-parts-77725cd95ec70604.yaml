@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: This introduces support for attaching audio to messages on LLM spans. Input and
+    output messages annotated via ``LLMObs.annotate`` now accept an optional ``audio_parts`` field, a list
+    of audio segments each with a ``mime_type`` and either inline base64 ``content`` or an ``attachment_key``.
+    This lets audio (for example, speech-to-text and text-to-speech payloads) be collected and rendered in
+    LLM Observability.

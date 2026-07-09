@@ -269,7 +269,13 @@ class BackendConnector(threading.local):
             self.default_headers["Accept-Encoding"] = "gzip"
 
     def close(self) -> None:
-        self.conn.close()
+        # http.client.HTTPConnection.close() raises AttributeError when
+        # sock is None (never connected). Guard against that so callers can
+        # always call close() safely, including thread-teardown code.
+        try:
+            self.conn.close()
+        except AttributeError:
+            pass
 
     def _make_connection(self, parsed_url: ParseResult, timeout_seconds: float) -> http.client.HTTPConnection:
         if parsed_url.scheme == "http":

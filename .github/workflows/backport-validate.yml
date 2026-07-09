@@ -22,6 +22,7 @@ jobs:
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
           PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         id: backport_validation
         run: |
@@ -51,7 +52,7 @@ jobs:
           fi
           echo "The command used to test backporting was" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
-          echo "git checkout ${TARGET_BRANCH} && git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
+          echo "git fetch origin ${TARGET_BRANCH} && git checkout origin/${TARGET_BRANCH} && git checkout -b backport-${PR_NUMBER}-to-${TARGET_BRANCH} && git cherry-pick -x --mainline 1 ${MERGE_COMMIT}" | tee -a "$GITHUB_OUTPUT"
           echo "\`\`\`" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 

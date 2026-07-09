@@ -1,0 +1,19 @@
+# Config Registry CI jobs
+#
+# Mirrors the libdatadog-build one-pipeline templates:
+#   .validate_supported_configurations_v2_local_file
+#   .update_central_configurations_version_range_v2
+
+validate_supported_configurations_v2_local_file:
+  extends: .validate_supported_configurations_v2_local_file
+  variables:
+    LOCAL_JSON_PATH: "supported-configurations.json"
+    BACKFILLED: "true"
+
+update_central_configurations_version_range_v2:
+  extends: .update_central_configurations_version_range_v2
+  variables:
+    LOCAL_REPO_NAME: "dd-trace-py"
+    LOCAL_JSON_PATH: "supported-configurations.json"
+    LANGUAGE_NAME: "python"
+    MULTIPLE_RELEASE_LINES: "true"

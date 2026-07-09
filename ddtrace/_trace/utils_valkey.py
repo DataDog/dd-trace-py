@@ -62,6 +62,7 @@ def _instrument_valkey_cmd(config_integration, instance, args):
             service=trace_utils.ext_service(None, config_integration),
             span_type=SpanTypes.VALKEY,
             resource=query.split(" ")[0] if config_integration.resource_only_command else query,
+            integration_config=config_integration,
         ) as ctx,
         ctx.span as span,
     ):

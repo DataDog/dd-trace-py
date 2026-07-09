@@ -542,7 +542,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("/files/some/deep/path", "/files/{file_path}"),
         ],
     )
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route(self, interface: Interface, get_entry_span_tag, asm_enabled, uri, expected):
         # RFC-1103: when API Security is active, every request span carrying http.route also carries
         # `_dd.appsec.normalized_route`. The tag is gated on `asm_config._api_security_feature_active`, which combines
@@ -558,7 +558,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             else:
                 assert tag is None, f"normalized_route should be unset when ASM is disabled, got {tag!r}"
 
-    @pytest.mark.xfail_interface("flask", "tornado", skip=True)
+    @pytest.mark.xfail_interface("tornado", skip=True)
     def test_normalized_route_disabled_when_api_security_off(self, interface: Interface, get_entry_span_tag):
         # _api_security_feature_active also requires _api_security_enabled. ASM may be on while the API Security
         # feature is independently disabled — in that configuration the normalized route tag must still be absent.
@@ -580,6 +580,13 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
         # Skipped on Django: the integration doesn't honor a `request_span_name` override (span name fixed by
         # ``schematize_url_operation("django.request", ...)``). The gating is still exercised by
         # ``test_normalized_route`` against the regular span name.
+        #
+        # Skipped on Flask: the WSGI middleware uses a fixed ``_request_call_name`` class attribute and does not
+        # read ``config.flask.request_span_name``, so the span name can't be overridden by integration config.
+        # Skipped on Tornado: ``execute()`` hard-codes the span name via
+        # ``schematize_url_operation("tornado.request", ...)`` and does not read
+        # ``config.tornado.request_span_name``, so the span name can't be overridden by integration config.
+        # Normalized-route emission is still verified by ``test_normalized_route``.
         custom_name = "custom.framework.request"
         with (
             override_global_config(dict(_asm_enabled=True)),
@@ -1099,10 +1106,34 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json", "tst-037-003"),
             (json.dumps(LARGE_BODY), "application/json", "tst-037-003"),
+            # HTTP media types are case-insensitive (RFC 9110): mixed-case must still be parsed/blocked
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "Application/JSON", "tst-037-003"),
+            # Content-Type parameters (e.g. charset) must not skip body inspection
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/json; charset=utf-8", "tst-037-003"),
+            # structured-suffix JSON types (application/*+json, e.g. RFC 7807) must be parsed
+            ('{"attack": "yqrweytqwreasldhkuqwgervflnmlnli"}', "application/vnd.api+json", "tst-037-003"),
             # xml body must be blocked
             (
                 '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
                 "text/xml",
+                "tst-037-003",
+            ),
+            # mixed-case xml must still be parsed/blocked
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "Text/XML",
+                "tst-037-003",
+            ),
+            # structured-suffix XML types (application/*+xml) must be parsed
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "application/atom+xml",
+                "tst-037-003",
+            ),
+            # xml Content-Type parameters (e.g. charset) must not skip body inspection
+            (
+                '<?xml version="1.0" encoding="UTF-8"?><attack>yqrweytqwreasldhkuqwgervflnmlnli</attack>',
+                "text/xml; charset=utf-8",
                 "tst-037-003",
             ),
             # form body must be blocked
@@ -1110,6 +1141,14 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             (
                 '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
                 'Content-Type: application/json\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
+                "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
+                "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
+                "tst-037-003",
+            ),
+            # mixed-case Content-Type on a multipart inner part must still be parsed
+            (
+                '--52d1fb4eb9c021e53ac2846190e4ac72\r\nContent-Disposition: form-data; name="attack"\r\n'
+                'Content-Type: Application/JSON\r\n\r\n{"test": "yqrweytqwreasldhkuqwgervflnmlnli"}\r\n'
                 "--52d1fb4eb9c021e53ac2846190e4ac72--\r\n",
                 "multipart/form-data; boundary=52d1fb4eb9c021e53ac2846190e4ac72",
                 "tst-037-003",
@@ -1135,9 +1174,16 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             "json",
             "text_json",
             "json_large",
+            "json_mixed_case_content_type",
+            "json_charset_param_content_type",
+            "json_structured_suffix_content_type",
             "xml",
+            "xml_mixed_case_content_type",
+            "xml_structured_suffix_content_type",
+            "xml_charset_param_content_type",
             "form",
             "form_multipart",
+            "form_multipart_mixed_case_part",
             "form_multipart_duplicate_keys",
             "text",
             "no_attack",

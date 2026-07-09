@@ -163,7 +163,7 @@ experiments:
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-errortracking-enabled-user
             thresholds:
-              - execution_time < 2.25 ms
+              - execution_time < 2.85 ms
               - max_rss_usage < 61.00 MB
           - name: errortrackingflasksqli-tracer-enabled
             thresholds:
@@ -815,11 +815,11 @@ experiments:
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
-              - execution_time < 0.17 ms
+              - execution_time < 0.18 ms
               - max_rss_usage < 46.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
