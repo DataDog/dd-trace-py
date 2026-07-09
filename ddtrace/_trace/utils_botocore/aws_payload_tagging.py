@@ -193,7 +193,7 @@ class AWSPayloadTagging:
         if self.current_tag_count >= config.botocore.get("payload_tagging_max_tags"):
             span.set_tag(self._INCOMPLETE_TAG, "True")
             return
-        # AIDEV-NOTE: Check the redaction set before any other processing. id() is used here
+        # Check to see the redaction set before any other processing. id() is used here
         # rather than value equality — see the note in expand_payload_as_tags for the rationale.
         if id(obj) in self._current_redacted_ids:
             self.current_tag_count += 1
