@@ -31,6 +31,7 @@ variables:
   timeout: 30m
   dependencies: [ "baseline:build", "candidate" ]
   script: |
+    echo "SPIKE BP_EXTERNAL_S3_URL=[$BP_EXTERNAL_S3_URL]"
     if [[ -n "$CI_JOB_TOKEN" ]];
     then
       git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
