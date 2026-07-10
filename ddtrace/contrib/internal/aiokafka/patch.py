@@ -6,6 +6,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.constants import MESSAGING_DESTINATION_NAME
+from ddtrace._trace.constants import MESSAGING_SYSTEM
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -19,7 +20,6 @@ from ddtrace.ext.kafka import SERVICE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
