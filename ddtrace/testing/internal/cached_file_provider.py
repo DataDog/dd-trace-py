@@ -15,6 +15,7 @@ from pathlib import Path
 import typing as t
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -48,7 +49,9 @@ class TestOptDataProvider(t.Protocol):
         self, statuses: t.Optional[tuple[str, ...]] = None
     ) -> dict[TestRef, TestProperties]: ...
 
-    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]: ...
+    def get_skippable_tests(
+        self,
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]: ...
 
     def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]: ...
 
@@ -165,7 +168,9 @@ class CachedFileDataProvider:
             log.warning("Error parsing cached test management file: %s", e)
             return {}
 
-    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(
+        self,
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]:
         # WARNING: this guard assumes Bazel ALWAYS sets DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
         # together with DD_TEST_OPTIMIZATION_MANIFEST_FILE. If a Bazel workflow ever sets only
         # the manifest file without the payload-files flag, cached skippable decisions would be
@@ -175,10 +180,10 @@ class CachedFileDataProvider:
         # In Bazel payload-files mode the build system handles test selection;
         # applying cached skippable decisions here would skip tests Bazel expects to run.
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
-            return set(), None
+            return set(), None, {}, False
         cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
         if cached is None:
-            return set(), None
+            return set(), None, {}, False
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
             for item in cached["data"]:
@@ -193,8 +198,8 @@ class CachedFileDataProvider:
             correlation_id = cached.get("meta", {}).get("correlation_id")
         except Exception as e:
             log.warning("Error parsing cached skippable tests file: %s", e)
-            return set(), None
-        return skippable_items, correlation_id
+            return set(), None, {}, False
+        return skippable_items, correlation_id, {}, False
 
     # --- no-ops for methods unreachable in manifest mode ---
 

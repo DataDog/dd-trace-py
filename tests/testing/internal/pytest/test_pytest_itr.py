@@ -7,6 +7,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -377,3 +378,142 @@ class TestITR:
             "even when coverage_report_upload_enabled=True; "
             f"was called {len(setup_coverage_calls)} time(s)"
         )
+
+
+class TestITRCoverageBackfill:
+    """Tests for ITR coverage backfilling (test.code_coverage.backfilled tag)."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_coverage_upload_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unset coverage upload env var so tests are not affected by external environment."""
+        monkeypatch.delenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", raising=False)
+
+    def _make_covered_files(self) -> dict[str, CoverageLines]:
+        """Return a minimal covered_files dict to trigger backfilling."""
+        return {"/src/foo.py": CoverageLines.from_bytearray(bytearray(b"\x01"))}
+
+    def test_backfill_tag_set_when_itr_enabled_with_coverage(self, pytester: Pytester) -> None:
+        """ITR enabled, coverage present, no missing flag → backfilled tag on session, module, suite."""
+        pytester.makepyfile(test_foo="def test_pass(): pass")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    covered_files=self._make_covered_files(),
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") == "true"
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["meta"].get("test.code_coverage.backfilled") == "true"
+
+        [module] = event_capture.events_by_type("test_module_end")
+        assert module["content"]["meta"].get("test.code_coverage.backfilled") == "true"
+
+    def test_backfill_tag_not_set_when_missing_flag_present(self, pytester: Pytester) -> None:
+        """ITR enabled, coverage present, but some items have _missing_line_code_coverage → no tag."""
+        pytester.makepyfile(test_foo="def test_pass(): pass")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    covered_files=self._make_covered_files(),
+                    has_missing_line_coverage=True,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") is None
+
+        [suite] = event_capture.events_by_type("test_suite_end")
+        assert suite["content"]["meta"].get("test.code_coverage.backfilled") is None
+
+        [module] = event_capture.events_by_type("test_module_end")
+        assert module["content"]["meta"].get("test.code_coverage.backfilled") is None
+
+    def test_backfill_tag_not_set_when_coverage_empty(self, pytester: Pytester) -> None:
+        """ITR enabled, but meta.coverage is empty → no backfilling (nothing to backfill)."""
+        pytester.makepyfile(test_foo="def test_pass(): pass")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    covered_files={},
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") is None
+
+    def test_backfill_tag_not_set_when_itr_disabled(self, pytester: Pytester) -> None:
+        """ITR disabled → no backfilling regardless of coverage data."""
+        pytester.makepyfile(test_foo="def test_pass(): pass")
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=False,
+                    # covered_files won't even be fetched since ITR is disabled, but we mock it anyway
+                    covered_files=self._make_covered_files(),
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") is None
+
+    def test_backfill_tag_set_when_itr_enabled_but_no_tests_actually_skipped(self, pytester: Pytester) -> None:
+        """ITR enabled, coverage present, no tests skipped → tag still set (spec: what matters is ITR enabled)."""
+        pytester.makepyfile(test_foo="def test_pass(): pass")
+
+        # skippable_items is empty → no test will be skipped, but ITR is enabled
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items=set(),
+                    covered_files=self._make_covered_files(),
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") == "true"

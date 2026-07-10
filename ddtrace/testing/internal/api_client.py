@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import gzip
 import json
 import logging
@@ -8,6 +9,7 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
@@ -387,7 +389,9 @@ class APIClient:
 
         return len(content)
 
-    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(
+        self,
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -415,7 +419,7 @@ class APIClient:
             log.warning("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None
+            return set(), None, {}, False
 
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
@@ -424,12 +428,15 @@ class APIClient:
         except Exception as e:
             log.warning("Error getting skippable tests from API: %s", e)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None
+            return set(), None, {}, False
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
+            has_missing_line_coverage = False
 
             for item in result.parsed_response["data"]:
+                if item["attributes"].get("_missing_line_code_coverage", False):
+                    has_missing_line_coverage = True
                 if item["type"] in ("test", "suite"):
                     module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
                     suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
@@ -441,15 +448,26 @@ class APIClient:
 
             correlation_id = result.parsed_response["meta"]["correlation_id"]
 
+            covered_files: dict[str, CoverageLines] = {}
+            raw_coverage = result.parsed_response.get("meta", {}).get("coverage", {})
+            for file_path, b64_bitmap in raw_coverage.items():
+                try:
+                    raw_bytes = base64.b64decode(b64_bitmap)
+                    # Normalize path: API omits leading "/", but session coverage keys include it
+                    normalized_path = f"/{file_path}" if not file_path.startswith("/") else file_path
+                    covered_files[normalized_path] = CoverageLines.from_bytearray(bytearray(raw_bytes))
+                except Exception:
+                    log.warning("Failed to decode coverage bitmap for file: %s", file_path)
+
         except Exception as e:
             log.warning("Failed to parse skippable tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None
+            return set(), None, {}, False
 
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
-        return skippable_items, correlation_id
+        return skippable_items, correlation_id, covered_files, has_missing_line_coverage
 
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None

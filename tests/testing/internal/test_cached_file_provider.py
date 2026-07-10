@@ -272,7 +272,7 @@ class TestGetSkippableTests:
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
 
         module_ref = ModuleRef("mymodule")
         suite_ref = SuiteRef(module_ref, "test_suite.py")
@@ -286,7 +286,7 @@ class TestGetSkippableTests:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "true")
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
 
@@ -295,14 +295,14 @@ class TestGetSkippableTests:
         monkeypatch.setenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", "false")
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", _SKIPPABLE_RESPONSE)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
         assert len(skippable) == 2
         assert correlation_id == "abc-123"
 
     def test_returns_empty_without_cache_file(self, monkeypatch, tmp_path):
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
         provider = make_provider(tmp_path)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
 
@@ -320,7 +320,7 @@ class TestGetSkippableTests:
         }
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.SUITE)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
 
         module_ref = ModuleRef("mymodule")
         assert SuiteRef(module_ref, "test_suite.py") in skippable
@@ -338,7 +338,7 @@ class TestGetSkippableTests:
         }
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, _ = provider.get_skippable_tests()
+        skippable, _, _, _ = provider.get_skippable_tests()
         assert skippable == set()
 
     def test_unknown_item_types_are_ignored(self, monkeypatch, tmp_path):
@@ -351,7 +351,7 @@ class TestGetSkippableTests:
         }
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, _ = provider.get_skippable_tests()
+        skippable, _, _, _ = provider.get_skippable_tests()
         assert skippable == set()
 
     def test_malformed_cache_returns_empty(self, monkeypatch, tmp_path):
@@ -359,7 +359,7 @@ class TestGetSkippableTests:
         monkeypatch.delenv("DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES", raising=False)
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", {"unexpected": "format"})
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, correlation_id = provider.get_skippable_tests()
+        skippable, correlation_id, _, _ = provider.get_skippable_tests()
         assert skippable == set()
         assert correlation_id is None
 
@@ -374,7 +374,7 @@ class TestGetSkippableTests:
         }
         write_json(tmp_path / "cache" / "http" / "skippable_tests.json", response)
         provider = make_provider(tmp_path, itr_level=ITRSkippingLevel.TEST)
-        skippable, _ = provider.get_skippable_tests()
+        skippable, _, _, _ = provider.get_skippable_tests()
         assert len(skippable) == 1
 
 

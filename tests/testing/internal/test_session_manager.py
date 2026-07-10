@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import os
 import typing as t
+from typing import cast
 from unittest.mock import Mock
 from unittest.mock import call
 from unittest.mock import patch
@@ -333,7 +334,7 @@ class TestSessionManagerEnvVarOverrides:
         mock_client.get_test_management_properties.return_value = {}
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
-        mock_client.get_skippable_tests.return_value = (set(), None)
+        mock_client.get_skippable_tests.return_value = (set(), None, {}, False)
         mock_client.close.return_value = None
         mock_client.configuration_errors = {}
 
@@ -427,7 +428,7 @@ class TestSessionManagerGitHandling:
 class TestUpdatePrMergeBase:
     """Tests for SessionManager._update_pr_merge_base and its integration in upload_git_data."""
 
-    def _make_session_manager(self, env_tags: dict) -> SessionManager:
+    def _make_session_manager(self, env_tags: dict[str, str]) -> SessionManager:
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = env_tags
         return sm
@@ -495,7 +496,7 @@ class TestUpdatePrMergeBase:
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
         sm.api_client = Mock()
-        sm.api_client.get_known_commits.side_effect = [["commit-1"], ["commit-1"]]
+        cast(Mock, sm.api_client).get_known_commits.side_effect = [["commit-1"], ["commit-1"]]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -529,7 +530,7 @@ class TestUpdatePrMergeBase:
             GitTag.COMMIT_HEAD_SHA: head_sha,
         }
         sm.api_client = Mock()
-        sm.api_client.get_known_commits.return_value = []
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -562,7 +563,7 @@ class TestUpdatePrMergeBase:
         }
         sm.api_client = Mock()
         # Backend already knows all commits — no pack upload will happen.
-        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+        cast(Mock, sm.api_client).get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -679,7 +680,7 @@ class TestUploadSentinel:
             sm.upload_git_data()
 
         mock_git_cls.assert_not_called()
-        sm.api_client.get_known_commits.assert_not_called()
+        cast(Mock, sm.api_client).get_known_commits.assert_not_called()
 
     def test_upload_git_data_writes_sentinel_on_all_commits_known(self, tmp_path) -> None:
         """The sentinel is written when the early-return on all-commits-known path is taken."""
@@ -687,7 +688,7 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = ["commit-1", "commit-2"]
+        cast(Mock, sm.api_client).get_known_commits.return_value = ["commit-1", "commit-2"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1", "commit-2"]
@@ -709,8 +710,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
-        sm.api_client.send_git_pack_file.return_value = 123  # bytes uploaded
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
+        cast(Mock, sm.api_client).send_git_pack_file.return_value = 123  # bytes uploaded
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -731,7 +732,7 @@ class TestUploadSentinel:
         """If pack_objects fails silently (yields no files), don't trust peers with our sentinel."""
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -753,8 +754,8 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
-        sm.api_client.send_git_pack_file.return_value = None  # upload failure
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
+        cast(Mock, sm.api_client).send_git_pack_file.return_value = None  # upload failure
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -776,9 +777,9 @@ class TestUploadSentinel:
 
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
-        sm.api_client.get_known_commits.return_value = []
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
         # First packfile succeeds, second fails.
-        sm.api_client.send_git_pack_file.side_effect = [123, None]
+        cast(Mock, sm.api_client).send_git_pack_file.side_effect = [123, None]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -799,7 +800,7 @@ class TestUploadSentinel:
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         (tmp_path / ".git").mkdir()
         # API returning None signals a failure that aborts the upload.
-        sm.api_client.get_known_commits.return_value = None
+        cast(Mock, sm.api_client).get_known_commits.return_value = None
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["commit-1"]
@@ -889,7 +890,7 @@ class TestUploadLock:
         sm.workspace_path = workspace_path
         sm.env_tags = {GitTag.COMMIT_SHA: head_sha} if head_sha else {}
         sm.api_client = Mock()
-        sm.api_client.get_known_commits.return_value = []
+        cast(Mock, sm.api_client).get_known_commits.return_value = []
         return sm
 
     def test_lock_acquired_when_no_contention(self, tmp_path) -> None:
@@ -937,7 +938,7 @@ class TestUploadLock:
 
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.api_client.get_known_commits.return_value = ["c1"]
+        cast(Mock, sm.api_client).get_known_commits.return_value = ["c1"]
 
         mock_git = Mock()
         mock_git.get_latest_commits.return_value = ["c1"]

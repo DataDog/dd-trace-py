@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -298,6 +299,16 @@ class TestOptPlugin:
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
 
+        # ITR coverage backfilling: accumulate per-test bitmaps into a session-level aggregate.
+        self._session_coverage: dict[str, CoverageLines] = {}
+        # Precompute whether backfilling should be applied for this session.
+        # All three conditions are known after SessionManager.__init__ completes.
+        self._should_backfill_coverage: bool = (
+            self.session.itr_skipping_enabled
+            and bool(self.manager.itr_covered_files)
+            and not self.manager.itr_has_missing_line_coverage
+        )
+
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
             if session_id := xdist_worker_input.get("dd_session_id"):
@@ -393,6 +404,18 @@ class TestOptPlugin:
 
             # Clean up external coverage instance registration
             clear_coverage_instance()
+
+        if self._should_backfill_coverage:
+            # Merge skipped-tests coverage into session coverage.
+            merged = dict(self._session_coverage)  # shallow copy — CoverageLines mutated in place
+            for path, skipped_cl in self.manager.itr_covered_files.items():
+                if path in merged:
+                    merged[path].update(skipped_cl)
+                else:
+                    # File only covered by skipped tests — clone to avoid mutating API data
+                    merged[path] = CoverageLines.from_bytearray(bytearray(skipped_cl.to_bytes()))
+            # Signal to the backend that coverage backfilling was applied.
+            self.session.tags[TestTag.CODE_COVERAGE_BACKFILLED] = "true"
 
         self.session.finish()
 
@@ -571,19 +594,32 @@ class TestOptPlugin:
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        # Materialize the generator so we can iterate twice (accumulate + write).
+        bitmaps = list(coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path))
+
+        # Accumulate into session-level coverage for ITR backfilling.
+        for path, bitmap_bytes in bitmaps:
+            cl = CoverageLines.from_bytearray(bytearray(bitmap_bytes))
+            if path in self._session_coverage:
+                self._session_coverage[path].update(cl)
+            else:
+                self._session_coverage[path] = cl
+
+        self.manager.coverage_writer.put_coverage(test.last_test_run, bitmaps)
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
             if codeowners := test.tags.get(TestTag.CODEOWNERS):
                 test_suite.tags[TestTag.CODEOWNERS] = codeowners
+            if self._should_backfill_coverage:
+                test_suite.tags[TestTag.CODE_COVERAGE_BACKFILLED] = "true"
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
             TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
 
         if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
+            if self._should_backfill_coverage:
+                test_module.tags[TestTag.CODE_COVERAGE_BACKFILLED] = "true"
             test_module.finish()
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)

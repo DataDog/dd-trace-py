@@ -479,6 +479,7 @@ class TestTag:
     BROWSER_DRIVER = "test.browser.driver"
 
     CODE_COVERAGE_LINES_PCT = "test.code_coverage.lines_pct"
+    CODE_COVERAGE_BACKFILLED = "test.code_coverage.backfilled"
 
     # Library configuration error tags — set when backend requests fail.
     LIBRARY_CONFIGURATION_ERROR_SETTINGS = "_dd.ci.library_configuration_error.settings"
