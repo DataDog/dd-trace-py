@@ -348,7 +348,23 @@ def if_iast_taint_returned_object_for(origin, override_pyobject_tainted, wrapped
                 name = str(args[0]) if len(args) else "http.request.body"
                 if origin == OriginType.HEADER and name.lower() in ["cookie", "cookies"]:
                     origin = OriginType.COOKIE
-                return taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+                result = taint_pyobject(pyobject=value, source_name=name, source_value=value, source_origin=origin)
+                try:
+                    if isinstance(result, str) and "dummy.location" in result:
+                        from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+
+                        log.error(
+                            "URDIAG-SRC ctx=%s origin=%s name=%s id_in=%s id_out=%s val=%r",
+                            _get_iast_context_id(),
+                            origin,
+                            name,
+                            id(value),
+                            id(result),
+                            result,
+                        )
+                except Exception:
+                    pass
+                return result
         except Exception:
             iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
     return value

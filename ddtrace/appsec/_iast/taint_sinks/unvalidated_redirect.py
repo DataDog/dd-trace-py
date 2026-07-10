@@ -11,6 +11,7 @@ from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
@@ -122,6 +123,28 @@ def _iast_report_unvalidated_redirect(headers):
             )
 
             if is_tainted:
+                try:
+                    from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
+                    from ddtrace.appsec._iast._iast_request_context_base import _get_iast_env
+                    from ddtrace.appsec._iast._taint_tracking import get_ranges
+
+                    _env = _get_iast_env()
+                    _endpoint = getattr(_env, "endpoint_route", None) if _env else None
+                    _ranges = get_ranges(headers)
+                    _rsrc = [
+                        (origin_to_str(r.source.origin) if r.source else None, r.source.name if r.source else None)
+                        for r in _ranges
+                    ]
+                    log.error(
+                        "URDIAG-SINK ctx=%s endpoint=%s id=%s val=%r range_sources=%s",
+                        _get_iast_context_id(),
+                        _endpoint,
+                        id(headers),
+                        headers,
+                        _rsrc,
+                    )
+                except Exception:
+                    pass
                 if UnvalidatedRedirect.has_quota() and not _already_reported_unvalidated_redirect(headers):
                     UnvalidatedRedirect.report(evidence_value=headers)
                 add_secure_mark(headers, [VulnerabilityType.UNVALIDATED_REDIRECT])

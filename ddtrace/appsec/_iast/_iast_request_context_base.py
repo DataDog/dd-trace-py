@@ -85,6 +85,9 @@ def _iast_start_request(span=None) -> Optional[int]:
                 IAST_CONTEXT.set(context_id)
                 if context_id is not None:
                     core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
+                log.error("URDIAG-REQ start fresh_ctx=%s", context_id)
+            else:
+                log.error("URDIAG-REQ start REUSED_ctx=%s (context not reset from prior request!)", _get_iast_context_id())
         elif (context_id := _get_iast_context_id()) is not None:
             finish_request_context(context_id)
             IAST_CONTEXT.set(None)
@@ -111,10 +114,12 @@ def _iast_finish_request(span=None, shoud_update_global_vulnerability_limit: boo
 
     context_id = _get_iast_context_id()
     if context_id is not None:
+        log.error("URDIAG-REQ finish ctx=%s", context_id)
         finish_request_context(context_id)
         IAST_CONTEXT.set(None)
         return True
 
+    log.error("URDIAG-REQ finish NO_CONTEXT (nothing to reset)")
     return False
 
 
