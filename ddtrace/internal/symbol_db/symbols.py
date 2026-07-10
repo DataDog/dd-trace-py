@@ -24,7 +24,7 @@ from types import ModuleType
 import typing as t
 
 from ddtrace import config
-from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.logger import get_logger

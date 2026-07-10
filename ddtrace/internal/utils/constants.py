@@ -13,6 +13,7 @@ FLASK_URL_RULE = "flask.url_rule"
 FLASK_RESOURCE_FULL = "flask.resource.full"
 
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
+DEFAULT_SERVICE_NAME = "unnamed-python-service"
 
 MAX_UINT_64BITS = (1 << 64) - 1
 MIN_INT_64BITS = -(2**63)

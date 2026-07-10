@@ -1,7 +1,6 @@
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
-DEFAULT_SERVICE_NAME = "unnamed-python-service"
 SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
 SAMPLING_DECISION_MAKER_SERVICE = "_dd.dm.service"
 SAMPLING_DECISION_MAKER_RESOURCE = "_dd.dm.resource"

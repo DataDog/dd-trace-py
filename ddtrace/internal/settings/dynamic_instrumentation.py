@@ -3,7 +3,7 @@ import re
 import typing as t
 
 from ddtrace import config as ddconfig
-from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config

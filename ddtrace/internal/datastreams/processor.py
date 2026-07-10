@@ -10,7 +10,7 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags

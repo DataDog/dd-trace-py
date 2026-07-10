@@ -1,4 +1,4 @@
-from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.runtime import get_runtime_id
 
 from ...constants import ENV_KEY
