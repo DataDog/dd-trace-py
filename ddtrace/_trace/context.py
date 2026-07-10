@@ -10,11 +10,11 @@ from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
-from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
+from ddtrace.propagation._constants import _W3C_TRACEPARENT_KEY
+from ddtrace.propagation._constants import _W3C_TRACESTATE_KEY
 
 
 _ContextState = tuple[
@@ -141,7 +141,7 @@ class Context(object):
 
     @property
     def _traceparent(self) -> str:
-        tp = self._meta.get(W3C_TRACEPARENT_KEY)
+        tp = self._meta.get(_W3C_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
             # if we only have a traceparent then we'll forward it
             # if we don't have a span id or trace id value we can't build a valid traceparent
@@ -165,7 +165,7 @@ class Context(object):
         dd_list_member = _w3c_get_dd_list_member(self)
 
         # if there's a preexisting tracestate we need to update it to preserve other vendor data
-        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
+        ts = self._meta.get(_W3C_TRACESTATE_KEY, "")
         if ts and dd_list_member:
             # cut out the original dd list member from tracestate so we can replace it with the new one we created
             ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)

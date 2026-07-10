@@ -22,12 +22,12 @@ from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
-from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
-from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
-from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
+from ddtrace.propagation._constants import _W3C_TRACESTATE_ORIGIN_KEY
+from ddtrace.propagation._constants import _W3C_TRACESTATE_PARENT_ID_KEY
+from ddtrace.propagation._constants import _W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
@@ -181,11 +181,11 @@ def w3c_get_dd_list_member(context):
     # Context -> str
     tags = []
     if context.sampling_priority is not None:
-        tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
+        tags.append("{}:{}".format(_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
     if context.dd_origin:
         tags.append(
             "{}:{}".format(
-                W3C_TRACESTATE_ORIGIN_KEY,
+                _W3C_TRACESTATE_ORIGIN_KEY,
                 w3c_encode_tag((_W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE, "_", context.dd_origin)),
             )
         )
@@ -231,7 +231,7 @@ def w3c_encode_tag(args: tuple[Pattern, str, str]) -> str:
 
 def w3c_tracestate_add_p(tracestate, span_id):
     # Adds last datadog parent_id to tracestate. This tag is used to reconnect a trace with non-datadog spans
-    p_member = "{}:{:016x}".format(W3C_TRACESTATE_PARENT_ID_KEY, span_id)
+    p_member = "{}:{:016x}".format(_W3C_TRACESTATE_PARENT_ID_KEY, span_id)
     if "dd=" in tracestate:
         return tracestate.replace("dd=", f"dd={p_member};")
     elif tracestate:

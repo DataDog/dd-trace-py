@@ -17,4 +17,3 @@ MESSAGING_DESTINATION_NAME = "messaging.destination.name"
 MESSAGING_MESSAGE_ID = "messaging.message_id"
 MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
-

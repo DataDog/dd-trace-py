@@ -451,11 +451,11 @@ def test_baggage_max_items_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_ITEMS
 
 # Test max items exceeded
 baggage_items = {}
-for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 5):  # Exceed max items
+for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS + 5):  # Exceed max items
     baggage_items[f"key{i}"] = f"value{i}"
 
 context_items = Context(trace_id=123456789, span_id=987654321, baggage=baggage_items)
@@ -488,10 +488,10 @@ def test_baggage_max_bytes_telemetry(test_agent_session, ddtrace_run_python_code
     code = """
 from ddtrace._trace.context import Context
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_BYTES
 
 # Test max bytes exceeded
-large_value = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES // 2)  # Large value to exceed bytes limit
+large_value = "x" * (_DD_TRACE_BAGGAGE_MAX_BYTES // 2)  # Large value to exceed bytes limit
 baggage_bytes = {"key1": large_value, "key2": large_value, "key3": large_value}
 
 context_bytes = Context(trace_id=123456789, span_id=987654321, baggage=baggage_bytes)

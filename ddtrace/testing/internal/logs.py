@@ -14,7 +14,7 @@ import json
 import logging
 import socket
 
-from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.utils.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.writer import BaseWriter

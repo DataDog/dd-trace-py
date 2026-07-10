@@ -17,3 +17,18 @@ _PROPAGATION_BEHAVIOR_CONTINUE = "continue"
 _PROPAGATION_BEHAVIOR_IGNORE = "ignore"
 _PROPAGATION_BEHAVIOR_RESTART = "restart"
 _PROPAGATION_BEHAVIOR_DEFAULT = _PROPAGATION_BEHAVIOR_CONTINUE
+_W3C_TRACESTATE_KEY = "tracestate"
+_W3C_TRACEPARENT_KEY = "traceparent"
+_W3C_TRACESTATE_PARENT_ID_KEY = "p"
+_W3C_TRACESTATE_ORIGIN_KEY = "o"
+_W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
+
+_DD_TRACE_BAGGAGE_MAX_ITEMS = 64
+_DD_TRACE_BAGGAGE_MAX_BYTES = 8192
+_BAGGAGE_TAG_PREFIX = "baggage."
+# W3C Trace Context tracestate (https://www.w3.org/TR/trace-context/):
+# max 32 list-members; vendors SHOULD propagate at most 512 characters (we cap parsing to that size).
+_DD_TRACE_TRACESTATE_MAX_ITEMS = 32
+_DD_TRACE_TRACESTATE_MAX_BYTES = 512
+# Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
+_DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128

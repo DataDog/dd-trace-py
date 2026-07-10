@@ -37,13 +37,6 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.internal.constants import LOG_ATTR_ENV
-from ddtrace.internal.constants import LOG_ATTR_SERVICE
-from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
-from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
-from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
-from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
-from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
@@ -57,6 +50,13 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
+from ddtrace.internal.utils.constants import LOG_ATTR_ENV
+from ddtrace.internal.utils.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.utils.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.utils.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.utils.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.utils.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.utils.constants import LOG_ATTR_VERSION
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface

@@ -4,11 +4,6 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 
 
-W3C_TRACESTATE_KEY = "tracestate"
-W3C_TRACEPARENT_KEY = "traceparent"
-W3C_TRACESTATE_PARENT_ID_KEY = "p"
-W3C_TRACESTATE_ORIGIN_KEY = "o"
-W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
 SAMPLING_HASH_MODULO = 1 << 64
 # Big prime number to make hashing better distributed, it has to be the same factor as the Agent
@@ -30,17 +25,8 @@ DEFAULT_REUSE_CONNECTIONS = False
 BLOCKED_RESPONSE_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>You've been blocked</title><style>a,body,div,html,span{margin:0;padding:0;border:0;font-size:100%;font:inherit;vertical-align:baseline}body{background:-webkit-radial-gradient(26% 19%,circle,#fff,#f4f7f9);background:radial-gradient(circle at 26% 19%,#fff,#f4f7f9);display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;width:100%;min-height:100vh;line-height:1;flex-direction:column}p{display:block}main{text-align:center;flex:1;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-ms-flex-line-pack:center;align-content:center;flex-direction:column}p{font-size:18px;line-height:normal;color:#646464;font-family:sans-serif;font-weight:400}a{color:#4842b7}footer{width:100%;text-align:center}footer p{font-size:16px}.security-response-id{font-size:14px;color:#999;margin-top:20px;font-family:monospace}</style></head><body><main><p>Sorry, you cannot access this page. Please contact the customer service team.</p><p class="security-response-id">Security Response ID: [security_response_id]</p></main><footer><p>Security provided by <a href="https://www.datadoghq.com/product/security-platform/application-security-monitoring/" target="_blank" rel="noopener noreferrer">Datadog</a></p></footer></body></html>"""  # noqa: E501
 BLOCKED_RESPONSE_JSON = """{"errors":[{"title":"You've been blocked","detail":"Sorry, you cannot access this page. Please contact the customer service team. Security provided by Datadog."}],"security_response_id":"[security_response_id]"}"""  # noqa: E501
 HTTP_REQUEST_BLOCKED = "http.request.blocked"
-RESPONSE_HEADERS = "http.response.headers"
-HTTP_REQUEST_QUERY = "http.request.query"
-HTTP_REQUEST_COOKIE_VALUE = "http.request.cookie.value"
-HTTP_REQUEST_COOKIE_NAME = "http.request.cookie.name"
-HTTP_REQUEST_PATH = "http.request.path"
-HTTP_REQUEST_HEADER_NAME = "http.request.header.name"
-HTTP_REQUEST_HEADER = "http.request.header"
-HTTP_REQUEST_PARAMETER = "http.request.parameter"
-HTTP_REQUEST_BODY = "http.request.body"
 HTTP_REQUEST_UPGRADED = "http.upgraded"
-HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
+RESPONSE_HEADERS = "http.response.headers"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 
@@ -53,35 +39,11 @@ EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
 USER_AGENT_HEADER = "user-agent"
-FLASK_ENDPOINT = "flask.endpoint"
-FLASK_VIEW_ARGS = "flask.view_args"
-FLASK_URL_RULE = "flask.url_rule"
-FLASK_RESOURCE_FULL = "flask.resource.full"
 
 _HTTPLIB_NO_TRACE_REQUEST = "_dd_no_trace"
 DEFAULT_TIMEOUT = 2.0
 
-# baggage
-DD_TRACE_BAGGAGE_MAX_ITEMS = 64
-DD_TRACE_BAGGAGE_MAX_BYTES = 8192
-BAGGAGE_TAG_PREFIX = "baggage."
-
-# W3C Trace Context tracestate (https://www.w3.org/TR/trace-context/):
-# max 32 list-members; vendors SHOULD propagate at most 512 characters (we cap parsing to that size).
-DD_TRACE_TRACESTATE_MAX_ITEMS = 32
-DD_TRACE_TRACESTATE_MAX_BYTES = 512
-# Per W3C Trace Context, oversized list-members are preferred targets when truncating by size.
-DD_TRACE_TRACESTATE_ITEM_MAX_CHARS = 128
-
 COLLECTOR_MAX_SIZE_PER_SPAN = 100
-
-LOG_ATTR_TRACE_ID = "dd.trace_id"
-LOG_ATTR_SPAN_ID = "dd.span_id"
-LOG_ATTR_ENV = "dd.env"
-LOG_ATTR_VERSION = "dd.version"
-LOG_ATTR_SERVICE = "dd.service"
-LOG_ATTR_VALUE_ZERO = "0"
-LOG_ATTR_VALUE_EMPTY = ""
 
 
 class SamplingMechanism(object):

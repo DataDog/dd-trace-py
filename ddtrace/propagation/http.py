@@ -18,12 +18,20 @@ from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.propagation._constants import _BAGGAGE_TAG_PREFIX
+from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_BYTES
+from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_ITEMS
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_MULTI
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.propagation._constants import _W3C_TRACEPARENT_KEY
+from ddtrace.propagation._constants import _W3C_TRACESTATE_KEY
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -35,15 +43,7 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import BAGGAGE_TAG_PREFIX
-from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
-from ..internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
-from ..internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
-from ..internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
-from ..internal.constants import W3C_TRACEPARENT_KEY
-from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
@@ -792,13 +792,13 @@ class _TraceContext:
 
     @staticmethod
     def _tracestate_member_exceeds_item_char_cap(member: str) -> bool:
-        return len(member) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+        return len(member) > _DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
 
     @staticmethod
     def _tracestate_drop_items_until_count_prefer_oversized(items: list[str], max_count: int) -> None:
         """Shrink ``items`` in place until ``len(items) <= max_count``.
 
-        Removes list-members with more than ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` characters
+        Removes list-members with more than ``_DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` characters
         first (left to right), then drops from the end if still over the cap.
 
         Runs in O(len(items)) so attacker-controlled headers with many short list-members cannot
@@ -822,7 +822,7 @@ class _TraceContext:
     def _tracestate_pack_members_to_byte_limit(members: list[str], *, never_skip_first: bool = False) -> list[str]:
         """Append members until the UTF-8 byte budget is exhausted.
 
-        When a member does not fit, it is skipped if it exceeds ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS``
+        When a member does not fit, it is skipped if it exceeds ``_DD_TRACE_TRACESTATE_ITEM_MAX_CHARS``
         (so smaller later entries can still be kept); otherwise packing stops.
         If ``never_skip_first`` is true, the first member is always kept (even over budget).
         """
@@ -834,7 +834,7 @@ class _TraceContext:
                 ts_l.append(member)
                 total_bytes += segment_len
                 continue
-            if total_bytes + segment_len <= DD_TRACE_TRACESTATE_MAX_BYTES:
+            if total_bytes + segment_len <= _DD_TRACE_TRACESTATE_MAX_BYTES:
                 ts_l.append(member)
                 total_bytes += segment_len
                 continue
@@ -845,7 +845,7 @@ class _TraceContext:
                 continue
             log.debug(
                 "tracestate byte length exceeds maximum (%d), truncating whole entries",
-                DD_TRACE_TRACESTATE_MAX_BYTES,
+                _DD_TRACE_TRACESTATE_MAX_BYTES,
             )
             break
         return ts_l
@@ -853,12 +853,12 @@ class _TraceContext:
     @staticmethod
     def _tracestate_members_after_limits_no_dd(members_stripped: list[str]) -> list[str]:
         items = list(members_stripped)
-        if len(items) > DD_TRACE_TRACESTATE_MAX_ITEMS:
+        if len(items) > _DD_TRACE_TRACESTATE_MAX_ITEMS:
             log.debug(
                 "tracestate list-member count exceeds maximum (%d), truncating",
-                DD_TRACE_TRACESTATE_MAX_ITEMS,
+                _DD_TRACE_TRACESTATE_MAX_ITEMS,
             )
-            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(items, DD_TRACE_TRACESTATE_MAX_ITEMS)
+            _TraceContext._tracestate_drop_items_until_count_prefer_oversized(items, _DD_TRACE_TRACESTATE_MAX_ITEMS)
         return _TraceContext._tracestate_pack_members_to_byte_limit(items, never_skip_first=False)
 
     @staticmethod
@@ -868,7 +868,7 @@ class _TraceContext:
         The Datadog ``dd=`` list-member is preferred: the last ``dd=`` entry is always kept
         (even when it alone exceeds the byte cap), placed first for budgeting, and never
         displaced by other vendors under the byte limit. List-members longer than
-        ``DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` are dropped first when trimming count or bytes.
+        ``_DD_TRACE_TRACESTATE_ITEM_MAX_CHARS`` are dropped first when trimming count or bytes.
         """
         dd_index = -1
         for i in range(len(members_stripped) - 1, -1, -1):
@@ -888,11 +888,11 @@ class _TraceContext:
                 continue
             others.append(m)
 
-        max_others = DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+        max_others = _DD_TRACE_TRACESTATE_MAX_ITEMS - 1
         if len(others) > max_others:
             log.debug(
                 "tracestate list-member count exceeds maximum (%d), truncating",
-                DD_TRACE_TRACESTATE_MAX_ITEMS,
+                _DD_TRACE_TRACESTATE_MAX_ITEMS,
             )
             _TraceContext._tracestate_drop_items_until_count_prefer_oversized(others, max_others)
 
@@ -911,7 +911,7 @@ class _TraceContext:
             log.exception("received invalid w3c traceparent: %s ", tp, extra={"send_to_telemetry": False})
             return None
 
-        meta = {W3C_TRACEPARENT_KEY: tp}
+        meta = {_W3C_TRACEPARENT_KEY: tp}
 
         ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, headers)
         return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
@@ -940,7 +940,7 @@ class _TraceContext:
                 log.debug("received invalid tracestate header: %r", ts)
             else:
                 # store tracestate so we keep other vendor data for injection, even if dd ends up being invalid
-                meta[W3C_TRACESTATE_KEY] = ts
+                meta[_W3C_TRACESTATE_KEY] = ts
                 try:
                     tracestate_values = _TraceContext._get_tracestate_values(ts_l)
                 except (TypeError, ValueError):
@@ -1010,7 +1010,7 @@ class _BaggageHeader:
             return
 
         try:
-            if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
+            if len(baggage_items) > _DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 # Record telemetry for baggage item count exceeding limit
                 telemetry_writer.add_count_metric(
@@ -1019,14 +1019,14 @@ class _BaggageHeader:
                     value=1,
                     tags=(("truncation_reason", "baggage_item_count_exceeded"),),
                 )
-                baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
+                baggage_items = itertools.islice(baggage_items, _DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
             encoded_items: list[str] = []
             total_size = 0
             for key, value in baggage_items:
                 item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
                 item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
-                if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
+                if total_size + item_size > _DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
                     # Record telemetry for baggage header size exceeding limit
                     telemetry_writer.add_count_metric(
@@ -1070,10 +1070,10 @@ class _BaggageHeader:
         total_size = 0
         splitted_header = header_value.split(BAGGAGE_DELIMITER)
         for pair_index, key_value in enumerate(splitted_header):
-            if pair_index >= DD_TRACE_BAGGAGE_MAX_ITEMS:
+            if pair_index >= _DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning(
                     "Baggage item limit exceeded, dropping excess items, skipped: %d items",
-                    len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
+                    len(splitted_header) - _DD_TRACE_BAGGAGE_MAX_ITEMS,
                 )
                 telemetry_writer.add_count_metric(
                     namespace=TELEMETRY_NAMESPACE.TRACERS,
@@ -1086,7 +1086,7 @@ class _BaggageHeader:
                 return _BaggageHeader._record_malformed_and_return_empty()
             base_size_bytes = len(key_value) if key_value.isascii() else len(key_value.encode("utf-8"))
             segment_bytes = base_size_bytes + (len(BAGGAGE_DELIMITER) if baggage_data else 0)
-            if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+            if total_size + segment_bytes > _DD_TRACE_BAGGAGE_MAX_BYTES:
                 log.warning(
                     "Baggage header size exceeded, dropping excess items. size would be %d bytes",
                     total_size + segment_bytes,
@@ -1190,7 +1190,7 @@ class HTTPPropagator(object):
                 context.span_id,
                 flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
                 tracestate=(
-                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
+                    context._meta.get(_W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
                 ),
                 attributes={
                     "reason": reason,
@@ -1221,7 +1221,7 @@ class HTTPPropagator(object):
                 # extract and add the raw ts value to the primary_context
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
-                    primary_context._meta[W3C_TRACESTATE_KEY] = ts
+                    primary_context._meta[_W3C_TRACESTATE_KEY] = ts
                 if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
                     dd_context = None
                     if _PROPAGATION_STYLE_DATADOG in styles_w_ctx:
@@ -1382,7 +1382,7 @@ class HTTPPropagator(object):
 
                         for stripped_key in tag_keys:
                             if (value := baggage_context.get_baggage_item(stripped_key)) is not None:
-                                prefixed_key = BAGGAGE_TAG_PREFIX + stripped_key
+                                prefixed_key = _BAGGAGE_TAG_PREFIX + stripped_key
                                 if prefixed_key not in context._meta:
                                     context._meta[prefixed_key] = value
 

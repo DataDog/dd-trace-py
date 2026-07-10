@@ -15,10 +15,9 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
-from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
-from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.propagation._constants import _DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.propagation._constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_B3_MULTI
@@ -27,6 +26,7 @@ from ddtrace.propagation._constants import _PROPAGATION_STYLE_BAGGAGE
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_DATADOG
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_NONE
 from ddtrace.propagation._constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
+from ddtrace.propagation._constants import _W3C_TRACESTATE_KEY
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -1122,29 +1122,29 @@ def test_tracecontext_get_sampling_priority(sampling_priority_tp, sampling_prior
 
 
 def test_tracecontext_get_context_truncates_tracestate_list_member_count():
-    many_members = ",".join("z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 3))
+    many_members = ",".join("z%d=%d" % (i, i) for i in range(_DD_TRACE_TRACESTATE_MAX_ITEMS + 3))
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, many_members, {})
-    stored = ctx._meta[W3C_TRACESTATE_KEY]
-    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
-    assert ("z%d=" % (DD_TRACE_TRACESTATE_MAX_ITEMS - 1)) in stored
-    assert ("z%d=" % DD_TRACE_TRACESTATE_MAX_ITEMS) not in stored
+    stored = ctx._meta[_W3C_TRACESTATE_KEY]
+    assert stored.count(",") == _DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+    assert ("z%d=" % (_DD_TRACE_TRACESTATE_MAX_ITEMS - 1)) in stored
+    assert ("z%d=" % _DD_TRACE_TRACESTATE_MAX_ITEMS) not in stored
 
 
 def test_tracecontext_get_context_truncates_tracestate_byte_length():
     short_dd = "dd=s:2;o:rum"
-    # First member (12 B) + comma + second must exceed DD_TRACE_TRACESTATE_MAX_BYTES so the second is dropped.
-    ys = DD_TRACE_TRACESTATE_MAX_BYTES - len(short_dd.encode("utf-8")) - 2
+    # First member (12 B) + comma + second must exceed _DD_TRACE_TRACESTATE_MAX_BYTES so the second is dropped.
+    ys = _DD_TRACE_TRACESTATE_MAX_BYTES - len(short_dd.encode("utf-8")) - 2
     long_second = "b=" + ("y" * ys)
     ts = short_dd + "," + long_second
-    assert len(ts.encode("utf-8")) > DD_TRACE_TRACESTATE_MAX_BYTES
+    assert len(ts.encode("utf-8")) > _DD_TRACE_TRACESTATE_MAX_BYTES
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx._meta[_W3C_TRACESTATE_KEY] == short_dd
     assert ctx.sampling_priority == 2
 
 
 def test_tracecontext_get_context_max_items_plus_one_each_max_bytes_plus_one():
     """MAX_ITEMS+1 members each longer than MAX_BYTES: item cap then byte cap leaves nothing stored."""
-    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+    member_len = _DD_TRACE_TRACESTATE_MAX_BYTES + 1
 
     def one_member(i: int) -> str:
         prefix = "k%02d=" % i
@@ -1152,66 +1152,66 @@ def test_tracecontext_get_context_max_items_plus_one_each_max_bytes_plus_one():
         assert pad >= 0
         return prefix + ("x" * pad)
 
-    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    members = [one_member(i) for i in range(_DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
     for m in members:
         assert len(m.encode("utf-8")) == member_len
     ts = ",".join(members)
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    assert ctx._meta[W3C_TRACESTATE_KEY] == ""
+    assert ctx._meta[_W3C_TRACESTATE_KEY] == ""
     assert ctx.sampling_priority == 1
     assert ctx.dd_origin is None
 
 
 def test_tracecontext_get_context_keeps_dd_when_oversized_vendor_members_fill_budget():
     """``dd=`` is retained first; oversized non-dd members do not displace it."""
-    member_len = DD_TRACE_TRACESTATE_MAX_BYTES + 1
+    member_len = _DD_TRACE_TRACESTATE_MAX_BYTES + 1
 
     def one_member(i: int) -> str:
         prefix = "k%02d=" % i
         pad = member_len - len(prefix.encode("utf-8"))
         return prefix + ("x" * pad)
 
-    members = [one_member(i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
+    members = [one_member(i) for i in range(_DD_TRACE_TRACESTATE_MAX_ITEMS + 1)]
     dd_mem = "dd=s:2;o:rum"
     ts = ",".join(members + [dd_mem])
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    assert ctx._meta[W3C_TRACESTATE_KEY] == dd_mem
+    assert ctx._meta[_W3C_TRACESTATE_KEY] == dd_mem
     assert ctx.sampling_priority == 2
     assert ctx.dd_origin == "rum"
 
 
 def test_tracecontext_get_context_dd_preferred_when_not_first_and_byte_capped():
-    long_first = "b=" + ("y" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    long_first = "b=" + ("y" * (_DD_TRACE_TRACESTATE_MAX_BYTES - 1))
     short_dd = "dd=s:2;o:rum"
     ts = long_first + "," + short_dd
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    assert ctx._meta[W3C_TRACESTATE_KEY] == short_dd
+    assert ctx._meta[_W3C_TRACESTATE_KEY] == short_dd
     assert ctx.sampling_priority == 2
     assert ctx.dd_origin == "rum"
 
 
 def test_tracecontext_get_context_dd_survives_list_member_count_when_last():
     # 32 small vendors + dd = 33 list-members; trim non-dd to 31 so dd + 31 vendors remain.
-    prefix_members = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS)]
+    prefix_members = ["z%d=%d" % (i, i) for i in range(_DD_TRACE_TRACESTATE_MAX_ITEMS)]
     ts = ",".join(prefix_members + ["dd=s:1"])
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    stored = ctx._meta[_W3C_TRACESTATE_KEY]
     assert stored.startswith("dd=")
     assert "z0=0" in stored
     assert "z30=30" in stored
     assert "z31=31" not in stored
-    assert stored.count(",") == DD_TRACE_TRACESTATE_MAX_ITEMS - 1
+    assert stored.count(",") == _DD_TRACE_TRACESTATE_MAX_ITEMS - 1
 
 
 def test_tracecontext_get_context_drops_oversized_vendor_before_small_when_item_capped():
     # 31 small keys + one oversized + ``dd`` => 32 non-dd slots would be exceeded by one extra
     # small vendor; ``others`` length 32 must shrink to 31: drop ``h=`` (oversized) first, not z30.
-    small = ["z%d=%d" % (i, i) for i in range(DD_TRACE_TRACESTATE_MAX_ITEMS - 1)]  # z0..z30
-    huge = "h=" + ("x" * (DD_TRACE_TRACESTATE_ITEM_MAX_CHARS + 50))
-    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    small = ["z%d=%d" % (i, i) for i in range(_DD_TRACE_TRACESTATE_MAX_ITEMS - 1)]  # z0..z30
+    huge = "h=" + ("x" * (_DD_TRACE_TRACESTATE_ITEM_MAX_CHARS + 50))
+    assert len(huge) > _DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
     ts = ",".join(small + [huge] + ["dd=s:1"])
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    stored = ctx._meta[_W3C_TRACESTATE_KEY]
     assert "h=" not in stored
     assert "z30=30" in stored
     assert stored.startswith("dd=")
@@ -1220,11 +1220,11 @@ def test_tracecontext_get_context_drops_oversized_vendor_before_small_when_item_
 def test_tracecontext_get_context_skips_oversized_member_under_byte_budget_after_dd():
     # ``dd`` first; next member alone would exceed byte cap and is over ITEM_MAX_CHARS, so it is
     # skipped and a later small member is still included.
-    huge = "a=" + ("x" * (DD_TRACE_TRACESTATE_MAX_BYTES - 1))
-    assert len(huge) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+    huge = "a=" + ("x" * (_DD_TRACE_TRACESTATE_MAX_BYTES - 1))
+    assert len(huge) > _DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
     ts = "dd=s:2;o:rum," + huge + ",z=9"
     ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, ts, {})
-    stored = ctx._meta[W3C_TRACESTATE_KEY]
+    stored = ctx._meta[_W3C_TRACESTATE_KEY]
     assert stored.startswith("dd=")
     assert "z=9" in stored
     assert huge not in stored
@@ -3528,20 +3528,20 @@ def test_baggageheader_inject(span_context, expected_headers):
 def test_baggageheader_maxitems_inject():
     import urllib.parse
 
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_ITEMS
 
     headers = {}
     baggage_items = {}
-    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 1):
+    for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS + 1):
         baggage_items[f"key{i}"] = f"val{i}"
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
     assert "baggage" in headers
     header_value = headers["baggage"]
     items = header_value.split(",")
-    assert len(items) == DD_TRACE_BAGGAGE_MAX_ITEMS
+    assert len(items) == _DD_TRACE_BAGGAGE_MAX_ITEMS
 
-    expected_keys = [f"key{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS)]
+    expected_keys = [f"key{i}" for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS)]
     for item in items:
         key, value = item.split("=", 1)
         key = urllib.parse.unquote(key)
@@ -3549,11 +3549,11 @@ def test_baggageheader_maxitems_inject():
 
 
 def test_baggageheader_maxbytes_inject():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_BYTES
 
     headers = {}
     # baggage item that exceeds the maximum byte size
-    baggage_items = {"foo": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
+    baggage_items = {"foo": "a" * (_DD_TRACE_BAGGAGE_MAX_BYTES + 1)}
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
     # since the baggage item exceeds the max bytes, no header should be injected
@@ -3563,76 +3563,76 @@ def test_baggageheader_maxbytes_inject():
     # multiple baggage items to test dropping items when the total size exceeds the limit
     headers = {}
     baggage_items = {
-        "key1": "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
-        "key2": "b" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
-        "key3": "c" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key1": "a" * (_DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key2": "b" * (_DD_TRACE_BAGGAGE_MAX_BYTES // 3),
+        "key3": "c" * (_DD_TRACE_BAGGAGE_MAX_BYTES // 3),
         "key4": "d",
     }
     span_context = Context(baggage=baggage_items)
     _BaggageHeader._inject(span_context, headers)
     header_value = headers["baggage"]
     header_size = len(header_value.encode("utf-8"))
-    assert header_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert header_size <= _DD_TRACE_BAGGAGE_MAX_BYTES
     assert "key4" not in header_value
     assert "key2" in header_value
 
 
 def test_baggageheader_maxitems_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_ITEMS
 
-    pairs = [f"k{i}=v{i}" for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
+    pairs = [f"k{i}=v{i}" for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS + 3)]
     header_value = ",".join(pairs)
     context = _BaggageHeader._extract({"baggage": header_value})
-    assert len(context._baggage) == DD_TRACE_BAGGAGE_MAX_ITEMS
-    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS):
+    assert len(context._baggage) == _DD_TRACE_BAGGAGE_MAX_ITEMS
+    for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS):
         assert context._baggage[f"k{i}"] == f"v{i}"
-    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+    assert f"k{_DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
 
 
 def test_baggageheader_maxitems_maxbytes_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_ITEMS
 
     pairs = []
-    for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
+    for i in range(_DD_TRACE_BAGGAGE_MAX_ITEMS + 3):
         prefix = f"k{i}="
-        pad_len = DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix.encode("utf-8"))
+        pad_len = _DD_TRACE_BAGGAGE_MAX_BYTES - len(prefix.encode("utf-8"))
         val = "v" * pad_len
         pair = f"k{i}={val}"
-        assert len(pair.encode("utf-8")) == DD_TRACE_BAGGAGE_MAX_BYTES
+        assert len(pair.encode("utf-8")) == _DD_TRACE_BAGGAGE_MAX_BYTES
         pairs.append(pair)
 
     header_value = ",".join(pairs)
     context = _BaggageHeader._extract({"baggage": header_value})
-    # First segment fills the byte budget; comma + next segment exceed DD_TRACE_BAGGAGE_MAX_BYTES.
+    # First segment fills the byte budget; comma + next segment exceed _DD_TRACE_BAGGAGE_MAX_BYTES.
     assert len(context._baggage) == 1
     assert context._baggage["k0"] == pairs[0].split("=", 1)[1]
-    assert f"k{DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
+    assert f"k{_DD_TRACE_BAGGAGE_MAX_ITEMS}" not in context._baggage
 
 
 def test_baggageheader_maxbytes_extract():
-    from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+    from ddtrace.propagation._constants import _DD_TRACE_BAGGAGE_MAX_BYTES
 
     # Single pair whose raw segment exceeds the byte limit — nothing parsed into baggage.
-    huge = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES + 1)
+    huge = "x" * (_DD_TRACE_BAGGAGE_MAX_BYTES + 1)
     context = _BaggageHeader._extract({"baggage": f"k={huge}"})
     assert context._baggage == {}
 
     # Multiple pairs: keep a prefix whose comma-separated wire size stays within the limit.
-    chunk = "a" * (DD_TRACE_BAGGAGE_MAX_BYTES // 3)
+    chunk = "a" * (_DD_TRACE_BAGGAGE_MAX_BYTES // 3)
     header_value = ",".join([f"key{i}={chunk}" for i in range(4)])
     context = _BaggageHeader._extract({"baggage": header_value})
     total_size = 0
     expected_baggage = {}
     for seg in header_value.split(","):
         segment_bytes = len(seg.encode("utf-8")) + (1 if expected_baggage else 0)
-        if total_size + segment_bytes > DD_TRACE_BAGGAGE_MAX_BYTES:
+        if total_size + segment_bytes > _DD_TRACE_BAGGAGE_MAX_BYTES:
             break
         key, _, value = seg.partition("=")
         expected_baggage[key] = value
         total_size += segment_bytes
     assert context._baggage == expected_baggage
-    assert total_size <= DD_TRACE_BAGGAGE_MAX_BYTES
+    assert total_size <= _DD_TRACE_BAGGAGE_MAX_BYTES
     assert "key3" not in context._baggage
 
 
