@@ -5,6 +5,7 @@ from time import time_ns
 import confluent_kafka
 
 from ddtrace import config
+from ddtrace._trace.constants import MESSAGING_DESTINATION_NAME
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -15,7 +16,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation

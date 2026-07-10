@@ -14,6 +14,7 @@ from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
+from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
@@ -1517,9 +1518,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 if not apm_tracing_enabled:
                     span_sampling_priority = entry_span()._span.context.sampling_priority
                     sampling_decision = get_entry_span_tag(SAMPLING_DECISION_TRACE_TAG_KEY)
-                    assert span_sampling_priority == constants.USER_KEEP, (
-                        f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
-                    )
+                    assert span_sampling_priority == USER_KEEP, f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
                     assert sampling_decision == f"-{constants.SamplingMechanism.APPSEC}", (
                         f"Expected '-5' (APPSEC), got {sampling_decision}"
                     )
