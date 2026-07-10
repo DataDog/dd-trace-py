@@ -10,7 +10,6 @@ from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import atexit as ddtrace_atexit
 from ddtrace.internal import compat
 from ddtrace.internal import process_tags
@@ -20,6 +19,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__

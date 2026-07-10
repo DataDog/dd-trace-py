@@ -5,7 +5,6 @@ import mock
 import pytest
 
 import ddtrace
-from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import process_tags
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -14,6 +13,7 @@ from ddtrace.internal.telemetry.data import _get_os_version
 from ddtrace.internal.telemetry.data import get_application
 from ddtrace.internal.telemetry.data import get_host_info
 from ddtrace.internal.telemetry.data import get_hostname
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 
 
 def test_get_application():

@@ -315,8 +315,8 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
 
         from ddtrace import config
         from ddtrace._trace.trace_handlers import _set_flask_request_tags
-        from ddtrace.internal.constants import FLASK_RESOURCE_FULL
-        from ddtrace.internal.constants import FLASK_URL_RULE
+        from ddtrace.internal.utils.constants import FLASK_RESOURCE_FULL
+        from ddtrace.internal.utils.constants import FLASK_URL_RULE
         from ddtrace.trace import tracer
 
         request = Mock()
@@ -339,8 +339,8 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         # between flat and subapp modes would pass silently in every other e2e test.
         from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
-        from ddtrace.internal.constants import FLASK_RESOURCE_FULL
-        from ddtrace.internal.constants import FLASK_URL_RULE
+        from ddtrace.internal.utils.constants import FLASK_RESOURCE_FULL
+        from ddtrace.internal.utils.constants import FLASK_URL_RULE
         from tests.utils import override_global_config
 
         with override_global_config(dict(_asm_enabled=True)):

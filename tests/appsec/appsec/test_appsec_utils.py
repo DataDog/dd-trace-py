@@ -2,9 +2,9 @@ import os
 
 import pytest
 
+import ddtrace.internal.utils.http as utils
 from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
 from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
-import ddtrace.internal.utils.http as utils
 from tests.utils import override_env
 
 
@@ -32,7 +32,9 @@ def test_get_blocked_template_no_env_var_html():
 
 def test_get_blocked_template_no_env_var_json():
     with override_env(dict(DD_APPSEC_HTTP_BLOCKED_TEMPLATE_HTML="", DD_APPSEC_HTTP_BLOCKED_TEMPLATE_JSON="")):
-        assert utils._get_blocked_template("other", BLOCK_ID) == utils._format_template(_BLOCKED_RESPONSE_JSON, BLOCK_ID)
+        assert utils._get_blocked_template("other", BLOCK_ID) == utils._format_template(
+            _BLOCKED_RESPONSE_JSON, BLOCK_ID
+        )
         assert utils._get_blocked_template("application/json", BLOCK_ID) == utils._format_template(
             _BLOCKED_RESPONSE_JSON, BLOCK_ID
         )

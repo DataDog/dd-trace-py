@@ -15,9 +15,9 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
-from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.constants import FLASK_RESOURCE_FULL
 
 
 logger = get_logger(__name__)

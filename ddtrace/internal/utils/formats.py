@@ -5,9 +5,9 @@ from typing import Text  # noqa:F401
 from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
-from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
 from ddtrace.internal.native._native import flatten_key_value  # noqa: F401
 from ddtrace.internal.native._native import is_sequence  # noqa: F401
+from ddtrace.internal.utils.constants import MAX_UINT_64BITS  # noqa:F401
 
 from ..compat import ensure_text
 

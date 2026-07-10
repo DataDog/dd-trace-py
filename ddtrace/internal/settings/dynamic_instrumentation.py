@@ -3,12 +3,12 @@ import re
 import typing as t
 
 from ddtrace import config as ddconfig
-from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils.config import get_application_name
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.version import __version__
 
 

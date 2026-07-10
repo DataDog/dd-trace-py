@@ -8,7 +8,7 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import Options
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import SamplingMechanism
+from ddtrace.internal.utils.constants import SamplingMechanism
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 

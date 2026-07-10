@@ -43,9 +43,9 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.logger import get_logger
 from ..internal.sampling import validate_sampling_decision
+from ..internal.utils.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
 

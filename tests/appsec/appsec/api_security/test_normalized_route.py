@@ -451,7 +451,7 @@ def test_normalize_route_flask_dm_assembly_via_handler():
 
     from ddtrace.appsec._constants import API_SECURITY
     from ddtrace.appsec._handlers import _on_set_http_meta_for_normalized_route
-    from ddtrace.internal.constants import FLASK_RESOURCE_FULL
+    from ddtrace.internal.utils.constants import FLASK_RESOURCE_FULL
     from tests.utils import override_global_config
 
     span = MagicMock()

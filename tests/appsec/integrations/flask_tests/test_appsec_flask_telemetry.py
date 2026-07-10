@@ -3,8 +3,8 @@ from urllib.parse import urlencode
 
 import pytest
 
-from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.http import _format_template
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase

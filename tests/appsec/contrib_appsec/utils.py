@@ -17,11 +17,11 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
-from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
-from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
-from ddtrace.propagation import _constants as propagation_constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
+from ddtrace.propagation import _constants as propagation_constants
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 import tests.appsec.rules as rules
 from tests.utils import override_config
 from tests.utils import override_env
@@ -694,8 +694,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
-                assert self.body(response) == _format_template(getattr(propagation_constants, body, ""), block_id), self.body(
-                    response
+                assert self.body(response) == _format_template(getattr(propagation_constants, body, ""), block_id), (
+                    self.body(response)
                 )
                 assert (
                     get_entry_span_tag(asm_constants.SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type")

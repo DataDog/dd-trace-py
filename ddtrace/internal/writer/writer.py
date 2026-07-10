@@ -34,7 +34,6 @@ from .. import service
 from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
-from ..constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
@@ -45,6 +44,7 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
+from ..utils.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ..utils.formats import parse_tags_str
 from ..utils.http import Response
 from ..utils.http import verify_url

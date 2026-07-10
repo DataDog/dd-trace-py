@@ -18,8 +18,6 @@ from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -28,6 +26,8 @@ from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.constants import MAX_UINT_64BITS
+from ddtrace.internal.utils.constants import SamplingMechanism
 from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter

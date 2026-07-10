@@ -5,9 +5,9 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
+from ddtrace.internal.utils.http import _format_template
 from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
 from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
-from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
 import tests.appsec.rules as rules

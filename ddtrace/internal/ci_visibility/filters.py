@@ -4,8 +4,8 @@ from typing import Union  # noqa:F401
 
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
-from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
+from ddtrace.internal.utils.constants import SamplingMechanism
 from ddtrace.trace import TraceFilter
 from ddtrace.version import __version__
 

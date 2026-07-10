@@ -24,7 +24,6 @@ from types import ModuleType
 import typing as t
 
 from ddtrace import config
-from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.logger import get_logger
@@ -38,6 +37,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
 from ddtrace.internal.utils.http import multipart

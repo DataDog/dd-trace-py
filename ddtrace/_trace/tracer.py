@@ -37,7 +37,6 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.propagation._constants import _SPAN_API_DATADOG
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -61,6 +60,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
+from ddtrace.propagation._constants import _SPAN_API_DATADOG
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 

@@ -2,12 +2,12 @@ from typing import Any
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.constants import MAX_UINT_64BITS
 
 
 log = get_logger(__name__)
