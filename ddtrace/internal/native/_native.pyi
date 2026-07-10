@@ -13,6 +13,11 @@ from ddtrace._trace.types import _AttributeValueType
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
+class appsec:
+    class libddwaf:
+        @staticmethod
+        def ddwaf_get_version() -> str: ...
+
 class DDSketch:
     def __init__(self): ...
     def add(self, value: float) -> None: ...

@@ -287,7 +287,7 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = ["stats"]
+rust_features = ["stats", "appsec"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:

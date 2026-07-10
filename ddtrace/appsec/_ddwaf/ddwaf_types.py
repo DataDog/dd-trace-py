@@ -15,6 +15,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_subcontext_capsule
 from ddtrace.appsec._utils import _observator
 from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import appsec as native_appsec
 from ddtrace.internal.settings.asm import config as asm_config
 
 
@@ -713,12 +714,7 @@ ddwaf_object_from_json = ctypes.CFUNCTYPE(
 )
 
 
-ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(
-    ("ddwaf_get_version", ddwaf),
-    (),
-)
-
-asm_config._ddwaf_version = ddwaf_get_version().decode()
+asm_config._ddwaf_version = native_appsec.libddwaf.ddwaf_get_version()
 
 
 ddwaf_set_log_cb = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_log_cb, ctypes.c_int)(

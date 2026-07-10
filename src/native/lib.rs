@@ -2,6 +2,8 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+#[cfg(feature = "appsec")]
+mod appsec;
 mod config;
 mod contextvar;
 mod data_pipeline;
@@ -28,6 +30,11 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    #[cfg(feature = "appsec")]
+    {
+        appsec::register(m)?;
+    }
+
     #[cfg(feature = "stats")]
     {
         m.add_class::<ddsketch::DDSketchPy>()?;
