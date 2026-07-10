@@ -15,7 +15,7 @@ from libcpp.utility cimport pair
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
-from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
