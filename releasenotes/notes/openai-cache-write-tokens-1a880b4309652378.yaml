@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces capturing the number of input tokens written to the cache (``cache_write_input_tokens``)
+    for OpenAI prompt caching use cases. This is reported by newer models (GPT-5.6+) via ``cache_write_tokens`` on the
+    usage details of both the chat completions and responses APIs, and complements the existing cache read token metric.
