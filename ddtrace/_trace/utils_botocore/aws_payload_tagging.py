@@ -87,7 +87,7 @@ class AWSPayloadTagging:
     ]
 
     def __init__(self):
-        self._initialized = False
+        self.validated = False
         # Parsed once on first call and reused; parsing 15+ default paths on every
         # invocation was a meaningful source of overhead.
         self._parsed_request_expressions = []
@@ -102,16 +102,16 @@ class AWSPayloadTagging:
         """
         Expands the JSON payload from various AWS services into tags and sets them on the Span.
         """
-        if not self._initialized:
+        if not self.validated:
             with self._init_lock:
-                if not self._initialized:
+                if not self.validated:
                     request_paths = self._get_redaction_paths("payload_tagging_request", self._REQUEST_REDACTION_PATHS_DEFAULTS)
                     response_paths = self._get_redaction_paths("payload_tagging_response", self._RESPONSE_REDACTION_PATHS_DEFAULTS)
                     self._parsed_request_expressions = [parse(p) for p in request_paths]
                     self._parsed_response_expressions = [parse(p) for p in response_paths]
                     self._max_tags = config.botocore.get("payload_tagging_max_tags")
                     self._max_depth = config.botocore.get("payload_tagging_max_depth")
-                    self._initialized = True
+                    self.validated = True
 
         if not payload:
             return
@@ -188,8 +188,8 @@ class AWSPayloadTagging:
                 if not path.startswith("$"):
                     log.warning(
                         "Invalid JSONPath expression %r in payload tagging config — "
-                        "all custom paths must start with '$'. Custom redaction paths "
-                        "will be ignored; falling back to default redaction paths only.",
+                        "all custom paths must start with '$'. Payload tagging will be "
+                        "disabled until the config is corrected.",
                         path,
                     )
                     return False
@@ -198,15 +198,15 @@ class AWSPayloadTagging:
                 except Exception:
                     log.warning(
                         "Failed to parse JSONPath expression %r in payload tagging config. "
-                        "Custom redaction paths will be ignored; falling back to default redaction paths only.",
+                        "Payload tagging will be disabled until the config is corrected.",
                         path,
                     )
                     return False
             else:
                 log.warning(
                     "Empty JSONPath expression in payload tagging config (check for "
-                    "leading/trailing commas). Custom redaction paths will be ignored; "
-                    "falling back to default redaction paths only.",
+                    "leading/trailing commas). Payload tagging will be disabled until "
+                    "the config is corrected.",
                 )
                 return False
 
@@ -215,18 +215,19 @@ class AWSPayloadTagging:
     def _get_redaction_paths(self, config_key: str, side_defaults: list) -> list:
         """
         Build the redaction path list for one payload side, combining side-specific and
-        shared defaults with any user-provided JSONPaths. Falls back to defaults if custom
-        paths are invalid (warning already emitted by _validate_json_paths).
+        shared defaults with any user-provided JSONPaths. Returns an empty list if the
+        config value is absent or invalid — disabling tagging on misconfiguration is
+        safer than emitting partially-redacted data with unknown custom paths ignored.
         """
         config_value = config.botocore.get(config_key)
         if not config_value:
             return []
+        if not self._validate_json_paths(config_value):
+            return []
         defaults = side_defaults + self._REDACTION_PATHS_DEFAULTS
-        if self._validate_json_paths(config_value):
-            if config_value == "all":
-                return defaults
-            return defaults + [p.strip() for p in config_value.split(",")]
-        return defaults
+        if config_value == "all":
+            return defaults
+        return defaults + [p.strip() for p in config_value.split(",")]
 
     def _tag_children(self, span: Span, key: str, obj: Any, items: Any, depth: int, tag_count: int, ctx: _RedactionContext) -> int:
         """Iterate key-value pairs from a container, redacting or recursing for each child."""
