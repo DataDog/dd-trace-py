@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import logging
-import ddtrace.internal.utils.time.Time
+from ddtrace.internal.utils.time import Time
 from typing import Callable
 from typing import Optional
 
