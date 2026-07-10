@@ -541,6 +541,25 @@ def get_tool_version_from_llm_span(llm_span: Span, tool_name: str) -> Optional[s
     return None
 
 
+def _sanitize_metric_key(key):
+    """Replace dots in a metric key with underscores.
+
+    LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
+    decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
+    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    """
+    if not isinstance(key, str) or "." not in key:
+        return key
+    sanitized = key.replace(".", "_")
+    log.warning(
+        "LLMObs metric key %r contains '.', which is not supported and would prevent the span from "
+        "being ingested; replacing with %r.",
+        key,
+        sanitized,
+    )
+    return sanitized
+
+
 def _annotate_llmobs_span_data(
     span: Span,
     name: Optional[str] = None,
@@ -625,7 +644,11 @@ def _annotate_llmobs_span_data(
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
         if metrics is not None:
-            llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
+            # LLMObs ingestion treats dots in metric keys as nested-path separators. Because the
+            # metrics field is decoded as a flat map of numeric values, a dotted key (e.g.
+            # "anomaly.query_count") is expanded into a nested map and fails to decode, dropping the
+            # whole span batch. Replace dots with underscores to keep such keys as flat metric keys.
+            llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
             # Tag values are serialized as strings, so coerce non-string values here.
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})

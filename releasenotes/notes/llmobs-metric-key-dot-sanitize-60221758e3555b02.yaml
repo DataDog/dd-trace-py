@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where annotating a span with a metric key
+    containing a dot (e.g. ``anomaly.query_count``) caused LLM Observability ingestion to
+    interpret the dot as a nested-path separator, producing a nested map that failed to decode
+    and dropped the entire span batch. Dots in metric keys are now replaced with underscores
+    before the span is submitted.
