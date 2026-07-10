@@ -589,6 +589,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="wrapping",
+            env={
+                # Opt into the future @tracer.wrap span-name behaviour so wrapping a
+                # method does not emit a DDTraceDeprecationWarning per test.
+                "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
+            },
+            command="pytest -v -n auto {cmdargs} tests/wrapping/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-xdist": latest,
+                "wrapt": [latest, "<2.0.0"],
+            },
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
