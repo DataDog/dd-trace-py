@@ -30,5 +30,8 @@ build_base_venvs:
     riot -v run -s --python=$PYTHON_VERSION smoke_test
   artifacts:
     name: venv_$PYTHON_VERSION
-    when: always
-    paths: !reference [.riot_job_artifacts, artifacts, paths]
+    paths:
+      - .riot/venv_*
+      - ddtrace/_version.py
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/test/test_*
