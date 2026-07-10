@@ -456,6 +456,7 @@ publishing-gate:
     - job: serverless lambda tests
     - job: run-tests-trigger
     - job: release_pypi_prod
+      optional: true
 
 configure_system_tests:
   needs: []
