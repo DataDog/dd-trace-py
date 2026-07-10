@@ -93,15 +93,26 @@ async def test_200_request_distributed_tracing(tracer):
                 assert h not in headers
 
 
+@pytest.mark.parametrize(
+    "headers,expected_header",
+    [
+        pytest.param({}, None, id="empty_headers"),
+        pytest.param((("x-custom-header", "value"),), ("X-Custom-Header", "value"), id="tuple_headers"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_200_request_distributed_tracing_with_empty_headers():
+async def test_200_request_distributed_tracing_with_headers(headers, expected_header):
     async with aiohttp.ClientSession() as session:
-        async with session.get("%s/headers" % URL, headers={}) as resp:
+        async with session.get("%s/headers" % URL, headers=headers) as resp:
             assert resp.status == 200
             data = await resp.json()
             assert "X-Datadog-Trace-Id" in data["headers"]
             assert "X-Datadog-Parent-Id" in data["headers"]
             assert "X-Datadog-Sampling-Priority" in data["headers"]
+            if expected_header is not None:
+                name, expected_value = expected_header
+                header_val = data["headers"].get(name) or data["headers"].get(name.lower())
+                assert header_val in (expected_value, [expected_value]), f"unexpected header value: {header_val!r}"
 
 
 @pytest.mark.asyncio
