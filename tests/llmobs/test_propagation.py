@@ -95,6 +95,24 @@ def test_session_id_local_override_beats_trace_default(llmobs):
     assert get_llmobs_session_id(default_span) == "trace-session"
 
 
+def test_injection_propagates_trace_default_session_not_override(llmobs):
+    """Injecting while an override child is active propagates the trace default, not the override,
+    and does not corrupt the trace default for later spans.
+    """
+    with llmobs.workflow(name="root"):  # no session on the root
+        with llmobs.llm(name="first", session_id="trace-session"):  # establishes the trace default
+            pass
+        with llmobs.llm(name="override", session_id="override-session") as override_span:
+            headers = llmobs.inject_distributed_headers({}, span=override_span)
+        with llmobs.llm(name="later") as later_span:  # sibling created after the override
+            pass
+    tags = headers.get("x-datadog-tags", "")
+    assert "_dd.p.llmobs_session_id=trace-session" in tags
+    assert "_dd.p.llmobs_session_id=override-session" not in tags
+    # the override must not have replaced the trace default for later spans
+    assert get_llmobs_session_id(later_span) == "trace-session"
+
+
 def test_inject_llmobs_parent_id_nested_llmobs_non_llmobs(llmobs):
     with llmobs.workflow("LLMObs span") as root_span:
         with llmobs._instance.tracer.trace("Non-LLMObs span") as span:
@@ -435,6 +453,40 @@ print(json.dumps(headers))
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model", session_id="local-session") as llm_span:
         assert get_llmobs_session_id(llm_span) == "local-session"
+
+
+def test_activate_distributed_headers_propagates_trace_default_over_override(
+    ddtrace_run_python_code_in_subprocess, llmobs
+):
+    """When an override child is active at injection time, service B inherits the trace default
+    (the first session set in the trace), not the active override.
+    """
+    code = """
+import json
+
+from ddtrace import tracer
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentless_enabled=True)
+
+with LLMObs.workflow(name="root"):  # no session; the first child sets the trace default
+    with LLMObs.llm(name="first", session_id="trace-session"):
+        pass
+    with LLMObs.llm(name="override", session_id="override-session"):
+        with tracer.trace("Non-LLMObs span") as child_span:
+            headers = LLMObs.inject_distributed_headers({}, span=child_span)
+
+print(json.dumps(headers))
+"""
+    env = os.environ.copy()
+    env.update({"DD_TRACE_ENABLED": "0"})
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code=code, env=env)
+    assert status == 0, (stdout, stderr)
+
+    headers = json.loads(stdout.decode())
+    llmobs.activate_distributed_headers(headers)
+    with llmobs.llm(name="llm_model") as llm_span:
+        assert get_llmobs_session_id(llm_span) == "trace-session"
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
