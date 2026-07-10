@@ -11,3 +11,10 @@ PROCESS_TAGS = "_dd.tags.process"
 PROPAGATED_HASH = "_dd.propagated_hash"
 _SERVICE_SOURCE = "_dd.svc_src"
 SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
+
+MESSAGING_BATCH_COUNT = "messaging.batch_count"
+MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_MESSAGE_ID = "messaging.message_id"
+MESSAGING_OPERATION = "messaging.operation"
+MESSAGING_SYSTEM = "messaging.system"
+
