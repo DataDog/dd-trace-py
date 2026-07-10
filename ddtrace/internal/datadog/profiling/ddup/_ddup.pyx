@@ -15,13 +15,13 @@ from libcpp.utility cimport pair
 import ddtrace
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
-from ddtrace._trace.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
 from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.utils.constants import DEFAULT_SERVICE_NAME
 
 
 ctypedef void (*func_ptr_t)(string_view)
