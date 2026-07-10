@@ -178,7 +178,7 @@ variables:
   variables:
     ARCH_TAG: "arm64"
     # Use bash instead of the Tart VM's default zsh
-    TART_EXECUTOR_SHELL: "/bin/bash"
+    TART_EXECUTOR_SHELL: "/bin/bash -l"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
   before_script: |
