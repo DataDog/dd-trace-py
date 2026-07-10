@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -43,6 +42,7 @@ def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
 
 
 def _asm_manual_keep(span: Span) -> None:
+    from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
     span._override_sampling_decision(USER_KEEP)
@@ -55,6 +55,7 @@ def _asm_manual_keep(span: Span) -> None:
 
 
 def _aiguard_manual_keep(span: Span) -> None:
+    from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.sampling import SamplingMechanism
 
     span._override_sampling_decision(USER_KEEP)

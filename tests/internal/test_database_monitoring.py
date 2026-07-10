@@ -2,7 +2,6 @@ import logging
 
 import pytest
 
-from ddtrace._trace.constants import PROPAGATED_HASH
 from ddtrace.internal.settings import _database_monitoring
 from ddtrace.propagation._database_monitoring import default_sql_injector
 from tests.utils import override_env
@@ -136,6 +135,7 @@ def test_dbm_propagation_full_mode():
     )
 )
 def test_dbm_not_propagating_base_hash_when_deactivated():
+    from ddtrace._trace.constants import PROPAGATED_HASH
     from ddtrace.internal import process_tags
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
@@ -168,6 +168,7 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
 def test_dbm_propagating_base_hash_when_activated():
     import re
 
+    from ddtrace._trace.constants import PROPAGATED_HASH
     from ddtrace.internal import process_tags
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
@@ -206,6 +207,7 @@ def test_dbm_propagating_base_hash_when_activated():
     )
 )
 def test_dbm_not_propagating_base_hash_in_full_mode():
+    from ddtrace._trace.constants import PROPAGATED_HASH
     from ddtrace.internal import process_tags
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
@@ -236,6 +238,7 @@ def test_dbm_not_propagating_base_hash_in_full_mode():
 def test_dbm_propagation_dynamic_service_mode():
     import re
 
+    from ddtrace._trace.constants import PROPAGATED_HASH
     from ddtrace.internal import process_tags
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
@@ -275,6 +278,7 @@ def test_dbm_propagation_dynamic_service_mode():
     )
 )
 def test_dbm_not_propagating_when_process_tags_disabled():
+    from ddtrace._trace.constants import PROPAGATED_HASH
     from ddtrace.internal import process_tags
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
