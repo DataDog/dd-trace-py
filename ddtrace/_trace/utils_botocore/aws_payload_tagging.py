@@ -150,9 +150,9 @@ class AWSPayloadTagging:
         ctx = _RedactionContext(exprs=exprs)
         for expr in exprs:
             for match in expr.find(payload):
-                path = match.path
                 if hasattr(path, "fields") and path.fields:
-                    ctx.redacted_ids.add((id(match.context.value), path.fields[0]))
+                    for field_name in path.fields:
+                        ctx.redacted_ids.add((id(match.context.value), field_name))
                 elif hasattr(path, "index"):
                     ctx.redacted_ids.add((id(match.context.value), path.index))
                 elif match.value is payload:
@@ -238,7 +238,16 @@ class AWSPayloadTagging:
             return defaults
         return defaults + [p.strip() for p in config_value.split(",")]
 
-    def _tag_children(self, span: Span, key: str, obj: Any, items: Any, depth: int, tag_count: int, ctx: _RedactionContext) -> int:
+    def _tag_children(
+        self,
+        span: Span,
+        key: str,
+        obj: Any,
+        items: Any,
+        depth: int,
+        tag_count: int,
+        ctx: _RedactionContext,
+    ) -> int:
         """Iterate key-value pairs from a container, redacting or recursing for each child."""
         for k, v in items:
             escaped_k = str(k).replace(".", "\\.") if isinstance(k, str) else k
@@ -253,7 +262,15 @@ class AWSPayloadTagging:
                 break
         return tag_count
 
-    def _tag_object(self, span: Span, key: str, obj: Any, depth: int, tag_count: int, ctx: _RedactionContext) -> int:
+    def _tag_object(
+        self,
+        span: Span,
+        key: str,
+        obj: Any,
+        depth: int,
+        tag_count: int,
+        ctx: _RedactionContext,
+    ) -> int:
         """
         Recursively expands the given AWS payload object and adds the values as flattened Span tags.
         It is not expected that AWS Payloads will be deeply nested so the number of recursive calls should be low.
