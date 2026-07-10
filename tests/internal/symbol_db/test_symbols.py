@@ -1,4 +1,5 @@
 import atexit
+import contextlib
 from importlib.machinery import ModuleSpec
 import os
 from pathlib import Path
@@ -20,11 +21,14 @@ from ddtrace.internal.symbol_db.symbols import _line_ranges
 
 @pytest.fixture(autouse=True, scope="function")
 def pid_file_teardown():
-    from ddtrace.internal.symbol_db.remoteconfig import shared_pid_file
+    from ddtrace.internal.symbol_db import remoteconfig
+
+    remoteconfig._permanently_disabled = False
 
     yield
 
-    shared_pid_file.clear()
+    remoteconfig.shared_pid_file.clear()
+    remoteconfig._permanently_disabled = False
 
 
 def test_symbol_from_code():
@@ -297,6 +301,51 @@ def test_scope_context_upload_skips_empty_batch():
         context.upload()
 
     mock_connector.assert_not_called()
+
+
+def test_symbol_database_callback_stays_disabled_after_child_uninstall():
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.symbol_db import remoteconfig
+    from ddtrace.internal.symbol_db.remoteconfig import SymbolDatabaseCallback
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    installed = [True]
+
+    def is_installed():
+        return installed[0]
+
+    def install():
+        installed[0] = True
+
+    def uninstall():
+        installed[0] = False
+
+    callback = SymbolDatabaseCallback()
+    rc_data = [
+        Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), "test", {"upload_symbols": True}),
+    ]
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(mock.patch.object(remoteconfig, "get_ancestor_runtime_id", return_value="runtime_id"))
+        mock_has_forked = stack.enter_context(mock.patch.object(remoteconfig, "has_forked", side_effect=[True, False]))
+        mock_poller = stack.enter_context(mock.patch.object(remoteconfig, "remoteconfig_poller"))
+        stack.enter_context(mock.patch.object(SymbolDatabaseUploader, "is_installed", side_effect=is_installed))
+        mock_install = stack.enter_context(mock.patch.object(SymbolDatabaseUploader, "install", side_effect=install))
+        mock_uninstall = stack.enter_context(
+            mock.patch.object(SymbolDatabaseUploader, "uninstall", side_effect=uninstall)
+        )
+
+        callback(rc_data)
+        callback(rc_data)
+
+    assert remoteconfig._permanently_disabled is True
+    assert installed[0] is False
+    mock_poller.unregister_callback.assert_called_once_with("LIVE_DEBUGGING_SYMBOL_DB")
+    mock_poller.disable_product.assert_called_once_with("LIVE_DEBUGGING_SYMBOL_DB")
+    mock_uninstall.assert_called_once()
+    mock_install.assert_not_called()
+    mock_has_forked.assert_called_once()
 
 
 @pytest.mark.subprocess(ddtrace_run=True, env=dict(DD_SYMBOL_DATABASE_UPLOAD_ENABLED="1"))

@@ -19,6 +19,7 @@ log = get_logger(__name__)
 shared_pid_file = SharedStringFile(f"{os.getppid()}-symdb-pids")
 
 MAX_CHILD_UPLOADERS = 1  # max one child
+_permanently_disabled: bool = False
 
 
 class SymbolDatabaseCallback(RCCallback):
@@ -30,6 +31,11 @@ class SymbolDatabaseCallback(RCCallback):
         Args:
             payloads: Sequence of configuration payloads to process
         """
+        global _permanently_disabled
+
+        if _permanently_disabled:
+            return
+
         with shared_pid_file.lock_exclusive() as f:
             if (pid := str(os.getpid())) not in (pids := set(shared_pid_file.peekall_unlocked(f))):
                 # Store the PID of the current process so that we know which processes
@@ -44,6 +50,7 @@ class SymbolDatabaseCallback(RCCallback):
                 # processes. Therefore, we avoid uploading the same symbols from each
                 # child process. We restrict the enablement of Symbol DB to just the
                 # parent process and the first fork child.
+                _permanently_disabled = True
                 remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
                 remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
 

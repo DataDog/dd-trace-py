@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixes Symbol Database reinstallation in forked worker
+    processes after the uploader is disabled, preventing repeated module scans that
+    could cause high memory usage or out-of-memory restarts.
