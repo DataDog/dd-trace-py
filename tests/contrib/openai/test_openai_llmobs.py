@@ -1568,7 +1568,6 @@ MUL: "*"
             resp = client.chat.completions.create(
                 model=model,
                 messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
-                max_completion_tokens=100,
             )
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
