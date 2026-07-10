@@ -154,6 +154,7 @@ class AWSPayloadTagging:
         ctx = _RedactionContext(exprs=exprs)
         for expr in exprs:
             for match in expr.find(payload):
+                path = match.path
                 if hasattr(path, "fields") and path.fields:
                     for field_name in path.fields:
                         ctx.redacted_ids.add((id(match.context.value), field_name))
@@ -165,6 +166,10 @@ class AWSPayloadTagging:
                     if hasattr(payload, "keys"):
                         for k in payload:
                             ctx.redacted_ids.add((id(payload), k))
+                    else:
+                        # Non-mapping root (e.g. a list) — fall back to value identity
+                        # so the fallback check in _tag_object catches it.
+                        ctx.redacted_ids.add(id(match.value))
                 else:
                     # Fallback for Slice, Where, or other exotic match types
                     ctx.redacted_ids.add(id(match.value))
