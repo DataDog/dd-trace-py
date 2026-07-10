@@ -379,6 +379,12 @@ class TestOptPlugin:
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
+            # Propagate session coverage bitmaps to the main process for backfill merging.
+            # execnet can serialize bytes but not bytearray, so we call to_bytes() (returns bytes).
+            if self._should_backfill_coverage and self._session_coverage:
+                session.config.workeroutput["dd_session_coverage"] = {
+                    path: cl.to_bytes() for path, cl in self._session_coverage.items()
+                }
 
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
@@ -1191,6 +1197,7 @@ class RetryReports:
 class XdistTestOptPlugin:
     def __init__(self, main_plugin: TestOptPlugin) -> None:
         self.main_plugin = main_plugin
+        self._workers_session_coverage: dict[str, CoverageLines] = {}
 
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
@@ -1203,12 +1210,38 @@ class XdistTestOptPlugin:
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
         """
         Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
+        Also merge per-worker session coverage bitmaps for ITR coverage backfilling.
         """
         if not hasattr(node, "workeroutput"):
             return
 
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
+
+        # Merge this worker's session coverage into the accumulated coverage for backfilling.
+        # Each worker serializes its _session_coverage as dict[str, bytes] in pytest_sessionfinish.
+        worker_coverage = node.workeroutput.get("dd_session_coverage")
+        if worker_coverage:
+            for path, bitmap_bytes in worker_coverage.items():
+                cl = CoverageLines.from_bytearray(bytearray(bitmap_bytes))
+                if path in self._workers_session_coverage:
+                    self._workers_session_coverage[path].update(cl)
+                else:
+                    self._workers_session_coverage[path] = cl
+
+    @pytest.hookimpl(tryfirst=True)
+    def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        """
+        Transfer accumulated worker coverage to the main plugin before it processes session finish.
+        This ensures the main plugin's backfill merge operates on the complete aggregated coverage.
+        Only runs on the main process (XdistTestOptPlugin is only registered on main).
+        """
+        if self._workers_session_coverage:
+            for path, cl in self._workers_session_coverage.items():
+                if path in self.main_plugin._session_coverage:
+                    self.main_plugin._session_coverage[path].update(cl)
+                else:
+                    self.main_plugin._session_coverage[path] = cl
 
 
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:

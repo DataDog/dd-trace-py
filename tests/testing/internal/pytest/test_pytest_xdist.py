@@ -36,7 +36,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _settings_attributes() -> dict:
+def _settings_attributes() -> dict[str, t.Any]:
     """The ``attributes`` block returned by the settings endpoint.
 
     This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
@@ -187,7 +187,7 @@ class MockCIVisibilityServer:
     @property
     def recorded_payloads(self) -> list[dict[str, t.Any]]:
         assert self.server is not None
-        return self.server.recorded_payloads  # type: ignore[attr-defined]
+        return self.server.recorded_payloads  # type: ignore[attr-defined, no-any-return]
 
     def get_all_events(self) -> list[dict[str, t.Any]]:
         """Return a flat list of all events across all recorded payloads."""
@@ -936,6 +936,251 @@ class TestXdistLoadScope:
         test_events = mock_server.get_test_events()
         test_names = sorted(e["content"]["meta"]["test.name"] for e in test_events)
         assert test_names == ["test_s1", "test_s2", "test_s3", "test_s4"]
+
+
+def _itr_settings_attributes() -> dict[str, t.Any]:
+    """Settings with ITR (tests_skipping + code_coverage) enabled."""
+    attrs = _settings_attributes()
+    attrs["tests_skipping"] = True
+    attrs["itr_enabled"] = True
+    attrs["code_coverage"] = True
+    return attrs
+
+
+class _ITRMockCIVisibilityHandler(BaseHTTPRequestHandler):
+    """HTTP handler variant that supports configurable ITR responses.
+
+    The server instance carries:
+    - ``recorded_payloads``: list of citestcycle payloads (same as base handler)
+    - ``skippable_response``: dict returned from /api/v2/ci/tests/skippable
+    - ``itr_settings``: bool — if True, return ITR-enabled settings
+    """
+
+    def log_message(self, format: str, *args: t.Any) -> None:  # noqa: A002
+        pass
+
+    def _send_json(self, data: t.Any, status: int = 200) -> None:
+        body = json.dumps(data).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_body(self) -> bytes:
+        length = int(self.headers.get("Content-Length", 0))
+        raw = self.rfile.read(length)
+        if self.headers.get("Content-Encoding") == "gzip":
+            raw = gzip.decompress(raw)
+        return raw
+
+    def do_POST(self) -> None:
+        body = self._read_body()
+
+        if self.path == "/api/v2/citestcycle":
+            payload = msgpack.unpackb(body)
+            self.server.recorded_payloads.append(payload)  # type: ignore[attr-defined]
+            self._send_json({})
+            return
+
+        if self.path == "/api/v2/libraries/tests/services/setting":
+            use_itr = self.server.itr_settings  # type: ignore[attr-defined]
+            attrs = _itr_settings_attributes() if use_itr else _settings_attributes()
+            self._send_json(
+                {"data": {"id": "1", "type": "ci_app_test_service_libraries_settings", "attributes": attrs}}
+            )
+            return
+
+        if self.path == "/api/v2/ci/libraries/tests":
+            self._send_json({"data": {"id": "1", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}})
+            return
+
+        if self.path == "/api/v2/ci/tests/skippable":
+            self._send_json(self.server.skippable_response)  # type: ignore[attr-defined]
+            return
+
+        if self.path == "/api/v2/git/repository/search_commits":
+            self._send_json({"data": []})
+            return
+
+        if self.path == "/api/v2/git/repository/packfile":
+            self._send_json({})
+            return
+
+        if self.path == "/api/v2/citestcov":
+            self._send_json({})
+            return
+
+        if self.path == "/api/v2/test/libraries/test-management/tests":
+            self._send_json(
+                {"data": {"id": "1", "type": "ci_app_libraries_tests_test_management", "attributes": {"tests": {}}}}
+            )
+            return
+
+        self._send_json({})
+
+    def do_GET(self) -> None:
+        self._send_json({})
+
+    def do_PUT(self) -> None:
+        self._send_json({})
+
+
+class MockCIVisibilityServerWithITR:
+    """Context manager for a mock CI Visibility server with configurable ITR responses."""
+
+    def __init__(self, skippable_response: dict[str, t.Any], itr_settings: bool = True) -> None:
+        self._skippable_response = skippable_response
+        self._itr_settings = itr_settings
+        self.server: t.Optional[HTTPServer] = None
+        self.thread: t.Optional[threading.Thread] = None
+
+    def __enter__(self) -> "MockCIVisibilityServerWithITR":
+        self.server = HTTPServer(("127.0.0.1", 0), _ITRMockCIVisibilityHandler)
+        self.server.recorded_payloads = []  # type: ignore[attr-defined]
+        self.server.skippable_response = self._skippable_response  # type: ignore[attr-defined]
+        self.server.itr_settings = self._itr_settings  # type: ignore[attr-defined]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        return self
+
+    def __exit__(self, *exc: t.Any) -> None:
+        if self.server:
+            self.server.shutdown()
+        if self.thread:
+            self.thread.join(timeout=5)
+
+    @property
+    def url(self) -> str:
+        assert self.server is not None
+        host, port = self.server.server_address
+        hostname = host.decode() if isinstance(host, bytes) else host
+        return f"http://{hostname}:{port}"
+
+    def get_all_events(self) -> list[dict[str, t.Any]]:
+        assert self.server is not None
+        events: list[dict[str, t.Any]] = []
+        for payload in self.server.recorded_payloads:  # type: ignore[attr-defined]
+            events.extend(payload.get("events", []))
+        return events
+
+    def get_events_by_type(self, event_type: str) -> list[dict[str, t.Any]]:
+        return [e for e in self.get_all_events() if e.get("type") == event_type]
+
+    def get_session_events(self) -> list[dict[str, t.Any]]:
+        return self.get_events_by_type("test_session_end")
+
+    def get_module_events(self) -> list[dict[str, t.Any]]:
+        return self.get_events_by_type("test_module_end")
+
+    def get_suite_events(self) -> list[dict[str, t.Any]]:
+        return self.get_events_by_type("test_suite_end")
+
+
+class TestXdistITRCoverageBackfill:
+    """Verify ITR coverage backfilling works correctly when running with xdist."""
+
+    # A minimal valid base64-encoded CoverageLines bitmap (1 byte = lines 1–8 all executed).
+    _COVERAGE_BITMAP = "AQ=="  # bytes: b"\x01" — line 1 set
+
+    def test_backfill_tag_set_with_two_workers(self, test_project: Path) -> None:
+        """With xdist + ITR enabled and meta.coverage present, backfilled tag is set on session/module/suite."""
+        (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
+        (test_project / "test_b.py").write_text("def test_two():\n    assert True\n")
+        _git_commit(test_project)
+
+        skippable_response = {
+            "data": [],
+            "meta": {
+                "correlation_id": "test-correlation-id",
+                "coverage": {"src/placeholder.py": self._COVERAGE_BITMAP},
+            },
+        }
+        with MockCIVisibilityServerWithITR(skippable_response=skippable_response) as server:
+            env = _make_env(server.url)
+            result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        session_events = server.get_session_events()
+        assert len(session_events) == 1
+        session_meta = session_events[0]["content"]["meta"]
+        assert session_meta.get("test.code_coverage.backfilled") == "true", (
+            f"Expected test.code_coverage.backfilled='true' on session event, got: {session_meta}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+        for suite_event in server.get_suite_events():
+            suite_meta = suite_event["content"]["meta"]
+            assert suite_meta.get("test.code_coverage.backfilled") == "true", (
+                f"Expected backfilled tag on suite event {suite_event['content']['meta'].get('test.suite')}, "
+                f"got: {suite_meta}"
+            )
+
+        for module_event in server.get_module_events():
+            module_meta = module_event["content"]["meta"]
+            assert module_meta.get("test.code_coverage.backfilled") == "true", (
+                f"Expected backfilled tag on module event, got: {module_meta}"
+            )
+
+    def test_backfill_tag_not_set_when_missing_flag_present(self, test_project: Path) -> None:
+        """When any skippable item has _missing_line_code_coverage, the backfilled tag must NOT be set."""
+        (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
+        (test_project / "test_b.py").write_text("def test_two():\n    assert True\n")
+        _git_commit(test_project)
+
+        skippable_response = {
+            "data": [
+                {
+                    "id": "abc",
+                    "type": "test",
+                    "attributes": {
+                        "name": "test_skipped",
+                        "suite": "test_a.py",
+                        "_missing_line_code_coverage": True,
+                    },
+                }
+            ],
+            "meta": {
+                "correlation_id": "test-correlation-id",
+                "coverage": {"src/placeholder.py": self._COVERAGE_BITMAP},
+            },
+        }
+        with MockCIVisibilityServerWithITR(skippable_response=skippable_response) as server:
+            env = _make_env(server.url)
+            result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        session_events = server.get_session_events()
+        assert len(session_events) == 1
+        session_meta = session_events[0]["content"]["meta"]
+        assert "test.code_coverage.backfilled" not in session_meta, (
+            f"Expected no backfilled tag on session when _missing_line_code_coverage is set, got: {session_meta}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+    def test_backfill_tag_not_set_when_coverage_empty(self, test_project: Path) -> None:
+        """When meta.coverage is empty, backfilling is a no-op and the tag must NOT be set."""
+        (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
+        _git_commit(test_project)
+
+        skippable_response = {
+            "data": [],
+            "meta": {"correlation_id": "test-correlation-id", "coverage": {}},
+        }
+        with MockCIVisibilityServerWithITR(skippable_response=skippable_response) as server:
+            env = _make_env(server.url)
+            result = _run_pytest_subprocess(test_project, "-n", "2", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        session_events = server.get_session_events()
+        assert len(session_events) == 1
+        session_meta = session_events[0]["content"]["meta"]
+        assert "test.code_coverage.backfilled" not in session_meta, (
+            f"Expected no backfilled tag when coverage is empty, got: {session_meta}"
+        )
 
 
 def test_mock_settings_payload_is_parseable() -> None:
