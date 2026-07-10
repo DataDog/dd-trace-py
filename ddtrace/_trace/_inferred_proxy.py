@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import logging
-from ddtrace.internal.utils.time import Time
 from typing import Callable
 from typing import Optional
 
@@ -11,6 +10,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.time import Time
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
 from ddtrace.trace import tracer
@@ -180,9 +180,7 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
 
     # Exit if proxy header system is not supported
     if proxy_header_system not in supported_proxies:
-        log.debug(
-            "Received headers to create inferred proxy span but unsupported proxy type: %r", proxy_header_system
-        )
+        log.debug("Received headers to create inferred proxy span but unsupported proxy type: %r", proxy_header_system)
         return None
 
     proxy_header_start_time_ms = _extract_header_value(POSSIBLE_PROXY_HEADER_START_TIME_MS, headers)
