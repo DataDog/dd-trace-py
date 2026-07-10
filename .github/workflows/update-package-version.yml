@@ -89,7 +89,7 @@ jobs:
           echo "cutoff=${CUTOFF}" >> "$GITHUB_OUTPUT"
           echo "Using exclude-newer cutoff: ${CUTOFF}"
 
-      - name: Run regenerate-riot-package-version
+      - name: Run regenerate-riot-latest
         env:
           TARGET_PACKAGE: ${{ inputs.package }}
           # Opt riot's `requirements` compile step into `uv pip compile` so
@@ -98,7 +98,7 @@ jobs:
           # to set before the riot upgrade lands.
           RIOT_PIP_COMPILE_BACKEND: "uv"
           RIOT_PIP_COMPILE_EXCLUDE_NEWER: ${{ steps.cooldown.outputs.cutoff }}
-        run: scripts/regenerate-riot-package-version.sh "$TARGET_PACKAGE"
+        run: scripts/regenerate-riot-latest.sh "$TARGET_PACKAGE"
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py
