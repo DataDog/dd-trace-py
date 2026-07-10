@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: The OpenAI and LiteLLM integrations now capture the cost returned by
+    OpenRouter when usage accounting is enabled (``extra_body={"usage": {"include": True}}``).
+    The billed cost is submitted on the span's ``total_cost`` metric (with ``input_cost`` and
+    ``output_cost`` when OpenRouter provides a breakdown), which LLM Observability uses in place of
+    model-catalog cost estimation for more accurate cost tracking of gateway-routed models.

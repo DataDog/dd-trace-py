@@ -16,15 +16,18 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
+from ddtrace.llmobs._constants import OUTPUT_COST_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
+from ddtrace.llmobs._constants import TOTAL_COST_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -197,6 +200,35 @@ def parse_llmobs_metric_args(metrics):
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
     return usage
+
+
+def get_provider_cost_metrics(token_usage: Any) -> dict[str, float]:
+    """Extract provider-returned cost (in USD) from an OpenAI-compatible ``usage`` object.
+
+    OpenRouter, when usage accounting is enabled (``extra_body={"usage": {"include": True}}``),
+    returns the actual billed cost on ``usage.cost`` along with a ``usage.cost_details`` breakdown.
+    The LLMObs backend treats ``total_cost``/``input_cost``/``output_cost`` metrics as user cost
+    overrides that take precedence over model-catalog estimation, so surfacing them here yields
+    accurate cost for gateway-routed and less-common models that the catalog may not price.
+
+    Returns an empty dict when the response carries no usable cost (i.e. non-OpenRouter responses),
+    making this safe to call unconditionally.
+    """
+    cost = _get_attr(token_usage, "cost", None)
+    if not isinstance(cost, (int, float)) or isinstance(cost, bool):
+        return {}
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: float(cost)}
+    # AIDEV-NOTE: OpenRouter's top-level `cost` is the amount actually billed (includes OpenRouter's
+    # margin/BYOK), while cost_details.upstream_inference_* are the raw upstream provider costs, so
+    # input+output may not sum to total. total_cost is authoritative; the breakdown is best-effort.
+    cost_details = _get_attr(token_usage, "cost_details", {}) or {}
+    input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
+    output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
+    if isinstance(input_cost, (int, float)) and not isinstance(input_cost, bool):
+        metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
+    if isinstance(output_cost, (int, float)) and not isinstance(output_cost, bool):
+        metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
+    return metrics
 
 
 LANGCHAIN_ROLE_MAPPING = {

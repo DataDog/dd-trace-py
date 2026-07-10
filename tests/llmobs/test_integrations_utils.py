@@ -8,6 +8,7 @@ from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.utils import format_audio_part
+from ddtrace.llmobs._integrations.utils import get_provider_cost_metrics
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -492,3 +493,57 @@ class TestOpenAIConstructMessageFromStreamedChunks:
         message = openai_construct_message_from_streamed_chunks(chunks)
         assert message["reasoning_content"] == "r"
         assert message["content"] == "c"
+
+
+class TestGetProviderCostMetrics:
+    """get_provider_cost_metrics extracts provider-returned cost (OpenRouter usage accounting)."""
+
+    def test_no_cost_field_returns_empty(self):
+        """A standard OpenAI usage object (no `cost`) yields no cost metrics."""
+        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        assert get_provider_cost_metrics(usage) == {}
+
+    def test_total_cost_only(self):
+        """OpenRouter returns a top-level `cost`; it maps to total_cost."""
+        usage = SimpleNamespace(prompt_tokens=794, completion_tokens=309, cost=0.000812)
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.000812}
+
+    def test_cost_with_breakdown(self):
+        """cost_details upstream costs map to input_cost/output_cost alongside total_cost."""
+        usage = SimpleNamespace(
+            cost=0.000812,
+            cost_details=SimpleNamespace(
+                upstream_inference_prompt_cost=0.0003176,
+                upstream_inference_completions_cost=0.0004944,
+            ),
+        )
+        assert get_provider_cost_metrics(usage) == {
+            "total_cost": 0.000812,
+            "input_cost": 0.0003176,
+            "output_cost": 0.0004944,
+        }
+
+    def test_dict_usage(self):
+        """Works with dict-shaped usage objects (via _get_attr)."""
+        usage = {"cost": 0.5, "cost_details": {"upstream_inference_prompt_cost": 0.2}}
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.5, "input_cost": 0.2}
+
+    def test_zero_cost_is_emitted(self):
+        """A genuinely free request (cost 0.0) still emits total_cost=0.0."""
+        assert get_provider_cost_metrics(SimpleNamespace(cost=0.0)) == {"total_cost": 0.0}
+
+    def test_non_numeric_cost_ignored(self):
+        """A non-numeric/bool cost is ignored to avoid corrupting metrics."""
+        assert get_provider_cost_metrics(SimpleNamespace(cost="0.1")) == {}
+        assert get_provider_cost_metrics(SimpleNamespace(cost=True)) == {}
+
+    def test_partial_breakdown(self):
+        """Only the breakdown fields that are numeric are included."""
+        usage = SimpleNamespace(
+            cost=1.0,
+            cost_details=SimpleNamespace(
+                upstream_inference_prompt_cost=0.4,
+                upstream_inference_completions_cost=None,
+            ),
+        )
+        assert get_provider_cost_metrics(usage) == {"total_cost": 1.0, "input_cost": 0.4}
