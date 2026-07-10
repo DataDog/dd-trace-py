@@ -467,6 +467,9 @@ def test_cli_run_arg_parser():
     assert a.record and a.name == "greet" and a.comparator == "exact" and a.ignore == "ts" and a.evaluate
     assert p.parse_args(["run", "m", "--baseline-file", "b.json"]).baseline_file == "b.json"
     assert p.parse_args(["run", "m", "--env-file", "x.env"]).env_file == "x.env"  # shared flag
+    a = p.parse_args(["run", "m", "--publish", "--project", "proj", "--experiment-name", "en", "--ml-app", "app"])
+    assert a.publish is True and a.project == "proj" and a.experiment_name == "en" and a.ml_app == "app"
+    assert p.parse_args(["run", "m"]).publish is False
 
 
 def test_cli_run_records_then_compares_offline(tmp_path):
@@ -540,3 +543,247 @@ def test_cli_run_compare_no_matching_subject(tmp_path):
     with pytest.raises(SystemExit) as e:
         cli._run_compare_offline(args, ie, runner, out)
     assert e.value.code == 2
+
+
+# --- `run --publish` (backend, mocked) ------------------------------------- #
+class _FakeRun:
+    def __init__(self, rows):
+        self.rows = rows
+
+
+class _FakeDataset:
+    def __init__(self, records):
+        self._records = [dict(r) for r in (records or [])]
+        self.pushed = 0
+
+    def __len__(self):
+        return len(self._records)
+
+    def __getitem__(self, i):
+        return self._records[i]
+
+    def update(self, i, rec):
+        self._records[i].update(rec)
+
+    def push(self):
+        self.pushed += 1
+
+
+def test_publish_baseline_creates_input_only_dataset_and_backfills(monkeypatch):
+    events = {"created": [], "experiments": [], "dataset": None}
+
+    class _Exp:
+        _id = "base-1"
+        url = "http://exp/base-1"
+
+        def run(self):
+            return _FakeRun([{"input": {"x": 1}, "output": 11}, {"input": {"x": 2}, "output": 22}])
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, project_name=None, description="", records=None):
+            events["created"].append((name, records))
+            events["dataset"] = _FakeDataset(records)
+            return events["dataset"]
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            events["experiments"].append((name, evaluators))
+            return _Exp()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    out = sdk.publish_baseline("e", [{"x": 1}, {"x": 2}], dataset_name="ds-fixed")
+    # dataset created with input_data only (no expected yet)
+    assert events["created"] == [("ds-fixed", [{"input_data": {"x": 1}}, {"input_data": {"x": 2}}])]
+    # baseline experiment named <subject>-baseline; no regression guard (subject has no evaluators)
+    ename, evs = events["experiments"][0]
+    assert ename == "e-baseline"
+    assert [getattr(ev, "__name__", None) for ev in evs] == ["baseline_recorded"]
+    # expected_output backfilled from the run's produced outputs, pushed once
+    assert events["dataset"]._records[0]["expected_output"] == 11
+    assert events["dataset"]._records[1]["expected_output"] == 22
+    assert events["dataset"].pushed == 1
+    assert out["experiment_id"] == "base-1" and out["dataset_name"] == "ds-fixed"
+    assert out["pairs"] == [({"x": 1}, 11), ({"x": 2}, 22)]
+
+
+def test_publish_baseline_uses_subject_evaluators_not_the_guard(monkeypatch):
+    seen = {}
+
+    class _Exp:
+        _id = "b"
+        url = "u"
+
+        def run(self):
+            return _FakeRun([])
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def create_dataset(name, **kw):
+            return _FakeDataset([])
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            seen["evaluators"] = evaluators
+            return _Exp()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    def my_check(input_data, output_data, expected_output):
+        return True
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [my_check])
+    def f(x):
+        return x
+
+    sdk.publish_baseline("e", [{"x": 1}], dataset_name="d")
+    assert seen["evaluators"] == [my_check]  # the baseline is scored by the subject's own evaluators only
+
+
+def test_publish_current_pulls_dataset_stacks_guard_and_builds_compare(monkeypatch):
+    seen = {}
+
+    class _Exp:
+        _id = "cur-9"
+        url = "http://exp/cur-9"
+
+        def run(self):
+            pass
+
+    class _FakeLLMObs:
+        enabled = True
+
+        @staticmethod
+        def pull_dataset(name, project_name=None):
+            seen["pulled"] = name
+            return object()
+
+        @staticmethod
+        def experiment(name, task, dataset, evaluators=None, **kw):
+            seen["ename"] = name
+            seen["evaluators"] = evaluators
+            return _Exp()
+
+    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
+
+    def my_check(input_data, output_data, expected_output):
+        return True
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [my_check])
+    def f(x):
+        return x
+
+    out = sdk.publish_current("e", "ds-1", runner.structural, baseline_experiment_id="base-1", project_name="p x")
+    assert seen["pulled"] == "ds-1" and seen["ename"] == "e"
+    assert seen["evaluators"][0].__name__ == "regression_match"  # guard first
+    assert seen["evaluators"][1] is my_check  # then the subject's evaluator
+    assert out["experiment_id"] == "cur-9"
+    assert "/llm/experiments/base-1?compareTargetExperimentId=cur-9" in out["compare_url"]
+    assert out["compare_url"].endswith("&project=p%20x")
+
+
+def test_compare_url_from_ids():
+    assert sdk.compare_url_from_ids(None, "c") is None
+    assert sdk.compare_url_from_ids("b", None) is None
+    u = sdk.compare_url_from_ids("b1", "c1", project_name="p x")
+    assert "/llm/experiments/b1?compareTargetExperimentId=c1" in u
+    assert u.endswith("&project=p%20x")
+
+
+def test_publish_meta_embedded_in_baseline_and_dropped_on_record(tmp_path):
+    p = str(tmp_path / "b.json")
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    _set_mode(Mode.CAPTURE)
+    f(x=1)
+    _set_mode(Mode.OFF)
+    runner.save_baselines(p)
+    runner.save_publish_meta(p, "e", dataset_name="ds-1", baseline_experiment_id="base-1")
+    assert runner.load_publish_meta(p, "e") == {"dataset_name": "ds-1", "baseline_experiment_id": "base-1"}
+    # the reserved _publish block is not iterated as a subject
+    assert [n for n, _ in runner.subject_items(runner.load_baselines(p))] == ["e"]
+    # re-recording rewrites the file from the registry and drops publish state (drift-free)
+    runner.save_baselines(p)
+    assert runner.load_publish_meta(p, "e") is None
+
+
+def test_write_baseline_cases_preserves_publish_block(tmp_path):
+    p = str(tmp_path / "b.json")
+    runner.save_publish_meta(p, "e", dataset_name="ds-1")
+    runner.write_baseline_cases(p, "e", [({"x": 1}, 11)])
+    assert runner.load_publish_meta(p, "e") == {"dataset_name": "ds-1"}  # meta survives
+    assert runner.load_baselines(p)["e"] == [{"input": {"x": 1}, "output": 11}]
+
+
+def test_cli_run_publish_first_publish_persists_meta(tmp_path, monkeypatch):
+    p = str(tmp_path / "b.json")
+    calls = {}
+    monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
+    monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+
+    class _Mod:
+        SUBJECT = "e"
+        INPUTS = [{"x": 1}]
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    monkeypatch.setattr(cli, "_import_target", lambda t: (_Mod, None))
+
+    def fake_baseline(name, inputs, project_name=None, experiment_name=None, dataset_name=None):
+        calls["baseline"] = (name, inputs, project_name)
+        return {"experiment_id": "base-1", "url": "http://b", "dataset_name": "ds-1", "pairs": [({"x": 1}, 11)]}
+
+    monkeypatch.setattr(sdk, "publish_baseline", fake_baseline)
+
+    args = cli._build_arg_parser().parse_args(["run", "mymod", "--publish", "--project", "proj", "--baseline-file", p])
+    cli._cmd_run(args, ie, runner)
+    assert calls["baseline"] == ("e", [{"x": 1}], "proj")
+    assert runner.load_publish_meta(p, "e") == {
+        "dataset_name": "ds-1",
+        "baseline_experiment_id": "base-1",
+        "project": "proj",
+    }
+    assert runner.load_baselines(p)["e"] == [{"input": {"x": 1}, "output": 11}]
+
+
+def test_cli_run_publish_rerun_uses_saved_meta(tmp_path, monkeypatch):
+    p = str(tmp_path / "b.json")
+    runner.save_publish_meta(p, "e", dataset_name="ds-1", baseline_experiment_id="base-1")
+    calls = {}
+    monkeypatch.setattr(cli, "_enable_llmobs", lambda ml: "app")
+    monkeypatch.setattr(cli, "_flush_llmobs", lambda: None)
+
+    class _Mod:
+        SUBJECT = "e"
+
+    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
+    def f(x):
+        return x
+
+    monkeypatch.setattr(cli, "_import_target", lambda t: (_Mod, None))
+
+    def fake_current(
+        name, dataset_name, comparator, baseline_experiment_id=None, project_name=None, experiment_name=None
+    ):
+        calls["current"] = (name, dataset_name, baseline_experiment_id, project_name)
+        return {"experiment_id": "cur-1", "url": "http://c", "compare_url": "http://compare"}
+
+    monkeypatch.setattr(sdk, "publish_current", fake_current)
+
+    args = cli._build_arg_parser().parse_args(["run", "mymod", "--publish", "--project", "proj", "--baseline-file", p])
+    cli._cmd_run(args, ie, runner)
+    assert calls["current"] == ("e", "ds-1", "base-1", "proj")

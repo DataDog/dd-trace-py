@@ -191,7 +191,7 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
     total: dict[str, int] = {}
     compared = False
     try:
-        for name, cases in baselines.items():
+        for name, cases in runner.subject_items(baselines):  # skips the reserved `_publish` block
             if args.name and name != args.name:
                 continue
             if name not in ie.registered_experiments():
@@ -211,13 +211,106 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
     sys.exit(1 if any(total.get(k) for k in gate) else 0)
 
 
+def _resolve_subject(args: Any, ie: Any, mod: Any) -> str:
+    """The single subject a publish run operates on: --name, then module SUBJECT, then the
+    sole registered subject. Exits(2) if ambiguous or unregistered.
+    """
+    registered = ie.registered_experiments()
+    subject = args.name or getattr(mod, "SUBJECT", None) or (registered[0] if len(registered) == 1 else None)
+    if subject is None:
+        print("run --publish: several subjects registered; pass --name to choose: %s" % ", ".join(registered))
+        sys.exit(2)
+    if subject not in registered:
+        print("run --publish: subject %r is not registered by %r." % (subject, args.target), file=sys.stderr)
+        sys.exit(2)
+    return str(subject)
+
+
+def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> list[Any]:
+    """Inputs for a first publish: prefer a prior offline baseline's inputs, else module INPUTS."""
+    if os.path.exists(baseline_file):
+        try:
+            cases = runner.load_baselines(baseline_file).get(subject) or []
+            from_baseline = [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
+            if from_baseline:
+                return from_baseline
+        except Exception:
+            pass
+    module_inputs = getattr(mod, "INPUTS", None)
+    return list(module_inputs) if module_inputs else []
+
+
+def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> None:
+    """`run --publish`: first publish creates the dataset + baseline experiment; a later publish
+    adds the current experiment + compare view. Correlation is the ``_publish`` block embedded
+    in the baseline file (no sidecar).
+    """
+    # Enable LLM Obs BEFORE importing the app so its LLM integrations are patched first.
+    _enable_llmobs(args.ml_app)
+    mod, _ = _import_target(args.target)
+    if not ie.registered_experiments():
+        print("run --publish: no experiment subjects registered by %r." % args.target, file=sys.stderr)
+        sys.exit(2)
+    subject = _resolve_subject(args, ie, mod)
+
+    from ddtrace.llmobs import _inline_experiment_sdk as sdk
+
+    ignore = [k for k in args.ignore.split(",") if k]
+    comparator = runner.comparator_from_spec(args.comparator, ignore)
+    meta = None if args.record else runner.load_publish_meta(baseline_file, subject)
+
+    if meta and meta.get("dataset_name") and meta.get("baseline_experiment_id"):
+        published = sdk.publish_current(
+            subject,
+            meta["dataset_name"],
+            comparator,
+            baseline_experiment_id=meta["baseline_experiment_id"],
+            project_name=args.project,
+            experiment_name=args.experiment_name,
+        )
+        print("published current experiment %r:" % subject)
+        print("  current -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
+        if published.get("compare_url"):
+            print("  compare -> %s" % published["compare_url"])
+    else:
+        inputs = _publish_inputs(subject, mod, baseline_file, runner)
+        if not inputs:
+            print(
+                "run --publish (first publish): no inputs for %r — run offline `run %s` first to "
+                "capture a baseline, or define INPUTS in the module." % (subject, args.target),
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        published = sdk.publish_baseline(
+            subject, inputs, project_name=args.project, experiment_name=args.experiment_name
+        )
+        # Persist the local baseline + publish state INSIDE the baseline file (no sidecar).
+        runner.write_baseline_cases(baseline_file, subject, published["pairs"])
+        runner.save_publish_meta(
+            baseline_file,
+            subject,
+            dataset_name=published["dataset_name"],
+            baseline_experiment_id=published["experiment_id"],
+            project=args.project or "",
+        )
+        print("published baseline experiment %r:" % subject)
+        print("  baseline -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
+        print("  dataset  -> %s  (%d case(s))" % (published["dataset_name"], len(published["pairs"])))
+        print("edit your code, then `ddtrace-experiment run %s --publish` to compare." % args.target)
+    _flush_llmobs()
+
+
 def _cmd_run(args: Any, ie: Any, runner: Any) -> None:
-    """The unified ``run`` verb: auto-detect first-run (record) vs rerun (compare)."""
+    """The unified ``run`` verb: offline by default; ``--publish`` routes to the backend."""
+    baseline_file = args.baseline_file or runner.DEFAULT_BASELINE_PATH
+    if args.publish:
+        _cmd_run_publish(args, ie, runner, baseline_file)
+        return
+
     _, entry = _import_target(args.target)  # registers subjects
     if not ie.registered_experiments():
         print("run: no experiment subjects registered by %r (did you import the app module?)." % args.target)
         sys.exit(2)
-    baseline_file = args.baseline_file or runner.DEFAULT_BASELINE_PATH
     have_baseline = os.path.exists(baseline_file)
     # First run when there is nothing to compare against, or when explicitly forced.
     if args.record or not have_baseline:
@@ -273,6 +366,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="also score the boundary's attached `evaluators` locally and print verdicts "
         "(may call provider APIs for LLM judges); a failing evaluator gates the exit code",
     )
+    run.add_argument(
+        "--publish",
+        action="store_true",
+        help="send the run to LLM Obs Experiments (needs DD_API_KEY): the first publish creates a "
+        "dataset + baseline experiment (with cost); a later publish adds the current experiment + a "
+        "compare view. Offline behavior is unchanged when omitted.",
+    )
+    run.add_argument("--project", default=None, help="project name for --publish")
+    run.add_argument("--experiment-name", default=None, help="experiment name for --publish (default: the subject)")
+    run.add_argument("--ml-app", default=None, help="ml_app for --publish (default: $DD_LLMOBS_ML_APP)")
 
     cap = sub.add_parser("capture", parents=[common], help="run the entrypoint and persist a baseline")
     cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")

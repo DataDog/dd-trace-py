@@ -54,6 +54,61 @@ def load_baselines(path: str = DEFAULT_BASELINE_PATH) -> dict[str, Any]:
     return data
 
 
+# Publish state (dataset name + baseline experiment id) lives INSIDE the baseline file under a
+# reserved ``_publish`` key — not a separate sidecar. This keeps it drift-free: ``save_baselines``
+# rewrites the file from the registry and drops ``_publish``, so re-recording a baseline (even a
+# different subject, or an offline capture) can never leave stale publish state behind for a
+# later ``run --publish`` to mis-correlate against. Subjects are real experiment names, so the
+# ``_``-prefixed reserved key never collides with one.
+PUBLISH_KEY = "_publish"
+
+
+def subject_items(baselines: dict[str, Any]) -> list[tuple[str, Any]]:
+    """(name, cases) pairs from a loaded baseline dict, skipping reserved (``_``-prefixed) keys."""
+    return [(k, v) for k, v in baselines.items() if not k.startswith("_")]
+
+
+def load_publish_meta(path: str, name: str) -> Optional[dict[str, Any]]:
+    """The persisted publish state for ``name`` (dataset_name, baseline_experiment_id), or None."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    value = data.get(PUBLISH_KEY, {}).get(name)
+    return value if isinstance(value, dict) else None
+
+
+def save_publish_meta(path: str, name: str, **fields: Any) -> None:
+    """Merge ``fields`` into ``_publish[name]`` in the baseline file (read-modify-write)."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    pub = data.setdefault(PUBLISH_KEY, {})
+    pub[name] = {**pub.get(name, {}), **fields}
+    with open(path, "w") as f:
+        json.dump(data, f, default=str, indent=2)
+
+
+def write_baseline_cases(path: str, name: str, pairs: list[tuple[Any, Any]]) -> None:
+    """Persist ``(input, output)`` pairs as the local baseline for one subject.
+
+    Used after ``run --publish`` establishes a baseline through the engine (whose outputs
+    aren't captured via the decorator) so an offline ``run`` still has cases to compare. Other
+    subjects and the ``_publish`` block already in the file are preserved.
+    """
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        data = {}
+    data[name] = [{"input": i, "output": o} for i, o in pairs]
+    with open(path, "w") as f:
+        json.dump(data, f, default=str, indent=2)
+
+
 # --------------------------------------------------------------------------- #
 # Comparators — "is the new output equivalent to the recorded baseline?"
 # Real LLM output is non-deterministic, so `exact` reports CHANGED on every replay;
