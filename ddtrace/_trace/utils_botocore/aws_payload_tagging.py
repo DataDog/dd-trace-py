@@ -20,7 +20,7 @@ _MAX_TAG_VALUE_LENGTH = 5000
 
 @dataclass
 class _RedactionContext:
-    """Immutable redaction state threaded through _tag_object/_tag_children calls."""
+    """Redaction state threaded through _tag_object/_tag_children calls."""
 
     # (id(parent), field_name_or_index) tuples for known path types;
     # id(value) ints as a fallback for exotic path types (Slice, Where, etc.).
