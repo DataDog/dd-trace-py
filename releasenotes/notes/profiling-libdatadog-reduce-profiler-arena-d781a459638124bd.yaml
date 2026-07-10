@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    profiling: reduces profiler memory footprint by adjusting default arena
+    chunk sizes for per-profiler string tables and the global string dictionary.

@@ -1,4 +1,4 @@
-use datadog_remote_config::{RemoteConfigData, RemoteConfigProduct};
+use datadog_remote_config::{default_registry, RemoteConfigProduct};
 use libdd_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
@@ -168,8 +168,9 @@ impl TracerFlareManagerPy {
             }
         };
 
-        let config_data: RemoteConfigData = match RemoteConfigData::try_parse(product, data) {
-            Ok(data) => data,
+        let config_data = match default_registry().parse(product, data) {
+            Ok(Some(data)) => data,
+            Ok(None) => return Ok(FlareActionPy::none_action()),
             Err(e) => {
                 // AGENT_CONFIG has multiple payload shapes; e.g. configuration_order
                 // is valid JSON but not our schema. Valid-JSON parse failures return none_action()
@@ -184,7 +185,7 @@ impl TracerFlareManagerPy {
         };
 
         Ok(manager
-            .handle_remote_config_data(&config_data)
+            .handle_remote_config_data(&*config_data)
             .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?
             .into())
     }
