@@ -13,11 +13,12 @@
       "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6434900000000",
+      "_dd.p.tid": "6a39788800000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.litellm",
       "language": "python",
       "litellm.request.model": "gpt-3.5-turbo",
-      "runtime-id": "7024d668ba8e4d1c81c4b099ef79ab71"
+      "runtime-id": "e94e6a8191e54c6da82cfa3ebde09f94"
     },
     "metrics": {
       "_dd.llmobs.enabled": 0.0,
@@ -28,8 +29,8 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 605.0
+      "process_id": 44708.0
     },
-    "duration": 153375333,
-    "start": 1776885881349980885
+    "duration": 44716417,
+    "start": 1782151304083280504
   }]]
