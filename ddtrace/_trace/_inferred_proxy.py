@@ -174,11 +174,11 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
 def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     proxy_header_system = _extract_header_value(POSSIBLE_PROXY_HEADER_SYSTEM, headers)
 
-    # Exit if proxy header system name is not present or is a system we don't support
+    # Exit if proxy header system name is not present
     if not proxy_header_system:
         return None
 
-    # Exit if proxy header system is a system we don't support
+    # Exit if proxy header system is not supported
     if proxy_header_system not in supported_proxies:
         log.debug(
             "Received headers to create inferred proxy span but unsupported proxy type: %r", proxy_header_system
