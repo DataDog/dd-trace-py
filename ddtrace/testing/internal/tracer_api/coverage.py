@@ -1,8 +1,12 @@
 """
 API for code coverage collection for use by ddtrace.testing.
 
-The rest of ddtrace.testing should only use the interface exposed in this file to set up code coverage and get
-coverage data.
+The rest of ddtrace.testing should only use the interface exposed in this file to set up code
+coverage and get coverage data.
+
+Exports: CoverageData, CoverageLines, coverage_collection, get_coverage_percentage,
+         install_coverage, install_coverage_percentage, uninstall_coverage_percentage,
+         clear_coverage_instance, stop_coverage.
 """
 
 import contextlib
@@ -18,7 +22,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 import ddtrace.internal.coverage.installer
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines as CoverageLines
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
 
 

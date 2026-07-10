@@ -9,7 +9,6 @@ import typing as t
 import uuid
 
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
@@ -24,6 +23,7 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api.coverage import CoverageLines
 
 
 log = logging.getLogger(__name__)

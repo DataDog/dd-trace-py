@@ -16,7 +16,6 @@ except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
@@ -45,6 +44,7 @@ from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
 from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api import Codeowners
+from ddtrace.testing.internal.tracer_api.coverage import CoverageLines
 from ddtrace.testing.internal.utils import asbool
 from ddtrace.testing.internal.writer import PayloadFileCoverageWriter
 from ddtrace.testing.internal.writer import PayloadFileTestOptWriter

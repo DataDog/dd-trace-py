@@ -10,7 +10,6 @@ import uuid
 
 import pytest
 
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import ITRSkippingLevel
@@ -24,6 +23,7 @@ from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestTag
+from ddtrace.testing.internal.tracer_api.coverage import CoverageLines
 from tests.testing.mocks import mock_backend_connector
 
 

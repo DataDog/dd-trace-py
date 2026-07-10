@@ -21,7 +21,6 @@ from unittest.mock import patch
 
 from _pytest.reports import TestReport
 
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
@@ -40,6 +39,7 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestRun
 from ddtrace.testing.internal.test_data import TestSession
 from ddtrace.testing.internal.test_data import TestSuite
+from ddtrace.testing.internal.tracer_api.coverage import CoverageLines
 from ddtrace.testing.internal.writer import Event
 from ddtrace.testing.internal.writer import TestOptWriter
 

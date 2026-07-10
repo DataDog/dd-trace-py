@@ -7,10 +7,10 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
+from ddtrace.testing.internal.tracer_api.coverage import CoverageLines
 from ddtrace.testing.internal.writer import TestCoverageWriter
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
