@@ -103,6 +103,14 @@ OUT_OF_SESSION_RETRY_PRETTY_NAME = "Out-of-Session Retry"
 log = logging.getLogger(__name__)
 
 
+def _effective_bit_length(data: bytes) -> int:
+    """Return the position of the highest set bit + 1, ignoring trailing-byte padding."""
+    for i in range(len(data) - 1, -1, -1):
+        if data[i]:
+            return i * 8 + data[i].bit_length()
+    return 0
+
+
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
 _ReportTestStatus = tuple[
     # 1st field: the status category in which the test will be counted in the final stats (X passed, Y failed, etc).
@@ -420,8 +428,8 @@ class TestOptPlugin:
                     merged[path] = CoverageLines.from_bytearray(bytearray(skipped_cl.to_bytes()))
 
             if merged:
-                total_bits = sum(len(cl.to_bytes()) * 8 for cl in merged.values())
-                set_bits = sum(bin(b).count("1") for cl in merged.values() for b in cl.to_bytes())
+                total_bits = sum(_effective_bit_length(cl.to_bytes()) for cl in merged.values())
+                set_bits = sum(len(cl) for cl in merged.values())  # len(CoverageLines) == count of set bits
                 if total_bits > 0:
                     self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = set_bits / total_bits * 100.0
 
