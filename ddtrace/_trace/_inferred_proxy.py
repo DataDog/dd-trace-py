@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import logging
-import time
+import timeddtrace.internal.utils.time.Time
 from typing import Callable
 from typing import Optional
 
@@ -210,7 +210,7 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     if not proxy_header_start_time_ms:
         if proxy_info.does_provide_timestamp:
             return None
-        proxy_header_start_time_ms = str(time.time_ns() // 1_000_000)  # convert ns to ms
+        proxy_header_start_time_ms = str(Time.time_ns() // 1_000_000)  # convert ns to ms
 
     return ProxyHeaderContext(
         proxy_header_system,
