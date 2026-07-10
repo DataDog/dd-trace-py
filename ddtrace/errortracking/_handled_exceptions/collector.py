@@ -4,8 +4,8 @@ from typing import NamedTuple
 
 from ddtrace._trace.constants import SPAN_EVENTS_HAS_EXCEPTION
 from ddtrace._trace.span import Span
-from ddtrace.internal import core
 from ddtrace.errortracking._constants import COLLECTOR_MAX_SIZE_PER_SPAN
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.errortracking import config

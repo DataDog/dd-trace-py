@@ -4,9 +4,9 @@ import re
 from urllib import parse
 
 from ddtrace import config
+from ddtrace.contrib.internal._constants import USER_AGENT_HEADER
 from ddtrace.contrib.internal.grpc import constants
 from ddtrace.ext import net
-from ddtrace.contrib.internal._constants import USER_AGENT_HEADER
 from ddtrace.internal.opentelemetry.constants import OTLP_EXPORTER_HEADER_IDENTIFIER
 
 

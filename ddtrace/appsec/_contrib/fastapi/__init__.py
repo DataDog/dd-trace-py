@@ -11,12 +11,12 @@ from ddtrace.appsec._asm_request_context import _on_context_ended
 from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
+from ddtrace.appsec._constants import RESPONSE_HEADERS
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.appsec._constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
