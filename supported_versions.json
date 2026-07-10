@@ -1519,38 +1519,38 @@
         "python_versions": {
             "3.9": {
                 "minimum_package_version": "1.10.0",
-                "maximum_package_version": "1.17.0",
+                "maximum_package_version": "1.18.0",
                 "tested_versions": [
                     "1.10.0",
-                    "1.17.0"
+                    "1.18.0"
                 ]
             },
             "3.10": {
-                "minimum_package_version": "1.17.0",
-                "maximum_package_version": "1.17.0",
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
                 "tested_versions": [
-                    "1.17.0"
+                    "2.2.0"
                 ]
             },
             "3.11": {
-                "minimum_package_version": "1.17.0",
-                "maximum_package_version": "1.17.0",
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
                 "tested_versions": [
-                    "1.17.0"
+                    "2.2.0"
                 ]
             },
             "3.12": {
-                "minimum_package_version": "1.17.0",
-                "maximum_package_version": "1.17.0",
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
                 "tested_versions": [
-                    "1.17.0"
+                    "2.2.0"
                 ]
             },
             "3.13": {
-                "minimum_package_version": "1.17.0",
-                "maximum_package_version": "1.17.0",
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
                 "tested_versions": [
-                    "1.17.0"
+                    "2.2.0"
                 ]
             }
         }
@@ -3454,6 +3454,48 @@
                 "tested_versions": [
                     "1.10.1",
                     "1.27.2"
+                ]
+            }
+        }
+    },
+    {
+        "dependency": "mistralai",
+        "integration": "mistralai",
+        "auto-instrumented": true,
+        "python_versions": {
+            "3.10": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.11": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.12": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.13": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
+                ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.4.9",
+                "maximum_package_version": "2.4.9",
+                "tested_versions": [
+                    "2.4.9"
                 ]
             }
         }
