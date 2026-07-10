@@ -3831,7 +3831,7 @@ def test_inject_span_without_sampling_priority():
 
 def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
-    from ddtrace._trace.constants import HIGHER_ORDER_TRACE_ID_BITS
+    from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.propagation.http import HTTPPropagator
 
     # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag
