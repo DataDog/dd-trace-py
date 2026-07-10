@@ -51,7 +51,7 @@ class TestOptDataProvider(t.Protocol):
 
     def get_skippable_tests(
         self,
-    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]: ...
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines]]: ...
 
     def get_known_commits(self, latest_commits: list[str]) -> t.Optional[list[str]]: ...
 
@@ -170,7 +170,7 @@ class CachedFileDataProvider:
 
     def get_skippable_tests(
         self,
-    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]:
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines]]:
         # WARNING: this guard assumes Bazel ALWAYS sets DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES
         # together with DD_TEST_OPTIMIZATION_MANIFEST_FILE. If a Bazel workflow ever sets only
         # the manifest file without the payload-files flag, cached skippable decisions would be
@@ -180,10 +180,10 @@ class CachedFileDataProvider:
         # In Bazel payload-files mode the build system handles test selection;
         # applying cached skippable decisions here would skip tests Bazel expects to run.
         if asbool(env.get(DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES)):
-            return set(), None, {}, False
+            return set(), None, {}
         cached = _read_cache_json(self._cache_path("cache/http/skippable_tests.json"))
         if cached is None:
-            return set(), None, {}, False
+            return set(), None, {}
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
             for item in cached["data"]:
@@ -198,8 +198,8 @@ class CachedFileDataProvider:
             correlation_id = cached.get("meta", {}).get("correlation_id")
         except Exception as e:
             log.warning("Error parsing cached skippable tests file: %s", e)
-            return set(), None, {}, False
-        return skippable_items, correlation_id, {}, False
+            return set(), None, {}
+        return skippable_items, correlation_id, {}
 
     # --- no-ops for methods unreachable in manifest mode ---
 

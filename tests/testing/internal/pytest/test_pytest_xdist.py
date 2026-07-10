@@ -1048,8 +1048,8 @@ class TestXdistITRCoverageBackfill:
                 f"Expected backfilled tag on module event, got: {module_meta}"
             )
 
-    def test_backfill_tag_not_set_when_missing_flag_present(self, test_project: Path) -> None:
-        """When any skippable item has _missing_line_code_coverage, the backfilled tag must NOT be set."""
+    def test_backfill_tag_set_when_missing_flag_present(self, test_project: Path) -> None:
+        """Items with _missing_line_code_coverage are not skipped (run fresh); backfill tag is still set."""
         (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
         (test_project / "test_b.py").write_text("def test_two():\n    assert True\n")
         _git_commit(test_project)
@@ -1080,13 +1080,13 @@ class TestXdistITRCoverageBackfill:
         session_events = server.get_session_events()
         assert len(session_events) == 1
         session_meta = session_events[0]["content"]["meta"]
-        assert "test.code_coverage.backfilled" not in session_meta, (
-            f"Expected no backfilled tag on session when _missing_line_code_coverage is set, got: {session_meta}\n"
+        assert session_meta.get("test.code_coverage.backfilled") == "true", (
+            f"Expected backfilled tag on session (missing-coverage items run fresh), got: {session_meta}\n"
             f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         )
 
-    def test_backfill_tag_not_set_when_coverage_empty(self, test_project: Path) -> None:
-        """When meta.coverage is empty, backfilling is a no-op and the tag must NOT be set."""
+    def test_backfill_tag_set_when_coverage_empty(self, test_project: Path) -> None:
+        """When meta.coverage is empty, tag is still set (percentage is accurate, backend should trust it)."""
         (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
         _git_commit(test_project)
 
@@ -1103,8 +1103,8 @@ class TestXdistITRCoverageBackfill:
         session_events = server.get_session_events()
         assert len(session_events) == 1
         session_meta = session_events[0]["content"]["meta"]
-        assert "test.code_coverage.backfilled" not in session_meta, (
-            f"Expected no backfilled tag when coverage is empty, got: {session_meta}"
+        assert session_meta.get("test.code_coverage.backfilled") == "true", (
+            f"Expected backfilled tag when ITR enabled even with empty coverage, got: {session_meta}"
         )
 
 

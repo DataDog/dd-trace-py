@@ -334,7 +334,7 @@ class TestSessionManagerEnvVarOverrides:
         mock_client.get_test_management_properties.return_value = {}
         mock_client.get_known_commits.return_value = []
         mock_client.send_git_pack_file.return_value = None
-        mock_client.get_skippable_tests.return_value = (set(), None, {}, False)
+        mock_client.get_skippable_tests.return_value = (set(), None, {})
         mock_client.close.return_value = None
         mock_client.configuration_errors = {}
 

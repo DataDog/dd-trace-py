@@ -106,7 +106,6 @@ class SessionManager:
         self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_covered_files: dict[str, CoverageLines] = {}
-        self.itr_has_missing_line_coverage: bool = False
         self.itr_skipping_level = ITRSkippingLevel.TEST  # TODO: SUITE level not supported at the moment.
 
         self.is_user_provided_service: bool
@@ -173,7 +172,6 @@ class SessionManager:
                 self.skippable_items,
                 self.itr_correlation_id,
                 self.itr_covered_files,
-                self.itr_has_missing_line_coverage,
             ) = self.api_client.get_skippable_tests()
         else:
             self.skippable_items = set()

@@ -1289,7 +1289,7 @@ class TestAPIClientGetSkippableTests:
         )
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
-            skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+            skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
         assert mock_connector.post_json.call_args_list == [
             call(
@@ -1317,7 +1317,7 @@ class TestAPIClientGetSkippableTests:
             TestRef(SuiteRef(ModuleRef("tests"), "test_second.py"), "test_02"),
         }
         assert correlation_id == "8ac307ca693b2ffd365ab2c3b47cb555"
-        assert has_missing is False
+
         # Verify covered_files paths are normalized with a leading "/"
         assert set(covered_files.keys()) == {"/tests/test_second.py", "/tests/test_simple.py"}
         assert all(isinstance(v, CoverageLines) for v in covered_files.values())
@@ -1348,7 +1348,7 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
         assert "Git info not available" in caplog.text
         assert mock_connector.post_json.call_args_list == []
@@ -1356,7 +1356,7 @@ class TestAPIClientGetSkippableTests:
         assert skippable_tests == set()
         assert correlation_id is None
         assert covered_files == {}
-        assert has_missing is False
+
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
@@ -1392,14 +1392,14 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
         assert "Error getting skippable tests from API" in caplog.text
 
         assert skippable_tests == set()
         assert correlation_id is None
         assert covered_files == {}
-        assert has_missing is False
+
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
@@ -1434,7 +1434,7 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
-                skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
         assert "Failed to parse skippable tests data" in caplog.text
         assert "'data'" in caplog.text
@@ -1442,15 +1442,15 @@ class TestAPIClientGetSkippableTests:
         assert skippable_tests == set()
         assert correlation_id is None
         assert covered_files == {}
-        assert has_missing is False
+
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS: "true"}
 
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
 
-    def test_get_skippable_tests_missing_line_coverage_flag(self, mock_telemetry: Mock) -> None:
-        """has_missing is True when any item carries _missing_line_code_coverage: true."""
+    def test_get_skippable_tests_missing_line_coverage_flag_excludes_from_skippable(self, mock_telemetry: Mock) -> None:
+        """Items with _missing_line_code_coverage are excluded from skippable_items (run fresh)."""
         mock_connector = (
             mock_backend_connector().with_post_json_response(
                 endpoint="/api/v2/ci/tests/skippable",
@@ -1497,13 +1497,15 @@ class TestAPIClientGetSkippableTests:
         )
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
-            skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+            skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
-        assert has_missing is True
-        assert covered_files == {}
         assert correlation_id == "corr-123"
-        # Both items are still returned as skippable (flag doesn't filter them out)
-        assert len(skippable_tests) == 2
+        assert covered_files == {}
+        # Only test_ok is skippable; test_no_coverage has the flag and is excluded
+        assert len(skippable_tests) == 1
+        test_ref = next(iter(skippable_tests))
+        assert isinstance(test_ref, TestRef)
+        assert test_ref.name == "test_ok"
 
     def test_get_skippable_tests_malformed_coverage_bitmap(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
@@ -1544,13 +1546,13 @@ class TestAPIClientGetSkippableTests:
 
         with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
             with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
-                skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+                skippable_tests, correlation_id, covered_files = api_client.get_skippable_tests()
 
         # Valid entry is parsed; malformed entry is skipped.
         assert "/tests/valid.py" in covered_files
         assert "/tests/bad.py" not in covered_files
         assert "Failed to decode coverage bitmap" in caplog.text
-        assert has_missing is False
+
         assert skippable_tests == set()
 
 

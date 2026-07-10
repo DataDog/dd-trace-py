@@ -299,15 +299,13 @@ class TestOptPlugin:
         # pytest items whose test exhausted Auto Test Retries and are eligible to be retried out of session.
         self._osr_candidates: list[pytest.Item] = []
 
-        # ITR coverage backfilling: accumulate per-test bitmaps into a session-level aggregate.
+        # ITR coverage backfilling: accumulate per-test coverage bitmaps so we can OR-merge
+        # them with meta.coverage from the skippable API at session end.
         self._session_coverage: dict[str, CoverageLines] = {}
-        # Precompute whether backfilling should be applied for this session.
-        # All three conditions are known after SessionManager.__init__ completes.
-        self._should_backfill_coverage: bool = (
-            self.session.itr_skipping_enabled
-            and bool(self.manager.itr_covered_files)
-            and not self.manager.itr_has_missing_line_coverage
-        )
+        # Whether to backfill: set whenever ITR skipping is enabled.  Tests with
+        # _missing_line_code_coverage are excluded from skippable_items (they run fresh),
+        # so their coverage is always collected — no need for a separate flag.
+        self._should_backfill_coverage: bool = self.session.itr_skipping_enabled
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -379,8 +377,8 @@ class TestOptPlugin:
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
-            # Propagate session coverage bitmaps to the main process for backfill merging.
-            # execnet can serialize bytes but not bytearray, so we call to_bytes() (returns bytes).
+            # Propagate session coverage bitmaps for backfill OR-merge on the main process.
+            # execnet serializes bytes but not bytearray; to_bytes() returns bytes.
             if self._should_backfill_coverage and self._session_coverage:
                 session.config.workeroutput["dd_session_coverage"] = {
                     path: cl.to_bytes() for path, cl in self._session_coverage.items()
@@ -412,10 +410,21 @@ class TestOptPlugin:
             clear_coverage_instance()
 
         if self._should_backfill_coverage:
-            # Signal to the backend that coverage backfilling was applied.
-            # The backend computes the merged percentage itself from the per-test bitmaps
-            # already uploaded via put_coverage, combined with meta.coverage from the
-            # skippable API response. The library's role is only to set this tag.
+            # OR-merge the session's live coverage with meta.coverage from the skippable API
+            # (the union of all skipped tests' line coverage) and recompute the percentage.
+            merged = dict(self._session_coverage)
+            for path, skipped_cl in self.manager.itr_covered_files.items():
+                if path in merged:
+                    merged[path].update(skipped_cl)
+                else:
+                    merged[path] = CoverageLines.from_bytearray(bytearray(skipped_cl.to_bytes()))
+
+            if merged:
+                total_bits = sum(len(cl.to_bytes()) * 8 for cl in merged.values())
+                set_bits = sum(bin(b).count("1") for cl in merged.values() for b in cl.to_bytes())
+                if total_bits > 0:
+                    self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = set_bits / total_bits * 100.0
+
             self.session.tags[TestTag.CODE_COVERAGE_BACKFILLED] = "true"
 
         self.session.finish()
@@ -595,10 +604,9 @@ class TestOptPlugin:
 
         test.finish()
 
-        # Materialize the generator so we can iterate twice (accumulate + write).
+        # Materialize the generator so we can both accumulate session coverage and write per-test bitmaps.
         bitmaps = list(coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path))
 
-        # Accumulate into session-level coverage for ITR backfilling.
         for path, bitmap_bytes in bitmaps:
             cl = CoverageLines.from_bytearray(bytearray(bitmap_bytes))
             if path in self._session_coverage:
@@ -1204,8 +1212,7 @@ class XdistTestOptPlugin:
     @pytest.hookimpl
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
         """
-        Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
-        Also merge per-worker session coverage bitmaps for ITR coverage backfilling.
+        Collect per-worker ITR skip counts and session coverage bitmaps.
         """
         if not hasattr(node, "workeroutput"):
             return
@@ -1213,8 +1220,7 @@ class XdistTestOptPlugin:
         if tests_skipped_by_itr := node.workeroutput.get("tests_skipped_by_itr"):
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
-        # Merge this worker's session coverage into the accumulated coverage for backfilling.
-        # Each worker serializes its _session_coverage as dict[str, bytes] in pytest_sessionfinish.
+        # Merge this worker's session coverage for backfill OR-merge.
         worker_coverage = node.workeroutput.get("dd_session_coverage")
         if worker_coverage:
             for path, bitmap_bytes in worker_coverage.items():
@@ -1226,11 +1232,7 @@ class XdistTestOptPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
-        """
-        Transfer accumulated worker coverage to the main plugin before it processes session finish.
-        This ensures the main plugin's backfill merge operates on the complete aggregated coverage.
-        Only runs on the main process (XdistTestOptPlugin is only registered on main).
-        """
+        """Transfer accumulated worker coverage to the main plugin before it processes session finish."""
         if self._workers_session_coverage:
             for path, cl in self._workers_session_coverage.items():
                 if path in self.main_plugin._session_coverage:

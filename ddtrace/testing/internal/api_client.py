@@ -391,7 +391,7 @@ class APIClient:
 
     def get_skippable_tests(
         self,
-    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines], bool]:
+    ) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str], dict[str, CoverageLines]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -419,7 +419,7 @@ class APIClient:
             log.warning("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None, {}, False
+            return set(), None, {}
 
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
@@ -428,16 +428,17 @@ class APIClient:
         except Exception as e:
             log.warning("Error getting skippable tests from API: %s", e)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None, {}, False
+            return set(), None, {}
 
         try:
             skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
-            has_missing_line_coverage = False
 
             for item in result.parsed_response["data"]:
-                if item["attributes"].get("_missing_line_code_coverage", False):
-                    has_missing_line_coverage = True
-                if item["type"] in ("test", "suite"):
+                # Tests/suites with _missing_line_code_coverage lack stored line coverage in the
+                # backend, so the meta.coverage bitmap is incomplete for them.  Don't skip these
+                # — let them run so their coverage is collected fresh (matches Java behaviour).
+                has_missing = item["attributes"].get("_missing_line_code_coverage", False)
+                if item["type"] in ("test", "suite") and not has_missing:
                     module_ref = ModuleRef(item["attributes"].get("configurations", {}).get("test.bundle", EMPTY_NAME))
                     suite_ref = SuiteRef(module_ref, item["attributes"].get("suite", EMPTY_NAME))
                     if item["type"] == "suite" and self.itr_skipping_level == ITRSkippingLevel.SUITE:
@@ -463,11 +464,11 @@ class APIClient:
             log.warning("Failed to parse skippable tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             self.configuration_errors[TestTag.LIBRARY_CONFIGURATION_ERROR_SKIPPABLE_TESTS] = "true"
-            return set(), None, {}, False
+            return set(), None, {}
 
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
-        return skippable_items, correlation_id, covered_files, has_missing_line_coverage
+        return skippable_items, correlation_id, covered_files
 
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None

@@ -173,7 +173,6 @@ class SessionManagerMockBuilder:
 
         # ITR coverage backfilling attributes (added in __init__ dynamically).
         mock_manager.itr_covered_files = {}
-        mock_manager.itr_has_missing_line_coverage = False
 
         mock_manager.session = Mock()
         mock_manager.writer = Mock()
@@ -200,7 +199,7 @@ class SessionManagerMockBuilder:
             mock_client.get_test_management_properties.return_value = self._test_properties
             mock_client.get_known_commits.return_value = self._known_commits
             mock_client.send_git_pack_file.return_value = None
-            mock_client.get_skippable_tests.return_value = (self._skippable_items, None, {}, False)
+            mock_client.get_skippable_tests.return_value = (self._skippable_items, None, {})
             mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
@@ -361,7 +360,6 @@ class APIClientMockBuilder:
         self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
         self._known_tests: set[TestRef] = set()
         self._covered_files: "dict[str, CoverageLines]" = {}
-        self._has_missing_line_coverage: bool = False
 
     def with_skipping_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable test skipping."""
@@ -410,11 +408,6 @@ class APIClientMockBuilder:
         self._covered_files = covered_files
         return self
 
-    def with_has_missing_line_coverage(self, has_missing: bool = True) -> "APIClientMockBuilder":
-        """Set whether any skippable item lacks line coverage data."""
-        self._has_missing_line_coverage = has_missing
-        return self
-
     def with_test_management_properties(self, properties: dict[TestRef, TestProperties]) -> "APIClientMockBuilder":
         """Set test management properties."""
         self._test_management_properties = properties
@@ -447,7 +440,6 @@ class APIClientMockBuilder:
             self._skippable_items,
             "correlation-123" if self._skippable_items else None,
             self._covered_files,
-            self._has_missing_line_coverage,
         )
 
         # Always add upload_coverage_report method that returns True (mocked success)
@@ -575,7 +567,6 @@ def mock_api_client_settings(
     coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
     test_management_properties: t.Optional[dict[TestRef, TestProperties]] = None,
     covered_files: t.Optional[dict[str, CoverageLines]] = None,
-    has_missing_line_coverage: bool = False,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
     builder: "APIClientMockBuilder" = APIClientMockBuilder()
@@ -600,8 +591,6 @@ def mock_api_client_settings(
         builder = builder.with_test_management_properties(test_management_properties)
     if covered_files is not None:
         builder = builder.with_covered_files(covered_files)
-    if has_missing_line_coverage:
-        builder = builder.with_has_missing_line_coverage(has_missing_line_coverage)
 
     mock_client = builder.build()
 

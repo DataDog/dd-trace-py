@@ -420,8 +420,12 @@ class TestITRCoverageBackfill:
         [module] = event_capture.events_by_type("test_module_end")
         assert module["content"]["meta"].get("test.code_coverage.backfilled") == "true"
 
-    def test_backfill_tag_not_set_when_missing_flag_present(self, pytester: Pytester) -> None:
-        """ITR enabled, coverage present, but some items have _missing_line_code_coverage → no tag."""
+    def test_backfill_tag_still_set_when_missing_flag_present(self, pytester: Pytester) -> None:
+        """ITR enabled, coverage present, some items have _missing_line_code_coverage → tag still set.
+
+        Tests with _missing_line_code_coverage are excluded from skippable_items (they run fresh
+        to collect live coverage), so the backfill tag is still valid.
+        """
         pytester.makepyfile(test_foo="def test_pass(): pass")
 
         with (
@@ -430,7 +434,6 @@ class TestITRCoverageBackfill:
                 return_value=mock_api_client_settings(
                     skipping_enabled=True,
                     covered_files=self._make_covered_files(),
-                    has_missing_line_coverage=True,
                 ),
             ),
             setup_standard_mocks(),
@@ -441,16 +444,10 @@ class TestITRCoverageBackfill:
         assert result.ret == 0
 
         [session] = event_capture.events_by_type("test_session_end")
-        assert session["content"]["meta"].get("test.code_coverage.backfilled") is None
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") == "true"
 
-        [suite] = event_capture.events_by_type("test_suite_end")
-        assert suite["content"]["meta"].get("test.code_coverage.backfilled") is None
-
-        [module] = event_capture.events_by_type("test_module_end")
-        assert module["content"]["meta"].get("test.code_coverage.backfilled") is None
-
-    def test_backfill_tag_not_set_when_coverage_empty(self, pytester: Pytester) -> None:
-        """ITR enabled, but meta.coverage is empty → no backfilling (nothing to backfill)."""
+    def test_backfill_tag_set_when_coverage_empty(self, pytester: Pytester) -> None:
+        """ITR enabled, meta.coverage empty → tag still set (percentage is accurate, backend should trust it)."""
         pytester.makepyfile(test_foo="def test_pass(): pass")
 
         with (
@@ -469,7 +466,7 @@ class TestITRCoverageBackfill:
         assert result.ret == 0
 
         [session] = event_capture.events_by_type("test_session_end")
-        assert session["content"]["meta"].get("test.code_coverage.backfilled") is None
+        assert session["content"]["meta"].get("test.code_coverage.backfilled") == "true"
 
     def test_backfill_tag_not_set_when_itr_disabled(self, pytester: Pytester) -> None:
         """ITR disabled → no backfilling regardless of coverage data."""
