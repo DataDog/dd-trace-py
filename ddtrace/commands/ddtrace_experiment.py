@@ -268,7 +268,12 @@ def main() -> None:
             _flush_llmobs()
             out = args.out or runner.DEFAULT_BASELINE_PATH
             runner.save_baselines(out)  # persist the recorded (input, output) cases locally
-            runner.save_publish_state(out, subject, baseline_experiment_id=sdk._experiment_id(published["baseline"]))
+            runner.save_publish_state(
+                out,
+                subject,
+                baseline_experiment_id=sdk._experiment_id(published["baseline"]),
+                dataset_name=published["dataset_name"],  # replay pulls this exact dataset
+            )
             print("published baseline for %r (ml_app: %s):" % (subject, ml_app))
             print("  baseline -> %s" % (sdk.experiment_url(published["baseline"]) or "?"))
             ds = sdk.dataset_url(published.get("dataset"))
@@ -326,10 +331,15 @@ def main() -> None:
             if name not in ie.registered_experiments():
                 print("  (skipping %r — not registered by %r)" % (name, args.target))
                 continue
-            published = sdk.publish_current(
-                name, cases, comparator, experiment_name=args.experiment_name, project_name=args.project
-            )
             state = runner.load_publish_state(infile, name) or {}
+            published = sdk.publish_current(
+                name,
+                cases,
+                comparator,
+                experiment_name=args.experiment_name,
+                project_name=args.project,
+                dataset_name=state.get("dataset_name"),  # the exact dataset from capture --publish
+            )
             baseline_id = state.get("baseline_experiment_id")
             print("published experiment %r:" % name)
             print("  current  -> %s" % (sdk.experiment_url(published["current"]) or "LLM Obs -> Experiments"))

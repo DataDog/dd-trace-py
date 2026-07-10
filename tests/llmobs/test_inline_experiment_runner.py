@@ -330,8 +330,9 @@ def test_publish_baseline_runs_real_subject_and_backfills_expected(monkeypatch):
 
     result = sdk.publish_baseline("portfolio", [{"tickers": ["NVDA"]}, {"tickers": ["AAPL", "MSFT"]}])
 
-    # dataset created from inputs; one baseline experiment; no regression_match guard on baseline
-    assert state["dataset_name"] == "inline-experiment-portfolio"
+    # dataset created from inputs with a UNIQUE name (never accumulates across captures)
+    assert state["dataset_name"].startswith("inline-experiment-portfolio-")
+    assert result["dataset_name"] == state["dataset_name"]  # returned for the sidecar
     assert [e.name for e in state["exps"]] == ["inline-portfolio-baseline"]
     assert all(getattr(e, "__name__", "") != "regression_match" for e in (state["exps"][0].evaluators or []))
     # expected_output backfilled from the real run's captured outputs, then pushed
@@ -373,8 +374,10 @@ def test_publish_current_stacks_guard_and_reuses_shared_dataset(monkeypatch):
     def f(x):
         return x
 
-    sdk.publish_current("e", [{"input": {"x": 1}, "output": 1}], runner.structural)
-    assert captured["pulled"] == "inline-experiment-e"  # reused, not recreated
+    sdk.publish_current(
+        "e", [{"input": {"x": 1}, "output": 1}], runner.structural, dataset_name="inline-experiment-e-abc123"
+    )
+    assert captured["pulled"] == "inline-experiment-e-abc123"  # pulls the exact capture dataset
     assert captured["name"] == "inline-e"
     evs = captured["evaluators"]
     assert evs[0].__name__ == "regression_match" and evs[1] is my_check  # guard first, user stacked

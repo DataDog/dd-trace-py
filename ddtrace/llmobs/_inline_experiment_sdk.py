@@ -16,6 +16,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import quote
+import uuid
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._inline_experiment import _REGISTRY
@@ -62,6 +63,14 @@ def _make_evaluator(comparator: Callable[[Any, Any], bool]) -> Callable[..., Any
 
 def _dataset_name(name: str) -> str:
     return "inline-experiment-%s" % name
+
+
+def _unique_dataset_name(name: str) -> str:
+    """A fresh dataset name per capture. `create_dataset` reuses+appends on an existing name
+    (accumulating across runs), so each capture gets its own dataset — replay then pulls that
+    exact one and runs over only the examples this capture recorded.
+    """
+    return "%s-%s" % (_dataset_name(name), uuid.uuid4().hex[:8])
 
 
 def experiment_url(experiment: Any) -> Optional[str]:
@@ -132,23 +141,27 @@ def publish_baseline(
     inputs: list[dict[str, Any]],
     project_name: Optional[str] = None,
     experiment_name: Optional[str] = None,
+    dataset_name: Optional[str] = None,
 ) -> dict[str, Any]:
     """``capture --publish``: run the REAL boundary as the ``<name>-baseline`` experiment.
 
-    Creates the dataset from ``inputs`` (kwargs dicts, e.g. ``{"tickers": [...]}``) and runs the
-    actual subject over them through the engine — a single real run, so the baseline carries
-    real spans + token/dollar cost. CAPTURE mode records the produced ``(input, output)`` cases
-    (read via ``captured_cases`` to persist locally), and the dataset's ``expected_output`` is
-    backfilled from them so a later ``current`` run compares against this baseline. Baseline
-    evaluators are the subject's attached evaluators only (no ``regression_match`` — there's
-    nothing to regress against yet). Returns ``{"baseline", "dataset"}``.
+    Creates a fresh dataset (unique name, so it never accumulates records from other captures)
+    from ``inputs`` (kwargs dicts, e.g. ``{"tickers": [...]}``) and runs the actual subject over
+    them through the engine — a single real run, so the baseline carries real spans + token/dollar
+    cost. CAPTURE mode records the produced ``(input, output)`` cases (read via ``captured_cases``
+    to persist locally), and the dataset's ``expected_output`` is backfilled from them so a later
+    ``current`` run compares against this baseline. Baseline evaluators are the subject's attached
+    evaluators only (no ``regression_match`` — nothing to regress against yet). Returns
+    ``{"baseline", "dataset", "dataset_name"}`` (persist ``dataset_name`` so replay pulls this
+    exact dataset).
     """
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._experiment import DatasetRecordNew
 
+    ds_name = dataset_name or _unique_dataset_name(name)
     records: list[DatasetRecordNew] = [{"input_data": inp} for inp in inputs]
     dataset = LLMObs.create_dataset(
-        _dataset_name(name),
+        ds_name,
         project_name=project_name,
         description="Inline-experiment baseline for %r (captured from a real run)." % name,
         records=records,
@@ -168,7 +181,7 @@ def publish_baseline(
     finally:
         _set_mode(Mode.OFF)
     _backfill_expected_output(dataset, name)
-    return {"baseline": baseline, "dataset": dataset}
+    return {"baseline": baseline, "dataset": dataset, "dataset_name": ds_name}
 
 
 def publish_current(
@@ -177,23 +190,28 @@ def publish_current(
     comparator: Callable[[Any, Any], bool],
     project_name: Optional[str] = None,
     experiment_name: Optional[str] = None,
+    dataset_name: Optional[str] = None,
 ) -> dict[str, Any]:
     """``replay --publish``: run the CURRENT code as the ``<name>`` experiment.
 
-    Reuses the shared dataset published at capture (``pull_dataset``), falling back to building
-    it from ``cases`` if that fails. Scored by the ``regression_match`` guard plus the subject's
-    attached evaluators. Returns ``{"current", "dataset"}``.
+    Pulls the *specific* dataset published at capture (``dataset_name`` from the sidecar) so it
+    runs over exactly the captured examples, falling back to a fresh dataset built from ``cases``
+    if none is given or the pull fails. Scored by the ``regression_match`` guard plus the
+    subject's attached evaluators. Returns ``{"current", "dataset"}``.
     """
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._experiment import DatasetRecordNew
 
-    try:
-        dataset = LLMObs.pull_dataset(_dataset_name(name), project_name=project_name)
-    except Exception:
-        log.debug("inline experiment: no baseline dataset to pull; building from local cases", exc_info=True)
+    dataset = None
+    if dataset_name:
+        try:
+            dataset = LLMObs.pull_dataset(dataset_name, project_name=project_name)
+        except Exception:
+            log.debug("inline experiment: could not pull dataset %r; building from cases", dataset_name, exc_info=True)
+    if dataset is None:
         records: list[DatasetRecordNew] = [{"input_data": c["input"], "expected_output": c["output"]} for c in cases]
         dataset = LLMObs.create_dataset(
-            _dataset_name(name),
+            _unique_dataset_name(name),
             project_name=project_name,
             description="Inline-experiment baseline for %r." % name,
             records=records,
