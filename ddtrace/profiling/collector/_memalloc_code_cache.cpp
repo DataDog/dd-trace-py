@@ -35,6 +35,12 @@ CodeFunctionCache::CodeFunctionCache(size_t capacity_hint)
 size_t
 CodeFunctionCache::set_index(PyCodeObject* code) const
 {
+    /* Fibonacci (multiplicative) hashing. FIB_MUL is 2^64 / phi (the golden ratio),
+     * so multiplying the pointer scatters its bits across the whole 64-bit word; the
+     * top log2_set_bits_ bits then select the set. pymalloc hands out PyCodeObject*
+     * addresses that share low-bit structure (fixed size-class strides), which a plain
+     * `ptr % num_sets` would map onto only a few sets. The golden-ratio multiply spreads
+     * those clustered pointers evenly instead. See Knuth TAOCP vol. 3, 6.4. */
     constexpr uint64_t FIB_MUL = 0x9E3779B97F4A7C15ULL;
     uint64_t bits = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(code));
     return static_cast<size_t>((bits * FIB_MUL) >> (64 - log2_set_bits_));
@@ -45,15 +51,16 @@ CodeFunctionCache::lookup(PyCodeObject* code, PyObject* name, PyObject* filename
 {
     Set& s = sets_[set_index(code)];
     for (size_t i = 0; i < WAYS_PER_SET; ++i) {
-        if (s.codes[i] == code) {
-            /* Validate identity to defend against PyCodeObject address reuse:
-             * CPython may free a code object and hand its address to a new one.
-             * On mismatch the entry is stale; report a miss so the caller re-interns. */
-            if (s.names[i] == name && s.filenames[i] == filename && s.firstlines[i] == firstlineno) {
-                return s.functions[i];
-            }
+        if (s.codes[i] != code) {
+            continue;
+        }
+        /* Validate identity to defend against PyCodeObject address reuse:
+         * CPython may free a code object and hand its address to a new one.
+         * On mismatch the entry is stale; report a miss so the caller re-interns. */
+        if (s.names[i] != name || s.filenames[i] != filename || s.firstlines[i] != firstlineno) {
             return nullptr;
         }
+        return s.functions[i];
     }
     return nullptr;
 }

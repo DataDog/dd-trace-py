@@ -141,12 +141,11 @@ Datadog::Sample::push_frame_impl(function_id func_id, uint64_t address, int64_t 
 std::optional<Datadog::function_id>
 Datadog::Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    if (locations.size() < max_nframes) {
-        return push_frame_impl(name, filename, address, line);
-    } else {
+    if (locations.size() >= max_nframes) {
         incr_dropped_frames();
         return std::nullopt;
     }
+    return push_frame_impl(name, filename, address, line);
 }
 
 /* Helper function to convert PyUnicode object to string_view
