@@ -100,6 +100,72 @@ def test_aggregator_user_processors():
     assert span.get_tag("final_processor") == "user"
 
 
+def _spans_dropped_calls(mock_add_count_metric):
+    """Return the (count, reason) pairs recorded via the ``spans_dropped`` telemetry metric."""
+    calls = []
+    for call in mock_add_count_metric.call_args_list:
+        if len(call.args) >= 2 and call.args[1] == "spans_dropped":
+            reason = dict(call.kwargs.get("tags", ())).get("reason")
+            calls.append((call.args[2], reason))
+    return calls
+
+
+def test_aggregator_records_tp_drop_when_processor_drops_trace():
+    """A trace processor dropping the whole trace should record spans_dropped(reason=tp_drop)."""
+
+    class DropProc(TraceProcessor):
+        def process_trace(self, trace):
+            return None
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, user_processors=[DropProc()])
+    aggr.writer = DummyWriter()
+
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+    assert _spans_dropped_calls(mock_tm) == [(1, "tp_drop")]
+    assert aggr.writer.pop() == []
+
+
+def test_aggregator_records_tp_drop_for_partial_processor_drop():
+    """A trace processor dropping a subset of spans records only the dropped count as tp_drop."""
+
+    class HalfDropProc(TraceProcessor):
+        def process_trace(self, trace):
+            return trace[:1]
+
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, user_processors=[HalfDropProc()])
+    aggr.writer = DummyWriter()
+
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+        parent = Span("parent", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(parent)
+        child = Span("child", on_finish=[aggr.on_span_finish])
+        child.trace_id = parent.trace_id
+        child.parent_id = parent.span_id
+        aggr.on_span_start(child)
+        child.finish()
+        parent.finish()
+
+    assert _spans_dropped_calls(mock_tm) == [(1, "tp_drop")]
+
+
+def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
+    """When no spans are dropped by processors, spans_dropped is not recorded."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+
+    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+    assert _spans_dropped_calls(mock_tm) == []
+    assert aggr.writer.pop() == [span]
+
+
 def test_aggregator_reset_default_args():
     """
     Test that on reset, the aggregator recreates trace writer but not the sampling processor (by default).

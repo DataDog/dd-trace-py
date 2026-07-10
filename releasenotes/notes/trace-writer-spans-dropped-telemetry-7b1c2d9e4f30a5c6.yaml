@@ -1,0 +1,9 @@
+---
+other:
+  - |
+    tracing: added instrumentation telemetry for spans that are dropped before reaching the
+    Datadog intake. The tracer now reports the ``spans_dropped`` metric (tagged by ``reason``:
+    ``tp_drop``, ``overfull_buffer``, ``serialization_error``, ``api_error``) covering drops in
+    the span aggregator, the writer buffer, the encoder, and the HTTP client. Drops caused by
+    transient HTTP failures are only counted once all retries are exhausted. This is an internal
+    telemetry addition with no user-facing API or behavior change.

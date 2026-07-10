@@ -411,6 +411,7 @@ class SpanAggregator(SpanProcessor):
 
         # perf: Process spans outside of the span aggregator lock
         spans = finished
+        num_spans_before_processing = len(spans)
         for tp in chain(
             self.dd_processors,
             self.user_processors,
@@ -423,10 +424,19 @@ class SpanAggregator(SpanProcessor):
         ):
             try:
                 spans = tp.process_trace(spans) or []
-                if not spans:
-                    return
             except Exception:
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+                continue
+            if not spans:
+                break
+
+        # Any spans removed by the trace processors (filtered out or the whole trace dropped)
+        # are definitively dropped here and never reach the writer.
+        dropped_spans = num_spans_before_processing - len(spans)
+        if dropped_spans > 0:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", dropped_spans, tags=(("reason", "tp_drop"),)
+            )
 
         if spans:
             # Get sampling information from the root span

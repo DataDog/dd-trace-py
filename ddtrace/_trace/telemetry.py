@@ -58,14 +58,23 @@ def record_writer_spans_enqueued(count: int) -> None:
     )
 
 
-def record_writer_trace_chunks_sent(count: int) -> None:
-    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.TRACERS, name="trace_chunks_sent", value=count)
+def record_spans_dropped(count: int, reason: str) -> None:
+    """Record spans that are known to be dropped (never delivered to the intake).
 
+    ``reason`` identifies the stage/cause of the drop:
+      - ``tp_drop``: dropped by a trace processor in the SpanAggregator
+      - ``overfull_buffer``: the encoder buffer could not fit the trace
+      - ``serialization_error``: the trace could not be encoded/compressed
+      - ``api_error``: the payload could not be delivered to the intake
 
-def record_writer_trace_chunks_dropped(count: int, reason: str) -> None:
+    Callers must only invoke this once a span is *definitively* dropped (e.g. after all
+    HTTP retries are exhausted), never speculatively on an attempt that may still succeed.
+    """
+    if count <= 0:
+        return
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name="trace_chunks_dropped",
+        name="spans_dropped",
         value=count,
         tags=(("reason", reason),),
     )

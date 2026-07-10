@@ -12,12 +12,11 @@ from typing import Optional
 from typing import TextIO
 
 from ddtrace import config
+from ddtrace._trace.telemetry import record_spans_dropped
 from ddtrace._trace.telemetry import record_writer_spans_enqueued
 from ddtrace._trace.telemetry import record_writer_trace_api_error
 from ddtrace._trace.telemetry import record_writer_trace_api_request
 from ddtrace._trace.telemetry import record_writer_trace_api_response
-from ddtrace._trace.telemetry import record_writer_trace_chunks_dropped
-from ddtrace._trace.telemetry import record_writer_trace_chunks_sent
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -194,6 +193,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
     STATSD_NAMESPACE = "tracer"
+    # Whether this writer emits span/trace instrumentation telemetry (TRACERS namespace).
+    # CI Visibility reuses this HTTP pipeline for event/coverage uploads but is not a trace
+    # writer, so it opts out to avoid polluting tracer telemetry dashboards.
+    _records_trace_telemetry = True
 
     def __init__(
         self,
@@ -285,6 +288,29 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 _KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get()
             )  # PERF: avoid setting via Span.set_metric
 
+    # AIDEV-NOTE: The following _telemetry_* helpers gate TRACERS-namespace instrumentation telemetry
+    # behind `_records_trace_telemetry` so non-trace writers (e.g. CIVisibilityWriter) that reuse this
+    # HTTP pipeline do not pollute tracer telemetry.
+    def _telemetry_spans_enqueued(self, count: int) -> None:
+        if self._records_trace_telemetry:
+            record_writer_spans_enqueued(count)
+
+    def _telemetry_spans_dropped(self, count: int, reason: str) -> None:
+        if self._records_trace_telemetry:
+            record_spans_dropped(count, reason)
+
+    def _telemetry_api_request(self) -> None:
+        if self._records_trace_telemetry:
+            record_writer_trace_api_request()
+
+    def _telemetry_api_response(self, status_code: int) -> None:
+        if self._records_trace_telemetry:
+            record_writer_trace_api_response(status_code)
+
+    def _telemetry_api_error(self, error_type: str) -> None:
+        if self._records_trace_telemetry:
+            record_writer_trace_api_error(error_type)
+
     def _reset_connection(self) -> None:
         with self._conn_lck:
             if self._conn:
@@ -364,21 +390,22 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         headers = self._get_finalized_headers(count, client)
 
         self._metrics_dist("http.requests")
-        record_writer_trace_api_request()
+        # trace_api.* telemetry is intentionally recorded per HTTP attempt (including retries),
+        # unlike spans_dropped which is only recorded once a payload is definitively dropped.
+        self._telemetry_api_request()
 
         try:
             response = self._put(payload, headers, client, no_trace=True)
         except Exception as e:
             error_type = "timeout" if isinstance(e, (socket.timeout, TimeoutError)) else "network"
-            record_writer_trace_api_error(error_type)
+            self._telemetry_api_error(error_type)
             raise
 
-        record_writer_trace_api_response(response.status)
+        self._telemetry_api_response(response.status)
 
         if response.status >= 400:
             self._metrics_dist("http.errors", tags=["type:%s" % response.status])
-            record_writer_trace_api_error("status_code")
-            record_writer_trace_chunks_dropped(count, "api_error")
+            self._telemetry_api_error("status_code")
         else:
             self._metrics_dist("http.sent.bytes", len(payload))
             self._metrics["sent_traces"] += count
@@ -439,7 +466,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
-            record_writer_trace_chunks_dropped(1, "serialization_error")
+            self._telemetry_spans_dropped(len(spans), "serialization_error")
         except BufferFull as e:
             payload_size = e.args[0]
             _safelog(
@@ -453,14 +480,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
-            record_writer_trace_chunks_dropped(1, "overfull_buffer")
+            self._telemetry_spans_dropped(len(spans), "overfull_buffer")
         except NoEncodableSpansError:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
-            record_writer_trace_chunks_dropped(1, "serialization_error")
+            self._telemetry_spans_dropped(len(spans), "serialization_error")
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
-            record_writer_spans_enqueued(len(spans))
+            self._telemetry_spans_enqueued(len(spans))
 
     def flush_queue(self, raise_exc: bool = False):
         try:
@@ -471,6 +498,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
+        # Snapshot the number of buffered spans before encoding so we can attribute spans_dropped
+        # if encoding fails. Only encoders that expose an integer span count (e.g. the agentless
+        # JSON encoder) participate; others report ``None`` and span-level drops are skipped.
+        n_spans = getattr(client.encoder, "pending_spans", None)
+        if not isinstance(n_spans, int):
+            n_spans = None
         try:
             if not (encoded_traces := client.encoder.encode()):
                 return
@@ -479,15 +512,27 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             _safelog(log.error, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
-            record_writer_trace_chunks_dropped(n_traces, "serialization_error")
+            if n_spans is not None:
+                self._telemetry_spans_dropped(n_spans, "serialization_error")
             return
 
+        # Per-payload span counts are only known when the encoder produces a single payload
+        # (as the agentless JSON encoder does). With multiple payloads we cannot attribute a
+        # span count to an individual payload, so we skip span-level drop reporting.
+        payload_n_spans = n_spans if (n_spans is not None and len(encoded_traces) == 1) else None
         for payload in encoded_traces:
             encoded_data, n_traces = payload
-            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+            self._flush_single_payload(
+                encoded_data, n_traces, client=client, n_spans=payload_n_spans, raise_exc=raise_exc
+            )
 
     def _flush_single_payload(
-        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+        self,
+        encoded: Optional[bytes],
+        n_traces: int,
+        client: WriterClientBase,
+        n_spans: Optional[int] = None,
+        raise_exc: bool = False,
     ) -> None:
         if encoded is None:
             return
@@ -505,16 +550,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             except Exception:
                 _safelog(log.error, "failed to compress traces with encoder %r", client.encoder, exc_info=True)
                 self._metrics_dist("encoder.dropped.traces", n_traces)
-                record_writer_trace_chunks_dropped(n_traces, "serialization_error")
+                if n_spans is not None:
+                    self._telemetry_spans_dropped(n_spans, "serialization_error")
                 return
 
         try:
-            self._send_payload_with_backoff(encoded, n_traces, client)
+            response = self._send_payload_with_backoff(encoded, n_traces, client)
         except Exception:
+            # All retries have been exhausted (network/timeout failures are retried until
+            # RETRY_ATTEMPTS). The payload is now definitively dropped, so it is safe to record it.
             self._metrics_dist("http.errors", tags=["type:err"])
             self._metrics_dist("http.dropped.bytes", len(encoded))
             self._metrics_dist("http.dropped.traces", n_traces)
-            record_writer_trace_chunks_dropped(n_traces, "api_error")
+            if n_spans is not None:
+                self._telemetry_spans_dropped(n_spans, "api_error")
             if raise_exc:
                 raise
             else:
@@ -527,10 +576,14 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     exc_info=True,
                     extra={"send_to_telemetry": False},
                 )
+        else:
+            # An HTTP error status (>=400) is not retried (the backoff stops as soon as a Response
+            # is returned), so the payload is dropped after this single, definitive attempt.
+            if n_spans is not None and isinstance(response, Response) and response.status >= 400:
+                self._telemetry_spans_dropped(n_spans, "api_error")
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
             self._metrics_dist("http.sent.traces", n_traces)
-            record_writer_trace_chunks_sent(n_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
