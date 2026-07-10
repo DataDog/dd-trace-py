@@ -122,11 +122,7 @@ class AWSPayloadTagging:
 
         # Select the expression set for this payload side. Empty means the feature is
         # disabled for this side — return without tagging to avoid emitting unredacted data.
-        exprs = (
-            self._parsed_request_expressions
-            if key.startswith("aws.request")
-            else self._parsed_response_expressions
-        )
+        exprs = self._parsed_request_expressions if key.startswith("aws.request") else self._parsed_response_expressions
         if not exprs:
             return
 
