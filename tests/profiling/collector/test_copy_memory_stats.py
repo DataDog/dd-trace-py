@@ -32,6 +32,13 @@ def test_copy_memory_error_count_present():
             metadata = json.load(fp)
         assert "copy_memory_error_count" in metadata, f"Missing copy_memory_error_count in {f}: {metadata}"
         assert metadata["copy_memory_error_count"] >= 0, f"copy_memory_error_count must be non-negative: {metadata}"
+        assert "fast_copy_memory_user_disabled" in metadata, (
+            f"Missing fast_copy_memory_user_disabled in {f}: {metadata}"
+        )
+        assert "fast_copy_memory_capable" in metadata, f"Missing fast_copy_memory_capable in {f}: {metadata}"
+        assert "fast_copy_memory_syscall_fallback" in metadata, (
+            f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
+        )
 
 
 @pytest.mark.subprocess(
@@ -70,6 +77,8 @@ def test_fast_copy_memory_disabled():
             assert metadata["fast_copy_memory_enabled"] is False, (
                 f"Expected fast_copy_memory_enabled=false when _DD_PROFILING_STACK_FAST_COPY=false: {metadata}"
             )
+            assert metadata["fast_copy_memory_user_disabled"] is True, metadata
+            assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
 
 
 @pytest.mark.subprocess(
@@ -82,6 +91,9 @@ def test_fast_copy_memory_disabled():
 )
 def test_fast_copy_memory_enabled() -> None:
     """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-14568)."""
+    import glob
+    import json
+    import os
     import time
 
     # Underscore-prefixed, so only on the _stack submodule (`import *` skips it).
@@ -110,6 +122,17 @@ def test_fast_copy_memory_enabled() -> None:
         time.sleep(0.05)
 
     p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    assert files, "Expected at least one internal_metadata.json file"
+
+    with open(files[-1]) as fp:
+        metadata = json.load(fp)
+    assert metadata["fast_copy_memory_user_disabled"] is False, metadata
+    assert metadata["fast_copy_memory_capable"] is True, metadata
+    assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
+    assert metadata["fast_copy_memory_enabled"] is True, metadata
 
     assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
     assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
