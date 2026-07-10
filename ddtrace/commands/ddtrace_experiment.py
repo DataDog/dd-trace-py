@@ -2,19 +2,26 @@
 """``ddtrace-experiment`` — run inline experiments (trace-seeded local regression).
 
 The explicit, out-of-band trigger for the ``@experiment_start`` / ``@experiment_end``
-decorators. The typical loop has two steps so a code change can be detected:
+decorators. One verb, ``run``, drives the whole loop and auto-detects the phase from
+whether a baseline already exists:
 
-    # 1. capture a baseline from the current (known-good) code
-    ddtrace-experiment capture myapp:generate_traffic
+    # 1. first run — establish a baseline from the current (known-good) code
+    ddtrace-experiment run myapp:generate_traffic
     # 2. ...edit your prompt/model/logic...
-    # 3. replay the current code against the baseline
-    ddtrace-experiment replay myapp --comparator structural
+    # 3. run again — compare the current code against the baseline
+    ddtrace-experiment run myapp --comparator structural
+
+``run`` is **offline by default**: it records or compares against a local baseline file
+(``.llmobs_experiments.json``) and sets a CI-friendly exit code, with no backend or
+credentials required. ``--publish`` (opt-in) additionally sends the run to LLM Obs
+Experiments as a dataset + experiment so it appears in the UI with cost + eval metrics.
 
 Activation is positive and explicit — the decorators are inert unless this command runs,
 so they are safe to leave in production code. As a one-way fail-safe this command also
 refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).
 
-The baseline is persisted between the two invocations (default: ``.llmobs_experiments.json``).
+The legacy ``capture`` / ``replay`` verbs remain as the two halves of ``run`` and will be
+removed once ``run`` fully subsumes them.
 """
 
 from __future__ import annotations
@@ -148,6 +155,80 @@ def _print_report(name: str, rows: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def _run_record_offline(entry: Any, out: str, runner: Any, ie: Any) -> None:
+    """First run: drive the app in CAPTURE mode and persist the baseline (offline)."""
+    if entry is None:
+        print(
+            "run: no baseline yet, and no driver to establish one — pass a driver as "
+            "'module:entrypoint' (e.g. myapp:generate_traffic) for the first run.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    ie._set_mode(ie.Mode.CAPTURE)
+    try:
+        result = entry()
+        if inspect.iscoroutine(result):
+            asyncio.run(result)
+    finally:
+        ie._set_mode(ie.Mode.OFF)
+    data = runner.save_baselines(out)
+    case_count = sum(len(v) for v in data.values())
+    print("recorded baseline: %d case(s) across %d subject(s) -> %s" % (case_count, len(data), os.path.abspath(out)))
+    print("edit your code, then `ddtrace-experiment run <module>` to compare against it.")
+
+
+def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) -> None:
+    """Rerun: replay the current code over the recorded baseline and report (offline).
+
+    Exits non-zero (CI gate) if any case errored, never reached its end, the default
+    comparison reported ``changed``, or (with ``--evaluate``) an attached evaluator
+    failed/errored.
+    """
+    baselines = runner.load_baselines(baseline_file)
+    ignore = [k for k in args.ignore.split(",") if k]
+    comparator = runner.comparator_from_spec(args.comparator, ignore)
+    ie._set_mode(ie.Mode.REPLAY)
+    total: dict[str, int] = {}
+    compared = False
+    try:
+        for name, cases in baselines.items():
+            if args.name and name != args.name:
+                continue
+            if name not in ie.registered_experiments():
+                print("  (skipping %r — not registered by %r)" % (name, args.target))
+                continue
+            compared = True
+            counts = _print_report(name, runner.replay(name, comparator, cases=cases, score_evaluators=args.evaluate))
+            for k, v in counts.items():
+                total[k] = total.get(k, 0) + v
+    finally:
+        ie._set_mode(ie.Mode.OFF)
+    if not compared:
+        which = "subject %r" % args.name if args.name else "any registered subject"
+        print("run: no baseline cases for %s in %s." % (which, baseline_file), file=sys.stderr)
+        sys.exit(2)
+    gate = ("CHANGED", "ERROR", "NO_END", "EVAL_FAIL", "EVAL_ERROR")
+    sys.exit(1 if any(total.get(k) for k in gate) else 0)
+
+
+def _cmd_run(args: Any, ie: Any, runner: Any) -> None:
+    """The unified ``run`` verb: auto-detect first-run (record) vs rerun (compare)."""
+    _, entry = _import_target(args.target)  # registers subjects
+    if not ie.registered_experiments():
+        print("run: no experiment subjects registered by %r (did you import the app module?)." % args.target)
+        sys.exit(2)
+    baseline_file = args.baseline_file or runner.DEFAULT_BASELINE_PATH
+    have_baseline = os.path.exists(baseline_file)
+    # First run when there is nothing to compare against, or when explicitly forced.
+    if args.record or not have_baseline:
+        reason = "--record: re-recording baseline" if have_baseline else "no baseline yet — first run"
+        print("run: %s -> %s" % (reason, baseline_file))
+        _run_record_offline(entry, baseline_file, runner, ie)
+        return
+    print("run: baseline found (%s) — comparing current code (use --record to re-establish)." % baseline_file)
+    _run_compare_offline(args, ie, runner, baseline_file)
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ddtrace-experiment", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -162,6 +243,36 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "directory if present); real environment variables take precedence",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    run = sub.add_parser(
+        "run",
+        parents=[common],
+        help="run the subject as an experiment; offline by default, auto-detecting first-run vs compare",
+    )
+    run.add_argument(
+        "target",
+        help="module to compare against the baseline, OR a driver 'module:entrypoint' to establish one",
+    )
+    run.add_argument("--name", default=None, help="operate on just this subject (default: all registered)")
+    run.add_argument(
+        "--record", action="store_true", help="force a first run: (re)record the baseline even if one exists"
+    )
+    run.add_argument(
+        "--baseline-file",
+        dest="baseline_file",
+        default=None,
+        help="local baseline JSON to read/write (default: .llmobs_experiments.json)",
+    )
+    run.add_argument(
+        "--comparator", default="structural", choices=["exact", "structural", "ignoring"], help="default: structural"
+    )
+    run.add_argument("--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)")
+    run.add_argument(
+        "--evaluate",
+        action="store_true",
+        help="also score the boundary's attached `evaluators` locally and print verdicts "
+        "(may call provider APIs for LLM judges); a failing evaluator gates the exit code",
+    )
 
     cap = sub.add_parser("capture", parents=[common], help="run the entrypoint and persist a baseline")
     cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
@@ -230,6 +341,10 @@ def main() -> None:
         print("registered experiment subjects:" if names else "no experiment subjects registered by %r" % args.target)
         for n in names:
             print("  - %s" % n)
+        return
+
+    if args.command == "run":
+        _cmd_run(args, ie, runner)
         return
 
     if args.command == "capture":

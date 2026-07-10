@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.commands import ddtrace_experiment as cli
 import ddtrace.llmobs as llmobs_pkg
+from ddtrace.llmobs import _inline_experiment as ie
 from ddtrace.llmobs import _inline_experiment_runner as runner
 from ddtrace.llmobs import _inline_experiment_sdk as sdk
 from ddtrace.llmobs._experiment import BaseEvaluator
@@ -452,3 +453,90 @@ def test_cli_print_report_counts_eval_error(capsys):
     counts = cli._print_report("e", rows)
     # an evaluator that errored (the check didn't run) is counted so it can gate the exit code
     assert counts["OK"] == 1 and counts["EVAL_ERROR"] == 1
+
+
+# --- unified `run` verb (offline) ------------------------------------------ #
+def test_cli_run_arg_parser():
+    p = cli._build_arg_parser()
+    a = p.parse_args(["run", "myapp:gen"])
+    assert a.command == "run" and a.target == "myapp:gen"
+    assert a.record is False and a.name is None and a.comparator == "structural" and a.evaluate is False
+    a = p.parse_args(
+        ["run", "myapp", "--record", "--name", "greet", "--comparator", "exact", "--ignore", "ts", "--evaluate"]
+    )
+    assert a.record and a.name == "greet" and a.comparator == "exact" and a.ignore == "ts" and a.evaluate
+    assert p.parse_args(["run", "m", "--baseline-file", "b.json"]).baseline_file == "b.json"
+    assert p.parse_args(["run", "m", "--env-file", "x.env"]).env_file == "x.env"  # shared flag
+
+
+def test_cli_run_records_then_compares_offline(tmp_path):
+    out = str(tmp_path / "b.json")
+
+    @experiment_start(name="greet", inputs=["who"], output=lambda r: r)
+    def greet(who):
+        return {"msg": "hi " + who}
+
+    def driver():
+        greet(who="world")
+
+    # First run: record the baseline (CAPTURE), then restore mode to OFF.
+    cli._run_record_offline(driver, out, runner, ie)
+    assert ie._get_mode() is Mode.OFF
+    data = runner.load_baselines(out)
+    assert data["greet"][0]["input"] == {"who": "world"}
+    assert data["greet"][0]["output"] == {"msg": "hi world"}
+
+    # Rerun with unchanged code -> MATCH -> exit 0.
+    args = cli._build_arg_parser().parse_args(["run", "m", "--baseline-file", out])
+    with pytest.raises(SystemExit) as e:
+        cli._run_compare_offline(args, ie, runner, out)
+    assert e.value.code == 0
+    assert ie._get_mode() is Mode.OFF
+
+
+def test_cli_run_compare_gates_on_change(tmp_path):
+    out = str(tmp_path / "b.json")
+    state = {"v": 1}
+
+    @experiment_start(name="g", inputs=["x"], output=lambda r: r)
+    def g(x):
+        return {"v": state["v"], "x": x}
+
+    def driver():
+        g(x=1)
+
+    cli._run_record_offline(driver, out, runner, ie)
+    state["v"] = 2  # value drift; shape unchanged
+    # exact sees the change -> `changed` -> exit 1 (CI gate)
+    args = cli._build_arg_parser().parse_args(["run", "m", "--baseline-file", out, "--comparator", "exact"])
+    with pytest.raises(SystemExit) as e:
+        cli._run_compare_offline(args, ie, runner, out)
+    assert e.value.code == 1
+    # structural ignores value drift -> match -> exit 0
+    args = cli._build_arg_parser().parse_args(["run", "m", "--baseline-file", out, "--comparator", "structural"])
+    with pytest.raises(SystemExit) as e:
+        cli._run_compare_offline(args, ie, runner, out)
+    assert e.value.code == 0
+
+
+def test_cli_run_record_needs_driver_when_no_baseline():
+    with pytest.raises(SystemExit) as e:
+        cli._run_record_offline(None, "unused.json", runner, ie)
+    assert e.value.code == 2
+
+
+def test_cli_run_compare_no_matching_subject(tmp_path):
+    out = str(tmp_path / "b.json")
+
+    @experiment_start(name="greet", inputs=["who"], output=lambda r: r)
+    def greet(who):
+        return who
+
+    def driver():
+        greet(who="a")
+
+    cli._run_record_offline(driver, out, runner, ie)
+    args = cli._build_arg_parser().parse_args(["run", "m", "--baseline-file", out, "--name", "missing"])
+    with pytest.raises(SystemExit) as e:
+        cli._run_compare_offline(args, ie, runner, out)
+    assert e.value.code == 2
