@@ -45,8 +45,9 @@ PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
 PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 # Agent attribution: nearest-agent identity propagated across process boundaries.
-# The id is always str(span_id) (digit-safe); the name is an arbitrary user string and
-# must pass _agent_name_wire_safe before being written to the tagset (see _utils.py).
+# The id is always str(span_id) (digit-safe); the name is an arbitrary user string. Both are
+# written via _stamp_agent_attribution, which drops the name (or both) rather than overflow
+# the x-datadog-tags budget (see _utils.py).
 PROPAGATED_PARENT_AGENT_ID_KEY = "_dd.p.llmobs_parent_agent_id"
 PROPAGATED_PARENT_AGENT_NAME_KEY = "_dd.p.llmobs_parent_agent_name"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils

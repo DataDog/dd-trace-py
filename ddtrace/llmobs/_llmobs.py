@@ -142,7 +142,6 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import _agent_name_wire_safe
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -151,6 +150,7 @@ from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _resolve_parent_agent
 from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
@@ -2348,6 +2348,11 @@ class LLMObs(Service):
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
                 context._meta[PROPAGATED_SAMPLING_DECISION] = sd
+            # Carry the nearest agent onto the context so spans created in in-process task
+            # boundaries (asyncio tasks, thread-pool executors) still attribute to it.
+            # Stamped last so the budget check sees the full tagset.
+            parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active)
+            _stamp_agent_attribution(context._meta, parent_agent_name, parent_agent_span_id)
             return context
         return None
 
@@ -3409,13 +3414,10 @@ class LLMObs(Service):
             )
 
         # Propagate the nearest agent so spans in the downstream process attribute correctly.
-        # The id is always digit-safe; the name is arbitrary user text, so skip it (id-only)
-        # when it would raise in the tagset encoder rather than drop the whole header.
+        # Stamped last so the budget check sees the full tagset; degrades to id-only (or drops)
+        # rather than overflowing x-datadog-tags.
         parent_agent_name, parent_agent_span_id = _resolve_parent_agent(active_span)
-        if parent_agent_span_id is not None:
-            span_context._meta[PROPAGATED_PARENT_AGENT_ID_KEY] = parent_agent_span_id
-        if parent_agent_name is not None and _agent_name_wire_safe(parent_agent_name):
-            span_context._meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = parent_agent_name
+        _stamp_agent_attribution(span_context._meta, parent_agent_name, parent_agent_span_id)
 
     @classmethod
     def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:

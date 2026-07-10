@@ -18,6 +18,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import git as _git
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.internal import gitmetadata
+from ddtrace.internal._tagset import TagsetEncodeError
+from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
@@ -451,19 +453,51 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
     )
 
 
-def _agent_name_wire_safe(name: str) -> bool:
-    """Return True if ``name`` can be written to the x-datadog-tags tagset without raising.
+# Headroom under the 512B x-datadog-tags budget for propagation tags the core tracer may
+# append after us (e.g. _dd.p.tid, _dd.p.dm).
+_AGENT_ATTRIBUTION_TAGSET_BUDGET = 500
 
-    ``encode_tagset_values`` raises on commas or any byte outside 0x20-0x7E, and on the shared
-    512B budget being exceeded (``=`` is legal in tagset *values*, only illegal in keys). A
-    raise drops the ENTIRE header (taking ml_app, llmobs_trace_id, parent_id, sample rate with
-    it), so an unsafe agent name must be skipped rather than sanitized. When the name is
-    skipped only the id propagates and the backend resolves the real name by span_id (the
-    documented fallback).
+
+def _propagation_tags_within_budget(meta: dict) -> bool:
+    """Return True if the ``_dd.p.*`` propagation tags in ``meta`` encode within budget.
+
+    Mirrors the propagator's own key filter (``key.startswith("_dd.p.")``) and encoder, so the
+    check matches what ``HTTPPropagator.inject()`` will later attempt. ``encode_tagset_values``
+    raises ``TagsetMaxSizeEncodeError`` past the budget and ``TagsetEncodeError`` on commas or
+    bytes outside 0x20-0x7E; both mean "does not fit" here.
     """
-    if len(name.encode("utf-8")) > 256:  # conservative slice of the 512B shared tagset budget
+    tags = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
+    try:
+        encode_tagset_values(tags, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
+        return True
+    except TagsetEncodeError:
         return False
-    return all(0x20 <= ord(c) <= 0x7E and c != "," for c in name)
+
+
+def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_id: Optional[str]) -> None:
+    """Write the agent id/name ``_dd.p.*`` tags onto ``meta`` without overflowing x-datadog-tags.
+
+    A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
+    llmobs_trace_id, parent_id with it), so attribution degrades gracefully instead:
+      1. both id and name when they fit within the budget;
+      2. id only when adding the name would exceed it (the backend resolves the name from
+         span_id -- the documented fallback), which also covers unsafe names (comma / non-printable);
+      3. neither when even the id would exceed the budget.
+
+    ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+    """
+    if agent_span_id is None:
+        return
+    meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
+    if agent_name is not None:
+        meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name
+        if _propagation_tags_within_budget(meta):
+            return
+        # Name pushed the tagset over budget (size or unsafe chars): keep id-only.
+        del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
+    if not _propagation_tags_within_budget(meta):
+        # Even id-only overflows: drop attribution entirely rather than risk the whole header.
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
 
 
 def get_llmobs_parent_id(span: Span) -> Optional[str]:

@@ -983,3 +983,33 @@ def test_distributed_agent_attribution_round_trip_no_name(llmobs, llmobs_events)
         "parent_agent_name": None,
         "parent_agent_span_id": "987654321",
     }
+
+
+def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events, patched_asyncio):
+    """A tool span created in an asyncio task under an agent still attributes to that agent.
+
+    The in-process llmobs context handed to the child task travels through
+    ``_current_trace_context()``; it must carry the agent id/name so the child resolves
+    attribution instead of silently dropping it.
+    """
+    import asyncio
+
+    holder = {}
+
+    async def main():
+        with llmobs.agent(name="my_agent") as agent_span:
+            holder["span_id"] = str(agent_span.span_id)
+
+            async def child():
+                with llmobs.tool(name="async_tool"):
+                    pass
+
+            await asyncio.create_task(child())
+
+    asyncio.run(main())
+    matches = [e for e in llmobs_events if e["name"] == "async_tool"]
+    assert len(matches) == 1, f"expected exactly one async_tool event, got {len(matches)}"
+    assert matches[0]["meta"].get("agent_attribution") == {
+        "parent_agent_name": "my_agent",
+        "parent_agent_span_id": holder["span_id"],
+    }
