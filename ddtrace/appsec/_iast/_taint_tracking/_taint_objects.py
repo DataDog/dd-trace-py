@@ -24,6 +24,25 @@ def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_or
             if source_origin is None:
                 source_origin = OriginType.PARAMETER
             res = _taint_pyobject_base(pyobject, source_name, source_value, source_origin, contextid)
+            try:
+                if isinstance(res, str) and "dummy.location" in res:
+                    import traceback
+
+                    from ddtrace.internal.logger import get_logger
+
+                    get_logger("ddtrace.appsec._iast").error(
+                        "URDIAG-TAINT ctx=%s name=%s origin=%s id_out=%s val=%r stack=%s",
+                        contextid,
+                        source_name,
+                        source_origin,
+                        id(res),
+                        res,
+                        " <- ".join(
+                            f"{fr.name}:{fr.lineno}" for fr in traceback.extract_stack()[-9:-1]
+                        ),
+                    )
+            except Exception:
+                pass
             _set_metric_iast_executed_source(source_origin)
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE, source_origin)
             return res

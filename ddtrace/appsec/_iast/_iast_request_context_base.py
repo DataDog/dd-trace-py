@@ -85,7 +85,11 @@ def _iast_start_request(span=None) -> Optional[int]:
                 IAST_CONTEXT.set(context_id)
                 if context_id is not None:
                     core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
-                log.error("URDIAG-REQ start fresh_ctx=%s", context_id)
+                try:
+                    _n = debug_num_tainted_objects(context_id) if context_id is not None else -1
+                except Exception:
+                    _n = -2
+                log.error("URDIAG-REQ start fresh_ctx=%s num_tainted_at_start=%s", context_id, _n)
             else:
                 log.error("URDIAG-REQ start REUSED_ctx=%s (context not reset from prior request!)", _get_iast_context_id())
         elif (context_id := _get_iast_context_id()) is not None:
