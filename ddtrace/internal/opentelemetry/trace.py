@@ -16,7 +16,7 @@ from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import INVALID_SPAN
 
 from ddtrace._trace.provider import ActiveTrace as DDActiveTrace
-from ddtrace.internal.constants import SPAN_API_OTEL
+from ddtrace.propagation._constants import _SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.trace import tracer as ddtracer
@@ -120,7 +120,7 @@ class Tracer(OtelTracer):
             dd_active = _otel_to_dd_span_context(curr_otel_span)
 
         # Create a new Datadog span (not activated), then return a valid OTel span
-        dd_span = ddtracer._start_span(name, child_of=dd_active, activate=False, span_api=SPAN_API_OTEL)
+        dd_span = ddtracer._start_span(name, child_of=dd_active, activate=False, span_api=_SPAN_API_OTEL)
 
         if links:
             for link in links:

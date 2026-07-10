@@ -8,7 +8,8 @@ import pytest
 
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import FINGERPRINTING
-import ddtrace.internal.constants as constants
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 import tests.appsec.rules as rules
 from tests.utils import snapshot
 from tests.webclient import Client
@@ -192,7 +193,7 @@ def test_request_ipblock_match_403():
         assert result.status_code == 403
         body = result.content.decode()
         body_parsed = re.sub(r"Response ID: [-0-9a-z]+", r"Response ID: [security_response_id]", body)
-        assert body_parsed == constants.BLOCKED_RESPONSE_HTML
+        assert body_parsed == _BLOCKED_RESPONSE_HTML
 
 
 @pytest.mark.skipif(django.VERSION < (3, 2, 0), reason="Only want to test with latest Django")
@@ -236,4 +237,4 @@ def test_request_ipblock_match_403_json():
         body_parsed = re.sub(
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
-        assert body_parsed == constants.BLOCKED_RESPONSE_JSON
+        assert body_parsed == _BLOCKED_RESPONSE_JSON

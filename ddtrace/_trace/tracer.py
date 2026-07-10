@@ -37,7 +37,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
-from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.propagation._constants import _SPAN_API_DATADOG
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -442,7 +442,7 @@ class Tracer(object):
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
         activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
+        span_api: str = _SPAN_API_DATADOG,
     ) -> Span:
         """Return a span that represents an operation called ``name``.
 
@@ -622,7 +622,7 @@ class Tracer(object):
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
         activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
+        span_api: str = _SPAN_API_DATADOG,
     ) -> Span:
         span = self._start_span(name, child_of, service, resource, span_type, activate, span_api)
         log.warning(
@@ -666,7 +666,7 @@ class Tracer(object):
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
-        span_api: str = SPAN_API_DATADOG,
+        span_api: str = _SPAN_API_DATADOG,
     ) -> Span:
         """Activate and return a new span that inherits from the current active span.
 

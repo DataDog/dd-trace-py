@@ -13,7 +13,7 @@ from ddtrace.appsec._processor import AppSecSpanProcessor  # noqa: F401
 from ddtrace.appsec._utils import _hash_user_id
 from ddtrace.ext import http
 from ddtrace.ext import user
-from ddtrace.internal import constants
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -62,7 +62,7 @@ def test_request_block_request_callable(client, test_spans, tracer):
         body_parsed = re.sub(
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
-        assert body_parsed == constants.BLOCKED_RESPONSE_JSON
+        assert body_parsed == _BLOCKED_RESPONSE_JSON
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
         assert root.get_tag(http.METHOD) == "GET"
@@ -127,7 +127,7 @@ def test_request_userblock_403(client, test_spans, tracer):
         body_parsed = re.sub(
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
-        assert body_parsed == constants.BLOCKED_RESPONSE_JSON, (body_parsed, constants.BLOCKED_RESPONSE_JSON)
+        assert body_parsed == _BLOCKED_RESPONSE_JSON, (body_parsed, _BLOCKED_RESPONSE_JSON)
         assert root.get_tag(http.STATUS_CODE) == "403"
         assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
         assert root.get_tag(http.METHOD) == "GET"

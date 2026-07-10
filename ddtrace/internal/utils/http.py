@@ -19,8 +19,8 @@ from urllib import parse
 from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
-from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
-from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
@@ -391,10 +391,10 @@ def _get_blocked_template(accept_header_value: str, security_response_id: str) -
 
     # No user-defined template at this point
     if need_html_template:
-        _HTML_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_HTML
+        _HTML_BLOCKED_TEMPLATE_CACHE = _BLOCKED_RESPONSE_HTML
         return _format_template(_HTML_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
-    _JSON_BLOCKED_TEMPLATE_CACHE = BLOCKED_RESPONSE_JSON
+    _JSON_BLOCKED_TEMPLATE_CACHE = _BLOCKED_RESPONSE_JSON
     return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
 

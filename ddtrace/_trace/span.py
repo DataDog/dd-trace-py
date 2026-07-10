@@ -37,7 +37,7 @@ from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
-from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.propagation._constants import _SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
@@ -85,7 +85,7 @@ class Span(SpanData):
         start: Optional[int] = None,
         context: Optional[Context] = None,
         on_finish: Optional[list[Callable[["Span"], None]]] = None,
-        span_api: str = SPAN_API_DATADOG,
+        span_api: str = _SPAN_API_DATADOG,
         links: Optional[list[SpanLink]] = None,
     ) -> None:
         """

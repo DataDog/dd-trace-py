@@ -5,7 +5,8 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
-from ddtrace.internal import constants
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
 from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.integrations.flask_tests.utils import _PORT
@@ -51,7 +52,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             resp = self.client.get("/block", headers={"X-REAL-IP": rules._IP.DEFAULT})
             # Should not block by IP but since the route is calling block_request it will be blocked
             assert resp.status_code == 403
-            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, "default")
+            assert get_response_body(resp) == _format_template(_BLOCKED_RESPONSE_JSON, "default")
             root_span = self.pop_spans()[0]
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/block"
@@ -75,7 +76,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             triggers = get_triggers(root_span)
             assert triggers is not None
             block_id = triggers[0].get("security_response_id", "default")
-            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
+            assert get_response_body(resp) == _format_template(_BLOCKED_RESPONSE_JSON, block_id)
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
@@ -90,7 +91,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             triggers = get_triggers(root_span)
             assert triggers is not None
             block_id = triggers[0].get("security_response_id", "default")
-            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_HTML, block_id)
+            assert get_response_body(resp) == _format_template(_BLOCKED_RESPONSE_HTML, block_id)
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200

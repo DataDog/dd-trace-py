@@ -77,7 +77,7 @@ from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
-from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
+from ddtrace.propagation._constants import _HTTP_REQUEST_UPGRADED
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
@@ -1342,7 +1342,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         scope["datadog"]["request_spans"].append(span)
 
     if scope["type"] == "websocket":
-        span._set_attribute(HTTP_REQUEST_UPGRADED, SpanTypes.WEBSOCKET)
+        span._set_attribute(_HTTP_REQUEST_UPGRADED, SpanTypes.WEBSOCKET)
         _init_websocket_message_counters(scope)
 
 

@@ -26,3 +26,8 @@ LANG_INTERPRETER = "lang_interpreter"
 LANG_VERSION = "lang_version"
 LANG = "lang"
 TRACER_VERSION = "tracer_version"
+
+CONTAINER_ID_HEADER_NAME = "Datadog-Container-Id"
+ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
+EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
+EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"

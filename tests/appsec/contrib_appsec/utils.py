@@ -17,6 +17,9 @@ from ddtrace.appsec._utils import get_triggers
 from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal import core
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
+from ddtrace.propagation._constants import _BLOCKED_RESPONSE_JSON
+from ddtrace.propagation import _constants as propagation_constants
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.http import _format_template
 import tests.appsec.rules as rules
@@ -160,7 +163,7 @@ class _Contrib_TestClass_Base:
         assert (st := get_entry_span_tag(http.STATUS_CODE)) == "403", f"status code mismatch {st}"
         block_id = self.check_single_rule_triggered(rule_id, entry_span)
         expected_body = _format_template(
-            constants.BLOCKED_RESPONSE_HTML if content_type == "text/html" else constants.BLOCKED_RESPONSE_JSON,
+            _BLOCKED_RESPONSE_HTML if content_type == "text/html" else _BLOCKED_RESPONSE_JSON,
             block_id,
         )
         assert self.body(response) == expected_body, self.body(response)
@@ -668,11 +671,11 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
     @pytest.mark.parametrize(
         ("headers", "blocked", "body", "content_type"),
         [
-            ({"X-Real-Ip": rules._IP.BLOCKED}, True, "BLOCKED_RESPONSE_JSON", "application/json"),
+            ({"X-Real-Ip": rules._IP.BLOCKED}, True, "_BLOCKED_RESPONSE_JSON", "application/json"),
             (
                 {"X-Real-Ip": rules._IP.BLOCKED, "Accept": "text/html"},
                 True,
-                "BLOCKED_RESPONSE_HTML",
+                "_BLOCKED_RESPONSE_HTML",
                 "text/html",
             ),
             ({"X-Real-Ip": rules._IP.DEFAULT}, False, None, None),
@@ -691,7 +694,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                 assert get_entry_span_tag(http.URL) == f"http://localhost:{interface.SERVER_PORT}/"
                 assert get_entry_span_tag(http.METHOD) == "GET"
                 block_id = self.check_single_rule_triggered("blk-001-001", entry_span)
-                assert self.body(response) == _format_template(getattr(constants, body, ""), block_id), self.body(
+                assert self.body(response) == _format_template(getattr(propagation_constants, body, ""), block_id), self.body(
                     response
                 )
                 assert (

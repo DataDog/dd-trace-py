@@ -16,16 +16,17 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
-from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
-from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.constants import AUTO_KEEP
+from ddtrace.constants import AUTO_REJECT
+from ddtrace.constants import USER_KEEP
+from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
-from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
-from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.utils.constants import MAX_UINT_64BITS
+from ddtrace.internal.utils.constants import SamplingMechanism
 
 from .rate_limiter import RateLimiter
 
@@ -44,8 +45,20 @@ class PriorityCategory(object):
 SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
+SAMPLING_MECHANISM_TO_PRIORITIES = {
+    # TODO(munir): Update mapping to include single span sampling and appsec sampling mechanisms
+    SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.MANUAL: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.APPSEC: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+}
 
 KNUTH_SAMPLE_RATE_KEY = "_dd.p.ksr"
+_KEEP_PRIORITY_INDEX = 0
+_REJECT_PRIORITY_INDEX = 1
 
 
 def format_rate(rate: float) -> str:
