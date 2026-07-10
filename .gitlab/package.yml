@@ -30,6 +30,9 @@ download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
   stage: package
+  # Flaky on GH Actions artifact availability / transient downloads: retry twice.
+  retry:
+    max: 2
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts

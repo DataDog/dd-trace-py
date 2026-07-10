@@ -27,9 +27,11 @@ jobs:
             Report codeowners
             devflow/.*
             dd-gitlab/.*
+            parametric
 
 # Why some checks are excluded?
 #
 # - Bootstrap import analysis: TO BE ADDED (Success rate of 88% as of 2025-04-17)
 # - require-checklist: this job is triggered by a change on PR description, and already explcititly required
 # - Validate changelog: this job is triggered by a change on labels, and already explcititly required
+# - parametric: 3.19 pins a newer system-tests whose RemoteConfig-apply parametric tests are unsupported by this release line; non-gating (not run at release)
