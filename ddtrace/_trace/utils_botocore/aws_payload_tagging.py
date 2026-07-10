@@ -222,6 +222,15 @@ class AWSPayloadTagging:
         config_value = config.botocore.get(config_key)
         if not config_value:
             return []
+        config_value = config_value.strip()
+        if not config_value:
+            log.warning(
+                "Payload tagging config %r is whitespace-only and will be ignored. "
+                "Payload tagging will be disabled until the config is corrected.",
+                config_key,
+            )
+            return []
+        config_value = config_value.lower() if config_value.lower() == "all" else config_value
         if not self._validate_json_paths(config_value):
             return []
         defaults = side_defaults + self._REDACTION_PATHS_DEFAULTS
