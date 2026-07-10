@@ -69,20 +69,19 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
-// Persistent intent; not toggled by warmup/fallback; survives fork() (PROF-14568).
+// Persistent intent; not toggled by warmup/fallback; survives fork.
 inline std::atomic<bool> fast_copy_desired{ false };
-
-// Sticky flag set once a foreign (non-cooperative) SIGSEGV/SIGBUS handler has taken
-// ownership and the sampler has surrendered to the syscall copy. It is intentionally
-// permanent for the lifetime of the process (and inherited across fork()): once we
-// have deferred to a foreign owner we must stop reclaiming the handler, otherwise a
-// later cooperative swap (e.g. faulthandler.disable()) could hand ownership back to us
-// on top of that foreign handler and let a restart/fork re-enable safe_memcpy over it
-// (PROF-14568). Gates handler reclaim and the fast-copy warmup/upgrade.
+// Sticky: foreign handler owns SIGSEGV/SIGBUS; blocks reclaim and re-warm.
 inline std::atomic<bool> fast_copy_foreign_takeover{ false };
 
-// Whether init_segv_catcher succeeded at constructor time. Persists even if
-// fast_copy_active is later toggled off by set_fast_copy_enabled.
+inline bool
+fast_copy_handler_ops_enabled()
+{
+    return fast_copy_desired.load(std::memory_order_relaxed) &&
+           !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+}
+
+// Set at init; survives toggling fast_copy_active.
 inline bool safe_memcpy_initialized = false;
 
 #if defined PL_LINUX

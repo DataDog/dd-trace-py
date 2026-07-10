@@ -37,10 +37,9 @@ def set_interval(new_interval: float) -> None: ...
 # Memory copy strategy
 def set_fast_copy(enabled: bool) -> None: ...
 def is_safe_copy_failed() -> bool: ...
-def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
+def fast_copy_memory_active() -> bool: ...
 
-# _set_fast_copy_warmup_seconds, _sampler_running, _sampling_paused, and
-# _take_prefork_pause_observation are test-only; accessed via _stack (import * skips them).
+# Test-only APIs live on _stack (import * skips them).
 
 def uninstall_segv_handler() -> None: ...
 def reinstall_segv_handler() -> None:
@@ -53,11 +52,7 @@ def reinstall_segv_handler() -> None:
     ...
 
 def segv_handler_installed() -> bool:
-    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
-
-    Primarily test introspection: it queries the live disposition via sigaction(2)
-    for both signals on every call, so it is not free. Do not call it on hot paths.
-    """
+    """True if our SIGSEGV/SIGBUS handlers are installed (test introspection; not cheap)."""
     ...
 
 # Pause/resume sampling

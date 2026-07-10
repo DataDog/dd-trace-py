@@ -127,7 +127,7 @@ def test_fast_copy_memory_disabled():
     err=None,
 )
 def test_fast_copy_memory_enabled() -> None:
-    """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-14568)."""
+    """Warmup on syscall copy, then upgrade to safe_memcpy."""
     import glob
     import json
     import os
@@ -191,7 +191,7 @@ def test_fast_copy_memory_enabled() -> None:
     err=None,
 )
 def test_fast_copy_reinstall_segv_handler_works_during_warmup() -> None:
-    """Handler reclaim keys off the persistent fast_copy_desired intent (PROF-14568)."""
+    """Reinstall reclaims handler during warmup (keys off fast_copy_desired)."""
     import signal
     import time
 
@@ -232,7 +232,7 @@ def test_fast_copy_reinstall_segv_handler_works_during_warmup() -> None:
     err=None,
 )
 def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
-    """A mid-run foreign takeover forces a permanent, non-reclaiming fallback (PROF-14568)."""
+    """Foreign takeover forces permanent syscall-copy fallback."""
     import signal
     import time
 
@@ -278,7 +278,7 @@ def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
     err=None,
 )
 def test_fast_copy_rewarms_in_forked_child_during_warmup() -> None:
-    """A child forked during warmup re-warms into safe_memcpy on its own (PROF-14568)."""
+    """Child forked during warmup re-warms into safe_memcpy."""
     import os
     import time
 
@@ -385,7 +385,7 @@ def test_forked_child_inherits_foreign_takeover_after_parent_fallback() -> None:
     err=None,
 )
 def test_fork_pauses_sampler_before_safe_memcpy() -> None:
-    """prefork() pauses the sampling thread so fork() does not span safe_memcpy (PROF-14568)."""
+    """prefork() pauses the sampler so fork() does not span safe_memcpy."""
     import os
 
     from ddtrace.internal.datadog.profiling.stack import _stack

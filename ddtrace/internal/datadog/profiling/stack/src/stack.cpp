@@ -793,17 +793,8 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
 static PyObject*
 stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Temporarily remove our SIGSEGV/SIGBUS handlers, restoring the saved
-    // previous handlers. Call this before letting another component (e.g.,
-    // faulthandler) install its own handler so it doesn't record ours as its
-    // previous handler (which would create a signal-handler cycle).
-    // Follow with stack_reinstall_segv_handler to reinstall on top.
-    // Gated on fast_copy_desired (not fast_copy_active) so it still works during the
-    // sampler's startup warmup, when safe_memcpy is temporarily inactive. Skipped once a
-    // foreign handler has taken over: after surrendering we stay out of the handler
-    // entirely rather than churning it around a foreign owner (PROF-14568).
-    if (fast_copy_desired.load(std::memory_order_relaxed) &&
-        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
+    // Gate on intent (not active path); skip after foreign takeover (vm.h).
+    if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -812,15 +803,7 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall our SIGSEGV/SIGBUS handlers when fast copy is still desired (see the gate
-    // below). Used to reclaim the handler after a cooperative swap (e.g. faulthandler)
-    // overwrites it. Our handler chains to the previous one for non-recovery faults.
-    // Gated on fast_copy_desired (not fast_copy_active) so a swap during the startup
-    // warmup is still reclaimed. Skipped once fast_copy_foreign_takeover is set: after
-    // a foreign handler forced fallback we never reclaim, so a later cooperative swap
-    // cannot hand ownership back to us on top of that foreign owner (PROF-14568).
-    if (fast_copy_desired.load(std::memory_order_relaxed) &&
-        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
+    if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
@@ -963,22 +946,16 @@ static PyMethodDef stack_methods[] = {
       stack_fast_copy_memory_active,
       METH_NOARGS,
       "Return True if the fast safe_memcpy copy path is currently active" },
-    { "_sampler_running",
-      stack_sampler_running,
-      METH_NOARGS,
-      "Test-only: return True if the stack sampler thread is running" },
-    { "_sampling_paused",
-      stack_sampling_paused,
-      METH_NOARGS,
-      "Test-only: return True if the stack sampler is at a pause point" },
+    { "_sampler_running", stack_sampler_running, METH_NOARGS, "Test-only: sampler thread running" },
+    { "_sampling_paused", stack_sampling_paused, METH_NOARGS, "Test-only: sampler at pause point" },
     { "_take_prefork_pause_observation",
       stack_take_prefork_pause_observation,
       METH_NOARGS,
-      "Test-only: return True once if prefork() paused the sampler for the last fork" },
+      "Test-only: prefork paused sampler" },
     { "_set_fast_copy_warmup_seconds",
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
-      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+      "Test-only: fast-copy warmup seconds (before start)" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,

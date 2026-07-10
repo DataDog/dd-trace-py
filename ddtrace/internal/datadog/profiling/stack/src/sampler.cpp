@@ -278,8 +278,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // If a foreign owner is already authoritative, leave it in place and fall back to
     // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
-    if (fast_copy_desired.load(std::memory_order_relaxed) &&
-        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
+    if (fast_copy_handler_ops_enabled()) {
         std::call_once(segv_handler_once, []() {
             if (segv_handler_installed()) {
                 init_segv_catcher();
@@ -291,29 +290,18 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
-    // safe_memcpy recovery needs us to own both handlers (PROF-14568): warm up on the
-    // syscall copy, upgrade only if we still own them, then re-check and fall back.
-    // fast_copy_desired is the persistent global intent (see vm.h), not the transient
-    // fast_copy_active: a child forked mid-warmup therefore still re-warms into fast
-    // copy instead of inheriting fast_copy_active == false and staying on the syscall
-    // copy for the life of the child.
+    // Warm up on syscall copy, upgrade if we still own handlers; see vm.h for intent flags.
 #if defined PL_LINUX
     const bool syscall_copy_available = process_vm_readv_available;
 #else
-    const bool syscall_copy_available = true; // mach_vm_read_overwrite is always available
+    const bool syscall_copy_available = true;
 #endif
-    // Warm up only when fast copy is wanted and a safe fallback path exists to run on.
-    // A recorded foreign takeover (possibly inherited across fork) keeps us on the
-    // syscall copy: the inherited signal disposition still points at that foreign owner,
-    // so re-warming into safe_memcpy would crash (PROF-14568).
-    const bool fast_copy_warmup = fast_copy_desired.load(std::memory_order_relaxed) &&
-                                  !fast_copy_foreign_takeover.load(std::memory_order_relaxed) && syscall_copy_available;
+    const bool fast_copy_warmup = fast_copy_handler_ops_enabled() && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
       sample_time_prev + duration_cast<steady_clock::duration>(duration<double>(fast_copy_warmup_seconds));
     if (fast_copy_warmup) {
-        // Drop to the safe syscall copy for the startup window.
         set_fast_copy_enabled(false);
     }
 
@@ -348,23 +336,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
 
-        // Foreign handler handling (see notes before the loop); faulthandler's
-        // transient swaps are safe since the sampler is paused around them.
-        if (fast_copy_desired.load(std::memory_order_relaxed) && !fast_copy_upgraded) {
-            // Warmup window: still on the safe syscall copy. When it elapses we make the
-            // one-time warmup decision. fast_copy_upgraded records that the decision has
-            // been made, not that safe_memcpy is now active: we upgrade only if we still
-            // own the handlers, otherwise we stay on the syscall copy for good.
+        // Foreign handler handling; faulthandler swaps are safe while paused.
+        if (fast_copy_handler_ops_enabled() && !fast_copy_upgraded) {
             if (sample_time_now >= fast_copy_warmup_deadline) {
-                // Warmup window ended. We may upgrade to safe_memcpy only if we still own
-                // the handlers; otherwise fast_copy_upgraded is set but safe_memcpy stays off.
                 fast_copy_upgraded = true;
                 if (segv_handler_installed()) {
                     set_fast_copy_enabled(true);
                 } else {
-                    // Another component already owns a handler; stay on the safe
-                    // syscall copy (already active from warmup) for the life of
-                    // the process and record it so we never reclaim the handler later.
                     handler_fallback_done = true;
                     mark_fast_copy_syscall_fallback();
                     fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
@@ -375,14 +353,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        // Probe handler ownership once before traversal copies this cycle; list walks use
-        // continue_traversal (no per-node sigaction). Re-probe before each thread.sample().
         fast_copy_ownership_ok_this_cycle = false;
         if (!ensure_fast_copy_safe(true)) {
             break;
         }
 
-        // Reset per-cycle asyncio task accumulator before iterating sampled threads
         echion->reset_asyncio_task_count();
 
         // When max_threads_per_sample is set, we collect all threads first, then apply
@@ -396,7 +371,6 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     *echion,
                     interp,
                     [&](PyThreadState* tstate, ThreadInfo& thread) {
-                        // Re-probe before thread.sample(); traversal uses continue_traversal only.
                         if (!ensure_fast_copy_safe(true)) {
                             return;
                         }
@@ -657,9 +631,7 @@ Sampler::prefork()
 void
 Sampler::postfork_parent()
 {
-    // The parent's sampling thread survives the fork unchanged; no restart needed.
-    // Calling start() here would launch a second thread, corrupt the thread_seq_num
-    // parity invariant used by prefork(), and cause a data race on EchionSampler state.
+    // Parent sampling thread survives fork; resume if prefork paused it.
     if (paused_for_fork_) {
         resume();
         paused_for_fork_ = false;
@@ -669,8 +641,7 @@ Sampler::postfork_parent()
 void
 Sampler::restart_after_fork()
 {
-    // Restart the sampler if it was running before fork.
-    // We use the saved flag because prefork changed the thread_seq_num parity.
+    // was_running_at_fork_ uses saved state; prefork() changed thread_seq_num parity.
     if (was_running_at_fork_) {
         start();
     }
