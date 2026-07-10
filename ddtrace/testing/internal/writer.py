@@ -298,7 +298,7 @@ class TestOptWriter(BaseWriter):
         }
 
     def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
-        self.metadata[event_type].update(metadata)
+        self.metadata.setdefault(event_type, {}).update(metadata)
 
     def put_item(self, item: TestItem[t.Any, t.Any]) -> None:
         event = self.serializers[type(item)](item)
@@ -388,6 +388,27 @@ class TestCoverageWriter(BaseWriter):
             span_id=test_run.span_id,
             files=files,
         )
+        self.put_event(event)
+
+    def put_suite_coverage(self, suite: TestSuite, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
+        """Emit a coverage event keyed to the suite rather than an individual test run.
+
+        Used in suite-skipping mode: the backend expects no span_id on coverage events so that
+        it aggregates coverage at the suite level, matching the behaviour of the old plugin and
+        the JS tracer.
+        """
+        files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        TelemetryAPI.get().record_coverage_files(len(files))
+
+        if not files:
+            TelemetryAPI.get().record_coverage_is_empty()
+            return
+
+        event = {
+            "test_session_id": suite.session.item_id,
+            "test_suite_id": suite.item_id,
+            "files": files,
+        }
         self.put_event(event)
 
     def _encode_events(self, events: list[Event]) -> bytes:
