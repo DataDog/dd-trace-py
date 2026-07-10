@@ -86,6 +86,10 @@ class BaseWriter(ABC):
         self._dropped_events = 0
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
+        # Connectors registered here are closed from both the background thread
+        # (via _task_teardown) and the caller thread (via wait_finish), covering
+        # all thread-local HTTPConnections opened via BackendConnector.
+        self._connectors: list[t.Any] = []
 
     def put_event(self, event: Event) -> None:
         with self.lock:
@@ -141,6 +145,17 @@ class BaseWriter(ABC):
             log.warning(
                 "%s: %d events were dropped during this session.", self.__class__.__name__, self._dropped_events
             )
+        # Close the caller thread's thread-local connection for each registered
+        # connector (BackendConnector is threading.local, so this closes the
+        # connection opened by any sync flush that ran on the caller thread).
+        for connector in self._connectors:
+            connector.close()
+
+    def _task_teardown(self) -> None:
+        # Close the background thread's thread-local connection for each
+        # registered connector.
+        for connector in self._connectors:
+            connector.close()
 
     def _periodic_task(self) -> None:
         while True:
@@ -155,6 +170,7 @@ class BaseWriter(ABC):
             if self.should_finish.is_set():
                 break
 
+        self._task_teardown()
         log.debug("Exiting %s background task", self.__class__.__name__)
 
     def flush(self) -> None:
@@ -272,6 +288,7 @@ class TestOptWriter(BaseWriter):
         }
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        self._connectors = [self.connector]
 
         self.serializers: dict[type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
@@ -281,7 +298,7 @@ class TestOptWriter(BaseWriter):
         }
 
     def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
-        self.metadata[event_type].update(metadata)
+        self.metadata.setdefault(event_type, {}).update(metadata)
 
     def put_item(self, item: TestItem[t.Any, t.Any]) -> None:
         event = self.serializers[type(item)](item)
@@ -355,6 +372,7 @@ class TestCoverageWriter(BaseWriter):
         super().__init__(min_flush_events=_get_min_flush_events())
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
+        self._connectors = [self.connector]
 
     def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
@@ -370,6 +388,27 @@ class TestCoverageWriter(BaseWriter):
             span_id=test_run.span_id,
             files=files,
         )
+        self.put_event(event)
+
+    def put_suite_coverage(self, suite: TestSuite, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
+        """Emit a coverage event keyed to the suite rather than an individual test run.
+
+        Used in suite-skipping mode: the backend expects no span_id on coverage events so that
+        it aggregates coverage at the suite level, matching the behaviour of the old plugin and
+        the JS tracer.
+        """
+        files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
+        TelemetryAPI.get().record_coverage_files(len(files))
+
+        if not files:
+            TelemetryAPI.get().record_coverage_is_empty()
+            return
+
+        event = {
+            "test_session_id": suite.session.item_id,
+            "test_suite_id": suite.item_id,
+            "files": files,
+        }
         self.put_event(event)
 
     def _encode_events(self, events: list[Event]) -> bytes:

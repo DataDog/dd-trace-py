@@ -1,9 +1,111 @@
+import base64
 from types import SimpleNamespace
 
+from ddtrace.ext import SpanTypes
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
+from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import audio_mime_type_from_format
+from ddtrace.llmobs._integrations.utils import format_audio_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import get_llmobs_input_messages
+
+
+def test_format_audio_part_from_bytes():
+    """Raw bytes are base64-encoded into an AudioPart with the given mime type."""
+    raw = b"\x00\x01\x02\x03"
+    part = format_audio_part(raw, "audio/wav")
+    assert part == {"mime_type": "audio/wav", "content": base64.b64encode(raw).decode("utf-8")}
+
+
+def test_format_audio_part_from_base64_string():
+    """An already-encoded base64 string is passed through unchanged."""
+    part = format_audio_part("AAECAw==", "audio/mp3")
+    assert part == {"mime_type": "audio/mp3", "content": "AAECAw=="}
+
+
+def test_audio_mime_type_from_format():
+    """OpenAI audio formats map to MIME types, falling back to audio/<format>."""
+    assert audio_mime_type_from_format("wav") == "audio/wav"
+    assert audio_mime_type_from_format("mp3") == "audio/mpeg"
+    assert audio_mime_type_from_format("FLAC") == "audio/flac"
+    assert audio_mime_type_from_format("opus") == "audio/opus"
+    assert audio_mime_type_from_format("  MP3 ") == "audio/mpeg"  # whitespace + case insensitive
+    assert audio_mime_type_from_format("") == "audio/wav"
+
+
+def test_extract_content_parts_collects_audio():
+    """Captured input_audio becomes an AudioPart and leaves no '[audio]' text marker behind."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "what is said here?"},
+            {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
+        ]
+    )
+    assert text == "what is said here?"
+    assert audio_parts == [{"mime_type": "audio/mpeg", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_multiple_audio_only():
+    """A message with only input_audio parts captures each as an AudioPart and has empty text."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "input_audio", "input_audio": {"data": "AAA=", "format": "wav"}},
+            {"type": "input_audio", "input_audio": {"data": "BBB=", "format": "mp3"}},
+        ]
+    )
+    assert text == ""
+    assert audio_parts == [
+        {"mime_type": "audio/wav", "content": "AAA="},
+        {"mime_type": "audio/mpeg", "content": "BBB="},
+    ]
+
+
+def test_extract_content_parts_audio_marker_fallback_when_no_data():
+    """When an input_audio part carries no data, fall back to the '[audio]' text marker."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "listen:"},
+            {"type": "input_audio", "input_audio": {"format": "wav"}},
+        ]
+    )
+    assert text == "listen:\n[audio]"
+    assert audio_parts == []
+
+
+def test_extract_content_parts_no_audio():
+    """Text/image-only content yields no audio parts."""
+    text, audio_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "hello"},
+            {"type": "image_url", "image_url": "http://example.com/x.png"},
+        ]
+    )
+    assert text == "hello\n[image]"
+    assert audio_parts == []
+
+
+def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
+    """Regression: the streamed-output branch must use its own tool_results, not the input loop's.
+
+    ReAct content in a streamed output previously appended to the last input message's tool_results
+    list (the variable was discarded with ``_`` and a stale value leaked through), corrupting input.
+    """
+    react = "Action: search\nAction Input: weather\nObservation: {}"
+    kwargs = {"messages": [{"role": "user", "content": react.format("from-input")}]}
+    streamed_output = [{"role": "assistant", "content": react.format("from-output")}]
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")  # route input/output as messages, as the integration does
+        openai_set_meta_tags_from_chat(span, kwargs, streamed_output)
+        input_messages = get_llmobs_input_messages(span)
+
+    assert len(input_messages) == 1
+    tool_results = input_messages[0].get("tool_results", [])
+    assert len(tool_results) == 1
+    assert tool_results[0]["result"] == "from-input"
 
 
 def test_basic_functionality():

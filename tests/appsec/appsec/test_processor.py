@@ -624,13 +624,66 @@ def test_ddwaf_info_with_3_errors():
         assert json.loads(info.errors) == {"missing key 'name'": ["crs-942-100", "crs-913-120"]}
 
 
+def test_ddwaf_update_invalid_asm_dd_keeps_default_ruleset():
+    """Regression test for APPSEC-68544.
+
+    A rejected (invalid/malicious) ASM_DD remote-config payload must not drop the bundled default
+    detection ruleset. Before the fix, update_rules removed the default from the builder and marked
+    the rejected path as loaded in ``_asm_dd_cache`` before checking the result, leaving the WAF
+    without the default rules (fail-open).
+    """
+    from ddtrace.appsec._ddwaf.waf import ASM_DD_DEFAULT
+
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        _ddwaf = DDWaf(rule_set.read(), b"", b"")
+
+    # The bundled default ruleset is the only ASM_DD config loaded at startup.
+    assert _ddwaf.initialized
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    default_required_data = set(_ddwaf.required_data)
+
+    # An ASM_DD payload that libddwaf rejects (here: "rules" is not a list, so no rule loads).
+    rejected_path = "datadog/2/ASM_DD/rejected/config"
+    ok = _ddwaf.update_rules([], [("ASM_DD", rejected_path, {"version": "2.1", "rules": "not-a-list"})])
+
+    # The update reports failure and the default ruleset is preserved, not the rejected payload.
+    assert ok is False
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, rejected_path) == 0
+    assert _ddwaf.initialized
+    assert set(_ddwaf.required_data) == default_required_data
+
+    # Remote config may later remove the previously-rejected config. Removing a config that was
+    # never stored is the desired end-state, so it must not be reported as a failed update.
+    ok = _ddwaf.update_rules([("ASM_DD", rejected_path)], [])
+    assert ok is True
+    assert _ddwaf._asm_dd_cache == {ASM_DD_DEFAULT}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 1
+
+    # A valid ASM_DD payload must still take over and displace the default ruleset.
+    with open(rules.RULES_GOOD_PATH) as rule_set:
+        valid_rules = json.load(rule_set)
+    accepted_path = "datadog/2/ASM_DD/accepted/config"
+    ok = _ddwaf.update_rules([], [("ASM_DD", accepted_path, valid_rules)])
+
+    assert ok is True
+    assert _ddwaf._asm_dd_cache == {accepted_path}
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, ASM_DD_DEFAULT) == 0
+    assert py_ddwaf_builder_get_config_paths(_ddwaf._builder, accepted_path) == 1
+
+
 def test_ddwaf_run_contained_typeerror(tracer, caplog):
     config = rules.Config()
     config.http_tag_query_string = True
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=TypeError("expected c_long instead of int")),
+        mock.patch(
+            "ddtrace.appsec._ddwaf.waf.ddwaf_context_eval",
+            side_effect=TypeError("expected c_long instead of int"),
+        ),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -667,7 +720,7 @@ def test_ddwaf_run_contained_oserror(tracer, caplog):
 
     with (
         caplog.at_level(logging.DEBUG),
-        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_run", side_effect=OSError("ddwaf run failed")),
+        mock.patch("ddtrace.appsec._ddwaf.waf.ddwaf_context_eval", side_effect=OSError("ddwaf run failed")),
     ):
         with asm_context(tracer=tracer, config=config_asm) as span:
             set_http_meta(
@@ -761,6 +814,7 @@ CUSTOM_RULE_METHOD = [
                                     {"address": "server.business_logic.payment.cancellation", "key_path": ["id"]},
                                     {"address": "server.business_logic.payment.failure", "key_path": ["id"]},
                                     {"address": "server.business_logic.payment.success", "key_path": ["id"]},
+                                    {"address": "server.business_logic.llm.event", "key_path": ["provider"]},
                                 ],
                                 "type": "string",
                                 "value": "stripe",
@@ -811,6 +865,7 @@ def test_required_addresses():
         "server.business_logic.payment.creation",
         "server.business_logic.payment.success",
         "server.business_logic.payment.failure",
+        "server.business_logic.llm.event",
         "usr.id",
         "usr.login",
     }
@@ -819,9 +874,12 @@ def test_required_addresses():
 @pytest.mark.parametrize(
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
-@pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
+@pytest.mark.parametrize("non_persistent", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
-def test_ephemeral_addresses(mock_run, persistent, ephemeral):
+def test_persistent_dedup_and_non_persistent_resend(mock_run, persistent, non_persistent):
+    # dd-trace-py only sends each persistent address to the WAF once per request (it persists in
+    # the context), while non-persistent addresses are re-sent on every call. This dedup policy is
+    # independent of the libddwaf version. call_args[0][1] is the single `data` argument of DDWaf.run.
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
@@ -831,27 +889,24 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
         processor = AppSecSpanProcessor._instance
         assert processor
-        # first call must send all data to the waf
-        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
+        # first call sends both the persistent and the non-persistent address to the waf
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, non_persistent: {"key_2": "value_2"}})
         assert mock_run.call_args
         assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
-        # second call must only send ephemeral data to the waf, not persistent data again
-        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
-        assert mock_run.call_args
-        assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {
-            WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
+        assert mock_run.call_args[0][1] == {
+            WAF_DATA_NAMES[persistent]: {"key_1": "value_1"},
+            WAF_DATA_NAMES[non_persistent]: {"key_2": "value_2"},
         }
+        # second call must not re-send the persistent address, but must re-send the non-persistent one
+        processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, non_persistent: {"key_2": "value_3"}})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
+        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[non_persistent]: {"key_2": "value_3"}}
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
-def test_waf_action_null_ephemeral_addresses(mock_run):
+def test_waf_action_none_value_non_persistent_address(mock_run):
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
@@ -861,13 +916,12 @@ def test_waf_action_null_ephemeral_addresses(mock_run):
     with asm_context(tracer=tracer, config=config_asm) as span:
         processor = AppSecSpanProcessor._instance
         assert processor
-        # None value for ephemeral addresses should not be discarded
+        # A None value for a non-persistent address must still be sent (it signals the address is
+        # present, e.g. a login failure with no known user), not discarded.
         processor._waf_action(span, None, {"LOGIN_FAILURE": None})
         assert mock_run.call_args
         assert mock_run.call_args[0]
-        assert mock_run.call_args[0][1] == {}
-        assert mock_run.call_args[1]
-        assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
+        assert mock_run.call_args[0][1] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
 
 
 @pytest.mark.parametrize("skip_event", [True, False])
@@ -917,3 +971,118 @@ def test_lambda_inferred_span(tracer, inferred_span_name):
     assert gateway_span.get_metric(APPSEC.ENABLED) == 1.0
     assert get_triggers(lambda_span)
     assert get_triggers(gateway_span)
+
+
+def test_rasp_subcontext_scope_shared_for_ssrf():
+    """A nested SSRF operation (e.g. requests driving urllib3) must share ONE subcontext.
+
+    The reentrant open must not let an inner scope clobber the outer holder, and SSRF_REQ +
+    SSRF_RES of the same outgoing request must resolve the same subcontext.
+    """
+    from ddtrace.appsec import _asm_request_context as arc
+    from ddtrace.internal import core
+
+    class _FakeSubctx:
+        pass
+
+    class _FakeWaf:
+        def __init__(self):
+            self.created = 0
+
+        def new_subcontext(self, ctx):
+            self.created += 1
+            return _FakeSubctx()
+
+    waf = _FakeWaf()
+    main_ctx = object()
+    with core.context_with_data("outer_request"):
+        arc.open_rasp_subcontext_scope()
+        s_req = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
+        # Inner client opens a nested scope: it must detect the parent holder and not create one.
+        with core.context_with_data("inner_send"):
+            arc.open_rasp_subcontext_scope()  # reentrant: reuses the outer holder
+            s_inner = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
+            assert s_inner is s_req
+        # Final response on the outer scope still shares the same subcontext.
+        s_res = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_res")
+        assert s_res is s_req
+    assert waf.created == 1
+
+
+def test_rasp_subcontext_distinct_per_concurrent_outgoing_request():
+    """Concurrent outgoing requests each run in their own per-request core context, so they must
+    get DISTINCT subcontexts (the holder is rooted per request, never shared via a common parent).
+    """
+    from ddtrace.appsec import _asm_request_context as arc
+    from ddtrace.internal import core
+
+    class _FakeSubctx:
+        pass
+
+    class _FakeWaf:
+        def __init__(self):
+            self.created = 0
+
+        def new_subcontext(self, ctx):
+            self.created += 1
+            return _FakeSubctx()
+
+    waf = _FakeWaf()
+    main_ctx = object()
+    with core.context_with_data("inbound_request"):  # shared parent (the inbound request)
+        with core.context_with_data("outgoing_a"):
+            arc.open_rasp_subcontext_scope()
+            a = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
+        with core.context_with_data("outgoing_b"):  # sibling, not nested under A
+            arc.open_rasp_subcontext_scope()
+            b = arc.get_or_create_rasp_subcontext(waf, main_ctx, "ssrf_req")
+        assert a is not b
+    assert waf.created == 2
+
+
+def test_rasp_subcontext_fresh_per_non_ssrf_call():
+    """LFI/CMDI/SHI/SQLI must get a fresh subcontext on every call (one per guarded operation)."""
+    from ddtrace.appsec import _asm_request_context as arc
+    from ddtrace.internal import core
+
+    class _FakeSubctx:
+        pass
+
+    class _FakeWaf:
+        def __init__(self):
+            self.created = 0
+
+        def new_subcontext(self, ctx):
+            self.created += 1
+            return _FakeSubctx()
+
+    waf = _FakeWaf()
+    main_ctx = object()
+    with core.context_with_data("request"):
+        arc.open_rasp_subcontext_scope()
+        a = arc.get_or_create_rasp_subcontext(waf, main_ctx, "lfi")
+        b = arc.get_or_create_rasp_subcontext(waf, main_ctx, "lfi")
+        assert a is not b
+    assert waf.created == 2
+
+
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
+def test_rasp_bypassed_when_subcontext_unavailable(mock_run):
+    """If a RASP subcontext can't be created, the WAF call is bypassed entirely (not run on the
+    main context, which would persist the non-persisting RASP data).
+    """
+    from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+    from ddtrace.trace import tracer
+
+    with asm_context(tracer=tracer, config=config_asm) as span:
+        processor = AppSecSpanProcessor._instance
+        assert processor
+        with mock.patch.object(_asm_request_context, "get_or_create_rasp_subcontext", return_value=None):
+            res = processor._waf_action(
+                span,
+                None,
+                {EXPLOIT_PREVENTION.ADDRESS.LFI: "/etc/passwd"},
+                rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
+            )
+        assert res is None
+        mock_run.assert_not_called()
