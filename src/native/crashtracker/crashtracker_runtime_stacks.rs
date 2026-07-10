@@ -15,6 +15,15 @@ extern "C" {
     fn fcntl(fd: c_int, cmd: c_int, arg: c_int) -> c_int;
 }
 
+/// Check whether the current thread holds the GIL.
+/// This is signal-safe: it's just a thread-local read + comparison.
+/// Returns false if the GIL is not held (e.g. during a ctypes foreign function call),
+/// in which case it's unsafe to call any Python C API functions.
+#[cfg(unix)]
+unsafe fn gil_is_held() -> bool {
+    pyo3_ffi::PyGILState_Check() != 0
+}
+
 /************************************************************
  Emit runtime stacktrace as string using _Py_DumpTracebackThreads
 ************************************************************/
@@ -70,6 +79,11 @@ pub unsafe fn get_cached_dump_traceback_fn() -> Option<PyDumpTracebackThreadsFn>
 unsafe fn dump_python_traceback_as_string(
     emit_stacktrace_string: unsafe extern "C" fn(*const c_char),
 ) {
+    if !gil_is_held() {
+        emit_stacktrace_string(c"<python_runtime_stacktrace_unavailable>".as_ptr());
+        return;
+    }
+
     // Use function linked during registration
     let dump_fn = match get_cached_dump_traceback_fn() {
         Some(func) => func,
@@ -160,6 +174,9 @@ const FRAME_FILE_CAP: usize = 512;
 
 #[cfg(unix)]
 unsafe fn capture_frames_via_python(emit_frame: unsafe extern "C" fn(&RuntimeStackFrame)) {
+    if !gil_is_held() {
+        return;
+    }
     let current = pyo3_ffi::PyThreadState_Get();
     if !current.is_null() {
         let _ = collect_and_emit_frames_for_thread(current, emit_frame);
