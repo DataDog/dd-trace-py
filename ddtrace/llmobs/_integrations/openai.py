@@ -231,9 +231,6 @@ class OpenAIIntegration(BaseLLMIntegration):
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
-            # Explicit prompt caching (GPT-5.6+) reports tokens written to the cache via
-            # `cache_write_tokens`, on `prompt_tokens_details` (chat completions) or
-            # `input_tokens_details` (responses API).
             cache_write_tokens = _get_attr(prompt_tokens_details, "cache_write_tokens", None)
             if cache_write_tokens is not None:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
