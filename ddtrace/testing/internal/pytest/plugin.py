@@ -24,6 +24,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
@@ -56,6 +57,7 @@ from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage_percentage
+from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage
 from ddtrace.testing.internal.tracer_api.coverage import uninstall_coverage_percentage
 import ddtrace.testing.internal.tracer_api.pytest_hooks
 from ddtrace.testing.internal.utils import TestContext
@@ -319,6 +321,12 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
+        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
+        # same ignored suites), but we must only report/count them once per session. We elect the
+        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_ignored_suite_event_owner = True
+        self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
         self.session = self.manager.session
@@ -335,6 +343,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
+                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -390,6 +399,11 @@ class TestOptPlugin:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
+        # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+            session.exitstatus = pytest.ExitCode.OK
+
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
@@ -442,6 +456,9 @@ class TestOptPlugin:
             # file are no longer needed. Clean them up to keep .git/ tidy.
             self.manager.cleanup_upload_artifacts()
 
+        if self.manager.settings.coverage_enabled:
+            uninstall_coverage()
+
         if self._logs_handler is not None:
             logging.getLogger().removeHandler(self._logs_handler)
             self._logs_handler = None
@@ -456,18 +473,50 @@ class TestOptPlugin:
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
     ) -> None:
-        if not self.manager.atf_all_flaky_tests:
-            return
-        selected = []
-        deselected = []
-        for item in items:
-            if item_to_test_ref(item) in self.manager.test_properties:
-                selected.append(item)
-            else:
-                deselected.append(item)
-        if deselected:
-            config.hook.pytest_deselected(items=deselected)
-        items[:] = selected
+        if self.manager.atf_all_flaky_tests:
+            selected = []
+            deselected = []
+            for item in items:
+                if item_to_test_ref(item) in self.manager.test_properties:
+                    selected.append(item)
+                else:
+                    deselected.append(item)
+            if deselected:
+                config.hook.pytest_deselected(items=deselected)
+            items[:] = selected
+
+    def pytest_ignore_collect(self, path: t.Any, config: pytest.Config) -> t.Optional[bool]:
+        """Skip collection of entire test files whose suite is ITR-skippable.
+
+        This fires before the file is imported, saving the cost of module import and test discovery.
+        We only ignore a file when we are sure it is safe to do so:
+          - suite-level ITR skipping is active, and
+          - no test in the file carries the unskippable marker (checked via a fast text scan — if the
+            marker string is present anywhere in the source we fall back to normal collection so that
+            pytest_collection_modifyitems can handle the file test-by-test).
+        """
+        collection_path = Path(str(path))
+        if collection_path.suffix != ".py":
+            return None
+
+        # Check suite-level skippability first (cheap: returns False immediately in test mode
+        # or when the suite is not in the skippable set) to avoid unnecessary file I/O.
+        if not self.manager.is_skippable_suite_path(collection_path, root_path=config.rootpath):
+            return None
+
+        # The suite is skippable — scan the source for the unskippable marker before committing
+        # to the skip.  If the marker string appears anywhere in the file we fall back to normal
+        # collection so that pytest_collection_modifyitems can handle it test-by-test.
+        try:
+            source = collection_path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return None
+
+        if ITR_UNSKIPPABLE_REASON in source:
+            return None
+
+        self._itr_ignored_suite_paths.append(collection_path)
+        return True
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -481,6 +530,62 @@ class TestOptPlugin:
             self.manager.collected_tests.add(test_ref)
 
         self.manager.finish_collection()
+        self._emit_itr_ignored_suite_events(session)
+
+    def _emit_itr_ignored_suite_events(self, session: pytest.Session) -> None:
+        """Emit test_suite_end (status=skip) events for suites skipped wholesale by pytest_ignore_collect.
+
+        Mirrors what the JS tracer has always done: one suite-skip event per ignored file, no
+        test-level spans inside it.  Also starts/finishes any TestModule whose every suite was
+        ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
+
+        Under xdist, every worker performs a full, unsharded collection pass and so discovers the
+        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        actually emits events/metrics to avoid multiplying counts by the number of workers.
+        """
+        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
+            return
+
+        # Use rootdir so module names match what item_to_test_ref produces from nodeids.
+        root_path = session.config.rootpath
+
+        running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
+
+        ignored_by_module: dict[str, list[Path]] = defaultdict(list)
+        for path in self._itr_ignored_suite_paths:
+            try:
+                relative = path.relative_to(root_path)
+            except ValueError:
+                continue
+            module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
+            ignored_by_module[module_name].append(path)
+
+        for module_name, paths in ignored_by_module.items():
+            test_module, created_module = self.session.get_or_create_child(module_name)
+            if created_module:
+                # paths[0] already passed the root-relative filter above, so this cannot raise.
+                module_path = paths[0].parent.relative_to(root_path)
+                test_module.set_location(module_path=module_path)
+                test_module.start()
+                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+            for path in paths:
+                relative = path.relative_to(root_path)
+                suite_name = relative.name
+                test_suite, _ = test_module.get_or_create_child(suite_name)
+                if not test_suite.is_started():
+                    test_suite.start()
+                    TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+                test_suite.mark_skipped_by_itr()
+                test_suite.finish()
+                self.manager.writer.put_item(test_suite)
+                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+                self.session.tests_skipped_by_itr += 1
+
+            if module_name not in running_module_names:
+                test_module.finish()
+                self.manager.writer.put_item(test_module)
+                TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -602,9 +707,14 @@ class TestOptPlugin:
 
         test.finish()
 
-        self.manager.coverage_writer.put_coverage(
-            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
-        )
+        if self.manager.itr_skipping_level == ITRSkippingLevel.SUITE:
+            self.manager.coverage_writer.put_suite_coverage(
+                test_suite, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
+        else:
+            self.manager.coverage_writer.put_coverage(
+                test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+            )
 
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             self.manager._set_suite_source_location(test_suite)
@@ -998,7 +1108,6 @@ class TestOptPlugin:
             return
 
         if test.is_attempt_to_fix():
-            # if the test is an attempt-to-fix, behave as it if were not selected for skipping.
             return
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
