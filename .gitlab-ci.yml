@@ -8,10 +8,6 @@ stages:
   - release
 
 variables:
-  # Benchmark trigger jobs forward $BP_EXTERNAL_S3_URL to downstream pipelines so
-  # an external orchestrator can override the S3 destination of benchmark results.
-  # Defaulted to empty here so an unset value forwards as "" rather than a literal.
-  BP_EXTERNAL_S3_URL: ""
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
@@ -186,12 +182,14 @@ microbenchmarks:
       - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
     strategy: depend
+    # Forward pipeline variables so an external orchestrator can pass
+    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
+    forward:
+      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-    # Forward the external S3 destination override to the benchmark child pipeline.
-    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
 
 apm-sdk-benchmarks:
   stage: benchmarks
@@ -216,12 +214,14 @@ macrobenchmarks:
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
+    # Forward pipeline variables so an external orchestrator can pass
+    # BP_EXTERNAL_S3_URL down to override the S3 destination of benchmark results.
+    forward:
+      pipeline_variables: true
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
-    # Forward the external S3 destination override to the benchmark child pipeline.
-    BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
   allow_failure: false
   rules:
     # Always run on nightly schedule or API triggered pipelines
