@@ -8,6 +8,10 @@ stages:
   - release
 
 variables:
+  # Default so the benchmark trigger forwards an empty value on normal runs
+  # (an unset reference would forward the literal "$BP_EXTERNAL_S3_URL"). An
+  # external orchestrator overrides it to redirect benchmark uploads.
+  BP_EXTERNAL_S3_URL: ""
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
