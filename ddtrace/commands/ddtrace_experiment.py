@@ -312,6 +312,11 @@ def main() -> None:
         return
 
     # replay
+    if args.publish:
+        # Enable LLM Obs BEFORE importing the app so its LLM integrations are patched before
+        # the app builds its clients — otherwise the replay run's nested LLM/tool spans are
+        # missing (unlike capture, which enables first).
+        _enable_llmobs(args.ml_app)
     _import_target(args.target)  # registers subjects (start fns needed for re-invocation)
     infile = args.infile or runner.DEFAULT_BASELINE_PATH
     if not os.path.exists(infile):
@@ -324,7 +329,7 @@ def main() -> None:
     if args.publish:
         # Run the CURRENT code as the `<name>` experiment over the shared dataset published at
         # capture, and link the compare view to the baseline experiment capture recorded.
-        _enable_llmobs(args.ml_app)
+        # (LLM Obs was already enabled above, before the app import, so nested spans are traced.)
         from ddtrace.llmobs import _inline_experiment_sdk as sdk
 
         for name, cases in baselines.items():
