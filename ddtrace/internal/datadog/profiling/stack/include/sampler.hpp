@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <random>
 #include <vector>
@@ -17,6 +18,13 @@
 class EchionSampler;
 
 namespace Datadog {
+
+enum class PauseResult : std::uint8_t
+{
+    Paused,     // sampler was running and is now paused
+    NotRunning, // sampler was not running (nothing to pause)
+    Timeout,    // sampler is running but did not pause within the timeout
+};
 
 class Sampler
 {
@@ -39,6 +47,16 @@ class Sampler
     std::atomic<bool> thread_running{ false };
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
+
+    // Pause synchronization — allows the faulthandler wrapper to temporarily
+    // suspend sampling so signal handlers can be safely swapped without racing
+    // with in-flight safe_memcpy calls.
+    std::atomic<bool> pause_requested_{ false };
+    std::atomic<bool> paused_{ false };
+    std::mutex pause_mutex_;
+    std::condition_variable pause_cv_;
+
+    double fast_copy_warmup_seconds = 15.0;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -70,6 +88,8 @@ class Sampler
 
     bool start();
     void stop();
+    PauseResult pause();
+    void resume();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
@@ -88,6 +108,8 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool is_running() const { return thread_running.load(); }
+    void set_fast_copy_warmup_seconds(double value) { fast_copy_warmup_seconds = value; }
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)

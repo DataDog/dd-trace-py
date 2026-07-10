@@ -6,6 +6,8 @@
 
 #include "echion/echion_sampler.h"
 
+#include <cmath>
+
 using namespace Datadog;
 
 static PyObject*
@@ -686,6 +688,119 @@ stack_native_call_registry_size(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(a
     return PyLong_FromSize_t(ProfilerState::get().native_call_registry.size());
 }
 
+static PyObject*
+stack_pause_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    switch (Sampler::get().pause()) {
+        case PauseResult::Paused:
+            Py_RETURN_TRUE;
+        case PauseResult::NotRunning:
+            Py_RETURN_FALSE;
+        case PauseResult::Timeout:
+        default:
+            Py_RETURN_NONE;
+    }
+}
+
+static PyObject*
+stack_resume_sampling(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    Sampler::get().resume();
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 1;
+
+    if (!PyArg_ParseTuple(args, "|p", &enabled)) {
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError, "set_fast_copy must be called before the sampler is started");
+        return NULL;
+    }
+
+    set_fast_copy_enabled(static_cast<bool>(enabled));
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        uninstall_segv_handler();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        init_segv_catcher();
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_segv_handler_installed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (segv_handler_installed()) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+#if defined PL_LINUX
+    if (failed_safe_copy) {
+        Py_RETURN_TRUE;
+    }
+#endif
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    if (fast_copy_active) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject*
+stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    double seconds_value = 0.0;
+
+    if (!PyArg_ParseTuple(args, "d", &seconds_value)) {
+        return NULL;
+    }
+
+    if (!std::isfinite(seconds_value) || seconds_value < 0.0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "_set_fast_copy_warmup_seconds requires a finite, non-negative number of seconds");
+        return NULL;
+    }
+
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError,
+                        "_set_fast_copy_warmup_seconds must be called before the sampler is started");
+        return NULL;
+    }
+
+    Sampler::get().set_fast_copy_warmup_seconds(seconds_value);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -718,6 +833,36 @@ static PyMethodDef stack_methods[] = {
       "Set max sampling period for adaptive sampling" },
     { "set_max_threads", stack_set_max_threads, METH_VARARGS, "Set max threads to sample per cycle (0 = unlimited)" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
+    { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },
+    { "is_safe_copy_failed",
+      stack_is_safe_copy_failed,
+      METH_NOARGS,
+      "Check if all safe copy methods failed to initialize" },
+    { "fast_copy_memory_active",
+      stack_fast_copy_memory_active,
+      METH_NOARGS,
+      "Return True if the fast safe_memcpy copy path is currently active" },
+    { "_set_fast_copy_warmup_seconds",
+      stack_set_fast_copy_warmup_seconds,
+      METH_VARARGS,
+      "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "uninstall_segv_handler",
+      stack_uninstall_segv_handler,
+      METH_NOARGS,
+      "Remove SIGSEGV handler before another component installs its own" },
+    { "reinstall_segv_handler",
+      stack_reinstall_segv_handler,
+      METH_NOARGS,
+      "Reinstall SIGSEGV handler after another component overwrites it" },
+    { "segv_handler_installed",
+      stack_segv_handler_installed,
+      METH_NOARGS,
+      "Return True if ddtrace's handler is the currently installed disposition for SIGSEGV and SIGBUS" },
+    { "pause_sampling",
+      stack_pause_sampling,
+      METH_NOARGS,
+      "Pause sampling thread and wait for in-flight sample to complete" },
+    { "resume_sampling", stack_resume_sampling, METH_NOARGS, "Resume a paused sampling thread" },
     // Native call monitoring
     { "start_native_monitoring",
       start_native_monitoring,

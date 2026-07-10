@@ -31,6 +31,45 @@ def set_uvloop_mode(thread_id: int, uvloop_mode: bool) -> None:
 
 def set_interval(new_interval: float) -> None: ...
 
+# Memory copy strategy
+def set_fast_copy(enabled: bool) -> None: ...
+def is_safe_copy_failed() -> bool: ...
+def fast_copy_memory_active() -> bool: ...  # test introspection: is safe_memcpy active?
+
+# _set_fast_copy_warmup_seconds is test-only; accessed via _stack (import * skips it).
+
+def uninstall_segv_handler() -> None: ...
+def reinstall_segv_handler() -> None:
+    """Reinstall SIGSEGV/SIGBUS handlers after another component overwrites them.
+
+    This is used to reclaim the signal handlers after faulthandler.enable() or
+    similar overwrites them. Our handler chains to the previous one for non-recovery
+    faults, so both systems coexist correctly.
+    """
+    ...
+
+def segv_handler_installed() -> bool:
+    """Return True if our handler is the installed disposition for SIGSEGV and SIGBUS.
+
+    Primarily test introspection: it queries the live disposition via sigaction(2)
+    for both signals on every call, so it is not free. Do not call it on hot paths.
+    """
+    ...
+
+# Pause/resume sampling
+def pause_sampling() -> bool | None:
+    """Pause the sampling thread and wait for any in-flight sample to complete.
+
+    Returns True  if the sampler was paused successfully.
+    Returns False if the sampler was not running (nothing to pause).
+    Returns None  if the sampler is running but timed out waiting for it to
+                  reach a safe pause point; the caller must NOT swap signal
+                  handlers in this case to avoid a race with safe_memcpy.
+    """
+    ...
+
+def resume_sampling() -> None: ...
+
 # span <-> profile association
 def link_span(span: Optional[Union[context.Context, ddspan.Span]]) -> None: ...
 
