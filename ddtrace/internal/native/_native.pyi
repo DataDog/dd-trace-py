@@ -1,3 +1,4 @@
+import contextvars
 from enum import Enum
 from typing import Any
 from typing import Iterable
@@ -952,3 +953,5 @@ class HttpIoError(HttpClientError):
     """An I/O error occurred during the request (truncated response,
     connection reset, etc.).
     """
+
+def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...

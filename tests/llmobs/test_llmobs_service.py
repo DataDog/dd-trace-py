@@ -824,6 +824,40 @@ def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
         assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 
+def test_annotate_llm_message_with_audio_parts(llmobs):
+    """Audio parts annotated on input/output messages reach the emitted span event."""
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "transcribe this",
+                    "role": "user",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+                }
+            ],
+            output_data=[
+                {
+                    "content": "done",
+                    "role": "assistant",
+                    "audio_parts": [{"mime_type": "audio/mp3", "content": "BBBB"}],
+                }
+            ],
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [
+            {
+                "content": "transcribe this",
+                "role": "user",
+                "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+            }
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"content": "done", "role": "assistant", "audio_parts": [{"mime_type": "audio/mp3", "content": "BBBB"}]}
+        ]
+
+
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")

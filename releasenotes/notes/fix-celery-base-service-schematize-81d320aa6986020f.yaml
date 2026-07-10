@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    celery: Fixes Celery worker and producer spans ignoring ``DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED``,
+    causing spans to always use ``celery-worker``/``celery-producer`` instead of the configured global service name.
