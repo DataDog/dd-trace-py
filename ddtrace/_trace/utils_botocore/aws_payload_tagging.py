@@ -105,8 +105,12 @@ class AWSPayloadTagging:
         if not self.validated:
             with self._init_lock:
                 if not self.validated:
-                    request_paths = self._get_redaction_paths("payload_tagging_request", self._REQUEST_REDACTION_PATHS_DEFAULTS)
-                    response_paths = self._get_redaction_paths("payload_tagging_response", self._RESPONSE_REDACTION_PATHS_DEFAULTS)
+                    # Both sides include all default paths — arbitrary payloads (e.g. SQS
+                    # message bodies) can contain any field structure, so request payloads
+                    # need response-side defaults and vice versa.
+                    all_side_defaults = self._REQUEST_REDACTION_PATHS_DEFAULTS + self._RESPONSE_REDACTION_PATHS_DEFAULTS
+                    request_paths = self._get_redaction_paths("payload_tagging_request", all_side_defaults)
+                    response_paths = self._get_redaction_paths("payload_tagging_response", all_side_defaults)
                     self._parsed_request_expressions = [parse(p) for p in request_paths]
                     self._parsed_response_expressions = [parse(p) for p in response_paths]
                     self._max_tags = config.botocore.get("payload_tagging_max_tags")
@@ -152,7 +156,8 @@ class AWSPayloadTagging:
             for match in expr.find(payload):
                 path = match.path
                 if hasattr(path, "fields") and path.fields:
-                    ctx.redacted_ids.add((id(match.context.value), path.fields[0]))
+                    for field_name in path.fields:
+                        ctx.redacted_ids.add((id(match.context.value), field_name))
                 elif hasattr(path, "index"):
                     ctx.redacted_ids.add((id(match.context.value), path.index))
                 elif match.value is payload:
