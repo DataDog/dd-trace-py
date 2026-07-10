@@ -947,43 +947,19 @@ def _itr_settings_attributes() -> dict[str, t.Any]:
     return attrs
 
 
-class _ITRMockCIVisibilityHandler(BaseHTTPRequestHandler):
-    """HTTP handler variant that supports configurable ITR responses.
+class _ITRMockCIVisibilityHandler(_MockCIVisibilityHandler):
+    """Handler subclass that reads ``skippable_response`` and ``itr_settings`` from the server.
 
-    The server instance carries:
-    - ``recorded_payloads``: list of citestcycle payloads (same as base handler)
+    The server instance must carry:
     - ``skippable_response``: dict returned from /api/v2/ci/tests/skippable
     - ``itr_settings``: bool — if True, return ITR-enabled settings
+
+    All other endpoints fall through to the base handler.
     """
 
-    def log_message(self, format: str, *args: t.Any) -> None:  # noqa: A002
-        pass
-
-    def _send_json(self, data: t.Any, status: int = 200) -> None:
-        body = json.dumps(data).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _read_body(self) -> bytes:
-        length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length)
-        if self.headers.get("Content-Encoding") == "gzip":
-            raw = gzip.decompress(raw)
-        return raw
-
     def do_POST(self) -> None:
-        body = self._read_body()
-
-        if self.path == "/api/v2/citestcycle":
-            payload = msgpack.unpackb(body)
-            self.server.recorded_payloads.append(payload)  # type: ignore[attr-defined]
-            self._send_json({})
-            return
-
         if self.path == "/api/v2/libraries/tests/services/setting":
+            self._read_body()  # consume body before responding
             use_itr = self.server.itr_settings  # type: ignore[attr-defined]
             attrs = _itr_settings_attributes() if use_itr else _settings_attributes()
             self._send_json(
@@ -991,49 +967,21 @@ class _ITRMockCIVisibilityHandler(BaseHTTPRequestHandler):
             )
             return
 
-        if self.path == "/api/v2/ci/libraries/tests":
-            self._send_json({"data": {"id": "1", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}})
-            return
-
         if self.path == "/api/v2/ci/tests/skippable":
+            self._read_body()  # consume body before responding
             self._send_json(self.server.skippable_response)  # type: ignore[attr-defined]
             return
 
-        if self.path == "/api/v2/git/repository/search_commits":
-            self._send_json({"data": []})
-            return
-
-        if self.path == "/api/v2/git/repository/packfile":
-            self._send_json({})
-            return
-
-        if self.path == "/api/v2/citestcov":
-            self._send_json({})
-            return
-
-        if self.path == "/api/v2/test/libraries/test-management/tests":
-            self._send_json(
-                {"data": {"id": "1", "type": "ci_app_libraries_tests_test_management", "attributes": {"tests": {}}}}
-            )
-            return
-
-        self._send_json({})
-
-    def do_GET(self) -> None:
-        self._send_json({})
-
-    def do_PUT(self) -> None:
-        self._send_json({})
+        super().do_POST()
 
 
-class MockCIVisibilityServerWithITR:
-    """Context manager for a mock CI Visibility server with configurable ITR responses."""
+class MockCIVisibilityServerWithITR(MockCIVisibilityServer):
+    """MockCIVisibilityServer variant with configurable ITR (skippable + settings) responses."""
 
     def __init__(self, skippable_response: dict[str, t.Any], itr_settings: bool = True) -> None:
+        super().__init__()
         self._skippable_response = skippable_response
         self._itr_settings = itr_settings
-        self.server: t.Optional[HTTPServer] = None
-        self.thread: t.Optional[threading.Thread] = None
 
     def __enter__(self) -> "MockCIVisibilityServerWithITR":
         self.server = HTTPServer(("127.0.0.1", 0), _ITRMockCIVisibilityHandler)
@@ -1043,29 +991,6 @@ class MockCIVisibilityServerWithITR:
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         return self
-
-    def __exit__(self, *exc: t.Any) -> None:
-        if self.server:
-            self.server.shutdown()
-        if self.thread:
-            self.thread.join(timeout=5)
-
-    @property
-    def url(self) -> str:
-        assert self.server is not None
-        host, port = self.server.server_address
-        hostname = host.decode() if isinstance(host, bytes) else host
-        return f"http://{hostname}:{port}"
-
-    def get_all_events(self) -> list[dict[str, t.Any]]:
-        assert self.server is not None
-        events: list[dict[str, t.Any]] = []
-        for payload in self.server.recorded_payloads:  # type: ignore[attr-defined]
-            events.extend(payload.get("events", []))
-        return events
-
-    def get_events_by_type(self, event_type: str) -> list[dict[str, t.Any]]:
-        return [e for e in self.get_all_events() if e.get("type") == event_type]
 
     def get_session_events(self) -> list[dict[str, t.Any]]:
         return self.get_events_by_type("test_session_end")

@@ -412,15 +412,10 @@ class TestOptPlugin:
             clear_coverage_instance()
 
         if self._should_backfill_coverage:
-            # Merge skipped-tests coverage into session coverage.
-            merged = dict(self._session_coverage)  # shallow copy — CoverageLines mutated in place
-            for path, skipped_cl in self.manager.itr_covered_files.items():
-                if path in merged:
-                    merged[path].update(skipped_cl)
-                else:
-                    # File only covered by skipped tests — clone to avoid mutating API data
-                    merged[path] = CoverageLines.from_bytearray(bytearray(skipped_cl.to_bytes()))
             # Signal to the backend that coverage backfilling was applied.
+            # The backend computes the merged percentage itself from the per-test bitmaps
+            # already uploaded via put_coverage, combined with meta.coverage from the
+            # skippable API response. The library's role is only to set this tag.
             self.session.tags[TestTag.CODE_COVERAGE_BACKFILLED] = "true"
 
         self.session.finish()

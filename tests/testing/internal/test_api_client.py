@@ -1449,6 +1449,110 @@ class TestAPIClientGetSkippableTests:
             call(ErrorType.BAD_JSON)
         ]
 
+    def test_get_skippable_tests_missing_line_coverage_flag(self, mock_telemetry: Mock) -> None:
+        """has_missing is True when any item carries _missing_line_code_coverage: true."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable",
+                response_data={
+                    "data": [
+                        {
+                            "attributes": {
+                                "name": "test_ok",
+                                "suite": "test_simple.py",
+                            },
+                            "id": "aaa",
+                            "type": "test",
+                        },
+                        {
+                            "attributes": {
+                                "name": "test_no_coverage",
+                                "suite": "test_simple.py",
+                                "_missing_line_code_coverage": True,
+                            },
+                            "id": "bbb",
+                            "type": "test",
+                        },
+                    ],
+                    "meta": {"correlation_id": "corr-123", "coverage": {}},
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+
+        assert has_missing is True
+        assert covered_files == {}
+        assert correlation_id == "corr-123"
+        # Both items are still returned as skippable (flag doesn't filter them out)
+        assert len(skippable_tests) == 2
+
+    def test_get_skippable_tests_malformed_coverage_bitmap(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Malformed base64 in meta.coverage is skipped with a warning; valid entries are still parsed."""
+        mock_connector = (
+            mock_backend_connector().with_post_json_response(
+                endpoint="/api/v2/ci/tests/skippable",
+                response_data={
+                    "data": [],
+                    "meta": {
+                        "correlation_id": "corr-456",
+                        "coverage": {
+                            "tests/valid.py": "AAABpA==",  # valid base64
+                            "tests/bad.py": "!!!not-valid-base64!!!",  # malformed
+                        },
+                    },
+                },
+            )
+        ).build()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+                skippable_tests, correlation_id, covered_files, has_missing = api_client.get_skippable_tests()
+
+        # Valid entry is parsed; malformed entry is skipped.
+        assert "/tests/valid.py" in covered_files
+        assert "/tests/bad.py" not in covered_files
+        assert "Failed to decode coverage bitmap" in caplog.text
+        assert has_missing is False
+        assert skippable_tests == set()
+
 
 @pytest.fixture
 def packfile(tmpdir: t.Any) -> t.Generator[Path, None, None]:
