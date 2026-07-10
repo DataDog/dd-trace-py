@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` to opt in to OpenTelemetry trace semantics for spans
+    created through OpenTelemetry APIs and for OpenTelemetry Protocol (OTLP) trace export. When enabled,
+    OpenTelemetry span attributes keep their original names and value types, exception events and status
+    descriptions follow OpenTelemetry behavior, and Datadog-specific span attributes such as ``env``, ``language``,
+    and ``version`` are not added to spans. When ``OTEL_TRACES_EXPORTER=otlp`` is set, native span events are
+    automatically enabled so span events are emitted as OTLP events.
