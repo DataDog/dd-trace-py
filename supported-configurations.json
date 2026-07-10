@@ -5216,7 +5216,10 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "aliases": [
+          "DD_OTEL_EXPORTER_OTLP_ENDPOINT"
+        ]
       }
     ],
     "OTEL_EXPORTER_OTLP_HEADERS": [
