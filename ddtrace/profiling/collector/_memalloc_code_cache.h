@@ -20,12 +20,13 @@ namespace Datadog {
  * Implementation: 2-way set-associative cache with Fibonacci (golden-ratio) set-index
  * hashing. A code object pointer is hashed via (ptr * 0x9E3779B97F4A7C15) >> (64 - log2 sets)
  * to pick a set; within the set, at most WAYS_PER_SET = 2 slots are checked linearly.
- * Eviction is FIFO per set. The vector is allocated once at construction — no heap
- * allocations occur during lookup or insert.
+ * Eviction is FIFO per set. The backing vector is allocated once at construction, so no
+ * heap allocation occurs during lookup or insert.
  *
- * Allocation safety: absl::flat_hash_map and std::unordered_map are not used here
- * because their internal allocations would re-enter our PyObject_Malloc /
- * PyMem_RawMalloc hooks, causing infinite recursion. The pre-allocated vector is safe.
+ * Why a fixed custom structure rather than std::unordered_map / absl::flat_hash_map:
+ * those allocate on insert and rehash as they grow. This cache runs inside the allocator
+ * hook, where staying allocation-free after construction keeps memory bounded and avoids
+ * allocating while we are servicing an allocation.
  *
  * Address reuse: the key is a raw PyCodeObject* and CPython may free a code object and
  * reassign its address to a new one. Each entry therefore also stores the code object's
@@ -68,11 +69,11 @@ class CodeFunctionCache
   private:
     struct Set
     {
-        PyCodeObject* codes[2] = { nullptr, nullptr };
-        Datadog::function_id functions[2] = { nullptr, nullptr };
-        PyObject* names[2] = { nullptr, nullptr };
-        PyObject* filenames[2] = { nullptr, nullptr };
-        int firstlines[2] = { 0, 0 };
+        PyCodeObject* codes[WAYS_PER_SET] = {};
+        Datadog::function_id functions[WAYS_PER_SET] = {};
+        PyObject* names[WAYS_PER_SET] = {};
+        PyObject* filenames[WAYS_PER_SET] = {};
+        int firstlines[WAYS_PER_SET] = {};
         uint8_t next_evict = 0;
     };
 
