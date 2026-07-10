@@ -3230,7 +3230,7 @@ venv = Venv(
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
-                "mistralai": ["~=2.0.0",latest],
+                "mistralai": ["~=2.0.0", latest],
             },
         ),
         Venv(
