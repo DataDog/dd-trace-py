@@ -5,6 +5,7 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -29,6 +30,8 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import DEEP_TOOL_SCHEMA
 from tests.llmobs._utils import assert_llmobs_span_data
+from tests.llmobs.test_prompts import CHAT_PROMPT_RESPONSE
+from tests.llmobs.test_prompts import mock_api
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -2708,6 +2711,32 @@ MUL: "*"
                     "role": "user",
                     "content": "You are a helpful assistant. Please answer this question: What is machine learning?",
                 },
+            ],
+        )
+
+    def test_chat_completion_managed_prompt_auto_tracking(self, openai, openai_llmobs, test_spans):
+        """A managed prompt rendered with .format() and passed straight into chat.completions.create
+        auto-tags the resulting LLM span, with no annotation_context.
+        """
+        with mock_api(200, CHAT_PROMPT_RESPONSE):
+            prompt = LLMObs.get_prompt("assistant")
+        messages = prompt.format(persona="helpful assistant", question="What is Python?")
+
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion.yaml"):
+            client = openai.OpenAI()
+            client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_prompt_tracking(
+            span_event=_get_llmobs_data_metastruct(spans[0]),
+            prompt_id="assistant",
+            prompt_version="v2",
+            variables={"persona": "helpful assistant", "question": "What is Python?"},
+            expected_chat_template=CHAT_PROMPT_RESPONSE["template"],
+            expected_messages=[
+                {"role": "system", "content": "You are helpful assistant."},
+                {"role": "user", "content": "What is Python?"},
             ],
         )
 
