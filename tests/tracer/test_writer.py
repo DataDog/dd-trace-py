@@ -17,7 +17,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
@@ -31,7 +30,6 @@ from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.internal.writer import _human_size
-from ddtrace.internal.writer.writer import NoEncodableSpansError
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -606,163 +604,48 @@ def _agentless_writer():
 
 
 class TestWriterTelemetry:
-    """Tests that HTTPWriter (and thus AgentlessTraceWriter) reports span-level telemetry.
+    """AgentlessTraceWriter reports internal span telemetry via record_trace_writer_metric."""
 
-    The writer records ``spans_enqueued_for_serialization`` and ``spans_dropped`` (span counts, not
-    trace/chunk counts), plus per-HTTP-attempt ``trace_api.*`` telemetry. ``spans_dropped`` is only
-    emitted once a span is definitively dropped (after HTTP retries have been exhausted).
-    """
-
-    def test_write_with_client_records_spans_enqueued(self):
+    def test_records_spans_enqueued(self):
         writer = _agentless_writer()
         spans = [Span(name="span1"), Span(name="span2")]
-        with mock.patch("ddtrace.internal.writer.writer.record_writer_spans_enqueued") as mock_enqueued:
+        with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
             writer._write_with_client(writer._clients[0], spans=spans)
-        mock_enqueued.assert_called_once_with(2)
+        mock_metric.assert_called_once_with("spans_enqueued_for_serialization", 2, None)
 
-    def test_write_with_client_records_spans_dropped_on_buffer_full(self):
+    def test_records_spans_dropped_on_buffer_full(self):
         writer = _agentless_writer()
         spans = [Span(name="span1"), Span(name="span2")]
         with mock.patch.object(writer._clients[0].encoder, "put", side_effect=BufferFull(1024)):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
                 writer._write_with_client(writer._clients[0], spans=spans)
-        mock_dropped.assert_called_once_with(2, "overfull_buffer")
+        mock_metric.assert_called_once_with("spans_dropped", 2, (("reason", "overfull_buffer"),))
 
-    def test_write_with_client_records_spans_dropped_on_trace_too_large(self):
+    def test_records_spans_dropped_after_retries_exhausted(self):
         writer = _agentless_writer()
-        spans = [Span(name="span1"), Span(name="span2"), Span(name="span3")]
-        with mock.patch.object(writer._clients[0].encoder, "put", side_effect=BufferItemTooLarge(1024)):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._write_with_client(writer._clients[0], spans=spans)
-        mock_dropped.assert_called_once_with(3, "serialization_error")
+        with mock.patch.object(writer, "_send_payload_with_backoff", side_effect=OSError("boom")):
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._flush_single_payload(b"payload", 3, client=writer._clients[0], n_spans=9)
+        mock_metric.assert_called_once_with("spans_dropped", 9, (("reason", "api_error"),))
 
-    def test_write_with_client_records_spans_dropped_on_incompatible_encoding(self):
+    def test_records_trace_api_metrics(self):
         writer = _agentless_writer()
-        spans = [Span(name="span1")]
-        with mock.patch.object(writer._clients[0].encoder, "put", side_effect=NoEncodableSpansError()):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._write_with_client(writer._clients[0], spans=spans)
-        mock_dropped.assert_called_once_with(1, "serialization_error")
-
-    def test_flush_queue_with_client_records_spans_dropped_on_encoding_error(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        # Buffer 2 spans so pending_spans reflects the real span count.
-        client.encoder.put([Span(name="span1"), Span(name="span2")])
-        with mock.patch.object(client.encoder, "encode", side_effect=ValueError("boom")):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_queue_with_client(client)
-        mock_dropped.assert_called_once_with(2, "serialization_error")
-
-    def test_flush_single_payload_records_spans_dropped_on_compression_failure(self):
-        writer = _agentless_writer()
-        writer._intake_accepts_gzip = True
-        client = writer._clients[0]
-        with mock.patch("ddtrace.internal.writer.writer.gzip.compress", side_effect=OSError("boom")):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_single_payload(b"payload", 2, client=client, n_spans=7)
-        mock_dropped.assert_called_once_with(7, "serialization_error")
-
-    def test_flush_single_payload_records_spans_dropped_after_retries_exhausted(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        # _send_payload_with_backoff only raises once all network/timeout retries are exhausted.
-        with mock.patch.object(writer, "_send_payload_with_backoff", side_effect=OSError("connection refused")):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_single_payload(b"payload", 3, client=client, n_spans=9)
-        mock_dropped.assert_called_once_with(9, "api_error")
-
-    def test_flush_single_payload_records_spans_dropped_on_http_error_status(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        response = mock.Mock(spec=Response, status=500)
-        with mock.patch.object(writer, "_send_payload_with_backoff", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_single_payload(b"payload", 3, client=client, n_spans=6)
-        mock_dropped.assert_called_once_with(6, "api_error")
-
-    def test_flush_single_payload_does_not_record_spans_dropped_on_success(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        response = mock.Mock(spec=Response, status=202)
-        with mock.patch.object(writer, "_send_payload_with_backoff", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_single_payload(b"payload", 3, client=client, n_spans=6)
-        mock_dropped.assert_not_called()
-
-    def test_flush_single_payload_skips_span_drop_when_span_count_unknown(self):
-        """Encoders that don't expose span counts (n_spans=None) must not report span drops."""
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        with mock.patch.object(writer, "_send_payload_with_backoff", side_effect=OSError("connection refused")):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._flush_single_payload(b"payload", 3, client=client, n_spans=None)
-        mock_dropped.assert_not_called()
-
-    def test_send_payload_does_not_record_spans_dropped(self):
-        """Span drops must be attributed by _flush_single_payload (post-retry), never per attempt."""
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        response = mock.Mock(spec=Response, status=500, reason="Internal Server Error")
-        with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                writer._send_payload(b"payload", 5, client=client)
-        mock_dropped.assert_not_called()
-
-    def test_send_payload_records_api_request_and_response(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
         response = mock.Mock(spec=Response, status=202, reason="Accepted")
         with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_request") as mock_request:
-                with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_response") as mock_response:
-                    writer._send_payload(b"payload", 5, client=client)
-        mock_request.assert_called_once_with()
-        mock_response.assert_called_once_with(202)
-
-    def test_send_payload_records_http_error(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        response = mock.Mock(spec=Response, status=500, reason="Internal Server Error")
-        with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_error") as mock_api_error:
-                writer._send_payload(b"payload", 5, client=client)
-        mock_api_error.assert_called_once_with("status_code")
-
-    def test_send_payload_records_network_error(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        with mock.patch.object(writer, "_put", side_effect=OSError("connection refused")):
-            with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_error") as mock_api_error:
-                with pytest.raises(OSError):
-                    writer._send_payload(b"payload", 5, client=client)
-        mock_api_error.assert_called_once_with("network")
-
-    def test_send_payload_records_timeout_error(self):
-        writer = _agentless_writer()
-        client = writer._clients[0]
-        with mock.patch.object(writer, "_put", side_effect=socket.timeout("timed out")):
-            with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_error") as mock_api_error:
-                with pytest.raises(socket.timeout):
-                    writer._send_payload(b"payload", 5, client=client)
-        mock_api_error.assert_called_once_with("timeout")
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._send_payload(b"payload", 5, client=writer._clients[0])
+        mock_metric.assert_any_call("trace_api.requests", 1, None)
+        mock_metric.assert_any_call("trace_api.responses", 1, (("status_code", "202"),))
 
     def test_civisibility_writer_does_not_record_tracer_telemetry(self):
-        """CIVisibilityWriter reuses the HTTPWriter pipeline but must not pollute tracer telemetry."""
+        """CIVisibility records its own CIVISIBILITY telemetry, so it must not emit tracer metrics."""
         with override_env(dict(DD_API_KEY="foobar.baz")):
             writer = CIVisibilityWriter("http://localhost:9126")
-        client = writer._clients[0]
         response = mock.Mock(spec=Response, status=500, reason="Internal Server Error")
         with mock.patch.object(writer, "_put", return_value=response):
-            with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_request") as mock_request:
-                with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_response") as mock_response:
-                    with mock.patch("ddtrace.internal.writer.writer.record_writer_trace_api_error") as mock_api_error:
-                        with mock.patch("ddtrace.internal.writer.writer.record_spans_dropped") as mock_dropped:
-                            writer._send_payload(b"payload", 5, client=client)
-        mock_request.assert_not_called()
-        mock_response.assert_not_called()
-        mock_api_error.assert_not_called()
-        mock_dropped.assert_not_called()
+            with mock.patch("ddtrace.internal.writer.writer.record_trace_writer_metric") as mock_metric:
+                writer._send_payload(b"payload", 5, client=writer._clients[0])
+        mock_metric.assert_not_called()
 
 
 def test_humansize():

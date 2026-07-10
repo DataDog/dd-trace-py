@@ -347,6 +347,7 @@ class SpanAggregator(SpanProcessor):
         self._span_metrics: dict[str, defaultdict] = {
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
+            "spans_dropped": defaultdict(int),
         }
         super(SpanAggregator, self).__init__()
 
@@ -411,7 +412,6 @@ class SpanAggregator(SpanProcessor):
 
         # perf: Process spans outside of the span aggregator lock
         spans = finished
-        num_spans_before_processing = len(spans)
         for tp in chain(
             self.dd_processors,
             self.user_processors,
@@ -431,12 +431,13 @@ class SpanAggregator(SpanProcessor):
                 break
 
         # Any spans removed by the trace processors (filtered out or the whole trace dropped)
-        # are definitively dropped here and never reach the writer.
-        dropped_spans = num_spans_before_processing - len(spans)
-        if dropped_spans > 0:
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", dropped_spans, tags=(("reason", "tp_drop"),)
-            )
+        # are definitively dropped here and never reach the writer. Batch them alongside the
+        # span created/finished counts.
+        dropped = len(finished) - len(spans)
+        if dropped > 0:
+            with self._lock:
+                self._span_metrics["spans_dropped"]["tp_drop"] += dropped
+                self._queue_span_count_metrics("spans_dropped", "reason")
 
         if spans:
             # Get sampling information from the root span
@@ -486,6 +487,9 @@ class SpanAggregator(SpanProcessor):
         # on_span_finish(...) queues span finish metrics in batches of 100.
         # This ensures all remaining counts are sent before the tracer is shutdown.
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
+        # on_span_finish(...) queues dropped span metrics in batches of 100.
+        # This ensures all remaining counts are sent before the tracer is shutdown.
+        self._queue_span_count_metrics("spans_dropped", "reason", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         if log.isEnabledFor(logging.WARNING):
             unsent_spans = [
@@ -590,4 +594,5 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics = {
                 "spans_created": defaultdict(int),
                 "spans_finished": defaultdict(int),
+                "spans_dropped": defaultdict(int),
             }

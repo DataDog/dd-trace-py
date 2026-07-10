@@ -4,6 +4,18 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
+def record_trace_writer_metric(name: str, count: int, tags: Optional[tuple[tuple[str, str], ...]] = None) -> None:
+    """Record a TRACERS-namespace count metric emitted by the trace writer pipeline.
+
+    Used for span/trace_api metrics such as ``spans_enqueued_for_serialization``, ``spans_dropped``
+    (tagged with a ``reason``) and ``trace_api.requests``/``responses``/``errors``. Non-positive
+    counts are ignored so callers can pass raw span counts without guarding.
+    """
+    if count <= 0:
+        return
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, name, count, tags=tags)
+
+
 def record_span_pointer_calculation(context: str, span_pointer_count: int) -> None:
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
@@ -49,54 +61,4 @@ def record_span_pointer_calculation_issue(
         name="span_pointer_calculation.issue",
         value=1,
         tags=tags,
-    )
-
-
-def record_writer_spans_enqueued(count: int) -> None:
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.TRACERS, name="spans_enqueued_for_serialization", value=count
-    )
-
-
-def record_spans_dropped(count: int, reason: str) -> None:
-    """Record spans that are known to be dropped (never delivered to the intake).
-
-    ``reason`` identifies the stage/cause of the drop:
-      - ``tp_drop``: dropped by a trace processor in the SpanAggregator
-      - ``overfull_buffer``: the encoder buffer could not fit the trace
-      - ``serialization_error``: the trace could not be encoded/compressed
-      - ``api_error``: the payload could not be delivered to the intake
-
-    Callers must only invoke this once a span is *definitively* dropped (e.g. after all
-    HTTP retries are exhausted), never speculatively on an attempt that may still succeed.
-    """
-    if count <= 0:
-        return
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name="spans_dropped",
-        value=count,
-        tags=(("reason", reason),),
-    )
-
-
-def record_writer_trace_api_request() -> None:
-    telemetry_writer.add_count_metric(namespace=TELEMETRY_NAMESPACE.TRACERS, name="trace_api.requests", value=1)
-
-
-def record_writer_trace_api_response(status_code: int) -> None:
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name="trace_api.responses",
-        value=1,
-        tags=(("status_code", str(status_code)),),
-    )
-
-
-def record_writer_trace_api_error(error_type: str) -> None:
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name="trace_api.errors",
-        value=1,
-        tags=(("type", error_type),),
     )
