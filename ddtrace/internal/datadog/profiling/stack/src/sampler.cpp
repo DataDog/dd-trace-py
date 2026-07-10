@@ -278,7 +278,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // If a foreign owner is already authoritative, leave it in place and fall back to
     // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
-    if (fast_copy_desired && !fast_copy_foreign_takeover) {
+    if (fast_copy_desired.load(std::memory_order_relaxed) &&
+        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
         std::call_once(segv_handler_once, []() {
             if (segv_handler_installed()) {
                 init_segv_catcher();
@@ -305,7 +306,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // A recorded foreign takeover (possibly inherited across fork) keeps us on the
     // syscall copy: the inherited signal disposition still points at that foreign owner,
     // so re-warming into safe_memcpy would crash (PROF-14568).
-    const bool fast_copy_warmup = fast_copy_desired && !fast_copy_foreign_takeover && syscall_copy_available;
+    const bool fast_copy_warmup = fast_copy_desired.load(std::memory_order_relaxed) &&
+                                  !fast_copy_foreign_takeover.load(std::memory_order_relaxed) && syscall_copy_available;
     bool fast_copy_upgraded = !fast_copy_warmup;
     bool handler_fallback_done = false;
     const auto fast_copy_warmup_deadline =
@@ -316,6 +318,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     }
 
     publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
+    const auto continue_traversal = [&]() -> bool { return !stop_sampling; };
 
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
@@ -346,7 +350,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         // Foreign handler handling (see notes before the loop); faulthandler's
         // transient swaps are safe since the sampler is paused around them.
-        if (fast_copy_desired && !fast_copy_upgraded) {
+        if (fast_copy_desired.load(std::memory_order_relaxed) && !fast_copy_upgraded) {
             // Warmup window: still on the safe syscall copy. When it elapses we make the
             // one-time warmup decision. fast_copy_upgraded records that the decision has
             // been made, not that safe_memcpy is now active: we upgrade only if we still
@@ -363,7 +367,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     // the process and record it so we never reclaim the handler later.
                     handler_fallback_done = true;
                     mark_fast_copy_syscall_fallback();
-                    fast_copy_foreign_takeover = true;
+                    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
                     std::cerr << "ddtrace stack profiler: another component owns the SIGSEGV/SIGBUS "
                                  "handler; keeping the syscall-based memory copy to avoid crashing."
                               << std::endl;
@@ -371,21 +375,10 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-                }
-            }
-        }
-
-        // Re-verify handler ownership before any remote reads this cycle. The interp/thread
-        // list traversal below (for_each_interp/for_each_thread) reads remote memory via
-        // safe_memcpy while walking the linked lists, so the check must run before it, not
-        // only before thread.sample(); otherwise a handler taken over since the last cycle
-        // would be hit by the traversal copies first. Falling back is not free: it pins the
-        // process to the slower syscall copy for the rest of its life (degrading sample
-        // quality, e.g. on asyncio workloads), but we prefer it over crashing under a foreign
-        // handler. The per-thread checks below additionally narrow mid-cycle swaps between
-        // traversal and thread.sample().
-        const auto verify_fast_copy_before_read = [&]() -> bool { return ensure_fast_copy_safe(); };
-        if (!verify_fast_copy_before_read()) {
+        // Probe handler ownership once before traversal copies this cycle; list walks use
+        // continue_traversal (no per-node sigaction). Re-probe before each thread.sample().
+        fast_copy_ownership_ok_this_cycle = false;
+        if (!ensure_fast_copy_safe(true)) {
             break;
         }
 
@@ -403,9 +396,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     *echion,
                     interp,
                     [&](PyThreadState* tstate, ThreadInfo& thread) {
-                        // Re-verify before thread.sample(); traversal copies are gated by
-                        // verify_fast_copy_before_read inside for_each_interp/for_each_thread.
-                        if (!ensure_fast_copy_safe()) {
+                        // Re-probe before thread.sample(); traversal uses continue_traversal only.
+                        if (!ensure_fast_copy_safe(true)) {
                             return;
                         }
                         auto success = thread.sample(*echion, tstate, wall_time_us);
@@ -413,9 +405,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                             Sample::profile_borrow().stats().increment_sample_count();
                         }
                     },
-                    verify_fast_copy_before_read);
+                    continue_traversal);
               },
-              verify_fast_copy_before_read);
+              continue_traversal);
         } else {
             thread_candidates.clear();
 
@@ -426,9 +418,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                     *echion,
                     interp,
                     [&](PyThreadState* tstate, ThreadInfo& /*thread*/) { thread_candidates.push_back(*tstate); },
-                    verify_fast_copy_before_read);
+                    continue_traversal);
               },
-              verify_fast_copy_before_read);
+              continue_traversal);
 
             // Algorithm R: if we have more threads than the cap, select a uniform random subset.
             // Selected threads are placed in [0, sample_count). Overflow threads remain in
@@ -468,7 +460,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // Re-verify handler ownership before running safe_memcpy for this thread.
                 // Done before taking the thread_info_map lock so a syscall probe never
                 // extends the lock hold time.
-                if (!ensure_fast_copy_safe()) {
+                if (!ensure_fast_copy_safe(true)) {
                     break;
                 }
                 // The lock is acquired per iteration rather than for the whole loop so that new

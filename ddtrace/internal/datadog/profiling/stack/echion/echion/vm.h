@@ -51,8 +51,8 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 
 #endif
 
-// Whether safe_copy is currently set to the memcpy-based wrapper.
-inline bool fast_copy_active = false;
+// Transient: safe_memcpy is the active copy path.
+inline std::atomic<bool> fast_copy_active{ false };
 
 // User wants fast copy (set at init); survives warmup toggling fast_copy_active.
 inline bool fast_copy_requested = false;
@@ -69,8 +69,8 @@ mark_fast_copy_syscall_fallback()
     fast_copy_syscall_fallback = true;
 }
 
-// Persistent intent: not toggled by warmup/fallback; survives fork() (PROF-14568).
-inline bool fast_copy_desired = false;
+// Persistent intent; not toggled by warmup/fallback; survives fork() (PROF-14568).
+inline std::atomic<bool> fast_copy_desired{ false };
 
 // Sticky flag set once a foreign (non-cooperative) SIGSEGV/SIGBUS handler has taken
 // ownership and the sampler has surrendered to the syscall copy. It is intentionally
@@ -79,7 +79,7 @@ inline bool fast_copy_desired = false;
 // later cooperative swap (e.g. faulthandler.disable()) could hand ownership back to us
 // on top of that foreign handler and let a restart/fork re-enable safe_memcpy over it
 // (PROF-14568). Gates handler reclaim and the fast-copy warmup/upgrade.
-inline bool fast_copy_foreign_takeover = false;
+inline std::atomic<bool> fast_copy_foreign_takeover{ false };
 
 // Whether init_segv_catcher succeeded at constructor time. Persists even if
 // fast_copy_active is later toggled off by set_fast_copy_enabled.

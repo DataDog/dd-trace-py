@@ -783,8 +783,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     } else {
         fast_copy_requested = true;
     }
-    // Record intent separately from the active copy path (persists across warmup/fork).
-    fast_copy_desired = want && safe_memcpy_initialized;
+    fast_copy_desired.store(want && safe_memcpy_initialized, std::memory_order_relaxed);
     set_fast_copy_enabled(want);
     publish_fast_copy_profiler_metadata();
 
@@ -803,7 +802,8 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // sampler's startup warmup, when safe_memcpy is temporarily inactive. Skipped once a
     // foreign handler has taken over: after surrendering we stay out of the handler
     // entirely rather than churning it around a foreign owner (PROF-14568).
-    if (fast_copy_desired && !fast_copy_foreign_takeover) {
+    if (fast_copy_desired.load(std::memory_order_relaxed) &&
+        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -819,7 +819,8 @@ stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // warmup is still reclaimed. Skipped once fast_copy_foreign_takeover is set: after
     // a foreign handler forced fallback we never reclaim, so a later cooperative swap
     // cannot hand ownership back to us on top of that foreign owner (PROF-14568).
-    if (fast_copy_desired && !fast_copy_foreign_takeover) {
+    if (fast_copy_desired.load(std::memory_order_relaxed) &&
+        !fast_copy_foreign_takeover.load(std::memory_order_relaxed)) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
@@ -849,7 +850,7 @@ stack_is_safe_copy_failed(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stack_fast_copy_memory_active(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    if (fast_copy_active) {
+    if (fast_copy_active.load(std::memory_order_relaxed)) {
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
