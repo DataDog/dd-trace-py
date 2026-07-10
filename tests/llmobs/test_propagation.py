@@ -107,8 +107,8 @@ def test_injection_propagates_trace_default_session_not_override(llmobs):
         with llmobs.llm(name="later") as later_span:  # sibling created after the override
             pass
     tags = headers.get("x-datadog-tags", "")
-    assert "_dd.p.llmobs_session_id=trace-session" in tags
-    assert "_dd.p.llmobs_session_id=override-session" not in tags
+    assert "_dd.p.session_id=trace-session" in tags
+    assert "_dd.p.session_id=override-session" not in tags
     # the override must not have replaced the trace default for later spans
     assert get_llmobs_session_id(later_span) == "trace-session"
 

@@ -43,7 +43,7 @@ class LLMObsSamplingDecision(str, Enum):
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
-PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_session_id"
+PROPAGATED_SESSION_ID_KEY = "_dd.p.session_id"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
