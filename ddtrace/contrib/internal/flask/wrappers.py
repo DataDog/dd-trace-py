@@ -41,6 +41,7 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
             service=trace_utils.int_service(None, config.flask),
             span_type=span_type,
             tags=tags,
+            integration_config=config.flask,
         ) as ctx,
         ctx.span,
     ):
