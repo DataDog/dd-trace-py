@@ -800,6 +800,152 @@ def test_periodic_thread_stop_without_join_forksafe():
         t.join()
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(
+    timeout=120,
+    # The regression signal is the exit status only: 0 = all forks reaped
+    # cleanly, non-zero = a child hung or exited abnormally. Skip the stdout and
+    # stderr checks because a full-featured startup can log benign noise, and the
+    # reproduction does not depend on traces actually reaching an agent.
+    out=None,
+    err=None,
+    env=dict(
+        # Populate the full periodic-thread set (writer, profiler, runtime
+        # metrics, remote config, telemetry) so the recycled-ident hazard has
+        # live workers to collide with. Remote config and telemetry are on by
+        # default and profiling/runtime metrics are not, but enable all of them
+        # explicitly so the scenario is deterministic regardless of defaults.
+        DD_PROFILING_ENABLED="true",
+        DD_RUNTIME_METRICS_ENABLED="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="true",
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED="true",
+    ),
+)
+def test_writer_recreate_fork_child_does_not_deadlock():
+    """Regression: a forked child must not hang joining a periodic thread that an
+    identity-blind registry delete dropped after a recycled thread id.
+
+    Root cause (ddtrace/internal/_threads.cpp): entries in the module-level
+    ``periodic_threads`` dict were deleted by thread ident without checking that
+    the entry still belonged to the deleting thread. Thread ids are recyclable,
+    so this sequence corrupted the registry and deadlocked a fork child:
+
+      1. The tracer recreates its writer; the old writer worker exits, freeing
+         its thread id and removing its ``periodic_threads`` entry.
+      2. A new writer worker starts and the OS recycles that same thread id,
+         registering ``periodic_threads[ident] = new_worker``.
+      3. Cyclic GC later collects the dropped old-writer<->worker reference
+         cycle; the old worker's ``tp_dealloc`` runs
+         ``PyDict_DelItem(periodic_threads, ident)`` which — because the id was
+         recycled — evicts the LIVE new worker's entry.
+      4. The live worker is now absent from ``periodic_threads``, so
+         ``threads._before_fork`` never stops/joins it and its ``_stopped``
+         event is never set.
+      5. In the child, ``_child_after_fork`` recreates the writer, which stops
+         and joins that worker via ``PeriodicThread.join(None)`` — waiting
+         forever on a condition variable nothing will ever set. The child hangs.
+
+    The fix guards every by-ident registry delete with an identity check
+    (``PyDict_GetItem(...) == self``), so a stale thread can only remove its own
+    entry, never a live worker that recycled the id.
+
+    This drives the real scenario: ``writer.recreate()`` + ``gc.collect()`` +
+    ``os.fork()`` in a loop, with each child writing a span and exiting. The
+    parent watches each child with a ``waitpid(WNOHANG)`` deadline (no signals),
+    SIGKILLs any child that hangs, and also fails if a child exits abnormally
+    (e.g. a native fault from the same corruption). A hang or fault therefore
+    fails the test rather than hanging the suite, and the subprocess ``timeout``
+    is a backstop.
+
+    Note: reproducing the eviction requires the OS to recycle the freed
+    writer-worker thread id, which is libc/timing dependent, so this is a
+    best-effort probabilistic reproduction. The sanity check below guards
+    against the test silently degrading into a no-op if the periodic threads
+    fail to start.
+    """
+    import gc
+    import os
+    import time
+
+    import ddtrace.auto  # noqa: F401  # start tracer + periodic threads
+    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.trace import tracer
+
+    NFORKS = 25
+    # Generous: children exit in milliseconds, so only a genuine hang waits this
+    # long. Large enough that a slow child on an oversubscribed CI host is not
+    # mistaken for a hang.
+    DEADLINE = 30.0
+
+    # Warm up: emit a span so the tracer and its periodic threads are running,
+    # then let them all spin up.
+    with tracer.trace("warmup"):
+        pass
+    time.sleep(1.0)
+
+    # Anti-rot guard: the recycled-ident collision only arises with periodic
+    # threads actually running. If the feature set failed to start, the test
+    # would pass vacuously and silently stop guarding the regression.
+    assert len(periodic_threads) >= 3, (
+        "expected several periodic threads to be running; got %d — the fork "
+        "scenario would not exercise the recycled-ident path" % len(periodic_threads)
+    )
+
+    def _one_fork(idx):
+        # Churn the writer and force a cyclic GC so a dropped old-worker cycle is
+        # collected while a new worker may have recycled the freed thread id.
+        agg = tracer._span_aggregator
+        agg.writer = agg.writer.recreate()
+        with tracer.trace("pre-%d" % idx):
+            pass
+        gc.collect()
+
+        pid = os.fork()
+        if pid == 0:
+            # Child: _child_after_fork already ran in the at-fork hooks. If the
+            # bug is present the child never reaches here — it deadlocks in
+            # _child_after_fork -> writer.recreate -> PeriodicThread.join(None).
+            try:
+                with tracer.trace("child-%d" % idx):
+                    pass
+            finally:
+                os._exit(0)
+
+        # Parent: signal-free watchdog. Poll for the child; SIGKILL and report a
+        # hang if it does not exit within the deadline. Return the child's wait
+        # status word, or None if it hung.
+        deadline = time.monotonic() + DEADLINE
+        while True:
+            try:
+                wpid, status = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                return 0  # already reaped; treat as a clean exit
+            if wpid == pid:
+                return status
+            if time.monotonic() > deadline:
+                try:
+                    os.kill(pid, 9)
+                    os.waitpid(pid, 0)
+                except (ChildProcessError, ProcessLookupError):
+                    pass
+                return None  # hung
+            time.sleep(0.02)
+
+    failed = False
+    for i in range(NFORKS):
+        status = _one_fork(i)
+        # None => the child hung (deadlocked in the at-fork hook). A non-zero
+        # status => the child crashed or exited abnormally (e.g. a native fault
+        # from the same registry corruption). Either is a regression.
+        if status is None or not (os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0):
+            failed = True
+            break
+
+    # Exit hard so the code reflects only whether a child hung/faulted, skipping
+    # the interpreter's atexit join of the periodic threads.
+    os._exit(2 if failed else 0)
+
+
 def test_periodic_thread_naming():
     """Test that native thread names are set correctly with various formats.
 
