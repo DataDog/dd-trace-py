@@ -18,7 +18,11 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: 32681a9f805f4d62cf6bd7d205ddeb83ab72288d
+  # TODO: Revert if necessary. Bumped to pick up benchmarking-platform#290
+  # (BP_EXTERNAL_S3_URL override in upload-results-to-s3.sh) so benchmark-health
+  # runs can redirect uploads to a run-id-keyed prefix. Revert to the prior pin
+  # if that change is reverted.
+  BENCHMARKING_COMMIT_SHA: 3aa6341e9fa5339f361c024435dda2e621192726
 
 .benchmarks:
   stage: test
