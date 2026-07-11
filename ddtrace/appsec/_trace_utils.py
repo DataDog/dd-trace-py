@@ -43,7 +43,7 @@ def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
 
 def _asm_manual_keep(span: Span) -> None:
     from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.utils.constants import SamplingMechanism
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to ASM = -5
@@ -56,7 +56,7 @@ def _asm_manual_keep(span: Span) -> None:
 
 def _aiguard_manual_keep(span: Span) -> None:
     from ddtrace._trace.constants import SAMPLING_DECISION_TRACE_TAG_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
+    from ddtrace.internal.utils.constants import SamplingMechanism
 
     span._override_sampling_decision(USER_KEEP)
     # set decision maker to AI_GUARD = -13

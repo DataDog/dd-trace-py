@@ -7,10 +7,10 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
 from ddtrace.internal.sampling import get_span_sampling_rules
+from ddtrace.internal.utils.constants import SamplingMechanism
 
 from ..utils import override_global_config
 

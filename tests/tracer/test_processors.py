@@ -20,8 +20,8 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.utils.constants import SamplingMechanism
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span

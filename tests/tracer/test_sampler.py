@@ -16,7 +16,7 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.rate_limiter import RateLimiter
-from ddtrace.internal.sampling import SamplingMechanism
+from ddtrace.internal.utils.constants import SamplingMechanism
 from ddtrace.trace import Span
 from tests.utils import scoped_tracer
 
@@ -914,8 +914,8 @@ def test_trace_tag(span, sampling_mechanism, expected):
 def test_ksr_formatting(span, sample_rate, expected_ksr):
     """_dd.p.ksr is formatted with up to 6 decimal digits, trailing zeros stripped, no scientific notation."""
     from ddtrace.internal.sampling import KNUTH_SAMPLE_RATE_KEY
-    from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import _set_sampling_tags
+    from ddtrace.internal.utils.constants import SamplingMechanism
 
     _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr

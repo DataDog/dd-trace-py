@@ -16,9 +16,9 @@ from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
-from ddtrace.internal import constants
 from ddtrace.internal import core
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.constants import SamplingMechanism
 from ddtrace.internal.utils.http import _format_template
 from ddtrace.propagation import _constants as propagation_constants
 from ddtrace.propagation._constants import _BLOCKED_RESPONSE_HTML
@@ -1519,7 +1519,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     span_sampling_priority = entry_span()._span.context.sampling_priority
                     sampling_decision = get_entry_span_tag(SAMPLING_DECISION_TRACE_TAG_KEY)
                     assert span_sampling_priority == USER_KEEP, f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
-                    assert sampling_decision == f"-{constants.SamplingMechanism.APPSEC}", (
+                    assert sampling_decision == f"-{SamplingMechanism.APPSEC}", (
                         f"Expected '-5' (APPSEC), got {sampling_decision}"
                     )
             else:
@@ -2219,7 +2219,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             # test for sampling priority changes. Appsec should not change the sampling priority (keep=false)
             span_sampling_priority = entry_span()._span.context.sampling_priority
             sampling_decision = get_entry_span_tag(SAMPLING_DECISION_TRACE_TAG_KEY)
-            assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
+            assert span_sampling_priority < 2 or sampling_decision != f"-{SamplingMechanism.APPSEC}"
 
     @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
     def test_api10(self, endpoint, interface, get_tag):
