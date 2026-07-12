@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where quarantined tests were not retried by Auto Test Retry (ATR).
