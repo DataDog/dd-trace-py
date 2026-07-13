@@ -103,7 +103,11 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             break;
         }
 
-        PyCodeObject* code = DataDog::get_code_if_not_skip(frame);
+        if (DataDog::should_skip_frame(frame)) {
+            continue;
+        }
+
+        PyCodeObject* code = DataDog::get_code_from_frame(frame);
         if (code == NULL) {
             continue;
         }
@@ -127,21 +131,28 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
             }
         }
 
-        /* Cache miss: push via the string-view overload, which interns name and
-         * filename and returns the function_id on success. Drop the frame on
-         * intern failure (nullopt return) to match push_frame_impl's silent-skip
-         * behavior. */
+        /* Cache miss: intern name/filename and push by function_id, mirroring
+         * Sample::push_frame_impl. Drop the frame on intern failure to match
+         * push_frame_impl's silent-skip behavior. */
         int line = memalloc_resolve_lineno(code, lasti);
         std::string_view name_sv = unicode_to_sv_no_alloc(code_name);
         std::string_view filename_sv = unicode_to_sv_no_alloc(code_filename);
 
-        auto func_id = sample.push_frame(name_sv, filename_sv, 0, line);
-        if (!func_id) {
+        auto maybe_name_id = Datadog::intern_string(name_sv);
+        auto maybe_filename_id = Datadog::intern_string(filename_sv);
+        if (!maybe_name_id || !maybe_filename_id) {
             continue;
         }
 
+        auto maybe_func_id = Datadog::intern_function(*maybe_name_id, *maybe_filename_id);
+        if (!maybe_func_id) {
+            continue;
+        }
+
+        sample.push_frame(*maybe_func_id, 0, line);
+
         if (cache != nullptr) {
-            cache->insert(code, *func_id, code_name, code_filename, code_firstlineno);
+            cache->insert(code, *maybe_func_id, code_name, code_filename, code_firstlineno);
         }
         ++pushed_frames;
     }

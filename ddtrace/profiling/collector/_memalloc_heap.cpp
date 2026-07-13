@@ -298,7 +298,6 @@ heap_tracker_t::export_heap_no_cpython()
 
     auto& stats = Datadog::Sample::profile_borrow().stats();
     stats.set_heap_tracker_size(allocs_m.size());
-    stats.set_heap_tracker_cap_drops(cap_drops);
 }
 
 void
@@ -458,8 +457,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     double s = static_cast<double>(size > 0 ? size : 1);
     double r = static_cast<double>(heap_tracker_t::instance->get_sample_size());
     double p = 1.0 - std::exp(-s / r);
-    int64_t heap_count = static_cast<int64_t>(1.0 / p);
-    tb->sample.push_heap(allocated_memory_val, heap_count);
+    int64_t heap_weight = static_cast<int64_t>(static_cast<double>(allocated_memory_val) / p);
+    tb->sample.push_heap(heap_weight);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
