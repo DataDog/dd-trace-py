@@ -651,6 +651,19 @@ def gen_pre_checks() -> None:
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
     )
     check(
+        name="Check profiling native coverage",
+        command="scripts/lint profiling-native-check",
+        paths={
+            ".gitlab-ci.yml",
+            "ddtrace/internal/datadog/profiling/*",
+            "ddtrace/profiling/*",
+            "scripts/check_profiling_native_coverage.py",
+            "scripts/gen_gitlab_config.py",
+            "scripts/lint",
+            "src/native/*",
+        },
+    )
+    check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
         paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
