@@ -618,7 +618,6 @@ sys.exit(-1)
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(not shutil.which("g++"), reason="g++ required to compile the native extension")
-@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_native_extension_crash(run_python_code_in_subprocess):
     import json
 
