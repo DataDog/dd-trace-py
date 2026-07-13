@@ -188,7 +188,8 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError => {
+                EvaluationError::ConfigurationParseError
+                | EvaluationError::FlagConfigurationInvalid => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
                 }
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
@@ -231,6 +232,7 @@ pub mod ffe {
                 AssignmentReason::TargetingMatch => Reason::TargetingMatch,
                 AssignmentReason::Split => Reason::Split,
                 AssignmentReason::Static => Reason::Static,
+                AssignmentReason::Default => Reason::Default,
             }
         }
     }

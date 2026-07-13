@@ -20,7 +20,7 @@ that no longer match any tracked file.
 
 Run:
     scripts/check_profiling_native_coverage.py     # via uv-run-script (auto-installs deps)
-    scripts/lint profiling-native-check             # via scripts/lint
+    scripts/lint profiling-native-check            # via scripts/lint
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ NATIVE_EXTENSIONS: frozenset[str] = frozenset(
         ".cc",
         ".h",
         ".hpp",  # C / C++
+        ".pxd",  # Cython declarations
         ".pyx",  # Cython
         ".cmake",  # CMake modules
         ".sh",  # build scripts
