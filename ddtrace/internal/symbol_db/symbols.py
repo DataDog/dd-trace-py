@@ -234,7 +234,10 @@ class Scope:
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
 
-        source_git_hash = sha1()  # nosec B324
+        # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
+        # module source, not a security digest. It also prevents IAST from flagging
+        # this internal use as a weak-hash false positive (APPSEC-68795).
+        source_git_hash = sha1(usedforsecurity=False)  # nosec B324
         source_git_hash.update(f"blob {module_origin.stat().st_size}\0".encode())
         with module_origin.open("rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
