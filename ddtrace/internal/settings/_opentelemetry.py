@@ -84,6 +84,24 @@ def _derive_traces_endpoint(config: "ExporterConfig"):
     return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.TRACES_PATH}"
 
 
+def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
+    """Endpoint for the native OTLP trace-metrics exporter (client-computed span stats).
+
+    libdatadog only supports HTTP/JSON for this exporter, so — unlike the SDK's protocol-aware
+    ``METRICS_ENDPOINT`` (which defaults to the gRPC endpoint with no ``/v1/metrics`` path) — this
+    always resolves an HTTP ``/v1/metrics`` endpoint, mirroring ``_derive_traces_endpoint``.
+    """
+    # Signal-specific endpoint takes precedence (full URL, no path appended).
+    if metrics_endpoint := env.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"):
+        return metrics_endpoint
+    # Global endpoint is a base URL; append the metrics signal path.
+    global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if global_endpoint:
+        return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
+    # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json here.
+    return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.METRICS_PATH}"
+
+
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
     if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
@@ -150,6 +168,10 @@ class ExporterConfig(DDConfig):
     TRACES_ENDPOINT = DDConfig.d(str, _derive_traces_endpoint)
     TRACES_HEADERS = DDConfig.d(str, _derive_traces_headers)
     TRACES_TIMEOUT = DDConfig.d(int, _derive_traces_timeout)
+
+    # Endpoint for the native (libdatadog) OTLP trace-metrics exporter. Distinct from the SDK's
+    # protocol-aware METRICS_ENDPOINT because the native exporter is HTTP/JSON only.
+    TRACE_METRICS_ENDPOINT = DDConfig.d(str, _derive_trace_metrics_endpoint)
 
     @staticmethod
     def _get_default_endpoint(protocol: str, endpoint: str = ""):

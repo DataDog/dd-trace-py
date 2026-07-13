@@ -518,6 +518,11 @@ import opentelemetry
             "value": 7500,
         },
         {
+            "name": "OTEL_TRACES_SPAN_METRICS_ENABLED",
+            "origin": "default",
+            "value": None,
+        },
+        {
             "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
             "origin": "default",
             "value": False,

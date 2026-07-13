@@ -66,7 +66,9 @@ def test_otlp_traces_sent_via_http():
     env={
         "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
-        "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL": "http/json",
+        # Note: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL is intentionally NOT set. The native
+        # trace-metrics exporter is HTTP/JSON only and derives an HTTP /v1/metrics endpoint
+        # regardless of the configured metrics protocol.
         "DD_SERVICE": "test-svc",
     }
 )
