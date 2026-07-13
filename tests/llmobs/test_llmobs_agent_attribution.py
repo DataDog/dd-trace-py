@@ -19,8 +19,8 @@ def test_tool_under_agent_attributes_to_agent(llmobs, llmobs_events):
             pass
     tool_event = _event_by_name(llmobs_events, "my_tool")
     assert tool_event["meta"]["agent_attribution"] == {
-        "parent_agent_name": "my_agent",
-        "parent_agent_span_id": str(agent_span.span_id),
+        "pagent_name": "my_agent",
+        "pagent_span_id": str(agent_span.span_id),
     }
 
 
@@ -30,7 +30,7 @@ def test_indirect_nesting_attributes_to_agent(llmobs, llmobs_events):
         with llmobs.workflow(name="my_workflow"):
             with llmobs.tool(name="my_tool"):
                 pass
-    expected = {"parent_agent_name": "my_agent", "parent_agent_span_id": str(agent_span.span_id)}
+    expected = {"pagent_name": "my_agent", "pagent_span_id": str(agent_span.span_id)}
     assert _event_by_name(llmobs_events, "my_workflow")["meta"]["agent_attribution"] == expected
     assert _event_by_name(llmobs_events, "my_tool")["meta"]["agent_attribution"] == expected
 
@@ -42,13 +42,13 @@ def test_sub_agent_attributes_to_enclosing_agent(llmobs, llmobs_events):
             with llmobs.tool(name="inner_tool"):
                 pass
     assert _event_by_name(llmobs_events, "inner_agent")["meta"]["agent_attribution"] == {
-        "parent_agent_name": "outer_agent",
-        "parent_agent_span_id": str(outer.span_id),
+        "pagent_name": "outer_agent",
+        "pagent_span_id": str(outer.span_id),
     }
     # The tool's nearest agent ancestor is the inner agent.
     assert _event_by_name(llmobs_events, "inner_tool")["meta"]["agent_attribution"] == {
-        "parent_agent_name": "inner_agent",
-        "parent_agent_span_id": str(inner.span_id),
+        "pagent_name": "inner_agent",
+        "pagent_span_id": str(inner.span_id),
     }
 
 

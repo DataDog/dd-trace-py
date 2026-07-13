@@ -756,8 +756,8 @@ class LLMObs(Service):
         agent_span_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_AGENT_SPAN_ID)
         if agent_name is not None or agent_span_id is not None:
             meta["agent_attribution"] = {
-                "parent_agent_name": agent_name,
-                "parent_agent_span_id": agent_span_id,
+                "pagent_name": agent_name,
+                "pagent_span_id": agent_span_id,
             }
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         tags = self._llmobs_tags(span)

@@ -341,8 +341,8 @@ def _expected_agent_attribution(span):
     while ancestor is not None:
         if get_llmobs_span_kind(ancestor) == "agent":
             return {
-                "parent_agent_name": get_llmobs_span_name(ancestor) or ancestor.name,
-                "parent_agent_span_id": str(ancestor.span_id),
+                "pagent_name": get_llmobs_span_name(ancestor) or ancestor.name,
+                "pagent_span_id": str(ancestor.span_id),
             }
         ancestor = _get_nearest_llmobs_ancestor(ancestor)
     return None

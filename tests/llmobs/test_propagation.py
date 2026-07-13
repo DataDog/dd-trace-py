@@ -951,7 +951,7 @@ def test_inject_agent_name_with_equals_survives_header_roundtrip(llmobs):
     with llmobs.agent(name="model=gpt4") as agent_span:
         headers = llmobs.inject_distributed_headers({}, span=agent_span)
     tags_header = headers.get("x-datadog-tags", "")
-    assert "_dd.p.llmobs_parent_agent_name=model=gpt4" in tags_header
+    assert "_dd.p.llmobs_pagent_name=model=gpt4" in tags_header
     assert "_dd.propagation_error" not in tags_header
 
 
@@ -966,9 +966,9 @@ def test_inject_unsafe_agent_name_does_not_drop_header(llmobs):
     tags_header = headers.get("x-datadog-tags", "")
     # Header is present and still carries the pre-existing llmobs keys (not dropped).
     assert "_dd.p.llmobs_ml_app" in tags_header
-    assert "_dd.p.llmobs_parent_agent_id={}".format(agent_span.span_id) in tags_header
+    assert "_dd.p.llmobs_pagent_span_id={}".format(agent_span.span_id) in tags_header
     # The unsafe name was skipped, so no propagation error and no name key.
-    assert "_dd.p.llmobs_parent_agent_name" not in tags_header
+    assert "_dd.p.llmobs_pagent_name" not in tags_header
     assert "_dd.propagation_error" not in tags_header
 
 
@@ -982,8 +982,8 @@ def test_distributed_agent_attribution_round_trip(llmobs, llmobs_events):
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["meta"]["agent_attribution"] == {
-        "parent_agent_name": "upstream_agent",
-        "parent_agent_span_id": "987654321",
+        "pagent_name": "upstream_agent",
+        "pagent_span_id": "987654321",
     }
 
 
@@ -996,8 +996,8 @@ def test_distributed_agent_attribution_round_trip_no_name(llmobs, llmobs_events)
         pass
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["meta"]["agent_attribution"] == {
-        "parent_agent_name": None,
-        "parent_agent_span_id": "987654321",
+        "pagent_name": None,
+        "pagent_span_id": "987654321",
     }
 
 
@@ -1026,6 +1026,6 @@ def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events,
     matches = [e for e in llmobs_events if e["name"] == "async_tool"]
     assert len(matches) == 1, f"expected exactly one async_tool event, got {len(matches)}"
     assert matches[0]["meta"].get("agent_attribution") == {
-        "parent_agent_name": "my_agent",
-        "parent_agent_span_id": holder["span_id"],
+        "pagent_name": "my_agent",
+        "pagent_span_id": holder["span_id"],
     }
