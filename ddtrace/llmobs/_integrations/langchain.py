@@ -570,7 +570,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         if stream:
-            content = chat_completions.content
+            content = _get_attr(chat_completions, "content", "") or ""
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
             _annotate_llmobs_span_data(
                 span, **cast(dict[str, Any], {output_key: [Message(content=content, role=ROLE_MAPPING.get(role, ""))]})

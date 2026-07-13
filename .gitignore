@@ -232,3 +232,4 @@ src/native/target*
 
 # file created when running scripts/lint
 uv.lock
+.riot/*.installed
