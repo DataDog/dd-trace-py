@@ -15,8 +15,81 @@ _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class appsec:
     class libddwaf:
+        class DDWafObject:
+            def __init__(self) -> None: ...
+            def to_python(self) -> Any: ...
+
+        class DDWafBuilder: ...
+        class DDWafHandle: ...
+
+        class DDWafContext:
+            rc_products: str
+
+        class DDWafSubcontext: ...
+
         @staticmethod
         def ddwaf_get_version() -> str: ...
+        @staticmethod
+        def ddwaf_known_addresses(handle: DDWafHandle) -> list[str]: ...
+        @staticmethod
+        def ddwaf_context_init(handle: DDWafHandle) -> Optional[DDWafContext]: ...
+        @staticmethod
+        def ddwaf_context_eval(
+            context: DDWafContext,
+            data: DDWafObject,
+            result: DDWafObject,
+            timeout: int,
+        ) -> int: ...
+        @staticmethod
+        def ddwaf_subcontext_init(context: DDWafContext) -> Optional[DDWafSubcontext]: ...
+        @staticmethod
+        def ddwaf_subcontext_eval(
+            subcontext: DDWafSubcontext,
+            data: DDWafObject,
+            result: DDWafObject,
+            timeout: int,
+        ) -> int: ...
+        @staticmethod
+        def ddwaf_builder_init() -> Optional[DDWafBuilder]: ...
+        @staticmethod
+        def ddwaf_builder_add_or_update_config(
+            builder: DDWafBuilder,
+            path: bytes,
+            config: DDWafObject,
+            diagnostics: DDWafObject,
+        ) -> bool: ...
+        @staticmethod
+        def ddwaf_builder_remove_config(builder: DDWafBuilder, path: bytes) -> bool: ...
+        @staticmethod
+        def ddwaf_builder_build_instance(builder: DDWafBuilder) -> Optional[DDWafHandle]: ...
+        @staticmethod
+        def ddwaf_builder_get_config_paths(builder: DDWafBuilder, filter: bytes) -> int: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_string(object: DDWafObject, string: bytes) -> bool: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_signed(object: DDWafObject, value: int) -> bool: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_bool(object: DDWafObject, value: bool) -> bool: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_float(object: DDWafObject, value: float) -> bool: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_null(object: DDWafObject) -> bool: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_set_array(
+            object: DDWafObject,  # noqa: A002
+            capacity: int,
+        ) -> bool: ...
+        @staticmethod
+        def ddwaf_object_set_map(
+            object: DDWafObject,  # noqa: A002
+            capacity: int,
+        ) -> bool: ...
+        @staticmethod
+        def ddwaf_object_insert(array: DDWafObject) -> Optional[DDWafObject]: ...
+        @staticmethod
+        def ddwaf_object_insert_key(map: DDWafObject, key: bytes) -> Optional[DDWafObject]: ...  # noqa: A002
+        @staticmethod
+        def ddwaf_object_from_json(output: DDWafObject, json_str: bytes) -> bool: ...
 
 class DDSketch:
     def __init__(self): ...

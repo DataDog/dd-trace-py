@@ -604,7 +604,6 @@ dependencies = [
  "libdd-shared-runtime",
  "libdd-trace-utils",
  "libdd-tracer-flare",
- "libddwaf",
  "libddwaf-sys",
  "pyo3",
  "pyo3-build-config",
@@ -2050,15 +2049,6 @@ dependencies = [
  "tokio",
  "walkdir",
  "zip",
-]
-
-[[package]]
-name = "libddwaf"
-version = "2.0.0"
-source = "git+https://github.com/florentinl/libddwaf-rust?branch=main#297a528acd82601112fbf2001735bed730a6a10d"
-dependencies = [
- "libddwaf-sys",
- "serde",
 ]
 
 [[package]]
