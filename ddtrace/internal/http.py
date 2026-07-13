@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from typing import Any
 from typing import Optional
 
@@ -36,7 +37,10 @@ class HTTPResponse:
 
     @property
     def reason(self) -> str:
-        return ""
+        try:
+            return HTTPStatus(self.status).phrase
+        except ValueError:
+            return ""
 
     @property
     def headers(self) -> _CaseInsensitiveHeaders:
