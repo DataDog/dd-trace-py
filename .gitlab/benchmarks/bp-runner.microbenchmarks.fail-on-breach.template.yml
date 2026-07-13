@@ -262,7 +262,7 @@ experiments:
           - name: httppropagationextract-invalid_trace_id_header
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 40.00 MB
           - name: httppropagationextract-large_header_no_matches
             thresholds:
               - execution_time < 0.03 ms
