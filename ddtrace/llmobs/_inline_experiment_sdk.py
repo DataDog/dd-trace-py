@@ -174,7 +174,9 @@ def sync_dataset(dataset: Any, inputs: list[Any]) -> dict[str, int]:
     added = 0
     for key, value in want.items():
         if key not in seen:
-            dataset.append({"input_data": value})
+            # Carry an explicit expected_output key (empty) so the record shape matches what the
+            # engine reads; the regression signal is still the compare view, not this field.
+            dataset.append({"input_data": value, "expected_output": None})
             added += 1
     counts = {"added": added, "deleted": len(to_delete), "kept": len(seen)}
     if added or to_delete:
