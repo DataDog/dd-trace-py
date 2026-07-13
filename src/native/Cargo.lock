@@ -2054,7 +2054,7 @@ dependencies = [
 [[package]]
 name = "libddwaf-sys"
 version = "2.0.0"
-source = "git+https://github.com/florentinl/libddwaf-rust?branch=main#297a528acd82601112fbf2001735bed730a6a10d"
+source = "git+https://github.com/florentinl/libddwaf-rust?branch=main#834d777ce838e47bdb95f596debd35edc49e401e"
 dependencies = [
  "flate2",
  "hyper-rustls",
