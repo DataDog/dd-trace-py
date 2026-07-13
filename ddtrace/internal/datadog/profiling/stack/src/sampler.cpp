@@ -23,6 +23,21 @@
 
 using namespace Datadog;
 
+static void
+update_fast_copy_stats(ProfilerStats& stats)
+{
+    stats.set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
+    stats.set_fast_copy_memory_capable(safe_memcpy_initialized);
+    stats.set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
+    stats.set_fast_copy_memory_enabled(fast_copy_active);
+}
+
+void
+Datadog::seed_fast_copy_profiler_stats()
+{
+    update_fast_copy_stats(Sample::profile_borrow().stats());
+}
+
 // Helper class for spawning a std::thread with control over its default stack size
 #ifdef __linux__
 #include <ctime>
@@ -201,6 +216,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 {
     // Mark thread as running
     thread_running.store(true);
+
+    seed_fast_copy_profiler_stats();
 
     // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them. If a
     // foreign component we can't wrap (abseil via vLLM/gRPC, PyTorch/CUDA) already owns
@@ -448,10 +465,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
             borrow.stats().increment_sampling_event_count();
             borrow.stats().set_string_table_count(echion->string_table().size());
             borrow.stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
-            borrow.stats().set_fast_copy_memory_user_disabled(fast_copy_user_disabled);
-            borrow.stats().set_fast_copy_memory_capable(safe_memcpy_initialized);
-            borrow.stats().set_fast_copy_memory_syscall_fallback(fast_copy_syscall_fallback);
-            borrow.stats().set_fast_copy_memory_enabled(fast_copy_active);
+            update_fast_copy_stats(borrow.stats());
             borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
             borrow.stats().set_greenlet_count(greenlet_count);
 
