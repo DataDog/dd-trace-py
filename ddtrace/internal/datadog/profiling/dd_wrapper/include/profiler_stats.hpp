@@ -86,6 +86,9 @@ class ProfilerStats
     void set_fast_copy_memory_syscall_fallback(bool fallback);
     std::optional<bool> get_fast_copy_memory_syscall_fallback() const;
 
+    // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
+    void copy_fast_copy_metadata_from(const ProfilerStats& other);
+
     void add_copy_memory_error_count(size_t count);
     size_t get_copy_memory_error_count() const;
 

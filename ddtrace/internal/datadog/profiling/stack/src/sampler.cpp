@@ -264,6 +264,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Mark thread as running
     thread_running.store(true);
 
+    publish_fast_copy_profiler_metadata(&Sample::profile_borrow().stats());
+
     // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them. If a
     // foreign component we can't wrap (abseil via vLLM/gRPC, PyTorch/CUDA) already owns
     // them, overwriting it would cause handler-chaining races and make
