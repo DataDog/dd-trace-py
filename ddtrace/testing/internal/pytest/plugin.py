@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import lru_cache
+import inspect
 from io import StringIO
 import logging
 from pathlib import Path
@@ -9,6 +10,7 @@ import random
 import traceback
 import typing as t
 
+from _pytest import hookspec as pytest_hookspec
 from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
 import pluggy
@@ -77,6 +79,10 @@ except TypeError:
     # pluggy < 1.0.0 (used by pytest 6) does not accept specname=. Keep module importable;
     # TestOptPluginWithProtocol has an inline fallback for these environments.
     _HOOKIMPL_SUPPORTS_SPECNAME = False
+
+_PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
+    "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
+)
 
 
 if t.TYPE_CHECKING:
@@ -485,7 +491,7 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-    def pytest_ignore_collect(self, path: t.Any, config: pytest.Config) -> t.Optional[bool]:
+    def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
 
         This fires before the file is imported, saving the cost of module import and test discovery.
@@ -495,7 +501,6 @@ class TestOptPlugin:
             marker string is present anywhere in the source we fall back to normal collection so that
             pytest_collection_modifyitems can handle the file test-by-test).
         """
-        collection_path = Path(str(path))
         if collection_path.suffix != ".py":
             return None
 
@@ -1147,6 +1152,22 @@ class TestOptPlugin:
             del terminalreporter.stats["failed"]
 
         print_test_report_links(terminalreporter, self.manager)
+
+
+def _pytest_ignore_collect_collection_path(
+    self: TestOptPlugin, collection_path: Path, config: pytest.Config
+) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(collection_path, config)
+
+
+def _pytest_ignore_collect_path(self: TestOptPlugin, path: t.Any, config: pytest.Config) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(Path(str(path)), config)
+
+
+if _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_collection_path)
+else:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_path)
 
 
 class TestOptPluginWithProtocol(TestOptPlugin):

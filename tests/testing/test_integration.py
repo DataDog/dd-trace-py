@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from _pytest.monkeypatch import MonkeyPatch
 from _pytest.pytester import Pytester
+import pytest
 
 from ddtrace.testing.internal.session_manager import SessionManager
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -492,6 +493,10 @@ class TestPytestPluginIntegration:
 
 
 class TestIASTTerminalSummary:
+    @pytest.mark.skipif(
+        tuple(int(part) for part in pytest.__version__.split(".")[:2]) < (7, 0),
+        reason="IAST terminal summary is not reliable with pytest<7",
+    )
     def test_ddtrace_iast_terminal_summary_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that IAST terminal summary is present when IAST is enabled."""
         pytester.makepyfile(
