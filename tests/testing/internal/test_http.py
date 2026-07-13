@@ -29,7 +29,12 @@ class TestBackendConnector:
 
     def test_constants(self) -> None:
         """Test module constants."""
-        assert DEFAULT_TIMEOUT_SECONDS == 30.0
+        # Verify the parsing function returns the correct default when no env var is set
+        assert _http_module._parse_timeout_millis(None) == 30.0
+        # Verify the module constant matches what it should be for the current environment
+        # (may be overridden if env var was set at module import time)
+        expected = _http_module._parse_timeout_millis(os.environ.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
+        assert DEFAULT_TIMEOUT_SECONDS == expected
 
     @patch("http.client.HTTPSConnection")
     def test_init_default_parameters(self, mock_https_connection: Mock) -> None:
