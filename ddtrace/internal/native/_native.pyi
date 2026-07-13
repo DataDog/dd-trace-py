@@ -1,3 +1,4 @@
+import contextvars
 from enum import Enum
 from typing import Any
 from typing import Iterator
@@ -675,3 +676,5 @@ class config:
     def set_128_bit_trace_id_enabled(val: bool) -> None:
         """Set whether 128-bit trace ID generation is enabled."""
         ...
+
+def safe_contextvar_set(var: contextvars.ContextVar[Any], value: Any) -> None: ...

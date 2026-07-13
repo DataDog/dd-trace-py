@@ -51,6 +51,54 @@ def test_periodic_double_start():
     t.join()
 
 
+def test_periodic_join_positional_timeout_is_honored():
+    """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
+
+    The native PeriodicThread_join skipped argument parsing whenever kwargs was
+    NULL — which is the normal case for positional calls — so the timeout was
+    dropped and execution fell through to the Py_None infinite-wait branch.
+    PeriodicService.join(timeout=...) forwards positionally to its worker, so
+    every user of that wrapper was silently waiting forever instead of
+    honoring the timeout. This test pins the positional form (and the kwarg
+    form) to actually return within the requested timeout.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    try:
+        start = monotonic()
+        t.join(0.1)  # positional
+        elapsed_pos = monotonic() - start
+        assert elapsed_pos < 1.0, "positional join(0.1) blocked for %.2fs — timeout was ignored" % elapsed_pos
+
+        start = monotonic()
+        t.join(timeout=0.1)  # keyword
+        elapsed_kw = monotonic() - start
+        assert elapsed_kw < 1.0, "keyword join(timeout=0.1) blocked for %.2fs — timeout was ignored" % elapsed_kw
+    finally:
+        t.stop()
+        t.join()
+
+
+def test_periodic_awake_after_stop_returns_not_hangs():
+    """Regression: awake() after a completed stop() used to block forever.
+
+    Once a worker has fully stopped, there is nothing left that can serve a
+    new awake request. The native awake() path must therefore short-circuit
+    instead of waiting forever for a completion signal that will never come.
+
+    We deliberately make awake() a silent no-op (not a RuntimeError) so that
+    a racy stop()/awake() interleaving never surfaces a timing-dependent
+    exception to callers.
+    """
+    t = periodic.PeriodicThread(60.0, lambda: None)
+    t.start()
+    t.stop()
+    t.join()  # fully drained
+
+    # Must return promptly. Before the fix this hung forever.
+    t.awake()
+
+
 def _collect_until_cleared(ref, attempts=5):
     for _ in range(attempts):
         gc.collect()
@@ -96,6 +144,62 @@ def test_periodic_thread_bound_method_cycle_is_collectible_after_join():
     del owner
 
     assert _collect_until_cleared(owner_ref), "stopped PeriodicThread bound-method cycle was not collected"
+
+
+def test_periodic_awake_does_not_deadlock_with_stop_from_callback():
+    """Regression: stop() called from inside a periodic callback must not
+    deadlock against a concurrent awake() holding the awake mutex.
+
+    Timer._periodic uses the pattern:
+
+        def _periodic(self):
+            self.timeout()
+            self.stop()
+
+    A naive fix that has stop() acquire _awake_mutex creates this deadlock:
+
+      1. Thread A calls t.awake() — takes _awake_mutex, publishes AWAKE,
+         then waits for completion.
+      2. The worker consumes AWAKE and runs the callback.
+      3. The callback calls t.stop() on the worker thread.
+      4. stop() blocks on _awake_mutex if awake() keeps it locked while
+         waiting.
+      5. The worker cannot finish the callback and cannot reach
+         the wake-completion path — both threads wait forever.
+
+    The middle-ground fix has awake() release _awake_mutex before waiting on
+    _served, so a worker-thread stop() can take the mutex freely.
+    """
+
+    def _target():
+        # Stop ourselves from the worker thread — this is exactly the
+        # Timer._periodic pattern.
+        t.stop()
+
+    t = periodic.PeriodicThread(60.0, _target)
+    t.start()
+
+    awake_done = Event()
+
+    def _do_awake():
+        try:
+            t.awake()
+        finally:
+            awake_done.set()
+
+    awaker = Thread(target=_do_awake)
+    awaker.start()
+
+    # The awake() call should return well within a second. Before the fix this
+    # deadlocked indefinitely because the worker-thread stop() tried to take
+    # _awake_mutex while awake() was blocked waiting for completion.
+    assert awake_done.wait(timeout=5.0), (
+        "awake() did not return within 5s — stop()-from-callback deadlocked "
+        "against a concurrent awake() holding the awake mutex"
+    )
+
+    awaker.join(timeout=1.0)
+    t.join(timeout=1.0)
 
 
 def test_periodic_error():
@@ -178,7 +282,7 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess
 def test_forksafe_awakeable_periodic_service():
     import os
     from threading import Event
@@ -221,7 +325,131 @@ def test_forksafe_awakeable_periodic_service():
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess
+def test_periodic_service_does_not_restart_before_child_code_after_fork():
+    """Default services still restart in forked children."""
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    periodic_ran = Event()
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+    svc._worker.awake()
+    assert periodic_ran.wait(timeout=2), "service did not run before fork"
+    periodic_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            assert svc._worker is not None
+            svc._worker.awake()
+            os.write(child_send, b"1" if periodic_ran.wait(timeout=2) else b"0")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_child_periodic_restart_does_not_block_app_code_after_fork():
+    """Child at-fork hook must not wait for a restarted thread to run."""
+    import os
+    import select
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            pass
+
+    svc = MyService(interval=60)
+    svc.start()
+
+    pid = os.fork()
+    if pid == 0:
+        os.close(child_recv)
+        try:
+            os.write(child_send, b"1")
+        finally:
+            os._exit(0)
+
+    os.close(child_send)
+    readable, _, _ = select.select([child_recv], [], [], 1)
+    result = os.read(child_recv, 1) if readable else b""
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_child_periodic_restart_visible_to_immediate_second_fork():
+    import os
+    from threading import Event
+
+    from ddtrace.internal import periodic
+
+    child_recv, child_send = os.pipe()
+    periodic_ran = Event()
+
+    class MyService(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    svc = MyService(interval=60)
+    svc.start()
+    assert svc._worker is not None
+
+    pid = os.fork()
+    if pid == 0:
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os.close(child_recv)
+            try:
+                assert svc._worker is not None
+                svc._worker.awake()
+                os.write(child_send, b"1" if periodic_ran.wait(timeout=2) else b"0")
+            finally:
+                os._exit(0)
+
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        os._exit(os.WEXITSTATUS(grandchild_status))
+
+    os.close(child_send)
+    result = os.read(child_recv, 1)
+    _, status = os.waitpid(pid, 0)
+    svc.stop()
+    svc.join()
+
+    assert os.WEXITSTATUS(status) == 0
+    assert result == b"1"
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
 def test_autorestart_false_service_restarts_in_parent_after_fork():
     """A PeriodicService with autorestart=False must keep running in the parent
     process after a fork. The flag means 'do not restart in the child', not
@@ -445,7 +673,7 @@ def _get_native_thread_name():
     return None
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess
 def test_periodic_thread_stop_without_join_forksafe():
     """
     Dropping a PeriodicThread that was stop()'d without join() in a forked child
@@ -508,6 +736,152 @@ def test_periodic_thread_stop_without_join_forksafe():
         assert os.WEXITSTATUS(status) == 0
         # Parent still owns a reference; join to clean up properly.
         t.join()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess(
+    timeout=120,
+    # The regression signal is the exit status only: 0 = all forks reaped
+    # cleanly, non-zero = a child hung or exited abnormally. Skip the stdout and
+    # stderr checks because a full-featured startup can log benign noise, and the
+    # reproduction does not depend on traces actually reaching an agent.
+    out=None,
+    err=None,
+    env=dict(
+        # Populate the full periodic-thread set (writer, profiler, runtime
+        # metrics, remote config, telemetry) so the recycled-ident hazard has
+        # live workers to collide with. Remote config and telemetry are on by
+        # default and profiling/runtime metrics are not, but enable all of them
+        # explicitly so the scenario is deterministic regardless of defaults.
+        DD_PROFILING_ENABLED="true",
+        DD_RUNTIME_METRICS_ENABLED="true",
+        DD_REMOTE_CONFIGURATION_ENABLED="true",
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED="true",
+    ),
+)
+def test_writer_recreate_fork_child_does_not_deadlock():
+    """Regression: a forked child must not hang joining a periodic thread that an
+    identity-blind registry delete dropped after a recycled thread id.
+
+    Root cause (ddtrace/internal/_threads.cpp): entries in the module-level
+    ``periodic_threads`` dict were deleted by thread ident without checking that
+    the entry still belonged to the deleting thread. Thread ids are recyclable,
+    so this sequence corrupted the registry and deadlocked a fork child:
+
+      1. The tracer recreates its writer; the old writer worker exits, freeing
+         its thread id and removing its ``periodic_threads`` entry.
+      2. A new writer worker starts and the OS recycles that same thread id,
+         registering ``periodic_threads[ident] = new_worker``.
+      3. Cyclic GC later collects the dropped old-writer<->worker reference
+         cycle; the old worker's ``tp_dealloc`` runs
+         ``PyDict_DelItem(periodic_threads, ident)`` which — because the id was
+         recycled — evicts the LIVE new worker's entry.
+      4. The live worker is now absent from ``periodic_threads``, so
+         ``threads._before_fork`` never stops/joins it and its ``_stopped``
+         event is never set.
+      5. In the child, ``_child_after_fork`` recreates the writer, which stops
+         and joins that worker via ``PeriodicThread.join(None)`` — waiting
+         forever on a condition variable nothing will ever set. The child hangs.
+
+    The fix guards every by-ident registry delete with an identity check
+    (``PyDict_GetItem(...) == self``), so a stale thread can only remove its own
+    entry, never a live worker that recycled the id.
+
+    This drives the real scenario: ``writer.recreate()`` + ``gc.collect()`` +
+    ``os.fork()`` in a loop, with each child writing a span and exiting. The
+    parent watches each child with a ``waitpid(WNOHANG)`` deadline (no signals),
+    SIGKILLs any child that hangs, and also fails if a child exits abnormally
+    (e.g. a native fault from the same corruption). A hang or fault therefore
+    fails the test rather than hanging the suite, and the subprocess ``timeout``
+    is a backstop.
+
+    Note: reproducing the eviction requires the OS to recycle the freed
+    writer-worker thread id, which is libc/timing dependent, so this is a
+    best-effort probabilistic reproduction. The sanity check below guards
+    against the test silently degrading into a no-op if the periodic threads
+    fail to start.
+    """
+    import gc
+    import os
+    import time
+
+    import ddtrace.auto  # noqa: F401  # start tracer + periodic threads
+    from ddtrace.internal._threads import periodic_threads
+    from ddtrace.trace import tracer
+
+    NFORKS = 25
+    # Generous: children exit in milliseconds, so only a genuine hang waits this
+    # long. Large enough that a slow child on an oversubscribed CI host is not
+    # mistaken for a hang.
+    DEADLINE = 30.0
+
+    # Warm up: emit a span so the tracer and its periodic threads are running,
+    # then let them all spin up.
+    with tracer.trace("warmup"):
+        pass
+    time.sleep(1.0)
+
+    # Anti-rot guard: the recycled-ident collision only arises with periodic
+    # threads actually running. If the feature set failed to start, the test
+    # would pass vacuously and silently stop guarding the regression.
+    assert len(periodic_threads) >= 3, (
+        "expected several periodic threads to be running; got %d — the fork "
+        "scenario would not exercise the recycled-ident path" % len(periodic_threads)
+    )
+
+    def _one_fork(idx):
+        # Churn the writer and force a cyclic GC so a dropped old-worker cycle is
+        # collected while a new worker may have recycled the freed thread id.
+        agg = tracer._span_aggregator
+        agg.writer = agg.writer.recreate()
+        with tracer.trace("pre-%d" % idx):
+            pass
+        gc.collect()
+
+        pid = os.fork()
+        if pid == 0:
+            # Child: _child_after_fork already ran in the at-fork hooks. If the
+            # bug is present the child never reaches here — it deadlocks in
+            # _child_after_fork -> writer.recreate -> PeriodicThread.join(None).
+            try:
+                with tracer.trace("child-%d" % idx):
+                    pass
+            finally:
+                os._exit(0)
+
+        # Parent: signal-free watchdog. Poll for the child; SIGKILL and report a
+        # hang if it does not exit within the deadline. Return the child's wait
+        # status word, or None if it hung.
+        deadline = time.monotonic() + DEADLINE
+        while True:
+            try:
+                wpid, status = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                return 0  # already reaped; treat as a clean exit
+            if wpid == pid:
+                return status
+            if time.monotonic() > deadline:
+                try:
+                    os.kill(pid, 9)
+                    os.waitpid(pid, 0)
+                except (ChildProcessError, ProcessLookupError):
+                    pass
+                return None  # hung
+            time.sleep(0.02)
+
+    failed = False
+    for i in range(NFORKS):
+        status = _one_fork(i)
+        # None => the child hung (deadlocked in the at-fork hook). A non-zero
+        # status => the child crashed or exited abnormally (e.g. a native fault
+        # from the same registry corruption). Either is a regression.
+        if status is None or not (os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0):
+            failed = True
+            break
+
+    # Exit hard so the code reflects only whether a child hung/faulted, skipping
+    # the interpreter's atexit join of the periodic threads.
+    os._exit(2 if failed else 0)
 
 
 def test_periodic_thread_naming():
