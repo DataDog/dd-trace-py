@@ -36,7 +36,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-def _settings_attributes() -> dict:
+def _settings_attributes(tests_skipping_enabled: bool = False) -> dict:
     """The ``attributes`` block returned by the settings endpoint.
 
     This must be complete enough for ``Settings.from_attributes`` to parse without raising. In particular
@@ -48,8 +48,8 @@ def _settings_attributes() -> dict:
     """
     return {
         "code_coverage": False,
-        "tests_skipping": False,
-        "itr_enabled": False,
+        "tests_skipping": tests_skipping_enabled,
+        "itr_enabled": tests_skipping_enabled,
         "require_git": False,
         "early_flake_detection": {
             "enabled": False,
@@ -108,12 +108,13 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/v2/libraries/tests/services/setting":
+            tests_skipping_enabled = getattr(self.server, "tests_skipping_enabled", False)
             self._send_json(
                 {
                     "data": {
                         "id": "1",
                         "type": "ci_app_test_service_libraries_settings",
-                        "attributes": _settings_attributes(),
+                        "attributes": _settings_attributes(tests_skipping_enabled),
                     }
                 }
             )
@@ -124,7 +125,24 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
             return
 
         if self.path == "/api/v2/ci/tests/skippable":
-            self._send_json({"data": [], "meta": {}})
+            skippable_tests = getattr(self.server, "skippable_tests", [])
+            self._send_json(
+                {
+                    "data": [
+                        {
+                            "id": str(i),
+                            "type": "test",
+                            "attributes": {
+                                "suite": item["suite"],
+                                "name": item["name"],
+                                "configurations": {"test.bundle": item.get("bundle", "")},
+                            },
+                        }
+                        for i, item in enumerate(skippable_tests)
+                    ],
+                    "meta": {"correlation_id": "test-correlation-id"},
+                }
+            )
             return
 
         if self.path == "/api/v2/git/repository/search_commits":
@@ -160,13 +178,22 @@ class _MockCIVisibilityHandler(BaseHTTPRequestHandler):
 class MockCIVisibilityServer:
     """Context manager that starts and stops the mock server."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        tests_skipping_enabled: bool = False,
+        skippable_tests: t.Optional[list[dict[str, str]]] = None,
+    ) -> None:
         self.server: t.Optional[HTTPServer] = None
         self.thread: t.Optional[threading.Thread] = None
+        self._tests_skipping_enabled = tests_skipping_enabled
+        self._skippable_tests = skippable_tests or []
 
     def __enter__(self) -> "MockCIVisibilityServer":
         self.server = HTTPServer(("127.0.0.1", 0), _MockCIVisibilityHandler)
         self.server.recorded_payloads = []  # type: ignore[attr-defined]
+        self.server.tests_skipping_enabled = self._tests_skipping_enabled  # type: ignore[attr-defined]
+        self.server.skippable_tests = self._skippable_tests  # type: ignore[attr-defined]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         return self
@@ -315,7 +342,7 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # Tests
 # ---------------------------------------------------------------------------
 
-# AIDEV-NOTE: These tests use subprocess to run pytest with xdist, pointing at
+# NOTE: These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
 
@@ -639,7 +666,7 @@ class TestXdistWorkerCrashRestart:
         worker.
 
         This test documents the current behavior — it is a known limitation.
-        AIDEV-NOTE: If the writer is changed to flush after each test, or to
+        NOTE: If the writer is changed to flush after each test, or to
         use a non-daemon thread with proper shutdown, this test should be updated.
         """
         # Use -n 1 so there is only one worker. Put a passing test and a
@@ -720,7 +747,7 @@ class TestXdistWorkerCrashRestart:
 
         # Some or all healthy tests may be lost too if they shared a worker
         # with a crash test (their events were buffered but not flushed).
-        # AIDEV-NOTE: This documents real data loss. The number of surviving
+        # NOTE: This documents real data loss. The number of surviving
         # ok tests depends on scheduling luck. We only assert the session
         # event (from the main process) is always present.
         session_events = mock_server.get_session_events()
@@ -936,6 +963,69 @@ class TestXdistLoadScope:
         test_events = mock_server.get_test_events()
         test_names = sorted(e["content"]["meta"]["test.name"] for e in test_events)
         assert test_names == ["test_s1", "test_s2", "test_s3", "test_s4"]
+
+
+class TestXdistItrSkipCounting:
+    """Verify the ITR tests-skipped count is correct under xdist, not multiplied by worker count.
+
+    NOTE: Regression coverage for the gw0-owner-election guard in
+    `_emit_itr_deselected_test_events`. Every xdist worker performs a full, unsharded collection
+    pass, so before that guard existed, every worker independently incremented its own copy of
+    `tests_skipped_by_itr` by the same true count, and `pytest_testnodedown` summed all of them —
+    multiplying the reported `test.itr.tests_skipping.count` by the number of workers. Using more
+    workers than skipped tests here means most workers see zero real work, which is exactly the
+    scenario that used to inflate the count the most.
+    """
+
+    def test_tests_skipped_by_itr_count_not_multiplied_by_workers(self, test_project: Path) -> None:
+        """Deselecting 2 tests via test-level ITR skip must report exactly 2, regardless of worker count."""
+        (test_project / "test_a.py").write_text(
+            textwrap.dedent("""\
+                def test_keep_one():
+                    assert True
+
+                def test_skip_one():
+                    assert True
+            """)
+        )
+        (test_project / "test_b.py").write_text(
+            textwrap.dedent("""\
+                def test_keep_two():
+                    assert True
+
+                def test_skip_two():
+                    assert True
+            """)
+        )
+        _git_commit(test_project)
+
+        skippable_tests = [
+            {"suite": "test_a.py", "name": "test_skip_one"},
+            {"suite": "test_b.py", "name": "test_skip_two"},
+        ]
+
+        with MockCIVisibilityServer(tests_skipping_enabled=True, skippable_tests=skippable_tests) as server:
+            env = _make_env(server.url)
+            result = _run_pytest_subprocess(test_project, "-n", "4", env=env)
+
+            assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+            session_events = server.get_session_events()
+            assert len(session_events) == 1, f"Expected exactly 1 session event, got {len(session_events)}"
+            assert session_events[0]["content"]["metrics"]["test.itr.tests_skipping.count"] == 2, (
+                "Count must equal the true number of deselected tests, not that number times the worker count"
+            )
+
+            test_events = server.get_test_events()
+            skipped_names = sorted(
+                e["content"]["meta"]["test.name"] for e in test_events if e["content"]["meta"]["test.status"] == "skip"
+            )
+            assert skipped_names == ["test_skip_one", "test_skip_two"], (
+                f"Expected exactly the 2 deselected tests to have synthetic skip events, got: {skipped_names}"
+            )
+            for event in test_events:
+                if event["content"]["meta"]["test.name"] in ("test_skip_one", "test_skip_two"):
+                    assert event["content"]["meta"]["test.skipped_by_itr"] == "true"
 
 
 def test_mock_settings_payload_is_parseable() -> None:

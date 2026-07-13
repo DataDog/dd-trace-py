@@ -289,11 +289,12 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
-        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
-        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
-        # same ignored suites), but we must only report/count them once per session. We elect the
-        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
-        self._is_itr_ignored_suite_event_owner = True
+        # Whether this process is responsible for emitting ITR-skip events/metrics (both
+        # suite-level ignore events and test-level deselect events). Every xdist worker performs a
+        # full, unsharded collection pass (so they all discover the same ignored suites/deselected
+        # tests), but we must only report/count them once per session. We elect the first worker
+        # ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_skip_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -311,7 +312,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
-                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
+                self._is_itr_skip_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -465,12 +466,13 @@ class TestOptPlugin:
                     and not (test_props and test_props.attempt_to_fix)
                 ):
                     deselected.append(item)
-                    self.session.tests_skipped_by_itr += 1
                 else:
                     selected.append(item)
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
+                if self._is_itr_skip_event_owner:
+                    self._emit_itr_deselected_test_events(deselected, selected)
 
     def pytest_ignore_collect(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -526,10 +528,10 @@ class TestOptPlugin:
         ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
 
         Under xdist, every worker performs a full, unsharded collection pass and so discovers the
-        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        same ignored suites; only the elected owner (see `_is_itr_skip_event_owner`)
         actually emits events/metrics to avoid multiplying counts by the number of workers.
         """
-        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
+        if not self._itr_ignored_suite_paths or not self._is_itr_skip_event_owner:
             return
 
         # Use rootdir so module names match what item_to_test_ref produces from nodeids.
@@ -572,6 +574,64 @@ class TestOptPlugin:
                 test_module.finish()
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    def _emit_itr_deselected_test_events(
+        self, deselected_items: list[pytest.Item], remaining_items: list[pytest.Item]
+    ) -> None:
+        """Emit synthetic test_end (status=skip) events for tests deselected by test-level ITR skipping.
+
+        Mirrors `_emit_itr_ignored_suite_events`, but at test granularity: called from
+        `pytest_collection_modifyitems`, where (unlike suite-ignore, which never imports the
+        module) we already have the real pytest `Item`, so we can reuse `_discover_test` to build
+        the same module/suite/test objects the runtime path would create.
+
+        Under xdist, every worker sees the same full, unsharded item list at this point, so only
+        the elected owner (see `_is_itr_skip_event_owner`) emits these events/metrics; all workers
+        still deselect the items so none of them run.
+
+        Suites/modules left with none of their tests remaining are finished here, since no test of
+        theirs will ever reach `pytest_runtest_protocol_wrapper`. Suites/modules with a mix of
+        deselected and remaining tests are started/finished normally by the runtime path.
+        """
+        remaining_suites = {item_to_test_ref(item).suite for item in remaining_items}
+        remaining_modules = {item_to_test_ref(item).suite.module for item in remaining_items}
+
+        finished_suites: set[TestSuite] = set()
+        finished_modules: set[TestModule] = set()
+        for item in deselected_items:
+            test_ref = item_to_test_ref(item)
+            test_module, test_suite, test = self._discover_test(item, test_ref)
+
+            if not test_module.is_started():
+                test_module.start()
+                TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+            if not test_suite.is_started():
+                test_suite.start()
+                TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+            test.start()
+            test_run = test.make_test_run()
+            test_run.start(start_ns=test.start_ns)
+            test_run.set_status(TestStatus.SKIP)
+            test_run.set_tags({TestTag.SKIP_REASON: SKIPPED_BY_ITR_REASON})
+            test_run.finish()
+            test_run.set_final_status(TestStatus.SKIP)
+            test.set_status(TestStatus.SKIP)
+            test.mark_skipped_by_itr()
+            test.finish()
+            self.manager.writer.put_item(test_run)
+
+            if test_ref.suite not in remaining_suites and test_suite not in finished_suites:
+                finished_suites.add(test_suite)
+                test_suite.finish()
+                self.manager.writer.put_item(test_suite)
+                TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+
+                if test_ref.suite.module not in remaining_modules and test_module not in finished_modules:
+                    finished_modules.add(test_module)
+                    test_module.finish()
+                    self.manager.writer.put_item(test_module)
+                    TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
@@ -1298,6 +1358,13 @@ class XdistTestOptPlugin:
     def pytest_testnodedown(self, node: t.Any, error: t.Any) -> None:
         """
         Collect count of tests skipped by ITR from a worker node and add it to the main process' session.
+
+        NOTE: Summing across workers is only correct because every worker performs a full,
+        unsharded collection and would independently arrive at the same true count. To avoid
+        multiplying that count by the number of workers, only the elected owner worker (see
+        `_is_itr_skip_event_owner`) actually calls `mark_skipped_by_itr()`; every other worker
+        reports 0 here. So this sum is really "owner's true count + zeros", not an aggregation of
+        distinct partial counts.
         """
         if not hasattr(node, "workeroutput"):
             return

@@ -587,6 +587,42 @@ class TestSessionManagement:
 
         assert plugin.is_xdist_worker is True
 
+    def test_session_start_xdist_gw0_is_itr_skip_event_owner(self) -> None:
+        """gw0 is elected as the sole owner responsible for emitting ITR-skip events/metrics."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {"dd_session_id": "test-session-123", "workerid": "gw0"}
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = ["test_arg1"]
+        mock_config.invocation_params = mock_invocation_params
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin._is_itr_skip_event_owner is True
+
+    def test_session_start_xdist_non_gw0_is_not_itr_skip_event_owner(self) -> None:
+        """Workers other than gw0 must not emit ITR-skip events/metrics, to avoid duplicating counts."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        mock_session = Mock()
+        mock_config = Mock()
+        mock_config.workerinput = {"dd_session_id": "test-session-123", "workerid": "gw1"}
+        mock_invocation_params = Mock()
+        mock_invocation_params.args = ["test_arg1"]
+        mock_config.invocation_params = mock_invocation_params
+        mock_session.config = mock_config
+
+        with patch("ddtrace.testing.internal.pytest.plugin.SessionManager", return_value=Mock()):
+            plugin.pytest_sessionstart(mock_session)
+
+        assert plugin._is_itr_skip_event_owner is False
+
     def test_get_test_command_extraction(self) -> None:
         """Test that the pytest session command is properly extracted."""
         # Mock config with various command parameters
