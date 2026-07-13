@@ -20,6 +20,16 @@ assert telemetry_writer._worker is not None
     assert stderr == b""
 
 
+def test_enable_with_short_heartbeat_does_not_race_asm_import(test_agent_session, run_python_code_in_subprocess):
+    env = os.environ.copy()
+    env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.00001"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+
+    assert status == 0, stderr
+
+
 def test_enable_fork(test_agent_session, run_python_code_in_subprocess):
     """assert app-started/app-closing events are only sent in parent process"""
     code = """
