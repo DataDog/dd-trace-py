@@ -43,6 +43,7 @@ class LLMObsSamplingDecision(str, Enum):
 LLMOBS_SUBMITTED_TAG_KEY = "_dd.llmobs.submitted"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+PROPAGATED_SESSION_ID_KEY = "_dd.p.llmobs_sid"
 LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"  # Deprecated: use get_llmobs_trace_id() from ddtrace.llmobs._utils
 
 UNKNOWN_MODEL_PROVIDER = "unknown"
@@ -158,6 +159,7 @@ DEFAULT_PROJECT_NAME = "default-project"
 # Fallback markers for prompt tracking when OpenAI strips values
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
+AUDIO_FALLBACK_MARKER = "[audio]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"
@@ -166,6 +168,7 @@ INPUT_TYPE_TEXT = "input_text"
 
 # Managed Prompts Cache and Timeout defaults
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_CACHE_MAXSIZE = 1024  # max in-memory prompt entries (LRU); bounds per-subject resolve growth
 DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 
 # Managed Prompts API
@@ -226,6 +229,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "crewai": "crewai",
     "openai_agents": "openai_agents",
     "mcp": "mcp",
+    "mistralai": "mistralai",
     "pydantic_ai": "pydantic_ai",
     "claude_agent_sdk": "claude_agent_sdk",
 }
@@ -234,3 +238,12 @@ SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
 # These were removed in the span._store -> span._meta_struct migration (PR #16774).
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+
+
+class PromptSource(str, Enum):
+    HOT_CACHE = "hot_cache"
+    WARM_CACHE = "warm_cache"
+    REGISTRY = "registry"
+    RESOLVE = "resolve"
+    FF = "ff"
+    FALLBACK = "fallback"

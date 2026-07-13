@@ -3,6 +3,7 @@ import json
 import os
 from typing import Iterable
 from typing import Union
+from urllib.parse import urlunparse
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -366,22 +367,28 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
         env.downstream_requests += 1
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        response = original_request_callable(*args, **kwargs)
-        try:
-            if response.__class__.__name__ == "BaseHTTPResponse" and 300 <= response.status < 400:
-                # api10 for redirected response status and headers in urllib3
-                addresses = {
-                    "DOWN_RES_STATUS": str(response.status),
-                    "DOWN_RES_HEADERS": response.headers,
-                }
-                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-        except Exception:
-            pass  # nosec
-        return response
+        # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
+        # out in http.client.HTTPConnection.getresponse (wrapped by `wrapped_response`), which
+        # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
+        # subcontext. Re-inspecting here would double-call the WAF.
+        return original_request_callable(*args, **kwargs)
+
+
+def _urllib3_absolute_url(instance, path: str) -> str:
+    try:
+        port = getattr(instance, "port", None)
+        netloc = "{}:{}".format(instance.host, port) if port and port not in (80, 443) else str(instance.host)
+        return urlunparse((instance.scheme, netloc, path, "", "", ""))
+    except Exception:  # nosec
+        return path
 
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
+    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
+    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
+    if isinstance(full_url, str) and full_url.startswith("/") and instance is not None:
+        # PoolManager passes a relative URI; rebuild the absolute URL so SSRF/API10 sees the host.
+        full_url = _urllib3_absolute_url(instance, full_url)
     if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:
@@ -435,7 +442,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     return original_request_callable(*args, **kwargs)
 
 
-def wrapped_system_5542593D237084A7(command: str) -> None:
+def wrapped_system_5542593D237084A7(command: Union[str, bytes]) -> None:
     """
     wrapper for os.system function
     """
@@ -461,7 +468,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
-def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[list[str], str, bytes]) -> None:
     """
     listener for subprocess.Popen class
     """
@@ -474,8 +481,13 @@ def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
             return
 
         if in_asm_context():
+            command: list[Union[str, bytes]] = []
+            if isinstance(arg_list, list):
+                command.extend(arg_list)
+            else:
+                command.append(arg_list)
             res = call_waf_callback(
-                {EXPLOIT_PREVENTION.ADDRESS.CMDI: arg_list if isinstance(arg_list, list) else [arg_list]},
+                {EXPLOIT_PREVENTION.ADDRESS.CMDI: command},
                 crop_trace="popen_FD233052260D8B4D",
                 rule_type=EXPLOIT_PREVENTION.TYPE.CMDI,
             )

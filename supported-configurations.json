@@ -138,6 +138,13 @@
         ]
       }
     ],
+    "DD_AI_GUARD_ANALYZE_STREAM_RESPONSES_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AI_GUARD_BLOCK": [
       {
         "implementation": "C",
@@ -171,6 +178,13 @@
         "implementation": "A",
         "type": "int",
         "default": "16"
+      }
+    ],
+    "DD_AI_GUARD_OPENAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_AI_GUARD_TIMEOUT": [
@@ -2467,6 +2481,16 @@
         "default": "false"
       }
     ],
+    "DD_MISTRALAI_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_MISTRALAI_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_MLFLOW_SERVICE": [
       {
         "implementation": "A",
@@ -4383,6 +4407,13 @@
         "implementation": "A",
         "type": "string",
         "default": null
+      }
+    ],
+    "DD_TRACE_MISTRALAI_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_MLFLOW_ENABLED": [
