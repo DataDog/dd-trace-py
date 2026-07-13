@@ -4,7 +4,9 @@ import gc
 import inspect
 import os
 from pathlib import Path
+import re
 import sys
+import textwrap
 import threading
 from tracemalloc import Statistic
 from types import CodeType
@@ -146,7 +148,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
             quit_thread.wait()
 
         alloc_thread = threading.Thread(name="allocator", target=alloc)
-        alloc_thread._ddtrace_profiling_ignore = True  # pyright: ignore[reportAttributeAccessIssue]
+        alloc_thread._ddtrace_profiling_ignore = True  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         alloc_thread.start()
 
         mc.snapshot()
@@ -288,8 +290,8 @@ def get_tracemalloc_stats_per_func(
     actual_sizes: dict[str, int] = {}
     actual_counts: dict[str, int] = {}
     for stat in stats:
-        f = stat.traceback[0]
-        key = f.filename + str(f.lineno)
+        frame = stat.traceback[0]
+        key = frame.filename + str(frame.lineno)
         if key in source_to_func:
             func_name = source_to_func[key]
             actual_sizes[func_name] = stat.size
@@ -448,7 +450,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
     ) -> dict[str, HeapInfo]:
-        got = {}
+        got: dict[str, HeapInfo] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue
@@ -792,7 +794,7 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
-    _memalloc.start(64, 1)
+    _memalloc.start(64, 1, False, True)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
         # memalloc frame serialization. The test passes if the subprocess
@@ -810,7 +812,7 @@ def test_memory_collector_allocation_during_shutdown() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512)
+    _memalloc.start(32, 512, False, True)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -969,7 +971,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
         worker_samples = 0
         for sample in profile.sample:
-            if worker_func and has_function_in_profile_sample(profile, sample, worker_func):
+            if has_function_in_profile_sample(profile, sample, worker_func):
                 worker_samples += 1
 
         assert worker_samples > 0, (
@@ -980,41 +982,41 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 def test_start_twice() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512)
+    _memalloc.start(64, 512, False, True)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512)
+        _memalloc.start(64, 512, False, True)
     _memalloc.stop()
 
 
 def test_start_wrong_arg() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
-        _memalloc.start(2)  # pyright: ignore[reportCallIssue]
+    with pytest.raises(TypeError, match="function takes exactly 4 arguments \\(1 given\\)"):
+        _memalloc.start(2)  # type: ignore[call-arg]  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1)
+        _memalloc.start(429496, 1, False, True)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1)
+        _memalloc.start(-1, 1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1)
+        _memalloc.start(64, -1, False, True)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876)
+        _memalloc.start(64, 345678909876, False, True)
 
 
 def test_start_stop() -> None:
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1)
+    _memalloc.start(1, 1, False, True)
     _memalloc.stop()
 
 
@@ -1022,7 +1024,7 @@ def test_heap_stress() -> None:
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024)
+    _memalloc.start(64, 1024, False, True)
     try:
         x: list[object] = []
 
@@ -1233,7 +1235,7 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
-    _memalloc.start(64, 1)
+    _memalloc.start(64, 1, False, True)
 
     stop = threading.Event()
     shared: dict = {}
@@ -1269,3 +1271,65 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
         t.join(timeout=10)
 
     _memalloc.stop()
+
+
+# ---------------------------------------------------------------------------
+# Code cache correctness tests
+# ---------------------------------------------------------------------------
+
+
+def test_memory_collector_function_attribution_under_eviction(tmp_path: Path) -> None:
+    """Profile allocations from more distinct code objects than the cache capacity."""
+    output_filename = _setup_profiling_prelude(tmp_path, "test_function_attribution_under_eviction")
+
+    NUM_FUNCTIONS = 1200
+    alloc_expr = "(None,) * n" if PY_313_OR_ABOVE else "bytearray(n)"
+
+    fns: list[Callable[[int], object]] = []
+    for i in range(NUM_FUNCTIONS):
+        ns: dict[str, Callable[[int], object]] = {}
+        exec(
+            textwrap.dedent(f"""\
+                def cache_evict_fn_{i}(n):
+                    return {alloc_expr}
+            """),
+            ns,
+        )
+        fns.append(ns[f"cache_evict_fn_{i}"])
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    live: list[object] = []
+    with mc:
+        for fn in fns:
+            for _ in range(5):
+                live.append(fn(256))
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    profiled_names: set[str] = set()
+    for sample in profile.sample:
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if location.line:
+                fn_obj = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+                profiled_names.add(profile.string_table[fn_obj.name])
+
+    _VALID_IDX = re.compile(r"^cache_evict_fn_(\d+)$")
+    garbled: list[str] = []
+    for name in profiled_names:
+        if not name.startswith("cache_evict_fn_"):
+            continue
+        m = _VALID_IDX.match(name)
+        if m is None or int(m.group(1)) >= NUM_FUNCTIONS:
+            garbled.append(name)
+
+    assert not garbled, (
+        f"Profile contains {len(garbled)} out-of-range cache_evict_fn_* name(s) "
+        f"(first 5: {garbled[:5]}). This indicates a stale cache-hit misattribution."
+    )
+
+    cache_fn_count = sum(1 for n in profiled_names if _VALID_IDX.match(n))
+    assert cache_fn_count > 0, "No cache_evict_fn_* functions appeared in profile — sampling may be broken."
+
+    del live
