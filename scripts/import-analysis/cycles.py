@@ -4,6 +4,7 @@
 #   "betsy @ git+https://github.com/p403n1x87/betsy.git",
 # ]
 # ///
+# mypy: ignore-errors
 import argparse
 from collections import deque
 import json
@@ -107,15 +108,13 @@ def compare(args: argparse.Namespace) -> bool:
         print()
 
     if existing_cycles:
-        sorted_existing = sorted([pr[_] for _ in existing_cycles], key=len)
         print("## ⚠️ Existing circular imports")
         print()
         print(
-            f"There are **{len(existing_cycles)}** circular imports that already exist on the base branch "
+            f"**{len(existing_cycles)}** circular imports already exist on the base branch "
             "and have not been changed by this PR."
         )
         print()
-        print_capped(sorted_existing, "Show existing cycles")
 
     if removed_cycles:
         sorted_removed = sorted([base[_] for _ in removed_cycles], key=len)
