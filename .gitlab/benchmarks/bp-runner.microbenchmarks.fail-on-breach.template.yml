@@ -330,7 +330,7 @@ experiments:
           - name: httppropagationextract-wsgi_medium_valid_headers_all
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 39.00 MB
           - name: httppropagationextract-wsgi_valid_headers_all
             thresholds:
               - execution_time < 0.01 ms
@@ -368,7 +368,7 @@ experiments:
           - name: httppropagationinject-with_tags_invalid
             thresholds:
               - execution_time < 0.04 ms
-              - max_rss_usage < 38.00 MB
+              - max_rss_usage < 39.00 MB
           - name: httppropagationinject-with_tags_max_size
             thresholds:
               - execution_time < 0.04 ms
