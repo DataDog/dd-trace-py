@@ -751,8 +751,8 @@ class TestTrackerNameNormalization:
 
         assert result == []
 
-    def test_update_imported_dependencies_swallows_tracer_config_import_failure(self):
-        """If the tracer_config import itself fails (e.g. sys.modules torn down), return [] without raising."""
+    def test_update_imported_dependencies_swallows_unavailable_tracer_config(self):
+        """If tracer_config is unavailable (e.g. sys.modules torn down), return [] without raising."""
         import sys
         from unittest.mock import patch
 
@@ -764,6 +764,26 @@ class TestTrackerNameNormalization:
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []
+
+    def test_collect_report_waits_for_tracer_config(self):
+        import sys
+        from unittest.mock import patch
+
+        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
+
+        tracker = DependencyTracker()
+        incomplete_module = type(sys)("ddtrace.internal.settings._config")
+
+        with (
+            patch.dict(sys.modules, {"ddtrace.internal.settings._config": incomplete_module}),
+            patch("ddtrace.internal.telemetry.dependency_tracker.config") as mock_config,
+            patch("ddtrace.internal.telemetry.dependency_tracker.modules") as mock_modules,
+        ):
+            mock_config.DEPENDENCY_COLLECTION = True
+            result = tracker.collect_report()
+
+        assert result is None
+        mock_modules.get_newly_imported_modules.assert_not_called()
 
     def test_collect_report_marks_sent_with_normalized_lookup(self):
         """collect_report should find entries by normalized key when marking as sent."""

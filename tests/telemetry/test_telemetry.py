@@ -20,10 +20,13 @@ assert telemetry_writer._worker is not None
     assert stderr == b""
 
 
-def test_enable_with_short_heartbeat_does_not_race_asm_import(test_agent_session, run_python_code_in_subprocess):
+@pytest.mark.parametrize("dependency_collection_enabled", [True, False])
+def test_enable_with_short_heartbeat_does_not_race_imports(
+    dependency_collection_enabled, test_agent_session, run_python_code_in_subprocess
+):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.00001"
-    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = "false"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(dependency_collection_enabled)
 
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
 

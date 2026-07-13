@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Telemetry: Fixes intermittent startup failures caused by the telemetry worker importing tracer and ASM settings before initialization completes.

@@ -1,4 +1,0 @@
----
-fixes:
-  - |
-    ASM: Fixes an intermittent startup failure when instrumentation telemetry uses a short heartbeat interval.

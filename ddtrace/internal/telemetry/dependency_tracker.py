@@ -11,6 +11,7 @@ single DependencyTracker instance.
 
 from importlib.metadata import PackageNotFoundError
 import re
+import sys
 from threading import Lock
 from typing import Any
 from typing import Iterable
@@ -41,12 +42,21 @@ def _normalize_dep_name(name: str) -> str:
     return _NORMALIZE_RE.sub("-", name).lower()
 
 
+def _get_sca_enabled() -> Optional[bool]:
+    try:
+        tracer_config = getattr(sys.modules.get("ddtrace.internal.settings._config"), "config", None)
+        return None if tracer_config is None else bool(tracer_config._sca_enabled)
+    except Exception:
+        log.debug("Failed to read tracer config", exc_info=True)
+        return None
+
+
 class DependencyTracker:
     """Thread-safe tracker for imported dependencies and SCA metadata.
 
     All mutable access is protected by an internal lock.
 
-    SCA-enabled state is read from ``tracer_config._sca_enabled`` so
+    SCA-enabled state is read from the loaded ``tracer_config._sca_enabled`` so
     it reacts dynamically to Remote Configuration changes instead of
     relying on a one-time snapshot.  The DependencyEntry.metadata field
     state drives the wire format:
@@ -70,9 +80,13 @@ class DependencyTracker:
         if not config.DEPENDENCY_COLLECTION:
             return None
 
+        sca_enabled = _get_sca_enabled()
+        if sca_enabled is None:
+            return None
+
         with self._lock:
             newly_imported_deps = modules.get_newly_imported_modules(self._modules_already_imported)
-            new_deps = update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
+            new_deps = _update_imported_dependencies(self._imported_dependencies, newly_imported_deps, sca_enabled)
 
             # Normalize once; reuse the set for sent-marking and re-report dedup.
             new_keys = {_normalize_dep_name(d["name"]) for d in new_deps}
@@ -83,9 +97,7 @@ class DependencyTracker:
             # scan over all _imported_dependencies is pure overhead (~887us
             # at 10K deps).  Only entries created by the SCA hook or with
             # metadata attached can trigger needs_report() after initial send.
-            from ddtrace.internal.settings._config import config as tracer_config
-
-            if not tracer_config._sca_enabled:
+            if not sca_enabled:
                 return new_deps if new_deps else None
 
             re_report_deps = self._collect_rereports(new_keys)
@@ -140,10 +152,8 @@ class DependencyTracker:
 
         Caller must hold self._lock.
         """
-        from ddtrace.internal.settings._config import config as tracer_config
-
         key = _normalize_dep_name(package_name)
-        if key not in self._imported_dependencies and tracer_config._sca_enabled:
+        if key not in self._imported_dependencies and _get_sca_enabled():
             try:
                 from importlib.metadata import version as importlib_metadata_version
 
@@ -198,7 +208,7 @@ class DependencyTracker:
 
         Called by the SCA product on start.  Sets metadata from None to []
         on all existing entries so the wire format includes the "metadata"
-        key.  Future entries pick up the flag from tracer_config._sca_enabled.
+        key. Future entries pick up the flag from the loaded tracer configuration.
         """
         with self._lock:
             for entry in self._imported_dependencies.values():
@@ -212,36 +222,11 @@ class DependencyTracker:
             self._modules_already_imported = set()
 
 
-def update_imported_dependencies(
+def _update_imported_dependencies(
     already_imported: dict[str, DependencyEntry],
     new_modules: Iterable[str],
+    sca_enabled: bool,
 ) -> list[dict]:
-    """Standalone version of dependency discovery for backward compatibility.
-
-    Mutates *already_imported* in place, adding a DependencyEntry for each
-    newly discovered package.  Returns the list of serialized dependency
-    dicts ready for the ``app-dependencies-loaded`` telemetry payload.
-
-    SCA-enabled state is read from ``tracer_config._sca_enabled`` so it
-    reacts dynamically to Remote Configuration changes.
-
-    NOTE: This function is kept for backward compatibility with
-    tests and benchmarks that call it directly.  Production code should use
-    DependencyTracker instead.
-
-    Defensive: on interpreter shutdown or partial teardown, ``importlib.metadata``
-    and ``sys.path`` resolution can fail, and even the ``tracer_config`` import
-    itself may raise once ``sys.modules`` starts being torn down.  Any exception
-    is swallowed so the telemetry path never propagates to ``sys.excepthook``.
-    """
-    try:
-        from ddtrace.internal.settings._config import config as tracer_config
-
-        sca_enabled = tracer_config._sca_enabled
-    except Exception:
-        log.debug("update_imported_dependencies: failed to read tracer config", exc_info=True)
-        return []
-
     deps: list[dict] = []
     for module_name in new_modules:
         try:
@@ -262,3 +247,30 @@ def update_imported_dependencies(
             log.debug("update_imported_dependencies: failed for %r", module_name, exc_info=True)
             continue
     return deps
+
+
+def update_imported_dependencies(
+    already_imported: dict[str, DependencyEntry],
+    new_modules: Iterable[str],
+) -> list[dict]:
+    """Standalone version of dependency discovery for backward compatibility.
+
+    Mutates *already_imported* in place, adding a DependencyEntry for each
+    newly discovered package.  Returns the list of serialized dependency
+    dicts ready for the ``app-dependencies-loaded`` telemetry payload.
+
+    SCA-enabled state is read from the loaded ``tracer_config._sca_enabled`` so it
+    reacts dynamically to Remote Configuration changes.
+
+    NOTE: This function is kept for backward compatibility with
+    tests and benchmarks that call it directly.  Production code should use
+    DependencyTracker instead.
+
+    Defensive: on interpreter shutdown or partial teardown, tracer configuration,
+    ``importlib.metadata``, and ``sys.path`` resolution can fail. Any exception is
+    swallowed so the telemetry path never propagates to ``sys.excepthook``.
+    """
+    sca_enabled = _get_sca_enabled()
+    if sca_enabled is None:
+        return []
+    return _update_imported_dependencies(already_imported, new_modules, sca_enabled)
