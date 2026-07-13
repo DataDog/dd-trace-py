@@ -35,6 +35,7 @@ class TestBackendConnector:
         assert _http_module._parse_timeout_millis(None) == 30.0
         # Verify the module constant is set correctly (may be overridden if env var was set at import time)
         from ddtrace.internal.settings import env as settings_env
+
         expected = _http_module._parse_timeout_millis(settings_env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
         assert DEFAULT_TIMEOUT_SECONDS == expected
 
