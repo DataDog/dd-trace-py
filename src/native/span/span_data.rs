@@ -112,10 +112,10 @@ impl SpanData {
             start: self.start,
             duration: self.duration.unwrap_or(-1),
             error: self.error,
-            name: self.name.clone_ref(py),
-            service: self.service.clone_ref(py),
-            resource: self.resource.clone_ref(py),
-            r#type: self.span_type.clone_ref(py),
+            name: truncate_span_text(py, self.name.clone_ref(py)),
+            service: truncate_span_text(py, self.service.clone_ref(py)),
+            resource: truncate_span_text(py, self.resource.clone_ref(py)),
+            r#type: truncate_span_text(py, self.span_type.clone_ref(py)),
             span_links: self.span_links.clone(),
             span_events: self.span_events.clone(),
             ..Default::default()
@@ -128,12 +128,13 @@ impl SpanData {
             let Ok(key_backed) = PyBackedString::try_from(key.as_bound(py).clone()) else {
                 continue;
             };
+            let key_backed = truncate_span_text(py, key_backed);
             match value {
                 AttributeValue::Str(s) => {
                     let Ok(val) = PyBackedString::try_from(s.bind(py).clone()) else {
                         continue;
                     };
-                    out.meta.insert(key_backed, val);
+                    out.meta.insert(key_backed, truncate_span_text(py, val));
                 }
                 AttributeValue::Int(i) => {
                     out.metrics.insert(key_backed, *i as f64);
@@ -179,6 +180,27 @@ const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
 /// Wire key for the trace-level origin tag (mirrors `_ORIGIN_KEY` in
 /// `ddtrace/internal/constants.py`).
 const ORIGIN_KEY: &str = "_dd.origin";
+
+/// Mirrors `MAX_SPAN_META_VALUE_LEN` / `TRUNCATED_SPAN_ATTRIBUTE_LEN` in
+/// `ddtrace/_trace/_limits.py`. Oversized fields must be truncated here to keep wire-format
+/// parity — otherwise payload size balloons and downstream consumers assume this cap holds.
+const MAX_SPAN_META_VALUE_LEN: usize = 25000;
+const TRUNCATED_SPAN_ATTRIBUTE_LEN: usize = 2500;
+const TRUNCATED_SUFFIX: &str = "<truncated>...";
+
+/// Truncate a string field to `MAX_SPAN_META_VALUE_LEN` *characters* (not bytes). Fast path on
+/// byte length first — UTF-8 encoding is never shorter than character count, so a string within
+/// the byte budget is always within the character budget too, letting the common (short, ASCII)
+/// case skip the `chars().count()` scan entirely. Takes `s` by value so the (overwhelmingly
+/// common) untruncated case returns it straight back with no extra clone/refcount traffic.
+fn truncate_span_text(py: Python<'_>, s: PyBackedString) -> PyBackedString {
+    if s.len() <= MAX_SPAN_META_VALUE_LEN || s.chars().count() <= MAX_SPAN_META_VALUE_LEN {
+        return s;
+    }
+    let keep = TRUNCATED_SPAN_ATTRIBUTE_LEN - TRUNCATED_SUFFIX.len();
+    let truncated: String = s.chars().take(keep).chain(TRUNCATED_SUFFIX.chars()).collect();
+    PyBackedString::try_from(PyString::new(py, &truncated)).expect("newly created PyString is valid UTF-8")
+}
 
 #[pyo3::pymethods]
 impl SpanData {

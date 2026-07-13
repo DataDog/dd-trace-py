@@ -2,38 +2,10 @@ import os
 import subprocess
 import sys
 
-import mock
 import pytest
 
 
 AGENT_VERSION = os.environ.get("AGENT_VERSION")
-
-
-class BadEncoder:
-    content_type = ""
-
-    def __len__(self):
-        return 0
-
-    def put(self, trace):
-        pass
-
-    def encode(self):
-        return [(b"bad_payload", 0)]
-
-    def encode_traces(self, traces):
-        return b"bad_payload"
-
-
-def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
-    from ddtrace.trace import tracer as t
-
-    for client in t._span_aggregator.writer._clients:
-        client.encoder = encoder_cls()
-    with mock.patch("ddtrace.internal.writer.writer.log") as log:
-        t.trace("asdf").finish()
-        t.flush()
-    return log
 
 
 def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):

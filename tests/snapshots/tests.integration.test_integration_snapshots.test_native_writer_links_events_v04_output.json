@@ -1,0 +1,48 @@
+[[
+  {
+    "name": "operation",
+    "service": "my-svc",
+    "resource": "operation",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a55028300000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpbv3w_0ml,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "language": "python",
+      "runtime-id": "f13ff15e843f45c893dcbe4a27cbac7b"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 908.0
+    },
+    "span_links": [
+      {
+        "trace_id": 1311768467294899695,
+        "trace_id_high": 1311768467294899695,
+        "span_id": 1234605616436508552,
+        "attributes": {
+          "link.name": "linked"
+        }
+      }
+    ],
+    "span_events": [
+      {
+        "time_unix_nano": 1700000000000000000,
+        "name": "my_event",
+        "attributes": {
+          "k": {
+            "type": 0,
+            "string_value": "v"
+          }
+        }
+      }
+    ],
+    "duration": 50302,
+    "start": 1783956099040027199
+  }]]

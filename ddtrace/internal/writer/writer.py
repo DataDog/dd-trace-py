@@ -958,20 +958,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         ctx = spans[0].context
         dd_origin = ctx.dd_origin if ctx is not None else None
 
-        outcome = self._exporter.put_trace(spans, dd_origin)
+        outcome, item_bytes = self._exporter.put_trace(spans, dd_origin)
         if outcome == native.PutOutcome.ItemTooLarge:
             _safelog(
                 log.warning,
-                "trace larger than payload buffer item limit (%db), dropping",
+                "trace (%db) larger than payload buffer item limit (%db), dropping",
+                item_bytes,
                 self._max_payload_size,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:t_too_big"])
         elif outcome == native.PutOutcome.BufferFull:
             _safelog(
                 log.warning,
-                "trace buffer (%db/%db) cannot fit trace, dropping (writer status: %s)",
+                "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
+                self._exporter.buffered_traces(),
                 self._exporter.buffered_bytes(),
                 self._buffer_size,
+                item_bytes,
                 self.status.value,
             )
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:full"])
@@ -989,6 +992,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._flush(raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
 
     def _flush(self, raise_exc: bool = False) -> None:
         n_traces = self._exporter.buffered_traces()

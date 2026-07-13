@@ -307,17 +307,18 @@ impl TraceExporterPy {
     /// ``dd_origin`` is the trace-level origin (``trace[0].context.dd_origin``, extracted on
     /// the Python side); it is stamped as ``_dd.origin`` into every span's meta.
     ///
-    /// Returns a [`PutOutcome`] (never raises for buffer pressure) so the writer can record
-    /// drop metrics on the hot path without exception handling.
+    /// Returns `(outcome, item_bytes)` (never raises for buffer pressure) so the writer can
+    /// record drop metrics and log accurate size context on the hot path without exception
+    /// handling. `item_bytes` is the encoded size of *this* trace.
     #[pyo3(signature = (spans, dd_origin=None))]
     fn put_trace(
         &self,
         py: Python<'_>,
         spans: Vec<Py<SpanData>>,
         dd_origin: Option<Bound<'_, PyString>>,
-    ) -> PyResult<PutOutcome> {
+    ) -> PyResult<(PutOutcome, usize)> {
         if spans.is_empty() {
-            return Ok(PutOutcome::NoEncodableSpans);
+            return Ok((PutOutcome::NoEncodableSpans, 0));
         }
 
         let origin = match dd_origin {
@@ -341,14 +342,14 @@ impl TraceExporterPy {
 
         let mut buf = self.buffer.lock().unwrap();
         if item_bytes > buf.max_item_size {
-            return Ok(PutOutcome::ItemTooLarge);
+            return Ok((PutOutcome::ItemTooLarge, item_bytes));
         }
         if buf.est_bytes + item_bytes > buf.max_size {
-            return Ok(PutOutcome::BufferFull);
+            return Ok((PutOutcome::BufferFull, item_bytes));
         }
         buf.chunks.push(chunk);
         buf.est_bytes += item_bytes;
-        Ok(PutOutcome::Accepted)
+        Ok((PutOutcome::Accepted, item_bytes))
     }
 
     /// Drain the buffered trace chunks and send them directly to the agent via
@@ -376,7 +377,7 @@ impl TraceExporterPy {
                 .as_ref()
                 .ok_or_else(|| PyValueError::new_err("TraceExporter has already been consumed"))?;
             exporter
-                .send_trace_chunks(chunks)
+                .send_trace_chunks(chunks, None)
                 .map_err(|e| TraceExporterErrorPy::from(e).into())
         });
         match res? {

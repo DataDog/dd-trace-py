@@ -327,73 +327,14 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
 @skip_if_testagent
 @pytest.mark.subprocess(err=None)
-def test_trace_with_invalid_payload_generates_error_log():
-    import mock
-
-    from tests.integration.utils import send_invalid_payload_and_get_logs
-
-    log = send_invalid_payload_and_get_logs()
-    log.error.assert_has_calls(
-        [
-            mock.call(
-                "failed to send, dropping %d traces to intake at %s: %s",
-                0,
-                "http://localhost:8126/v0.5/traces",
-                "Invalid format: Unable to read payload len",
-                extra={"send_to_telemetry": False},
-            )
-        ]
-    )
-
-
-@skip_if_testagent
-@pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
-def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
-    import mock
-
-    from tests.integration.utils import send_invalid_payload_and_get_logs
-
-    log = send_invalid_payload_and_get_logs()
-    log.error.assert_has_calls(
-        [
-            mock.call(
-                "failed to send, dropping %d traces to intake at %s: %s, payload %s",
-                0,
-                "http://localhost:8126/v0.5/traces",
-                "Invalid format: Unable to read payload len",
-                "6261645f7061796c6f6164",
-                extra={"send_to_telemetry": False},
-            )
-        ]
-    )
-
-
-@pytest.mark.subprocess(err=None)
-def test_trace_with_failing_encoder_generates_error_log():
-    from tests.integration.utils import BadEncoder
-    from tests.integration.utils import send_invalid_payload_and_get_logs
-
-    class ExceptionBadEncoder(BadEncoder):
-        def encode(self):
-            raise Exception()
-
-        def encode_traces(self, traces):
-            raise Exception()
-
-    log = send_invalid_payload_and_get_logs(ExceptionBadEncoder)
-    assert "failed to encode trace with encoder" in log.error.call_args[0][0]
-
-
-@skip_if_testagent
-@pytest.mark.subprocess(err=None)
 def test_api_version_downgrade_generates_no_warning_logs():
     import mock
 
     from ddtrace.internal.utils.http import Response
     from ddtrace.trace import tracer as t
 
-    t._span_aggregator.writer.api_version = "v0.5"
-    t._span_aggregator.writer._downgrade(Response(status=404), t._span_aggregator.writer._clients[0])
+    t._span_aggregator.writer._api_version = "v0.5"
+    t._span_aggregator.writer._downgrade(Response(status=404))
     assert t._span_aggregator.writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
@@ -436,8 +377,8 @@ s2.finish()
 def test_writer_configured_correctly_from_env():
     import ddtrace
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
+    assert ddtrace.tracer._span_aggregator.writer._buffer_size == 1000
+    assert ddtrace.tracer._span_aggregator.writer._max_payload_size == 5000
     assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
 
 
@@ -445,8 +386,8 @@ def test_writer_configured_correctly_from_env():
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
 
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
+    assert ddtrace.tracer._span_aggregator.writer._buffer_size == 20 << 20
+    assert ddtrace.tracer._span_aggregator.writer._max_payload_size == 20 << 20
     assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 
 
@@ -460,8 +401,8 @@ def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_pyth
         """
 import ddtrace
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._span_aggregator.writer._buffer_size == 1000
+assert ddtrace.tracer._span_aggregator.writer._max_payload_size == 5000
 assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
 """,
         env=env,
@@ -474,8 +415,8 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
+assert ddtrace.tracer._span_aggregator.writer._buffer_size == 20 << 20
+assert ddtrace.tracer._span_aggregator.writer._max_payload_size == 20 << 20
 assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 """,
     )
