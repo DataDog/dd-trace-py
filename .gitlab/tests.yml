@@ -11,6 +11,7 @@ variables:
 include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/native-build-resources.yml" # Shared .native_build_resources requests
 
 .riot_job_artifacts:
   artifacts:

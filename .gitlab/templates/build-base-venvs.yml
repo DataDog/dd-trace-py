@@ -1,5 +1,10 @@
 build_base_venvs:
-  extends: .cached_testrunner
+  # .native_build_resources pins CPU/memory and disables the VPA so the
+  # cold-cache parallel native build isn't OOMKilled (shared with the package
+  # build jobs in .gitlab/package.yml).
+  extends:
+    - .cached_testrunner
+    - .native_build_resources
   stage: setup
   needs: []
   parallel:
@@ -11,15 +16,6 @@ build_base_venvs:
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
-    # Pin resources and disable the VPA. This job compiles every native
-    # extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12, set above) whenever
-    # the ext_cache is cold (e.g. a newly added Python version), which peaks
-    # well above the ~5Gi the VPA otherwise tunes it down to and gets OOMKilled.
-    # Matches the resource requests used by the native package build jobs.
-    KUBERNETES_CPU_REQUEST: '6'
-    KUBERNETES_MEMORY_REQUEST: '10Gi'
-    KUBERNETES_MEMORY_LIMIT: '10Gi'
-    DD_DISABLE_VPA: 'true'
     # Disable link time optimization settings to improve build times, the impact will be larger binary sizes
     CARGO_PROFILE_RELEASE_LTO: 'off'
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'

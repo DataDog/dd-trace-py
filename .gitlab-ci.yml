@@ -55,6 +55,7 @@ workflow:
 
 include:
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
+  - local: ".gitlab/native-build-resources.yml" # Shared .native_build_resources requests
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"

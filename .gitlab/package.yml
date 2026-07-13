@@ -30,6 +30,7 @@ variables:
   - "v113741491-d2b8243-musllinux_1_2_x86_64"
 
 .build_base:
+  extends: .native_build_resources
   stage: package
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
@@ -39,11 +40,6 @@ variables:
     CIBW_BUILD: "1"
     # Enable sccache for Rust/C/C++ compilation caching
     DD_USE_SCCACHE: "1"
-    # job resource requests
-    KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "10Gi"
-    KUBERNETES_MEMORY_LIMIT: "10Gi"
-    DD_DISABLE_VPA: true
   artifacts:
     when: always
     paths:
@@ -178,7 +174,7 @@ variables:
   tags: [ "macos:sonoma-tart" ]
   variables:
     ARCH_TAG: "arm64"
-    # Disables collapsable sections in multi-line scripts due to incompatibility with zsh
+    # Disables collapsible sections in multi-line scripts due to incompatibility with zsh
     FF_SCRIPT_SECTIONS: "false"
     SCCACHE_BUCKET: "dd-sccache-storage-us1-ddbuild-io"
     SCCACHE_REGION: "us-east-1"
@@ -257,16 +253,13 @@ variables:
 
 
 "test sdist":
+  extends: .native_build_resources
   image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
   variables:
     CARGO_BUILD_JOBS: "12"
     CMAKE_BUILD_PARALLEL_LEVEL: "12"
-    KUBERNETES_CPU_REQUEST: "6"
-    KUBERNETES_MEMORY_REQUEST: "10Gi"
-    KUBERNETES_MEMORY_LIMIT: "10Gi"
-    DD_DISABLE_VPA: true
   needs:
     - job: "build sdist"
       artifacts: true

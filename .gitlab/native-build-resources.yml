@@ -1,0 +1,15 @@
+# Shared Kubernetes resource requests for jobs that compile every native
+# extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12 / CARGO_BUILD_JOBS=12).
+# On a cold ext_cache (e.g. a newly added Python version) memory peaks well
+# above the ~5Gi the VPA would otherwise tune it down to, causing OOMKills, so
+# we pin the requests/limits and disable the VPA.
+#
+# Single source of truth: included by both the main pipeline (.gitlab-ci.yml)
+# and the generated tests child pipeline (via .gitlab/tests.yml). Consumers opt
+# in with `extends: .native_build_resources`.
+.native_build_resources:
+  variables:
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    DD_DISABLE_VPA: "true"
