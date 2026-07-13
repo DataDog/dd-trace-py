@@ -2,6 +2,7 @@ import base64
 from dataclasses import dataclass
 import inspect
 import json
+import math
 import re
 from typing import Any
 from typing import Optional
@@ -217,16 +218,26 @@ def get_provider_cost_metrics(token_usage: Any) -> dict[str, float]:
     cost = _get_attr(token_usage, "cost", None)
     if not isinstance(cost, (int, float)) or isinstance(cost, bool):
         return {}
-    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: float(cost)}
+    total_cost = float(cost)
+    metrics: dict[str, float] = {TOTAL_COST_METRIC_KEY: total_cost}
     # AIDEV-NOTE: OpenRouter's top-level `cost` is the amount actually billed (includes OpenRouter's
-    # margin/BYOK), while cost_details.upstream_inference_* are the raw upstream provider costs, so
-    # input+output may not sum to total. total_cost is authoritative; the breakdown is best-effort.
+    # margin/BYOK), while cost_details.upstream_inference_* are the raw upstream provider costs. These
+    # can diverge (e.g. BYOK surcharge, per-request fees), so only emit the input/output breakdown
+    # when both components are present AND reconcile with the billed total; otherwise send only the
+    # authoritative total_cost to avoid a breakdown that doesn't sum to (or match the meaning of) it.
     cost_details = _get_attr(token_usage, "cost_details", {}) or {}
     input_cost = _get_attr(cost_details, "upstream_inference_prompt_cost", None)
     output_cost = _get_attr(cost_details, "upstream_inference_completions_cost", None)
-    if isinstance(input_cost, (int, float)) and not isinstance(input_cost, bool):
+    if (
+        isinstance(input_cost, (int, float))
+        and not isinstance(input_cost, bool)
+        and isinstance(output_cost, (int, float))
+        and not isinstance(output_cost, bool)
+        # abs_tol is sub-nanodollar; the backend stores cost as int64 nanodollars, so anything tighter
+        # is below storage resolution. rel_tol covers proportional float rounding on larger amounts.
+        and math.isclose(float(input_cost) + float(output_cost), total_cost, rel_tol=1e-6, abs_tol=1e-9)
+    ):
         metrics[INPUT_COST_METRIC_KEY] = float(input_cost)
-    if isinstance(output_cost, (int, float)) and not isinstance(output_cost, bool):
         metrics[OUTPUT_COST_METRIC_KEY] = float(output_cost)
     return metrics
 

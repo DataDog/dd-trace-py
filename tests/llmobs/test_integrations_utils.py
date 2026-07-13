@@ -508,8 +508,8 @@ class TestGetProviderCostMetrics:
         usage = SimpleNamespace(prompt_tokens=794, completion_tokens=309, cost=0.000812)
         assert get_provider_cost_metrics(usage) == {"total_cost": 0.000812}
 
-    def test_cost_with_breakdown(self):
-        """cost_details upstream costs map to input_cost/output_cost alongside total_cost."""
+    def test_cost_with_breakdown_that_reconciles(self):
+        """When upstream input+output reconcile with the billed total, all three are emitted."""
         usage = SimpleNamespace(
             cost=0.000812,
             cost_details=SimpleNamespace(
@@ -523,10 +523,43 @@ class TestGetProviderCostMetrics:
             "output_cost": 0.0004944,
         }
 
-    def test_dict_usage(self):
-        """Works with dict-shaped usage objects (via _get_attr)."""
+    def test_breakdown_dropped_when_it_does_not_sum_to_total(self):
+        """BYOK/surcharge case: upstream components diverge from billed total -> total only."""
+        usage = SimpleNamespace(
+            cost=0.001,  # billed (e.g. BYOK 5% surcharge)
+            cost_details=SimpleNamespace(
+                upstream_inference_prompt_cost=0.01,
+                upstream_inference_completions_cost=0.01,
+            ),
+        )
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.001}
+
+    def test_breakdown_dropped_when_a_component_missing(self):
+        """A partial breakdown (only one component) cannot reconcile -> total only."""
         usage = {"cost": 0.5, "cost_details": {"upstream_inference_prompt_cost": 0.2}}
-        assert get_provider_cost_metrics(usage) == {"total_cost": 0.5, "input_cost": 0.2}
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.5}
+
+    def test_reconciliation_tolerates_float_rounding(self):
+        """Components summing to the total within float tolerance still emit the breakdown."""
+        usage = SimpleNamespace(
+            cost=0.3,
+            cost_details=SimpleNamespace(
+                upstream_inference_prompt_cost=0.1,
+                upstream_inference_completions_cost=0.2,  # 0.1 + 0.2 != 0.3 exactly in float
+            ),
+        )
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.3, "input_cost": 0.1, "output_cost": 0.2}
+
+    def test_dict_usage_reconciling(self):
+        """Works with dict-shaped usage objects (via _get_attr)."""
+        usage = {
+            "cost": 0.5,
+            "cost_details": {
+                "upstream_inference_prompt_cost": 0.2,
+                "upstream_inference_completions_cost": 0.3,
+            },
+        }
+        assert get_provider_cost_metrics(usage) == {"total_cost": 0.5, "input_cost": 0.2, "output_cost": 0.3}
 
     def test_zero_cost_is_emitted(self):
         """A genuinely free request (cost 0.0) still emits total_cost=0.0."""
@@ -536,14 +569,3 @@ class TestGetProviderCostMetrics:
         """A non-numeric/bool cost is ignored to avoid corrupting metrics."""
         assert get_provider_cost_metrics(SimpleNamespace(cost="0.1")) == {}
         assert get_provider_cost_metrics(SimpleNamespace(cost=True)) == {}
-
-    def test_partial_breakdown(self):
-        """Only the breakdown fields that are numeric are included."""
-        usage = SimpleNamespace(
-            cost=1.0,
-            cost_details=SimpleNamespace(
-                upstream_inference_prompt_cost=0.4,
-                upstream_inference_completions_cost=None,
-            ),
-        )
-        assert get_provider_cost_metrics(usage) == {"total_cost": 1.0, "input_cost": 0.4}
