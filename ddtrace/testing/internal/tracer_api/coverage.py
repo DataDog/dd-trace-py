@@ -36,6 +36,10 @@ def install_coverage(workspace_path: Path) -> None:
     ModuleCodeCollector.start_coverage()
 
 
+def uninstall_coverage() -> None:
+    ModuleCodeCollector.uninstall()
+
+
 class CoverageData:
     def __init__(self) -> None:
         self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
