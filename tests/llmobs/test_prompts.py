@@ -1,14 +1,18 @@
+from contextlib import contextmanager
 import json
 import os
 from typing import Optional
 from typing import Union
 from unittest.mock import patch
+import warnings
 
 import pytest
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._prompts.manager import _PromptRequest
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
 from ddtrace.llmobs.types import PromptAPIError
@@ -88,9 +92,10 @@ class MockHTTPResponse:
 class MockHTTPConnection:
     def __init__(self, response: MockHTTPResponse):
         self._response = response
+        self.requests: list = []
 
-    def request(self, method: str, path: str, body=None, headers: Optional[dict] = None):
-        pass
+    def request(self, method: str, path: str, body: Optional[str] = None, headers: Optional[dict] = None):
+        self.requests.append({"method": method, "path": path, "body": body, "headers": headers})
 
     def getresponse(self):
         return self._response
@@ -99,10 +104,12 @@ class MockHTTPConnection:
         pass
 
 
+@contextmanager
 def mock_api(status: int = 200, body: Optional[Union[dict, str]] = None):
-    """Create a mock API returning the given response."""
+    """Patch the HTTP connection to return the given response; yields the connection for assertions."""
     conn = MockHTTPConnection(MockHTTPResponse(status, body))
-    return patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn)
+    with patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn):
+        yield conn
 
 
 def assert_prompt_matches_response(prompt, response, expected_source):
@@ -177,14 +184,16 @@ class TestPrompts:
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
         with mock_api(200, TEXT_PROMPT_RESPONSE):
-            prod_prompt = LLMObs.get_prompt("greeting", label="production")
+            with pytest.warns(DDTraceDeprecationWarning):
+                prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
         assert prod_prompt.label == "production"
 
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
         with mock_api(200, DEV_PROMPT_RESPONSE):
-            dev_prompt = LLMObs.get_prompt("greeting", label="development")
+            with pytest.warns(DDTraceDeprecationWarning):
+                dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
         assert dev_prompt.label == "development"
         assert "DEBUG" in dev_prompt.format(name="Test")
@@ -251,7 +260,8 @@ class TestPrompts:
         detail = "prompt 'support-assistant' exists but label 'production' was not found"
         with mock_api(404, {"detail": detail}):
             with pytest.raises(ValueError) as exc_info:
-                LLMObs.get_prompt("support-assistant", label="production")
+                with pytest.warns(DDTraceDeprecationWarning):
+                    LLMObs.get_prompt("support-assistant", label="production")
         assert "could not be fetched and no fallback was provided" in str(exc_info.value)
         assert detail in str(exc_info.value)
 
@@ -355,22 +365,231 @@ class TestPrompts:
             def join(self, timeout=None):
                 pass
 
+        spec = _PromptRequest(prompt_id="greeting", label="production")
         with patch.object(manager, "_background_refresh", return_value=None) as refresh_mock:
             with patch("ddtrace.llmobs._prompts.manager.threading.Thread", ImmediateThread):
-                manager._trigger_background_refresh("greeting:production", "greeting", "production")
-                assert "greeting:production" not in manager._refresh_threads
-                manager._trigger_background_refresh("greeting:production", "greeting", "production")
+                manager._trigger_background_refresh(spec)
+                assert spec.key not in manager._refresh_threads
+                manager._trigger_background_refresh(spec)
 
         assert refresh_mock.call_count == 2
 
+    # --- get_prompt routing demux ---
 
-def _make_manager(app_key="test-app-key"):
+    def test_route_no_env_to_http(self):
+        manager = _make_manager(agentless=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch.object(manager, "_fetch_from_ff") as ff_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = None
+                    prompt = manager.get_prompt("greeting")
+        ff_mock.assert_not_called()
+        assert prompt.source == "registry"
+
+    def test_route_env_agent_to_ff(self):
+        manager = _make_manager(agentless=False)
+        with _ffe_enabled():
+            _deliver_prompt_flag(
+                "greeting",
+                {"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+            )
+            with patch.object(manager, "_get_prompt_http") as http_mock:
+                prompt = manager.get_prompt("greeting")
+        http_mock.assert_not_called()
+        assert prompt.source == "ff"
+        assert prompt.version == "ff-v1"
+        assert prompt.template == "FF Hello!"
+
+    def test_route_env_agentless_to_http_resolve(self):
+        manager = _make_manager(agentless=True)
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="production", source="resolve", template="Hi")
+        with patch.object(manager, "_fetch_from_ff") as ff_mock:
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                    cfg.env = "production"
+                    prompt = manager.get_prompt("greeting", targeting_key="user-1")
+        ff_mock.assert_not_called()
+        (spec,), kwargs = http_mock.call_args
+        assert spec.use_resolve and spec.env == "production" and spec.targeting_key == "user-1"
+        assert kwargs["fallback"] is None
+        assert prompt.source == "resolve"
+
+    def test_route_targeting_key_to_ff(self):
+        manager = _make_manager(agentless=False)
+        ff_prompt = ManagedPrompt(
+            id="greeting",
+            version="ff-v1",
+            label=None,
+            source="ff",
+            template="Hello!",
+        )
+        with patch.object(manager, "_fetch_from_ff", return_value=ff_prompt) as ff_mock:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "staging"
+                manager.get_prompt("greeting", targeting_key="user-123", tier="premium")
+        ff_mock.assert_called_once_with("greeting", "user-123", {"tier": "premium"})
+
+    def test_route_label_targeting_conflict_warns(self):
+        manager = _make_manager()
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                manager.get_prompt("greeting", label="production", targeting_key="user-123")
+        conflict = [x for x in w if x.category is UserWarning and "targeting" in str(x.message).lower()]
+        assert conflict, [str(x.message) for x in w]
+        assert "label" in str(conflict[0].message)
+
+    # NOT_READY (and NO_FLAG) are not hard failures: both fall through to the HTTP /resolve floor,
+    # which resolves the same env-scoped variant server-side.
+    def test_route_not_ready_to_http_resolve(self):
+        manager = _make_manager()
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        with _ffe_enabled():
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                prompt = manager.get_prompt("greeting")
+        (spec,), kwargs = http_mock.call_args
+        assert spec.use_resolve and spec.env == "staging"
+        assert kwargs["fallback"] is None
+        assert prompt.source == "resolve"
+
+    def test_route_no_flag_to_http_resolve(self):
+        manager = _make_manager()
+        sentinel = ManagedPrompt(id="greeting", version="v1", label="staging", source="resolve", template="Hi")
+        with _ffe_enabled():
+            _deliver_prompt_flag("other-prompt", {"prompt_id": "other-prompt", "version": "1", "template": "x"})
+            with patch.object(manager, "_get_prompt_http", return_value=sentinel) as http_mock:
+                prompt = manager.get_prompt("greeting")
+        (spec,), kwargs = http_mock.call_args
+        assert spec.use_resolve and spec.env == "staging"
+        assert kwargs["fallback"] is None
+        assert prompt.source == "resolve"
+
+    # --- HTTP /resolve request shape ---
+
+    def test_resolve_sends_jsonapi_body(self):
+        manager = _make_manager(agentless=True)
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                prompt = manager.get_prompt("greeting", targeting_key="user-1", tier="gold")
+        req = conn.requests[-1]
+        assert req["method"] == "POST"
+        assert req["path"].endswith("/greeting/resolve")
+        assert req["headers"]["Content-Type"] == "application/json"
+        assert req["headers"]["DD-APPLICATION-KEY"] == "test-app-key"
+        payload = json.loads(req["body"])
+        assert payload["data"]["type"] == "prompt_resolve_requests"
+        assert payload["data"]["attributes"] == {
+            "env": "production",
+            "targeting_key": "user-1",
+            "context": {"tier": "gold"},
+        }
+        assert prompt.source == "resolve"
+
+    def test_resolve_omits_targeting_and_context_when_absent(self):
+        manager = _make_manager(agentless=True)
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                manager.get_prompt("greeting")
+        payload = json.loads(conn.requests[-1]["body"])
+        assert payload["data"]["attributes"] == {"env": "production"}
+
+    def test_label_still_uses_static_registry_get(self):
+        manager = _make_manager(agentless=True)
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            manager.get_prompt("greeting", label="production")
+        req = conn.requests[-1]
+        assert req["method"] == "GET"
+        assert req["path"].endswith("/greeting?label=production")
+
+    def test_resolve_caches_per_attributes(self):
+        """Same context is cached; differing attributes are a distinct key (never wrong variant)."""
+        manager = _make_manager(agentless=True)
+        conns = []
+
+        def conn_factory(*a, **k):
+            conn = MockHTTPConnection(MockHTTPResponse(200, TEXT_PROMPT_RESPONSE))
+            conns.append(conn)
+            return conn
+
+        with patch("ddtrace.llmobs._prompts.manager.get_connection", conn_factory):
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                manager.get_prompt("greeting", targeting_key="u1", tier="gold")
+                manager.get_prompt("greeting", targeting_key="u1", tier="gold")  # cache hit
+                manager.get_prompt("greeting", targeting_key="u1", tier="free")  # new attrs -> new fetch
+        assert len(conns) == 2
+
+    def test_no_app_key_env_uses_fallback_without_calling_resolve(self):
+        """Without an app key/SAT, /resolve can't be authorized; use the fallback and skip the doomed call."""
+        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                prompt = manager.get_prompt("greeting", targeting_key="user-1", fallback="hi {name}")
+        assert prompt.source == "fallback"
+        assert conn.requests == []
+
+    def test_resolve_uses_hot_cache_not_warm(self, tmp_path):
+        """Resolve results stay in the bounded hot cache; only the static/label path persists to disk."""
+        manager = PromptManager(
+            api_key="test-key",
+            app_key="test-app-key",
+            base_url="https://api.datadoghq.com",
+            file_cache_enabled=True,
+            cache_dir=str(tmp_path),
+        )
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                cfg.env = "production"
+                prompt = manager.get_prompt("greeting", targeting_key="u1")
+        assert prompt.source == "resolve"
+        assert list(tmp_path.rglob("*.json")) == []
+
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            manager.get_prompt("greeting", label="production")
+        assert list(tmp_path.rglob("*.json"))
+
+
+def _make_manager(app_key="test-app-key", agentless=False):
     return PromptManager(
         api_key="test-key",
-        base_url="https://api.datadoghq.com",
         app_key=app_key,
+        base_url="https://api.datadoghq.com",
         file_cache_enabled=False,
+        agentless=agentless,
     )
+
+
+@contextmanager
+def _ffe_enabled():
+    """Enable the FFE opt-in and set DD_ENV - the routing preconditions, not the eval."""
+    import ddtrace.internal.settings.openfeature as ffe_settings
+
+    with patch.object(ffe_settings.config, "experimental_flagging_provider_enabled", True):
+        with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+            cfg.env = "staging"
+            yield
+
+
+def _deliver_prompt_flag(prompt_id, variant_value):
+    """Deliver a managed prompt flag via the real Remote Config ingestion path."""
+    from ddtrace.internal.openfeature._native import process_ffe_configuration
+    from tests.openfeature.config_helpers import create_config
+    from tests.openfeature.config_helpers import create_json_flag
+
+    process_ffe_configuration(create_config(create_json_flag(f"__llmobs__.prompt.{prompt_id}", variant_value)))
+
+
+@pytest.fixture(autouse=True)
+def _reset_ffe_global_config():
+    """Clear the global FFE config around every test so deliveries don't leak across tests."""
+    from ddtrace.internal.openfeature._config import _set_ffe_config
+
+    _set_ffe_config(None)
+    yield
+    _set_ffe_config(None)
 
 
 def _mock_write_api(status=200, body=None):
@@ -545,3 +764,20 @@ class TestPromptManagement:
                     manager.list_prompts()
             else:
                 assert manager.delete_prompt("p1") == expected
+
+
+def test_hot_cache_lru_eviction():
+    from ddtrace.llmobs._prompts.cache import HotCache
+
+    cache = HotCache(ttl_seconds=60, maxsize=2)
+
+    def mk(v):
+        return ManagedPrompt(id=v, version="1", label=None, source="resolve", template="x")
+
+    cache.set("a", mk("a"))
+    cache.set("b", mk("b"))
+    cache.get("a")  # touch 'a' so 'b' is now least-recently-used
+    cache.set("c", mk("c"))  # over maxsize -> evict 'b'
+    assert cache.get("b") is None
+    assert cache.get("a") is not None
+    assert cache.get("c") is not None

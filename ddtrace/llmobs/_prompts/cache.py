@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import Union
 from urllib.parse import quote
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAXSIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 
@@ -38,17 +40,20 @@ class CacheEntry:
 
 class HotCache:
     """
-    In-memory cache with TTL for prompt templates.
+    Bounded in-memory LRU cache with TTL for prompt templates.
 
-    Thread-safe via RLock.
+    The size bound keeps per-subject resolve results (keyed by targeting_key and attributes)
+    from growing without limit. Thread-safe via RLock.
     """
 
     def __init__(
         self,
         ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
+        maxsize: int = DEFAULT_PROMPTS_CACHE_MAXSIZE,
     ) -> None:
-        self._cache: dict[str, CacheEntry] = {}
+        self._cache: "OrderedDict[str, CacheEntry]" = OrderedDict()
         self._ttl = ttl_seconds
+        self._maxsize = maxsize
         self._lock = RLock()
 
     def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
@@ -62,12 +67,16 @@ class HotCache:
             entry = self._cache.get(key)
             if entry is None:
                 return None
+            self._cache.move_to_end(key)
             return (entry.prompt, entry.is_stale(self._ttl))
 
     def set(self, key: str, prompt: ManagedPrompt) -> None:
-        """Add or update a prompt in cache."""
+        """Add or update a prompt in cache, evicting the least-recently-used entry when full."""
         with self._lock:
             self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
+            self._cache.move_to_end(key)
+            while len(self._cache) > self._maxsize:
+                self._cache.popitem(last=False)
 
     def delete(self, key: str) -> None:
         """Remove a specific entry from cache."""
