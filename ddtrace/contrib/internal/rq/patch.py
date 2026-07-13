@@ -69,7 +69,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.rq),
             resource=resource,
             span_type=SpanTypes.WORKER,
-            integration_config=config.rq_worker,
+            integration_config=config.rq,
             tags={
                 COMPONENT: config.rq.integration_name,
                 SPAN_KIND: SpanKind.PRODUCER,

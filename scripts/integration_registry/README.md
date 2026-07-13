@@ -65,8 +65,7 @@ The registry is automatically updated through two main mechanisms:
      python scripts/integration_registry/update_and_format_registry.py
      ```
    * This script:
-     * Runs [`scripts/freshvenvs.py generate`](../../../scripts/freshvenvs.py) to update underlying version data
-     * Runs [`scripts/generate_table.py`](../../../scripts/generate_table.py) to create the supported versions table
+     * Runs [`scripts/integration_registry/generate_supported_versions.py`](../../../scripts/integration_registry/generate_supported_versions.py) to update supported version data
      * Runs [`scripts/integration_registry/_update_integration_registry_versions.py`](../../../scripts/integration_registry/_update_integration_registry_versions.py) to update the registry
      * Formats the registry YAML for consistency
 
@@ -162,5 +161,4 @@ If you need to debug or manually run the integration registry update process, th
 * Update Scripts:
   * [`update_and_format_registry.py`](../../../scripts/integration_registry/update_and_format_registry.py) - Main update script, runs all the below scripts
   * [`_update_integration_registry_versions.py`](../../../scripts/integration_registry/_update_integration_registry_versions.py) - Updates version information within the registry
-  * [`freshvenvs.py`](../../../scripts/freshvenvs.py) - Generates tested integration version data from test environments
-  * [`generate_table.py`](../../../scripts/generate_table.py) - Creates supported versions table
+  * [`generate_supported_versions.py`](../../../scripts/integration_registry/generate_supported_versions.py) - Generates supported integration version data from test environments

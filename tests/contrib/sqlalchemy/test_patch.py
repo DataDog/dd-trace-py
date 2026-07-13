@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.sqlalchemy.patch import unpatch
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
+from tests.utils import snapshot
 
 from ..config import POSTGRES_CONFIG
 
@@ -34,6 +35,7 @@ class SQLAlchemyPatchTestCase(TracerTestCase):
         self.engine.dispose()
         unpatch()
 
+    @snapshot()
     def test_engine_traced(self):
         # ensures that the engine is traced
         rows = self.conn.execute(text("SELECT 1")).fetchall()
