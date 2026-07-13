@@ -116,6 +116,23 @@ Datadog::ProfilerStats::get_fast_copy_memory_syscall_fallback() const
 }
 
 void
+Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
+{
+    if (auto value = other.get_fast_copy_memory_user_disabled()) {
+        set_fast_copy_memory_user_disabled(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_capable()) {
+        set_fast_copy_memory_capable(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_syscall_fallback()) {
+        set_fast_copy_memory_syscall_fallback(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_enabled()) {
+        set_fast_copy_memory_enabled(*value);
+    }
+}
+
+void
 Datadog::ProfilerStats::add_copy_memory_error_count(size_t count)
 {
     copy_memory_error_count += count;

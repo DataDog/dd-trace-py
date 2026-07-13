@@ -33,6 +33,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         Py_BEGIN_ALLOW_THREADS;
         OriginTaskLinks::get_instance().enable();
         Py_END_ALLOW_THREADS;
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
