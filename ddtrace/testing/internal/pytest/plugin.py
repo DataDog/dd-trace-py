@@ -1146,8 +1146,10 @@ class TestOptPlugin:
             test.mark_forced_run()
             return
 
-        if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")):
-            # Skippable tests are already deselected in pytest_collection_modifyitems.
+        if not asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")) and self.manager.itr_skipping_level == ITRSkippingLevel.TEST:
+            # Test-level skippable tests are already deselected in pytest_collection_modifyitems.
+            # Suite-level skippable tests reach here only via the pytest_ignore_collect fallback (a
+            # file containing the unskippable marker), so this is still their only skip point.
             return
 
         if test.is_attempt_to_fix():

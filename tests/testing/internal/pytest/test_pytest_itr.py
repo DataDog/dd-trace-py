@@ -257,8 +257,9 @@ class TestITR:
         # Check that tests completed with failure (1 test failed).
         assert result.ret == 1
 
-        # Verify outcomes: one test skipped by ITR, one failed (not skipped), one test passed
-        result.assertoutcome(passed=1, failed=1, skipped=1)
+        # The ITR-skippable test is deselected at collection time, not skip-marked, so pytest's own
+        # outcome counters don't see it — only the failed and passed tests are counted here.
+        result.assertoutcome(passed=1, failed=1)
 
         # There should be events for 3 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 6
