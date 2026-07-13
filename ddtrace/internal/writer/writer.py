@@ -993,7 +993,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         finally:
             self._set_drop_rate()
 
-
     def _flush(self, raise_exc: bool = False) -> None:
         n_traces = self._exporter.buffered_traces()
         if n_traces == 0:

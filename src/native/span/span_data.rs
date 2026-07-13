@@ -198,8 +198,13 @@ fn truncate_span_text(py: Python<'_>, s: PyBackedString) -> PyBackedString {
         return s;
     }
     let keep = TRUNCATED_SPAN_ATTRIBUTE_LEN - TRUNCATED_SUFFIX.len();
-    let truncated: String = s.chars().take(keep).chain(TRUNCATED_SUFFIX.chars()).collect();
-    PyBackedString::try_from(PyString::new(py, &truncated)).expect("newly created PyString is valid UTF-8")
+    let truncated: String = s
+        .chars()
+        .take(keep)
+        .chain(TRUNCATED_SUFFIX.chars())
+        .collect();
+    PyBackedString::try_from(PyString::new(py, &truncated))
+        .expect("newly created PyString is valid UTF-8")
 }
 
 #[pyo3::pymethods]

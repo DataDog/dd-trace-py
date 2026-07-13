@@ -12,6 +12,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.version import __version__
@@ -45,7 +46,6 @@ def collect() -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
-    from ddtrace.internal import agent
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -57,12 +57,29 @@ def collect() -> dict[str, Any]:
     elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
         writer = tracer._span_aggregator.writer
         agent_url = writer.intake_url
+        # Note: intentionally not using ddtrace.internal.agent.info() here — importing it
+        # (even lazily) creates a new ddtrace.internal.debug -> ddtrace.internal.agent edge
+        # that closes a circular import back through ddtrace.internal.process_tags, since
+        # this module is itself imported by ddtrace._trace.tracer.
         try:
-            agent_info = agent.info(agent_url)
+            conn = get_connection(agent_url)
+            try:
+                conn.request("GET", "/info")
+                resp = conn.getresponse()
+                resp.read()
+            finally:
+                conn.close()
         except Exception as e:
             agent_error = "Agent not reachable at %s. Exception raised: %s" % (agent_url, str(e))
         else:
-            agent_error = None if agent_info is not None else "Agent not reachable at %s" % agent_url
+            if resp.status < 200 or resp.status >= 300:
+                agent_error = "Agent not reachable at %s. HTTP error status %s, reason %s" % (
+                    agent_url,
+                    resp.status,
+                    resp.reason,
+                )
+            else:
+                agent_error = None
     else:
         agent_url = "CUSTOM"
         agent_error = None
