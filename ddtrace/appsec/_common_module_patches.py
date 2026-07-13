@@ -3,6 +3,7 @@ import json
 import os
 from typing import Iterable
 from typing import Union
+from urllib.parse import urlunparse
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
@@ -373,8 +374,21 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
         return original_request_callable(*args, **kwargs)
 
 
+def _urllib3_absolute_url(instance, path: str) -> str:
+    try:
+        port = getattr(instance, "port", None)
+        netloc = "{}:{}".format(instance.host, port) if port and port not in (80, 443) else str(instance.host)
+        return urlunparse((instance.scheme, netloc, path, "", "", ""))
+    except Exception:  # nosec
+        return path
+
+
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
+    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
+    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
+    if isinstance(full_url, str) and full_url.startswith("/") and instance is not None:
+        # PoolManager passes a relative URI; rebuild the absolute URL so SSRF/API10 sees the host.
+        full_url = _urllib3_absolute_url(instance, full_url)
     if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:

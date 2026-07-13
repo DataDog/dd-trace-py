@@ -4,6 +4,7 @@ use libdd_data_pipeline::trace_exporter::{
     agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
+use libdd_shared_runtime::ForkSafeRuntime;
 use libdd_trace_utils::span::v04::Span;
 use pyo3::types::PyString;
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
@@ -22,11 +23,11 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder>,
+    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
-    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder> {
+    fn try_as_mut(&mut self) -> PyResult<&mut TraceExporterBuilder<ForkSafeRuntime>> {
         self.builder
             .as_mut()
             .ok_or(PyValueError::new_err("Builder has already been consumed"))
@@ -268,7 +269,7 @@ pub enum PutOutcome {
 /// A python object wrapping a [TraceExporter] instance plus a native span buffer.
 #[pyclass(name = "TraceExporter")]
 pub struct TraceExporterPy {
-    inner: Option<TraceExporter<NativeCapabilities>>,
+    inner: Option<TraceExporter<NativeCapabilities, ForkSafeRuntime>>,
     buffer: Mutex<TraceBuffer>,
 }
 

@@ -9,8 +9,11 @@ import pytest
 
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
+from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import Payload
 import ddtrace.internal.remoteconfig._connectors
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.client import RemoteConfigError
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.version import _pep440_to_semver
@@ -836,78 +839,119 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     mock_write.reset_mock()
 
 
-@pytest.mark.skip(reason="Tests old error handling behavior - needs rewrite for new callback dispatch error handling")
-@mock.patch.object(SyncRemoteConfigClient, "_send_request")
-def test_remote_config_client_callback_error(mock_send_request):
+# Target introduced by MOCK_AGENT_RESPONSES[1] (carried over unchanged in [2])
+_BASE_TARGET = "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config"
+
+
+def _process_through_base(rc_client, mock_send_request):
+    """Process responses 0-1 ("base" is introduced in response[1]; response[2] would modify it).
+    The polling process applies synchronously in _process_response, so "base" is applied — and
+    dispatched to the product exactly once — by the time request() returns.
+    """
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
+    for i in range(2):
+        mock_send_request.return_value = MOCK_AGENT_RESPONSES[i]
+        rc_client.request()
 
-    def callback_with_exception():
-        raise Exception("fake error")
 
+@mock.patch.object(SyncRemoteConfigClient, "_send_request")
+def test_apply_state_acknowledged_after_synchronous_apply(mock_send_request):
+    """The polling process applies inline, so apply_state is ACKNOWLEDGED once request() returns,
+    and the config is dispatched to the product exactly once.
+    """
+    callback = mock.MagicMock()
     rc_client = SyncRemoteConfigClient()
-    mock_callback = mock.mock.MagicMock()
-    rc_client.register_callback("ASM_FEATURES", callback_with_exception)
+    rc_client.register_callback("ASM_FEATURES", callback)
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        # 0.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client)
+        _process_through_base(rc_client, mock_send_request)
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_callback.assert_not_called()
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
+        # applied synchronously during request(); no separate poll needed
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
+        assert callback.call_count == 1  # dispatched to the product exactly once
 
-        # 1. An update that doesn’t have any new config files but does have an updated TUF Targets file.
-        # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
-        rc_client.request()
-        expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+        # a redundant subscriber poll must not re-dispatch (connector counter dedup)
+        rc_client.poll()
+        assert callback.call_count == 1
 
-        assert rc_client._last_error is None
-        _assert_response(mock_send_request, expected_response)
-        mock_send_request.reset_mock()
-        mock_callback.reset_mock()
 
-        # 2. A single configuration for the product is added. (“base”)
-        mock_send_request.return_value = MOCK_AGENT_RESPONSES[2]
-        rc_client.request()
-        expected_response = _expected_payload(
-            rc_client,
-            targets_version=2,
-            config_states=[
-                {
-                    "id": "ASM_FEATURES-base",
-                    "version": 1,
-                    "product": "ASM_FEATURES",
-                    "apply_state": 3,
-                    "apply_error": "Failed to apply configuration "
-                    "ConfigMetadata(id='ASM_FEATURES-base', product_name='ASM_FEATURES', "
-                    "sha256_hash='9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6', "
-                    "length=47, "
-                    "tuf_version=1, "
-                    "apply_state=1, "
-                    "apply_error=None) for "
-                    "product "
-                    "'ASM_FEATURES'",
-                }
-            ],
-            backend_client_state="eyJmb28iOiAiYmFyIn0=",
-            cached_target_files=[
-                {
-                    "path": "datadog/2/ASM_FEATURES/ASM_FEATURES-base/config",
-                    "length": 47,
-                    "hashes": [
-                        {
-                            "algorithm": "sha256",
-                            "hash": "9221dfd9f6084151313e3e4920121ae843614c328e4630ea371ba66e2f15a0a6",
-                        }
-                    ],
-                }
-            ],
-        )
+@mock.patch.object(SyncRemoteConfigClient, "_send_request")
+def test_apply_state_acknowledged_when_callback_raises(mock_send_request):
+    """A product callback failure is the product's concern; the config stays ACKNOWLEDGED."""
+    callback = mock.MagicMock(side_effect=Exception("fake error"))
 
-        _assert_response(mock_send_request, expected_response)
+    rc_client = SyncRemoteConfigClient()
+    rc_client.register_callback("ASM_FEATURES", callback)
+
+    with override_global_config(dict(_remote_config_enabled=False)):
+        _process_through_base(rc_client, mock_send_request)
+
+        # the callback was invoked and raised, yet the config is acknowledged
+        assert callback.call_count == 1
+        assert rc_client._applied_configs[_BASE_TARGET].apply_state == 2  # ACKNOWLEDGED
+
+
+def test_apply_state_acknowledged_when_callback_unregistered_before_dispatch():
+    """A config whose product callback is gone at dispatch is acknowledged, not left pending.
+
+    Otherwise it would be carried over as unchanged on later polls and never re-dispatched,
+    staying UNACKNOWLEDGED forever.
+    """
+    rc_client = RemoteConfigClient()
+    target = "datadog/2/ASM_DATA/ASM_DATA-base/config"
+    meta = ConfigMetadata(
+        id="ASM_DATA-base", product_name="ASM_DATA", sha256_hash="abc", length=1, tuf_version=1, apply_state=1
+    )
+    rc_client._applied_configs[target] = meta
+
+    # dispatch with no registered callbacks (the product was unregistered after publish)
+    rc_client._dispatch_payloads([Payload(meta, target, {"data": 1})], {})
+
+    assert rc_client._applied_configs[target].apply_state == 2  # ACKNOWLEDGED
+
+
+def test_apply_state_error_on_malformed_payload():
+    """A target file that cannot be deserialized is the only case reported as ERROR."""
+    import base64
+    import hashlib
+    from types import SimpleNamespace
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_callback("ASM_DATA", mock.MagicMock())
+    target = "datadog/2/ASM_DATA/malformed/config"
+    raw = b"{ this is not valid json"
+    meta = ConfigMetadata(
+        id="malformed",
+        product_name="ASM_DATA",
+        sha256_hash=hashlib.sha256(raw).hexdigest(),
+        length=len(raw),
+        tuf_version=1,
+    )
+    payload = SimpleNamespace(target_files=[SimpleNamespace(path=target, raw=base64.b64encode(raw))])
+    applied: dict = {}
+
+    rc_client._apply_config([], applied, target, meta, payload)
+
+    assert applied[target].apply_state == 3  # ERROR
+    assert applied[target].apply_error is not None
+
+
+def test_corrupt_payload_fails_poll_and_is_not_an_apply_error():
+    """Integrity failures (base64/hash) fail the whole poll; they are not per-config errors,
+    so a later poll with corrected bytes for the same metadata can still be applied.
+    """
+    import base64
+    from types import SimpleNamespace
+
+    rc_client = RemoteConfigClient()
+    rc_client.register_callback("ASM_DATA", mock.MagicMock())
+    target = "datadog/2/ASM_DATA/corrupt/config"
+    raw = b'{"valid": "json"}'
+    meta = ConfigMetadata(id="corrupt", product_name="ASM_DATA", sha256_hash="deadbeef", length=len(raw), tuf_version=1)
+    payload = SimpleNamespace(target_files=[SimpleNamespace(path=target, raw=base64.b64encode(raw))])
+    applied: dict = {}
+
+    with pytest.raises(RemoteConfigError):
+        rc_client._apply_config([], applied, target, meta, payload)
+    assert target not in applied  # not recorded as a per-config error

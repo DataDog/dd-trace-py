@@ -38,6 +38,7 @@ from tests.debugging.utils import create_capture_expressions_function_probe
 from tests.debugging.utils import create_capture_expressions_line_probe
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
+from tests.debugging.utils import create_metric_function_probe
 from tests.debugging.utils import create_metric_line_probe
 from tests.debugging.utils import create_snapshot_function_probe
 from tests.debugging.utils import create_snapshot_line_probe
@@ -468,6 +469,51 @@ def test_debugger_metric_probe_distribution_value(mock_metrics, stuff):
             call("probe.test.counter", 43.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.distribution.mock_calls
         )
+
+
+def _create_stuff_function_metric_probe(kind, evaluate_at=ProbeEvalTiming.DEFAULT):
+    return create_metric_function_probe(
+        probe_id="metric-function-probe-test",
+        module="tests.submod.stuff",
+        func_qname="mutator",
+        kind=kind,
+        name="test.counter",
+        tags={"debugger.probeid": "metric-function-probe-test"},
+        evaluate_at=evaluate_at,
+    )
+
+
+def test_debugger_metric_function_probe_default_fires_on_entry(mock_metrics, stuff):
+    with debugger() as d:
+        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER))
+        stuff.mutator([])
+        assert mock_metrics.increment.call_count == 1
+
+
+def test_debugger_metric_function_probe_entry_fires_on_entry(mock_metrics, stuff):
+    with debugger() as d:
+        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER, ProbeEvalTiming.ENTRY))
+        stuff.mutator([])
+        assert mock_metrics.increment.call_count == 1
+
+
+def test_debugger_metric_function_probe_exit_fires_on_exit(mock_metrics, stuff):
+    with debugger() as d:
+        d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER, ProbeEvalTiming.EXIT))
+        stuff.mutator([])
+        assert mock_metrics.increment.call_count == 1
+
+
+def test_debugger_metric_function_probe_fires_once_not_twice(mock_metrics, stuff):
+    """Each evaluate_at value must fire exactly once, not on both entry and exit."""
+    for timing in (ProbeEvalTiming.DEFAULT, ProbeEvalTiming.ENTRY, ProbeEvalTiming.EXIT):
+        mock_metrics.reset_mock()
+        with debugger() as d:
+            d.add_probes(_create_stuff_function_metric_probe(MetricProbeKind.COUNTER, timing))
+            stuff.mutator([])
+            assert mock_metrics.increment.call_count == 1, (
+                f"expected 1 call for evaluate_at={timing}, got {mock_metrics.increment.call_count}"
+            )
 
 
 def test_debugger_multiple_function_probes_on_same_function(stuff):

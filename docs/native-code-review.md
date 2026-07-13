@@ -90,6 +90,11 @@ hang during finalization in 3.14+.
 
 ## 2. Fork Safety for Synchronization Primitives
 
+> See also: `ddtrace/internal/README.md` — "Fork Safety" section. It documents
+> the full fork protocol for `PeriodicThread`, the `forksafe` hook registries,
+> the non-blocking constraint on fork hooks, and the lock-ordering restriction
+> on periodic threads.
+
 ### What goes wrong
 
 After `fork()`, any lock held by a thread in the parent is in an **undefined
