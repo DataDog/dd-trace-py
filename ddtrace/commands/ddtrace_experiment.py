@@ -274,7 +274,7 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
     published = sdk.publish_run(subject, inputs, project_name=args.project, experiment_name=args.experiment_name)
     sync = published.get("sync") or {}
     print(
-        "published experiment %r  (dataset %s: +%d/-%d, %d kept)"
+        "published experiment %r over dataset %r  (+%d/-%d, %d kept)"
         % (
             subject,
             published["dataset_name"],
@@ -283,13 +283,15 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
             sync.get("kept", 0),
         )
     )
-    print("  run     -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
+    # Always surface both URLs once they exist.
+    print("  experiment -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
+    print("  dataset    -> %s" % (published.get("dataset_url") or "LLM Obs -> Datasets"))
 
     if baseline_id:
-        # Compare the current run against the frozen first baseline.
+        # A frozen baseline exists -> always link the compare view (baseline vs this run).
         compare = sdk.compare_url_from_ids(baseline_id, published["experiment_id"], args.project)
         if compare:
-            print("  compare -> %s" % compare)
+            print("  compare    -> %s" % compare)
     else:
         # First publish: this run becomes the frozen baseline; also seed the local baseline so
         # offline `run` has a reference. Nothing to compare against yet.
@@ -302,8 +304,8 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
             project=args.project or "",
         )
         print(
-            "  this is the baseline — run `ddtrace-experiment run %s --publish` again after a "
-            "change to get a compare view." % args.target
+            "  (this run is the frozen baseline — run `ddtrace-experiment run %s --publish` again "
+            "after a change to get a compare view)" % args.target
         )
     _flush_llmobs()
 

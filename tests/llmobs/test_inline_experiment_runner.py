@@ -430,6 +430,8 @@ class _FakeRun:
 
 
 class _FakeDataset:
+    url = "http://ds/inline-experiment-portfolio"
+
     def __init__(self, records):
         self._records = [dict(r) for r in (records or [])]
         self.pushed = 0
@@ -513,6 +515,7 @@ def test_publish_run_syncs_stable_dataset_and_uses_subject_evaluators(monkeypatc
     assert ds.inputs() == [{"x": 1}]  # dataset synced to this run's inputs
     assert out["experiment_id"] == "run-1"
     assert out["dataset_name"] == "inline-experiment-portfolio"
+    assert out["dataset_url"] == "http://ds/inline-experiment-portfolio"  # surfaced for the CLI
     assert out["sync"] == {"added": 1, "deleted": 0, "kept": 0}
     assert out["pairs"] == [({"x": 1}, 11)]
 

@@ -59,6 +59,16 @@ def _experiment_id(experiment: Any) -> Optional[str]:
     return str(eid) if eid else None
 
 
+def dataset_url(dataset: Any) -> Optional[str]:
+    """The dataset's UI URL (``.../llm/datasets/<id>``), or None if not resolvable."""
+    try:
+        url = dataset.url
+        return str(url) if url else None
+    except Exception:
+        log.debug("inline experiment: could not resolve dataset url", exc_info=True)
+        return None
+
+
 # --------------------------------------------------------------------------- #
 # Unified `run --publish`: each run is a real Experiment (the "refresh" model).
 #
@@ -216,6 +226,7 @@ def publish_run(
         "url": experiment_url(experiment),
         "dataset": dataset,
         "dataset_name": ds_name,
+        "dataset_url": dataset_url(dataset),
         "sync": sync,
         "pairs": _rows_pairs(run),
     }
