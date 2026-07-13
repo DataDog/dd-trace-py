@@ -264,7 +264,8 @@ class Span(OtelSpan):
             if message:
                 self.set_attribute(ERROR_MSG, message)
             elif config._otel_trace_semantics_enabled:
-                # When OTel trace semantics mode is enabled, the error message should reflect the description of the latest span status
+                # When OTel trace semantics mode is enabled, the error message should reflect the description of the
+                # latest span status.
                 self._ddspan._remove_attribute(ERROR_MSG)
 
     def record_exception(self, exception, attributes=None, timestamp=None, escaped=False):
@@ -279,11 +280,7 @@ class Span(OtelSpan):
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.25.0/opentelemetry-sdk/src/opentelemetry/sdk/trace/__init__.py#L1018
             module = type(exception).__module__
             qualname = type(exception).__qualname__
-            exception_type = (
-                f"{module}.{qualname}"
-                if module and module != "builtins"
-                else qualname
-            )
+            exception_type = f"{module}.{qualname}" if module and module != "builtins" else qualname
         else:
             exception_type = "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__)
         attrs = {
