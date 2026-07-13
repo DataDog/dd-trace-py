@@ -101,10 +101,7 @@ uint64_t
 get_thread_cpu_time_us()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) != 0) {
         return 0;
@@ -134,10 +131,7 @@ void
 Sampler::adapt_sampling_interval()
 {
 #if defined(__linux__)
-    struct timespec ts
-    {
-        0, 0
-    };
+    struct timespec ts{ 0, 0 };
 
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     auto new_process_count = static_cast<uint64_t>(ts.tv_sec * 1'000'000ULL + ts.tv_nsec / 1000);
@@ -358,10 +352,16 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
     seed_fast_copy_profiler_stats();
 
-    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them. If a
-    // foreign component we can't wrap (abseil via vLLM/gRPC, PyTorch/CUDA) already owns
-    // them, overwriting it would cause handler-chaining races and make
-    // segv_handler_installed() report incorrectly, so leave it authoritative.
+    // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
+    //
+    // safe_memcpy recovers only when our handler owns BOTH signals (see danger.cc).
+    // We can chain on top of handlers we coordinate with (faulthandler, crashtracker:
+    // pause + uninstall/reinstall in stack.cpp / crashtracking.py). Libraries such as
+    // abseil (vLLM/gRPC) or PyTorch/CUDA install their own handlers independently—often
+    // lazily on other threads—so overwriting them breaks their crash path and faults
+    // during sampling may still reach their handler instead of our siglongjmp (PROF-14568).
+    // If a foreign owner is already authoritative, leave it in place and fall back to
+    // the syscall copy rather than reclaiming on top.
     static std::once_flag segv_handler_once;
     if (fast_copy_active) {
         std::call_once(segv_handler_once, []() {
