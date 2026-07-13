@@ -16,7 +16,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from urllib.parse import quote
-import uuid
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._inline_experiment import _REGISTRY
@@ -112,20 +111,27 @@ def compare_url(baseline: Any, current: Any, project_name: Optional[str] = None)
 
 
 # --------------------------------------------------------------------------- #
-# Unified `run --publish`: each run is a real Experiment.
+# Unified `run --publish`: each run is a real Experiment (the "refresh" model).
 #
-# First publish -> `publish_baseline`: a fresh Dataset (unique name, no accumulation) + the
-# boundary run through the engine as the BASELINE experiment (real spans -> cost, scored by
-# the subject's own quality evaluators). Its produced outputs are backfilled as the dataset's
-# ``expected_output`` so a later rerun has something to regress against.
-# Rerun publish -> `publish_current`: the SAME dataset, the current code run as the CURRENT
-# experiment, scored by the regression guard + the subject's evaluators, linked to the
-# baseline via the compare view. Correlation is by explicit dataset name / experiment id
-# (persisted in the local baseline file by the caller) — there is no sidecar.
+# One STABLE dataset per subject (``inline-experiment-<subject>``). Every publish run
+# ``sync_dataset``s it to EXACTLY this run's inputs (add missing / delete removed / keep
+# unchanged records with their ids, so the compare view lines up), then runs the boundary
+# through the engine as a timestamped experiment scored by the subject's OWN evaluators
+# (no regression guard — the regression signal is the compare view). The FIRST publish is
+# the frozen baseline; every later run compares current-vs-baseline. Correlation (dataset
+# name + baseline experiment id) is persisted in the local baseline file by the caller —
+# there is no sidecar.
 # --------------------------------------------------------------------------- #
-def _unique_dataset_name(name: str) -> str:
-    """A fresh dataset name per capture so repeated publishes never accumulate records."""
-    return "inline-experiment-%s-%s" % (name, uuid.uuid4().hex[:8])
+def _dataset_name(name: str) -> str:
+    """The one stable dataset for a subject (overwritten in place each publish run)."""
+    return "inline-experiment-%s" % name
+
+
+def _timestamp() -> str:
+    """A sortable run stamp so each run is a distinct experiment in the UI."""
+    from datetime import datetime
+
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
 def compare_url_from_ids(
@@ -156,136 +162,113 @@ def _rows_pairs(run: Any) -> list[tuple[Any, Any]]:
     return pairs
 
 
-def _backfill_expected(dataset: Any, pairs: list[tuple[Any, Any]]) -> None:
-    """Set each dataset record's ``expected_output`` to the output the baseline produced.
-
-    Matches by input (json key) rather than position, then pushes once. Best-effort: a push
-    failure is logged, not raised (the experiment already ran).
-    """
-    by_input = {json.dumps(i, sort_keys=True, default=str): o for i, o in pairs}
-    changed = False
-    for idx in range(len(dataset)):
-        key = json.dumps(dataset[idx].get("input_data"), sort_keys=True, default=str)
-        if key in by_input:
-            dataset.update(idx, {"expected_output": by_input[key]})
-            changed = True
-    if not changed:
-        return
-    try:
-        dataset.push()
-    except Exception:
-        log.debug("inline experiment: could not push backfilled expected_output", exc_info=True)
-
-
 def _baseline_marker() -> Callable[..., Any]:
-    """A trivial evaluator for the baseline when the subject has no evaluators of its own.
+    """A trivial evaluator used when the subject declares none of its own.
 
-    The baseline has no prior run to regress against, so ``regression_match`` would be
-    meaningless there — but the engine requires at least one evaluator. This records that an
-    output was produced, nothing more.
+    The engine requires at least one evaluator; this just records that an output was
+    produced. Real regression signal comes from the compare view, not an in-experiment check.
     """
 
-    def baseline_recorded(input_data: Any, output_data: Any, expected_output: Any) -> Any:
+    def output_present(input_data: Any, output_data: Any, expected_output: Any) -> Any:
         from ddtrace.llmobs._experiment import EvaluatorResult
 
         return EvaluatorResult(value=output_data is not None, assessment="recorded")
 
-    return baseline_recorded
+    return output_present
 
 
-def publish_baseline(
+def _input_key(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, default=str)
+
+
+def _pull_or_create_dataset(dataset_name: str, project_name: Optional[str]) -> Any:
+    """The subject's stable dataset, created empty if it doesn't exist yet."""
+    from ddtrace.llmobs import LLMObs
+
+    try:
+        return LLMObs.pull_dataset(dataset_name, project_name=project_name)
+    except Exception:
+        log.debug("inline experiment: dataset %r not found, creating it", dataset_name, exc_info=True)
+        return LLMObs.create_dataset(
+            dataset_name, project_name=project_name, description="Inline-experiment set (auto-managed).", records=[]
+        )
+
+
+def sync_dataset(dataset: Any, inputs: list[Any]) -> dict[str, int]:
+    """Diff-sync ``dataset`` to hold EXACTLY ``inputs``: add missing, delete removed, keep the
+    rest (with their record ids, so the compare view matches unchanged cases across runs).
+
+    Deletes are applied high-index-first (``Dataset.delete`` pops the local list). Pushes once
+    as a new version. Returns ``{"added", "deleted", "kept"}``.
+    """
+    want = {_input_key(i): i for i in inputs}
+    have_keys = [_input_key(dataset[idx].get("input_data")) for idx in range(len(dataset))]
+    seen: set[str] = set()
+    to_delete: list[int] = []
+    for idx, key in enumerate(have_keys):
+        if key in want and key not in seen:
+            seen.add(key)  # keep the first record for each wanted input
+        else:
+            to_delete.append(idx)  # not wanted, or a duplicate of one we already kept
+    for idx in sorted(to_delete, reverse=True):
+        dataset.delete(idx)
+    added = 0
+    for key, value in want.items():
+        if key not in seen:
+            dataset.append({"input_data": value})
+            added += 1
+    counts = {"added": added, "deleted": len(to_delete), "kept": len(seen)}
+    if added or to_delete:
+        try:
+            dataset.push()
+        except Exception:
+            log.debug("inline experiment: could not push dataset sync", exc_info=True)
+    return counts
+
+
+def publish_run(
     name: str,
     inputs: list[Any],
     project_name: Optional[str] = None,
     experiment_name: Optional[str] = None,
-    dataset_name: Optional[str] = None,
 ) -> dict[str, Any]:
-    """First publish: run the subject over ``inputs`` as the BASELINE experiment.
+    """Run the subject over ``inputs`` as one Experiment (the refresh model).
 
-    Creates a fresh dataset (input_data only), runs the real boundary through the engine
-    (spans -> cost) scored by the subject's own evaluators (no regression guard — nothing to
-    regress against yet), then backfills each record's ``expected_output`` with the produced
-    output. Returns ``{experiment, experiment_id, url, dataset, dataset_name, pairs}``.
-    Requires ``LLMObs`` to be enabled.
+    Syncs the subject's stable dataset to exactly ``inputs``, then runs the real boundary
+    through the engine (spans -> cost) scored by the subject's OWN evaluators. Returns
+    ``{experiment, experiment_id, url, dataset, dataset_name, sync, pairs}``. The caller
+    decides baseline-vs-compare from its persisted state; this function treats every run the
+    same. Requires ``LLMObs`` to be enabled.
     """
-    from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._experiment import DatasetRecordNew
-
-    ds_name = dataset_name or _unique_dataset_name(name)
-    records: list[DatasetRecordNew] = [{"input_data": i} for i in inputs]
-    dataset = LLMObs.create_dataset(
-        ds_name,
-        project_name=project_name,
-        description="Inline-experiment baseline for %r." % name,
-        records=records,
-    )
+    ds_name = _dataset_name(name)
+    dataset = _pull_or_create_dataset(ds_name, project_name)
+    sync = sync_dataset(dataset, inputs)
     spec = _REGISTRY.get(name, {})
     evaluators = resolve_evaluators(spec.get("evaluators")) or [_baseline_marker()]
+
+    from ddtrace.llmobs import LLMObs
+
     experiment = LLMObs.experiment(
-        experiment_name or ("%s-baseline" % name),
+        experiment_name or ("%s-%s" % (name, _timestamp())),
         _make_task(name),
         dataset,
         evaluators=evaluators,
         project_name=project_name,
-        tags={"source": "ddtrace-experiment", "inline_role": "baseline"},
+        tags={"source": "ddtrace-experiment"},
     )
     _set_mode(Mode.REPLAY)  # so an emit-shape end marker unwinds; a single-function subject is unaffected
     try:
         run = experiment.run()
     finally:
         _set_mode(Mode.OFF)
-    pairs = _rows_pairs(run)
-    _backfill_expected(dataset, pairs)
     return {
         "experiment": experiment,
         "experiment_id": _experiment_id(experiment),
         "url": experiment_url(experiment),
         "dataset": dataset,
         "dataset_name": ds_name,
-        "pairs": pairs,
-    }
-
-
-def publish_current(
-    name: str,
-    dataset_name: str,
-    comparator: Callable[[Any, Any], bool],
-    baseline_experiment_id: Optional[str] = None,
-    project_name: Optional[str] = None,
-    experiment_name: Optional[str] = None,
-) -> dict[str, Any]:
-    """Rerun publish: run the current code over the baseline's dataset as the CURRENT experiment.
-
-    Pulls the shared dataset (so ``expected_output`` = the baseline's output), runs the
-    boundary through the engine scored by the regression guard + the subject's evaluators, and
-    builds the compare-view URL against ``baseline_experiment_id``. Returns
-    ``{experiment, experiment_id, url, dataset, compare_url}``.
-    """
-    from ddtrace.llmobs import LLMObs
-
-    dataset = LLMObs.pull_dataset(dataset_name, project_name=project_name)
-    spec = _REGISTRY.get(name, {})
-    evaluators = [_make_evaluator(comparator), *resolve_evaluators(spec.get("evaluators"))]
-    experiment = LLMObs.experiment(
-        experiment_name or name,
-        _make_task(name),
-        dataset,
-        evaluators=evaluators,
-        project_name=project_name,
-        tags={"source": "ddtrace-experiment", "inline_role": "current"},
-    )
-    _set_mode(Mode.REPLAY)
-    try:
-        experiment.run()
-    finally:
-        _set_mode(Mode.OFF)
-    current_id = _experiment_id(experiment)
-    return {
-        "experiment": experiment,
-        "experiment_id": current_id,
-        "url": experiment_url(experiment),
-        "dataset": dataset,
-        "compare_url": compare_url_from_ids(baseline_experiment_id, current_id, project_name),
+        "sync": sync,
+        "pairs": _rows_pairs(run),
     }
 
 

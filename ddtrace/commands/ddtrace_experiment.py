@@ -227,17 +227,19 @@ def _resolve_subject(args: Any, ie: Any, mod: Any) -> str:
 
 
 def _publish_inputs(subject: str, mod: Any, baseline_file: str, runner: Any) -> list[Any]:
-    """Inputs for a first publish: prefer a prior offline baseline's inputs, else module INPUTS."""
+    """This run's inputs: the module's current ``INPUTS`` (what the user is testing now), else
+    a prior offline baseline's inputs. INPUTS wins so editing the module drives the refresh.
+    """
+    module_inputs = getattr(mod, "INPUTS", None)
+    if module_inputs:
+        return list(module_inputs)
     if os.path.exists(baseline_file):
         try:
             cases = runner.load_baselines(baseline_file).get(subject) or []
-            from_baseline = [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
-            if from_baseline:
-                return from_baseline
+            return [c["input"] for c in cases if isinstance(c, dict) and "input" in c]
         except Exception:
             pass
-    module_inputs = getattr(mod, "INPUTS", None)
-    return list(module_inputs) if module_inputs else []
+    return []
 
 
 def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> None:
@@ -255,36 +257,43 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
 
     from ddtrace.llmobs import _inline_experiment_sdk as sdk
 
-    ignore = [k for k in args.ignore.split(",") if k]
-    comparator = runner.comparator_from_spec(args.comparator, ignore)
-    meta = None if args.record else runner.load_publish_meta(baseline_file, subject)
+    inputs = _publish_inputs(subject, mod, baseline_file, runner)
+    if not inputs:
+        print(
+            "run --publish: no inputs for %r — define INPUTS in the module or run offline "
+            "`run %s` first to capture some." % (subject, args.target),
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
-    if meta and meta.get("dataset_name") and meta.get("baseline_experiment_id"):
-        published = sdk.publish_current(
+    meta = None if args.record else runner.load_publish_meta(baseline_file, subject)
+    baseline_id = meta.get("baseline_experiment_id") if meta else None
+
+    # Every run is the same operation: sync the stable dataset to this run's inputs and run the
+    # subject as one experiment (scored by the subject's own evaluators). The regression signal
+    # is the compare view, not an in-experiment check.
+    published = sdk.publish_run(subject, inputs, project_name=args.project, experiment_name=args.experiment_name)
+    sync = published.get("sync") or {}
+    print(
+        "published experiment %r  (dataset %s: +%d/-%d, %d kept)"
+        % (
             subject,
-            meta["dataset_name"],
-            comparator,
-            baseline_experiment_id=meta["baseline_experiment_id"],
-            project_name=args.project,
-            experiment_name=args.experiment_name,
+            published["dataset_name"],
+            sync.get("added", 0),
+            sync.get("deleted", 0),
+            sync.get("kept", 0),
         )
-        print("published current experiment %r:" % subject)
-        print("  current -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
-        if published.get("compare_url"):
-            print("  compare -> %s" % published["compare_url"])
+    )
+    print("  run     -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
+
+    if baseline_id:
+        # Compare the current run against the frozen first baseline.
+        compare = sdk.compare_url_from_ids(baseline_id, published["experiment_id"], args.project)
+        if compare:
+            print("  compare -> %s" % compare)
     else:
-        inputs = _publish_inputs(subject, mod, baseline_file, runner)
-        if not inputs:
-            print(
-                "run --publish (first publish): no inputs for %r — run offline `run %s` first to "
-                "capture a baseline, or define INPUTS in the module." % (subject, args.target),
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        published = sdk.publish_baseline(
-            subject, inputs, project_name=args.project, experiment_name=args.experiment_name
-        )
-        # Persist the local baseline + publish state INSIDE the baseline file (no sidecar).
+        # First publish: this run becomes the frozen baseline; also seed the local baseline so
+        # offline `run` has a reference. Nothing to compare against yet.
         runner.write_baseline_cases(baseline_file, subject, published["pairs"])
         runner.save_publish_meta(
             baseline_file,
@@ -293,10 +302,10 @@ def _cmd_run_publish(args: Any, ie: Any, runner: Any, baseline_file: str) -> Non
             baseline_experiment_id=published["experiment_id"],
             project=args.project or "",
         )
-        print("published baseline experiment %r:" % subject)
-        print("  baseline -> %s" % (published.get("url") or "LLM Obs -> Experiments"))
-        print("  dataset  -> %s  (%d case(s))" % (published["dataset_name"], len(published["pairs"])))
-        print("edit your code, then `ddtrace-experiment run %s --publish` to compare." % args.target)
+        print(
+            "  this is the baseline — run `ddtrace-experiment run %s --publish` again after a "
+            "change to get a compare view." % args.target
+        )
     _flush_llmobs()
 
 
