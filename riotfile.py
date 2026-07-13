@@ -589,6 +589,20 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="wrapping",
+            env={
+                # Opt into the future @tracer.wrap span-name behaviour so wrapping a
+                # method does not emit a DDTraceDeprecationWarning per test.
+                "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
+            },
+            command="pytest -v -n auto {cmdargs} tests/wrapping/",
+            pys=select_pys(),
+            pkgs={
+                "pytest-xdist": latest,
+                "wrapt": [latest, "<2.0.0"],
+            },
+        ),
+        Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -3208,6 +3222,15 @@ venv = Venv(
                 "google-adk": ["~=1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
+            },
+        ),
+        Venv(
+            name="mistralai",
+            command="pytest {cmdargs} tests/contrib/mistralai",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "mistralai": latest,
             },
         ),
         Venv(

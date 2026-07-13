@@ -13,7 +13,8 @@
       "_dd.llmobs.model_provider": "openai",
       "_dd.llmobs.span_kind": "llm",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69de55a900000000",
+      "_dd.p.tid": "6a39950300000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.openai",
       "component": "openai",
       "language": "python",
@@ -23,13 +24,14 @@
       "openai.request.model": "gpt-4o-2024-08-06",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "gpt-4o-2024-08-06",
-      "runtime-id": "59e87a92d11b4fb79e31606d290b1ab0"
+      "runtime-id": "771efd5adcd64ab58d4999b3cf18016f"
     },
     "metrics": {
-      "_dd.llmobs.enabled": 0,
-      "_dd.llmobs.input_tokens": 113,
-      "_dd.llmobs.output_tokens": 99,
-      "_dd.llmobs.total_tokens": 212,
+      "_dd.llmobs.cache_read_input_tokens": 0.0,
+      "_dd.llmobs.enabled": 0.0,
+      "_dd.llmobs.input_tokens": 113.0,
+      "_dd.llmobs.output_tokens": 99.0,
+      "_dd.llmobs.total_tokens": 212.0,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
@@ -38,8 +40,8 @@
       "openai.organization.ratelimit.requests.remaining": 9999.0,
       "openai.organization.ratelimit.tokens.limit": 30000000.0,
       "openai.organization.ratelimit.tokens.remaining": 29999868.0,
-      "process_id": 94238.0
+      "process_id": 67638.0
     },
-    "duration": 37302792,
-    "start": 1776178601592941292
+    "duration": 113847250,
+    "start": 1782158595199036916
   }]]
