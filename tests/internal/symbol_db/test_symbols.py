@@ -400,6 +400,50 @@ def test_symbols_fork_uploads():
         os.waitpid(pid, 0)
 
 
+def test_symbols_child_disable_is_permanent(monkeypatch):
+    """Regression test for a memory leak in forked workers (e.g. gunicorn/uvicorn).
+
+    Once SymDB has been disabled in a forked child process, subsequent periodic
+    remote-config callbacks must not reinstall the uploader, even if the fork
+    detection condition no longer holds and a fresh enablement payload is
+    received. Before the fix, install()/uninstall() could cycle indefinitely,
+    with each install() rescanning all loaded modules and leaking memory until
+    the process was OOM-killed.
+    """
+    from ddtrace.internal.remoteconfig import ConfigMetadata
+    from ddtrace.internal.remoteconfig import Payload
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.symbol_db import remoteconfig as symdb_remoteconfig
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    monkeypatch.setattr(symdb_remoteconfig, "_permanently_disabled", False)
+    monkeypatch.setattr(remoteconfig_poller, "unregister_callback", mock.Mock())
+    monkeypatch.setattr(remoteconfig_poller, "disable_product", mock.Mock())
+    monkeypatch.setattr(symdb_remoteconfig, "get_ancestor_runtime_id", lambda: "fake-runtime-id")
+    # Simulate the fork-detection condition firing once (triggering the disable
+    # branch) and then no longer holding on later periodic callbacks.
+    monkeypatch.setattr(symdb_remoteconfig, "has_forked", mock.Mock(side_effect=[True, False, False, False]))
+
+    callback = symdb_remoteconfig.SymbolDatabaseCallback()
+    rc_data = [Payload(ConfigMetadata("test", "symdb", "hash", 0, 0), {"upload_symbols": True}, None)]
+
+    with (
+        mock.patch.object(SymbolDatabaseUploader, "is_installed", side_effect=[True, False, False, False]),
+        mock.patch.object(SymbolDatabaseUploader, "uninstall") as mock_uninstall,
+        mock.patch.object(SymbolDatabaseUploader, "install") as mock_install,
+    ):
+        callback(rc_data)
+        mock_uninstall.assert_called_once()
+        assert symdb_remoteconfig._permanently_disabled is True
+
+        # Later callbacks would have re-triggered install() without the fix,
+        # since the fork condition no longer holds and is_installed() is False.
+        for _ in range(3):
+            callback(rc_data)
+
+        mock_install.assert_not_called()
+
+
 @pytest.mark.subprocess(run_module=True, err=None)
 def test_symbols_spawn_uploads():
     def spawn_target(results):
