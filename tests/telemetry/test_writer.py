@@ -403,6 +403,7 @@ import opentelemetry
         {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},
         {"name": "DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP", "origin": "env_var", "value": ".*"},
         {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": True},
+        {"name": "DD_TRACE_OTEL_SEMANTICS_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", "origin": "env_var", "value": 3},
         {
