@@ -644,10 +644,6 @@ def _annotate_llmobs_span_data(
                     if cost_tag not in existing_cost_tags:
                         existing_cost_tags.append(cost_tag)
         if metrics is not None:
-            # LLMObs ingestion treats dots in metric keys as nested-path separators. Because the
-            # metrics field is decoded as a flat map of numeric values, a dotted key (e.g.
-            # "anomaly.query_count") is expanded into a nested map and fails to decode, dropping the
-            # whole span batch. Replace dots with underscores to keep such keys as flat metric keys.
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
             # Tag values are serialized as strings, so coerce non-string values here.
