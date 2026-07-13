@@ -409,13 +409,20 @@ class TestITR:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        # The attempt_to_fix test is not deselected, so it (and test_should_run) actually execute.
-        result.assertoutcome(passed=2)
 
-        atf_test = event_capture.event_by_test_name("test_attempt_to_fix")
-        assert atf_test["content"]["meta"]["test.status"] == "pass"
-        assert atf_test["content"]["meta"].get("test.skipped_by_itr") is None
-        assert atf_test["content"]["meta"].get("test.skip_reason") is None
+        # The attempt_to_fix test is not deselected, so it actually executes — and since it always
+        # passes, ATF retries it the full default 20 times (see test_atf_passing_test_retried_fully:
+        # 1 initial + 20 retries = 21 events). pytest's own outcome counters report retries as "rerun",
+        # not "passed", so we assert via events instead of result.assertoutcome.
+        atf_events = list(event_capture.events_by_test_name("test_attempt_to_fix"))
+        assert len(atf_events) == 21
+        for atf_test in atf_events:
+            assert atf_test["content"]["meta"]["test.status"] == "pass"
+            assert atf_test["content"]["meta"].get("test.skipped_by_itr") is None
+            assert atf_test["content"]["meta"].get("test.skip_reason") is None
+
+        run_test = event_capture.event_by_test_name("test_should_run")
+        assert run_test["content"]["meta"]["test.status"] == "pass"
 
         deselected_test = event_capture.event_by_test_name("test_should_be_deselected")
         assert deselected_test["content"]["meta"]["test.status"] == "skip"
