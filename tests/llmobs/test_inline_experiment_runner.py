@@ -185,8 +185,8 @@ def test_replay_from_loaded_baseline_cases():
     assert runner.replay("e", runner.structural, cases=cases)[0]["evals"][0]["assessment"] == "changed"
 
 
-# --- SDK bridge (Slice C) -------------------------------------------------- #
-def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
+# --- SDK bridge ------------------------------------------------------------ #
+def test_sdk_bridge_task_replays_subject():
     @experiment_start(name="e", inputs=["x"], output=lambda r: r)
     def f(x):
         return {"v": x, "ts": "volatile"}
@@ -194,12 +194,6 @@ def test_sdk_bridge_task_replays_subject_and_evaluator_wraps_comparator():
     _set_mode(Mode.REPLAY)
     task = sdk._make_task("e")
     assert task({"x": 5}, None) == {"v": 5, "ts": "volatile"}  # task re-invokes the subject
-
-    ev = sdk._make_evaluator(runner.structural)
-    match = ev({}, {"v": 5, "ts": "a"}, {"v": 9, "ts": "b"})  # same shape
-    assert match.value is True and match.assessment == "match"
-    changed = ev({}, {"v": 5}, {"v": 9, "extra": 1})  # extra field
-    assert changed.value is False and changed.assessment == "changed"
 
 
 # --- evaluators ------------------------------------------------------------ #
@@ -276,135 +270,19 @@ def test_replay_scores_attached_evaluators_only_when_enabled():
     assert on["regression_match"] == "match" and on["at_least_as_long"] == "pass"
 
 
-def test_publish_stacks_user_evaluators_behind_guard(monkeypatch):
-    captured: dict = {}
-
-    class _Exp:
-        url = "http://exp"
-
-        def run(self):
-            pass
-
-    class _FakeLLMObs:
-        enabled = True
-
-        @staticmethod
-        def create_dataset(name, **kw):
-            return object()
-
-        @staticmethod
-        def experiment(name, task, dataset, evaluators=None, **kw):
-            captured["evaluators"] = evaluators
-            return _Exp()
-
-    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
-
-    def my_check(input_data, output_data, expected_output):
-        return output_data == expected_output
-
-    @experiment_start(name="e", inputs=["x"], output=lambda r: r, evaluators=lambda: [my_check])
-    def f(x):
-        return x
-
-    sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural)
-    evs = captured["evaluators"]
-    assert evs[0].__name__ == "regression_match"  # always-on guard first
-    assert evs[1] is my_check  # user evaluator stacked on top
-
-
-def test_publish_creates_baseline_and_current_over_same_dataset(monkeypatch):
-    created = []
-    datasets = []
-
-    class _Exp:
-        def __init__(self, name):
-            self.name = name
-            self._id = "id-" + name
-
-        def run(self):
-            pass
-
-    class _FakeLLMObs:
-        enabled = True
-
-        @staticmethod
-        def create_dataset(name, **kw):
-            datasets.append(name)
-            return object()
-
-        @staticmethod
-        def experiment(name, task, dataset, evaluators=None, **kw):
-            created.append((name, task))
-            return _Exp(name)
-
-    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
-
-    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
-    def f(x):
-        return x
-
-    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 11}], runner.structural)
-
-    names = [n for n, _ in created]
-    assert names == ["inline-e-baseline", "inline-e"]  # baseline reference first, then current
-    assert datasets == ["inline-experiment-e"]  # both runs share one dataset
-
-    baseline_task = created[0][1]  # the baseline task echoes the captured output (no re-run)
-    assert baseline_task({"x": 1}, None) == 11
-
-    # compare view = baseline experiment page (first id) with current as the compare target
-    cu = sdk.compare_url(result["baseline"], result["current"], project_name="proj x")
-    assert cu and "/llm/experiments/id-inline-e-baseline?compareTargetExperimentId=id-inline-e" in cu
-    assert cu.endswith("&project=proj%20x")  # project is url-encoded
-
-
-def test_publish_baseline_can_be_disabled(monkeypatch):
-    created = []
-
-    class _E:
-        _id = "x"
-
-        def run(self):
-            pass
-
-    class _FakeLLMObs:
-        enabled = True
-
-        @staticmethod
-        def create_dataset(name, **kw):
-            return object()
-
-        @staticmethod
-        def experiment(name, task, dataset, evaluators=None, **kw):
-            created.append(name)
-            return _E()
-
-    monkeypatch.setattr(llmobs_pkg, "LLMObs", _FakeLLMObs)
-
-    @experiment_start(name="e", inputs=["x"], output=lambda r: r)
-    def f(x):
-        return x
-
-    result = sdk.run_as_experiment("e", [{"input": {"x": 1}, "output": 1}], runner.structural, publish_baseline=False)
-    assert created == ["inline-e"]  # only the current run, no baseline
-    assert result["baseline"] is None
-
-
 # --- CLI helpers ----------------------------------------------------------- #
 def test_cli_arg_parser():
     p = cli._build_arg_parser()
-    a = p.parse_args(["capture", "myapp:gen", "--out", "b.json"])
-    assert a.command == "capture" and a.target == "myapp:gen" and a.out == "b.json"
-    a = p.parse_args(["replay", "myapp", "--ignore", "a,b"])
-    assert a.command == "replay" and a.ignore == "a,b" and a.comparator == "structural"
-    a = p.parse_args(["replay", "myapp", "--publish", "--project", "p", "--ml-app", "m"])
-    assert a.publish is True and a.project == "p" and a.ml_app == "m"
-    assert p.parse_args(["replay", "myapp", "--evaluate"]).evaluate is True
-    assert p.parse_args(["replay", "myapp"]).evaluate is False
+    # `run` and `list` are the only verbs; capture/replay were removed.
+    assert p.parse_args(["run", "myapp"]).command == "run"
     assert p.parse_args(["list", "myapp"]).command == "list"
-    # --env-file is shared across all subcommands (default None -> falls back to .env)
-    assert p.parse_args(["capture", "m:e", "--env-file", "x.env"]).env_file == "x.env"
-    assert p.parse_args(["replay", "myapp"]).env_file is None
+    with pytest.raises(SystemExit):
+        p.parse_args(["capture", "myapp:gen"])
+    with pytest.raises(SystemExit):
+        p.parse_args(["replay", "myapp"])
+    # --env-file is shared across subcommands (default None -> falls back to .env)
+    assert p.parse_args(["run", "m", "--env-file", "x.env"]).env_file == "x.env"
+    assert p.parse_args(["run", "myapp"]).env_file is None
     assert p.parse_args(["list", "myapp", "--env-file", "y.env"]).env_file == "y.env"
 
 

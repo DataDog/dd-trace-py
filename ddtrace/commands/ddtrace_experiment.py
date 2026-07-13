@@ -13,15 +13,14 @@ whether a baseline already exists:
 
 ``run`` is **offline by default**: it records or compares against a local baseline file
 (``.llmobs_experiments.json``) and sets a CI-friendly exit code, with no backend or
-credentials required. ``--publish`` (opt-in) additionally sends the run to LLM Obs
-Experiments as a dataset + experiment so it appears in the UI with cost + eval metrics.
+credentials required. Add ``--publish`` (opt-in) to also send the run to LLM Obs
+Experiments: the first publish is the frozen **baseline** (a real run with cost + eval
+metrics over the subject's auto-managed dataset); every later publish is compared against
+it in the **compare view**. The dataset is refreshed to exactly each run's inputs.
 
 Activation is positive and explicit — the decorators are inert unless this command runs,
 so they are safe to leave in production code. As a one-way fail-safe this command also
 refuses to run when it looks like production (no TTY and ``DD_ENV=prod``).
-
-The legacy ``capture`` / ``replay`` verbs remain as the two halves of ``run`` and will be
-removed once ``run`` fully subsumes them.
 """
 
 from __future__ import annotations
@@ -386,42 +385,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     run.add_argument("--experiment-name", default=None, help="experiment name for --publish (default: the subject)")
     run.add_argument("--ml-app", default=None, help="ml_app for --publish (default: $DD_LLMOBS_ML_APP)")
 
-    cap = sub.add_parser("capture", parents=[common], help="run the entrypoint and persist a baseline")
-    cap.add_argument("target", help="module:entrypoint that drives the app (e.g. myapp:generate_traffic)")
-    cap.add_argument("--out", default=None, help="baseline file to write (default: .llmobs_experiments.json)")
-    cap.add_argument(
-        "--trace",
-        action="store_true",
-        help="also enable LLM Obs so the capture run's traces appear in the UI "
-        "(needs DD_API_KEY or a Datadog agent); links each case to its trace",
-    )
-    cap.add_argument("--ml-app", default=None, help="ml_app for --trace (default: $DD_LLMOBS_ML_APP)")
-
-    rep = sub.add_parser("replay", parents=[common], help="replay the current code against a persisted baseline")
-    rep.add_argument("target", help="module to import (registers the decorated subjects)")
-    rep.add_argument(
-        "--in", dest="infile", default=None, help="baseline file to read (default: .llmobs_experiments.json)"
-    )
-    rep.add_argument(
-        "--comparator", default="structural", choices=["exact", "structural", "ignoring"], help="default: structural"
-    )
-    rep.add_argument("--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)")
-    rep.add_argument(
-        "--publish",
-        action="store_true",
-        help="run via the LLM Obs Experiments SDK so results appear in the Experiments UI (needs DD_API_KEY)",
-    )
-    rep.add_argument("--ml-app", default=None, help="ml_app for --publish (default: $DD_LLMOBS_ML_APP)")
-    rep.add_argument("--project", default=None, help="project name for --publish")
-    rep.add_argument("--experiment-name", default=None, help="experiment name for --publish")
-    rep.add_argument(
-        "--evaluate",
-        action="store_true",
-        help="also score the boundary's attached `evaluators` locally and print verdicts "
-        "(may call provider APIs for LLM judges); a failing evaluator gates the exit code. "
-        "On --publish, evaluators always run through the Experiments engine.",
-    )
-
     lst = sub.add_parser("list", parents=[common], help="import the target and list registered experiment subjects")
     lst.add_argument("target", help="module[:entrypoint] to import")
     return parser
@@ -458,90 +421,6 @@ def main() -> None:
     if args.command == "run":
         _cmd_run(args, ie, runner)
         return
-
-    if args.command == "capture":
-        # Enable LLM Obs BEFORE importing the app so its LLM integrations are patched
-        # before the app builds its clients (otherwise the calls aren't traced).
-        ml_app = _enable_llmobs(args.ml_app) if args.trace else None
-        _, entry = _import_target(args.target)  # registers subjects
-        if entry is None:
-            print("capture needs 'module:entrypoint' to drive the app (e.g. myapp:generate_traffic).", file=sys.stderr)
-            sys.exit(2)
-        ie._set_trace(bool(args.trace))
-        ie._set_mode(ie.Mode.CAPTURE)
-        result = entry()
-        if inspect.iscoroutine(result):
-            asyncio.run(result)
-        ie._set_mode(ie.Mode.OFF)
-        ie._set_trace(False)
-        if args.trace:
-            _flush_llmobs()  # ensure the capture run's spans are sent before exit
-        out = args.out or runner.DEFAULT_BASELINE_PATH
-        data = runner.save_baselines(out)
-        case_count = sum(len(v) for v in data.values())
-        print("captured %d case(s) across %d experiment(s) -> %s" % (case_count, len(data), os.path.abspath(out)))
-        if args.trace:
-            linked = sum(1 for cases in data.values() for c in cases if c.get("trace"))
-            print(
-                "traces enabled (ml_app: %s) — %d/%d case(s) linked; view in LLM Observability."
-                % (ml_app, linked, case_count)
-            )
-        return
-
-    # replay
-    _import_target(args.target)  # registers subjects (start fns needed for re-invocation)
-    infile = args.infile or runner.DEFAULT_BASELINE_PATH
-    if not os.path.exists(infile):
-        print("no baseline at %s — run `ddtrace-experiment capture` first." % infile, file=sys.stderr)
-        sys.exit(2)
-    baselines = runner.load_baselines(infile)
-    ignore = [k for k in args.ignore.split(",") if k]
-    comparator = runner.comparator_from_spec(args.comparator, ignore)
-
-    if args.publish:
-        # Route through the real Experiments SDK so results land in the UI.
-        from ddtrace.internal.settings import env
-        from ddtrace.llmobs import LLMObs
-        from ddtrace.llmobs import _inline_experiment_sdk as sdk
-
-        if not LLMObs.enabled:
-            ml_app = args.ml_app or env.get("DD_LLMOBS_ML_APP") or "inline-experiments"
-            LLMObs.enable(ml_app=ml_app, agentless_enabled=True)
-        for name, cases in baselines.items():
-            if name not in ie.registered_experiments():
-                print("  (skipping %r — not registered by %r)" % (name, args.target))
-                continue
-            result = sdk.run_as_experiment(
-                name, cases, comparator, experiment_name=args.experiment_name, project_name=args.project
-            )
-            print("published experiment %r:" % name)
-            if result.get("baseline") is not None:
-                print("  baseline -> %s" % (sdk.experiment_url(result["baseline"]) or "?"))
-            print("  current  -> %s" % (sdk.experiment_url(result["current"]) or "LLM Obs -> Experiments"))
-            compare = sdk.compare_url(result.get("baseline"), result["current"], project_name=args.project)
-            if compare:
-                print("  compare  -> %s" % compare)
-            dataset = sdk.dataset_url(result.get("dataset"))
-            if dataset:
-                print("  dataset  -> %s" % dataset)
-        return
-
-    ie._set_mode(ie.Mode.REPLAY)
-    total: dict[str, int] = {}
-    for name, cases in baselines.items():
-        if name not in ie.registered_experiments():
-            print("  (skipping %r — not registered by %r)" % (name, args.target))
-            continue
-        counts = _print_report(name, runner.replay(name, comparator, cases=cases, score_evaluators=args.evaluate))
-        for k, v in counts.items():
-            total[k] = total.get(k, 0) + v
-    ie._set_mode(ie.Mode.OFF)
-
-    # CI-friendly: non-zero exit if the run errored or never reached its end (exec), the
-    # default comparison evaluator reported `changed`, or (with --evaluate) an attached
-    # evaluator failed OR errored (a check that didn't run isn't a pass).
-    gate = ("CHANGED", "ERROR", "NO_END", "EVAL_FAIL", "EVAL_ERROR")
-    sys.exit(1 if any(total.get(k) for k in gate) else 0)
 
 
 if __name__ == "__main__":

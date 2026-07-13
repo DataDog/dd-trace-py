@@ -2,8 +2,9 @@
 
 This is the foundation layer for the "unit test for LLM apps" paradigm described in
 ``ddtrace/llmobs/_local_regression_experiments_design.md`` (RFC-002): a developer marks
-an input->output boundary inline in their already-instrumented app, and an explicit,
-out-of-band runner captures a baseline and replays the *current* code against it.
+an input->output boundary inline in their already-instrumented app, and the explicit,
+out-of-band ``ddtrace-experiment run`` command records a baseline and re-runs the
+*current* code against it (offline by default; ``--publish`` sends it to Experiments).
 
 This module provides ONLY the novel core:
   * ``experiment_start`` / ``experiment_end`` decorators (sync + async),
