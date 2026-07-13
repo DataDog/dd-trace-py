@@ -10,20 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69e6428d00000000",
+      "_dd.p.tid": "6a3ec25c00000000",
+      "_dd.svc_src": "m",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
-      "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
+      "runtime-id": "7700e6ebfafe4178aa4dc076821a34a9"
     },
     "metrics": {
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 507.0
+      "process_id": 30712.0
     },
-    "duration": 40552833,
-    "start": 1776697997027717839
+    "duration": 34979333,
+    "start": 1782497884572964961
   },
      {
        "name": "Calculate participants' average ages",
@@ -35,15 +36,16 @@
        "type": "",
        "error": 0,
        "meta": {
-         "runtime-id": "6779cc59a5b84839a09ffe339a3c6f1c"
+         "_dd.svc_src": "m",
+         "runtime-id": "7700e6ebfafe4178aa4dc076821a34a9"
        },
        "metrics": {
          "_dd.measured": 1.0,
          "_dd.top_level": 1.0,
-         "process_id": 507.0
+         "process_id": 30712.0
        },
-       "duration": 17576292,
-       "start": 1776697997030937714
+       "duration": 16477875,
+       "start": 1782497884579433294
      },
         {
           "name": "Python Data Analyst",
@@ -54,11 +56,14 @@
           "parent_id": 2,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 17278500,
-          "start": 1776697997031185089
+          "duration": 15768542,
+          "start": 1782497884579998044
         },
            {
              "name": "Average Calculator",
@@ -69,11 +74,14 @@
              "parent_id": 4,
              "type": "",
              "error": 0,
+             "meta": {
+               "_dd.svc_src": "m"
+             },
              "metrics": {
                "_dd.measured": 1.0
              },
-             "duration": 73167,
-             "start": 1776697997040496297
+             "duration": 123917,
+             "start": 1782497884587081002
            },
      {
        "name": "Recommend fun activities",
@@ -84,11 +92,14 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
+       "meta": {
+         "_dd.svc_src": "m"
+       },
        "metrics": {
          "_dd.measured": 1.0
        },
-       "duration": 15434417,
-       "start": 1776697997051249297
+       "duration": 7235125,
+       "start": 1782497884598459794
      },
         {
           "name": "Tour Guide",
@@ -99,9 +110,12 @@
           "parent_id": 3,
           "type": "",
           "error": 0,
+          "meta": {
+            "_dd.svc_src": "m"
+          },
           "metrics": {
             "_dd.measured": 1.0
           },
-          "duration": 15172667,
-          "start": 1776697997051462464
+          "duration": 6500541,
+          "start": 1782497884599085336
         }]]
