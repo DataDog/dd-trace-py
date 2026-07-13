@@ -27,9 +27,16 @@ from tests.testing.mocks import mock_backend_connector
 class TestBackendConnector:
     """Tests for BackendConnector class."""
 
-    def test_constants(self) -> None:
+    def test_constants(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test module constants."""
-        assert DEFAULT_TIMEOUT_SECONDS == 30.0
+        # The default timeout should be 30.0 when no env var is set
+        monkeypatch.delenv("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS", raising=False)
+        # Verify the parsing function returns the correct default
+        assert _http_module._parse_timeout_millis(None) == 30.0
+        # Verify the module constant is set correctly (may be overridden if env var was set at import time)
+        from ddtrace.internal.settings import env as settings_env
+        expected = _http_module._parse_timeout_millis(settings_env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
+        assert DEFAULT_TIMEOUT_SECONDS == expected
 
     @patch("http.client.HTTPSConnection")
     def test_init_default_parameters(self, mock_https_connection: Mock) -> None:
