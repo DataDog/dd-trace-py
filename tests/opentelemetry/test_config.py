@@ -364,7 +364,8 @@ def test_parse_otlp_headers(raw, expected):
 def test_trace_metrics_endpoint_defaults_to_http_json():
     """The native trace-metrics exporter is HTTP/JSON only, so its endpoint must resolve to an
     HTTP ``/v1/metrics`` endpoint even when the (default) metrics protocol is gRPC. Otherwise the
-    auto-enable path would post JSON metrics to the gRPC endpoint (``:4317`` with no path)."""
+    auto-enable path would post JSON metrics to the gRPC endpoint (``:4317`` with no path).
+    """
     from ddtrace.internal.settings._opentelemetry import otel_config
 
     endpoint = otel_config.exporter.TRACE_METRICS_ENDPOINT
