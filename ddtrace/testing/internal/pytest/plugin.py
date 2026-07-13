@@ -289,6 +289,11 @@ class TestOptPlugin:
         self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
+        # Whether this process is responsible for emitting ITR-ignored-suite events/metrics.
+        # Every xdist worker performs a full, unsharded collection pass (so they all discover the
+        # same ignored suites), but we must only report/count them once per session. We elect the
+        # first worker ("gw0") as the sole owner; non-xdist runs always own it.
+        self._is_itr_ignored_suite_event_owner = True
         self._itr_ignored_suite_paths: list[Path] = []
 
         self.manager = session_manager
@@ -306,6 +311,7 @@ class TestOptPlugin:
             if session_id := xdist_worker_input.get("dd_session_id"):
                 self.session.set_session_id(session_id)
                 self.is_xdist_worker = True
+                self._is_itr_ignored_suite_event_owner = xdist_worker_input.get("workerid") == "gw0"
 
         if session.config.getoption("ddtrace-patch-all"):
             self.enable_all_ddtrace_integrations = True
@@ -361,6 +367,11 @@ class TestOptPlugin:
                 log.debug("Could not patch Selenium for test visibility", exc_info=True)
 
     def pytest_sessionfinish(self, session: pytest.Session) -> None:
+        # When suite-level ITR skips every collected file, pytest exits with NO_TESTS_COLLECTED (5).
+        # Override to OK so CI jobs don't fail when ITR legitimately skips the entire run.
+        if session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED and self._itr_ignored_suite_paths:
+            session.exitstatus = pytest.ExitCode.OK
+
         # With xdist, the main process does not execute tests, so we cannot rely on the normal `session.get_status()`
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
@@ -466,17 +477,22 @@ class TestOptPlugin:
 
         This fires before the file is imported, saving the cost of module import and test discovery.
         We only ignore a file when we are sure it is safe to do so:
-          - the ITR deselect mode is active (the default; opt out via DD_CIVISIBILITY_ITR_SKIP), and
+          - suite-level ITR skipping is active, and
           - no test in the file carries the unskippable marker (checked via a fast text scan — if the
             marker string is present anywhere in the source we fall back to normal collection so that
             pytest_collection_modifyitems can handle the file test-by-test).
         """
-        if asbool(env.get("DD_CIVISIBILITY_ITR_SKIP")):
-            return None
-
         if collection_path.suffix != ".py":
             return None
 
+        # Check suite-level skippability first (cheap: returns False immediately in test mode
+        # or when the suite is not in the skippable set) to avoid unnecessary file I/O.
+        if not self.manager.is_skippable_suite_path(collection_path, root_path=config.rootpath):
+            return None
+
+        # The suite is skippable — scan the source for the unskippable marker before committing
+        # to the skip.  If the marker string appears anywhere in the file we fall back to normal
+        # collection so that pytest_collection_modifyitems can handle it test-by-test.
         try:
             source = collection_path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -485,11 +501,8 @@ class TestOptPlugin:
         if ITR_UNSKIPPABLE_REASON in source:
             return None
 
-        if self.manager.is_skippable_suite_path(collection_path):
-            self._itr_ignored_suite_paths.append(collection_path)
-            return True
-
-        return None
+        self._itr_ignored_suite_paths.append(collection_path)
+        return True
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
@@ -511,16 +524,23 @@ class TestOptPlugin:
         Mirrors what the JS tracer has always done: one suite-skip event per ignored file, no
         test-level spans inside it.  Also starts/finishes any TestModule whose every suite was
         ignored (mixed modules are finished later by pytest_runtest_protocol_wrapper).
+
+        Under xdist, every worker performs a full, unsharded collection pass and so discovers the
+        same ignored suites; only the elected owner (see `_is_itr_ignored_suite_event_owner`)
+        actually emits events/metrics to avoid multiplying counts by the number of workers.
         """
-        if not self._itr_ignored_suite_paths:
+        if not self._itr_ignored_suite_paths or not self._is_itr_ignored_suite_event_owner:
             return
+
+        # Use rootdir so module names match what item_to_test_ref produces from nodeids.
+        root_path = session.config.rootpath
 
         running_module_names = {item_to_test_ref(item).suite.module.name for item in session.items}
 
         ignored_by_module: dict[str, list[Path]] = defaultdict(list)
         for path in self._itr_ignored_suite_paths:
             try:
-                relative = path.relative_to(self.manager.workspace_path)
+                relative = path.relative_to(root_path)
             except ValueError:
                 continue
             module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
@@ -529,17 +549,14 @@ class TestOptPlugin:
         for module_name, paths in ignored_by_module.items():
             test_module, created_module = self.session.get_or_create_child(module_name)
             if created_module:
-                module_dir = paths[0].parent
-                try:
-                    module_path = module_dir.relative_to(self.manager.workspace_path)
-                except ValueError:
-                    module_path = module_dir
+                # paths[0] already passed the root-relative filter above, so this cannot raise.
+                module_path = paths[0].parent.relative_to(root_path)
                 test_module.set_location(module_path=module_path)
                 test_module.start()
                 TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
 
             for path in paths:
-                relative = path.relative_to(self.manager.workspace_path)
+                relative = path.relative_to(root_path)
                 suite_name = relative.name
                 test_suite, _ = test_module.get_or_create_child(suite_name)
                 if not test_suite.is_started():
@@ -759,6 +776,8 @@ class TestOptPlugin:
                 item, nextitem, test, t.cast(RetryHandler, retry_handler), reports
             )
         else:
+            # Apply quarantine masking before logging reports (non-retry path).
+            self._apply_quarantine_masking(test, reports)
             self._log_test_reports(item, reports)
             test_run.finish()
 
@@ -840,6 +859,24 @@ class TestOptPlugin:
 
         return retry_reports, reports
 
+    def _apply_quarantine_masking(self, test: Test, reports: _ReportGroup) -> None:
+        """Apply quarantine masking to test reports so failures don't break the pipeline.
+
+        For quarantined tests (that are not ATF), this converts failed reports to look like xfail results.
+        This is applied after all retries so that ATR can see real FAIL status during retries.
+        """
+        for report in reports.values():
+            self._apply_quarantine_masking_to_report(test, report)
+
+    def _apply_quarantine_masking_to_report(self, test: Test, report: pytest.TestReport) -> None:
+        """Apply quarantine masking to a single report (e.g. the final retry report)."""
+        if not test.is_quarantined() or test.is_attempt_to_fix():
+            return
+
+        if report.outcome == "failed":
+            report.outcome = "skipped"
+            report.wasxfail = "dd_quarantined"
+
     def _log_retry_final_reports(
         self,
         item: pytest.Item,
@@ -854,11 +891,15 @@ class TestOptPlugin:
         if extra_failed_report := retry_reports.get_extra_failed_report(test, final_status):
             self.extra_failed_reports.append(extra_failed_report)
 
+        # Apply quarantine masking to the final report after retries are done.
+        self._apply_quarantine_masking_to_report(test, final_report)
+
         item.ihook.pytest_runtest_logreport(report=final_report)
 
         # Log teardown. There should be just one teardown logged for all of the retries, because the junitxml plugin
         # closes the <testcase> element when teardown is logged.
         teardown_report = last_reports.get(TestPhase.TEARDOWN)
+        self._apply_quarantine_masking_to_report(test, teardown_report)
         item.ihook.pytest_runtest_logreport(report=teardown_report)
 
     def _check_applicable_retry_handlers(self, test: Test) -> t.Optional[RetryHandler]:
@@ -1104,6 +1145,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
         ATF tests must NOT use skip or xfail here: ATF takes precedence over quarantine/disable markers, and any
         failed attempt should fail the test from pytest's point of view.
+
+        Quarantined tests also do NOT use xfail here: applying xfail upfront causes pytest to report failures as
+        "skipped" (xfail), which prevents ATR from seeing a FAIL status and retrying. Instead, quarantine masking is
+        applied after all retries in _apply_quarantine_masking.
         """
         if not self.manager.settings.test_management.enabled:
             return
@@ -1112,7 +1157,8 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         elif test.is_attempt_to_fix():
             return
         elif test.is_quarantined():
-            item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
+            # Quarantine masking is deferred to _apply_quarantine_masking so ATR can see real FAIL status.
+            return
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:

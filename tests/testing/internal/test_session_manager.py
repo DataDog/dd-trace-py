@@ -327,6 +327,89 @@ class TestSessionManagerIsSkippableSuitePath:
 
         assert session_manager.is_skippable_suite_path(suite_file) is False
 
+    def test_suite_path_not_skipped_when_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns False when any test in the suite has attempt_to_fix=True."""
+        from ddtrace.testing.internal.settings_data import TestProperties
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        atf_test_ref = TestRef(suite_ref, "test_fix_me")
+        other_test_ref = TestRef(suite_ref, "test_normal")
+
+        session_manager = (
+            session_manager_mock()
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .with_test_properties(
+                {
+                    atf_test_ref: TestProperties(attempt_to_fix=True),
+                    other_test_ref: TestProperties(),
+                }
+            )
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+
+    def test_suite_path_skippable_when_no_atf_test_in_suite(self, tmp_path: pytest.fixture) -> None:
+        """is_skippable_suite_path returns True when no test in the suite has attempt_to_fix."""
+        from ddtrace.testing.internal.settings_data import TestProperties
+
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        suite_file = workspace / "tests" / "test_foo.py"
+        suite_file.parent.mkdir(parents=True)
+        suite_file.touch()
+
+        suite_ref = SuiteRef(ModuleRef("tests"), "test_foo.py")
+        test_ref = TestRef(suite_ref, "test_normal")
+
+        session_manager = (
+            session_manager_mock()
+            # test_management must be enabled so SessionManager actually loads test_properties
+            .with_settings(MockDefaults.settings(skipping_enabled=True, test_management=True))
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref})
+            .with_test_properties({test_ref: TestProperties(quarantined=True)})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        assert session_manager.is_skippable_suite_path(suite_file) is True
+
+    def test_suite_path_uses_root_path_over_workspace(self, tmp_path: pytest.fixture) -> None:
+        """When root_path differs from workspace_path, the module is derived from root_path."""
+        workspace = tmp_path / "workspace"
+        rootdir = workspace / "tests"
+        rootdir.mkdir(parents=True)
+        suite_file = rootdir / "test_foo.py"
+        suite_file.touch()
+
+        # Backend reports module="" (rootdir-relative: file is at rootdir root)
+        suite_ref_rootdir = SuiteRef(ModuleRef(""), "test_foo.py")
+
+        session_manager = (
+            session_manager_mock()
+            .with_skipping_enabled(True)
+            .with_workspace_path(str(workspace))
+            .with_itr_skipping_level(ITRSkippingLevel.SUITE)
+            .with_skippable_items({suite_ref_rootdir})
+            .build_real_with_mocks(self.test_env)
+        )
+
+        # Without root_path: workspace-relative gives module="tests", no match
+        assert session_manager.is_skippable_suite_path(suite_file) is False
+        # With root_path=rootdir: rootdir-relative gives module="", matches
+        assert session_manager.is_skippable_suite_path(suite_file, root_path=rootdir) is True
+
 
 class TestSessionNameTest:
     def test_session_name_explicitly_from_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -569,7 +652,7 @@ class TestSessionManagerGitHandling:
 class TestUpdatePrMergeBase:
     """Tests for SessionManager._update_pr_merge_base and its integration in upload_git_data."""
 
-    def _make_session_manager(self, env_tags: dict) -> SessionManager:
+    def _make_session_manager(self, env_tags: dict[str, str]) -> SessionManager:
         sm = SessionManager.__new__(SessionManager)
         sm.env_tags = env_tags
         return sm
@@ -725,7 +808,7 @@ class TestUpdatePrMergeBase:
 class TestUploadSentinel:
     """Tests for the upload-completion sentinel used to deduplicate work across xdist workers."""
 
-    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
         from ddtrace.testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)
@@ -1024,7 +1107,7 @@ class TestUploadSentinel:
 class TestUploadLock:
     """Tests for the cross-process lock around upload_git_data."""
 
-    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> SessionManager:
+    def _make_sm(self, workspace_path, head_sha: t.Optional[str] = None) -> t.Any:
         from ddtrace.testing.internal.git import GitTag
 
         sm = SessionManager.__new__(SessionManager)

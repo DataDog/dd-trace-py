@@ -750,18 +750,23 @@ class SessionManager:
 
         return test_ref in self.skippable_items or test_ref.suite in self.skippable_items
 
-    def is_skippable_suite_path(self, collection_path: Path) -> bool:
+    def is_skippable_suite_path(self, collection_path: Path, root_path: t.Optional[Path] = None) -> bool:
         """Return True if the entire suite (file) at collection_path is ITR-skippable.
 
         Only meaningful in suite-skipping mode; always returns False in test-skipping mode since
         skippable_items then contains TestRefs, not SuiteRefs.
+
+        ``root_path`` should be pytest's rootdir so that the module/suite derivation matches
+        ``item_to_test_ref`` (which works from nodeids, themselves relative to rootdir).  When
+        *None* we fall back to ``workspace_path`` for backwards-compatibility.
         """
         if not self.settings.skipping_enabled:
             return False
         if self.itr_skipping_level != ITRSkippingLevel.SUITE:
             return False
+        base = root_path or self.workspace_path
         try:
-            relative = collection_path.relative_to(self.workspace_path)
+            relative = collection_path.relative_to(base)
         except ValueError:
             return False
         # Mirror the module/suite decomposition used by item_to_test_ref / nodeid_to_names:
@@ -769,7 +774,13 @@ class SessionManager:
         # and the filename itself is the suite name.
         module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
         suite_ref = SuiteRef(ModuleRef(module_name), relative.name)
-        return suite_ref in self.skippable_items
+        if suite_ref not in self.skippable_items:
+            return False
+        # Do not skip suites that contain attempt-to-fix tests — those must run regardless of ITR.
+        for test_ref, props in self.test_properties.items():
+            if test_ref.suite == suite_ref and props.attempt_to_fix:
+                return False
+        return True
 
     def has_codeowners(self) -> bool:
         return self.codeowners is not None
