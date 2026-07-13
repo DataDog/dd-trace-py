@@ -61,7 +61,12 @@ struct ThreadAltStack
             return 0;
         }
 
-        // If an altstack is already present, keep it.
+        // An alternate signal stack is already installed on this thread, by the
+        // application, CPython's faulthandler, or libdatadog's crashtracker (which by
+        // default creates and owns its own larger alt stack because CPython's default is
+        // too small). Adopt it rather than replacing it, and record that we do not own
+        // the mapping: the destructor must never disable or free an alt stack we did not
+        // allocate, or we would break the owner's fault handling (e.g. crashtracker).
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && !(cur.ss_flags & SS_DISABLE)) {
             ready = true;
