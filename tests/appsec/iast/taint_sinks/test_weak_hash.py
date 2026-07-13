@@ -373,6 +373,28 @@ def test_weak_hash_deduplication_cache(iast_context_contextmanager_deduplication
                 assert len(span_report.vulnerabilities) == 1, f"Failed at iteration {i}"
 
 
+def test_weak_hash_symbol_db_not_reported(iast_context_defaults):
+    """Regression test for APPSEC-68795.
+
+    ``ddtrace`` computes a git-blob sha1 of module source files in
+    ``symbol_db/symbols.py`` for identification purposes (not for security).
+    IAST must not report this internal, non-security use of sha1 as a weak
+    hash vulnerability (false positive on ddtrace's own code).
+    """
+    from pathlib import Path
+
+    from ddtrace.internal.module import origin
+    from ddtrace.internal.symbol_db.symbols import Scope
+    from ddtrace.internal.symbol_db.symbols import ScopeData
+    import tests.appsec.iast.fixtures.taint_sinks.weak_algorithms as module_to_hash
+
+    module_origin = origin(module_to_hash)
+    Scope._get_from(module_to_hash, ScopeData(origin=Path(str(module_origin)), seen=set()))
+
+    span_report = get_iast_reporter()
+    assert span_report is None
+
+
 def test_parametrized_weak_hash_no_exception():
     """Verify that parametrized_weak_hash doesn't raise any exceptions."""
     try:
