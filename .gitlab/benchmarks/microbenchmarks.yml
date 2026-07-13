@@ -22,7 +22,7 @@ variables:
   # *.converted.json to S3 (raw results still uploaded), which the stability
   # collector consumes. Supersedes the earlier #290 pin (S3 url override).
   BENCHMARKING_BRANCH: augusto/dd-trace-py-upload-converted-json
-  BENCHMARKING_COMMIT_SHA: e06a141d3572d096f38ca9d88583cdac86d3943f
+  BENCHMARKING_COMMIT_SHA: 4ec2788c65b863a22b19b3d8ea09ad8d01bfe78f
 
 .benchmarks:
   stage: test
