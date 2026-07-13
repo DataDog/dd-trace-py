@@ -6069,7 +6069,7 @@
       {
         "version": "B",
         "type": "boolean",
-        "default": "false",
+        "default": "true",
         "propertyKeys": [
           "trace_stats_computation_experimental_client_obfuscation_enabled"
         ]
