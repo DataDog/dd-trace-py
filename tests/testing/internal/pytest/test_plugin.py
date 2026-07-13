@@ -300,8 +300,16 @@ class TestSkippingAndITRFeatures:
         assert suite.tags.get("test.skipped_by_itr") == "true"
         assert real_session.tests_skipped_by_itr == 1
 
-    def test_pytest_sessionfinish_overrides_no_tests_collected_when_itr_skipped(self, tmp_path: Path) -> None:
-        """When all suites are ITR-skipped, NO_TESTS_COLLECTED exit code is overridden to OK."""
+    @pytest.mark.parametrize("coverage_pct", [None, 75.0])
+    def test_pytest_sessionfinish_overrides_no_tests_collected_when_itr_skipped(
+        self, tmp_path: Path, coverage_pct: t.Optional[float]
+    ) -> None:
+        """When all suites are ITR-skipped, NO_TESTS_COLLECTED exit code is overridden to OK.
+
+        Parametrized over coverage_pct to exercise both the branch where get_coverage_percentage
+        returns None (coverage disabled) and where it returns a value (coverage enabled), ensuring
+        the metrics assignment path is always covered.
+        """
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
         plugin._itr_ignored_suite_paths = [tmp_path / "test_something.py"]
@@ -309,12 +317,21 @@ class TestSkippingAndITRFeatures:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
 
-        plugin.pytest_sessionfinish(mock_session)
+        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+            plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.OK
+        if coverage_pct is not None:
+            assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
 
-    def test_pytest_sessionfinish_no_override_when_no_itr_skips(self) -> None:
-        """NO_TESTS_COLLECTED is not overridden when ITR skipped nothing."""
+    @pytest.mark.parametrize("coverage_pct", [None, 75.0])
+    def test_pytest_sessionfinish_no_override_when_no_itr_skips(self, coverage_pct: t.Optional[float]) -> None:
+        """NO_TESTS_COLLECTED is not overridden when ITR skipped nothing.
+
+        Parametrized over coverage_pct to exercise both the branch where get_coverage_percentage
+        returns None (coverage disabled) and where it returns a value (coverage enabled), ensuring
+        the metrics assignment path is always covered.
+        """
         mock_manager = session_manager_mock().build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
         # _itr_ignored_suite_paths is empty (default)
@@ -322,9 +339,12 @@ class TestSkippingAndITRFeatures:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
 
-        plugin.pytest_sessionfinish(mock_session)
+        with patch("ddtrace.testing.internal.pytest.plugin.get_coverage_percentage", return_value=coverage_pct):
+            plugin.pytest_sessionfinish(mock_session)
 
         assert mock_session.exitstatus == pytest.ExitCode.NO_TESTS_COLLECTED
+        if coverage_pct is not None:
+            assert plugin.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] == coverage_pct
 
     def test_pytest_ignore_collect_passes_rootpath_to_is_skippable_suite_path(self, tmp_path: Path) -> None:
         """pytest_ignore_collect passes config.rootpath to is_skippable_suite_path."""
