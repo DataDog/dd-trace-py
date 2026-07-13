@@ -231,16 +231,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
-  DD_SETUP_CACHE_DOWNLOADS:
-    type: Boolean
-    default: True
-
-    description: |
-        Caches the download of artifacts needed by the build process.
-
-    version_added:
-        v3.10.0:
-
   DD_DOWNLOAD_MAX_RETRIES:
     type: Integer
     default: 10
@@ -308,9 +298,8 @@ How the Build Works
 
     riot generate
       └─ pip install -e .
-           ├─ build_py  → LibraryDownloader.run()
-           │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
-           │    └─ LibDDWafDownload.run()
+           ├─ build_py  → CustomBuildPy.run()
+           │    └─ CleanLibraries.remove_native_extensions()  ← SKIPPED when INCREMENTAL=1
            └─ build_ext → CustomBuildExt.run()
                 ├─ build_rust()          → Rust _native extension
                 ├─ build_libdd_wrapper() → libdd_wrapper.so (C++)
@@ -338,7 +327,7 @@ Key Files
    * - File
      - Purpose
    * - ``setup.py``
-     - ``CustomBuildExt``, ``CMakeExtension.get_sources()``, ``DebugMetadata``, ``LibraryDownloader``
+     - ``CustomBuildExt``, ``CMakeExtension.get_sources()``, ``DebugMetadata``, ``CustomBuildPy``
    * - ``scripts/ext_cache.py``
      - Cache/restore ``.so`` files and shared C++ dependency install trees
    * - ``cmake/abseil/CMakeLists.txt``
@@ -361,9 +350,9 @@ version + compile mode + platform + machine arch + ARCHFLAGS.
 Known Root Causes of Warm Rebuilds
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1. **``CleanLibraries.remove_artifacts()`` deletes restored ``.so`` files**
+1. **``CleanLibraries.remove_native_extensions()`` deletes restored ``.so`` files**
 
-   ``setup.py`` → ``LibraryDownloader.run()`` → ``CleanLibraries.remove_artifacts()``
+   ``setup.py`` → ``CustomBuildPy.run()`` → ``CleanLibraries.remove_native_extensions()``
    used to wipe all ``.so`` files unconditionally on every run, defeating any cache
    restore. Fixed by guarding with ``if not CustomBuildExt.INCREMENTAL:``.
 

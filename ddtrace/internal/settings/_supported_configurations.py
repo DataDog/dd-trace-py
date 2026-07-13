@@ -434,7 +434,6 @@ SUPPORTED_CONFIGURATIONS: frozenset[str] = frozenset(
         "DD_SERVICE",
         "DD_SERVICE_MAPPING",
         "DD_SETUP_CACHE_DIR",
-        "DD_SETUP_CACHE_DOWNLOADS",
         "DD_SETUP_FORCE_CYTHONIZE",
         "DD_SITE",
         "DD_SNAPSHOT_ENABLED",

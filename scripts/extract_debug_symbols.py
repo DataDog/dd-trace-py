@@ -437,8 +437,8 @@ def main():
     parser.add_argument("--output-dir", "-o", help="Output directory for debug symbol packages")
     parser.add_argument(
         "--ignore-patterns",
-        default="libddwaf*",
-        help="Comma-separated list of glob patterns to ignore (default: libddwaf*)",
+        default="",
+        help="Comma-separated list of glob patterns to ignore",
     )
 
     args = parser.parse_args()

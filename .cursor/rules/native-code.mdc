@@ -73,7 +73,8 @@ Any of these is an immediate blocker:
 - glibc: `pthread_exit()` throws `abi::__forced_unwind` — must re-throw.
 - musl/Alpine: `pthread_exit()` uses `longjmp` — C++ catch won't fire.
 - Pinned versions: `pyproject.toml` (Python), `src/native/Cargo.toml`
-  (libdatadog), `setup.py` (libddwaf).
+  (libdatadog and libddwaf), and `src/native/Cargo.lock` (exact libddwaf
+  revision).
 
 ## Review Dimensions — Quick Index
 

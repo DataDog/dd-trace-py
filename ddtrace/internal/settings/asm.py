@@ -1,6 +1,3 @@
-import os.path
-from platform import machine
-from platform import system
 import sys
 from typing import Optional
 
@@ -41,24 +38,12 @@ def _parse_options(options: list[str]):
     return parse
 
 
-def build_libddwaf_filename() -> str:
-    """
-    Build the filename of the libddwaf library to load.
-    """
-    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
-    FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
-    ARCHI = machine().lower()
-    # 32-bit-Python on 64-bit-Windows
-    if system() == "Windows" and ARCHI == "amd64":
-        from sys import maxsize
-
-        if maxsize <= (1 << 32):
-            ARCHI = "x86"
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
-        _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
-    )
+def _is_libddwaf_available() -> bool:
+    try:
+        from ddtrace.internal.native._native import appsec
+    except ImportError:
+        return False
+    return appsec is not None
 
 
 class ASMConfig(DDConfig):
@@ -107,8 +92,7 @@ class ASMConfig(DDConfig):
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
-    _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _asm_libddwaf_available = _is_libddwaf_available()
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
