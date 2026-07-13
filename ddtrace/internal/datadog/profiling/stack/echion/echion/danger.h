@@ -53,6 +53,7 @@ struct ThreadAltStack
     void* mem = nullptr;
     size_t size = 0;
     bool ready = false;
+    bool owns_mapping = false;
 
     int ensure_installed()
     {
@@ -64,6 +65,7 @@ struct ThreadAltStack
         stack_t cur{};
         if (sigaltstack(nullptr, &cur) == 0 && !(cur.ss_flags & SS_DISABLE)) {
             ready = true;
+            owns_mapping = false;
             return 0;
         }
 
@@ -81,19 +83,22 @@ struct ThreadAltStack
         if (sigaltstack(&ss, nullptr) != 0) {
             std::cerr << "Failed to set alt stack. Memory copying may not work. "
                       << "Error: " << strerror(errno) << std::endl;
+            munmap(stack_mem, kAltStackSize);
             return -1;
         }
 
         this->mem = stack_mem;
         this->size = kAltStackSize;
         this->ready = true;
+        this->owns_mapping = true;
 
         return 0;
     }
 
     ~ThreadAltStack()
     {
-        if (!ready) {
+        // Do not disable an alternate signal stack that this ThreadAltStack did not allocate.
+        if (!ready || !owns_mapping || mem == nullptr) {
             return;
         }
 
