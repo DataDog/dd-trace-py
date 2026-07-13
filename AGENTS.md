@@ -81,6 +81,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/appsec/ai_guard/`, `ddtrace/appsec/_ai_guard/`, `tests/appsec/ai_guard/` |
 | Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
+| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
 | Testing | `.cursor/rules/testing.mdc` | — |
