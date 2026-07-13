@@ -374,9 +374,6 @@ class TelemetryWriter(PeriodicService):
 
     def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
-        # AIDEV-NOTE: Do not import ASM from the telemetry worker. The worker starts while the
-        # ddtrace package is still initializing, so importing ASM here can deadlock with the
-        # main thread and expose a partially initialized module. A later heartbeat will retry.
         asm_config = getattr(sys.modules.get("ddtrace.internal.settings.asm"), "config", None)
 
         if asm_config is None or not asm_config._api_security_endpoint_collection or not self._enabled:
