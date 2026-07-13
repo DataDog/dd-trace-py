@@ -16,16 +16,22 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 CALLS_FILE="$TMPDIR_TEST/clang-format-calls.txt"
+GIT_ADD_CALLS_FILE="$TMPDIR_TEST/git-add-calls.txt"
 
 # Writes a mock git that emits $1 (newline-separated filenames) for the
 # staged-files query and delegates everything else to the real git.
 mock_staged() {
     files="$1"
+    unstaged="${2:-}"
     cat > "$TMPDIR_TEST/git" << EOF
 #!/usr/bin/env sh
 case "\$*" in
     "diff --staged --name-only HEAD --diff-filter=ACMR")
         printf '%s\n' $files ;;
+    "diff --name-only")
+        printf '%s\n' $unstaged ;;
+    "add "*)
+        echo "\$*" >> "$GIT_ADD_CALLS_FILE" ;;
     *)
         exec "$(command -v git)" "\$@" ;;
 esac
@@ -41,6 +47,7 @@ echo "\$*" >> "$CALLS_FILE"
 EOF
     chmod +x "$TMPDIR_TEST/clang-format"
     : > "$CALLS_FILE"
+    : > "$GIT_ADD_CALLS_FILE"
 }
 
 run_hook() {
@@ -67,6 +74,20 @@ mock_staged "clock.hpp"
 : > "$CALLS_FILE"
 run_hook > /dev/null
 check ".hpp files are formatted" "grep -qF 'clock.hpp' '$CALLS_FILE'"
+
+# clang-format fixes are re-staged so the commit includes formatted content
+mock_staged "sampler.hpp"
+: > "$CALLS_FILE"
+: > "$GIT_ADD_CALLS_FILE"
+run_hook > /dev/null
+check "formatted .hpp files are re-staged" "grep -qF 'sampler.hpp' '$GIT_ADD_CALLS_FILE'"
+
+# Partially staged files are not re-added
+mock_staged "sampler.hpp" "sampler.hpp"
+: > "$CALLS_FILE"
+: > "$GIT_ADD_CALLS_FILE"
+run_hook > /dev/null
+check "partially staged files are not re-added" "! grep -qF 'sampler.hpp' '$GIT_ADD_CALLS_FILE'"
 
 # .cpp is processed
 mock_staged "sample.cpp"
