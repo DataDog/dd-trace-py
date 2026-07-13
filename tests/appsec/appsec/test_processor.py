@@ -1106,7 +1106,7 @@ def test_rasp_sqli_negative_result_cached(mock_new_subcontext, mock_run):
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.new_subcontext")
 def test_rasp_sqli_cache_cleared_when_addresses_sent_grows(mock_new_subcontext, mock_run):
-    """If the parent WAF context gains request data, the cache is invalidated and the same SQL must be evaluated again."""
+    """If the parent WAF context gains request data, cache is invalidated and the same SQL must be evaluated again."""
     from ddtrace.appsec._constants import EXPLOIT_PREVENTION
     from ddtrace.appsec._utils import DDWaf_result
     from ddtrace.appsec._utils import _observator
