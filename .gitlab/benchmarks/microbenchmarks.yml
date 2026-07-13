@@ -17,9 +17,6 @@ variables:
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  # Pinned to benchmarking-platform#299, which uploads *.converted.json to S3
-  # alongside the raw results so the benchmark-health stability collector can
-  # consume them.
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
 
