@@ -7,6 +7,7 @@ from unittest.mock import patch
 from _pytest.pytester import Pytester
 import pytest
 
+from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
@@ -58,8 +59,9 @@ class TestITR:
         # Check that tests completed successfully
         assert result.ret == 0  # Exit code 0 indicates success
 
-        # Verify outcomes: one test skipped by ITR, one test passed
-        result.assertoutcome(passed=1, skipped=1)
+        # The ITR-skippable test is deselected at collection time, not skip-marked, so pytest's own
+        # outcome counters don't see it — only the passed test is counted here.
+        result.assertoutcome(passed=1)
 
         # There should be events for 2 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 5
@@ -362,6 +364,65 @@ class TestITR:
         assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
         assert session["content"]["meta"]["test.itr.tests_skipping.tests_skipped"] == "true"
         assert session["content"]["meta"]["_dd.ci.itr.tests_skipped"] == "true"
+
+    def test_itr_deselect_test_level_attempt_to_fix_not_deselected(self, pytester: Pytester) -> None:
+        """Test-level ITR skip: a skippable test that is also attempt_to_fix must NOT be deselected.
+
+        Mirrors test_itr_one_unskippable_test, but for the attempt_to_fix exemption in
+        pytest_collection_modifyitems's deselect branch rather than the unskippable-marker one.
+        """
+        pytester.makepyfile(
+            test_foo="""
+            def test_should_be_deselected():
+                assert False  # would fail if it ran
+
+            def test_attempt_to_fix():
+                assert True
+
+            def test_should_run():
+                assert True
+            """
+        )
+
+        deselected_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_deselected")
+        atf_ref = TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_attempt_to_fix")
+
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {deselected_ref, atf_ref}
+        known_tests: set[TestRef] = {deselected_ref, atf_ref}
+        test_management_properties = {atf_ref: TestProperties(attempt_to_fix=True)}
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(
+                    skipping_enabled=True,
+                    skippable_items=skippable_items,
+                    test_management_enabled=True,
+                    known_tests_enabled=True,
+                    known_tests=known_tests,
+                    test_management_properties=test_management_properties,
+                ),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        # The attempt_to_fix test is not deselected, so it (and test_should_run) actually execute.
+        result.assertoutcome(passed=2)
+
+        atf_test = event_capture.event_by_test_name("test_attempt_to_fix")
+        assert atf_test["content"]["meta"]["test.status"] == "pass"
+        assert atf_test["content"]["meta"].get("test.skipped_by_itr") is None
+        assert atf_test["content"]["meta"].get("test.skip_reason") is None
+
+        deselected_test = event_capture.event_by_test_name("test_should_be_deselected")
+        assert deselected_test["content"]["meta"]["test.status"] == "skip"
+        assert deselected_test["content"]["meta"]["test.skipped_by_itr"] == "true"
+
+        [session] = event_capture.events_by_type("test_session_end")
+        assert session["content"]["metrics"]["test.itr.tests_skipping.count"] == 1
 
     def test_itr_deselect_test_level_whole_suite_deselected(self, pytester: Pytester) -> None:
         """When every test in a suite is deselected, the suite/module are finished synthetically.
