@@ -708,21 +708,10 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 }
 
 // ----------------------------------------------------------------------------
-Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+void
+ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
-    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
-
-    microsecond_t previous_cpu_time = cpu_time;
-    auto update_cpu_time_success = update_cpu_time();
-    if (!update_cpu_time_success) {
-        return ErrorKind::CpuTimeError;
-    }
-
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
-
-    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -755,6 +744,25 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         python_stack.render(echion);
         renderer.render_stack_end();
     }
+}
+
+// ----------------------------------------------------------------------------
+Result<void>
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+{
+    auto& renderer = echion.renderer();
+    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
+
+    microsecond_t previous_cpu_time = cpu_time;
+    auto update_cpu_time_success = update_cpu_time();
+    if (!update_cpu_time_success) {
+        return ErrorKind::CpuTimeError;
+    }
+
+    renderer.render_cpu_time(cpu_time - previous_cpu_time);
+
+    this->unwind(echion, tstate);
+    this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
 }

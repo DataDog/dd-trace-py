@@ -57,6 +57,9 @@ opentracing = [
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
 ]
+openfeature = [
+    "openfeature-sdk>=0.8,<1",
+]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
