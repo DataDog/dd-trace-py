@@ -82,7 +82,8 @@ def falcon_inferred_proxy_error_client():
 @pytest.mark.snapshot(ignores=ERROR_SNAPSHOT_IGNORES)
 def test_azure_frontdoor_error_propagates_to_inferred_span(falcon_inferred_proxy_error_client):
     """When the handler raises, the 500 and error tags propagate from the web span up to the
-    inferred azure.frontdoor span (both spans carry error=1)."""
+    inferred azure.frontdoor span (both spans carry error=1).
+    """
     with override_global_config(dict(_inferred_proxy_services_enabled=True)):
         resp = falcon_inferred_proxy_error_client.simulate_get("/api/my-function", headers=AZURE_FRONTDOOR_HEADERS)
         assert resp.status_code == 500

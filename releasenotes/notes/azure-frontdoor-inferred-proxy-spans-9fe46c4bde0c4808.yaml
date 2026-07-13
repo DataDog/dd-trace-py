@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    azure-frontdoor: Add inferred proxy span support for Azure Front Door (``azure-fd``).
+    azure-frontdoor: Add inferred proxy span support for Azure Front Door (``azure-fd``). This is enabled through the use of an environment variable (```DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED```) to true.
