@@ -453,12 +453,13 @@ def _resolve_parent_agent(active) -> tuple[Optional[str], Optional[str]]:
     )
 
 
-# Headroom under the 512B x-datadog-tags budget for propagation tags the core tracer may
-# append after us (e.g. _dd.p.tid, _dd.p.dm).
-_AGENT_ATTRIBUTION_TAGSET_BUDGET = 500
+# Budget for the entire _dd.p.* tagset when stamping agent attribution.
+# `_dd.p.tid=<16-hex>` (27 chars including the comma separator) is added by HTTPPropagator
+# at inject time, after this check runs, so we leave that headroom here.
+_AGENT_ATTRIBUTION_TAGSET_BUDGET = 485
 
 
-def _propagation_tags_within_budget(meta: dict) -> bool:
+def _is_propagation_tags_within_budget(meta: dict) -> bool:
     """Return True if the ``_dd.p.*`` propagation tags in ``meta`` encode within budget.
 
     Mirrors the propagator's own key filter (``key.startswith("_dd.p.")``) and encoder, so the
@@ -480,9 +481,9 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
     A ``TagsetMaxSizeEncodeError`` at inject time drops the ENTIRE header (taking ml_app,
     llmobs_trace_id, parent_id with it), so attribution degrades gracefully instead:
       1. both id and name when they fit within the budget;
-      2. id only when adding the name would exceed it (the backend resolves the name from
-         span_id -- the documented fallback), which also covers unsafe names (comma / non-printable);
-      3. neither when even the id would exceed the budget.
+      2. id + truncated name when the full name exceeds the budget;
+      3. id only when even a truncated name cannot fit (e.g. the name is entirely invalid chars);
+      4. neither when even the id would exceed the budget.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
     """
@@ -491,13 +492,32 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
     meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
     if agent_name is not None:
         meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name
-        if _propagation_tags_within_budget(meta):
+        if _is_propagation_tags_within_budget(meta):
             return
-        # Name pushed the tagset over budget (size or unsafe chars): keep id-only.
+        # Full name doesn't fit (too long or invalid chars); try truncation.
         del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
-    if not _propagation_tags_within_budget(meta):
+        tags_id_only = {k: v for k, v in meta.items() if k.startswith("_dd.p.")}
+        try:
+            encoded_id_only = encode_tagset_values(tags_id_only, max_size=_AGENT_ATTRIBUTION_TAGSET_BUDGET)
+        except TagsetEncodeError:
+            pass  # Id-only also overflows; fall through to the drop-id path below.
+        else:
+            # Overhead for `,name_key=` (comma is safe: other tags are already encoded before us).
+            name_entry_overhead = 1 + len(PROPAGATED_PARENT_AGENT_NAME_KEY) + 1
+            available_for_value = _AGENT_ATTRIBUTION_TAGSET_BUDGET - len(encoded_id_only) - name_entry_overhead
+            if available_for_value > 0:
+                meta[PROPAGATED_PARENT_AGENT_NAME_KEY] = agent_name[:available_for_value]
+                if not _is_propagation_tags_within_budget(meta):
+                    # Truncated name is still invalid (e.g. contains commas): drop name.
+                    del meta[PROPAGATED_PARENT_AGENT_NAME_KEY]
+    if not _is_propagation_tags_within_budget(meta):
         # Even id-only overflows: drop attribution entirely rather than risk the whole header.
         meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
+        log.debug(
+            "LLMObs: agent attribution dropped — x-datadog-tags budget exhausted. agent_name=%r agent_span_id=%r",
+            agent_name,
+            agent_span_id,
+        )
 
 
 def get_llmobs_parent_id(span: Span) -> Optional[str]:

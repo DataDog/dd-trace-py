@@ -921,6 +921,22 @@ def test_inject_unsafe_agent_name_skips_name_keeps_id(llmobs):
     assert ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) is None
 
 
+def test_inject_oversized_agent_name_truncated(llmobs):
+    """An agent name that would overflow the tagset budget is truncated rather than dropped."""
+    # Build a name large enough to overflow the budget; it must use only safe chars.
+    oversized_name = "A" * 500
+    with llmobs.agent(name=oversized_name) as agent_span:
+        ctx = Context(trace_id=1, span_id=2)
+        llmobs._inject_llmobs_context(ctx, {})
+    propagated_name = ctx._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY)
+    assert ctx._meta.get(PROPAGATED_PARENT_AGENT_ID_KEY) == str(agent_span.span_id)
+    # The name must be truncated (not absent, not the full oversized value).
+    assert propagated_name is not None
+    assert len(propagated_name) < len(oversized_name)
+    # The truncated name must consist only of the safe chars we used.
+    assert set(propagated_name) == {"A"}
+
+
 def test_inject_agent_name_with_equals_propagates(llmobs):
     """`=` is legal in tagset values (only illegal in keys), so a name with `=` must propagate."""
     with llmobs.agent(name="model=gpt4") as agent_span:
