@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Resolve a weak-hash false positive reported on ddtrace's
+    own code when IAST and the live debugger (Symbol Database) are both enabled.

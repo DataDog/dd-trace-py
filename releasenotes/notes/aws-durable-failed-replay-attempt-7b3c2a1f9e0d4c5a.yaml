@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    aws_durable_execution_sdk_python: This fix resolves an issue where a replayed durable operation
+    that had failed permanently reported an incorrect ``aws.durable.replayed`` value and an
+    ``aws.durable.operation_attempt`` one higher than its original execution.

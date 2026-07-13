@@ -1,5 +1,6 @@
 import inspect
 from typing import Any  # noqa:F401
+from typing import Mapping
 from typing import Optional  # noqa:F401
 
 import starlette
@@ -11,7 +12,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.asgi import TraceMiddleware
+from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
+from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -70,7 +72,14 @@ def _supported_versions() -> dict[str, str]:
 
 def traced_init(wrapped, instance, args, kwargs):
     mw = list(kwargs.pop("middleware", None) or [])
-    mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
+    mw.insert(
+        0,
+        Middleware(
+            TraceMiddleware,
+            integration_config=config.starlette,
+            span_modifier=_set_route_resource_resolver,
+        ),
+    )
     kwargs.update({"middleware": mw})
 
     wrapped(*args, **kwargs)
@@ -122,6 +131,72 @@ def _collect_routes_from_app(app, prefix=""):
                     )
         except Exception:
             log.debug("failed to collect endpoint for route %r", route, exc_info=True)
+
+
+def _set_route_resource_resolver(_span: Span, scope: Mapping[str, Any]) -> None:
+    datadog_context = scope.get("datadog")
+    if datadog_context is not None:
+        datadog_context[_DD_ROUTE_RESOURCE_RESOLVER] = _resolve_route_resource
+
+
+def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
+    """Resolve a Starlette route template before ASGI finishes the request span."""
+    app = scope.get("app")
+    route_match = _find_matching_route_path(getattr(app, "routes", None), scope)
+    if route_match is None:
+        return
+
+    path, is_route = route_match
+    method = scope.get("method")
+    span.resource = "{} {}".format(method, path) if method else path
+    if is_route:
+        span._set_attribute(http.ROUTE, path)
+
+
+def _find_matching_route_path(routes: Any, scope: Mapping[str, Any], prefix: str = "") -> Optional[tuple[str, bool]]:
+    if not routes:
+        return None
+
+    partial_match = None
+    for route in routes:
+        route_match = _match_route_path(route, scope, prefix)
+        if route_match is None:
+            continue
+
+        match, resolved_route = route_match
+        if match == starlette.routing.Match.FULL:
+            return resolved_route
+        if match == starlette.routing.Match.PARTIAL and partial_match is None:
+            partial_match = resolved_route
+
+    return partial_match
+
+
+def _match_route_path(route: Any, scope: Mapping[str, Any], prefix: str) -> Optional[tuple[Any, tuple[str, bool]]]:
+    host_class = getattr(starlette.routing, "Host", None)
+    is_host_route = host_class is not None and isinstance(route, host_class)
+    if not isinstance(route, (starlette.routing.Route, starlette.routing.Mount)) and not is_host_route:
+        return None
+
+    match, child_scope = route.matches(scope)
+    if match == starlette.routing.Match.NONE:
+        return None
+
+    if isinstance(route, starlette.routing.Route):
+        return match, (prefix + route.path, True)
+
+    child_routes = getattr(route.app, "routes", None)
+    if child_routes:
+        updated_scope = dict(scope)
+        updated_scope.update(child_scope)
+        path_prefix = prefix if is_host_route else prefix + route.path
+        child_match = _find_matching_route_path(child_routes, updated_scope, path_prefix)
+        if child_match is not None:
+            return match, child_match
+
+    if isinstance(route, starlette.routing.Mount):
+        return match, (prefix + route.path, False)
+    return None
 
 
 def patch():
