@@ -8,7 +8,6 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.appsec._trace_utils import _aiguard_manual_keep
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.utils.constants import SamplingMechanism
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
