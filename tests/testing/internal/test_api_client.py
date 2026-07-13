@@ -404,6 +404,12 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
         }
 
+        # Verify pagination metrics
+        assert mock_telemetry.record_known_tests_pages_fetched.call_count == 1
+        assert mock_telemetry.record_known_tests_pages_fetched.call_args_list[0][0][0] == 1
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+
     def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
         """First page sends empty page_info; second page sends only page_state."""
         page1_response = {
@@ -460,6 +466,16 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
             TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
+
+        # Verify pagination metrics
+        assert mock_telemetry.record_known_tests_pages_fetched.call_count == 1
+        assert mock_telemetry.record_known_tests_pages_fetched.call_args_list[0][0][0] == 2
+        assert mock_telemetry.record_known_tests_total_fetch_ms.call_count == 1
+        assert mock_telemetry.record_known_tests_total_request_ms.call_count == 1
+        # Total fetch time should be >= sum of request times
+        total_fetch_ms = mock_telemetry.record_known_tests_total_fetch_ms.call_args_list[0][0][0]
+        total_request_ms = mock_telemetry.record_known_tests_total_request_ms.call_args_list[0][0][0]
+        assert total_fetch_ms >= total_request_ms
 
     def test_get_known_tests_max_pages_limit_bails_and_disables_known_tests(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -531,6 +547,20 @@ class TestAPIClientGetKnownTests:
         assert "Known tests pagination exceeded max pages: 2" in caplog.text
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
+
+        # No pagination metrics should be emitted on failure
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_pages_fetched")
+            or mock_telemetry.record_known_tests_pages_fetched.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_fetch_ms")
+            or mock_telemetry.record_known_tests_total_fetch_ms.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_request_ms")
+            or mock_telemetry.record_known_tests_total_request_ms.call_count == 0
+        )
 
     def test_get_known_tests_max_pages_zero_uses_default(
         self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
@@ -616,6 +646,20 @@ class TestAPIClientGetKnownTests:
             call(ErrorType.BAD_JSON)
         ]
 
+        # No pagination metrics should be emitted on failure
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_pages_fetched")
+            or mock_telemetry.record_known_tests_pages_fetched.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_fetch_ms")
+            or mock_telemetry.record_known_tests_total_fetch_ms.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_request_ms")
+            or mock_telemetry.record_known_tests_total_request_ms.call_count == 0
+        )
+
     def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = mock_backend_connector().build()
         mock_connector_setup = Mock()
@@ -646,6 +690,20 @@ class TestAPIClientGetKnownTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
         ]
+
+        # No pagination metrics should be emitted on failure
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_pages_fetched")
+            or mock_telemetry.record_known_tests_pages_fetched.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_fetch_ms")
+            or mock_telemetry.record_known_tests_total_fetch_ms.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_request_ms")
+            or mock_telemetry.record_known_tests_total_request_ms.call_count == 0
+        )
 
     def test_get_known_tests_fail_http_request(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = Mock()
@@ -681,6 +739,20 @@ class TestAPIClientGetKnownTests:
         assert known_tests == set()
         assert api_client.configuration_errors == {TestTag.LIBRARY_CONFIGURATION_ERROR_KNOWN_TESTS: "true"}
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == []
+
+        # No pagination metrics should be emitted on failure
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_pages_fetched")
+            or mock_telemetry.record_known_tests_pages_fetched.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_fetch_ms")
+            or mock_telemetry.record_known_tests_total_fetch_ms.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_request_ms")
+            or mock_telemetry.record_known_tests_total_request_ms.call_count == 0
+        )
 
     def test_get_known_tests_errors_in_response(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
         mock_connector = (
@@ -720,6 +792,20 @@ class TestAPIClientGetKnownTests:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.BAD_JSON)
         ]
+
+        # No pagination metrics should be emitted on failure
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_pages_fetched")
+            or mock_telemetry.record_known_tests_pages_fetched.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_fetch_ms")
+            or mock_telemetry.record_known_tests_total_fetch_ms.call_count == 0
+        )
+        assert (
+            not hasattr(mock_telemetry, "record_known_tests_total_request_ms")
+            or mock_telemetry.record_known_tests_total_request_ms.call_count == 0
+        )
 
 
 class TestAPIClientGetTestManagementTests:
