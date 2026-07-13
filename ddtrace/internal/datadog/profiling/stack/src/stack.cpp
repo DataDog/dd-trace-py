@@ -27,6 +27,7 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 
     Sampler::get().set_interval(min_interval_s);
     if (Sampler::get().start()) {
+        seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
     Py_RETURN_FALSE;
