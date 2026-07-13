@@ -18,6 +18,10 @@ from ddtrace.trace import Span
 class GoogleAdkIntegration(BaseLLMIntegration):
     _integration_name = "google_adk"
 
+    # Maps the traced operation to its LLMObs span kind. Code execution is a call to a program,
+    # which maps to the "tool" span kind ("code_execute" is not a valid LLMObs span kind).
+    _OPERATION_TO_SPAN_KIND = {"agent": "agent", "tool": "tool", "code_execute": "tool"}
+
     def _set_base_span_tags(
         self, span: Span, model: Optional[Any] = None, provider: Optional[Any] = None, **kwargs
     ) -> None:
@@ -43,21 +47,24 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         args: list[Any],
         kwargs: dict[str, Any],
         response: Optional[Any] = None,
-        operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
+        operation: str = "",  # one of "agent", "tool", "code_execute"
     ) -> None:
+        # Set the span kind before the extraction below, which may raise on malformed data. The
+        # caller swallows that exception, so kind must be set first or the span is dropped for
+        # "missing span kind" and its children orphaned (#18698).
+        _annotate_llmobs_span_data(
+            span,
+            kind=self._OPERATION_TO_SPAN_KIND.get(operation, operation),
+            model_name=span.get_tag("google_adk.request.model") or "",
+            model_provider=span.get_tag("google_adk.request.provider") or "",
+        )
+
         if operation == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif operation == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
         elif operation == "code_execute":
             self._llmobs_set_tags_code_execute(span, args, kwargs, response)
-
-        _annotate_llmobs_span_data(
-            span,
-            kind=operation,
-            model_name=span.get_tag("google_adk.request.model") or "",
-            model_provider=span.get_tag("google_adk.request.provider") or "",
-        )
 
     def _llmobs_set_tags_agent(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]

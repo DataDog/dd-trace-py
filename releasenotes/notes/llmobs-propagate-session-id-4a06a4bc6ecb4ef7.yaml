@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: ``session_id`` now propagates to following spans in a
+    trace. If ``session_id`` is set explicitly on a span, this will take
+    precedence over the inherited or propagated value.

@@ -173,7 +173,7 @@ def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
-        kind="code_execute",
+        kind="tool",
         submit_to_llmobs=True,
     ) as span:
         result = None
