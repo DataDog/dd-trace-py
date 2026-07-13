@@ -121,4 +121,6 @@ class Sampler
     void restart_after_fork();
 };
 
+void seed_fast_copy_profiler_stats();
+
 } // namespace Datadog
