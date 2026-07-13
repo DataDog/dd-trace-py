@@ -6050,8 +6050,8 @@
     "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
       {
         "implementation": "A",
-        "type": "decimal",
-        "default": "10000.0",
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],
