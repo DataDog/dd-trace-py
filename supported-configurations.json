@@ -4508,6 +4508,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_TRACE_PARTIAL_FLUSH_ENABLED": [
       {
         "implementation": "B",
@@ -5553,6 +5560,13 @@
         "default": null
       }
     ],
+    "OTEL_TRACES_SPAN_METRICS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": null
+      }
+    ],
     "_DD_APM_TRACING_AGENTLESS_ENABLED": [
       {
         "implementation": "A",
@@ -6038,6 +6052,14 @@
         "implementation": "A",
         "type": "boolean",
         "default": null,
+        "internal": true
+      }
+    ],
+    "_DD_TRACE_METRICS_OTEL_FLUSH_INTERVAL": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "10000",
         "internal": true
       }
     ],
