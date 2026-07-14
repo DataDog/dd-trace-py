@@ -509,7 +509,8 @@ class TestOptPlugin:
             if deselected:
                 config.hook.pytest_deselected(items=deselected)
                 items[:] = selected
-                self._count_itr_deselected_tests(len(deselected))
+                if self._is_itr_skip_event_owner:
+                    self.session.tests_skipped_by_itr += len(deselected)
 
     def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
@@ -611,21 +612,6 @@ class TestOptPlugin:
                 test_module.finish()
                 self.manager.writer.put_item(test_module)
                 TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
-
-    def _count_itr_deselected_tests(self, deselected_count: int) -> None:
-        """Count test-level ITR deselections towards the session's ITR skip metric.
-
-        No synthetic skip events are sent for test-level deselects: a customer who needs spans for
-        ITR-skipped tests can set `DD_CIVISIBILITY_ITR_SKIP=1` to fall back to the skip-marker path,
-        where the test runs through the normal runtime path and gets a real event. This only updates
-        the count.
-
-        Under xdist, every worker performs a full, unsharded collection pass, so every worker would
-        compute the same `deselected_count` independently; only the elected owner (see
-        `_is_itr_skip_event_owner`) applies it, so the total isn't multiplied by worker count.
-        """
-        if self._is_itr_skip_event_owner:
-            self.session.tests_skipped_by_itr += deselected_count
 
     def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
