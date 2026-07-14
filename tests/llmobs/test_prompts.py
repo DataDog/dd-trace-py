@@ -10,10 +10,17 @@ import pytest
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.manager import _PromptRequest
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs.types import PromptAPIError
+from ddtrace.llmobs.types import PromptAuthError
+from ddtrace.llmobs.types import PromptConflictError
+from ddtrace.llmobs.types import PromptNotFoundError
+from ddtrace.llmobs.types import PromptServerError
+from ddtrace.llmobs.types import PromptValidationError
 from tests.utils import override_global_config
 
 
@@ -75,9 +82,11 @@ class MockHTTPResponse:
         self._body = body
 
     def read(self) -> bytes:
-        if isinstance(self._body, dict):
-            return json.dumps(self._body).encode("utf-8")
-        return self._body.encode("utf-8") if isinstance(self._body, str) else b""
+        if isinstance(self._body, str):
+            return self._body.encode("utf-8")
+        if self._body is None:
+            return b""
+        return json.dumps(self._body).encode("utf-8")
 
 
 class MockHTTPConnection:
@@ -536,17 +545,17 @@ class TestPrompts:
                 cfg.env = "production"
                 prompt = manager.get_prompt("greeting", targeting_key="u1")
         assert prompt.source == "resolve"
-        assert list(tmp_path.glob("*.json")) == []
+        assert list(tmp_path.rglob("*.json")) == []
 
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             manager.get_prompt("greeting", label="production")
-        assert list(tmp_path.glob("*.json"))
+        assert list(tmp_path.rglob("*.json"))
 
 
-def _make_manager(agentless=False):
+def _make_manager(app_key="test-app-key", agentless=False):
     return PromptManager(
         api_key="test-key",
-        app_key="test-app-key",
+        app_key=app_key,
         base_url="https://api.datadoghq.com",
         file_cache_enabled=False,
         agentless=agentless,
@@ -581,6 +590,180 @@ def _reset_ffe_global_config():
     _set_ffe_config(None)
     yield
     _set_ffe_config(None)
+
+
+def _mock_write_api(status=200, body=None):
+    """Create a mock API that captures request details."""
+    conn = MockHTTPConnection(MockHTTPResponse(status, body))
+    return conn, patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn)
+
+
+class TestPromptManagement:
+    """Tests for prompt management (write) operations."""
+
+    @pytest.mark.parametrize(
+        "status,exc_type",
+        [
+            (400, PromptValidationError),
+            (401, PromptAuthError),
+            (403, PromptAuthError),
+            (404, PromptNotFoundError),
+            (409, PromptConflictError),
+            (500, PromptServerError),
+            (503, PromptServerError),
+        ],
+    )
+    def test_request_error_status_codes(self, status, exc_type):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(status, {"detail": "something went wrong"})
+        with mock_patch:
+            with pytest.raises(exc_type) as exc_info:
+                manager.list_prompts()
+            assert exc_info.value.status == status
+
+    def test_delete_prompt_evicts_cache(self):
+        manager = _make_manager()
+        manager._hot_cache.set(
+            "my-prompt:production",
+            ManagedPrompt(id="my-prompt", version="v1", label="production", source="registry", template=[]),
+        )
+        assert len(manager._hot_cache) == 1
+
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch:
+            manager.delete_prompt("my-prompt")
+
+        assert len(manager._hot_cache) == 0
+
+    def test_enable_with_app_key_refreshes_manager_cached_by_read_path(self, tracer):
+        """Regression: a read path that builds the prompt manager before enable(app_key=...)
+        must not strand write APIs with the then-empty app key.
+        """
+        LLMObs._app_key = ""
+        with mock_api(200, TEXT_PROMPT_RESPONSE):
+            LLMObs.get_prompt("greeting")
+        assert LLMObs._prompt_manager is not None
+        assert LLMObs._prompt_manager._app_key == ""
+
+        LLMObs.enable(_tracer=tracer, app_key="new-app-key", agentless_enabled=False)
+
+        assert LLMObs._prompt_manager is None
+        assert LLMObs._ensure_prompt_manager()._app_key == "new-app-key"
+
+    def test_refresh_prompt_requires_api_key(self):
+        manager = _make_manager()
+        manager._headers["DD-API-KEY"] = ""
+        with pytest.raises(PromptAuthError):
+            manager.refresh_prompt("greeting")
+
+    def test_crud_requires_api_key_raises_prompt_auth_error(self):
+        with override_global_config(dict(_dd_api_key="")):
+            LLMObs._prompt_manager = None
+            with pytest.raises(PromptAuthError):
+                LLMObs.create_prompt("greeting", [{"role": "user", "content": "hi"}])
+
+    def test_request_transport_error_raises_prompt_api_error(self):
+        manager = _make_manager()
+        with patch.object(manager, "_http_request", side_effect=RuntimeError("connection failed")):
+            with pytest.raises(PromptAPIError) as exc_info:
+                manager.list_prompts()
+        assert exc_info.value.status == 0
+        assert "connection failed" in exc_info.value.detail
+
+    def test_request_status_error_records_crud_telemetry(self):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(500, {"detail": "boom"})
+        with mock_patch, patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record:
+            with pytest.raises(PromptServerError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptServerError", 500)
+
+    def test_request_transport_error_records_crud_telemetry(self):
+        manager = _make_manager()
+        with (
+            patch.object(manager, "_http_request", side_effect=RuntimeError("connection failed")),
+            patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record,
+        ):
+            with pytest.raises(PromptAPIError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptAPIError", 0)
+
+    def test_request_missing_api_key_records_crud_telemetry(self):
+        manager = _make_manager()
+        manager._headers["DD-API-KEY"] = ""
+        with patch("ddtrace.llmobs._prompts.manager.telemetry.record_prompt_crud_error") as record:
+            with pytest.raises(PromptAuthError):
+                manager.list_prompts()
+        record.assert_called_once_with("GET", "PromptAuthError", 0)
+
+    @pytest.mark.parametrize(
+        "response,call,expected",
+        [
+            (
+                {"ID": "prompt-uuid", "prompt_id": "p1"},
+                lambda m: m.delete_prompt("p1"),
+                {"id": "prompt-uuid", "prompt_id": "p1"},
+            ),
+            (
+                [{"ID": "prompt-uuid", "prompt_id": "p1"}],
+                lambda m: m.list_prompts(),
+                [{"id": "prompt-uuid", "prompt_id": "p1"}],
+            ),
+        ],
+    )
+    def test_request_normalizes_backend_id_key(self, response, call, expected):
+        manager = _make_manager()
+        _, mock_patch = _mock_write_api(200, response)
+        with mock_patch:
+            result = call(manager)
+        assert result == expected
+
+    def test_hot_evict_does_not_over_evict_colon_prefixed_ids(self):
+        """evict_prompt('foo') must not drop a different prompt 'foo:bar' that shares the key prefix."""
+        manager = _make_manager()
+        manager._hot_cache.set(
+            "foo:production",
+            ManagedPrompt(id="foo", version="v1", label="production", source="registry", template=[]),
+        )
+        manager._hot_cache.set(
+            "foo:bar:production",
+            ManagedPrompt(id="foo:bar", version="v1", label="production", source="registry", template=[]),
+        )
+        assert len(manager._hot_cache) == 2
+
+        manager._evict_prompt_caches("foo")
+
+        assert manager._hot_cache.get("foo:production") is None
+        assert manager._hot_cache.get("foo:bar:production") is not None
+
+    def test_warm_cache_distinct_ids_do_not_collide_on_path(self, tmp_path):
+        """Regression: 'a/b' and 'a_b' must not share a cache file (lossy sanitization served wrong prompts)."""
+        cache = WarmCache(cache_dir=str(tmp_path), ttl_seconds=60)
+        cache.set("a/b:", ManagedPrompt(id="a/b", version="v1", label=None, source="registry", template=[]))
+        cache.set("a_b:", ManagedPrompt(id="a_b", version="v2", label=None, source="registry", template=[]))
+
+        assert cache.get("a/b:")[0].id == "a/b"
+        assert cache.get("a_b:")[0].id == "a_b"
+
+    @pytest.mark.parametrize("call", [lambda m: m.update_prompt("p1"), lambda m: m.update_prompt_version("p1", 1)])
+    def test_update_requires_a_field(self, call):
+        with pytest.raises(PromptValidationError) as exc_info:
+            call(_make_manager())
+        assert exc_info.value.status == 0
+
+    @pytest.mark.parametrize(
+        "body,expected",
+        [("", {}), ("not json{", PromptServerError)],
+    )
+    def test_request_2xx_body_handling(self, body, expected):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, body)
+        with mock_patch:
+            if isinstance(expected, type) and issubclass(expected, Exception):
+                with pytest.raises(expected):
+                    manager.list_prompts()
+            else:
+                assert manager.delete_prompt("p1") == expected
 
 
 def test_hot_cache_lru_eviction():

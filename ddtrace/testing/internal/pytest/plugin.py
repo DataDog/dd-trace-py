@@ -1494,13 +1494,13 @@ def pytest_load_initial_conftests(
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
     # NOTE: Coverage collection decision tree:
-    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
-    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
-    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
-    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
-    # when we know if pytest-cov is available.
-    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only use our own coverage collector if report upload is not enabled
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
+    # Both can run simultaneously. CollectInContext.__enter__ dynamically detects other
+    # sys.monitoring tools (e.g. coverage.py) and disables the DISABLE optimisation + restart_events()
+    # to avoid corrupting their state.
+    # The coverage.py startup itself is handled later in pytest_configure.
+    if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
     yield
