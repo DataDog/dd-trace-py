@@ -69,10 +69,15 @@ def _derive_stats_url(config: "AgentConfig") -> str:
     return url
 
 
+def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
+    # OTLP traces export is active when OTEL_TRACES_EXPORTER=otlp and the user has not
+    # overridden the agent protocol version (which disables OTLP export).
+    return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version
+
+
 def _derive_trace_native_span_events(config: "AgentConfig") -> bool:
-    # When the OTLP traces export is used, always use native span events. However,
-    # DD_TRACE_AGENT_PROTOCOL_VERSION overrides the OTLP traces export configuration.
-    if env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version:
+    # When the OTLP traces export is used, always use native span events.
+    if config.trace_otlp_export_enabled:
         return True
     return config._trace_native_span_events
 
@@ -167,6 +172,7 @@ class AgentConfig(DDConfig):
         help_type="Boolean",
         help="Stores whether native span events are enabled",
     )
+    trace_otlp_export_enabled = DDConfig.d(bool, _derive_trace_otlp_export_enabled)
     trace_native_span_events = DDConfig.d(bool, _derive_trace_native_span_events)
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)

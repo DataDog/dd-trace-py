@@ -667,7 +667,8 @@ def _resolve_api_version(api_version: Optional[str] = None) -> str:
         default = "v0.4"
     resolved = api_version or config._trace_api or default
     if agent_config.trace_native_span_events:
-        log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
+        if not agent_config.trace_otlp_export_enabled:
+            log.warning("Setting api version to v0.4; DD_TRACE_NATIVE_SPAN_EVENTS is not compatible with v0.5")
         resolved = "v0.4"
     if config._llmobs_enabled and resolved != "v0.4":
         log.warning(
