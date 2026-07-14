@@ -129,7 +129,7 @@ class ThreadInfo
 
 // ----------------------------------------------------------------------------
 
-using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
+using PyThreadStateCallback = std::function<void(const PyThreadState*, ThreadInfo&)>;
 
 void
 for_each_thread(

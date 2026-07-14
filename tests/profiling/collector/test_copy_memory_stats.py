@@ -43,6 +43,10 @@ def test_copy_memory_error_count_present():
         assert "fast_copy_memory_syscall_fallback" in metadata, (
             f"Missing fast_copy_memory_syscall_fallback in {f}: {metadata}"
         )
+        assert "fast_copy_memory_desired" in metadata, f"Missing fast_copy_memory_desired in {f}: {metadata}"
+        assert "fast_copy_memory_foreign_takeover" in metadata, (
+            f"Missing fast_copy_memory_foreign_takeover in {f}: {metadata}"
+        )
 
 
 @pytest.mark.subprocess(
@@ -83,6 +87,8 @@ def test_fast_copy_memory_disabled():
             )
             assert metadata["fast_copy_memory_user_disabled"] is True, metadata
             assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
+            assert metadata["fast_copy_memory_desired"] is False, metadata
+            assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="stack v2 profiler is not available on Windows")
@@ -143,6 +149,8 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
+    assert metadata["fast_copy_memory_desired"] is True, metadata
+    assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
     if saw_warmup:
         assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
@@ -203,6 +211,9 @@ def test_fast_copy_reinstall_segv_handler_works_during_warmup() -> None:
 )
 def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
     """Foreign takeover forces permanent syscall-copy fallback."""
+    import glob
+    import json
+    import os
     import signal
     import time
 
@@ -241,6 +252,16 @@ def test_fast_copy_falls_back_and_does_not_reclaim_after_takeover() -> None:
         assert _stack.fast_copy_memory_active() is False, "fast copy must stay disabled after a foreign takeover"
     finally:
         p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    assert files, "Expected at least one internal_metadata.json file"
+    with open(files[-1]) as fp:
+        metadata = json.load(fp)
+    assert metadata["fast_copy_memory_desired"] is True, metadata
+    assert metadata["fast_copy_memory_enabled"] is False, metadata
+    assert metadata["fast_copy_memory_syscall_fallback"] is True, metadata
+    assert metadata["fast_copy_memory_foreign_takeover"] is True, metadata
 
     print("OK")
 

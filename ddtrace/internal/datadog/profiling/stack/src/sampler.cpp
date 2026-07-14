@@ -364,11 +364,11 @@ Sampler::sampling_thread(const uint64_t seq_num)
                   for_each_thread(
                     *echion,
                     interp,
-                    [&](PyThreadState* tstate, ThreadInfo& thread) {
+                    [&](const PyThreadState* tstate, ThreadInfo& thread) {
                         if (!ensure_fast_copy_safe(true)) {
                             return;
                         }
-                        auto success = thread.sample(*echion, tstate, wall_time_us);
+                        auto success = thread.sample(*echion, const_cast<PyThreadState*>(tstate), wall_time_us);
                         if (success) {
                             Sample::profile_borrow().stats().increment_sample_count();
                         }
@@ -385,7 +385,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                   for_each_thread(
                     *echion,
                     interp,
-                    [&](PyThreadState* tstate, ThreadInfo& /*thread*/) { thread_candidates.push_back(*tstate); },
+                    [&](const PyThreadState* tstate, ThreadInfo& /*thread*/) { thread_candidates.push_back(*tstate); },
                     continue_traversal);
               },
               continue_traversal);

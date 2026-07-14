@@ -139,6 +139,30 @@ Datadog::ProfilerStats::get_fast_copy_memory_syscall_fallback() const
 }
 
 void
+Datadog::ProfilerStats::set_fast_copy_memory_desired(bool desired)
+{
+    fast_copy_memory_desired = desired;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_desired() const
+{
+    return fast_copy_memory_desired;
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_foreign_takeover(bool takeover)
+{
+    fast_copy_memory_foreign_takeover = takeover;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_foreign_takeover() const
+{
+    return fast_copy_memory_foreign_takeover;
+}
+
+void
 Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
 {
     if (auto value = other.get_fast_copy_memory_user_disabled()) {
@@ -149,6 +173,12 @@ Datadog::ProfilerStats::copy_fast_copy_metadata_from(const ProfilerStats& other)
     }
     if (auto value = other.get_fast_copy_memory_syscall_fallback()) {
         set_fast_copy_memory_syscall_fallback(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_desired()) {
+        set_fast_copy_memory_desired(*value);
+    }
+    if (auto value = other.get_fast_copy_memory_foreign_takeover()) {
+        set_fast_copy_memory_foreign_takeover(*value);
     }
     if (auto value = other.get_fast_copy_memory_enabled()) {
         set_fast_copy_memory_enabled(*value);
