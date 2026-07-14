@@ -103,6 +103,8 @@ def test_fast_copy_memory_enabled() -> None:
 
     _stack._set_fast_copy_warmup_seconds(1.0)
 
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+
     p: profiler.Profiler = profiler.Profiler(tracer=tracer)
     p.start()
 
@@ -121,18 +123,39 @@ def test_fast_copy_memory_enabled() -> None:
             break
         time.sleep(0.05)
 
+    # When process_vm_readv is unavailable the sampler skips warmup and stays on safe_memcpy.
+    if not saw_upgrade and _stack.fast_copy_memory_active():
+        saw_upgrade = True
+
+    # Wait for a metadata upload cycle while the profiler is still running so
+    # fast_copy_memory_enabled reflects the post-warmup state before stop().
+    metadata = None
+    if saw_upgrade:
+        meta_deadline = time.monotonic() + 5
+        while time.monotonic() < meta_deadline:
+            files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+            if files:
+                with open(files[-1]) as fp:
+                    candidate = json.load(fp)
+                if candidate.get("fast_copy_memory_enabled") is True:
+                    metadata = candidate
+                    break
+            time.sleep(0.1)
+
     p.stop()
 
-    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
-    assert files, "Expected at least one internal_metadata.json file"
+    if metadata is None:
+        files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+        assert files, "Expected at least one internal_metadata.json file"
+        with open(files[-1]) as fp:
+            metadata = json.load(fp)
 
-    with open(files[-1]) as fp:
-        metadata = json.load(fp)
     assert metadata["fast_copy_memory_user_disabled"] is False, metadata
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
 
-    assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
-    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
+    if saw_warmup:
+        assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
+    else:
+        assert saw_upgrade, "Expected safe_memcpy to stay active when warmup is skipped"

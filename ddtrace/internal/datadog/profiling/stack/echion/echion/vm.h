@@ -54,6 +54,9 @@ inline kern_return_t (*safe_copy)(vm_map_read_t,
 // Whether safe_copy is currently set to the memcpy-based wrapper.
 inline bool fast_copy_active = false;
 
+// User wants fast copy (set at init); survives warmup toggling fast_copy_active.
+inline bool fast_copy_requested = false;
+
 // User opted out via _DD_PROFILING_STACK_FAST_COPY or set_fast_copy(false).
 inline bool fast_copy_user_disabled = false;
 
