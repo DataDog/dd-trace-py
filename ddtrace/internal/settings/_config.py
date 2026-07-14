@@ -26,7 +26,7 @@ from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
-from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
