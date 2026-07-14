@@ -122,7 +122,6 @@ after the ``with`` block exits. For example::
 import contextvars
 import logging
 import types
-import typing
 from typing import Any  # noqa:F401
 from typing import Generic
 from typing import Optional  # noqa:F401
