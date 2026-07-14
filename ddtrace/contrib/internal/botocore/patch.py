@@ -41,6 +41,7 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
 
+from .services.bedrock import _resolve_inference_profile_in_progress
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -206,6 +207,9 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "bedrock_resolve_inference_profile": asbool(
+            env.get("DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE", default=False)
+        ),
         "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
@@ -273,6 +277,10 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
+
+    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
+    if _resolve_inference_profile_in_progress.get():
+        return original_func(*args, **kwargs)
     with (
         core.context_with_data(
             "botocore.instrumented_lib_function",
@@ -288,6 +296,11 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 @with_traced_module
 def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
+        return original_func(*args, **kwargs)
+
+    # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
+    # application-inference-profile ARN, so it doesn't emit a stray span.
+    if _resolve_inference_profile_in_progress.get():
         return original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
