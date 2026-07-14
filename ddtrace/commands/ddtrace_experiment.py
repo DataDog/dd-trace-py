@@ -188,6 +188,7 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
     comparator = runner.comparator_from_spec(args.comparator, ignore)
     ie._set_mode(ie.Mode.REPLAY)
     total: dict[str, int] = {}
+    report: dict[str, Any] = {}
     compared = False
     try:
         for name, cases in runner.subject_items(baselines):  # skips the reserved `_publish` block
@@ -197,7 +198,9 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
                 print("  (skipping %r — not registered by %r)" % (name, args.target))
                 continue
             compared = True
-            counts = _print_report(name, runner.replay(name, comparator, cases=cases, score_evaluators=args.evaluate))
+            rows = runner.replay(name, comparator, cases=cases, score_evaluators=args.evaluate)
+            counts = _print_report(name, rows)
+            report[name] = {"counts": counts, "cases": rows}  # full, untruncated
             for k, v in counts.items():
                 total[k] = total.get(k, 0) + v
     finally:
@@ -206,6 +209,12 @@ def _run_compare_offline(args: Any, ie: Any, runner: Any, baseline_file: str) ->
         which = "subject %r" % args.name if args.name else "any registered subject"
         print("run: no baseline cases for %s in %s." % (which, baseline_file), file=sys.stderr)
         sys.exit(2)
+    if args.report:
+        import json
+
+        with open(args.report, "w") as f:
+            json.dump(report, f, default=str, indent=2)
+        print("full report (untruncated input/recorded/new + evals) -> %s" % os.path.abspath(args.report))
     gate = ("CHANGED", "ERROR", "NO_END", "EVAL_FAIL", "EVAL_ERROR")
     sys.exit(1 if any(total.get(k) for k in gate) else 0)
 
@@ -370,6 +379,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--comparator", default="structural", choices=["exact", "structural", "ignoring"], help="default: structural"
     )
     run.add_argument("--ignore", default="", help="comma-separated keys to ignore (implies the 'ignoring' comparator)")
+    run.add_argument(
+        "--report",
+        nargs="?",
+        const=".llmobs_experiments.report.json",
+        default=None,
+        help="write the FULL (untruncated) offline comparison — per-case input / recorded / new + all "
+        "evaluator verdicts and reasoning — to a JSON file (default: .llmobs_experiments.report.json). "
+        "The terminal report stays a compact summary.",
+    )
     run.add_argument(
         "--evaluate",
         action="store_true",
