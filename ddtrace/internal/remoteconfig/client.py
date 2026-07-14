@@ -179,6 +179,17 @@ class RemoteConfigClient:
         if self._native is not None:
             self._native.add_capabilities(caps)
 
+    def update_capabilities(self, mask, capabilities) -> None:
+        # Replace the capabilities within `mask` by `capabilities` (their intersection
+        # with `mask`), leaving others untouched. Unlike `add_capabilities`, this can
+        # *clear* bits, so re-advertising follows one-click activation/deactivation.
+        mask_set = set(mask)
+        active = [c for c in capabilities if c in mask_set]
+        self._capability_values = [c for c in self._capability_values if c not in mask_set]
+        self._capability_values.extend(active)
+        if self._native is not None:
+            self._native.update_capabilities(list(mask_set), active)
+
     def reset_products(self) -> None:
         self._product_callbacks = dict()
         self._enabled_products = set()

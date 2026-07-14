@@ -165,17 +165,23 @@ def test_rc_activation_capabilities(tracer, rc_poller, env_rules, expected):
 
 
 def test_rc_capabilities_updated_after_one_click_activation(tracer, rc_poller):
-    """Regression test for capabilities not being advertised after one-click activation.
+    """Regression test: advertised capabilities must follow one-click ASM activation/deactivation.
 
-    Capabilities are computed once at registration time (while AppSec is still disabled
-    for a remotely-activated service) and the RC client only accumulates them. Before the
-    fix, the client kept advertising only ASM_ACTIVATION after a one-click activation, so
-    the backend reported "UPDATE REQUIRED" for blocking even though it was fully functional.
-    The client bitmask must reflect the live ASM state after activation and deactivation.
+    Capabilities are registered once (while AppSec is still disabled for a remotely-activated
+    service). The client must *re-advertise* blocking/RASP once ASM is turned on and *drop*
+    them again when it is turned off, otherwise the backend reports "UPDATE REQUIRED" for
+    blocking even though it is functional. This exercises the appsec wiring
+    (``_appsec_callback`` -> ``update_capabilities(_ALL_ASM_CAPABILITIES, _rc_capabilities())``);
+    the replace-within-mask mechanics themselves are covered by the native RC tests.
     """
     from ddtrace.appsec._capabilities import _ALL_ASM_BLOCKING
-    from ddtrace.appsec._capabilities import Flags
     from ddtrace.appsec._capabilities import _rc_capabilities
+    from ddtrace.internal.native import RemoteConfigCapabilities as Cap
+
+    def advertised():
+        # The native adapter buffers the capabilities it advertises to the agent as a
+        # list of RemoteConfigCapabilities; a set makes membership assertions order-safe.
+        return set(rc_poller._client._capability_values)
 
     enable_config = [build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")]
     disable_config = [build_payload("ASM_FEATURES", {"asm": {}}, "config")]
@@ -183,22 +189,22 @@ def test_rc_capabilities_updated_after_one_click_activation(tracer, rc_poller):
     with override_global_config(dict(_remote_config_enabled=True, _asm_enabled=False, _asm_can_be_enabled=True)):
         enable_appsec_rc()
 
-        # AppSec is not enabled yet (remote activation pending): no blocking capabilities.
-        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == 0
-        assert rc_poller._client._capabilities & int(Flags.ASM_ACTIVATION)
+        # AppSec is not enabled yet (remote activation pending): activation only, no blocking.
+        assert Cap.AsmActivation in advertised()
+        assert advertised().isdisjoint(_ALL_ASM_BLOCKING)
 
         # One-click activation: blocking (and RASP) capabilities must now be advertised.
         _appsec_callback(enable_config)
         assert asm_config._asm_enabled
-        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == int(_ALL_ASM_BLOCKING)
-        assert rc_poller._client._capabilities == int(_rc_capabilities())
+        assert set(_ALL_ASM_BLOCKING) <= advertised()
+        assert advertised() == set(_rc_capabilities())
 
         # One-click deactivation: blocking capabilities must be dropped again.
         _appsec_callback(disable_config)
         assert not asm_config._asm_enabled
-        assert rc_poller._client._capabilities & int(_ALL_ASM_BLOCKING) == 0
-        assert rc_poller._client._capabilities & int(Flags.ASM_ACTIVATION)
-        assert rc_poller._client._capabilities == int(_rc_capabilities())
+        assert Cap.AsmActivation in advertised()
+        assert advertised().isdisjoint(_ALL_ASM_BLOCKING)
+        assert advertised() == set(_rc_capabilities())
 
     disable_appsec_rc()
 

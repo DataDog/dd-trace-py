@@ -8,6 +8,9 @@ reader). The TUF parsing/reconciliation itself is unit-tested in libdatadog's
 Rust crate; here we validate the Python integration and the SHM/fork wiring.
 """
 
+import base64
+import copy
+import hashlib
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
@@ -165,6 +168,116 @@ def test_capabilities_reported_to_agent():
         (1 << int(RemoteConfigCapabilities.AsmActivation)) | (1 << int(RemoteConfigCapabilities.LlmObsActivation))
     ).to_bytes(7, "big")
     assert caps == expected
+
+
+def test_update_capabilities_replaces_within_mask():
+    # update_capabilities replaces the bits within `mask` with the given subset,
+    # so it can *clear* previously-advertised capabilities (unlike add_capabilities)
+    # while leaving capabilities outside the mask untouched.
+    with _MockAgent([RESPONSES[1], RESPONSES[1]]) as agent:
+        client, _ = _client(agent.url)
+        client.add_capabilities([RemoteConfigCapabilities.LlmObsActivation])
+        mask = [RemoteConfigCapabilities.AsmActivation, RemoteConfigCapabilities.AsmIpBlocking]
+        client.update_capabilities(mask, [RemoteConfigCapabilities.AsmActivation])
+        client.request()
+
+        # Now deactivate: clear the ASM bits within the same mask.
+        client.update_capabilities(mask, [])
+        client.request()
+
+    first = int.from_bytes(bytes(agent.requests[0]["client"]["capabilities"]), "big")
+    assert first & (1 << int(RemoteConfigCapabilities.AsmActivation))  # set within mask
+    assert first & (1 << int(RemoteConfigCapabilities.LlmObsActivation))  # untouched, outside mask
+    assert not first & (1 << int(RemoteConfigCapabilities.AsmIpBlocking))  # in mask but not active
+
+    second = int.from_bytes(bytes(agent.requests[1]["client"]["capabilities"]), "big")
+    assert not second & (1 << int(RemoteConfigCapabilities.AsmActivation))  # cleared
+    assert second & (1 << int(RemoteConfigCapabilities.LlmObsActivation))  # still untouched
+
+
+def _config_state(agent, request_index, config_id="ASM_FEATURES-base"):
+    """Extract a config's reported apply state from a captured outbound request.
+
+    ``config_states`` are built from the previous poll's applied set, so they
+    first appear on the poll *after* the config was received.
+    """
+    state = agent.requests[request_index]["client"].get("state") or {}
+    for cs in state.get("config_states") or []:
+        if cs["id"] == config_id:
+            return cs
+    return None
+
+
+def _malformed_response():
+    """A response whose target file is hash-valid but not valid JSON.
+
+    Content integrity (base64 + sha256) is verified in libdatadog, so the hash
+    in the signed targets must match; TUF signatures are not verified against a
+    trusted agent, so patching the targets blob in place is sufficient.
+    """
+    resp = copy.deepcopy(RESPONSES[1])
+    content = b"this-is-not-json{{{"
+    resp["target_files"][0]["raw"] = base64.b64encode(content).decode()
+    targets = json.loads(base64.b64decode(resp["targets"]))
+    entry = targets["signed"]["targets"][BASE_PATH]
+    entry["hashes"]["sha256"] = hashlib.sha256(content).hexdigest()
+    entry["length"] = len(content)
+    resp["targets"] = base64.b64encode(json.dumps(targets).encode()).decode()
+    return resp
+
+
+def test_apply_state_acknowledged_reported_to_agent():
+    # A config is reported to the agent as ACKNOWLEDGED (apply_state=2) only
+    # after it has been applied. Apply is synchronous in the polling process, so
+    # by the poll that reports the state the product callback has already run.
+    # See PR #18750 (acknowledge only after the product applies the config).
+    with _MockAgent([RESPONSES[1]]) as agent:  # holds at the last response when exhausted
+        client, sink = _client(agent.url)
+        assert client.request() is True  # poll 1: receive + apply base config
+        assert client.request() is True  # poll 2: report applied state to the agent
+
+    # Poll 1 carried no config_states yet (nothing applied); poll 2 reports it.
+    assert _config_state(agent, 0) is None
+    applied = _config_state(agent, 1)
+    assert applied is not None and applied["apply_state"] == 2, agent.requests[1]
+    assert not applied.get("apply_error")
+
+
+def test_apply_state_acknowledged_even_when_callback_raises():
+    # A delivered config is acknowledged (apply_state=2) regardless of whether
+    # the product callback raised: the failure is surfaced via the product's own
+    # telemetry, not by leaving the config un-acknowledged. Malformed content is
+    # the only case reported as errored (see next test). Per PR #18750.
+    class _RaisingSink(RCCallback):
+        def __call__(self, payloads):
+            raise RuntimeError("callback boom")
+
+    with _MockAgent([RESPONSES[1]]) as agent:
+        client = RemoteConfigClient()
+        client.agent_url = agent.url
+        client.register_callback(RemoteConfigProduct.AsmFeatures, _RaisingSink())
+        client.enable_product(RemoteConfigProduct.AsmFeatures)
+        assert client.request() is True  # callback raises but is contained
+        assert client.request() is True
+
+    applied = _config_state(agent, 1)
+    assert applied is not None and applied["apply_state"] == 2, agent.requests[1]
+
+
+def test_apply_state_error_reported_for_malformed_content():
+    # A hash-valid config whose content is not valid JSON cannot be deserialized;
+    # it is the one case reported to the agent as ERROR (apply_state=3) with an
+    # apply_error, and it is never dispatched to the product callback. Per PR #18750.
+    with _MockAgent([_malformed_response()]) as agent:
+        client, sink = _client(agent.url)
+        assert client.request() is True
+        assert client.request() is True
+
+    errored = _config_state(agent, 1)
+    assert errored is not None and errored["apply_state"] == 3, agent.requests[1]
+    assert errored.get("apply_error")
+    # The malformed config is never handed to the product callback.
+    assert sink.batches == [] or all(p.path != BASE_PATH for b in sink.batches for p in b)
 
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")

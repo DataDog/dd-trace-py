@@ -241,6 +241,18 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
+    def update_capabilities(
+        self,
+        mask: "Iterable[RemoteConfigCapabilities]",
+        capabilities: "Iterable[RemoteConfigCapabilities]",
+    ) -> None:
+        """Replace the advertised capabilities within ``mask`` by ``capabilities``.
+
+        Unlike register/add, this can *clear* capabilities, so a product (e.g. ASM)
+        can shrink the set it advertises when it is deactivated at runtime.
+        """
+        self._client.update_capabilities(mask, capabilities)
+
     def enable_product(self, product: "RemoteConfigProduct") -> None:
         """Enable a product to be included in client payloads.
 

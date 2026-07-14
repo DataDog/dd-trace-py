@@ -15,8 +15,8 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use libdd_common_local::tag::Tag;
-use libdd_common_local::Endpoint;
+use libdd_common::tag::Tag;
+use libdd_common::Endpoint;
 use libdd_remote_config::fetch::{
     ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
 };
@@ -25,6 +25,7 @@ use libdd_remote_config::{
     RemoteConfigCapabilities as RemoteConfigCapabilitiesNative, RemoteConfigPath,
     RemoteConfigProduct as RemoteConfigProductNative, Target,
 };
+use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -104,7 +105,7 @@ struct Inner {
 #[pyclass(frozen)]
 pub struct RemoteConfigClient {
     inner: Mutex<Inner>,
-    runtime: Arc<libdd_shared_runtime::SharedRuntime>,
+    runtime: Arc<ForkSafeRuntime>,
 }
 
 impl RemoteConfigClient {
@@ -195,6 +196,28 @@ impl RemoteConfigClient {
             capabilities
                 .into_iter()
                 .map(RemoteConfigCapabilitiesNative::from),
+        );
+    }
+
+    /// Replace the capabilities within `mask` by `capabilities` (their intersection
+    /// with `mask`), leaving capabilities outside `mask` untouched. Unlike
+    /// [`add_capabilities`], this can *clear* bits — used to follow one-click
+    /// activation/deactivation, where the set of advertised capabilities shrinks
+    /// again once a product is turned off.
+    fn update_capabilities(
+        &self,
+        mask: Vec<RemoteConfigCapabilities>,
+        capabilities: Vec<RemoteConfigCapabilities>,
+    ) {
+        let mask: HashSet<RemoteConfigCapabilitiesNative> =
+            mask.into_iter().map(Into::into).collect();
+        let mut inner = self.lock();
+        inner.capabilities.retain(|c| !mask.contains(c));
+        inner.capabilities.extend(
+            capabilities
+                .into_iter()
+                .map(RemoteConfigCapabilitiesNative::from)
+                .filter(|c| mask.contains(c)),
         );
     }
 
