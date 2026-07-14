@@ -17,6 +17,15 @@ class OpenFeatureConfig(DDConfig):
         default=False,
     )
 
+    # Killswitch for the EVP `flagevaluation` evaluation-counts path. Default on; gates
+    # ONLY the EVP flagevaluation writer/hook. The existing OTel `feature_flag.evaluations`
+    # path is unaffected by this flag.
+    flagging_evaluation_counts_enabled = DDConfig.var(
+        bool,
+        "DD_FLAGGING_EVALUATION_COUNTS_ENABLED",
+        default=True,
+    )
+
     # Feature flag exposure intake configuration
     ffe_intake_enabled = DDConfig.var(
         bool,
@@ -41,6 +50,7 @@ class OpenFeatureConfig(DDConfig):
 
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
+        "flagging_evaluation_counts_enabled",
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
         "initialization_timeout_ms",
