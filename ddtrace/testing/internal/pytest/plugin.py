@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from functools import lru_cache
+import inspect
 from io import StringIO
 import logging
 from pathlib import Path
@@ -9,6 +10,8 @@ import random
 import traceback
 import typing as t
 
+from _pytest import hookspec as pytest_hookspec
+from _pytest.reports import TestReport
 from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
@@ -69,6 +72,19 @@ except (ImportError, AttributeError):
     _pytest_timeout_get_item_settings = None
 
 
+try:
+    pytest.hookimpl(specname="pytest_runtest_protocol")(lambda: None)
+    _HOOKIMPL_SUPPORTS_SPECNAME = True
+except TypeError:
+    # pluggy < 1.0.0 (used by pytest 6) does not accept specname=. Keep module importable;
+    # TestOptPluginWithProtocol has an inline fallback for these environments.
+    _HOOKIMPL_SUPPORTS_SPECNAME = False
+
+_PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH = (
+    "collection_path" in inspect.signature(pytest_hookspec.pytest_ignore_collect).parameters
+)
+
+
 if t.TYPE_CHECKING:
     from _pytest.terminal import TerminalReporter
 
@@ -79,10 +95,32 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    _HAS_STASH = True
 except AttributeError:
-    # Fallback for pytest < 7.0 - use a simple key
-    # (older pytest versions don't have StashKey)
+    # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
+    # Do not check pytest.Config.stash at class level: on supported pytest versions, stash is an instance attribute.
+    _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+
+
+def _stash_set(config, key, value):
+    """Store a value on a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        config.stash[key] = value
+    else:
+        setattr(config, "_dd_" + str(key), value)
+
+
+def _stash_get(config, key, default=None):
+    """Retrieve a value from a pytest Config, using config.stash on pytest >= 7.0
+    and a private attribute on older versions.
+    """
+    if _HAS_STASH:
+        return config.stash.get(key, default)
+    return getattr(config, "_dd_" + str(key), default)
+
 
 TEST_FRAMEWORK = "pytest"
 
@@ -453,7 +491,7 @@ class TestOptPlugin:
                 config.hook.pytest_deselected(items=deselected)
             items[:] = selected
 
-    def pytest_ignore_collect(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
+    def _pytest_ignore_collect_impl(self, collection_path: Path, config: pytest.Config) -> t.Optional[bool]:
         """Skip collection of entire test files whose suite is ITR-skippable.
 
         This fires before the file is imported, saving the cost of module import and test discovery.
@@ -624,7 +662,6 @@ class TestOptPlugin:
             # Use xfail so failures don't break the pipeline. Works regardless of who drives test execution.
             item.add_marker(pytest.mark.xfail(strict=False, reason="dd_quarantined", run=True))
 
-    @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
     ) -> t.Generator[None, None, None]:
@@ -696,6 +733,14 @@ class TestOptPlugin:
             test_module.finish()
             self.manager.writer.put_item(test_module)
             TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+    if _HOOKIMPL_SUPPORTS_SPECNAME:
+        pytest_runtest_protocol_wrapper = pytest.hookimpl(
+            tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol"
+        )(pytest_runtest_protocol_wrapper)
+    else:
+        pytest_runtest_protocol = pytest.hookimpl(tryfirst=True, hookwrapper=True)(pytest_runtest_protocol_wrapper)
+        del pytest_runtest_protocol_wrapper
 
     def _reset_pytest_timeout(self, item: pytest.Item) -> None:
         """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
@@ -1109,6 +1154,22 @@ class TestOptPlugin:
         print_test_report_links(terminalreporter, self.manager)
 
 
+def _pytest_ignore_collect_collection_path(
+    self: TestOptPlugin, collection_path: Path, config: pytest.Config
+) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(collection_path, config)
+
+
+def _pytest_ignore_collect_path(self: TestOptPlugin, path: t.Any, config: pytest.Config) -> t.Optional[bool]:
+    return self._pytest_ignore_collect_impl(Path(str(path)), config)
+
+
+if _PYTEST_IGNORE_COLLECT_USES_COLLECTION_PATH:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_collection_path)
+else:
+    setattr(TestOptPlugin, "pytest_ignore_collect", _pytest_ignore_collect_path)
+
+
 class TestOptPluginWithProtocol(TestOptPlugin):
     """
     TestOptPlugin subclass that registers pytest_runtest_protocol, taking ownership of test execution and retries.
@@ -1139,10 +1200,73 @@ class TestOptPluginWithProtocol(TestOptPlugin):
 
     @catch_and_log_exceptions()
     def pytest_runtest_protocol(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        # In pytest 6 (pluggy < 1.0.0), the base class's pytest_runtest_protocol_wrapper
+        # (registered via specname="pytest_runtest_protocol") does not fire as a hookwrapper.
+        # We detect this by checking whether tests_by_nodeid was populated by the wrapper.
+        # If not, we perform the full setup+run+teardown lifecycle here.
+        if item.nodeid not in self.tests_by_nodeid:
+            return self._protocol_with_setup(item, nextitem)
+
         item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
         self._do_test_runs(item, nextitem)
         item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
         return True  # Do not run other pytest_runtest_protocol hooks after this one.
+
+    def _protocol_with_setup(self, item: pytest.Item, nextitem: t.Optional[pytest.Item]) -> bool:
+        """Full test protocol including lifecycle setup and teardown.
+
+        Used in pytest 6 where pluggy does not support the ``specname`` parameter on
+        ``@pytest.hookimpl``, so the base class ``pytest_runtest_protocol_wrapper``
+        (which relies on ``specname="pytest_runtest_protocol"``) never fires as a hookwrapper.
+        This method replicates the wrapper's behaviour inline so that EFD retries,
+        span tracking, and event emission all work correctly.
+        """
+        test_ref = item_to_test_ref(item)
+        next_test_ref = item_to_test_ref(nextitem) if nextitem else None
+
+        test_module, test_suite, test = self._discover_test(item, test_ref)
+
+        if not test_module.is_started():
+            test_module.start()
+            TelemetryAPI.get().record_module_created(test_framework=TEST_FRAMEWORK)
+
+        if not test_suite.is_started():
+            test_suite.start()
+            TelemetryAPI.get().record_suite_created(test_framework=TEST_FRAMEWORK)
+
+        test.start()
+        self.tests_by_nodeid[item.nodeid] = test
+        self._handle_itr(item, test_ref, test)
+        self._apply_test_management_markers(item, test)
+
+        with trace_context(self.enable_ddtrace_trace_filter) as _context:
+            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+            with coverage_collection() as coverage_data:
+                item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
+                self._do_test_runs(item, nextitem)
+                item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
+            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+
+        test.finish()
+
+        self.manager.coverage_writer.put_coverage(
+            test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
+        )
+
+        if not next_test_ref or test_ref.suite != next_test_ref.suite:
+            self.manager._set_suite_source_location(test_suite)
+            if codeowners := test.tags.get(TestTag.CODEOWNERS):
+                test_suite.tags[TestTag.CODEOWNERS] = codeowners
+            test_suite.finish()
+            self.manager.writer.put_item(test_suite)
+            TelemetryAPI.get().record_suite_finished(test_framework=TEST_FRAMEWORK)
+
+        if not next_test_ref or test_ref.suite.module != next_test_ref.suite.module:
+            test_module.finish()
+            self.manager.writer.put_item(test_module)
+            TelemetryAPI.get().record_module_finished(test_framework=TEST_FRAMEWORK)
+
+        return True
 
 
 class RetryReports:
@@ -1216,7 +1340,7 @@ class RetryReports:
         if test.is_flaky_run():
             extra_user_properties += [("dd_flaky", True)]
 
-        final_report = pytest.TestReport(
+        final_report = TestReport(
             nodeid=item.nodeid,
             location=item.location,
             keywords={k: 1 for k in item.keywords},
@@ -1367,16 +1491,16 @@ def pytest_load_initial_conftests(
         yield
         return
 
-    early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
+    _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
     # NOTE: Coverage collection decision tree:
-    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
-    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
-    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
-    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
-    # when we know if pytest-cov is available.
-    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
-        # Only use our own coverage collector if report upload is not enabled
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
+    # Both can run simultaneously. CollectInContext.__enter__ dynamically detects other
+    # sys.monitoring tools (e.g. coverage.py) and disables the DISABLE optimisation + restart_events()
+    # to avoid corrupting their state.
+    # The coverage.py startup itself is handled later in pytest_configure.
+    if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
     yield
@@ -1409,7 +1533,7 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.register(_ddtrace_discovery, "_ddtrace_discovery")
         return
 
-    session_manager = config.stash.get(SESSION_MANAGER_STASH_KEY, None)
+    session_manager = _stash_get(config, SESSION_MANAGER_STASH_KEY, None)
     if not session_manager:
         log.debug("Session manager not initialized (plugin was not enabled)")
         return
@@ -1457,8 +1581,11 @@ def pytest_configure(config: pytest.Config) -> None:
     if config.pluginmanager.hasplugin("xdist"):
         config.pluginmanager.register(XdistTestOptPlugin(plugin))
 
-    if config.pluginmanager.hasplugin("pytest-bdd"):
-        config.pluginmanager.register(BddTestOptPlugin(plugin))
+    if config.pluginmanager.hasplugin("pytest-bdd") or config.pluginmanager.hasplugin("bdd"):
+        try:
+            config.pluginmanager.register(BddTestOptPlugin(plugin))
+        except Exception:
+            log.debug("Could not register BDD plugin integration (pytest-bdd may not be installed)", exc_info=True)
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
